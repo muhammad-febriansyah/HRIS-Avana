@@ -24,10 +24,13 @@ class AccessController extends Controller
 
     /**
      * Roles that implicitly hold every permission (rendered as a full row).
+     * Only super_admin is immutable; every other role — including
+     * admin_tenant_hr — reflects its real permissions so the matrix stays in
+     * sync with the sidebar (which is permission-driven via AvanaNav).
      *
      * @var array<int, string>
      */
-    private const PRIVILEGED_ROLES = ['super_admin', 'admin_tenant_hr'];
+    private const PRIVILEGED_ROLES = ['super_admin'];
 
     /**
      * Avatar colours cycled across the role cards.
