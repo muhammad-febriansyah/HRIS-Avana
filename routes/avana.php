@@ -2,8 +2,10 @@
 
 use App\Http\Controllers\Avana\AccessController;
 use App\Http\Controllers\Avana\AttendanceController;
+use App\Http\Controllers\Avana\CompanySetupController;
 use App\Http\Controllers\Avana\EmployeeController;
 use App\Http\Controllers\Avana\FeatureController;
+use App\Http\Controllers\Avana\LaporanController;
 use App\Http\Controllers\Avana\LeaveController;
 use App\Http\Controllers\Avana\PayrollController;
 use App\Http\Controllers\Avana\PositionComponentController;
@@ -23,7 +25,6 @@ Route::prefix('avana')->name('avana.')->group(function () {
     Route::get('karyawan/{id}', fn (int $id) => Inertia::render('avana/karyawan/show', ['id' => $id]))->name('karyawan.show');
 
     Route::inertia('ess', 'avana/ess')->name('ess');
-    Route::inertia('laporan', 'avana/stub')->name('laporan');
 });
 
 /*
@@ -53,4 +54,12 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
 
     Route::get('fitur', [FeatureController::class, 'index'])->name('fitur');
     Route::post('fitur/toggle', [FeatureController::class, 'toggle'])->name('fitur.toggle');
+
+    Route::get('perusahaan', [CompanySetupController::class, 'index'])->name('perusahaan');
+    Route::post('perusahaan/{entity}', [CompanySetupController::class, 'store'])->name('perusahaan.store');
+    Route::put('perusahaan/{entity}/{record}', [CompanySetupController::class, 'update'])->name('perusahaan.update');
+    Route::delete('perusahaan/{entity}/{record}', [CompanySetupController::class, 'destroy'])->name('perusahaan.destroy');
+
+    Route::get('laporan', [LaporanController::class, 'index'])->name('laporan');
+    Route::get('laporan/export/{type}', [LaporanController::class, 'export'])->name('laporan.export');
 });
