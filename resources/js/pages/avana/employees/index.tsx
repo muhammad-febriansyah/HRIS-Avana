@@ -237,18 +237,13 @@ export default function EmployeesIndex({
                         </div>
                     </div>
                     <div style={{ display: 'flex', gap: 10 }}>
-                        <button
-                            onClick={() =>
-                                toast.info('Menyiapkan export', {
-                                    description:
-                                        'File akan diunduh sebentar lagi',
-                                })
-                            }
-                            style={btnOut}
+                        <a
+                            href="/avana/laporan/export/karyawan"
+                            style={{ ...btnOut, textDecoration: 'none' }}
                         >
                             <AIcon name="download" size={16} />
                             Export
-                        </button>
+                        </a>
                         <Link
                             href={EmployeeController.create()}
                             style={{ ...btnP, textDecoration: 'none' }}

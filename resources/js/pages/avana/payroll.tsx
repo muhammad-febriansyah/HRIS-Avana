@@ -111,9 +111,7 @@ export default function AvanaPayroll({
     };
 
     const exportPayroll = () => {
-        toast.info('Menyiapkan export', {
-            description: 'File akan diunduh sebentar lagi',
-        });
+        window.location.href = '/avana/laporan/export/payroll';
     };
 
     const generateThr = () => {
@@ -804,13 +802,9 @@ export default function AvanaPayroll({
                                     </div>
                                 </div>
                             </div>
-                            <button
-                                onClick={() =>
-                                    toast.info('Menyiapkan slip gaji', {
-                                        description:
-                                            'File akan diunduh sebentar lagi',
-                                    })
-                                }
+                            <a
+                                href="/avana/laporan/export/payroll"
+                                title="Unduh data payroll"
                                 style={{
                                     width: 34,
                                     height: 34,
@@ -819,6 +813,7 @@ export default function AvanaPayroll({
                                     borderRadius: 8,
                                     cursor: 'pointer',
                                     color: C.primary,
+                                    textDecoration: 'none',
                                     display: 'inline-flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
@@ -829,7 +824,7 @@ export default function AvanaPayroll({
                                     size={16}
                                     color={C.primary}
                                 />
-                            </button>
+                            </a>
                         </div>
                         <div style={{ padding: '18px 22px' }}>
                             <div
