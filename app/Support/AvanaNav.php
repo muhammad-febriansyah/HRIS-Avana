@@ -40,12 +40,17 @@ final class AvanaNav
                 ['id' => 'absensi', 'label' => 'Absensi', 'icon' => 'fingerprint', 'href' => '/avana/absensi', 'feature' => 'attendance', 'modules' => ['attendance']],
                 ['id' => 'cuti', 'label' => 'Cuti & Lembur', 'icon' => 'palmtree', 'href' => '/avana/cuti', 'feature' => 'leave', 'modules' => ['leave', 'overtime', 'wfh']],
                 ['id' => 'payroll', 'label' => 'Payroll', 'icon' => 'wallet', 'href' => '/avana/payroll', 'feature' => 'payroll', 'modules' => ['payroll']],
+                ['id' => 'payroll-config', 'label' => 'BPJS & Pajak', 'icon' => 'shield-check', 'href' => '/avana/payroll/konfigurasi', 'feature' => 'payroll', 'modules' => ['bpjs', 'pph21', 'payroll']],
             ]],
             ['title' => 'SISTEM', 'items' => [
                 ['id' => 'perusahaan', 'label' => 'Perusahaan', 'icon' => 'building-2', 'href' => '/avana/perusahaan', 'feature' => 'organization', 'modules' => ['branch', 'department', 'position', 'organization']],
+                ['id' => 'pengguna', 'label' => 'Pengguna', 'icon' => 'user-cog', 'href' => '/avana/pengguna', 'feature' => null, 'modules' => ['user']],
                 ['id' => 'laporan', 'label' => 'Laporan', 'icon' => 'chart-column', 'href' => '/avana/laporan', 'feature' => 'analytics', 'modules' => ['report']],
                 ['id' => 'hak-akses', 'label' => 'Hak Akses', 'icon' => 'shield-check', 'href' => '/avana/hak-akses', 'feature' => null, 'modules' => self::MANAGE_MODULES, 'adminOnly' => true],
                 ['id' => 'fitur', 'label' => 'Menu & Fitur', 'icon' => 'toggle-right', 'href' => '/avana/fitur', 'feature' => null, 'modules' => self::MANAGE_MODULES, 'adminOnly' => true],
+            ]],
+            ['title' => 'PLATFORM', 'items' => [
+                ['id' => 'klien', 'label' => 'Klien / Tenant', 'icon' => 'building-2', 'href' => '/avana/klien', 'feature' => null, 'modules' => [], 'superAdminOnly' => true],
             ]],
         ];
     }
@@ -82,6 +87,11 @@ final class AvanaNav
         foreach (self::groups() as $group) {
             $items = [];
             foreach ($group['items'] as $item) {
+                // Super-admin-only platform screens (e.g. tenant management).
+                if (($item['superAdminOnly'] ?? false) && ! $isSuperAdmin) {
+                    continue;
+                }
+
                 // Feature gate (Super Admin's Menu & Fitur toggles).
                 if ($item['feature'] !== null && ! $enabledCodes->contains($item['feature'])) {
                     continue;

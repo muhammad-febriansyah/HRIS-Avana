@@ -194,6 +194,8 @@ final class AvanaDemoSeeder extends Seeder
             'payroll.view', 'payroll.run', 'payroll.approve', 'payroll.publish', 'payroll.export',
             'bpjs.manage', 'pph21.manage', 'report.view', 'report.export',
             'role.manage', 'permission.assign', 'branch.manage', 'audit.view',
+            'user.view', 'user.create', 'user.update', 'user.disable',
+            'tenant.view', 'tenant.create', 'tenant.update', 'tenant.suspend',
             'team.leave.approve', 'team.attendance.view', 'team.overtime.approve',
             'own.profile.view', 'own.attendance.clock_in', 'own.leave.request', 'own.payslip.view',
         ];
@@ -213,7 +215,8 @@ final class AvanaDemoSeeder extends Seeder
             $role = Role::firstOrCreate(['tenant_id' => $data['tenant_id'], 'code' => $data['code']], ['name' => $data['name'], 'is_system' => $data['is_system']]);
 
             $assigned = match ($data['code']) {
-                'super_admin', 'admin_tenant_hr' => $permModels,
+                'super_admin' => $permModels,
+                'admin_tenant_hr' => $permModels->reject(fn ($p) => str_starts_with($p->code, 'tenant.')),
                 'manager' => $permModels->filter(fn ($p) => str_starts_with($p->code, 'team.') || str_starts_with($p->code, 'own.')),
                 default => $permModels->filter(fn ($p) => str_starts_with($p->code, 'own.')),
             };

@@ -63,8 +63,8 @@ it('exposes a matrix row per module with one boolean per role', function (): voi
 
             $page->has('roles', $roleCount)
                 ->has('permHeaders', $roleCount)
-                ->has('modules', 7)
-                ->has('matrix', 7)
+                ->has('modules', 9)
+                ->has('matrix', 9)
                 ->has('matrix.0', $roleCount);
         });
 });

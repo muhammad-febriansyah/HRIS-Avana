@@ -63,7 +63,9 @@ class AccessController extends Controller
         ['key' => 'absensi', 'label' => 'Absensi', 'modules' => ['attendance']],
         ['key' => 'cuti-lembur', 'label' => 'Cuti & Lembur', 'modules' => ['leave', 'overtime', 'wfh']],
         ['key' => 'payroll', 'label' => 'Payroll', 'modules' => ['payroll']],
+        ['key' => 'bpjs-pajak', 'label' => 'BPJS & Pajak', 'modules' => ['bpjs', 'pph21']],
         ['key' => 'laporan', 'label' => 'Laporan', 'modules' => ['report']],
+        ['key' => 'pengguna', 'label' => 'Pengguna', 'modules' => ['user']],
         ['key' => 'pengaturan', 'label' => 'Pengaturan', 'modules' => ['settings', 'role', 'permission']],
     ];
 
