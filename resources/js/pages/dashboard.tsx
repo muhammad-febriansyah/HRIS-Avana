@@ -100,10 +100,10 @@ export default function Dashboard() {
                         <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>Ringkasan aktivitas HR — {today}</div>
                     </div>
                     <div style={{ display: 'flex', gap: 10 }}>
-                        <button onClick={() => toast.info('Menyiapkan export', { description: 'File akan diunduh sebentar lagi' })} style={btnOut}>
+                        <Link href="/avana/laporan" style={{ ...btnOut, textDecoration: 'none' }}>
                             <AIcon name="download" size={16} />
                             Export
-                        </button>
+                        </Link>
                         <Link href="/avana/employees/create" style={{ ...btnP, textDecoration: 'none' }}>
                             <AIcon name="plus" size={16} />
                             Tambah Karyawan

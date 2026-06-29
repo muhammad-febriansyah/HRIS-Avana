@@ -253,24 +253,39 @@ class DashboardController extends Controller
      */
     private function attendanceWeek(int|string $tenantId, int $activeEmployees, float $todayRate, Carbon $today): array
     {
-        $labels = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum'];
-        $monday = $today->copy()->startOfWeek(Carbon::MONDAY);
+        // The 5 most recent dates that actually have attendance records, so the
+        // chart reflects real attendance instead of a flat fallback.
+        $dates = Attendance::forTenant($tenantId)
+            ->whereDate('date', '<=', $today->toDateString())
+            ->select('date')
+            ->distinct()
+            ->orderByDesc('date')
+            ->limit(5)
+            ->pluck('date')
+            ->map(fn ($date): Carbon => $date instanceof Carbon ? $date : Carbon::parse($date))
+            ->sort()
+            ->values();
+
+        $labels = [];
         $values = [];
 
-        for ($day = 0; $day < 5; $day++) {
-            $date = $monday->copy()->addDays($day);
+        foreach ($dates as $date) {
+            $labels[] = $date->format('d/m');
 
-            $totalForDay = Attendance::forTenant($tenantId)->whereDate('date', $date)->count();
+            $presentForDay = Attendance::forTenant($tenantId)
+                ->whereDate('date', $date)
+                ->whereIn('status', self::PRESENT_STATUSES)
+                ->count();
 
-            if ($totalForDay > 0 && $activeEmployees > 0) {
-                $presentForDay = Attendance::forTenant($tenantId)
-                    ->whereDate('date', $date)
-                    ->whereIn('status', self::PRESENT_STATUSES)
-                    ->count();
-                $values[] = (int) round($presentForDay / $activeEmployees * 100);
-            } else {
-                $values[] = (int) round($todayRate);
-            }
+            $values[] = $activeEmployees > 0
+                ? (int) round($presentForDay / $activeEmployees * 100)
+                : 0;
+        }
+
+        // Pad to a stable 5 points when fewer dates have data yet.
+        while (count($labels) < 5) {
+            array_unshift($labels, '–');
+            array_unshift($values, 0);
         }
 
         return ['labels' => $labels, 'values' => $values];
