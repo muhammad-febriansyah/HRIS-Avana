@@ -116,6 +116,10 @@ export default function AvanaPayroll({
         });
     };
 
+    const generateThr = () => {
+        router.post(PayrollController.thr().url, {}, { preserveScroll: true });
+    };
+
     const goToPage = (page: number) => {
         router.get(
             window.location.pathname,
@@ -186,6 +190,17 @@ export default function AvanaPayroll({
                             <AIcon name="download" size={16} />
                             Export
                         </button>
+                        <button onClick={generateThr} style={btnOut}>
+                            <AIcon name="gift" size={16} />
+                            Generate THR
+                        </button>
+                        <a
+                            href={PayrollController.transferFile().url}
+                            style={{ ...btnOut, textDecoration: 'none' }}
+                        >
+                            <AIcon name="banknote" size={16} />
+                            File Transfer Bank
+                        </a>
                         <button
                             onClick={lockPayroll}
                             disabled={isLocked}

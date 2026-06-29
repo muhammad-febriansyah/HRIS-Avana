@@ -37,7 +37,10 @@ final class AvanaNav
             ]],
             ['title' => 'MANAJEMEN', 'items' => [
                 ['id' => 'karyawan', 'label' => 'Karyawan', 'icon' => 'users', 'href' => '/avana/employees', 'feature' => 'hr_core', 'modules' => ['employee']],
+                ['id' => 'kontrak', 'label' => 'Kontrak Kerja', 'icon' => 'file-text', 'href' => '/avana/kontrak', 'feature' => 'hr_core', 'modules' => ['employee']],
+                ['id' => 'mutasi', 'label' => 'Mutasi & Karir', 'icon' => 'arrow-left-right', 'href' => '/avana/mutasi', 'feature' => 'hr_core', 'modules' => ['employee']],
                 ['id' => 'absensi', 'label' => 'Absensi', 'icon' => 'fingerprint', 'href' => '/avana/absensi', 'feature' => 'attendance', 'modules' => ['attendance']],
+                ['id' => 'roster', 'label' => 'Roster Shift', 'icon' => 'calendar-clock', 'href' => '/avana/roster', 'feature' => 'attendance', 'modules' => ['attendance']],
                 ['id' => 'cuti', 'label' => 'Cuti & Lembur', 'icon' => 'palmtree', 'href' => '/avana/cuti', 'feature' => 'leave', 'modules' => ['leave', 'overtime', 'wfh']],
                 ['id' => 'approval', 'label' => 'Persetujuan', 'icon' => 'check-check', 'href' => '/avana/approval', 'feature' => null, 'modules' => ['leave', 'overtime', 'wfh', 'attendance', 'team']],
                 ['id' => 'payroll', 'label' => 'Payroll', 'icon' => 'wallet', 'href' => '/avana/payroll', 'feature' => 'payroll', 'modules' => ['payroll']],
@@ -53,6 +56,7 @@ final class AvanaNav
             ]],
             ['title' => 'PLATFORM', 'items' => [
                 ['id' => 'klien', 'label' => 'Klien / Tenant', 'icon' => 'building-2', 'href' => '/avana/klien', 'feature' => null, 'modules' => [], 'superAdminOnly' => true],
+                ['id' => 'website-settings', 'label' => 'Pengaturan Website', 'icon' => 'globe', 'href' => '/avana/website-settings', 'feature' => null, 'modules' => [], 'superAdminOnly' => true],
             ]],
         ];
     }

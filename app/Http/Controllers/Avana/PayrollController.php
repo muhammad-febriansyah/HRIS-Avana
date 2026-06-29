@@ -22,6 +22,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PayrollController extends Controller
 {
@@ -153,6 +154,146 @@ class PayrollController extends Controller
     }
 
     /**
+     * Generate a prorated THR (religious holiday allowance) run.
+     *
+     * THR per employee = monthly base x min(1, monthsWorked / 12). Employees
+     * with at least a full year of tenure receive a whole month's base; newer
+     * hires receive a proportionally smaller amount.
+     */
+    public function thr(Request $request): RedirectResponse
+    {
+        $this->authorize('run', PayrollPeriod::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        // Compute every employee's monthly bruto against the latest regular
+        // (non-THR) period; fall back to the THR period when none exists.
+        $basePeriod = PayrollPeriod::forTenant($tenantId)
+            ->where('code', 'not like', 'THR-%')
+            ->orderByDesc('start_date')
+            ->first();
+
+        $year = (int) now()->year;
+
+        $period = PayrollPeriod::firstOrNew([
+            'tenant_id' => $tenantId,
+            'code' => 'THR-'.$year,
+        ]);
+        $period->name = 'THR '.$year;
+        $period->start_date = $year.'-01-01';
+        $period->end_date = $year.'-12-31';
+        $period->pay_date = now()->toDateString();
+        $period->status = 'draft';
+        $period->save();
+
+        $run = PayrollRun::firstOrNew([
+            'tenant_id' => $tenantId,
+            'payroll_period_id' => $period->id,
+            'branch_id' => null,
+        ]);
+        $run->status = 'calculated';
+        $run->save();
+
+        $employees = Employee::forTenant($tenantId)
+            ->where('status', 'active')
+            ->get();
+
+        $totalThr = 0.0;
+        $count = 0;
+
+        foreach ($employees as $employee) {
+            $pay = $this->computeEmployeePay($employee, $basePeriod ?? $period, $tenantId);
+            $base = $pay['gross'] > 0 ? $pay['gross'] : $pay['basic'];
+
+            $monthsWorked = $employee->join_date !== null
+                ? (int) abs($employee->join_date->diffInMonths(now()))
+                : 12;
+
+            $factor = min(1.0, $monthsWorked / 12);
+            $thr = round($base * $factor);
+
+            PayrollRunItem::updateOrCreate(
+                ['payroll_run_id' => $run->id, 'employee_id' => $employee->id],
+                [
+                    'tenant_id' => $tenantId,
+                    'payroll_period_id' => $period->id,
+                    'gross_salary' => $thr,
+                    'total_allowance' => $thr,
+                    'total_deduction' => 0,
+                    'bpjs_employee_total' => 0,
+                    'bpjs_company_total' => 0,
+                    'pph21_total' => 0,
+                    'net_salary' => $thr,
+                    'calculation_snapshot' => [
+                        'months_worked' => $monthsWorked,
+                        'base' => $base,
+                        'factor' => $factor,
+                        'thr' => $thr,
+                        'formula' => 'THR = base x min(1, months_worked / 12)',
+                    ],
+                    'status' => 'calculated',
+                ],
+            );
+
+            $totalThr += $thr;
+            $count++;
+        }
+
+        $run->update([
+            'total_gross' => $totalThr,
+            'total_deduction' => 0,
+            'total_tax' => 0,
+            'total_net' => $totalThr,
+            'employee_count' => $count,
+            'status' => 'calculated',
+        ]);
+
+        return back()->with('success', 'THR dihitung — total '.$this->rupiah($totalThr));
+    }
+
+    /**
+     * Export the bank transfer file (net pay per employee) for the latest run.
+     */
+    public function transferFile(Request $request): StreamedResponse
+    {
+        $this->authorize('viewAny', PayrollPeriod::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $run = PayrollRun::forTenant($tenantId)
+            ->whereHas('period', fn ($query) => $query->where('code', 'not like', 'THR-%'))
+            ->orderByDesc('id')
+            ->with(['period', 'items.employee.bankAccounts'])
+            ->first();
+
+        abort_if($run === null, 404);
+
+        $periodCode = $run->period?->code ?? 'run-'.$run->id;
+        $filename = 'transfer-bank-'.$periodCode.'-'.now()->format('Y-m-d').'.csv';
+
+        return response()->streamDownload(function () use ($run): void {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['Nama', 'Bank', 'No Rekening', 'Atas Nama', 'Net']);
+
+            foreach ($run->items as $item) {
+                $employee = $item->employee;
+                $bank = $employee?->bankAccounts->firstWhere('is_primary', true)
+                    ?? $employee?->bankAccounts->first();
+
+                fputcsv($out, [
+                    $employee?->full_name ?? '-',
+                    $bank?->bank_name ?? '-',
+                    $bank?->account_number ?? '-',
+                    $bank?->account_holder ?? $employee?->full_name ?? '-',
+                    (int) round((float) $item->net_salary),
+                ]);
+            }
+
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
+    /**
      * Lock the latest payroll run/period so figures can no longer be recomputed.
      */
     public function lock(Request $request): RedirectResponse
@@ -183,10 +324,12 @@ class PayrollController extends Controller
     private function resolveTargetPeriod(int $tenantId): ?PayrollPeriod
     {
         return PayrollPeriod::forTenant($tenantId)
+            ->where('code', 'not like', 'THR-%')
             ->where('status', 'draft')
             ->orderByDesc('start_date')
             ->first()
             ?? PayrollPeriod::forTenant($tenantId)
+                ->where('code', 'not like', 'THR-%')
                 ->orderByDesc('start_date')
                 ->first();
     }

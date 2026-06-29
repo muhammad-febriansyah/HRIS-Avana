@@ -5,18 +5,22 @@ use App\Http\Controllers\Avana\ApprovalController;
 use App\Http\Controllers\Avana\AttendanceController;
 use App\Http\Controllers\Avana\AuditController;
 use App\Http\Controllers\Avana\CompanySetupController;
+use App\Http\Controllers\Avana\ContractController;
 use App\Http\Controllers\Avana\EmployeeController;
 use App\Http\Controllers\Avana\FeatureController;
 use App\Http\Controllers\Avana\LaporanController;
 use App\Http\Controllers\Avana\LeaveController;
 use App\Http\Controllers\Avana\LeaveTypeController;
+use App\Http\Controllers\Avana\MovementController;
 use App\Http\Controllers\Avana\OvertimeController;
 use App\Http\Controllers\Avana\PayrollConfigController;
 use App\Http\Controllers\Avana\PayrollController;
 use App\Http\Controllers\Avana\PermissionRequestController;
 use App\Http\Controllers\Avana\PositionComponentController;
+use App\Http\Controllers\Avana\RosterController;
 use App\Http\Controllers\Avana\TenantController;
 use App\Http\Controllers\Avana\UserController;
+use App\Http\Controllers\Avana\WebsiteSettingController;
 use App\Http\Controllers\Avana\WfhController;
 use Illuminate\Support\Facades\Route;
 
@@ -65,6 +69,8 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     Route::get('payroll', [PayrollController::class, 'index'])->name('payroll');
     Route::post('payroll/run', [PayrollController::class, 'run'])->name('payroll.run');
     Route::post('payroll/lock', [PayrollController::class, 'lock'])->name('payroll.lock');
+    Route::post('payroll/thr', [PayrollController::class, 'thr'])->name('payroll.thr');
+    Route::get('payroll/transfer', [PayrollController::class, 'transferFile'])->name('payroll.transfer');
     Route::get('payroll/components', [PositionComponentController::class, 'index'])->name('payroll.components');
     Route::put('payroll/components', [PositionComponentController::class, 'update'])->name('payroll.components.update');
     Route::put('payroll/components/basis', [PositionComponentController::class, 'updateBasis'])->name('payroll.components.basis');
@@ -96,6 +102,21 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     // Audit trail
     Route::get('audit', [AuditController::class, 'index'])->name('audit');
 
+    // Kontrak kerja (employee contracts)
+    Route::get('kontrak', [ContractController::class, 'index'])->name('kontrak');
+    Route::post('kontrak', [ContractController::class, 'store'])->name('kontrak.store');
+    Route::put('kontrak/{contract}', [ContractController::class, 'update'])->name('kontrak.update');
+    Route::delete('kontrak/{contract}', [ContractController::class, 'destroy'])->name('kontrak.destroy');
+
+    // Roster shift
+    Route::get('roster', [RosterController::class, 'index'])->name('roster');
+    Route::post('roster', [RosterController::class, 'store'])->name('roster.store');
+    Route::delete('roster/{schedule}', [RosterController::class, 'destroy'])->name('roster.destroy');
+
+    // Mutasi / pergerakan karir karyawan
+    Route::get('mutasi', [MovementController::class, 'index'])->name('mutasi');
+    Route::post('mutasi', [MovementController::class, 'store'])->name('mutasi.store');
+
     // User management (Pengguna)
     Route::get('pengguna', [UserController::class, 'index'])->name('pengguna');
     Route::post('pengguna', [UserController::class, 'store'])->name('pengguna.store');
@@ -109,4 +130,8 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     Route::put('klien/{tenant}', [TenantController::class, 'update'])->name('klien.update');
     Route::delete('klien/{tenant}', [TenantController::class, 'destroy'])->name('klien.destroy');
     Route::post('klien/{tenant}/feature', [TenantController::class, 'toggleFeature'])->name('klien.feature.toggle');
+
+    // Pengaturan website (super admin) — edit-only, single settings row
+    Route::get('website-settings', [WebsiteSettingController::class, 'edit'])->name('website-settings');
+    Route::post('website-settings', [WebsiteSettingController::class, 'update'])->name('website-settings.update');
 });
