@@ -3,11 +3,16 @@
 use App\Http\Controllers\Avana\AccessController;
 use App\Http\Controllers\Avana\ApprovalController;
 use App\Http\Controllers\Avana\AttendanceController;
+use App\Http\Controllers\Avana\AttendancePenaltyController;
 use App\Http\Controllers\Avana\AuditController;
+use App\Http\Controllers\Avana\BenefitController;
+use App\Http\Controllers\Avana\CashAdvanceController;
 use App\Http\Controllers\Avana\CompanySetupController;
 use App\Http\Controllers\Avana\ContractController;
+use App\Http\Controllers\Avana\DutyTravelController;
 use App\Http\Controllers\Avana\EmployeeController;
 use App\Http\Controllers\Avana\FeatureController;
+use App\Http\Controllers\Avana\FieldVisitController;
 use App\Http\Controllers\Avana\LaporanController;
 use App\Http\Controllers\Avana\LeaveController;
 use App\Http\Controllers\Avana\LeaveTypeController;
@@ -116,6 +121,37 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     // Mutasi / pergerakan karir karyawan
     Route::get('mutasi', [MovementController::class, 'index'])->name('mutasi');
     Route::post('mutasi', [MovementController::class, 'store'])->name('mutasi.store');
+
+    // Kasbon / cash advance
+    Route::get('kasbon', [CashAdvanceController::class, 'index'])->name('kasbon');
+    Route::post('kasbon', [CashAdvanceController::class, 'store'])->name('kasbon.store');
+    Route::post('kasbon/{cashAdvance}/approve', [CashAdvanceController::class, 'approve'])->name('kasbon.approve');
+    Route::post('kasbon/{cashAdvance}/reject', [CashAdvanceController::class, 'reject'])->name('kasbon.reject');
+
+    // Benefit management
+    Route::get('benefit', [BenefitController::class, 'index'])->name('benefit');
+    Route::post('benefit', [BenefitController::class, 'store'])->name('benefit.store');
+    Route::put('benefit/{benefit}', [BenefitController::class, 'update'])->name('benefit.update');
+    Route::delete('benefit/{benefit}', [BenefitController::class, 'destroy'])->name('benefit.destroy');
+    Route::post('benefit/assign', [BenefitController::class, 'assign'])->name('benefit.assign');
+    Route::delete('benefit/assign/{employeeBenefit}', [BenefitController::class, 'unassign'])->name('benefit.unassign');
+
+    // Perjalanan dinas (duty travel)
+    Route::get('dinas', [DutyTravelController::class, 'index'])->name('dinas');
+    Route::post('dinas', [DutyTravelController::class, 'store'])->name('dinas.store');
+    Route::post('dinas/{dutyTravel}/approve', [DutyTravelController::class, 'approve'])->name('dinas.approve');
+    Route::post('dinas/{dutyTravel}/reject', [DutyTravelController::class, 'reject'])->name('dinas.reject');
+
+    // Sanksi absensi (attendance penalties)
+    Route::get('sanksi', [AttendancePenaltyController::class, 'index'])->name('sanksi');
+    Route::post('sanksi', [AttendancePenaltyController::class, 'store'])->name('sanksi.store');
+    Route::post('sanksi/generate', [AttendancePenaltyController::class, 'generate'])->name('sanksi.generate');
+    Route::delete('sanksi/{penalty}', [AttendancePenaltyController::class, 'destroy'])->name('sanksi.destroy');
+
+    // Visiting pekerjaan (field visits)
+    Route::get('visiting', [FieldVisitController::class, 'index'])->name('visiting');
+    Route::post('visiting', [FieldVisitController::class, 'store'])->name('visiting.store');
+    Route::delete('visiting/{visit}', [FieldVisitController::class, 'destroy'])->name('visiting.destroy');
 
     // User management (Pengguna)
     Route::get('pengguna', [UserController::class, 'index'])->name('pengguna');
