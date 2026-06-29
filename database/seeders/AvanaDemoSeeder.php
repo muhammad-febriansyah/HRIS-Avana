@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Attendance;
 use App\Models\BpjsProgram;
 use App\Models\Branch;
 use App\Models\Company;
@@ -20,6 +21,7 @@ use App\Models\Permission;
 use App\Models\Position;
 use App\Models\Pph21TerRate;
 use App\Models\Role;
+use App\Models\Shift;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WorkLocation;
@@ -80,8 +82,54 @@ final class AvanaDemoSeeder extends Seeder
         $leaveTypes = $this->seedLeaveTypes($tenant);
         $this->seedLeaveBalances($tenant, $employees, $leaveTypes);
         $this->seedLeaveRequests($tenant, $employees, $leaveTypes, $admin);
+        $this->seedAttendance($tenant, $employees);
         $this->seedPayroll($tenant, $branches);
         $this->seedStatutory();
+    }
+
+    /**
+     * Seed a default shift + today's attendance rekap for the demo employees.
+     *
+     * @param  array<int, Employee>  $employees
+     */
+    private function seedAttendance(Tenant $tenant, array $employees): void
+    {
+        $shift = Shift::firstOrCreate(
+            ['tenant_id' => $tenant->id, 'code' => 'PAGI'],
+            ['name' => 'Pagi', 'start_time' => '08:00', 'end_time' => '17:00', 'late_tolerance_minutes' => 15, 'status' => 'active'],
+        );
+
+        $today = Carbon::today()->toDateString();
+
+        // emp no => [clock_in, clock_out, late_minutes, status]
+        $rows = [
+            1 => ['07:54', '17:08', 0, 'present'],
+            2 => ['08:21', '17:30', 21, 'late'],
+            3 => ['07:48', '17:02', 0, 'present'],
+            4 => [null, null, 0, 'leave'],
+            5 => ['07:59', '17:05', 0, 'present'],
+            6 => ['12:55', null, 0, 'incomplete'],
+            7 => ['08:05', '17:10', 5, 'late'],
+            8 => ['07:50', '17:01', 0, 'present'],
+            9 => [null, null, 0, 'absent'],
+            10 => ['07:45', '17:03', 0, 'present'],
+        ];
+
+        foreach ($rows as $no => [$in, $out, $late, $status]) {
+            $employee = $employees[$no];
+            Attendance::firstOrCreate(
+                ['tenant_id' => $tenant->id, 'employee_id' => $employee->id, 'date' => $today, 'shift_id' => $shift->id],
+                [
+                    'branch_id' => $employee->branch_id,
+                    'clock_in_at' => $in ? $today.' '.$in.':00' : null,
+                    'clock_out_at' => $out ? $today.' '.$out.':00' : null,
+                    'late_minutes' => $late,
+                    'work_minutes' => $in && $out ? 540 : 0,
+                    'status' => $status,
+                    'location_status' => $in ? 'inside' : null,
+                ],
+            );
+        }
     }
 
     /**
@@ -192,7 +240,30 @@ final class AvanaDemoSeeder extends Seeder
             $user->roles()->syncWithoutDetaching([$role->id]);
         }
 
+        $this->seedSuperAdmin($tenant);
+
         return $user;
+    }
+
+    /** Seed a Super Admin who can control the tenant's menu/features. */
+    private function seedSuperAdmin(Tenant $tenant): void
+    {
+        $superAdmin = User::firstOrCreate(
+            ['email' => 'superadmin@avanahr.co.id'],
+            [
+                'name' => 'Super Admin',
+                'tenant_id' => $tenant->id,
+                'password' => Hash::make('password'),
+                'status' => 'active',
+                'email_verified_at' => now(),
+            ],
+        );
+        $superAdmin->forceFill(['tenant_id' => $tenant->id])->save();
+
+        $role = Role::where('code', 'super_admin')->first();
+        if ($role) {
+            $superAdmin->roles()->syncWithoutDetaching([$role->id]);
+        }
     }
 
     /** @return array<string, Branch> */

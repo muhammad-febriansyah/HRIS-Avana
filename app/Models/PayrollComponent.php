@@ -36,4 +36,9 @@ final class PayrollComponent extends Model
     {
         return $this->hasMany(EmployeeSalaryComponent::class);
     }
+
+    public function positionComponents(): HasMany
+    {
+        return $this->hasMany(PositionPayrollComponent::class);
+    }
 }

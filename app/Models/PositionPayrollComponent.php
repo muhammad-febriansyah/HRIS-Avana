@@ -5,14 +5,17 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
-final class Position extends Model
+final class PositionPayrollComponent extends Model
 {
-    use SoftDeletes;
-
     protected $guarded = [];
+
+    protected function casts(): array
+    {
+        return [
+            'amount' => 'decimal:2',
+        ];
+    }
 
     public function scopeForTenant(Builder $query, int|string $tenantId): Builder
     {
@@ -24,13 +27,13 @@ final class Position extends Model
         return $this->belongsTo(Tenant::class);
     }
 
-    public function department(): BelongsTo
+    public function position(): BelongsTo
     {
-        return $this->belongsTo(Department::class);
+        return $this->belongsTo(Position::class);
     }
 
-    public function positionComponents(): HasMany
+    public function component(): BelongsTo
     {
-        return $this->hasMany(PositionPayrollComponent::class);
+        return $this->belongsTo(PayrollComponent::class, 'payroll_component_id');
     }
 }

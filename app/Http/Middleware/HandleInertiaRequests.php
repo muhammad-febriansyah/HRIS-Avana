@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\AvanaNav;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -35,12 +36,18 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
             'auth' => [
-                'user' => $request->user(),
+                'user' => $user,
+                'roles' => fn () => $user?->roles()->pluck('code')->all() ?? [],
+                'isSuperAdmin' => fn () => (bool) $user?->roles()->where('code', 'super_admin')->exists(),
+                'tenant' => fn () => $user?->tenant?->only('id', 'name', 'company_name'),
             ],
+            'nav' => fn () => AvanaNav::forUser($user),
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),

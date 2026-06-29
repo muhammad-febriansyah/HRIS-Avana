@@ -73,6 +73,14 @@ export function statusBadge(st: string): Badge {
         Final: ['#16A34A', 'rgba(22,163,74,.1)'],
         Terkunci: ['#0E1A3A', 'rgba(14,26,58,.08)'],
         Dibayar: ['#16A34A', 'rgba(22,163,74,.1)'],
+        Terbit: ['#16A34A', 'rgba(22,163,74,.1)'],
+        Dihitung: ['#2F54C9', 'rgba(47,84,201,.1)'],
+        Hadir: ['#16A34A', 'rgba(22,163,74,.1)'],
+        Terlambat: ['#D97706', 'rgba(217,119,6,.1)'],
+        Alpa: ['#DC2626', 'rgba(220,38,38,.1)'],
+        Cuti: ['#2F54C9', 'rgba(47,84,201,.1)'],
+        'Belum Lengkap': ['#D97706', 'rgba(217,119,6,.1)'],
+        'Perlu Koreksi': ['#D97706', 'rgba(217,119,6,.1)'],
     };
     const c = m[st] ?? m.Draft;
 

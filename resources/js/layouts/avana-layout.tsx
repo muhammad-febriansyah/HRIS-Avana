@@ -2,7 +2,7 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { AIcon, C, NAV } from '@/lib/avana';
+import { AIcon, C, NAV, type NavGroup } from '@/lib/avana';
 import { logout } from '@/routes';
 import { edit as editProfile } from '@/routes/profile';
 
@@ -19,9 +19,10 @@ function AvanaFonts() {
 }
 
 export default function AvanaLayout({ children }: PropsWithChildren) {
-    const page = usePage<{ auth?: { user?: AuthUser } }>();
+    const page = usePage<{ auth?: { user?: AuthUser }; nav?: NavGroup[] }>();
     const url = page.url;
     const user = page.props.auth?.user;
+    const navGroups = page.props.nav?.length ? page.props.nav : NAV;
     const userName = user?.name ?? 'Rina Anggraeni';
     const userInitials =
         userName
@@ -75,7 +76,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                 </div>
 
                 <nav style={{ flex: 1, overflowY: 'auto', padding: '14px 12px' }}>
-                    {NAV.map((grp, gi) => (
+                    {navGroups.map((grp, gi) => (
                         <div key={gi} style={{ marginBottom: 6 }}>
                             {grp.title && (
                                 <div

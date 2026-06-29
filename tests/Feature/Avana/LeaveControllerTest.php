@@ -88,10 +88,12 @@ it('only lists leave requests that belong to the current tenant', function (): v
         'status' => 'pending',
     ]);
 
+    $tenantTotal = LeaveRequest::where('tenant_id', $this->tenant->id)->count();
+
     actingAs($this->admin)
         ->get(route('avana.cuti'))
         ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page->has('requests.data', 1));
+        ->assertInertia(fn (Assert $page) => $page->where('requests.meta.total', $tenantTotal));
 });
 
 it('creates a pending leave request on behalf of an employee', function (): void {
