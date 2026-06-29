@@ -2,14 +2,15 @@
 
 namespace Database\Seeders;
 
-use App\Models\Branch;
 use App\Models\BpjsProgram;
+use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Feature;
 use App\Models\JobLevel;
 use App\Models\LeaveBalance;
+use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\Package;
 use App\Models\PayrollComponent;
@@ -78,8 +79,49 @@ final class AvanaDemoSeeder extends Seeder
         $employees = $this->seedEmployees($tenant, $branches, $departments, $jobLevel, $admin);
         $leaveTypes = $this->seedLeaveTypes($tenant);
         $this->seedLeaveBalances($tenant, $employees, $leaveTypes);
+        $this->seedLeaveRequests($tenant, $employees, $leaveTypes, $admin);
         $this->seedPayroll($tenant, $branches);
         $this->seedStatutory();
+    }
+
+    /**
+     * @param  array<int, Employee>  $employees
+     * @param  array<int, LeaveType>  $leaveTypes
+     */
+    private function seedLeaveRequests(Tenant $tenant, array $employees, array $leaveTypes, User $admin): void
+    {
+        $byCode = collect($leaveTypes)->keyBy('code');
+        $tahunan = $byCode->get('TAHUNAN') ?? $leaveTypes[0];
+        $sakit = $byCode->get('SAKIT') ?? $leaveTypes[0];
+        $penting = $byCode->get('PENTING') ?? $leaveTypes[0];
+
+        $rows = [
+            ['emp' => 1, 'type' => $tahunan, 'start' => '2026-07-01', 'end' => '2026-07-03', 'days' => 3, 'status' => 'pending', 'reason' => 'Liburan keluarga'],
+            ['emp' => 3, 'type' => $sakit, 'start' => '2026-06-25', 'end' => '2026-06-26', 'days' => 2, 'status' => 'approved', 'reason' => 'Demam'],
+            ['emp' => 2, 'type' => $tahunan, 'start' => '2026-07-10', 'end' => '2026-07-12', 'days' => 3, 'status' => 'pending', 'reason' => 'Acara keluarga'],
+            ['emp' => 10, 'type' => $penting, 'start' => '2026-06-18', 'end' => '2026-06-18', 'days' => 1, 'status' => 'rejected', 'reason' => 'Keperluan pribadi'],
+            ['emp' => 5, 'type' => $tahunan, 'start' => '2026-07-20', 'end' => '2026-07-22', 'days' => 3, 'status' => 'pending', 'reason' => 'Cuti tahunan'],
+        ];
+
+        foreach ($rows as $row) {
+            $employee = $employees[$row['emp']];
+            LeaveRequest::firstOrCreate(
+                [
+                    'tenant_id' => $tenant->id,
+                    'employee_id' => $employee->id,
+                    'leave_type_id' => $row['type']->id,
+                    'start_date' => $row['start'],
+                ],
+                [
+                    'branch_id' => $employee->branch_id,
+                    'end_date' => $row['end'],
+                    'total_days' => $row['days'],
+                    'reason' => $row['reason'],
+                    'current_approver_id' => $admin->id,
+                    'status' => $row['status'],
+                ],
+            );
+        }
     }
 
     private function seedFeatures()
