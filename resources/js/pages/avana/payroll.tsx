@@ -86,6 +86,7 @@ export default function AvanaPayroll({
     const { flash } = usePage<FlashProps>().props;
     const meta = periods.meta;
     const summaryBadge = statusBadge(summary.status_label);
+    const isLocked = summary.status === 'locked';
 
     useEffect(() => {
         if (flash?.success) {
@@ -94,7 +95,19 @@ export default function AvanaPayroll({
     }, [flash?.success]);
 
     const runPayroll = () => {
+        if (isLocked) {
+            return;
+        }
+
         router.post(PayrollController.run().url, {}, { preserveScroll: true });
+    };
+
+    const lockPayroll = () => {
+        if (isLocked) {
+            return;
+        }
+
+        router.post(PayrollController.lock().url, {}, { preserveScroll: true });
     };
 
     const exportPayroll = () => {
@@ -173,12 +186,53 @@ export default function AvanaPayroll({
                             <AIcon name="download" size={16} />
                             Export
                         </button>
-                        <button onClick={runPayroll} style={btnP}>
+                        <button
+                            onClick={lockPayroll}
+                            disabled={isLocked}
+                            style={{
+                                ...btnOut,
+                                opacity: isLocked ? 0.5 : 1,
+                                cursor: isLocked ? 'not-allowed' : 'pointer',
+                            }}
+                        >
+                            <AIcon name="lock" size={16} />
+                            Kunci Periode
+                        </button>
+                        <button
+                            onClick={runPayroll}
+                            disabled={isLocked}
+                            style={{
+                                ...btnP,
+                                opacity: isLocked ? 0.5 : 1,
+                                cursor: isLocked ? 'not-allowed' : 'pointer',
+                            }}
+                        >
                             <AIcon name="play" size={16} color="#fff" />
                             Jalankan Payroll
                         </button>
                     </div>
                 </div>
+
+                {isLocked && (
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 9,
+                            padding: '12px 16px',
+                            borderRadius: 10,
+                            background: 'rgba(217,119,6,.08)',
+                            border: '1px solid rgba(217,119,6,.25)',
+                            color: C.amber,
+                            fontSize: 13,
+                            fontWeight: 500,
+                            marginBottom: 18,
+                        }}
+                    >
+                        <AIcon name="lock" size={16} color={C.amber} />
+                        Periode terkunci — data tidak bisa diubah
+                    </div>
+                )}
 
                 {/* Run summary */}
                 <div style={{ ...card, marginBottom: 18, overflow: 'hidden' }}>

@@ -2,9 +2,13 @@
 
 namespace App\Http\Requests\Avana;
 
+use App\Models\LeaveBalance;
+use App\Models\LeaveType;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreLeaveRequest extends FormRequest
 {
@@ -40,6 +44,55 @@ class StoreLeaveRequest extends FormRequest
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'reason' => ['nullable', 'string', 'max:1000'],
         ];
+    }
+
+    /**
+     * Reject the request when the leave type forbids negative balances and the
+     * requested duration exceeds the employee's remaining balance for the year.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+
+            $leaveType = LeaveType::forTenant($this->user()->tenant_id)
+                ->find($this->input('leave_type_id'));
+
+            if ($leaveType === null || $leaveType->allow_negative) {
+                return;
+            }
+
+            $start = Carbon::parse($this->input('start_date'));
+            $end = Carbon::parse($this->input('end_date'));
+            $totalDays = (int) $start->diffInDays($end) + 1;
+
+            $balance = LeaveBalance::query()
+                ->where('employee_id', $this->input('employee_id'))
+                ->where('leave_type_id', $leaveType->id)
+                ->where('year', $start->year)
+                ->first();
+
+            $remaining = $balance !== null
+                ? (float) $balance->remaining
+                : (float) $leaveType->default_quota;
+
+            if ($totalDays > $remaining) {
+                $validator->errors()->add(
+                    'leave_type_id',
+                    sprintf('Saldo cuti tidak mencukupi (sisa %s hari).', $this->formatDays($remaining)),
+                );
+            }
+        });
+    }
+
+    /**
+     * Format a remaining-day count without trailing decimal zeros.
+     */
+    private function formatDays(float $value): string
+    {
+        return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
     }
 
     /**

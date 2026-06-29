@@ -36,7 +36,8 @@ it('renders the laporan index with the expected stats props', function (): void 
                 ->has('karyawan')
                 ->has('hadir_hari_ini')
                 ->has('cuti_pending')
-                ->has('payroll_net')));
+                ->has('payroll_net')
+                ->etc()));
 });
 
 it('streams the karyawan CSV export with a seeded employee', function (): void {

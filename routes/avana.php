@@ -3,6 +3,7 @@
 use App\Http\Controllers\Avana\AccessController;
 use App\Http\Controllers\Avana\ApprovalController;
 use App\Http\Controllers\Avana\AttendanceController;
+use App\Http\Controllers\Avana\AuditController;
 use App\Http\Controllers\Avana\CompanySetupController;
 use App\Http\Controllers\Avana\EmployeeController;
 use App\Http\Controllers\Avana\FeatureController;
@@ -63,6 +64,7 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
 
     Route::get('payroll', [PayrollController::class, 'index'])->name('payroll');
     Route::post('payroll/run', [PayrollController::class, 'run'])->name('payroll.run');
+    Route::post('payroll/lock', [PayrollController::class, 'lock'])->name('payroll.lock');
     Route::get('payroll/components', [PositionComponentController::class, 'index'])->name('payroll.components');
     Route::put('payroll/components', [PositionComponentController::class, 'update'])->name('payroll.components.update');
     Route::put('payroll/components/basis', [PositionComponentController::class, 'updateBasis'])->name('payroll.components.basis');
@@ -90,6 +92,9 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
 
     Route::get('laporan', [LaporanController::class, 'index'])->name('laporan');
     Route::get('laporan/export/{type}', [LaporanController::class, 'export'])->name('laporan.export');
+
+    // Audit trail
+    Route::get('audit', [AuditController::class, 'index'])->name('audit');
 
     // User management (Pengguna)
     Route::get('pengguna', [UserController::class, 'index'])->name('pengguna');

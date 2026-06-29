@@ -130,6 +130,22 @@ interface LeaveFormData {
     reason: string;
 }
 
+/** Inclusive working-day count between two ISO dates (0 when incomplete). */
+function leaveDayCount(start: string, end: string): number {
+    if (!start || !end) {
+        return 0;
+    }
+
+    const startMs = Date.parse(start);
+    const endMs = Date.parse(end);
+
+    if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs < startMs) {
+        return 0;
+    }
+
+    return Math.floor((endMs - startMs) / 86_400_000) + 1;
+}
+
 /** Color cycle for saldo cards (balances carry no color). */
 const balanceColors = ['#2F54C9', '#16A34A', '#D97706'];
 
@@ -690,6 +706,14 @@ export default function AvanaCuti({
         }
     }, [flash?.success]);
 
+    const selectedBalance = balances.find(
+        (balance) => String(balance.id) === form.data.leave_type_id,
+    );
+    const requestedDays = leaveDayCount(
+        form.data.start_date,
+        form.data.end_date,
+    );
+
     const submitLeave = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         form.submit(LeaveController.store());
@@ -1178,9 +1202,11 @@ export default function AvanaCuti({
                                 <span
                                     style={{ color: C.text, fontWeight: 600 }}
                                 >
-                                    3 hari kerja
+                                    {requestedDays} hari kerja
                                 </span>
-                                &nbsp;· sisa saldo 8 hari
+                                {selectedBalance && (
+                                    <>&nbsp;· sisa saldo {selectedBalance.sisa} hari</>
+                                )}
                             </div>
                             <div>
                                 <label style={fieldLabelStyle}>

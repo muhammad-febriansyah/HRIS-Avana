@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 final class LeaveRequest extends Model
 {
+    use Auditable;
+
     protected $guarded = [];
 
     protected function casts(): array

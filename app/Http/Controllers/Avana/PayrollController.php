@@ -77,13 +77,13 @@ class PayrollController extends Controller
 
         $tenantId = $request->user()->tenant_id;
 
-        $period = PayrollPeriod::forTenant($tenantId)
-            ->where('status', 'draft')
-            ->orderByDesc('start_date')
-            ->first()
-            ?? PayrollPeriod::forTenant($tenantId)->orderByDesc('start_date')->first();
+        $period = $this->resolveTargetPeriod($tenantId);
 
         abort_if($period === null, 404);
+
+        if ($period->status === 'locked') {
+            return back()->withErrors(['payroll' => 'Periode terkunci, tidak bisa dihitung ulang.']);
+        }
 
         $run = PayrollRun::firstOrNew([
             'tenant_id' => $tenantId,
@@ -150,6 +150,45 @@ class PayrollController extends Controller
         ]);
 
         return back()->with('success', 'Payroll dihitung');
+    }
+
+    /**
+     * Lock the latest payroll run/period so figures can no longer be recomputed.
+     */
+    public function lock(Request $request): RedirectResponse
+    {
+        $this->authorize('run', PayrollPeriod::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $period = $this->resolveTargetPeriod($tenantId);
+
+        abort_if($period === null, 404);
+
+        PayrollRun::forTenant($tenantId)
+            ->where('payroll_period_id', $period->id)
+            ->orderByDesc('id')
+            ->first()
+            ?->update(['status' => 'locked']);
+
+        $period->update(['status' => 'locked']);
+
+        return back()->with('success', 'Payroll dikunci');
+    }
+
+    /**
+     * Resolve the period payroll actions should target: the latest draft period,
+     * falling back to the most recent period overall.
+     */
+    private function resolveTargetPeriod(int $tenantId): ?PayrollPeriod
+    {
+        return PayrollPeriod::forTenant($tenantId)
+            ->where('status', 'draft')
+            ->orderByDesc('start_date')
+            ->first()
+            ?? PayrollPeriod::forTenant($tenantId)
+                ->orderByDesc('start_date')
+                ->first();
     }
 
     /**

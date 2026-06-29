@@ -8,6 +8,9 @@ interface LaporanStats {
     hadir_hari_ini: number;
     cuti_pending: number;
     payroll_net: string;
+    bpjs: number;
+    pph21: number;
+    turnover: number;
 }
 
 interface LaporanProps {
@@ -79,6 +82,33 @@ export default function AvanaLaporan({ stats }: LaporanProps) {
             color: C.primary,
             statLabel: 'Payroll terbaru (net)',
             statValue: stats.payroll_net,
+        },
+        {
+            type: 'bpjs',
+            title: 'BPJS',
+            desc: 'Iuran BPJS per karyawan: upah dasar, iuran karyawan & perusahaan.',
+            icon: 'shield-check',
+            color: C.green,
+            statLabel: 'Peserta BPJS',
+            statValue: stats.bpjs.toLocaleString('id-ID'),
+        },
+        {
+            type: 'pph21',
+            title: 'PPh 21',
+            desc: 'Pajak penghasilan per karyawan: bruto, kategori TER, tarif, & PPh 21.',
+            icon: 'receipt',
+            color: C.amber,
+            statLabel: 'Wajib pajak',
+            statValue: stats.pph21.toLocaleString('id-ID'),
+        },
+        {
+            type: 'turnover',
+            title: 'Turnover',
+            desc: 'Status kepegawaian, tanggal masuk & keluar untuk analisa turnover.',
+            icon: 'user-minus',
+            color: C.red,
+            statLabel: 'Total karyawan',
+            statValue: stats.turnover.toLocaleString('id-ID'),
         },
     ];
 

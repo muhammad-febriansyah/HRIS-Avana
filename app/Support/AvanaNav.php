@@ -49,6 +49,7 @@ final class AvanaNav
                 ['id' => 'laporan', 'label' => 'Laporan', 'icon' => 'chart-column', 'href' => '/avana/laporan', 'feature' => 'analytics', 'modules' => ['report']],
                 ['id' => 'hak-akses', 'label' => 'Hak Akses', 'icon' => 'shield-check', 'href' => '/avana/hak-akses', 'feature' => null, 'modules' => self::MANAGE_MODULES, 'adminOnly' => true],
                 ['id' => 'fitur', 'label' => 'Menu & Fitur', 'icon' => 'toggle-right', 'href' => '/avana/fitur', 'feature' => null, 'modules' => self::MANAGE_MODULES, 'adminOnly' => true],
+                ['id' => 'audit', 'label' => 'Audit Trail', 'icon' => 'history', 'href' => '/avana/audit', 'feature' => null, 'modules' => ['audit']],
             ]],
             ['title' => 'PLATFORM', 'items' => [
                 ['id' => 'klien', 'label' => 'Klien / Tenant', 'icon' => 'building-2', 'href' => '/avana/klien', 'feature' => null, 'modules' => [], 'superAdminOnly' => true],

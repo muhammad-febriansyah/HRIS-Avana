@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Employee;
+use App\Models\EmployeeBpjsProfile;
 use App\Models\LeaveRequest;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
+use App\Models\TaxProfile;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -35,7 +37,7 @@ class LaporanController extends Controller
      *
      * @var array<int, string>
      */
-    private const TYPES = ['karyawan', 'absensi', 'cuti', 'payroll'];
+    private const TYPES = ['karyawan', 'absensi', 'cuti', 'payroll', 'bpjs', 'pph21', 'turnover'];
 
     /**
      * Render the reports landing screen with headline HR stats.
@@ -55,12 +57,25 @@ class LaporanController extends Controller
             ->latest('id')
             ->value('total_net');
 
+        $latestRunId = $this->latestRunId($tenantId);
+
+        $bpjsCount = $latestRunId !== null
+            ? PayrollRunItem::forTenant($tenantId)->where('payroll_run_id', $latestRunId)->count()
+            : EmployeeBpjsProfile::forTenant($tenantId)->count();
+
+        $pph21Count = $latestRunId !== null
+            ? PayrollRunItem::forTenant($tenantId)->where('payroll_run_id', $latestRunId)->count()
+            : TaxProfile::forTenant($tenantId)->count();
+
         return Inertia::render('avana/laporan', [
             'stats' => [
                 'karyawan' => Employee::forTenant($tenantId)->where('status', 'active')->count(),
                 'hadir_hari_ini' => $hadirHariIni,
                 'cuti_pending' => LeaveRequest::forTenant($tenantId)->where('status', 'pending')->count(),
                 'payroll_net' => $this->rupiah((float) ($latestNet ?? 0)),
+                'bpjs' => $bpjsCount,
+                'pph21' => $pph21Count,
+                'turnover' => Employee::forTenant($tenantId)->count(),
             ],
         ]);
     }
@@ -81,6 +96,9 @@ class LaporanController extends Controller
             'absensi' => $this->absensiReport($tenantId),
             'cuti' => $this->cutiReport($tenantId),
             'payroll' => $this->payrollReport($tenantId),
+            'bpjs' => $this->bpjsReport($tenantId),
+            'pph21' => $this->pph21Report($tenantId),
+            'turnover' => $this->turnoverReport($tenantId),
         };
 
         $filename = 'laporan-'.$type.'-'.Carbon::today()->format('Y-m-d').'.csv';
@@ -206,6 +224,195 @@ class LaporanController extends Controller
         ];
 
         return [$header, $query, $mapper];
+    }
+
+    /**
+     * Build the BPJS contribution report. Sources from the latest payroll run's
+     * items when one exists, otherwise falls back to registered BPJS profiles.
+     *
+     * @return array{0: array<int, string>, 1: Builder, 2: callable(EmployeeBpjsProfile|PayrollRunItem): array<int, string|int|null>}
+     */
+    private function bpjsReport(int $tenantId): array
+    {
+        $latestRunId = $this->latestRunId($tenantId);
+
+        if ($latestRunId !== null) {
+            $header = ['Nama', 'Employee Number', 'Upah Dasar', 'BPJS Karyawan', 'BPJS Perusahaan'];
+
+            $registeredWages = EmployeeBpjsProfile::forTenant($tenantId)
+                ->pluck('registered_wage', 'employee_id');
+
+            $query = PayrollRunItem::query()
+                ->forTenant($tenantId)
+                ->where('payroll_run_id', $latestRunId)
+                ->with(['employee:id,full_name,employee_number'])
+                ->orderBy('id');
+
+            $mapper = function (PayrollRunItem $item) use ($registeredWages): array {
+                $upahDasar = $registeredWages[$item->employee_id] ?? $item->gross_salary;
+
+                return [
+                    $item->employee?->full_name,
+                    $item->employee?->employee_number,
+                    (int) $upahDasar,
+                    (int) $item->bpjs_employee_total,
+                    (int) $item->bpjs_company_total,
+                ];
+            };
+
+            return [$header, $query, $mapper];
+        }
+
+        $header = ['Nama', 'Employee Number', 'Upah Dasar', 'Program Terdaftar'];
+
+        $query = EmployeeBpjsProfile::query()
+            ->forTenant($tenantId)
+            ->with(['employee:id,full_name,employee_number'])
+            ->orderBy('id');
+
+        $mapper = fn (EmployeeBpjsProfile $profile): array => [
+            $profile->employee?->full_name,
+            $profile->employee?->employee_number,
+            (int) $profile->registered_wage,
+            $this->bpjsPrograms($profile),
+        ];
+
+        return [$header, $query, $mapper];
+    }
+
+    /**
+     * Build the PPh 21 income tax report. Sources from the latest payroll run's
+     * items when one exists, otherwise falls back to employee tax profiles.
+     *
+     * @return array{0: array<int, string>, 1: Builder, 2: callable(PayrollRunItem|TaxProfile): array<int, string|int|null>}
+     */
+    private function pph21Report(int $tenantId): array
+    {
+        $latestRunId = $this->latestRunId($tenantId);
+
+        if ($latestRunId !== null) {
+            $header = ['Nama', 'Employee Number', 'Penghasilan Bruto', 'Kategori TER', 'Tarif', 'PPh 21'];
+
+            $query = PayrollRunItem::query()
+                ->forTenant($tenantId)
+                ->where('payroll_run_id', $latestRunId)
+                ->with(['employee:id,full_name,employee_number'])
+                ->orderBy('id');
+
+            $mapper = function (PayrollRunItem $item): array {
+                $tax = $item->calculation_snapshot['tax'] ?? [];
+
+                return [
+                    $item->employee?->full_name,
+                    $item->employee?->employee_number,
+                    (int) $item->gross_salary,
+                    $tax['ter_category'] ?? null,
+                    $this->taxRateLabel($tax['tax_rate'] ?? null),
+                    (int) $item->pph21_total,
+                ];
+            };
+
+            return [$header, $query, $mapper];
+        }
+
+        $header = ['Nama', 'Employee Number', 'NPWP', 'PTKP', 'Kategori TER'];
+
+        $query = TaxProfile::query()
+            ->forTenant($tenantId)
+            ->with(['employee:id,full_name,employee_number'])
+            ->orderBy('id');
+
+        $mapper = fn (TaxProfile $profile): array => [
+            $profile->employee?->full_name,
+            $profile->employee?->employee_number,
+            $profile->npwp,
+            $profile->ptkp_status,
+            $profile->tax_category,
+        ];
+
+        return [$header, $query, $mapper];
+    }
+
+    /**
+     * Build the employee turnover report covering every employee, doubling as
+     * the leavers dataset via their employment status and join/exit dates.
+     *
+     * @return array{0: array<int, string>, 1: Builder, 2: callable(Employee): array<int, string|int|null>}
+     */
+    private function turnoverReport(int $tenantId): array
+    {
+        $header = ['Nama', 'Employee Number', 'Departemen', 'Jabatan', 'Status', 'Tanggal Masuk', 'Tanggal Keluar'];
+
+        $query = Employee::query()
+            ->forTenant($tenantId)
+            ->with(['department:id,name', 'position:id,name'])
+            ->orderBy('employee_number');
+
+        // The schema tracks no dedicated termination column, so "Tanggal Keluar"
+        // stays blank until an exit-date field is introduced.
+        $mapper = fn (Employee $employee): array => [
+            $employee->full_name,
+            $employee->employee_number,
+            $employee->department?->name,
+            $employee->position?->name,
+            $this->employmentLabel($employee->employment_status),
+            $employee->join_date?->format('Y-m-d'),
+            null,
+        ];
+
+        return [$header, $query, $mapper];
+    }
+
+    /**
+     * Resolve the latest payroll run id for the tenant, or null when none exist.
+     */
+    private function latestRunId(int $tenantId): ?int
+    {
+        $id = PayrollRun::forTenant($tenantId)->latest('id')->value('id');
+
+        return $id !== null ? (int) $id : null;
+    }
+
+    /**
+     * Build a comma-separated list of the BPJS programs a profile enrolls in.
+     */
+    private function bpjsPrograms(EmployeeBpjsProfile $profile): string
+    {
+        $programs = [];
+
+        if ($profile->jht_enabled) {
+            $programs[] = 'JHT';
+        }
+
+        if ($profile->jkk_enabled) {
+            $programs[] = 'JKK';
+        }
+
+        if ($profile->jkm_enabled) {
+            $programs[] = 'JKM';
+        }
+
+        if ($profile->jp_enabled) {
+            $programs[] = 'JP';
+        }
+
+        if ($profile->kesehatan_enabled) {
+            $programs[] = 'Kesehatan';
+        }
+
+        return implode(', ', $programs);
+    }
+
+    /**
+     * Format a TER tax rate fraction (e.g. 0.0075) as a percentage label.
+     */
+    private function taxRateLabel(float|int|string|null $rate): ?string
+    {
+        if ($rate === null) {
+            return null;
+        }
+
+        return number_format((float) $rate * 100, 2, ',', '.').'%';
     }
 
     /**
