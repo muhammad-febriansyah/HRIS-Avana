@@ -41,9 +41,6 @@ final class AvanaNav
                 ['id' => 'cuti', 'label' => 'Cuti & Lembur', 'icon' => 'palmtree', 'href' => '/avana/cuti', 'feature' => 'leave', 'modules' => ['leave', 'overtime', 'wfh']],
                 ['id' => 'payroll', 'label' => 'Payroll', 'icon' => 'wallet', 'href' => '/avana/payroll', 'feature' => 'payroll', 'modules' => ['payroll']],
             ]],
-            ['title' => 'PERSONAL', 'items' => [
-                ['id' => 'ess', 'label' => 'Self-Service', 'icon' => 'circle-user-round', 'href' => '/avana/ess', 'feature' => 'ess', 'modules' => []],
-            ]],
             ['title' => 'SISTEM', 'items' => [
                 ['id' => 'perusahaan', 'label' => 'Perusahaan', 'icon' => 'building-2', 'href' => '/avana/perusahaan', 'feature' => 'organization', 'modules' => ['branch', 'department', 'position', 'organization']],
                 ['id' => 'laporan', 'label' => 'Laporan', 'icon' => 'chart-column', 'href' => '/avana/laporan', 'feature' => 'analytics', 'modules' => ['report']],
