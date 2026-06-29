@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Avana;
 
+use App\Concerns\AppliesBranchScope;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Avana\StoreLeaveRequest;
 use App\Http\Resources\Avana\LeaveRequestResource;
@@ -22,6 +23,7 @@ use Inertia\Response;
 
 class LeaveController extends Controller
 {
+    use AppliesBranchScope;
     use AuthorizesRequests;
 
     /**
@@ -67,7 +69,7 @@ class LeaveController extends Controller
 
         $direction = $request->query('direction') === 'asc' ? 'asc' : 'desc';
 
-        $requests = LeaveRequest::query()
+        $query = LeaveRequest::query()
             ->forTenant($tenantId)
             ->with([
                 'employee:id,full_name,employee_number,branch_id',
@@ -81,7 +83,11 @@ class LeaveController extends Controller
                 });
             })
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
-            ->when($request->query('leave_type_id'), fn ($q, $id) => $q->where('leave_type_id', $id))
+            ->when($request->query('leave_type_id'), fn ($q, $id) => $q->where('leave_type_id', $id));
+
+        $this->applyBranchScope($query, $request->user());
+
+        $requests = $query
             ->orderBy($sort, $direction)
             ->paginate($request->integer('per_page', 10))
             ->withQueryString();

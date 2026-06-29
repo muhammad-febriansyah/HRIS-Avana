@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Avana;
 
+use App\Concerns\AppliesBranchScope;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Avana\StoreEmployeeRequest;
 use App\Http\Requests\Avana\UpdateEmployeeRequest;
@@ -19,6 +20,7 @@ use Inertia\Response;
 
 class EmployeeController extends Controller
 {
+    use AppliesBranchScope;
     use AuthorizesRequests;
 
     /**
@@ -54,7 +56,7 @@ class EmployeeController extends Controller
 
         $direction = $request->query('direction') === 'asc' ? 'asc' : 'desc';
 
-        $employees = Employee::query()
+        $query = Employee::query()
             ->forTenant($tenantId)
             ->select(self::LIST_COLUMNS)
             ->with([
@@ -74,7 +76,11 @@ class EmployeeController extends Controller
             ->when($request->query('branch_id'), fn ($q, $id) => $q->where('branch_id', $id))
             ->when($request->query('department_id'), fn ($q, $id) => $q->where('department_id', $id))
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
-            ->when($request->query('employment_status'), fn ($q, $value) => $q->where('employment_status', $value))
+            ->when($request->query('employment_status'), fn ($q, $value) => $q->where('employment_status', $value));
+
+        $this->applyBranchScope($query, $request->user());
+
+        $employees = $query
             ->orderBy($sort, $direction)
             ->paginate($request->integer('per_page', 10))
             ->withQueryString();

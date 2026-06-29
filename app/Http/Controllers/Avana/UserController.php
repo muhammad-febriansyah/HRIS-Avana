@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Exists;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -50,7 +52,11 @@ class UserController extends Controller
 
         $users = User::query()
             ->where('tenant_id', $tenantId)
-            ->with('roles:id,name,code')
+            ->with([
+                'roles:id,name,code',
+                'branchAccesses:id,user_id,branch_id',
+                'dataScopes:id,user_id,scope_type,scope_value',
+            ])
             ->when($request->query('search'), function ($query, $search): void {
                 $query->where(function ($q) use ($search): void {
                     $q->where('name', 'like', "%{$search}%")
@@ -77,6 +83,10 @@ class UserController extends Controller
                 ],
             ],
             'roles' => $this->assignableRoles($tenantId),
+            'branches' => Branch::forTenant($tenantId)
+                ->where('status', 'active')
+                ->orderBy('name')
+                ->get(['id', 'name', 'code']),
             'filters' => $request->only(['search', 'status', 'sort', 'direction', 'per_page']),
         ]);
     }
@@ -96,6 +106,9 @@ class UserController extends Controller
             'status' => ['required', 'in:active,inactive'],
             'role_ids' => ['array'],
             'role_ids.*' => ['integer', 'exists:roles,id'],
+            'data_scope' => ['nullable', 'in:company,branch,team,own'],
+            'branch_ids' => ['array'],
+            'branch_ids.*' => ['integer', $this->branchOwnedByTenant($request)],
         ]);
 
         $user = User::create([
@@ -108,6 +121,8 @@ class UserController extends Controller
         ]);
 
         $user->roles()->sync($validated['role_ids'] ?? []);
+        $this->syncDataScope($user, $validated['data_scope'] ?? null);
+        $this->syncBranchAccess($user, $validated['branch_ids'] ?? []);
 
         return redirect()->route('avana.pengguna')
             ->with('success', 'Pengguna berhasil ditambahkan');
@@ -129,6 +144,9 @@ class UserController extends Controller
             'status' => ['required', 'in:active,inactive'],
             'role_ids' => ['array'],
             'role_ids.*' => ['integer', 'exists:roles,id'],
+            'data_scope' => ['nullable', 'in:company,branch,team,own'],
+            'branch_ids' => ['array'],
+            'branch_ids.*' => ['integer', $this->branchOwnedByTenant($request)],
         ]);
 
         $user->fill([
@@ -145,6 +163,8 @@ class UserController extends Controller
         $user->save();
 
         $user->roles()->sync($validated['role_ids'] ?? []);
+        $this->syncDataScope($user, $validated['data_scope'] ?? null);
+        $this->syncBranchAccess($user, $validated['branch_ids'] ?? []);
 
         return redirect()->route('avana.pengguna')
             ->with('success', 'Pengguna berhasil diperbarui');
@@ -202,7 +222,51 @@ class UserController extends Controller
             ])->values()->all(),
             'initials' => $this->initials($user->name),
             'avatar_color' => $this->avatarColor($user->name),
+            'data_scope' => $user->dataScopes->first()?->scope_type ?? 'company',
+            'branch_ids' => $user->branchAccesses
+                ->pluck('branch_id')
+                ->map(fn ($id): int => (int) $id)
+                ->values()
+                ->all(),
         ];
+    }
+
+    /**
+     * Replace the user's data scope with a single row of the given type.
+     */
+    private function syncDataScope(User $user, ?string $scopeType): void
+    {
+        $user->dataScopes()->delete();
+        $user->dataScopes()->create([
+            'scope_type' => $scopeType ?? 'company',
+            'scope_value' => null,
+        ]);
+    }
+
+    /**
+     * Replace the user's branch access rows with view access to each branch id.
+     *
+     * @param  array<int, int>  $branchIds
+     */
+    private function syncBranchAccess(User $user, array $branchIds): void
+    {
+        $user->branchAccesses()->delete();
+
+        foreach (array_unique($branchIds) as $branchId) {
+            $user->branchAccesses()->create([
+                'branch_id' => $branchId,
+                'access_type' => 'view',
+            ]);
+        }
+    }
+
+    /**
+     * Validation rule ensuring a branch id belongs to the acting user's tenant.
+     */
+    private function branchOwnedByTenant(Request $request): Exists
+    {
+        return Rule::exists('branches', 'id')
+            ->where('tenant_id', $request->user()->tenant_id);
     }
 
     /**

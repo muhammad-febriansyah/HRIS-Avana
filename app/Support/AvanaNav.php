@@ -39,6 +39,7 @@ final class AvanaNav
                 ['id' => 'karyawan', 'label' => 'Karyawan', 'icon' => 'users', 'href' => '/avana/employees', 'feature' => 'hr_core', 'modules' => ['employee']],
                 ['id' => 'absensi', 'label' => 'Absensi', 'icon' => 'fingerprint', 'href' => '/avana/absensi', 'feature' => 'attendance', 'modules' => ['attendance']],
                 ['id' => 'cuti', 'label' => 'Cuti & Lembur', 'icon' => 'palmtree', 'href' => '/avana/cuti', 'feature' => 'leave', 'modules' => ['leave', 'overtime', 'wfh']],
+                ['id' => 'approval', 'label' => 'Persetujuan', 'icon' => 'check-check', 'href' => '/avana/approval', 'feature' => null, 'modules' => ['leave', 'overtime', 'wfh', 'attendance', 'team']],
                 ['id' => 'payroll', 'label' => 'Payroll', 'icon' => 'wallet', 'href' => '/avana/payroll', 'feature' => 'payroll', 'modules' => ['payroll']],
                 ['id' => 'payroll-config', 'label' => 'BPJS & Pajak', 'icon' => 'shield-check', 'href' => '/avana/payroll/konfigurasi', 'feature' => 'payroll', 'modules' => ['bpjs', 'pph21', 'payroll']],
             ]],

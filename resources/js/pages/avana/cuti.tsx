@@ -1,12 +1,13 @@
-import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import LeaveController from '@/actions/App/Http/Controllers/Avana/LeaveController';
+import LeaveTypeController from '@/actions/App/Http/Controllers/Avana/LeaveTypeController';
 import OvertimeController from '@/actions/App/Http/Controllers/Avana/OvertimeController';
 import PermissionRequestController from '@/actions/App/Http/Controllers/Avana/PermissionRequestController';
 import WfhController from '@/actions/App/Http/Controllers/Avana/WfhController';
-import { AIcon, C, card, statusBadge } from '@/lib/avana';
+import { AIcon, btnOut, C, card, statusBadge } from '@/lib/avana';
 import type { FlashProps, PaginationMeta } from './employees/types';
 
 /** A single leave request as serialized by `LeaveRequestResource`. */
@@ -839,6 +840,13 @@ export default function AvanaCuti({
                             Ajukan cuti dan kelola persetujuan tim Anda
                         </div>
                     </div>
+                    <Link
+                        href={LeaveTypeController.index().url}
+                        style={{ ...btnOut, textDecoration: 'none' }}
+                    >
+                        <AIcon name="settings-2" size={16} color={C.muted} />
+                        Kelola Jenis Cuti
+                    </Link>
                 </div>
 
                 {/* Tab bar */}

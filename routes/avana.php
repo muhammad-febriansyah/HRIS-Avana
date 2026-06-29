@@ -1,12 +1,14 @@
 <?php
 
 use App\Http\Controllers\Avana\AccessController;
+use App\Http\Controllers\Avana\ApprovalController;
 use App\Http\Controllers\Avana\AttendanceController;
 use App\Http\Controllers\Avana\CompanySetupController;
 use App\Http\Controllers\Avana\EmployeeController;
 use App\Http\Controllers\Avana\FeatureController;
 use App\Http\Controllers\Avana\LaporanController;
 use App\Http\Controllers\Avana\LeaveController;
+use App\Http\Controllers\Avana\LeaveTypeController;
 use App\Http\Controllers\Avana\OvertimeController;
 use App\Http\Controllers\Avana\PayrollConfigController;
 use App\Http\Controllers\Avana\PayrollController;
@@ -47,6 +49,17 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     Route::post('cuti/wfh', [WfhController::class, 'store'])->name('cuti.wfh.store');
     Route::post('cuti/wfh/{wfh}/approve', [WfhController::class, 'approve'])->name('cuti.wfh.approve');
     Route::post('cuti/wfh/{wfh}/reject', [WfhController::class, 'reject'])->name('cuti.wfh.reject');
+
+    // Jenis Cuti (leave types)
+    Route::get('cuti/jenis', [LeaveTypeController::class, 'index'])->name('cuti.jenis');
+    Route::post('cuti/jenis', [LeaveTypeController::class, 'store'])->name('cuti.jenis.store');
+    Route::put('cuti/jenis/{leaveType}', [LeaveTypeController::class, 'update'])->name('cuti.jenis.update');
+    Route::delete('cuti/jenis/{leaveType}', [LeaveTypeController::class, 'destroy'])->name('cuti.jenis.destroy');
+
+    // Approval Center (unified pending approvals across modules)
+    Route::get('approval', [ApprovalController::class, 'index'])->name('approval');
+    Route::post('approval/{type}/{id}/approve', [ApprovalController::class, 'approve'])->name('approval.approve');
+    Route::post('approval/{type}/{id}/reject', [ApprovalController::class, 'reject'])->name('approval.reject');
 
     Route::get('payroll', [PayrollController::class, 'index'])->name('payroll');
     Route::post('payroll/run', [PayrollController::class, 'run'])->name('payroll.run');

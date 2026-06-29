@@ -13,6 +13,13 @@ interface RoleOption {
     code: string;
 }
 
+/** A tenant branch the user can be granted access to. */
+interface BranchOption {
+    id: number;
+    name: string;
+    code: string;
+}
+
 /** A single user row as serialized by `UserController@index`. */
 interface UserRow {
     id: number;
@@ -23,6 +30,8 @@ interface UserRow {
     roles: RoleOption[];
     initials: string;
     avatar_color: string;
+    data_scope: string;
+    branch_ids: number[];
 }
 
 interface PenggunaFilters {
@@ -39,6 +48,7 @@ interface PenggunaProps {
         meta: PaginationMeta;
     };
     roles: RoleOption[];
+    branches: BranchOption[];
     filters: PenggunaFilters;
 }
 
@@ -50,6 +60,8 @@ interface UserFormData {
     password: string;
     status: string;
     role_ids: number[];
+    data_scope: string;
+    branch_ids: number[];
 }
 
 const emptyForm: UserFormData = {
@@ -59,7 +71,31 @@ const emptyForm: UserFormData = {
     password: '',
     status: 'active',
     role_ids: [],
+    data_scope: 'company',
+    branch_ids: [],
 };
+
+/** Scope options surfaced in the create/edit modal. */
+const scopeOptions: { value: string; label: string }[] = [
+    { value: 'company', label: 'Semua Cabang (Company)' },
+    { value: 'branch', label: 'Cabang Tertentu (Branch)' },
+    { value: 'team', label: 'Tim (Team)' },
+    { value: 'own', label: 'Data Sendiri (Own)' },
+];
+
+/** Short label for a scope value, shown as a table chip. */
+function scopeShortLabel(scope: string): string {
+    switch (scope) {
+        case 'branch':
+            return 'Cabang';
+        case 'team':
+            return 'Tim';
+        case 'own':
+            return 'Pribadi';
+        default:
+            return 'Semua cabang';
+    }
+}
 
 const filterSelectStyle: CSSProperties = {
     height: 38,
@@ -169,10 +205,29 @@ function pageItems(current: number, last: number): (number | 'gap')[] {
 export default function AvanaPengguna({
     users,
     roles,
+    branches = [],
     filters,
 }: PenggunaProps) {
     const { flash } = usePage<FlashProps>().props;
     const meta = users.meta;
+    const branchNameById = new Map(
+        branches.map((branch) => [branch.id, branch.name]),
+    );
+
+    /** Render the scope summary for a user row. */
+    const scopeSummary = (user: UserRow): string => {
+        if (user.data_scope === 'branch') {
+            const names = user.branch_ids
+                .map((id) => branchNameById.get(id))
+                .filter((name): name is string => Boolean(name));
+
+            return names.length > 0
+                ? `Cabang: ${names.join(', ')}`
+                : 'Cabang: —';
+        }
+
+        return scopeShortLabel(user.data_scope);
+    };
 
     const [search, setSearch] = useState(filters.search ?? '');
     const [modalOpen, setModalOpen] = useState(false);
@@ -240,6 +295,8 @@ export default function AvanaPengguna({
             password: '',
             status: user.status,
             role_ids: user.roles.map((role) => role.id),
+            data_scope: user.data_scope ?? 'company',
+            branch_ids: [...user.branch_ids],
         });
         setModalOpen(true);
     };
@@ -257,6 +314,14 @@ export default function AvanaPengguna({
             : [...form.data.role_ids, id];
 
         form.setData('role_ids', next);
+    };
+
+    const toggleBranch = (id: number) => {
+        const next = form.data.branch_ids.includes(id)
+            ? form.data.branch_ids.filter((branchId) => branchId !== id)
+            : [...form.data.branch_ids, id];
+
+        form.setData('branch_ids', next);
     };
 
     const submitForm = (event: FormEvent<HTMLFormElement>) => {
@@ -541,6 +606,31 @@ export default function AvanaPengguna({
                                                             }}
                                                         >
                                                             {user.email}
+                                                        </div>
+                                                        <div
+                                                            style={{
+                                                                display:
+                                                                    'inline-flex',
+                                                                alignItems:
+                                                                    'center',
+                                                                gap: 4,
+                                                                marginTop: 4,
+                                                                padding:
+                                                                    '2px 8px',
+                                                                borderRadius: 100,
+                                                                fontSize: 11,
+                                                                fontWeight: 500,
+                                                                color: C.muted,
+                                                                background:
+                                                                    C.surface,
+                                                            }}
+                                                        >
+                                                            <AIcon
+                                                                name="building-2"
+                                                                size={11}
+                                                                color={C.faint}
+                                                            />
+                                                            {scopeSummary(user)}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1069,6 +1159,128 @@ export default function AvanaPengguna({
                                 </div>
                                 <FieldError message={form.errors.role_ids} />
                             </div>
+
+                            <div>
+                                <label style={fieldLabelStyle}>Scope Data</label>
+                                <select
+                                    value={form.data.data_scope}
+                                    onChange={(event) =>
+                                        form.setData(
+                                            'data_scope',
+                                            event.target.value,
+                                        )
+                                    }
+                                    style={withError(
+                                        selectStyle,
+                                        !!form.errors.data_scope,
+                                    )}
+                                >
+                                    {scopeOptions.map((option) => (
+                                        <option
+                                            key={option.value}
+                                            value={option.value}
+                                        >
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </select>
+                                <FieldError message={form.errors.data_scope} />
+                            </div>
+
+                            {form.data.data_scope === 'branch' && (
+                                <div>
+                                    <label style={fieldLabelStyle}>
+                                        Akses Cabang
+                                    </label>
+                                    {branches.length === 0 ? (
+                                        <div
+                                            style={{
+                                                fontSize: 12.5,
+                                                color: C.faint,
+                                            }}
+                                        >
+                                            Belum ada cabang.
+                                        </div>
+                                    ) : (
+                                        <div
+                                            style={{
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: 8,
+                                            }}
+                                        >
+                                            {branches.map((branch) => {
+                                                const checked =
+                                                    form.data.branch_ids.includes(
+                                                        branch.id,
+                                                    );
+
+                                                return (
+                                                    <label
+                                                        key={branch.id}
+                                                        style={{
+                                                            display: 'flex',
+                                                            alignItems:
+                                                                'center',
+                                                            gap: 10,
+                                                            padding: '10px 12px',
+                                                            border: `1px solid ${
+                                                                checked
+                                                                    ? C.primary
+                                                                    : C.border
+                                                            }`,
+                                                            borderRadius: 9,
+                                                            background: checked
+                                                                ? 'rgba(47,84,201,.05)'
+                                                                : '#fff',
+                                                            cursor: 'pointer',
+                                                            transition: '.12s',
+                                                        }}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={checked}
+                                                            onChange={() =>
+                                                                toggleBranch(
+                                                                    branch.id,
+                                                                )
+                                                            }
+                                                            style={{
+                                                                width: 16,
+                                                                height: 16,
+                                                                accentColor:
+                                                                    C.primary,
+                                                            }}
+                                                        />
+                                                        <div>
+                                                            <div
+                                                                style={{
+                                                                    fontSize: 13.5,
+                                                                    fontWeight: 500,
+                                                                    color: C.text,
+                                                                }}
+                                                            >
+                                                                {branch.name}
+                                                            </div>
+                                                            <div
+                                                                style={{
+                                                                    fontSize: 11.5,
+                                                                    color: C.faint,
+                                                                }}
+                                                            >
+                                                                {branch.code}
+                                                            </div>
+                                                        </div>
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                    <FieldError
+                                        message={form.errors.branch_ids}
+                                    />
+                                </div>
+                            )}
                         </div>
 
                         <div

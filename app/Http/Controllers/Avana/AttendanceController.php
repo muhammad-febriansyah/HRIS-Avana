@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Avana;
 
+use App\Concerns\AppliesBranchScope;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Avana\AttendanceResource;
 use App\Models\Attendance;
@@ -16,6 +17,7 @@ use Inertia\Response;
 
 class AttendanceController extends Controller
 {
+    use AppliesBranchScope;
     use AuthorizesRequests;
 
     /**
@@ -43,7 +45,7 @@ class AttendanceController extends Controller
 
         $direction = $request->query('direction') === 'asc' ? 'asc' : 'desc';
 
-        $attendances = Attendance::query()
+        $query = Attendance::query()
             ->forTenant($tenantId)
             ->whereDate('date', $dateString)
             ->with([
@@ -58,13 +60,21 @@ class AttendanceController extends Controller
                 });
             })
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
-            ->when($request->query('branch_id'), fn ($q, $branchId) => $q->where('branch_id', $branchId))
+            ->when($request->query('branch_id'), fn ($q, $branchId) => $q->where('branch_id', $branchId));
+
+        $this->applyBranchScope($query, $request->user());
+
+        $attendances = $query
             ->orderBy($sort, $direction)
             ->paginate($request->integer('per_page', 10))
             ->withQueryString();
 
-        $statusCounts = Attendance::forTenant($tenantId)
-            ->whereDate('date', $dateString)
+        $statusCountQuery = Attendance::forTenant($tenantId)
+            ->whereDate('date', $dateString);
+
+        $this->applyBranchScope($statusCountQuery, $request->user());
+
+        $statusCounts = $statusCountQuery
             ->selectRaw('status, count(*) as c')
             ->groupBy('status')
             ->pluck('c', 'status');
