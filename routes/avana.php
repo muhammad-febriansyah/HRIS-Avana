@@ -65,6 +65,7 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     Route::post('payroll/run', [PayrollController::class, 'run'])->name('payroll.run');
     Route::get('payroll/components', [PositionComponentController::class, 'index'])->name('payroll.components');
     Route::put('payroll/components', [PositionComponentController::class, 'update'])->name('payroll.components.update');
+    Route::put('payroll/components/basis', [PositionComponentController::class, 'updateBasis'])->name('payroll.components.basis');
 
     // Payroll config: BPJS programs/rates + PPh21 TER
     Route::get('payroll/konfigurasi', [PayrollConfigController::class, 'index'])->name('payroll.konfigurasi');

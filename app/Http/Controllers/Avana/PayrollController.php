@@ -5,13 +5,18 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Avana\PayrollPeriodResource;
 use App\Models\Attendance;
+use App\Models\BpjsProgram;
 use App\Models\Employee;
+use App\Models\EmployeeBpjsProfile;
 use App\Models\EmployeeSalaryComponent;
+use App\Models\OvertimeRequest;
 use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
 use App\Models\PositionPayrollComponent;
+use App\Models\Pph21TerRate;
+use App\Models\TaxProfile;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -109,16 +114,19 @@ class PayrollController extends Controller
                     'gross_salary' => $pay['gross'],
                     'total_allowance' => max(0.0, $pay['gross'] - $pay['basic']),
                     'total_deduction' => $pay['deduction'],
-                    'bpjs_employee_total' => 0,
-                    'bpjs_company_total' => 0,
-                    'pph21_total' => 0,
+                    'bpjs_employee_total' => $pay['bpjs_employee'],
+                    'bpjs_company_total' => $pay['bpjs_company'],
+                    'pph21_total' => $pay['pph21'],
                     'net_salary' => $pay['net'],
                     'calculation_snapshot' => [
                         'earnings' => $pay['earnings'],
                         'deductions' => $pay['deductions'],
                         'present_days' => $pay['present_days'],
+                        'overtime_hours' => $pay['overtime_hours'],
                         'gross' => $pay['gross'],
                         'deduction' => $pay['deduction'],
+                        'bpjs' => $pay['bpjs_snapshot'],
+                        'tax' => $pay['tax_snapshot'],
                         'net' => $pay['net'],
                     ],
                     'status' => 'calculated',
@@ -127,6 +135,7 @@ class PayrollController extends Controller
 
             $totalGross += $pay['gross'];
             $totalDeduction += $pay['deduction'];
+            $totalTax += $pay['pph21'];
             $totalNet += $pay['net'];
             $count++;
         }
@@ -213,13 +222,22 @@ class PayrollController extends Controller
     private function computeEmployeePay(Employee $employee, PayrollPeriod $period, int $tenantId): array
     {
         $presentDays = 0;
+        $overtimeHours = 0.0;
 
         if ($period->start_date !== null && $period->end_date !== null) {
+            $range = [$period->start_date->toDateString(), $period->end_date->toDateString()];
+
             $presentDays = Attendance::forTenant($tenantId)
                 ->where('employee_id', $employee->id)
-                ->whereBetween('date', [$period->start_date->toDateString(), $period->end_date->toDateString()])
+                ->whereBetween('date', $range)
                 ->where('status', 'present')
                 ->count();
+
+            $overtimeHours = (float) OvertimeRequest::forTenant($tenantId)
+                ->where('employee_id', $employee->id)
+                ->where('status', 'approved')
+                ->whereBetween('date', $range)
+                ->sum('hours');
         }
 
         /** @var list<array{name: string, amount: float}> $earnings */
@@ -256,12 +274,25 @@ class PayrollController extends Controller
                     continue;
                 }
 
-                $amount = $this->amountForBasis((float) $positionComponent->amount, $component->calc_basis, $presentDays);
+                $amount = $this->amountForBasis((float) $positionComponent->amount, $component->calc_basis, $presentDays, $overtimeHours);
                 $this->collectComponent($component, $amount, $earnings, $deductions, $basic);
             }
         }
 
         $gross = (float) array_sum(array_column($earnings, 'amount'));
+
+        // Statutory deductions computed from internal config (no external API).
+        $bpjs = $this->computeBpjs($employee, $tenantId, $basic > 0 ? $basic : $gross);
+        $pph21 = $this->computePph21($employee, $tenantId, $gross);
+
+        if ($bpjs['employee'] > 0) {
+            $deductions[] = ['name' => 'BPJS (Karyawan)', 'amount' => $bpjs['employee']];
+        }
+
+        if ($pph21['amount'] > 0) {
+            $deductions[] = ['name' => 'PPh 21', 'amount' => $pph21['amount']];
+        }
+
         $deduction = (float) array_sum(array_column($deductions, 'amount'));
 
         return [
@@ -271,20 +302,129 @@ class PayrollController extends Controller
             'deduction' => $deduction,
             'net' => $gross - $deduction,
             'present_days' => $presentDays,
+            'overtime_hours' => $overtimeHours,
             'basic' => $basic,
+            'bpjs_employee' => $bpjs['employee'],
+            'bpjs_company' => $bpjs['company'],
+            'bpjs_snapshot' => $bpjs['snapshot'],
+            'pph21' => $pph21['amount'],
+            'tax_snapshot' => $pph21['snapshot'],
         ];
     }
 
     /**
      * Resolve a position component amount for its attendance calculation basis.
      */
-    private function amountForBasis(float $amount, ?string $calcBasis, int $presentDays): float
+    private function amountForBasis(float $amount, ?string $calcBasis, int $presentDays, float $overtimeHours = 0.0): float
     {
         return match ($calcBasis) {
             'per_present_day' => $amount * $presentDays,
-            'per_overtime_hour' => 0.0,
+            'per_overtime_hour' => $amount * $overtimeHours,
             default => $amount,
         };
+    }
+
+    /**
+     * Compute the BPJS employee/company contribution from active internal rates.
+     *
+     * @return array{employee: float, company: float, snapshot: array<string, mixed>}
+     */
+    private function computeBpjs(Employee $employee, int $tenantId, float $fallbackWage): array
+    {
+        $profile = EmployeeBpjsProfile::where('tenant_id', $tenantId)
+            ->where('employee_id', $employee->id)
+            ->first();
+
+        // BPJS only applies to enrolled employees (those with a profile).
+        if ($profile === null) {
+            return ['employee' => 0.0, 'company' => 0.0, 'snapshot' => []];
+        }
+
+        $base = (float) $profile->registered_wage > 0
+            ? (float) $profile->registered_wage
+            : $fallbackWage;
+
+        $enabledMap = [
+            'kesehatan' => 'kesehatan_enabled',
+            'jht' => 'jht_enabled',
+            'jp' => 'jp_enabled',
+            'jkk' => 'jkk_enabled',
+            'jkm' => 'jkm_enabled',
+        ];
+
+        $employeeTotal = 0.0;
+        $companyTotal = 0.0;
+        $lines = [];
+
+        $programs = BpjsProgram::where('is_active', true)
+            ->with(['rates' => fn ($query) => $query->where('is_active', true)->orderByDesc('effective_start_date')])
+            ->get();
+
+        foreach ($programs as $program) {
+            $code = strtolower((string) $program->code);
+
+            if ($profile !== null && isset($enabledMap[$code]) && ! $profile->{$enabledMap[$code]}) {
+                continue;
+            }
+
+            $rate = $program->rates->first();
+
+            if ($rate === null) {
+                continue;
+            }
+
+            $capped = (float) $rate->max_wage > 0 ? min($base, (float) $rate->max_wage) : $base;
+            $employeePortion = round((float) $rate->employee_rate * $capped);
+            $companyPortion = round((float) $rate->company_rate * $capped);
+
+            $employeeTotal += $employeePortion;
+            $companyTotal += $companyPortion;
+            $lines[$code] = ['employee' => $employeePortion, 'company' => $companyPortion];
+        }
+
+        return [
+            'employee' => $employeeTotal,
+            'company' => $companyTotal,
+            'snapshot' => ['base_wage' => $base, 'programs' => $lines],
+        ];
+    }
+
+    /**
+     * Compute internal PPh 21 using the TER bracket matching the gross income.
+     *
+     * @return array{amount: float, snapshot: array<string, mixed>}
+     */
+    private function computePph21(Employee $employee, int $tenantId, float $gross): array
+    {
+        $profile = TaxProfile::where('tenant_id', $tenantId)
+            ->where('employee_id', $employee->id)
+            ->first();
+
+        $category = $profile?->tax_category ?: 'A';
+
+        $rate = Pph21TerRate::where('is_active', true)
+            ->where('category', $category)
+            ->where('income_min', '<=', $gross)
+            ->where(function ($query) use ($gross): void {
+                $query->where('income_max', '>=', $gross)
+                    ->orWhereNull('income_max')
+                    ->orWhere('income_max', 0);
+            })
+            ->orderByDesc('income_min')
+            ->first();
+
+        $taxRate = $rate !== null ? (float) $rate->rate : 0.0;
+        $amount = round($taxRate * $gross);
+
+        return [
+            'amount' => $amount,
+            'snapshot' => [
+                'ptkp_status' => $profile?->ptkp_status,
+                'ter_category' => $category,
+                'tax_rate' => $taxRate,
+                'pph21_amount' => $amount,
+            ],
+        ];
     }
 
     /**

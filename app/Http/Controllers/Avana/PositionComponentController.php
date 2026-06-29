@@ -81,4 +81,28 @@ class PositionComponentController extends Controller
 
         return back()->with('success', 'Komponen per jabatan disimpan');
     }
+
+    /**
+     * Update a payroll component's attendance calculation basis.
+     */
+    public function updateBasis(Request $request): RedirectResponse
+    {
+        $this->authorize('manage', PositionPayrollComponent::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $validated = $request->validate([
+            'payroll_component_id' => [
+                'required', 'integer',
+                Rule::exists('payroll_components', 'id')->where('tenant_id', $tenantId)->whereNull('deleted_at'),
+            ],
+            'calc_basis' => ['required', Rule::in(['fixed', 'per_present_day', 'per_overtime_hour'])],
+        ]);
+
+        PayrollComponent::forTenant($tenantId)
+            ->whereKey($validated['payroll_component_id'])
+            ->update(['calc_basis' => $validated['calc_basis']]);
+
+        return back()->with('success', 'Basis komponen diperbarui');
+    }
 }

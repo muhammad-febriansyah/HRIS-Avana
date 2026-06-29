@@ -135,6 +135,14 @@ export default function AvanaPayrollComponents({
         }));
     };
 
+    const changeBasis = (componentId: number, basis: CalcBasis) => {
+        router.put(
+            PositionComponentController.updateBasis().url,
+            { payroll_component_id: componentId, calc_basis: basis },
+            { preserveScroll: true, preserveState: false },
+        );
+    };
+
     const save = () => {
         const items = positions.flatMap((position) =>
             components.map((component) => ({
@@ -263,7 +271,16 @@ export default function AvanaPayrollComponents({
                                                 >
                                                     {component.name}
                                                 </span>
-                                                <span
+                                                <select
+                                                    value={component.calc_basis}
+                                                    onChange={(event) =>
+                                                        changeBasis(
+                                                            component.id,
+                                                            event.target
+                                                                .value as CalcBasis,
+                                                        )
+                                                    }
+                                                    title="Basis perhitungan komponen"
                                                     style={{
                                                         fontSize: 10.5,
                                                         fontWeight: 600,
@@ -271,24 +288,33 @@ export default function AvanaPayrollComponents({
                                                         letterSpacing: 0,
                                                         padding: '2px 7px',
                                                         borderRadius: 100,
+                                                        border: 'none',
+                                                        cursor: 'pointer',
                                                         color:
-                                                            component.type ===
-                                                            'deduction'
-                                                                ? C.red
+                                                            component.calc_basis ===
+                                                            'fixed'
+                                                                ? C.muted
                                                                 : C.primary,
                                                         background:
-                                                            component.type ===
-                                                            'deduction'
-                                                                ? 'rgba(220,38,38,.08)'
+                                                            component.calc_basis ===
+                                                            'fixed'
+                                                                ? C.line
                                                                 : 'rgba(47,84,201,.1)',
                                                     }}
                                                 >
-                                                    {
-                                                        calcBasisTag[
-                                                            component.calc_basis
-                                                        ]
-                                                    }
-                                                </span>
+                                                    {(
+                                                        Object.keys(
+                                                            calcBasisTag,
+                                                        ) as CalcBasis[]
+                                                    ).map((basis) => (
+                                                        <option
+                                                            key={basis}
+                                                            value={basis}
+                                                        >
+                                                            {calcBasisTag[basis]}
+                                                        </option>
+                                                    ))}
+                                                </select>
                                             </div>
                                         </th>
                                     ))}
