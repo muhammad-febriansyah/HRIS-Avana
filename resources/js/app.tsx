@@ -14,6 +14,10 @@ createInertiaApp({
         switch (true) {
             case name === 'welcome':
                 return null;
+            // Standalone printable sheets (invoice, surat) render without the
+            // AvanaHR sidebar/topbar chrome for a clean browser Print-to-PDF.
+            case name.endsWith('/print'):
+                return null;
             case name.startsWith('auth/'):
                 return AuthLayout;
             case name.startsWith('settings/'):

@@ -112,6 +112,7 @@ final class AvanaNav
             ]],
             ['title' => 'PLATFORM', 'items' => [
                 self::leaf('klien', 'Klien / Tenant', 'building-2', '/avana/klien', null, [], false, true),
+                self::leaf('billing', 'Billing & Invoice', 'receipt-text', '/avana/billing', null, [], false, true),
                 self::leaf('website-settings', 'Pengaturan Website', 'globe', '/avana/website-settings', null, [], false, true),
             ]],
         ];

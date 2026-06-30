@@ -1,5 +1,4 @@
 import { Head, Link } from '@inertiajs/react';
-import type { ReactNode } from 'react';
 import LetterTemplateController from '@/actions/App/Http/Controllers/Avana/LetterTemplateController';
 import { AIcon, btnOut, btnP, C } from '@/lib/avana';
 import type { SuratPrintProps } from './types';
@@ -133,6 +132,3 @@ export default function SuratPrint({ letter, company }: SuratPrintProps) {
         </div>
     );
 }
-
-/** Render the print page without the AvanaHR sidebar/chrome. */
-SuratPrint.layout = (page: ReactNode) => <>{page}</>;

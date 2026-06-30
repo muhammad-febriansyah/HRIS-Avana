@@ -8,6 +8,7 @@ use App\Http\Controllers\Avana\AttendanceController;
 use App\Http\Controllers\Avana\AttendancePenaltyController;
 use App\Http\Controllers\Avana\AuditController;
 use App\Http\Controllers\Avana\BenefitController;
+use App\Http\Controllers\Avana\BillingController;
 use App\Http\Controllers\Avana\CashAdvanceController;
 use App\Http\Controllers\Avana\ClaimController;
 use App\Http\Controllers\Avana\CompanySetupController;
@@ -209,6 +210,17 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     Route::put('klien/{tenant}', [TenantController::class, 'update'])->name('klien.update');
     Route::delete('klien/{tenant}', [TenantController::class, 'destroy'])->name('klien.destroy');
     Route::post('klien/{tenant}/feature', [TenantController::class, 'toggleFeature'])->name('klien.feature.toggle');
+
+    // Billing & Invoice (super admin) — client subscriptions + invoices
+    Route::get('billing', [BillingController::class, 'index'])->name('billing');
+    Route::post('billing/subscription', [BillingController::class, 'storeSubscription'])->name('billing.subscription.store');
+    Route::put('billing/subscription/{subscription}', [BillingController::class, 'updateSubscription'])->name('billing.subscription.update');
+    Route::post('billing/invoice', [BillingController::class, 'storeInvoice'])->name('billing.invoice.store');
+    Route::post('billing/subscription/{subscription}/generate', [BillingController::class, 'generateInvoice'])->name('billing.invoice.generate');
+    Route::get('billing/invoice/{invoice}/cetak', [BillingController::class, 'printInvoice'])->name('billing.invoice.print');
+    Route::post('billing/invoice/{invoice}/pay', [BillingController::class, 'markPaid'])->name('billing.invoice.pay');
+    Route::post('billing/invoice/{invoice}/cancel', [BillingController::class, 'cancelInvoice'])->name('billing.invoice.cancel');
+    Route::delete('billing/invoice/{invoice}', [BillingController::class, 'destroyInvoice'])->name('billing.invoice.destroy');
 
     // Pengaturan website (super admin) — edit-only, single settings row
     Route::get('website-settings', [WebsiteSettingController::class, 'edit'])->name('website-settings');
