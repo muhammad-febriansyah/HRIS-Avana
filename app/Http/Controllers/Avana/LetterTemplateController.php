@@ -8,6 +8,7 @@ use App\Models\GeneratedLetter;
 use App\Models\LetterTemplate;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\HtmlSanitizer;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -207,7 +208,7 @@ class LetterTemplateController extends Controller
         $pdf = Pdf::loadView('pdf.surat', [
             'letter' => [
                 'title' => $generatedLetter->title,
-                'body' => $generatedLetter->body,
+                'body' => $this->presentBody($generatedLetter->body),
                 'letter_number' => $generatedLetter->letter_number,
                 'generated_at_label' => $generatedLetter->generated_at
                     ? $this->formatDate($generatedLetter->generated_at->toDateString())
@@ -241,12 +242,16 @@ class LetterTemplateController extends Controller
      */
     private function validateTemplate(Request $request): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', Rule::in(self::TYPES)],
             'body' => ['required', 'string'],
             'is_active' => ['required', 'boolean'],
         ]);
+
+        $data['body'] = HtmlSanitizer::clean($data['body']);
+
+        return $data;
     }
 
     /**
@@ -280,6 +285,22 @@ class LetterTemplateController extends Controller
         }
 
         return $rendered;
+    }
+
+    /**
+     * Prepare a generated letter body for raw rendering in the PDF view.
+     *
+     * Rich-text bodies are already sanitized HTML and pass through untouched.
+     * Legacy plain-text bodies are escaped and have their newlines converted
+     * so paragraph breaks survive the HTML renderer.
+     */
+    private function presentBody(string $body): string
+    {
+        if ($body === strip_tags($body)) {
+            return nl2br(e($body));
+        }
+
+        return $body;
     }
 
     /**

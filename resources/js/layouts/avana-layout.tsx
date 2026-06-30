@@ -2,7 +2,8 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { AIcon, C, NAV, type NavGroup, type NavItem } from '@/lib/avana';
+import { AIcon, C, NAV   } from '@/lib/avana';
+import type {NavGroup, NavItem} from '@/lib/avana';
 import { logout } from '@/routes';
 import { edit as editProfile } from '@/routes/profile';
 
@@ -121,7 +122,11 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                                                 background: active ? 'rgba(47,84,201,.09)' : 'transparent',
                                             }}
                                         >
-                                            <AIcon name={item.icon} size={nested ? 16 : 18} />
+                                            {nested ? (
+                                                <span style={{ width: 16, display: 'flex', justifyContent: 'center', fontSize: 16, lineHeight: 1, color: active ? C.primary : C.faint }}>›</span>
+                                            ) : (
+                                                <AIcon name={item.icon} size={18} />
+                                            )}
                                             {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
                                         </Link>
                                     );

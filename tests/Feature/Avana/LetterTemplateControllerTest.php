@@ -125,6 +125,47 @@ it('creates a template scoped to the current tenant', function (): void {
     expect($template->is_active)->toBeTrue();
 });
 
+it('strips dangerous html from the template body on store', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.surat.store'), [
+            'name' => 'Surat XSS',
+            'type' => 'custom',
+            'body' => '<p onclick="alert(1)">Halo <strong>{{nama}}</strong></p><script>alert(2)</script>',
+            'is_active' => true,
+        ])
+        ->assertRedirect(route('avana.surat'));
+
+    $template = LetterTemplate::where('name', 'Surat XSS')->firstOrFail();
+
+    expect($template->body)
+        ->not->toContain('<script')
+        ->not->toContain('onclick')
+        ->not->toContain('alert(2)')
+        ->toContain('<strong>{{nama}}</strong>')
+        ->toContain('Halo');
+});
+
+it('keeps safe formatting html when updating a template', function (): void {
+    $template = makeSuratTemplate($this->tenant->id);
+
+    $body = '<h2>Surat</h2><p>Kepada <strong>{{nama}}</strong></p><ul><li>Poin satu</li></ul>';
+
+    actingAs($this->admin)
+        ->put(route('avana.surat.update', $template), [
+            'name' => 'Surat Rapi',
+            'type' => 'custom',
+            'body' => $body,
+            'is_active' => true,
+        ])
+        ->assertRedirect(route('avana.surat'));
+
+    expect($template->refresh()->body)
+        ->toContain('<h2>')
+        ->toContain('<ul>')
+        ->toContain('<li>Poin satu</li>')
+        ->toContain('{{nama}}');
+});
+
 it('validates required fields on store', function (): void {
     actingAs($this->admin)
         ->post(route('avana.surat.store'), [

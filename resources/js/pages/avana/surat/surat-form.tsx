@@ -1,6 +1,9 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
-import type { FormEvent } from 'react';
+import { useRef  } from 'react';
+import type {FormEvent} from 'react';
+import { RichEditor  } from '@/components/avana-ui/rich-editor';
+import type {RichEditorHandle} from '@/components/avana-ui/rich-editor';
 import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
 import {
     FieldError,
@@ -8,7 +11,6 @@ import {
     inputStyle,
     PlaceholderLegend,
     selectStyle,
-    textareaStyle,
     withError,
 } from './components';
 import type {
@@ -38,6 +40,7 @@ export function SuratForm({
     onSubmit,
 }: SuratFormProps) {
     const { data, setData, errors, processing } = form;
+    const editorRef = useRef<RichEditorHandle>(null);
 
     return (
         <form onSubmit={onSubmit} style={{ ...card, maxWidth: 720 }}>
@@ -94,22 +97,22 @@ export function SuratForm({
                     </div>
                 </div>
 
-                <PlaceholderLegend placeholders={placeholders} />
+                <PlaceholderLegend
+                    placeholders={placeholders}
+                    onInsert={(token) => editorRef.current?.insertText(token)}
+                />
 
                 <div>
                     <label style={fieldLabelStyle}>
                         Isi Surat <span style={{ color: C.red }}>*</span>
                     </label>
-                    <textarea
+                    <RichEditor
+                        ref={editorRef}
                         value={data.body}
-                        onChange={(event) => setData('body', event.target.value)}
-                        placeholder={
-                            'Tulis isi surat di sini. Gunakan placeholder seperti {{nama}}, {{jabatan}}, dan {{perusahaan}} yang akan diganti otomatis saat surat dibuat.'
-                        }
-                        style={withError(
-                            { ...textareaStyle, minHeight: 280 },
-                            !!errors.body,
-                        )}
+                        onChange={(html) => setData('body', html)}
+                        hasError={!!errors.body}
+                        minHeight={280}
+                        placeholder="Tulis isi surat di sini. Gunakan placeholder seperti {{nama}}, {{jabatan}}, dan {{perusahaan}} yang akan diganti otomatis saat surat dibuat."
                     />
                     <FieldError message={errors.body} />
                 </div>

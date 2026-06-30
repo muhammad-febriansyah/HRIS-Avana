@@ -1,18 +1,25 @@
 <?php
 
 use App\Http\Controllers\Avana\AccessController;
+use App\Http\Controllers\Avana\AiAssistantController;
 use App\Http\Controllers\Avana\AnalyticsController;
+use App\Http\Controllers\Avana\AnnouncementController;
 use App\Http\Controllers\Avana\ApprovalController;
+use App\Http\Controllers\Avana\ApprovalDelegationController;
 use App\Http\Controllers\Avana\AssetController;
 use App\Http\Controllers\Avana\AttendanceController;
 use App\Http\Controllers\Avana\AttendancePenaltyController;
 use App\Http\Controllers\Avana\AuditController;
 use App\Http\Controllers\Avana\BenefitController;
 use App\Http\Controllers\Avana\BillingController;
+use App\Http\Controllers\Avana\BudgetController;
+use App\Http\Controllers\Avana\CalendarController;
 use App\Http\Controllers\Avana\CashAdvanceController;
 use App\Http\Controllers\Avana\ClaimController;
 use App\Http\Controllers\Avana\CompanySetupController;
+use App\Http\Controllers\Avana\CompetencyController;
 use App\Http\Controllers\Avana\ContractController;
+use App\Http\Controllers\Avana\CrmController;
 use App\Http\Controllers\Avana\DokumenController;
 use App\Http\Controllers\Avana\DutyTravelController;
 use App\Http\Controllers\Avana\DynamicReportController;
@@ -20,13 +27,17 @@ use App\Http\Controllers\Avana\EmployeeController;
 use App\Http\Controllers\Avana\FeatureController;
 use App\Http\Controllers\Avana\FieldVisitController;
 use App\Http\Controllers\Avana\HelpdeskController;
+use App\Http\Controllers\Avana\JournalController;
 use App\Http\Controllers\Avana\LaporanController;
 use App\Http\Controllers\Avana\LearningController;
 use App\Http\Controllers\Avana\LeaveController;
 use App\Http\Controllers\Avana\LeaveTypeController;
 use App\Http\Controllers\Avana\LetterTemplateController;
+use App\Http\Controllers\Avana\LoanController;
 use App\Http\Controllers\Avana\MovementController;
+use App\Http\Controllers\Avana\OffboardingController;
 use App\Http\Controllers\Avana\OkrController;
+use App\Http\Controllers\Avana\OnboardingController;
 use App\Http\Controllers\Avana\OvertimeController;
 use App\Http\Controllers\Avana\PayrollConfigController;
 use App\Http\Controllers\Avana\PayrollController;
@@ -35,7 +46,12 @@ use App\Http\Controllers\Avana\PermissionRequestController;
 use App\Http\Controllers\Avana\PositionComponentController;
 use App\Http\Controllers\Avana\RecruitmentController;
 use App\Http\Controllers\Avana\RosterController;
+use App\Http\Controllers\Avana\SalaryStructureController;
+use App\Http\Controllers\Avana\ShiftSwapController;
+use App\Http\Controllers\Avana\SurveyController;
+use App\Http\Controllers\Avana\TalentController;
 use App\Http\Controllers\Avana\TenantController;
+use App\Http\Controllers\Avana\TimesheetController;
 use App\Http\Controllers\Avana\UserController;
 use App\Http\Controllers\Avana\WebsiteSettingController;
 use App\Http\Controllers\Avana\WfhController;
@@ -321,4 +337,107 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     Route::delete('aset/{asset}', [AssetController::class, 'destroy'])->name('aset.destroy');
     Route::post('aset/{asset}/assign', [AssetController::class, 'assign'])->name('aset.assign');
     Route::post('aset/assignment/{assignment}/return', [AssetController::class, 'returnAsset'])->name('aset.return');
+
+    // ===== Enterprise-tier modules (wave: CRM, Talent, lifecycle, finance, planning) =====
+
+    // CRM (sales pipeline)
+    Route::get('crm', [CrmController::class, 'index'])->name('crm');
+    Route::post('crm/contact', [CrmController::class, 'storeContact'])->name('crm.contact.store');
+    Route::post('crm/deal', [CrmController::class, 'storeDeal'])->name('crm.deal.store');
+    Route::put('crm/deal/{deal}', [CrmController::class, 'updateDeal'])->name('crm.deal.update');
+    Route::post('crm/deal/{deal}/stage', [CrmController::class, 'moveStage'])->name('crm.deal.stage');
+    Route::delete('crm/deal/{deal}', [CrmController::class, 'destroyDeal'])->name('crm.deal.destroy');
+
+    // Talenta & Suksesi (9-box + succession)
+    Route::get('talenta', [TalentController::class, 'index'])->name('talenta');
+    Route::post('talenta', [TalentController::class, 'store'])->name('talenta.store');
+    Route::put('talenta/{assessment}', [TalentController::class, 'update'])->name('talenta.update');
+    Route::delete('talenta/{assessment}', [TalentController::class, 'destroy'])->name('talenta.destroy');
+
+    // Kompetensi (competency framework)
+    Route::get('kompetensi', [CompetencyController::class, 'index'])->name('kompetensi');
+    Route::post('kompetensi', [CompetencyController::class, 'store'])->name('kompetensi.store');
+    Route::put('kompetensi/{competency}', [CompetencyController::class, 'update'])->name('kompetensi.update');
+    Route::delete('kompetensi/{competency}', [CompetencyController::class, 'destroy'])->name('kompetensi.destroy');
+    Route::post('kompetensi/assess', [CompetencyController::class, 'assess'])->name('kompetensi.assess');
+
+    // Onboarding
+    Route::get('onboarding', [OnboardingController::class, 'index'])->name('onboarding');
+    Route::post('onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
+    Route::post('onboarding/{program}/task', [OnboardingController::class, 'storeTask'])->name('onboarding.task.store');
+    Route::post('onboarding/task/{task}/toggle', [OnboardingController::class, 'toggleTask'])->name('onboarding.task.toggle');
+    Route::delete('onboarding/{program}', [OnboardingController::class, 'destroy'])->name('onboarding.destroy');
+
+    // Offboarding & clearance
+    Route::get('offboarding', [OffboardingController::class, 'index'])->name('offboarding');
+    Route::post('offboarding', [OffboardingController::class, 'store'])->name('offboarding.store');
+    Route::post('offboarding/item/{item}/toggle', [OffboardingController::class, 'toggleItem'])->name('offboarding.item.toggle');
+    Route::delete('offboarding/{case}', [OffboardingController::class, 'destroy'])->name('offboarding.destroy');
+
+    // Pengumuman (announcements)
+    Route::get('pengumuman', [AnnouncementController::class, 'index'])->name('pengumuman');
+    Route::post('pengumuman', [AnnouncementController::class, 'store'])->name('pengumuman.store');
+    Route::put('pengumuman/{announcement}', [AnnouncementController::class, 'update'])->name('pengumuman.update');
+    Route::post('pengumuman/{announcement}/publish', [AnnouncementController::class, 'publish'])->name('pengumuman.publish');
+    Route::delete('pengumuman/{announcement}', [AnnouncementController::class, 'destroy'])->name('pengumuman.destroy');
+
+    // Survei Karyawan
+    Route::get('survei', [SurveyController::class, 'index'])->name('survei');
+    Route::post('survei', [SurveyController::class, 'store'])->name('survei.store');
+    Route::post('survei/{survey}/question', [SurveyController::class, 'storeQuestion'])->name('survei.question.store');
+    Route::post('survei/{survey}/respond', [SurveyController::class, 'respond'])->name('survei.respond');
+    Route::delete('survei/{survey}', [SurveyController::class, 'destroy'])->name('survei.destroy');
+
+    // Pinjaman (employee loans)
+    Route::get('pinjaman', [LoanController::class, 'index'])->name('pinjaman');
+    Route::post('pinjaman', [LoanController::class, 'store'])->name('pinjaman.store');
+    Route::post('pinjaman/{loan}/approve', [LoanController::class, 'approve'])->name('pinjaman.approve');
+    Route::post('pinjaman/{loan}/reject', [LoanController::class, 'reject'])->name('pinjaman.reject');
+    Route::delete('pinjaman/{loan}', [LoanController::class, 'destroy'])->name('pinjaman.destroy');
+
+    // Timesheet (project time)
+    Route::get('timesheet', [TimesheetController::class, 'index'])->name('timesheet');
+    Route::post('timesheet/project', [TimesheetController::class, 'storeProject'])->name('timesheet.project.store');
+    Route::post('timesheet', [TimesheetController::class, 'store'])->name('timesheet.store');
+    Route::delete('timesheet/{timesheet}', [TimesheetController::class, 'destroy'])->name('timesheet.destroy');
+
+    // Tukar Shift (shift swap)
+    Route::get('shift-swap', [ShiftSwapController::class, 'index'])->name('shift-swap');
+    Route::post('shift-swap', [ShiftSwapController::class, 'store'])->name('shift-swap.store');
+    Route::post('shift-swap/{swap}/approve', [ShiftSwapController::class, 'approve'])->name('shift-swap.approve');
+    Route::post('shift-swap/{swap}/reject', [ShiftSwapController::class, 'reject'])->name('shift-swap.reject');
+    Route::delete('shift-swap/{swap}', [ShiftSwapController::class, 'destroy'])->name('shift-swap.destroy');
+
+    // Delegasi Approval
+    Route::get('delegasi', [ApprovalDelegationController::class, 'index'])->name('delegasi');
+    Route::post('delegasi', [ApprovalDelegationController::class, 'store'])->name('delegasi.store');
+    Route::post('delegasi/{delegation}/toggle', [ApprovalDelegationController::class, 'toggle'])->name('delegasi.toggle');
+    Route::delete('delegasi/{delegation}', [ApprovalDelegationController::class, 'destroy'])->name('delegasi.destroy');
+
+    // Jurnal Akuntansi (GL export from payroll)
+    Route::get('jurnal', [JournalController::class, 'index'])->name('jurnal');
+    Route::post('jurnal/generate', [JournalController::class, 'generate'])->name('jurnal.generate');
+    Route::delete('jurnal/{entry}', [JournalController::class, 'destroy'])->name('jurnal.destroy');
+
+    // Struktur & Skala Upah (salary grades)
+    Route::get('struktur-upah', [SalaryStructureController::class, 'index'])->name('struktur-upah');
+    Route::post('struktur-upah', [SalaryStructureController::class, 'store'])->name('struktur-upah.store');
+    Route::put('struktur-upah/{grade}', [SalaryStructureController::class, 'update'])->name('struktur-upah.update');
+    Route::delete('struktur-upah/{grade}', [SalaryStructureController::class, 'destroy'])->name('struktur-upah.destroy');
+
+    // Kalender / COE (calendar of events)
+    Route::get('kalender', [CalendarController::class, 'index'])->name('kalender');
+    Route::post('kalender', [CalendarController::class, 'store'])->name('kalender.store');
+    Route::put('kalender/{event}', [CalendarController::class, 'update'])->name('kalender.update');
+    Route::delete('kalender/{event}', [CalendarController::class, 'destroy'])->name('kalender.destroy');
+
+    // Anggaran / Budget Planner
+    Route::get('anggaran', [BudgetController::class, 'index'])->name('anggaran');
+    Route::post('anggaran', [BudgetController::class, 'store'])->name('anggaran.store');
+    Route::put('anggaran/{budget}', [BudgetController::class, 'update'])->name('anggaran.update');
+    Route::delete('anggaran/{budget}', [BudgetController::class, 'destroy'])->name('anggaran.destroy');
+
+    // AI Assistant
+    Route::get('ai', [AiAssistantController::class, 'index'])->name('ai');
+    Route::post('ai/ask', [AiAssistantController::class, 'ask'])->name('ai.ask');
 });

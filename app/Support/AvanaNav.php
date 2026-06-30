@@ -70,6 +70,7 @@ final class AvanaNav
                     self::leaf('payroll-components', 'Komponen Gaji', 'sliders-horizontal', '/avana/payroll/components', 'payroll', ['payroll']),
                     self::leaf('struktur-upah', 'Struktur & Skala Upah', 'ruler', '/avana/struktur-upah', 'salary_structure'),
                     self::leaf('jurnal', 'Jurnal Akuntansi', 'book-open', '/avana/jurnal', 'journal'),
+                    self::leaf('anggaran', 'Anggaran (Budget)', 'piggy-bank', '/avana/anggaran', 'budget'),
                 ]),
                 self::parent('benefit-grp', 'Benefit & Klaim', 'gift', [
                     self::leaf('benefit', 'Benefit', 'gift', '/avana/benefit', 'hr_core', ['employee']),
@@ -95,6 +96,8 @@ final class AvanaNav
                 self::leaf('helpdesk', 'HR Helpdesk', 'life-buoy', '/avana/helpdesk', 'helpdesk'),
                 self::leaf('pengumuman', 'Pengumuman', 'megaphone', '/avana/pengumuman', 'announcement'),
                 self::leaf('survei', 'Survei Karyawan', 'clipboard-list', '/avana/survei', 'survey'),
+                self::leaf('kalender', 'Kalender Acara', 'calendar-days', '/avana/kalender', 'calendar'),
+                self::leaf('ai', 'AI Assistant', 'sparkles', '/avana/ai', 'ai'),
                 self::leaf('aset', 'Manajemen Aset', 'package', '/avana/aset', 'asset'),
                 self::leaf('crm', 'CRM', 'briefcase', '/avana/crm', 'crm'),
             ]],

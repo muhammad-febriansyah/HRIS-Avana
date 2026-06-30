@@ -116,10 +116,15 @@ export function ActivePill({ active }: { active: boolean }) {
 
 interface PlaceholderLegendProps {
     placeholders: { token: string; label: string }[];
+    /** When provided, pills become buttons that insert the token. */
+    onInsert?: (token: string) => void;
 }
 
 /** Legend listing the supported `{{token}}` placeholders for a template. */
-export function PlaceholderLegend({ placeholders }: PlaceholderLegendProps) {
+export function PlaceholderLegend({
+    placeholders,
+    onInsert,
+}: PlaceholderLegendProps) {
     return (
         <div
             style={{
@@ -142,32 +147,67 @@ export function PlaceholderLegend({ placeholders }: PlaceholderLegendProps) {
             >
                 <AIcon name="braces" size={13} color={C.muted} />
                 Placeholder tersedia
+                {onInsert && (
+                    <span style={{ color: C.faint, fontWeight: 500 }}>
+                        — klik untuk menyisipkan
+                    </span>
+                )}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {placeholders.map((placeholder) => (
-                    <span
-                        key={placeholder.token}
-                        title={placeholder.label}
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 5,
-                            padding: '4px 9px',
-                            background: '#fff',
-                            border: `1px solid ${C.border}`,
-                            borderRadius: 6,
-                            fontSize: 12,
-                            color: C.text,
-                        }}
-                    >
-                        <code style={{ color: C.primary, fontWeight: 600 }}>
-                            {placeholder.token}
-                        </code>
-                        <span style={{ color: C.faint }}>
-                            {placeholder.label}
+                {placeholders.map((placeholder) => {
+                    const pillStyle: CSSProperties = {
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        padding: '4px 9px',
+                        background: '#fff',
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 6,
+                        fontSize: 12,
+                        color: C.text,
+                    };
+
+                    const content = (
+                        <>
+                            <code
+                                style={{ color: C.primary, fontWeight: 600 }}
+                            >
+                                {placeholder.token}
+                            </code>
+                            <span style={{ color: C.faint }}>
+                                {placeholder.label}
+                            </span>
+                        </>
+                    );
+
+                    if (onInsert) {
+                        return (
+                            <button
+                                key={placeholder.token}
+                                type="button"
+                                title={`Sisipkan ${placeholder.token}`}
+                                onClick={() => onInsert(placeholder.token)}
+                                style={{
+                                    ...pillStyle,
+                                    cursor: 'pointer',
+                                    font: 'inherit',
+                                }}
+                            >
+                                {content}
+                            </button>
+                        );
+                    }
+
+                    return (
+                        <span
+                            key={placeholder.token}
+                            title={placeholder.label}
+                            style={pillStyle}
+                        >
+                            {content}
                         </span>
-                    </span>
-                ))}
+                    );
+                })}
             </div>
         </div>
     );

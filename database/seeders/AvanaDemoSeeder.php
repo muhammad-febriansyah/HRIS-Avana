@@ -217,6 +217,9 @@ final class AvanaDemoSeeder extends Seeder
             // Asset & CRM
             'asset' => ['Manajemen Aset', 'asset'],
             'crm' => ['CRM', 'crm'],
+            'calendar' => ['Kalender Acara', 'engagement'],
+            'budget' => ['Anggaran (Budget)', 'payroll'],
+            'ai' => ['AI Assistant', 'analytics'],
         ];
 
         return collect($codes)->map(fn ($meta, $code) => Feature::firstOrCreate(
