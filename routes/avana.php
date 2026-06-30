@@ -437,7 +437,8 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     Route::put('anggaran/{budget}', [BudgetController::class, 'update'])->name('anggaran.update');
     Route::delete('anggaran/{budget}', [BudgetController::class, 'destroy'])->name('anggaran.destroy');
 
-    // AI Assistant
+    // AI Assistant (Prism + OpenAI streaming)
     Route::get('ai', [AiAssistantController::class, 'index'])->name('ai');
-    Route::post('ai/ask', [AiAssistantController::class, 'ask'])->name('ai.ask');
+    Route::post('ai/stream', [AiAssistantController::class, 'stream'])->name('ai.stream');
+    Route::post('ai/clear', [AiAssistantController::class, 'clear'])->name('ai.clear');
 });

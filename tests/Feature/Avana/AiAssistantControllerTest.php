@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AiMessage;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -16,46 +17,57 @@ beforeEach(function (): void {
     $this->tenant = Tenant::findOrFail($this->admin->tenant_id);
 });
 
-it('renders the assistant index with empty conversation props', function (): void {
+it('renders the assistant with the user conversation history', function (): void {
+    AiMessage::create(['tenant_id' => $this->tenant->id, 'user_id' => $this->admin->id, 'role' => 'user', 'content' => 'Halo']);
+    AiMessage::create(['tenant_id' => $this->tenant->id, 'user_id' => $this->admin->id, 'role' => 'assistant', 'content' => 'Hai, ada yang bisa dibantu?']);
+
     actingAs($this->admin)
         ->get(route('avana.ai'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('avana/ai/index', false)
-            ->where('question', null)
-            ->where('answer', null));
+            ->has('messages', 2)
+            ->where('messages.0.role', 'user')
+            ->where('messages.1.role', 'assistant')
+            ->has('model'));
 });
 
-it('answers a payroll question with a canned reply', function (): void {
+it('validates that a message is required to stream', function (): void {
     actingAs($this->admin)
-        ->post(route('avana.ai.ask'), ['message' => 'Bagaimana cara menjalankan payroll gaji?'])
-        ->assertSessionHas('question', 'Bagaimana cara menjalankan payroll gaji?')
-        ->assertSessionHas('answer', fn (string $answer): bool => str_contains($answer, 'Payroll'));
-});
-
-it('answers a leave question with a leave-help reply', function (): void {
-    actingAs($this->admin)
-        ->post(route('avana.ai.ask'), ['message' => 'Bagaimana mengajukan cuti?'])
-        ->assertSessionHas('answer', fn (string $answer): bool => str_contains($answer, 'cuti'));
-});
-
-it('falls back to a generic demo reply for unknown topics', function (): void {
-    actingAs($this->admin)
-        ->post(route('avana.ai.ask'), ['message' => 'halo apa kabar'])
-        ->assertSessionHas('answer', fn (string $answer): bool => str_contains($answer, 'mode demo'));
-});
-
-it('validates that a message is required', function (): void {
-    actingAs($this->admin)
-        ->post(route('avana.ai.ask'), ['message' => ''])
+        ->post(route('avana.ai.stream'), ['message' => ''])
         ->assertSessionHasErrors('message');
 });
 
-it('forbids a plain employee from using the assistant', function (): void {
+it('streams a reply and persists both turns of the conversation', function (): void {
+    // The test env forces an empty OPENAI key, so the controller streams its
+    // deterministic no-key fallback instead of calling the real API.
+    $response = actingAs($this->admin)->post(route('avana.ai.stream'), ['message' => 'Bagaimana cara payroll?']);
+
+    $response->assertOk();
+    expect($response->headers->get('content-type'))->toContain('text/plain');
+
+    $body = $response->streamedContent();
+    expect($body)->not->toBeEmpty();
+
+    expect(AiMessage::forUser($this->admin->id)->where('role', 'user')->count())->toBe(1);
+    expect(AiMessage::forUser($this->admin->id)->where('role', 'assistant')->count())->toBe(1);
+});
+
+it('clears the conversation history', function (): void {
+    AiMessage::create(['tenant_id' => $this->tenant->id, 'user_id' => $this->admin->id, 'role' => 'user', 'content' => 'x']);
+    AiMessage::create(['tenant_id' => $this->tenant->id, 'user_id' => $this->admin->id, 'role' => 'assistant', 'content' => 'y']);
+
+    actingAs($this->admin)
+        ->post(route('avana.ai.clear'))
+        ->assertRedirect();
+
+    expect(AiMessage::forUser($this->admin->id)->count())->toBe(0);
+});
+
+it('forbids a plain employee from the assistant', function (): void {
     $employeeRole = Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->firstOrFail();
     $staff = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $staff->roles()->sync([$employeeRole->id]);
 
     actingAs($staff)->get(route('avana.ai'))->assertForbidden();
-    actingAs($staff)->post(route('avana.ai.ask'), ['message' => 'gaji'])->assertForbidden();
 });
