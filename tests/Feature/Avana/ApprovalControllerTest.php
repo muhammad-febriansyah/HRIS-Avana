@@ -87,7 +87,7 @@ it('renders the approval center with pending, history and counts props', functio
         ->get(route('avana.approval'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/approval', false)
+            ->component('avana/approval/index', false)
             ->has('pending')
             ->has('pending.0', fn (Assert $row) => $row
                 ->where('type', 'leave')

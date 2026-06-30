@@ -51,7 +51,7 @@ class PayrollController extends Controller
 
         $latestRun = $latestPeriod?->runs->first();
 
-        return Inertia::render('avana/payroll', [
+        return Inertia::render('avana/payroll/index', [
             'periods' => PayrollPeriodResource::collection($periods),
             'summary' => [
                 'period' => $latestPeriod?->name,

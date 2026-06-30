@@ -75,7 +75,7 @@ it('renders the cuti page with izin and wfh props', function (): void {
         ->get(route('avana.cuti'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/cuti', false)
+            ->component('avana/cuti/index', false)
             ->has('permissionRequests.0', fn (Assert $row) => $row
                 ->has('id')
                 ->has('employee.name')

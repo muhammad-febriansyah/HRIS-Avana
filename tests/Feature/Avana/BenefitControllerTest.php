@@ -62,7 +62,7 @@ it('renders the benefit index with the expected props', function (): void {
         ->get(route('avana.benefit'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/benefit', false)
+            ->component('avana/benefit/index', false)
             ->has('benefits.0', fn (Assert $row) => $row
                 ->has('id')
                 ->has('code')

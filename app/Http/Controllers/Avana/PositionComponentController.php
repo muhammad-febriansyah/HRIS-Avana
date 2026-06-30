@@ -26,7 +26,7 @@ class PositionComponentController extends Controller
 
         $tenantId = $request->user()->tenant_id;
 
-        return Inertia::render('avana/payroll-components', [
+        return Inertia::render('avana/payroll-components/index', [
             'positions' => Position::forTenant($tenantId)
                 ->select('id', 'name')
                 ->orderBy('name')

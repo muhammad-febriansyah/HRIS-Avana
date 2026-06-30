@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -66,7 +67,7 @@ class CashAdvanceController extends Controller
             ->paginate($request->integer('per_page', 10))
             ->withQueryString();
 
-        return Inertia::render('avana/kasbon', [
+        return Inertia::render('avana/kasbon/index', [
             'requests' => [
                 'data' => $paginator->getCollection()
                     ->map(fn (CashAdvance $advance): array => $this->shapeAdvance($advance))
@@ -85,14 +86,19 @@ class CashAdvanceController extends Controller
                 ],
             ],
             'filters' => $request->only(['search', 'status', 'per_page']),
-            'employees' => Employee::forTenant($tenantId)
-                ->orderBy('full_name')
-                ->get(['id', 'full_name', 'employee_number'])
-                ->map(fn (Employee $employee): array => [
-                    'id' => $employee->id,
-                    'name' => $employee->full_name,
-                    'employee_number' => $employee->employee_number,
-                ]),
+            'employees' => $this->employeeOptions($tenantId),
+        ]);
+    }
+
+    /**
+     * Show the form for submitting a new cash advance request.
+     */
+    public function create(Request $request): Response
+    {
+        $this->ensureCanManage($request);
+
+        return Inertia::render('avana/kasbon/create', [
+            'employees' => $this->employeeOptions($request->user()->tenant_id),
         ]);
     }
 
@@ -162,6 +168,23 @@ class CashAdvanceController extends Controller
         $cashAdvance->update(['status' => 'rejected']);
 
         return back()->with('success', 'Kasbon ditolak');
+    }
+
+    /**
+     * Build the selectable employee option list for the acting tenant.
+     *
+     * @return Collection<int, array{id: int, name: string, employee_number: string|null}>
+     */
+    private function employeeOptions(int $tenantId): Collection
+    {
+        return Employee::forTenant($tenantId)
+            ->orderBy('full_name')
+            ->get(['id', 'full_name', 'employee_number'])
+            ->map(fn (Employee $employee): array => [
+                'id' => $employee->id,
+                'name' => $employee->full_name,
+                'employee_number' => $employee->employee_number,
+            ]);
     }
 
     /**

@@ -33,7 +33,7 @@ class FeatureController extends Controller
             'is_enabled' => (bool) ($enabled[$feature->id] ?? false),
         ]);
 
-        return Inertia::render('avana/fitur', [
+        return Inertia::render('avana/fitur/index', [
             'features' => $features,
             'tenantName' => $tenant?->name,
         ]);

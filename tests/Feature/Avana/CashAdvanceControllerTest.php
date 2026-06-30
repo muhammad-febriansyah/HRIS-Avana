@@ -44,7 +44,7 @@ it('renders the paginated kasbon index with the expected props', function (): vo
         ->get(route('avana.kasbon'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/kasbon', false)
+            ->component('avana/kasbon/index', false)
             ->has('requests.data')
             ->has('requests.meta.total')
             ->has('requests.data.0', fn (Assert $row) => $row

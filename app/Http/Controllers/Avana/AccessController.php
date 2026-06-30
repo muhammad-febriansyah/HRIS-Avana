@@ -106,7 +106,7 @@ class AccessController extends Controller
                 ->all())
             ->all();
 
-        return Inertia::render('avana/hak-akses', [
+        return Inertia::render('avana/hak-akses/index', [
             'roles' => $roles,
             'modules' => $modules,
             'permHeaders' => $roleModels->pluck('name')->all(),

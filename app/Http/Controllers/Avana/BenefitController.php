@@ -72,10 +72,41 @@ class BenefitController extends Controller
                 'employee_number' => $employee->employee_number,
             ]);
 
-        return Inertia::render('avana/benefit', [
+        return Inertia::render('avana/benefit/index', [
             'benefits' => $benefits,
             'assignments' => $assignments,
             'employees' => $employees,
+        ]);
+    }
+
+    /**
+     * Show the form for creating a new benefit definition.
+     */
+    public function create(Request $request): Response
+    {
+        $this->ensureCanManage($request);
+
+        return Inertia::render('avana/benefit/create');
+    }
+
+    /**
+     * Show the form for editing an existing benefit definition.
+     */
+    public function edit(Request $request, Benefit $benefit): Response
+    {
+        $this->ensureCanManage($request);
+        $this->ensureTenantOwnership($request, $benefit);
+
+        return Inertia::render('avana/benefit/edit', [
+            'benefit' => [
+                'id' => $benefit->id,
+                'code' => $benefit->code,
+                'name' => $benefit->name,
+                'type' => $benefit->type,
+                'value' => (float) $benefit->value,
+                'description' => $benefit->description,
+                'status' => $benefit->status,
+            ],
         ]);
     }
 

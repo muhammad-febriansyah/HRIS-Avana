@@ -37,7 +37,7 @@ it('renders the hak-akses screen with roles, modules and the permission matrix',
         ->get('/__access')
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/hak-akses', false)
+            ->component('avana/hak-akses/index', false)
             ->has('roles')
             ->has('roles.0', fn (Assert $role) => $role
                 ->has('id')

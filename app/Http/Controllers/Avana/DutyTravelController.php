@@ -73,7 +73,7 @@ class DutyTravelController extends Controller
 
         $travels->getCollection()->transform(fn (DutyTravel $travel): array => $this->shapeTravel($travel));
 
-        return Inertia::render('avana/dinas', [
+        return Inertia::render('avana/dinas/index', [
             'travels' => [
                 'data' => $travels->items(),
                 'meta' => [
@@ -92,6 +92,27 @@ class DutyTravelController extends Controller
                 ],
             ],
             'filters' => $request->only(['search', 'status', 'per_page']),
+            'employees' => Employee::forTenant($tenantId)
+                ->orderBy('full_name')
+                ->get(['id', 'full_name', 'employee_number'])
+                ->map(fn (Employee $employee): array => [
+                    'id' => $employee->id,
+                    'name' => $employee->full_name,
+                    'employee_number' => $employee->employee_number,
+                ]),
+        ]);
+    }
+
+    /**
+     * Show the form for creating a new duty travel request.
+     */
+    public function create(Request $request): Response
+    {
+        $this->authorizeEmployeeAccess($request);
+
+        $tenantId = $request->user()->tenant_id;
+
+        return Inertia::render('avana/dinas/create', [
             'employees' => Employee::forTenant($tenantId)
                 ->orderBy('full_name')
                 ->get(['id', 'full_name', 'employee_number'])

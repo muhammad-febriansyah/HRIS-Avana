@@ -22,7 +22,7 @@ it('renders the klien index for a super admin with tenants, packages and feature
         ->get(route('avana.klien'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/klien', false)
+            ->component('avana/klien/index', false)
             ->has('tenants.data')
             ->has('tenants.data.0', fn (Assert $row) => $row
                 ->has('id')

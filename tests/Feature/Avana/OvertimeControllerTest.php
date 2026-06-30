@@ -43,7 +43,7 @@ it('renders the cuti page with the overtime requests prop', function (): void {
         ->get(route('avana.cuti'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/cuti', false)
+            ->component('avana/cuti/index', false)
             ->has('overtimeRequests')
             ->has('overtimeRequests.0', fn (Assert $row) => $row
                 ->has('id')

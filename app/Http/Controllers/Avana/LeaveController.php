@@ -92,7 +92,7 @@ class LeaveController extends Controller
             ->paginate($request->integer('per_page', 10))
             ->withQueryString();
 
-        return Inertia::render('avana/cuti', [
+        return Inertia::render('avana/cuti/index', [
             'requests' => LeaveRequestResource::collection($requests),
             'filters' => $request->only([
                 'search', 'status', 'leave_type_id', 'sort', 'direction', 'per_page',

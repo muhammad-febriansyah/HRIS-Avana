@@ -109,7 +109,7 @@ it('renders the audit index scoped to the current tenant', function (): void {
         ->get(route('avana.audit'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/audit', false)
+            ->component('avana/audit/index', false)
             ->has('logs.data')
             ->has('filters')
             ->where('logs.meta.total', $tenantTotal)

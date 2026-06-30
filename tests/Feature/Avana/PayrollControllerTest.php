@@ -50,7 +50,7 @@ it('renders the payroll index with the expected props', function (): void {
         ->get('spec-avana/payroll')
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/payroll', false)
+            ->component('avana/payroll/index', false)
             ->has('periods.data')
             ->has('periods.data.0', fn (Assert $row) => $row
                 ->has('id')
@@ -173,7 +173,7 @@ it('renders the position component matrix props', function (): void {
         ->get('spec-avana/payroll/components')
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/payroll-components', false)
+            ->component('avana/payroll-components/index', false)
             ->has('positions')
             ->has('components.0', fn (Assert $component) => $component
                 ->has('id')

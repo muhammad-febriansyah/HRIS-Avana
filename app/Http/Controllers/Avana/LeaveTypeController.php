@@ -46,8 +46,39 @@ class LeaveTypeController extends Controller
                 'usage' => $leaveType->leave_requests_count,
             ]);
 
-        return Inertia::render('avana/jenis-cuti', [
+        return Inertia::render('avana/jenis-cuti/index', [
             'leaveTypes' => $leaveTypes,
+        ]);
+    }
+
+    /**
+     * Show the form for creating a new leave type.
+     */
+    public function create(Request $request): Response
+    {
+        $this->authorize('create', LeaveType::class);
+
+        return Inertia::render('avana/jenis-cuti/create');
+    }
+
+    /**
+     * Show the form for editing an existing leave type.
+     */
+    public function edit(Request $request, LeaveType $leaveType): Response
+    {
+        $this->ensureTenantOwnership($request, $leaveType);
+        $this->authorize('update', $leaveType);
+
+        return Inertia::render('avana/jenis-cuti/edit', [
+            'leaveType' => [
+                'id' => $leaveType->id,
+                'code' => $leaveType->code,
+                'name' => $leaveType->name,
+                'default_quota' => $leaveType->default_quota,
+                'allow_negative' => $leaveType->allow_negative,
+                'requires_attachment' => $leaveType->requires_attachment,
+                'status' => $leaveType->status,
+            ],
         ]);
     }
 

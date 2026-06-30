@@ -78,7 +78,7 @@ class CompanySetupController extends Controller
 
         $tenantId = $request->user()->tenant_id;
 
-        return Inertia::render('avana/perusahaan', [
+        return Inertia::render('avana/perusahaan/index', [
             'branches' => Branch::forTenant($tenantId)
                 ->orderBy('name')
                 ->get(['id', 'company_id', 'code', 'name', 'phone', 'address', 'timezone', 'status']),

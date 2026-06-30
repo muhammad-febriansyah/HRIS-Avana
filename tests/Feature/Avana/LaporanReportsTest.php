@@ -79,7 +79,7 @@ it('renders the laporan index exposing the new report counts', function (): void
         ->get('spec-avana/laporan')
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/laporan', false)
+            ->component('avana/laporan/index', false)
             ->has('stats', fn (Assert $stats) => $stats
                 ->has('bpjs')
                 ->has('pph21')

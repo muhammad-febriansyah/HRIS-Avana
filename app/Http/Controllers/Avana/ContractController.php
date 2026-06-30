@@ -41,7 +41,7 @@ class ContractController extends Controller
             ->paginate($request->integer('per_page', 10))
             ->withQueryString();
 
-        return Inertia::render('avana/kontrak', [
+        return Inertia::render('avana/kontrak/index', [
             'contracts' => [
                 'data' => collect($contracts->items())
                     ->map(fn (EmployeeContract $contract): array => $this->transformContract($contract, $today))
@@ -55,15 +55,7 @@ class ContractController extends Controller
                     'to' => $contracts->lastItem(),
                 ],
             ],
-            'employees' => Employee::forTenant($tenantId)
-                ->orderBy('full_name')
-                ->get(['id', 'full_name', 'employee_number'])
-                ->map(fn (Employee $employee): array => [
-                    'id' => $employee->id,
-                    'name' => $employee->full_name,
-                    'employee_number' => $employee->employee_number,
-                ])
-                ->all(),
+            'employees' => $this->employeeOptions($tenantId),
             'stats' => [
                 'total' => EmployeeContract::forTenant($tenantId)->count(),
                 'active' => EmployeeContract::forTenant($tenantId)->where('status', 'active')->count(),
@@ -74,6 +66,42 @@ class ContractController extends Controller
                     ->count(),
             ],
             'filters' => $request->only(['search', 'status', 'per_page']),
+        ]);
+    }
+
+    /**
+     * Show the form for creating a new contract.
+     */
+    public function create(Request $request): Response
+    {
+        $this->authorize('create', EmployeeContract::class);
+
+        return Inertia::render('avana/kontrak/create', [
+            'employees' => $this->employeeOptions($request->user()->tenant_id),
+        ]);
+    }
+
+    /**
+     * Show the form for editing an existing contract.
+     */
+    public function edit(Request $request, EmployeeContract $contract): Response
+    {
+        $this->ensureTenantOwnership($request, $contract);
+        $this->authorize('update', $contract);
+
+        return Inertia::render('avana/kontrak/edit', [
+            'contract' => [
+                'id' => $contract->id,
+                'contract_number' => $contract->contract_number,
+                'employee_id' => $contract->employee_id,
+                'contract_type' => $contract->contract_type,
+                'start_date' => $contract->start_date?->toDateString(),
+                'end_date' => $contract->end_date?->toDateString(),
+                'basic_salary' => (float) $contract->basic_salary,
+                'status' => $contract->status,
+                'notes' => $contract->notes,
+            ],
+            'employees' => $this->employeeOptions($request->user()->tenant_id),
         ]);
     }
 
@@ -186,6 +214,24 @@ class ContractController extends Controller
             'expiring_soon' => $expiringSoon,
             'days_to_expiry' => $daysToExpiry,
         ];
+    }
+
+    /**
+     * Build the tenant's selectable employee options for the contract form.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function employeeOptions(int $tenantId): array
+    {
+        return Employee::forTenant($tenantId)
+            ->orderBy('full_name')
+            ->get(['id', 'full_name', 'employee_number'])
+            ->map(fn (Employee $employee): array => [
+                'id' => $employee->id,
+                'name' => $employee->full_name,
+                'employee_number' => $employee->employee_number,
+            ])
+            ->all();
     }
 
     /**

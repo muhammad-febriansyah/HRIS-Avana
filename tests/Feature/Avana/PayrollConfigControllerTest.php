@@ -38,7 +38,7 @@ it('renders the payroll config screen with the expected props', function (): voi
         ->get('spec-payroll-config')
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/payroll-config', false)
+            ->component('avana/payroll-config/index', false)
             ->has('programs', 3)
             ->has('programs.0.rates')
             ->has('terRates', 3)

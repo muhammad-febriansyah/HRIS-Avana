@@ -119,7 +119,7 @@ class ApprovalController extends Controller
             'total' => $pendingItems->count(),
         ];
 
-        return Inertia::render('avana/approval', [
+        return Inertia::render('avana/approval/index', [
             'pending' => $pendingItems->map(fn (array $item): array => Arr::except($item, 'sort_ts'))->all(),
             'history' => $historyItems->map(fn (array $item): array => Arr::except($item, 'sort_ts'))->all(),
             'counts' => $counts,

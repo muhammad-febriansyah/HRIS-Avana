@@ -11,6 +11,9 @@ use App\Models\User;
  * code AND the permission module(s) it requires, so the menu a user sees stays
  * in sync with BOTH the Super Admin's feature toggles (tenant_features) and the
  * role permissions configured on the Hak Akses screen.
+ *
+ * Items may be either a leaf (has `href`) or a collapsible parent (has
+ * `children`). A parent is shown only when at least one child survives gating.
  */
 final class AvanaNav
 {
@@ -26,44 +29,117 @@ final class AvanaNav
      * Full navigation definition. `feature` null = no feature gate.
      * `modules` = permission modules required (empty = always, for everyone).
      * `adminOnly` = requires manage permission (or super_admin).
+     * `children` = nested sub-menu of leaves.
      *
-     * @return array<int, array{title: ?string, items: array<int, array<string, mixed>>}>
+     * @return array<int, array<string, mixed>>
      */
     public static function groups(): array
     {
         return [
             ['title' => null, 'items' => [
-                ['id' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'layout-dashboard', 'href' => '/dashboard', 'feature' => null, 'modules' => []],
+                self::leaf('dashboard', 'Dashboard', 'layout-dashboard', '/dashboard'),
             ]],
             ['title' => 'MANAJEMEN', 'items' => [
-                ['id' => 'karyawan', 'label' => 'Karyawan', 'icon' => 'users', 'href' => '/avana/employees', 'feature' => 'hr_core', 'modules' => ['employee']],
-                ['id' => 'kontrak', 'label' => 'Kontrak Kerja', 'icon' => 'file-text', 'href' => '/avana/kontrak', 'feature' => 'hr_core', 'modules' => ['employee']],
-                ['id' => 'mutasi', 'label' => 'Mutasi & Karir', 'icon' => 'arrow-left-right', 'href' => '/avana/mutasi', 'feature' => 'hr_core', 'modules' => ['employee']],
-                ['id' => 'benefit', 'label' => 'Benefit', 'icon' => 'gift', 'href' => '/avana/benefit', 'feature' => 'hr_core', 'modules' => ['employee']],
-                ['id' => 'dinas', 'label' => 'Perjalanan Dinas', 'icon' => 'plane', 'href' => '/avana/dinas', 'feature' => 'hr_core', 'modules' => ['employee']],
-                ['id' => 'absensi', 'label' => 'Absensi', 'icon' => 'fingerprint', 'href' => '/avana/absensi', 'feature' => 'attendance', 'modules' => ['attendance']],
-                ['id' => 'roster', 'label' => 'Roster Shift', 'icon' => 'calendar-clock', 'href' => '/avana/roster', 'feature' => 'attendance', 'modules' => ['attendance']],
-                ['id' => 'sanksi', 'label' => 'Sanksi Absensi', 'icon' => 'octagon-alert', 'href' => '/avana/sanksi', 'feature' => 'attendance', 'modules' => ['attendance']],
-                ['id' => 'visiting', 'label' => 'Visiting Pekerjaan', 'icon' => 'map-pin', 'href' => '/avana/visiting', 'feature' => 'attendance', 'modules' => ['attendance']],
-                ['id' => 'cuti', 'label' => 'Cuti & Lembur', 'icon' => 'palmtree', 'href' => '/avana/cuti', 'feature' => 'leave', 'modules' => ['leave', 'overtime', 'wfh']],
-                ['id' => 'approval', 'label' => 'Persetujuan', 'icon' => 'check-check', 'href' => '/avana/approval', 'feature' => null, 'modules' => ['leave', 'overtime', 'wfh', 'attendance', 'team']],
-                ['id' => 'payroll', 'label' => 'Payroll', 'icon' => 'wallet', 'href' => '/avana/payroll', 'feature' => 'payroll', 'modules' => ['payroll']],
-                ['id' => 'payroll-config', 'label' => 'BPJS & Pajak', 'icon' => 'shield-check', 'href' => '/avana/payroll/konfigurasi', 'feature' => 'payroll', 'modules' => ['bpjs', 'pph21', 'payroll']],
-                ['id' => 'kasbon', 'label' => 'Kasbon', 'icon' => 'hand-coins', 'href' => '/avana/kasbon', 'feature' => 'payroll', 'modules' => ['payroll']],
+                self::parent('hr', 'Karyawan', 'users', [
+                    self::leaf('karyawan', 'Data Karyawan', 'users', '/avana/employees', 'hr_core', ['employee']),
+                    self::leaf('kontrak', 'Kontrak Kerja', 'file-text', '/avana/kontrak', 'hr_core', ['employee']),
+                    self::leaf('mutasi', 'Mutasi & Karir', 'arrow-left-right', '/avana/mutasi', 'hr_core', ['employee']),
+                    self::leaf('dokumen', 'Dokumen', 'folder', '/avana/dokumen', 'document'),
+                    self::leaf('offboarding', 'Offboarding', 'door-open', '/avana/offboarding', 'offboarding'),
+                ]),
+                self::parent('kehadiran', 'Kehadiran', 'fingerprint', [
+                    self::leaf('absensi', 'Absensi', 'fingerprint', '/avana/absensi', 'attendance', ['attendance']),
+                    self::leaf('roster', 'Roster Shift', 'calendar-clock', '/avana/roster', 'attendance', ['attendance']),
+                    self::leaf('shift-swap', 'Tukar Shift', 'repeat', '/avana/shift-swap', 'shift_swap'),
+                    self::leaf('timesheet', 'Timesheet', 'clock', '/avana/timesheet', 'timesheet'),
+                    self::leaf('sanksi', 'Sanksi Absensi', 'octagon-alert', '/avana/sanksi', 'attendance', ['attendance']),
+                    self::leaf('visiting', 'Visiting Pekerjaan', 'map-pin', '/avana/visiting', 'attendance', ['attendance']),
+                ]),
+                self::leaf('cuti', 'Cuti & Lembur', 'palmtree', '/avana/cuti', 'leave', ['leave', 'overtime', 'wfh']),
+                self::leaf('dinas', 'Perjalanan Dinas', 'plane', '/avana/dinas', 'hr_core', ['employee']),
+                self::parent('persetujuan', 'Persetujuan', 'check-check', [
+                    self::leaf('approval', 'Pusat Persetujuan', 'check-check', '/avana/approval', null, ['leave', 'overtime', 'wfh', 'attendance', 'team']),
+                    self::leaf('delegasi', 'Delegasi Approval', 'user-round-cog', '/avana/delegasi', 'delegation'),
+                ]),
+            ]],
+            ['title' => 'PAYROLL & KEUANGAN', 'items' => [
+                self::parent('payroll', 'Payroll', 'wallet', [
+                    self::leaf('payroll', 'Payroll', 'wallet', '/avana/payroll', 'payroll', ['payroll']),
+                    self::leaf('payroll-config', 'BPJS & Pajak', 'shield-check', '/avana/payroll/konfigurasi', 'payroll', ['bpjs', 'pph21', 'payroll']),
+                    self::leaf('payroll-components', 'Komponen Gaji', 'sliders-horizontal', '/avana/payroll/components', 'payroll', ['payroll']),
+                    self::leaf('struktur-upah', 'Struktur & Skala Upah', 'ruler', '/avana/struktur-upah', 'salary_structure'),
+                    self::leaf('jurnal', 'Jurnal Akuntansi', 'book-open', '/avana/jurnal', 'journal'),
+                ]),
+                self::parent('benefit-grp', 'Benefit & Klaim', 'gift', [
+                    self::leaf('benefit', 'Benefit', 'gift', '/avana/benefit', 'hr_core', ['employee']),
+                    self::leaf('klaim', 'Klaim & Reimbursement', 'receipt', '/avana/klaim', 'claim'),
+                    self::leaf('pinjaman', 'Pinjaman', 'banknote', '/avana/pinjaman', 'loan'),
+                    self::leaf('kasbon', 'Kasbon', 'hand-coins', '/avana/kasbon', 'payroll', ['payroll']),
+                ]),
+            ]],
+            ['title' => 'TALENTA', 'items' => [
+                self::parent('rekrutmen', 'Rekrutmen', 'user-plus', [
+                    self::leaf('rekrutmen', 'Lowongan & Pelamar', 'user-plus', '/avana/rekrutmen', 'recruitment'),
+                    self::leaf('onboarding', 'Onboarding', 'clipboard-check', '/avana/onboarding', 'onboarding'),
+                ]),
+                self::parent('kinerja', 'Kinerja', 'target', [
+                    self::leaf('kinerja', 'Penilaian Kinerja', 'star', '/avana/kinerja', 'performance'),
+                    self::leaf('okr', 'OKR & Goal', 'target', '/avana/okr', 'okr'),
+                    self::leaf('kompetensi', 'Kompetensi', 'brain', '/avana/kompetensi', 'competency'),
+                    self::leaf('talenta', 'Talenta & Suksesi', 'grid-3x3', '/avana/talenta', 'talent'),
+                ]),
+                self::leaf('pembelajaran', 'Pembelajaran (LMS)', 'graduation-cap', '/avana/pembelajaran', 'learning'),
+            ]],
+            ['title' => 'LAYANAN', 'items' => [
+                self::leaf('helpdesk', 'HR Helpdesk', 'life-buoy', '/avana/helpdesk', 'helpdesk'),
+                self::leaf('pengumuman', 'Pengumuman', 'megaphone', '/avana/pengumuman', 'announcement'),
+                self::leaf('survei', 'Survei Karyawan', 'clipboard-list', '/avana/survei', 'survey'),
+                self::leaf('aset', 'Manajemen Aset', 'package', '/avana/aset', 'asset'),
+                self::leaf('crm', 'CRM', 'briefcase', '/avana/crm', 'crm'),
+            ]],
+            ['title' => 'ANALITIK', 'items' => [
+                self::leaf('laporan', 'Laporan', 'chart-column', '/avana/laporan', 'analytics', ['report']),
+                self::leaf('analytics', 'HR Analytics', 'chart-pie', '/avana/analytics', 'dynamic_report'),
+                self::leaf('dynamic-report', 'Dynamic Report', 'table', '/avana/dynamic-report', 'dynamic_report'),
             ]],
             ['title' => 'SISTEM', 'items' => [
-                ['id' => 'perusahaan', 'label' => 'Perusahaan', 'icon' => 'building-2', 'href' => '/avana/perusahaan', 'feature' => 'organization', 'modules' => ['branch', 'department', 'position', 'organization']],
-                ['id' => 'pengguna', 'label' => 'Pengguna', 'icon' => 'user-cog', 'href' => '/avana/pengguna', 'feature' => null, 'modules' => ['user']],
-                ['id' => 'laporan', 'label' => 'Laporan', 'icon' => 'chart-column', 'href' => '/avana/laporan', 'feature' => 'analytics', 'modules' => ['report']],
-                ['id' => 'hak-akses', 'label' => 'Hak Akses', 'icon' => 'shield-check', 'href' => '/avana/hak-akses', 'feature' => null, 'modules' => self::MANAGE_MODULES, 'adminOnly' => true],
-                ['id' => 'fitur', 'label' => 'Menu & Fitur', 'icon' => 'toggle-right', 'href' => '/avana/fitur', 'feature' => null, 'modules' => self::MANAGE_MODULES, 'adminOnly' => true],
-                ['id' => 'audit', 'label' => 'Audit Trail', 'icon' => 'history', 'href' => '/avana/audit', 'feature' => null, 'modules' => ['audit']],
+                self::leaf('perusahaan', 'Perusahaan', 'building-2', '/avana/perusahaan', 'organization', ['branch', 'department', 'position', 'organization']),
+                self::leaf('pengguna', 'Pengguna', 'user-cog', '/avana/pengguna', null, ['user']),
+                self::leaf('hak-akses', 'Hak Akses', 'shield-check', '/avana/hak-akses', null, self::MANAGE_MODULES, true),
+                self::leaf('fitur', 'Menu & Fitur', 'toggle-right', '/avana/fitur', null, self::MANAGE_MODULES, true),
+                self::leaf('audit', 'Audit Trail', 'history', '/avana/audit', null, ['audit']),
             ]],
             ['title' => 'PLATFORM', 'items' => [
-                ['id' => 'klien', 'label' => 'Klien / Tenant', 'icon' => 'building-2', 'href' => '/avana/klien', 'feature' => null, 'modules' => [], 'superAdminOnly' => true],
-                ['id' => 'website-settings', 'label' => 'Pengaturan Website', 'icon' => 'globe', 'href' => '/avana/website-settings', 'feature' => null, 'modules' => [], 'superAdminOnly' => true],
+                self::leaf('klien', 'Klien / Tenant', 'building-2', '/avana/klien', null, [], false, true),
+                self::leaf('website-settings', 'Pengaturan Website', 'globe', '/avana/website-settings', null, [], false, true),
             ]],
         ];
+    }
+
+    /**
+     * Build a leaf nav item.
+     *
+     * @param  array<int, string>  $modules
+     * @return array<string, mixed>
+     */
+    private static function leaf(string $id, string $label, string $icon, string $href, ?string $feature = null, array $modules = [], bool $adminOnly = false, bool $superAdminOnly = false): array
+    {
+        return [
+            'id' => $id, 'label' => $label, 'icon' => $icon, 'href' => $href,
+            'feature' => $feature, 'modules' => $modules,
+            'adminOnly' => $adminOnly, 'superAdminOnly' => $superAdminOnly,
+        ];
+    }
+
+    /**
+     * Build a collapsible parent item with nested leaves.
+     *
+     * @param  array<int, array<string, mixed>>  $children
+     * @return array<string, mixed>
+     */
+    private static function parent(string $id, string $label, string $icon, array $children): array
+    {
+        return ['id' => $id, 'label' => $label, 'icon' => $icon, 'children' => $children];
     }
 
     /**
@@ -71,7 +147,7 @@ final class AvanaNav
      * features AND the user's role permissions. With no user (prototype/public
      * pages) the full menu is returned so those screens still render.
      *
-     * @return array<int, array{title: ?string, items: array<int, array<string, mixed>>}>
+     * @return array<int, array<string, mixed>>
      */
     public static function forUser(?User $user): array
     {
@@ -94,31 +170,40 @@ final class AvanaNav
 
         $canManage = $isSuperAdmin || $userModules->intersect(self::MANAGE_MODULES)->isNotEmpty();
 
+        $visible = function (array $leaf) use ($isSuperAdmin, $enabledCodes, $userModules, $canManage): bool {
+            if (($leaf['superAdminOnly'] ?? false) && ! $isSuperAdmin) {
+                return false;
+            }
+            if (($leaf['feature'] ?? null) !== null && ! $enabledCodes->contains($leaf['feature'])) {
+                return false;
+            }
+            if ($leaf['adminOnly'] ?? false) {
+                return $canManage;
+            }
+            if (! $isSuperAdmin && ($leaf['modules'] ?? []) !== [] && $userModules->intersect($leaf['modules'])->isEmpty()) {
+                return false;
+            }
+
+            return true;
+        };
+
         $groups = [];
         foreach (self::groups() as $group) {
             $items = [];
             foreach ($group['items'] as $item) {
-                // Super-admin-only platform screens (e.g. tenant management).
-                if (($item['superAdminOnly'] ?? false) && ! $isSuperAdmin) {
-                    continue;
-                }
-
-                // Feature gate (Super Admin's Menu & Fitur toggles).
-                if ($item['feature'] !== null && ! $enabledCodes->contains($item['feature'])) {
-                    continue;
-                }
-
-                // Admin-only screens require manage permission.
-                if ($item['adminOnly'] ?? false) {
-                    if (! $canManage) {
-                        continue;
+                if (isset($item['children'])) {
+                    $children = [];
+                    foreach ($item['children'] as $child) {
+                        if ($visible($child)) {
+                            $children[] = self::pluck($child);
+                        }
                     }
-                } elseif (! $isSuperAdmin && $item['modules'] !== [] && $userModules->intersect($item['modules'])->isEmpty()) {
-                    // Permission gate (Hak Akses matrix) for non-super-admins.
-                    continue;
+                    if ($children !== []) {
+                        $items[] = ['id' => $item['id'], 'label' => $item['label'], 'icon' => $item['icon'], 'children' => $children];
+                    }
+                } elseif ($visible($item)) {
+                    $items[] = self::pluck($item);
                 }
-
-                $items[] = ['id' => $item['id'], 'label' => $item['label'], 'icon' => $item['icon'], 'href' => $item['href']];
             }
             if ($items !== []) {
                 $groups[] = ['title' => $group['title'], 'items' => $items];
@@ -129,16 +214,30 @@ final class AvanaNav
     }
 
     /**
-     * @param  array<int, array{title: ?string, items: array<int, array<string, mixed>>}>  $groups
-     * @return array<int, array{title: ?string, items: array<int, array<string, mixed>>}>
+     * @param  array<string, mixed>  $leaf
+     * @return array{id: string, label: string, icon: string, href: string}
+     */
+    private static function pluck(array $leaf): array
+    {
+        return ['id' => $leaf['id'], 'label' => $leaf['label'], 'icon' => $leaf['icon'], 'href' => $leaf['href']];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $groups
+     * @return array<int, array<string, mixed>>
      */
     private static function stripMeta(array $groups): array
     {
         return array_map(fn (array $group): array => [
             'title' => $group['title'],
-            'items' => array_map(fn (array $item): array => [
-                'id' => $item['id'], 'label' => $item['label'], 'icon' => $item['icon'], 'href' => $item['href'],
-            ], $group['items']),
+            'items' => array_map(function (array $item): array {
+                if (isset($item['children'])) {
+                    return ['id' => $item['id'], 'label' => $item['label'], 'icon' => $item['icon'],
+                        'children' => array_map(fn (array $c): array => self::pluck($c), $item['children'])];
+                }
+
+                return self::pluck($item);
+            }, $group['items']),
         ], $groups);
     }
 }

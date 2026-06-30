@@ -31,7 +31,7 @@ it('renders the laporan index with the expected stats props', function (): void 
         ->get('spec-avana/laporan')
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/laporan', false)
+            ->component('avana/laporan/index', false)
             ->has('stats', fn (Assert $stats) => $stats
                 ->has('karyawan')
                 ->has('hadir_hari_ini')

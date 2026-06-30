@@ -88,7 +88,7 @@ class PayrollConfigController extends Controller
                 'is_active' => $rate->is_active,
             ]);
 
-        return Inertia::render('avana/payroll-config', [
+        return Inertia::render('avana/payroll-config/index', [
             'programs' => $programs,
             'terRates' => $terRates,
             'profileStats' => [

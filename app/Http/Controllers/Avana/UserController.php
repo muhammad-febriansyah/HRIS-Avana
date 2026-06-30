@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Role;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -68,7 +69,7 @@ class UserController extends Controller
             ->paginate($request->integer('per_page', 10))
             ->withQueryString();
 
-        return Inertia::render('avana/pengguna', [
+        return Inertia::render('avana/pengguna/index', [
             'users' => [
                 'data' => collect($users->items())
                     ->map(fn (User $user): array => $this->transformUser($user))
@@ -83,11 +84,63 @@ class UserController extends Controller
                 ],
             ],
             'roles' => $this->assignableRoles($tenantId),
-            'branches' => Branch::forTenant($tenantId)
-                ->where('status', 'active')
-                ->orderBy('name')
-                ->get(['id', 'name', 'code']),
+            'branches' => $this->tenantBranches($tenantId),
             'filters' => $request->only(['search', 'status', 'sort', 'direction', 'per_page']),
+        ]);
+    }
+
+    /**
+     * Show the form for creating a new tenant user.
+     */
+    public function create(Request $request): Response
+    {
+        $this->authorize('create', User::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        return Inertia::render('avana/pengguna/create', [
+            'roles' => $this->assignableRoles($tenantId),
+            'branches' => $this->tenantBranches($tenantId),
+        ]);
+    }
+
+    /**
+     * Show the form for editing an existing tenant user.
+     */
+    public function edit(Request $request, User $user): Response
+    {
+        $this->ensureTenantOwnership($request, $user);
+        $this->authorize('update', $user);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $user->loadMissing([
+            'roles:id,name,code',
+            'branchAccesses:id,user_id,branch_id',
+            'dataScopes:id,user_id,scope_type,scope_value',
+        ]);
+
+        return Inertia::render('avana/pengguna/edit', [
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'status' => $user->status,
+                'role_ids' => $user->roles
+                    ->pluck('id')
+                    ->map(fn ($id): int => (int) $id)
+                    ->values()
+                    ->all(),
+                'data_scope' => $user->dataScopes->first()?->scope_type ?? 'company',
+                'branch_ids' => $user->branchAccesses
+                    ->pluck('branch_id')
+                    ->map(fn ($id): int => (int) $id)
+                    ->values()
+                    ->all(),
+            ],
+            'roles' => $this->assignableRoles($tenantId),
+            'branches' => $this->tenantBranches($tenantId),
         ]);
     }
 
@@ -267,6 +320,19 @@ class UserController extends Controller
     {
         return Rule::exists('branches', 'id')
             ->where('tenant_id', $request->user()->tenant_id);
+    }
+
+    /**
+     * Active branches for the acting tenant, used by the user form's data scope.
+     *
+     * @return Collection<int, Branch>
+     */
+    private function tenantBranches(?int $tenantId): Collection
+    {
+        return Branch::forTenant($tenantId)
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get(['id', 'name', 'code']);
     }
 
     /**

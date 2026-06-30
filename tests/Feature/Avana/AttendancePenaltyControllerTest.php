@@ -65,7 +65,7 @@ it('renders the paginated sanksi index with the expected props', function (): vo
         ->get(route('avana.sanksi'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/sanksi', false)
+            ->component('avana/sanksi/index', false)
             ->has('penalties.data', 1)
             ->has('penalties.data.0', fn (Assert $row) => $row
                 ->has('id')
@@ -120,6 +120,15 @@ it('only lists penalties that belong to the current tenant', function (): void {
         ->get(route('avana.sanksi'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page->has('penalties.data', 1));
+});
+
+it('renders the sanksi create form with employee options', function (): void {
+    actingAs($this->admin)
+        ->get(route('avana.sanksi.create'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/sanksi/create', false)
+            ->has('employees'));
 });
 
 it('creates a manual penalty for an employee', function (): void {

@@ -43,7 +43,7 @@ it('renders the mutasi index with tenant-scoped props', function (): void {
         ->get(route('avana.mutasi'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/mutasi', false)
+            ->component('avana/mutasi/index', false)
             ->has('movements.data', 1)
             ->has('movements.data.0', fn (Assert $row) => $row
                 ->has('id')
@@ -60,6 +60,27 @@ it('renders the mutasi index with tenant-scoped props', function (): void {
             ->has('departments')
             ->has('branches')
             ->has('filters'));
+});
+
+it('renders the create movement form with tenant-scoped options', function (): void {
+    actingAs($this->admin)
+        ->get(route('avana.mutasi.create'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/mutasi/create', false)
+            ->has('employees')
+            ->has('positions')
+            ->has('departments')
+            ->has('branches'));
+});
+
+it('forbids users without employee permissions from opening the create form', function (): void {
+    $staff = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $staff->roles()->sync([$this->employeeRole->id]);
+
+    actingAs($staff)
+        ->get(route('avana.mutasi.create'))
+        ->assertForbidden();
 });
 
 it('only lists movements that belong to the current tenant', function (): void {

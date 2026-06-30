@@ -52,7 +52,7 @@ it('renders the kontrak index with contracts and employees props', function (): 
         ->get(route('avana.kontrak'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/kontrak', false)
+            ->component('avana/kontrak/index', false)
             ->has('contracts.data')
             ->has('contracts.data.0', fn (Assert $row) => $row
                 ->has('id')

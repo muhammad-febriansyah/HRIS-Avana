@@ -35,7 +35,7 @@ it('renders the company setup screen with the expected props', function (): void
         ->get('spec-perusahaan')
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/perusahaan', false)
+            ->component('avana/perusahaan/index', false)
             ->has('branches')
             ->has('departments')
             ->has('positions')

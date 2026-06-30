@@ -174,14 +174,54 @@ final class AvanaDemoSeeder extends Seeder
 
     private function seedFeatures()
     {
+        // [code => [name, module_group]] — module_group drives the Menu & Fitur grouping.
         $codes = [
-            'hr_core' => 'HR Core', 'organization' => 'Organization', 'attendance' => 'Attendance',
-            'leave' => 'Leave', 'overtime' => 'Overtime', 'wfh' => 'WFH', 'payroll' => 'Payroll',
-            'bpjs' => 'BPJS', 'pph21' => 'PPh 21', 'recruitment' => 'Recruitment',
-            'onboarding' => 'Onboarding', 'analytics' => 'Analytics',
+            // Core HR
+            'hr_core' => ['HR Core', 'core'],
+            'organization' => ['Organization', 'core'],
+            'document' => ['Manajemen Dokumen', 'core'],
+            'offboarding' => ['Offboarding & Clearance', 'core'],
+            'helpdesk' => ['HR Helpdesk', 'core'],
+            'delegation' => ['Delegasi Approval', 'core'],
+            // Time & Attendance
+            'attendance' => ['Attendance', 'time'],
+            'leave' => ['Leave', 'time'],
+            'overtime' => ['Overtime', 'time'],
+            'wfh' => ['WFH', 'time'],
+            'timesheet' => ['Timesheet', 'time'],
+            'shift_swap' => ['Tukar Shift', 'time'],
+            // Payroll & Finance
+            'payroll' => ['Payroll', 'payroll'],
+            'bpjs' => ['BPJS', 'payroll'],
+            'pph21' => ['PPh 21', 'payroll'],
+            'claim' => ['Klaim & Reimbursement', 'payroll'],
+            'loan' => ['Pinjaman Karyawan', 'payroll'],
+            'salary_structure' => ['Struktur & Skala Upah', 'payroll'],
+            'journal' => ['Jurnal Akuntansi', 'payroll'],
+            // Talent
+            'recruitment' => ['Recruitment (ATS)', 'talent'],
+            'onboarding' => ['Onboarding', 'talent'],
+            'performance' => ['Manajemen Kinerja', 'talent'],
+            'okr' => ['OKR & Goal', 'talent'],
+            'competency' => ['Kompetensi', 'talent'],
+            'talent' => ['Talenta & Suksesi', 'talent'],
+            'learning' => ['Pembelajaran (LMS)', 'talent'],
+            // Engagement & Self-Service
+            'ess' => ['Employee Self-Service', 'engagement'],
+            'announcement' => ['Pengumuman', 'engagement'],
+            'survey' => ['Survei Karyawan', 'engagement'],
+            // Analytics
+            'analytics' => ['Analytics & Laporan', 'analytics'],
+            'dynamic_report' => ['Dynamic Report', 'analytics'],
+            // Asset & CRM
+            'asset' => ['Manajemen Aset', 'asset'],
+            'crm' => ['CRM', 'crm'],
         ];
 
-        return collect($codes)->map(fn ($name, $code) => Feature::firstOrCreate(['code' => $code], ['name' => $name, 'module_group' => 'core']))->values();
+        return collect($codes)->map(fn ($meta, $code) => Feature::firstOrCreate(
+            ['code' => $code],
+            ['name' => $meta[0], 'module_group' => $meta[1]],
+        ))->values();
     }
 
     private function seedPermissionsAndRoles(Tenant $tenant): void

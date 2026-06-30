@@ -46,7 +46,7 @@ it('renders the visiting index with visits and employees scoped to the tenant', 
         ->get(route('avana.visiting'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/visiting', false)
+            ->component('avana/visiting/index', false)
             ->has('visits.data')
             ->has('visits.data.0', fn (Assert $row) => $row
                 ->has('id')

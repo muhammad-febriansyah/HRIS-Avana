@@ -23,7 +23,7 @@ it('renders the paginated pengguna index with the expected props', function (): 
         ->get(route('avana.pengguna'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/pengguna', false)
+            ->component('avana/pengguna/index', false)
             ->has('users.data')
             ->has('users.data.0', fn (Assert $row) => $row
                 ->has('id')

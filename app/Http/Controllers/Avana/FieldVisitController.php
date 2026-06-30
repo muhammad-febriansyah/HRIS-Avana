@@ -54,7 +54,7 @@ class FieldVisitController extends Controller
             ->paginate($request->integer('per_page', 10))
             ->withQueryString();
 
-        return Inertia::render('avana/visiting', [
+        return Inertia::render('avana/visiting/index', [
             'visits' => [
                 'data' => $paginator->getCollection()
                     ->map(fn (FieldVisit $visit): array => $this->shapeVisit($visit))
@@ -73,6 +73,27 @@ class FieldVisitController extends Controller
                 ],
             ],
             'filters' => $request->only(['search', 'date', 'per_page']),
+            'employees' => Employee::forTenant($tenantId)
+                ->orderBy('full_name')
+                ->get(['id', 'full_name', 'employee_number'])
+                ->map(fn (Employee $employee): array => [
+                    'id' => $employee->id,
+                    'name' => $employee->full_name,
+                    'employee_number' => $employee->employee_number,
+                ]),
+        ]);
+    }
+
+    /**
+     * Show the form for recording a new field visit.
+     */
+    public function create(Request $request): Response
+    {
+        $this->ensureCanManage($request);
+
+        $tenantId = $request->user()->tenant_id;
+
+        return Inertia::render('avana/visiting/create', [
             'employees' => Employee::forTenant($tenantId)
                 ->orderBy('full_name')
                 ->get(['id', 'full_name', 'employee_number'])

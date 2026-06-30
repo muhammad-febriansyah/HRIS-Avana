@@ -48,7 +48,7 @@ it('renders the paginated cuti index with the expected props', function (): void
         ->get(route('avana.cuti'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/cuti', false)
+            ->component('avana/cuti/index', false)
             ->has('requests.data')
             ->has('requests.data.0', fn (Assert $row) => $row
                 ->has('id')

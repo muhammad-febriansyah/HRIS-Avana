@@ -79,7 +79,7 @@ class AttendanceController extends Controller
             ->groupBy('status')
             ->pluck('c', 'status');
 
-        return Inertia::render('avana/absensi', [
+        return Inertia::render('avana/absensi/index', [
             'attendances' => AttendanceResource::collection($attendances),
             'filters' => array_merge(
                 $request->only(['search', 'status', 'branch_id', 'sort', 'direction', 'per_page']),

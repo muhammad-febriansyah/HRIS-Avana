@@ -81,7 +81,7 @@ class AuditController extends Controller
             ->map(fn (AuditLog $log): array => $this->transform($log, $labels))
             ->all();
 
-        return Inertia::render('avana/audit', [
+        return Inertia::render('avana/audit/index', [
             'logs' => [
                 'data' => $rows,
                 'meta' => [

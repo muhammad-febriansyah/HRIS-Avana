@@ -63,7 +63,7 @@ class MovementController extends Controller
             ->paginate($request->integer('per_page', 10))
             ->withQueryString();
 
-        return Inertia::render('avana/mutasi', [
+        return Inertia::render('avana/mutasi/index', [
             'movements' => [
                 'data' => collect($movements->items())
                     ->map(fn (EmployeeCareerHistory $movement): array => $this->transformMovement(
@@ -99,6 +99,35 @@ class MovementController extends Controller
             'departments' => Department::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
             'branches' => Branch::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
             'filters' => $request->only(['search', 'movement_type', 'per_page']),
+        ]);
+    }
+
+    /**
+     * Show the form for recording a new employee career movement.
+     */
+    public function create(Request $request): Response
+    {
+        $this->authorize('viewAny', Employee::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        return Inertia::render('avana/mutasi/create', [
+            'employees' => Employee::forTenant($tenantId)
+                ->select('id', 'full_name', 'employee_number', 'position_id', 'department_id', 'branch_id')
+                ->orderBy('full_name')
+                ->get()
+                ->map(fn (Employee $employee): array => [
+                    'id' => $employee->id,
+                    'name' => $employee->full_name,
+                    'employee_number' => $employee->employee_number,
+                    'position_id' => $employee->position_id,
+                    'department_id' => $employee->department_id,
+                    'branch_id' => $employee->branch_id,
+                ])
+                ->all(),
+            'positions' => Position::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
+            'departments' => Department::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
+            'branches' => Branch::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
         ]);
     }
 

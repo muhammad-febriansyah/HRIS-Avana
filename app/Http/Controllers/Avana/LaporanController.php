@@ -67,7 +67,7 @@ class LaporanController extends Controller
             ? PayrollRunItem::forTenant($tenantId)->where('payroll_run_id', $latestRunId)->count()
             : TaxProfile::forTenant($tenantId)->count();
 
-        return Inertia::render('avana/laporan', [
+        return Inertia::render('avana/laporan/index', [
             'stats' => [
                 'karyawan' => Employee::forTenant($tenantId)->where('status', 'active')->count(),
                 'hadir_hari_ini' => $hadirHariIni,

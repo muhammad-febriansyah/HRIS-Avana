@@ -49,7 +49,7 @@ class WebsiteSettingController extends Controller
 
         $settings = WebsiteSetting::current();
 
-        return Inertia::render('avana/website-settings', [
+        return Inertia::render('avana/website-settings/index', [
             'settings' => [
                 'site_name' => $settings->site_name,
                 'tagline' => $settings->tagline,

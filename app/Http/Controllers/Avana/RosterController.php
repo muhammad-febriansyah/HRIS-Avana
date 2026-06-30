@@ -63,7 +63,7 @@ class RosterController extends Controller
             })
             ->all();
 
-        return Inertia::render('avana/roster', [
+        return Inertia::render('avana/roster/index', [
             'employees' => Employee::forTenant($tenantId)
                 ->where('status', 'active')
                 ->orderBy('full_name')

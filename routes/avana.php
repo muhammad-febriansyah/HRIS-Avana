@@ -1,27 +1,35 @@
 <?php
 
 use App\Http\Controllers\Avana\AccessController;
+use App\Http\Controllers\Avana\AnalyticsController;
 use App\Http\Controllers\Avana\ApprovalController;
+use App\Http\Controllers\Avana\AssetController;
 use App\Http\Controllers\Avana\AttendanceController;
 use App\Http\Controllers\Avana\AttendancePenaltyController;
 use App\Http\Controllers\Avana\AuditController;
 use App\Http\Controllers\Avana\BenefitController;
 use App\Http\Controllers\Avana\CashAdvanceController;
+use App\Http\Controllers\Avana\ClaimController;
 use App\Http\Controllers\Avana\CompanySetupController;
 use App\Http\Controllers\Avana\ContractController;
 use App\Http\Controllers\Avana\DutyTravelController;
+use App\Http\Controllers\Avana\DynamicReportController;
 use App\Http\Controllers\Avana\EmployeeController;
 use App\Http\Controllers\Avana\FeatureController;
 use App\Http\Controllers\Avana\FieldVisitController;
+use App\Http\Controllers\Avana\HelpdeskController;
 use App\Http\Controllers\Avana\LaporanController;
+use App\Http\Controllers\Avana\LearningController;
 use App\Http\Controllers\Avana\LeaveController;
 use App\Http\Controllers\Avana\LeaveTypeController;
 use App\Http\Controllers\Avana\MovementController;
 use App\Http\Controllers\Avana\OvertimeController;
 use App\Http\Controllers\Avana\PayrollConfigController;
 use App\Http\Controllers\Avana\PayrollController;
+use App\Http\Controllers\Avana\PerformanceController;
 use App\Http\Controllers\Avana\PermissionRequestController;
 use App\Http\Controllers\Avana\PositionComponentController;
+use App\Http\Controllers\Avana\RecruitmentController;
 use App\Http\Controllers\Avana\RosterController;
 use App\Http\Controllers\Avana\TenantController;
 use App\Http\Controllers\Avana\UserController;
@@ -62,6 +70,8 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
 
     // Jenis Cuti (leave types)
     Route::get('cuti/jenis', [LeaveTypeController::class, 'index'])->name('cuti.jenis');
+    Route::get('cuti/jenis/create', [LeaveTypeController::class, 'create'])->name('cuti.jenis.create');
+    Route::get('cuti/jenis/{leaveType}/edit', [LeaveTypeController::class, 'edit'])->name('cuti.jenis.edit');
     Route::post('cuti/jenis', [LeaveTypeController::class, 'store'])->name('cuti.jenis.store');
     Route::put('cuti/jenis/{leaveType}', [LeaveTypeController::class, 'update'])->name('cuti.jenis.update');
     Route::delete('cuti/jenis/{leaveType}', [LeaveTypeController::class, 'destroy'])->name('cuti.jenis.destroy');
@@ -109,6 +119,8 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
 
     // Kontrak kerja (employee contracts)
     Route::get('kontrak', [ContractController::class, 'index'])->name('kontrak');
+    Route::get('kontrak/create', [ContractController::class, 'create'])->name('kontrak.create');
+    Route::get('kontrak/{contract}/edit', [ContractController::class, 'edit'])->name('kontrak.edit');
     Route::post('kontrak', [ContractController::class, 'store'])->name('kontrak.store');
     Route::put('kontrak/{contract}', [ContractController::class, 'update'])->name('kontrak.update');
     Route::delete('kontrak/{contract}', [ContractController::class, 'destroy'])->name('kontrak.destroy');
@@ -120,41 +132,67 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
 
     // Mutasi / pergerakan karir karyawan
     Route::get('mutasi', [MovementController::class, 'index'])->name('mutasi');
+    Route::get('mutasi/create', [MovementController::class, 'create'])->name('mutasi.create');
     Route::post('mutasi', [MovementController::class, 'store'])->name('mutasi.store');
 
     // Kasbon / cash advance
     Route::get('kasbon', [CashAdvanceController::class, 'index'])->name('kasbon');
+    Route::get('kasbon/create', [CashAdvanceController::class, 'create'])->name('kasbon.create');
     Route::post('kasbon', [CashAdvanceController::class, 'store'])->name('kasbon.store');
     Route::post('kasbon/{cashAdvance}/approve', [CashAdvanceController::class, 'approve'])->name('kasbon.approve');
     Route::post('kasbon/{cashAdvance}/reject', [CashAdvanceController::class, 'reject'])->name('kasbon.reject');
 
     // Benefit management
     Route::get('benefit', [BenefitController::class, 'index'])->name('benefit');
+    Route::get('benefit/create', [BenefitController::class, 'create'])->name('benefit.create');
+    Route::get('benefit/{benefit}/edit', [BenefitController::class, 'edit'])->name('benefit.edit');
     Route::post('benefit', [BenefitController::class, 'store'])->name('benefit.store');
     Route::put('benefit/{benefit}', [BenefitController::class, 'update'])->name('benefit.update');
     Route::delete('benefit/{benefit}', [BenefitController::class, 'destroy'])->name('benefit.destroy');
     Route::post('benefit/assign', [BenefitController::class, 'assign'])->name('benefit.assign');
     Route::delete('benefit/assign/{employeeBenefit}', [BenefitController::class, 'unassign'])->name('benefit.unassign');
 
+    // Rekrutmen (ATS)
+    Route::get('rekrutmen', [RecruitmentController::class, 'index'])->name('rekrutmen');
+    Route::get('rekrutmen/create', [RecruitmentController::class, 'create'])->name('rekrutmen.create');
+    Route::get('rekrutmen/{jobPosting}/edit', [RecruitmentController::class, 'edit'])->name('rekrutmen.edit');
+    Route::post('rekrutmen', [RecruitmentController::class, 'store'])->name('rekrutmen.store');
+    Route::put('rekrutmen/{jobPosting}', [RecruitmentController::class, 'update'])->name('rekrutmen.update');
+    Route::delete('rekrutmen/{jobPosting}', [RecruitmentController::class, 'destroy'])->name('rekrutmen.destroy');
+    Route::post('rekrutmen/pelamar', [RecruitmentController::class, 'storeApplicant'])->name('rekrutmen.pelamar.store');
+    Route::get('rekrutmen/pelamar/{applicant}', [RecruitmentController::class, 'showApplicant'])->name('rekrutmen.pelamar.show');
+    Route::post('rekrutmen/pelamar/{applicant}/stage', [RecruitmentController::class, 'moveStage'])->name('rekrutmen.pelamar.stage');
+    Route::put('rekrutmen/pelamar/{applicant}', [RecruitmentController::class, 'updateApplicant'])->name('rekrutmen.pelamar.update');
+    Route::post('rekrutmen/pelamar/{applicant}/cv', [RecruitmentController::class, 'uploadCv'])->name('rekrutmen.pelamar.cv');
+    Route::post('rekrutmen/pelamar/{applicant}/interview', [RecruitmentController::class, 'scheduleInterview'])->name('rekrutmen.pelamar.interview');
+    Route::post('rekrutmen/pelamar/{applicant}/offer', [RecruitmentController::class, 'makeOffer'])->name('rekrutmen.pelamar.offer');
+    Route::post('rekrutmen/pelamar/{applicant}/medical', [RecruitmentController::class, 'storeMedicalCheck'])->name('rekrutmen.pelamar.medical');
+    Route::post('rekrutmen/pelamar/{applicant}/background', [RecruitmentController::class, 'storeBackgroundCheck'])->name('rekrutmen.pelamar.background');
+
     // Perjalanan dinas (duty travel)
     Route::get('dinas', [DutyTravelController::class, 'index'])->name('dinas');
+    Route::get('dinas/create', [DutyTravelController::class, 'create'])->name('dinas.create');
     Route::post('dinas', [DutyTravelController::class, 'store'])->name('dinas.store');
     Route::post('dinas/{dutyTravel}/approve', [DutyTravelController::class, 'approve'])->name('dinas.approve');
     Route::post('dinas/{dutyTravel}/reject', [DutyTravelController::class, 'reject'])->name('dinas.reject');
 
     // Sanksi absensi (attendance penalties)
     Route::get('sanksi', [AttendancePenaltyController::class, 'index'])->name('sanksi');
+    Route::get('sanksi/create', [AttendancePenaltyController::class, 'create'])->name('sanksi.create');
     Route::post('sanksi', [AttendancePenaltyController::class, 'store'])->name('sanksi.store');
     Route::post('sanksi/generate', [AttendancePenaltyController::class, 'generate'])->name('sanksi.generate');
     Route::delete('sanksi/{penalty}', [AttendancePenaltyController::class, 'destroy'])->name('sanksi.destroy');
 
     // Visiting pekerjaan (field visits)
     Route::get('visiting', [FieldVisitController::class, 'index'])->name('visiting');
+    Route::get('visiting/create', [FieldVisitController::class, 'create'])->name('visiting.create');
     Route::post('visiting', [FieldVisitController::class, 'store'])->name('visiting.store');
     Route::delete('visiting/{visit}', [FieldVisitController::class, 'destroy'])->name('visiting.destroy');
 
     // User management (Pengguna)
     Route::get('pengguna', [UserController::class, 'index'])->name('pengguna');
+    Route::get('pengguna/create', [UserController::class, 'create'])->name('pengguna.create');
+    Route::get('pengguna/{user}/edit', [UserController::class, 'edit'])->name('pengguna.edit');
     Route::post('pengguna', [UserController::class, 'store'])->name('pengguna.store');
     Route::put('pengguna/{user}', [UserController::class, 'update'])->name('pengguna.update');
     Route::delete('pengguna/{user}', [UserController::class, 'destroy'])->name('pengguna.destroy');
@@ -162,6 +200,8 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
 
     // Tenant / client management (super admin)
     Route::get('klien', [TenantController::class, 'index'])->name('klien');
+    Route::get('klien/create', [TenantController::class, 'create'])->name('klien.create');
+    Route::get('klien/{tenant}/edit', [TenantController::class, 'edit'])->name('klien.edit');
     Route::post('klien', [TenantController::class, 'store'])->name('klien.store');
     Route::put('klien/{tenant}', [TenantController::class, 'update'])->name('klien.update');
     Route::delete('klien/{tenant}', [TenantController::class, 'destroy'])->name('klien.destroy');
@@ -170,4 +210,64 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     // Pengaturan website (super admin) — edit-only, single settings row
     Route::get('website-settings', [WebsiteSettingController::class, 'edit'])->name('website-settings');
     Route::post('website-settings', [WebsiteSettingController::class, 'update'])->name('website-settings.update');
+
+    // Kinerja (performance management)
+    Route::get('kinerja', [PerformanceController::class, 'index'])->name('kinerja');
+    Route::get('kinerja/create', [PerformanceController::class, 'create'])->name('kinerja.create');
+    Route::get('kinerja/{review}/edit', [PerformanceController::class, 'edit'])->name('kinerja.edit');
+    Route::post('kinerja', [PerformanceController::class, 'store'])->name('kinerja.store');
+    Route::put('kinerja/{review}', [PerformanceController::class, 'update'])->name('kinerja.update');
+    Route::delete('kinerja/{review}', [PerformanceController::class, 'destroy'])->name('kinerja.destroy');
+    Route::post('kinerja/cycle', [PerformanceController::class, 'storeCycle'])->name('kinerja.cycle.store');
+    Route::post('kinerja/{review}/score', [PerformanceController::class, 'submitScore'])->name('kinerja.score');
+
+    // Pembelajaran (learning / LMS)
+    Route::get('pembelajaran', [LearningController::class, 'index'])->name('pembelajaran');
+    Route::get('pembelajaran/create', [LearningController::class, 'create'])->name('pembelajaran.create');
+    Route::get('pembelajaran/{training}/edit', [LearningController::class, 'edit'])->name('pembelajaran.edit');
+    Route::post('pembelajaran', [LearningController::class, 'store'])->name('pembelajaran.store');
+    Route::put('pembelajaran/{training}', [LearningController::class, 'update'])->name('pembelajaran.update');
+    Route::delete('pembelajaran/{training}', [LearningController::class, 'destroy'])->name('pembelajaran.destroy');
+    Route::post('pembelajaran/enroll', [LearningController::class, 'enroll'])->name('pembelajaran.enroll');
+    Route::put('pembelajaran/enroll/{enrollment}', [LearningController::class, 'updateEnrollment'])->name('pembelajaran.enroll.update');
+
+    // Klaim & reimbursement
+    Route::get('klaim', [ClaimController::class, 'index'])->name('klaim');
+    Route::get('klaim/create', [ClaimController::class, 'create'])->name('klaim.create');
+    Route::get('klaim/{claim}/edit', [ClaimController::class, 'edit'])->name('klaim.edit');
+    Route::post('klaim', [ClaimController::class, 'store'])->name('klaim.store');
+    Route::put('klaim/{claim}', [ClaimController::class, 'update'])->name('klaim.update');
+    Route::delete('klaim/{claim}', [ClaimController::class, 'destroy'])->name('klaim.destroy');
+    Route::post('klaim/{claim}/approve', [ClaimController::class, 'approve'])->name('klaim.approve');
+    Route::post('klaim/{claim}/reject', [ClaimController::class, 'reject'])->name('klaim.reject');
+    Route::post('klaim/{claim}/pay', [ClaimController::class, 'markPaid'])->name('klaim.pay');
+
+    // HR Helpdesk (ticketing)
+    Route::get('helpdesk', [HelpdeskController::class, 'index'])->name('helpdesk');
+    Route::get('helpdesk/create', [HelpdeskController::class, 'create'])->name('helpdesk.create');
+    Route::get('helpdesk/{ticket}/edit', [HelpdeskController::class, 'edit'])->name('helpdesk.edit');
+    Route::post('helpdesk', [HelpdeskController::class, 'store'])->name('helpdesk.store');
+    Route::put('helpdesk/{ticket}', [HelpdeskController::class, 'update'])->name('helpdesk.update');
+    Route::delete('helpdesk/{ticket}', [HelpdeskController::class, 'destroy'])->name('helpdesk.destroy');
+    Route::post('helpdesk/{ticket}/assign', [HelpdeskController::class, 'assign'])->name('helpdesk.assign');
+    Route::post('helpdesk/{ticket}/status', [HelpdeskController::class, 'changeStatus'])->name('helpdesk.status');
+    Route::post('helpdesk/{ticket}/reply', [HelpdeskController::class, 'reply'])->name('helpdesk.reply');
+
+    // HR Analytics + Dynamic Report
+    Route::get('analytics', [AnalyticsController::class, 'index'])->name('analytics');
+    Route::get('dynamic-report', [DynamicReportController::class, 'index'])->name('dynamic-report');
+    Route::post('dynamic-report', [DynamicReportController::class, 'store'])->name('dynamic-report.store');
+    Route::get('dynamic-report/{report}/run', [DynamicReportController::class, 'run'])->name('dynamic-report.run');
+    Route::get('dynamic-report/{report}/export', [DynamicReportController::class, 'export'])->name('dynamic-report.export');
+    Route::delete('dynamic-report/{report}', [DynamicReportController::class, 'destroy'])->name('dynamic-report.destroy');
+
+    // Manajemen aset
+    Route::get('aset', [AssetController::class, 'index'])->name('aset');
+    Route::get('aset/create', [AssetController::class, 'create'])->name('aset.create');
+    Route::get('aset/{asset}/edit', [AssetController::class, 'edit'])->name('aset.edit');
+    Route::post('aset', [AssetController::class, 'store'])->name('aset.store');
+    Route::put('aset/{asset}', [AssetController::class, 'update'])->name('aset.update');
+    Route::delete('aset/{asset}', [AssetController::class, 'destroy'])->name('aset.destroy');
+    Route::post('aset/{asset}/assign', [AssetController::class, 'assign'])->name('aset.assign');
+    Route::post('aset/assignment/{assignment}/return', [AssetController::class, 'returnAsset'])->name('aset.return');
 });

@@ -10,6 +10,7 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -76,7 +77,7 @@ class AttendancePenaltyController extends Controller
             ->paginate($request->integer('per_page', 10))
             ->withQueryString();
 
-        return Inertia::render('avana/sanksi', [
+        return Inertia::render('avana/sanksi/index', [
             'penalties' => [
                 'data' => collect($penalties->items())
                     ->map(fn (AttendancePenalty $penalty): array => $this->transformPenalty($penalty))
@@ -90,15 +91,20 @@ class AttendancePenaltyController extends Controller
                     'to' => $penalties->lastItem(),
                 ],
             ],
-            'employees' => Employee::forTenant($tenantId)
-                ->orderBy('full_name')
-                ->get(['id', 'full_name', 'employee_number'])
-                ->map(fn (Employee $employee): array => [
-                    'id' => $employee->id,
-                    'name' => $employee->full_name,
-                    'employee_number' => $employee->employee_number,
-                ]),
+            'employees' => $this->employeeOptions($tenantId),
             'filters' => $request->only(['search', 'violation_type', 'per_page']),
+        ]);
+    }
+
+    /**
+     * Show the form for issuing a new manual attendance penalty.
+     */
+    public function create(Request $request): Response
+    {
+        $this->authorize('viewAny', Attendance::class);
+
+        return Inertia::render('avana/sanksi/create', [
+            'employees' => $this->employeeOptions($request->user()->tenant_id),
         ]);
     }
 
@@ -199,6 +205,23 @@ class AttendancePenaltyController extends Controller
         $penalty->delete();
 
         return back()->with('success', 'Sanksi absensi dihapus');
+    }
+
+    /**
+     * Build the selectable employee options backing the penalty forms.
+     *
+     * @return Collection<int, array{id: int, name: string, employee_number: string}>
+     */
+    private function employeeOptions(int $tenantId): Collection
+    {
+        return Employee::forTenant($tenantId)
+            ->orderBy('full_name')
+            ->get(['id', 'full_name', 'employee_number'])
+            ->map(fn (Employee $employee): array => [
+                'id' => $employee->id,
+                'name' => $employee->full_name,
+                'employee_number' => $employee->employee_number,
+            ]);
     }
 
     /**

@@ -151,7 +151,8 @@ export interface NavItem {
     id: string;
     label: string;
     icon: string;
-    href: string;
+    href?: string;
+    children?: NavItem[];
 }
 export interface NavGroup {
     title: string | null;

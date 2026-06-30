@@ -2,7 +2,7 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { AIcon, C, NAV, type NavGroup } from '@/lib/avana';
+import { AIcon, C, NAV, type NavGroup, type NavItem } from '@/lib/avana';
 import { logout } from '@/routes';
 import { edit as editProfile } from '@/routes/profile';
 
@@ -33,6 +33,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
             .join('') || 'A';
     const [collapsed, setCollapsed] = useState(false);
     const [mobileNav, setMobileNav] = useState(false);
+    const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
 
     const handleLogout = () => router.flushAll();
 
@@ -93,35 +94,80 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                                 </div>
                             )}
                             {grp.items.map((it) => {
-                                const active = isActive(it.href);
+                                const leafLink = (item: NavItem, nested: boolean) => {
+                                    const active = isActive(item.href ?? '##');
+
+                                    return (
+                                        <Link
+                                            key={item.id}
+                                            href={item.href ?? '#'}
+                                            onClick={() => setMobileNav(false)}
+                                            title={item.label}
+                                            style={{
+                                                width: '100%',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 12,
+                                                padding: collapsed ? 0 : nested ? '0 12px 0 34px' : '0 12px',
+                                                justifyContent: collapsed ? 'center' : 'flex-start',
+                                                height: nested ? 38 : 42,
+                                                marginBottom: 3,
+                                                borderRadius: 9,
+                                                cursor: 'pointer',
+                                                fontSize: nested ? 13 : 13.5,
+                                                textDecoration: 'none',
+                                                fontWeight: active ? 600 : 500,
+                                                color: active ? C.primary : '#5B6472',
+                                                background: active ? 'rgba(47,84,201,.09)' : 'transparent',
+                                            }}
+                                        >
+                                            <AIcon name={item.icon} size={nested ? 16 : 18} />
+                                            {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
+                                        </Link>
+                                    );
+                                };
+
+                                if (!it.children) {
+                                    return leafLink(it, false);
+                                }
+
+                                // Collapsed rail: flatten children to icon-only links.
+                                if (collapsed) {
+                                    return <div key={it.id}>{it.children.map((c) => leafLink(c, false))}</div>;
+                                }
+
+                                const hasActiveChild = it.children.some((c) => isActive(c.href ?? '##'));
+                                const open = openMenus[it.id] ?? hasActiveChild;
 
                                 return (
-                                    <Link
-                                        key={it.id}
-                                        href={it.href}
-                                        onClick={() => setMobileNav(false)}
-                                        title={it.label}
-                                        style={{
-                                            width: '100%',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 12,
-                                            padding: collapsed ? 0 : '0 12px',
-                                            justifyContent: collapsed ? 'center' : 'flex-start',
-                                            height: 42,
-                                            marginBottom: 3,
-                                            borderRadius: 9,
-                                            cursor: 'pointer',
-                                            fontSize: 13.5,
-                                            textDecoration: 'none',
-                                            fontWeight: active ? 600 : 500,
-                                            color: active ? C.primary : '#5B6472',
-                                            background: active ? 'rgba(47,84,201,.09)' : 'transparent',
-                                        }}
-                                    >
-                                        <AIcon name={it.icon} size={18} />
-                                        {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{it.label}</span>}
-                                    </Link>
+                                    <div key={it.id}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setOpenMenus((m) => ({ ...m, [it.id]: !open }))}
+                                            style={{
+                                                width: '100%',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 12,
+                                                padding: '0 12px',
+                                                height: 42,
+                                                marginBottom: 3,
+                                                borderRadius: 9,
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                fontSize: 13.5,
+                                                fontFamily: 'inherit',
+                                                fontWeight: hasActiveChild ? 600 : 500,
+                                                color: hasActiveChild ? C.primary : '#5B6472',
+                                                background: 'transparent',
+                                            }}
+                                        >
+                                            <AIcon name={it.icon} size={18} />
+                                            <span style={{ whiteSpace: 'nowrap', flex: 1, textAlign: 'left' }}>{it.label}</span>
+                                            <AIcon name={open ? 'chevron-down' : 'chevron-right'} size={15} />
+                                        </button>
+                                        {open && it.children.map((c) => leafLink(c, true))}
+                                    </div>
                                 );
                             })}
                         </div>

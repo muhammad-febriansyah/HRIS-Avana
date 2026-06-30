@@ -22,7 +22,7 @@ it('renders the website settings editor for a super admin', function (): void {
         ->get(route('avana.website-settings'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/website-settings', false)
+            ->component('avana/website-settings/index', false)
             ->has('settings.site_name')
             ->has('settings.logo_url')
             ->has('settings.favicon_url')

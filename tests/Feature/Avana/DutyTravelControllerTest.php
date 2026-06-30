@@ -46,7 +46,7 @@ it('renders the paginated dinas index with the expected props', function (): voi
         ->get(route('avana.dinas'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/dinas', false)
+            ->component('avana/dinas/index', false)
             ->has('travels.data')
             ->has('travels.data.0', fn (Assert $row) => $row
                 ->has('id')

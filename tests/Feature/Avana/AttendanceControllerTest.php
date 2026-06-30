@@ -56,7 +56,7 @@ it('renders the paginated absensi index with the expected props', function (): v
         ->get(route('avana.absensi', ['date' => TEST_DATE]))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/absensi', false)
+            ->component('avana/absensi/index', false)
             ->has('attendances.data')
             ->has('attendances.data.0', fn (Assert $row) => $row
                 ->has('id')

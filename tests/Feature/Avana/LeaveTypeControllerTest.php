@@ -35,7 +35,7 @@ it('renders the jenis cuti index with the expected props', function (): void {
         ->get(route('avana.cuti.jenis'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/jenis-cuti', false)
+            ->component('avana/jenis-cuti/index', false)
             ->has('leaveTypes')
             ->has('leaveTypes.0', fn (Assert $row) => $row
                 ->has('id')

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Feature;
 use App\Models\Package;
 use App\Models\Tenant;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -81,7 +82,7 @@ class TenantController extends Controller
                 ->all(),
         ]);
 
-        return Inertia::render('avana/klien', [
+        return Inertia::render('avana/klien/index', [
             'tenants' => [
                 'data' => $tenants->items(),
                 'meta' => [
@@ -93,15 +94,50 @@ class TenantController extends Controller
                     'to' => $tenants->lastItem(),
                 ],
             ],
-            'packages' => Package::query()
-                ->select('id', 'name', 'code', 'max_users', 'max_employees', 'max_branches')
-                ->orderBy('name')
-                ->get(),
+            'packages' => $this->packageOptions(),
             'features' => Feature::query()
                 ->select('id', 'code', 'name')
                 ->orderBy('name')
                 ->get(),
             'filters' => $request->only(['search', 'status']),
+        ]);
+    }
+
+    /**
+     * Show the form for creating a new client tenant.
+     */
+    public function create(Request $request): Response
+    {
+        $this->authorize('create', Tenant::class);
+
+        return Inertia::render('avana/klien/create', [
+            'packages' => $this->packageOptions(),
+        ]);
+    }
+
+    /**
+     * Show the form for editing an existing client tenant.
+     */
+    public function edit(Request $request, Tenant $tenant): Response
+    {
+        $this->authorize('update', $tenant);
+
+        return Inertia::render('avana/klien/edit', [
+            'tenant' => [
+                'id' => $tenant->id,
+                'name' => $tenant->name,
+                'company_name' => $tenant->company_name,
+                'slug' => $tenant->slug,
+                'package_id' => $tenant->package_id,
+                'status' => $tenant->status,
+                'max_users' => (int) $tenant->max_users,
+                'max_employees' => (int) $tenant->max_employees,
+                'max_branches' => (int) $tenant->max_branches,
+                'billing_status' => $tenant->billing_status,
+                'start_date' => $tenant->start_date?->toDateString(),
+                'end_date' => $tenant->end_date?->toDateString(),
+            ],
+            'packages' => $this->packageOptions(),
         ]);
     }
 
@@ -217,6 +253,19 @@ class TenantController extends Controller
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
         ];
+    }
+
+    /**
+     * Selectable subscription packages for the create/edit forms.
+     *
+     * @return Collection<int, Package>
+     */
+    private function packageOptions(): Collection
+    {
+        return Package::query()
+            ->select('id', 'name', 'code', 'max_users', 'max_employees', 'max_branches')
+            ->orderBy('name')
+            ->get();
     }
 
     /**

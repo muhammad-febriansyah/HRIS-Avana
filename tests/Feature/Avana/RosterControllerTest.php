@@ -38,7 +38,7 @@ it('renders the roster index with the expected props', function (): void {
         ->get(route('avana.roster', ['week_start' => WEEK_START]))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/roster', false)
+            ->component('avana/roster/index', false)
             ->where('week_start', WEEK_START)
             ->has('week', 7)
             ->has('week.0', fn (Assert $day) => $day
