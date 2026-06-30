@@ -211,21 +211,16 @@ it('validates the generate request against tenant-scoped records', function (): 
         ->assertSessionHasErrors(['letter_template_id', 'employee_id']);
 });
 
-it('renders the printable letter page', function (): void {
+it('downloads the generated letter as a PDF', function (): void {
     $letter = makeSuratGeneratedLetter($this->tenant->id, [
         'employee_id' => makeSuratEmployee($this->tenant->id)->id,
         'letter_number' => '777/HR/2026',
     ]);
 
-    actingAs($this->admin)
-        ->get(route('avana.surat.print', $letter))
-        ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/surat/print', false)
-            ->where('letter.id', $letter->id)
-            ->has('letter.title')
-            ->has('letter.body')
-            ->has('company.name'));
+    $response = actingAs($this->admin)->get(route('avana.surat.print', $letter));
+
+    $response->assertOk();
+    expect($response->headers->get('content-type'))->toContain('application/pdf');
 });
 
 it('deletes a generated letter', function (): void {

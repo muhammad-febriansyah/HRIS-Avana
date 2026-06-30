@@ -8,6 +8,7 @@ use App\Models\Package;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -262,19 +263,36 @@ class BillingController extends Controller
     /**
      * Render a printable invoice sheet (browser print-to-PDF).
      */
-    public function printInvoice(Request $request, Invoice $invoice): Response
+    public function printInvoice(Request $request, Invoice $invoice): \Illuminate\Http\Response
     {
         $this->ensureSuperAdmin($request);
 
-        $invoice->load(['tenant', 'items', 'subscription.package']);
+        $invoice->load(['tenant', 'items']);
 
-        return Inertia::render('avana/billing/print', [
+        $statusLabels = [
+            'unpaid' => 'Belum Bayar',
+            'paid' => 'Lunas',
+            'overdue' => 'Jatuh Tempo',
+            'cancelled' => 'Dibatalkan',
+        ];
+
+        $periodLabel = $invoice->period_start && $invoice->period_end
+            ? $invoice->period_start->format('d M Y').' – '.$invoice->period_end->format('d M Y')
+            : null;
+
+        $pdf = Pdf::loadView('pdf.invoice', [
             'invoice' => [
                 ...$this->transformInvoice($invoice),
                 'tenant_company' => $invoice->tenant?->company_name ?? $invoice->tenant?->name,
                 'notes' => $invoice->notes,
             ],
-        ]);
+            'statusLabel' => $statusLabels[$invoice->status] ?? $invoice->status,
+            'issueDate' => $invoice->issue_date?->format('d M Y') ?? '-',
+            'dueDate' => $invoice->due_date?->format('d M Y') ?? '-',
+            'periodLabel' => $periodLabel,
+        ])->setPaper('a4');
+
+        return $pdf->download('invoice-'.$invoice->invoice_number.'.pdf');
     }
 
     /**

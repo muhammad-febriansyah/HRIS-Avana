@@ -177,11 +177,8 @@ it('renders the printable invoice', function (): void {
     ]);
     $invoice->items()->create(['description' => 'Langganan', 'quantity' => 1, 'unit_price' => 750000, 'amount' => 750000]);
 
-    actingAs($this->superAdmin)
-        ->get(route('avana.billing.invoice.print', $invoice))
-        ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/billing/print', false)
-            ->where('invoice.invoice_number', 'INV-202607-0003')
-            ->has('invoice.items.0'));
+    $response = actingAs($this->superAdmin)->get(route('avana.billing.invoice.print', $invoice));
+
+    $response->assertOk();
+    expect($response->headers->get('content-type'))->toContain('application/pdf');
 });

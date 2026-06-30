@@ -94,6 +94,135 @@ export function statusBadge(st: string): Badge {
     return { label: st, color: c[0], bg: c[1] };
 }
 
+/* ---------- Rupiah-formatted currency input ---------- */
+
+/** Strip everything but digits from a money string. */
+export function digitsOnly(value: string | number | null | undefined): string {
+    return value === null || value === undefined ? '' : String(value).replace(/[^\d]/g, '');
+}
+
+interface RupiahInputProps {
+    value: string | number;
+    onChange: (rawDigits: string) => void;
+    style?: CSSProperties;
+    placeholder?: string;
+    disabled?: boolean;
+    invalid?: boolean;
+}
+
+/**
+ * Text input that shows a thousand-separated Rupiah value (e.g. "1.500.000")
+ * with an "Rp" prefix while reporting the raw digit string back to the form.
+ */
+export function RupiahInput({ value, onChange, style, placeholder, disabled, invalid }: RupiahInputProps) {
+    const raw = digitsOnly(value);
+    const display = raw === '' ? '' : Number(raw).toLocaleString('id-ID');
+
+    return (
+        <div style={{ position: 'relative' }}>
+            <span
+                style={{
+                    position: 'absolute',
+                    left: 13,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    fontSize: 13.5,
+                    color: C.faint,
+                    pointerEvents: 'none',
+                }}
+            >
+                Rp
+            </span>
+            <input
+                type="text"
+                inputMode="numeric"
+                value={display}
+                placeholder={placeholder ?? '0'}
+                disabled={disabled}
+                onChange={(event) => onChange(digitsOnly(event.target.value))}
+                style={{
+                    width: '100%',
+                    height: 42,
+                    padding: '0 13px 0 36px',
+                    border: `1px solid ${invalid ? C.red : C.border}`,
+                    borderRadius: 8,
+                    fontSize: 13.5,
+                    color: C.text,
+                    background: disabled ? C.surface : '#fff',
+                    outline: 'none',
+                    ...style,
+                }}
+            />
+        </div>
+    );
+}
+
+/* ---------- color-coded action button (icon + label) ---------- */
+
+export type ActionVariant = 'neutral' | 'primary' | 'success' | 'warning' | 'danger';
+
+const ACTION_VARIANTS: Record<ActionVariant, { color: string; border: string; bg: string }> = {
+    neutral: { color: C.text, border: C.border, bg: '#fff' },
+    primary: { color: C.primary, border: 'rgba(47,84,201,.35)', bg: 'rgba(47,84,201,.07)' },
+    success: { color: C.green, border: 'rgba(22,163,74,.35)', bg: 'rgba(22,163,74,.07)' },
+    warning: { color: C.amber, border: 'rgba(217,119,6,.35)', bg: 'rgba(217,119,6,.07)' },
+    danger: { color: C.red, border: 'rgba(220,38,38,.35)', bg: 'rgba(220,38,38,.07)' },
+};
+
+interface ActionBtnProps {
+    icon: string;
+    label: string;
+    variant?: ActionVariant;
+    onClick?: () => void;
+    type?: 'button' | 'submit';
+    disabled?: boolean;
+    title?: string;
+    href?: string;
+    download?: boolean;
+}
+
+/** Compact table/row action that always pairs an icon with a label and is
+ * color-coded by intent (neutral/primary/success/warning/danger). Renders an
+ * anchor when `href` is given (for downloads/links), otherwise a button. */
+export function ActionBtn({ icon, label, variant = 'neutral', onClick, type = 'button', disabled, title, href, download }: ActionBtnProps) {
+    const v = ACTION_VARIANTS[variant];
+
+    const style: CSSProperties = {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        height: 32,
+        padding: '0 11px',
+        border: `1px solid ${v.border}`,
+        background: v.bg,
+        color: v.color,
+        borderRadius: 7,
+        fontSize: 12.5,
+        fontWeight: 600,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+        transition: '.15s',
+        whiteSpace: 'nowrap',
+        textDecoration: 'none',
+    };
+
+    if (href !== undefined) {
+        return (
+            <a href={href} title={title ?? label} download={download} target={download ? undefined : '_blank'} rel="noreferrer" style={style}>
+                <AIcon name={icon} size={14} color={v.color} />
+                {label}
+            </a>
+        );
+    }
+
+    return (
+        <button type={type} onClick={onClick} disabled={disabled} title={title ?? label} style={style}>
+            <AIcon name={icon} size={14} color={v.color} />
+            {label}
+        </button>
+    );
+}
+
 /* ---------- shared button / card styles ---------- */
 
 export const btnP: CSSProperties = {

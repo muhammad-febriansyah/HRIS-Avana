@@ -1,8 +1,8 @@
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import BillingController from '@/actions/App/Http/Controllers/Avana/BillingController';
-import { AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
+import { ActionBtn, AIcon, btnOut, btnP, C, card, RupiahInput, thCell } from '@/lib/avana';
 import {
     fieldLabelStyle,
     iconBtn,
@@ -135,14 +135,15 @@ export default function BillingIndex({ invoices, subscriptions, tenants, package
                                         <td style={tdCell}>{formatRupiah(sub.price)}</td>
                                         <td style={tdCell}><SubscriptionStatusPill status={sub.status} /></td>
                                         <td style={{ ...tdCell, textAlign: 'right' }}>
-                                            <button
-                                                title="Generate invoice periode ini"
-                                                onClick={() => oneClick(BillingController.generateInvoice(sub.id).url, 'Invoice dibuat')}
-                                                style={{ ...btnOut, height: 32, padding: '0 12px' }}
-                                            >
-                                                <AIcon name="file-plus" size={14} />
-                                                Generate
-                                            </button>
+                                            <div style={{ display: 'inline-flex', justifyContent: 'flex-end' }}>
+                                                <ActionBtn
+                                                    icon="file-plus"
+                                                    label="Generate Invoice"
+                                                    variant="primary"
+                                                    title="Generate invoice periode ini"
+                                                    onClick={() => oneClick(BillingController.generateInvoice(sub.id).url, 'Invoice dibuat')}
+                                                />
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -180,23 +181,17 @@ export default function BillingIndex({ invoices, subscriptions, tenants, package
                                         <td style={tdCell}>{formatDate(inv.due_date)}</td>
                                         <td style={{ ...tdCell, fontWeight: 600 }}>{formatRupiah(inv.total)}</td>
                                         <td style={tdCell}><InvoiceStatusPill status={inv.status} /></td>
-                                        <td style={{ ...tdCell, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                            <Link href={BillingController.printInvoice(inv.id)} title="Cetak" style={{ ...iconBtn, marginLeft: 6 }}>
-                                                <AIcon name="printer" size={15} color={C.muted} />
-                                            </Link>
-                                            {inv.status !== 'paid' && inv.status !== 'cancelled' ? (
-                                                <button title="Tandai lunas" onClick={() => oneClick(BillingController.markPaid(inv.id).url, 'Invoice lunas')} style={{ ...iconBtn, marginLeft: 6 }}>
-                                                    <AIcon name="check" size={15} color={C.green} />
-                                                </button>
-                                            ) : null}
-                                            {inv.status !== 'cancelled' ? (
-                                                <button title="Batalkan" onClick={() => oneClick(BillingController.cancelInvoice(inv.id).url, 'Invoice dibatalkan')} style={{ ...iconBtn, marginLeft: 6 }}>
-                                                    <AIcon name="ban" size={15} color={C.amber} />
-                                                </button>
-                                            ) : null}
-                                            <button title="Hapus" onClick={() => oneClick(BillingController.destroyInvoice(inv.id).url, 'Invoice dihapus', 'delete')} style={{ ...iconBtn, marginLeft: 6 }}>
-                                                <AIcon name="trash-2" size={15} color={C.red} />
-                                            </button>
+                                        <td style={{ ...tdCell, textAlign: 'right' }}>
+                                            <div style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                                <ActionBtn icon="file-down" label="PDF" variant="primary" href={BillingController.printInvoice(inv.id).url} download />
+                                                {inv.status !== 'paid' && inv.status !== 'cancelled' ? (
+                                                    <ActionBtn icon="check" label="Lunas" variant="success" onClick={() => oneClick(BillingController.markPaid(inv.id).url, 'Invoice lunas')} />
+                                                ) : null}
+                                                {inv.status !== 'cancelled' ? (
+                                                    <ActionBtn icon="ban" label="Batal" variant="warning" onClick={() => oneClick(BillingController.cancelInvoice(inv.id).url, 'Invoice dibatalkan')} />
+                                                ) : null}
+                                                <ActionBtn icon="trash-2" label="Hapus" variant="danger" onClick={() => oneClick(BillingController.destroyInvoice(inv.id).url, 'Invoice dihapus', 'delete')} />
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -244,7 +239,7 @@ export default function BillingIndex({ invoices, subscriptions, tenants, package
                         </div>
                         <div>
                             <label style={fieldLabelStyle}>Harga</label>
-                            <input type="number" value={subForm.data.price} onChange={(e) => subForm.setData('price', e.target.value)} style={inputStyle} placeholder="0" />
+                            <RupiahInput value={subForm.data.price} onChange={(v) => subForm.setData('price', v)} />
                         </div>
                         <div>
                             <label style={fieldLabelStyle}>Siklus</label>
@@ -338,12 +333,9 @@ export default function BillingIndex({ invoices, subscriptions, tenants, package
                                         onChange={(e) => invForm.setData('items', invForm.data.items.map((it, i) => i === index ? { ...it, quantity: e.target.value } : it))}
                                         style={inputStyle}
                                     />
-                                    <input
-                                        type="number"
-                                        placeholder="Harga"
+                                    <RupiahInput
                                         value={item.unit_price}
-                                        onChange={(e) => invForm.setData('items', invForm.data.items.map((it, i) => i === index ? { ...it, unit_price: e.target.value } : it))}
-                                        style={inputStyle}
+                                        onChange={(v) => invForm.setData('items', invForm.data.items.map((it, i) => i === index ? { ...it, unit_price: v } : it))}
                                     />
                                     <button
                                         type="button"
@@ -367,8 +359,8 @@ export default function BillingIndex({ invoices, subscriptions, tenants, package
                         </div>
 
                         <div>
-                            <label style={fieldLabelStyle}>Pajak (Rp)</label>
-                            <input type="number" value={invForm.data.tax} onChange={(e) => invForm.setData('tax', e.target.value)} style={inputStyle} />
+                            <label style={fieldLabelStyle}>Pajak</label>
+                            <RupiahInput value={invForm.data.tax} onChange={(v) => invForm.setData('tax', v)} />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
                             <div style={{ fontSize: 12.5, color: C.muted }}>Subtotal: {formatRupiah(invoiceSubtotal)}</div>

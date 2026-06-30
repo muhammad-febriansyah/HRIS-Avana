@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import LetterTemplateController from '@/actions/App/Http/Controllers/Avana/LetterTemplateController';
-import { AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
+import { ActionBtn, AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
 import {
     ActivePill,
     ConfirmModal,
@@ -450,32 +450,19 @@ export default function SuratIndex({
                                                     gap: 6,
                                                 }}
                                             >
-                                                <Link
-                                                    title="Cetak"
-                                                    href={LetterTemplateController.print(
-                                                        letter.id,
-                                                    )}
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="printer"
-                                                        size={15}
-                                                        color={C.muted}
-                                                    />
-                                                </Link>
-                                                <button
-                                                    title="Hapus"
-                                                    onClick={() =>
-                                                        setConfirmLetter(letter)
-                                                    }
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={15}
-                                                        color={C.red}
-                                                    />
-                                                </button>
+                                                <ActionBtn
+                                                    icon="file-down"
+                                                    label="PDF"
+                                                    variant="primary"
+                                                    href={LetterTemplateController.print(letter.id).url}
+                                                    download
+                                                />
+                                                <ActionBtn
+                                                    icon="trash-2"
+                                                    label="Hapus"
+                                                    variant="danger"
+                                                    onClick={() => setConfirmLetter(letter)}
+                                                />
                                             </div>
                                         </td>
                                     </tr>

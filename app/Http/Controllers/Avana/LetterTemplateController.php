@@ -8,6 +8,7 @@ use App\Models\GeneratedLetter;
 use App\Models\LetterTemplate;
 use App\Models\Tenant;
 use App\Models\User;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -198,18 +199,16 @@ class LetterTemplateController extends Controller
     /**
      * Render a minimal printable view for a single generated letter.
      */
-    public function print(Request $request, GeneratedLetter $generatedLetter): Response
+    public function print(Request $request, GeneratedLetter $generatedLetter): \Illuminate\Http\Response
     {
         $this->ensureCanManage($request);
         $this->ensureTenantOwnership($request, $generatedLetter);
 
-        return Inertia::render('avana/surat/print', [
+        $pdf = Pdf::loadView('pdf.surat', [
             'letter' => [
-                'id' => $generatedLetter->id,
                 'title' => $generatedLetter->title,
                 'body' => $generatedLetter->body,
                 'letter_number' => $generatedLetter->letter_number,
-                'generated_at' => $generatedLetter->generated_at?->toDateString(),
                 'generated_at_label' => $generatedLetter->generated_at
                     ? $this->formatDate($generatedLetter->generated_at->toDateString())
                     : null,
@@ -217,7 +216,9 @@ class LetterTemplateController extends Controller
             'company' => [
                 'name' => $this->companyName($request->user()->tenant_id),
             ],
-        ]);
+        ])->setPaper('a4');
+
+        return $pdf->download('surat-'.$generatedLetter->id.'.pdf');
     }
 
     /**
