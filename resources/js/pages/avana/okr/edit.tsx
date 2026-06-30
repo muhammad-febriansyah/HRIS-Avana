@@ -13,6 +13,7 @@ interface ObjectiveEditRecord {
     title: string;
     description: string | null;
     level: string;
+    perspective: string | null;
     status: string;
     cycle_id: number | null;
     employee_id: number | null;
@@ -28,6 +29,7 @@ export default function OkrEdit({
     employees,
     levels,
     statuses,
+    perspectives,
 }: OkrEditProps) {
     const { flash } = usePage<FlashProps>().props;
 
@@ -35,6 +37,7 @@ export default function OkrEdit({
         title: objective.title,
         description: objective.description ?? '',
         level: objective.level,
+        perspective: objective.perspective ?? '',
         status: objective.status,
         cycle_id: objective.cycle_id ? String(objective.cycle_id) : '',
         employee_id: objective.employee_id ? String(objective.employee_id) : '',
@@ -96,6 +99,7 @@ export default function OkrEdit({
                     employees={employees}
                     levels={levels}
                     statuses={statuses}
+                    perspectives={perspectives}
                     submitLabel="Simpan Perubahan"
                     submitIcon="check"
                     cancelHref={OkrController.index().url}

@@ -230,6 +230,7 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
 
     // Kinerja (performance management)
     Route::get('kinerja', [PerformanceController::class, 'index'])->name('kinerja');
+    Route::get('kinerja/hav', [PerformanceController::class, 'hav'])->name('kinerja.hav');
     Route::get('kinerja/create', [PerformanceController::class, 'create'])->name('kinerja.create');
     Route::get('kinerja/{review}/edit', [PerformanceController::class, 'edit'])->name('kinerja.edit');
     Route::post('kinerja', [PerformanceController::class, 'store'])->name('kinerja.store');

@@ -205,6 +205,13 @@ export default function KinerjaIndex({
                         </div>
                     </div>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        <Link
+                            href={PerformanceController.hav()}
+                            style={{ ...btnOut, textDecoration: 'none' }}
+                        >
+                            <AIcon name="gem" size={16} color={C.text} />
+                            Laporan HAV
+                        </Link>
                         <button onClick={openCycle} style={btnOut}>
                             <AIcon
                                 name="calendar-plus"

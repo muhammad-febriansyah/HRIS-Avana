@@ -23,6 +23,7 @@ interface OkrFormProps {
     employees: EmployeeOption[];
     levels: SelectOption[];
     statuses: SelectOption[];
+    perspectives: SelectOption[];
     submitLabel: string;
     submitIcon: string;
     cancelHref: string;
@@ -36,6 +37,7 @@ export function OkrForm({
     employees,
     levels,
     statuses,
+    perspectives,
     submitLabel,
     submitIcon,
     cancelHref,
@@ -115,6 +117,27 @@ export function OkrForm({
                         </select>
                         <FieldError message={errors.status} />
                     </div>
+                </div>
+
+                <div>
+                    <label style={fieldLabelStyle}>
+                        Perspektif Balanced Scorecard
+                    </label>
+                    <select
+                        value={data.perspective}
+                        onChange={(event) =>
+                            setData('perspective', event.target.value)
+                        }
+                        style={withError(selectStyle, !!errors.perspective)}
+                    >
+                        <option value="">Tanpa perspektif</option>
+                        {perspectives.map((option) => (
+                            <option key={option.value} value={option.value}>
+                                {option.label}
+                            </option>
+                        ))}
+                    </select>
+                    <FieldError message={errors.perspective} />
                 </div>
 
                 <div

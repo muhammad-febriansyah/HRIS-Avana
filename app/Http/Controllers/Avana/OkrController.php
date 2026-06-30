@@ -38,6 +38,13 @@ class OkrController extends Controller
     private const STATUSES = ['draft', 'active', 'done', 'cancelled'];
 
     /**
+     * Balanced Scorecard perspectives an objective can be mapped to.
+     *
+     * @var array<int, string>
+     */
+    private const PERSPECTIVES = ['financial', 'customer', 'internal', 'learning'];
+
+    /**
      * Display objectives together with their key results and KPIs.
      */
     public function index(Request $request): Response
@@ -62,6 +69,7 @@ class OkrController extends Controller
             'employees' => $this->employeeOptions($tenantId),
             'levels' => $this->levelOptions(),
             'statuses' => $this->statusOptions(),
+            'perspectives' => $this->perspectiveOptions(),
             'kpis' => [
                 'total_objectives' => $objectives->count(),
                 'avg_progress' => $avgProgress,
@@ -84,6 +92,7 @@ class OkrController extends Controller
             'employees' => $this->employeeOptions($tenantId),
             'levels' => $this->levelOptions(),
             'statuses' => $this->statusOptions(),
+            'perspectives' => $this->perspectiveOptions(),
         ]);
     }
 
@@ -103,6 +112,7 @@ class OkrController extends Controller
                 'title' => $objective->title,
                 'description' => $objective->description,
                 'level' => $objective->level,
+                'perspective' => $objective->perspective,
                 'status' => $objective->status,
                 'cycle_id' => $objective->cycle_id,
                 'employee_id' => $objective->employee_id,
@@ -111,6 +121,7 @@ class OkrController extends Controller
             'employees' => $this->employeeOptions($tenantId),
             'levels' => $this->levelOptions(),
             'statuses' => $this->statusOptions(),
+            'perspectives' => $this->perspectiveOptions(),
         ]);
     }
 
@@ -249,6 +260,7 @@ class OkrController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'level' => ['required', Rule::in(self::LEVELS)],
+            'perspective' => ['nullable', Rule::in(self::PERSPECTIVES)],
             'status' => ['required', Rule::in(self::STATUSES)],
             'cycle_id' => [
                 'nullable',
@@ -299,6 +311,7 @@ class OkrController extends Controller
             'title' => $objective->title,
             'description' => $objective->description,
             'level' => $objective->level,
+            'perspective' => $objective->perspective,
             'status' => $objective->status,
             'progress' => (int) $objective->progress,
             'cycle_id' => $objective->cycle_id,
@@ -368,6 +381,28 @@ class OkrController extends Controller
             ->map(fn (string $level): array => [
                 'value' => $level,
                 'label' => $labels[$level],
+            ])
+            ->all();
+    }
+
+    /**
+     * Build the `{ value, label }` list of Balanced Scorecard perspectives.
+     *
+     * @return array<int, array<string, string>>
+     */
+    private function perspectiveOptions(): array
+    {
+        $labels = [
+            'financial' => 'Keuangan',
+            'customer' => 'Pelanggan',
+            'internal' => 'Proses Internal',
+            'learning' => 'Pembelajaran & Pertumbuhan',
+        ];
+
+        return collect(self::PERSPECTIVES)
+            ->map(fn (string $perspective): array => [
+                'value' => $perspective,
+                'label' => $labels[$perspective],
             ])
             ->all();
     }

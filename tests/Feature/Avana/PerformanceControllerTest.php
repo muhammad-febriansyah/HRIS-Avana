@@ -399,3 +399,36 @@ it('forbids a plain employee from listing or creating reviews', function (): voi
         ])
         ->assertForbidden();
 });
+
+it('renders the human asset value report ranked by HAV index', function (): void {
+    $cycle = makePerformanceCycle($this->tenant->id);
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $employee->update(['join_date' => now()->subYears(3)->toDateString()]);
+
+    PerformanceReview::create([
+        'tenant_id' => $this->tenant->id,
+        'cycle_id' => $cycle->id,
+        'employee_id' => $employee->id,
+        'self_score' => 80,
+        'manager_score' => 90,
+        'final_score' => 90,
+        'status' => 'completed',
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.kinerja.hav'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/kinerja/hav', false)
+            ->has('rows.0', fn (Assert $row) => $row
+                ->where('employee_id', $employee->id)
+                ->where('category', 'Bintang')
+                ->has('score')
+                ->has('tenure_years')
+                ->has('hav_index')
+                ->etc())
+            ->has('kpis.rated')
+            ->has('kpis.avg_hav')
+            ->has('kpis.stars')
+            ->has('kpis.at_risk'));
+});

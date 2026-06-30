@@ -82,6 +82,73 @@ class PerformanceController extends Controller
     }
 
     /**
+     * Human Asset Value (HAV) report: each rated employee's value index,
+     * derived from their latest review score weighted by tenure.
+     */
+    public function hav(Request $request): Response
+    {
+        $this->ensureCanManage($request);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $latestPerEmployee = PerformanceReview::forTenant($tenantId)
+            ->with([
+                'employee:id,full_name,join_date,department_id,position_id',
+                'employee.department:id,name',
+                'employee.position:id,name',
+            ])
+            ->get()
+            ->filter(fn (PerformanceReview $review): bool => $review->employee !== null)
+            ->groupBy('employee_id')
+            ->map(fn ($group) => $group->sortByDesc('id')->first());
+
+        $rows = $latestPerEmployee
+            ->map(function (PerformanceReview $review): array {
+                $employee = $review->employee;
+                $score = (float) ($review->final_score ?? $review->manager_score ?? $review->self_score ?? 0);
+                $years = $employee->join_date !== null ? (float) $employee->join_date->floatDiffInYears(now()) : 0.0;
+                $havIndex = round($score * (1 + min($years, 5) * 0.05), 1);
+
+                return [
+                    'employee_id' => $employee->id,
+                    'employee' => $employee->full_name,
+                    'department' => $employee->department?->name,
+                    'position' => $employee->position?->name,
+                    'score' => round($score, 1),
+                    'tenure_years' => round($years, 1),
+                    'hav_index' => $havIndex,
+                    'category' => $this->havCategory($score, $years),
+                ];
+            })
+            ->sortByDesc('hav_index')
+            ->values();
+
+        return Inertia::render('avana/kinerja/hav', [
+            'rows' => $rows->all(),
+            'kpis' => [
+                'rated' => $rows->count(),
+                'avg_hav' => $rows->isNotEmpty() ? round($rows->avg('hav_index'), 1) : 0,
+                'stars' => $rows->where('category', 'Bintang')->count(),
+                'at_risk' => $rows->where('category', 'Perlu Pengembangan')->count(),
+            ],
+        ]);
+    }
+
+    /**
+     * Map a score + tenure into a Human Asset Value talent category.
+     */
+    private function havCategory(float $score, float $years): string
+    {
+        return match (true) {
+            $score >= 85 && $years >= 2 => 'Bintang',
+            $score >= 85 => 'Potensial Tinggi',
+            $score >= 70 => 'Inti',
+            $score >= 55 => 'Berkembang',
+            default => 'Perlu Pengembangan',
+        };
+    }
+
+    /**
      * Show the form for creating a new performance review.
      */
     public function create(Request $request): Response

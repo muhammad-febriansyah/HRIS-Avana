@@ -13,6 +13,7 @@ export default function OkrCreate({
     employees,
     levels,
     statuses,
+    perspectives,
 }: OkrFormOptions) {
     const { flash } = usePage<FlashProps>().props;
 
@@ -74,6 +75,7 @@ export default function OkrCreate({
                     employees={employees}
                     levels={levels}
                     statuses={statuses}
+                    perspectives={perspectives}
                     submitLabel="Simpan Objective"
                     submitIcon="plus"
                     cancelHref={OkrController.index().url}

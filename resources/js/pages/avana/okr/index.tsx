@@ -15,7 +15,7 @@ import {
     StatusBadge,
     withError,
 } from './components';
-import { emptyKeyResultForm } from './types';
+import { emptyKeyResultForm, perspectiveLabel } from './types';
 import type {
     FlashProps,
     KeyResultFormData,
@@ -205,6 +205,21 @@ function ObjectiveCard({
                     >
                         <LevelBadge level={objective.level} />
                         <StatusBadge status={objective.status} />
+                        {objective.perspective && (
+                            <span
+                                style={{
+                                    display: 'inline-block',
+                                    padding: '3px 10px',
+                                    borderRadius: 100,
+                                    fontSize: 11.5,
+                                    fontWeight: 600,
+                                    color: C.sky,
+                                    background: 'rgba(110,155,230,.15)',
+                                }}
+                            >
+                                {perspectiveLabel(objective.perspective)}
+                            </span>
+                        )}
                         {objective.employee && (
                             <span
                                 style={{

@@ -56,6 +56,7 @@ it('renders the okr index with the expected props', function (): void {
                 ->has('title')
                 ->has('description')
                 ->has('level')
+                ->has('perspective')
                 ->has('status')
                 ->has('progress')
                 ->has('cycle_id')
@@ -73,6 +74,7 @@ it('renders the okr index with the expected props', function (): void {
             ->has('employees')
             ->has('levels')
             ->has('statuses')
+            ->has('perspectives')
             ->has('kpis', fn (Assert $kpis) => $kpis
                 ->has('total_objectives')
                 ->has('avg_progress')
@@ -351,4 +353,29 @@ it('forbids a plain employee from listing or creating objectives', function (): 
             'status' => 'active',
         ])
         ->assertForbidden();
+});
+
+it('persists the balanced scorecard perspective', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.okr.store'), [
+            'title' => 'Tingkatkan margin laba',
+            'level' => 'company',
+            'perspective' => 'financial',
+            'status' => 'active',
+        ])
+        ->assertRedirect(route('avana.okr'))
+        ->assertSessionHas('success');
+
+    expect(Objective::where('title', 'Tingkatkan margin laba')->value('perspective'))->toBe('financial');
+});
+
+it('rejects an invalid balanced scorecard perspective', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.okr.store'), [
+            'title' => 'Salah perspektif',
+            'level' => 'company',
+            'perspective' => 'bogus',
+            'status' => 'active',
+        ])
+        ->assertSessionHasErrors('perspective');
 });

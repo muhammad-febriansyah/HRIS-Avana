@@ -21,6 +21,7 @@ export interface ObjectiveRow {
     title: string;
     description: string | null;
     level: string;
+    perspective: string | null;
     status: string;
     progress: number;
     cycle_id: number | null;
@@ -63,6 +64,7 @@ export interface OkrIndexProps {
     employees: EmployeeOption[];
     levels: SelectOption[];
     statuses: SelectOption[];
+    perspectives: SelectOption[];
     kpis: OkrKpis;
 }
 
@@ -72,6 +74,7 @@ export interface OkrFormOptions {
     employees: EmployeeOption[];
     levels: SelectOption[];
     statuses: SelectOption[];
+    perspectives: SelectOption[];
 }
 
 /** Flat form payload backing both the create and edit objective forms. */
@@ -79,6 +82,7 @@ export interface ObjectiveFormData {
     title: string;
     description: string;
     level: string;
+    perspective: string;
     status: string;
     cycle_id: string;
     employee_id: string;
@@ -89,10 +93,27 @@ export const emptyObjectiveForm: ObjectiveFormData = {
     title: '',
     description: '',
     level: 'individual',
+    perspective: '',
     status: 'active',
     cycle_id: '',
     employee_id: '',
 };
+
+/** Selectable Balanced Scorecard perspective options. */
+export const PERSPECTIVE_OPTIONS: SelectOption[] = [
+    { value: 'financial', label: 'Keuangan' },
+    { value: 'customer', label: 'Pelanggan' },
+    { value: 'internal', label: 'Proses Internal' },
+    { value: 'learning', label: 'Pembelajaran & Pertumbuhan' },
+];
+
+/** Indonesian label for a Balanced Scorecard perspective. */
+export function perspectiveLabel(perspective: string | null): string {
+    if (!perspective) {
+        return '—';
+    }
+    return PERSPECTIVE_OPTIONS.find((option) => option.value === perspective)?.label ?? perspective;
+}
 
 /** Flat form payload backing the add/edit key result inline form. */
 export interface KeyResultFormData {
