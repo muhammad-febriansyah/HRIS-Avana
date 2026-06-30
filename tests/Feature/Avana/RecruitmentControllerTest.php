@@ -386,6 +386,29 @@ it('stores a background check record', function (): void {
     expect($check->status)->toBe('clear');
 });
 
+it('blacklists and un-blacklists a candidate', function (): void {
+    $applicant = makeApplicant($this->tenant->id);
+
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.pelamar.blacklist', $applicant), [
+            'blacklisted' => true,
+            'blacklist_reason' => 'Tidak hadir interview 2x',
+        ])
+        ->assertSessionHas('success');
+
+    $applicant->refresh();
+    expect($applicant->blacklisted)->toBeTrue();
+    expect($applicant->blacklist_reason)->toBe('Tidak hadir interview 2x');
+
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.pelamar.blacklist', $applicant), ['blacklisted' => false])
+        ->assertSessionHas('success');
+
+    $applicant->refresh();
+    expect($applicant->blacklisted)->toBeFalse();
+    expect($applicant->blacklist_reason)->toBeNull();
+});
+
 it('returns 404 when viewing an applicant from another tenant', function (): void {
     $otherTenant = Tenant::create(['name' => 'PT Asing', 'slug' => 'pt-asing']);
     $foreign = makeApplicant($otherTenant->id);

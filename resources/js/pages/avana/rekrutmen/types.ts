@@ -69,6 +69,8 @@ export interface ApplicantDetail {
     phone: string | null;
     source: string | null;
     stage: string;
+    blacklisted: boolean;
+    blacklist_reason: string | null;
     position: string | null;
     photo_url: string | null;
     linkedin_url: string | null;

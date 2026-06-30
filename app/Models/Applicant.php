@@ -20,6 +20,7 @@ final class Applicant extends Model
             'applied_date' => 'date',
             'interview_at' => 'datetime',
             'offered_at' => 'datetime',
+            'blacklisted' => 'boolean',
         ];
     }
 

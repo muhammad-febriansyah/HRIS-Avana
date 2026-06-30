@@ -1,4 +1,4 @@
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -82,7 +82,7 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
     const { flash } = usePage<FlashProps>().props;
 
     const [editProfile, setEditProfile] = useState(false);
-    const [panel, setPanel] = useState<null | 'interview' | 'offer' | 'medical' | 'background'>(null);
+    const [panel, setPanel] = useState<null | 'interview' | 'offer' | 'medical' | 'background' | 'blacklist'>(null);
 
     useEffect(() => {
         if (flash?.success) {
@@ -106,6 +106,7 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
     const cvForm = useForm<{ cv: File | null }>({ cv: null });
     const interviewForm = useForm({ interview_at: applicant.interview_at?.slice(0, 16) ?? '' });
     const offerForm = useForm({ offer_note: applicant.offer_note ?? '' });
+    const blacklistForm = useForm({ blacklisted: true, blacklist_reason: '' });
     const medicalForm = useForm<{
         title: string;
         status: string;
@@ -144,7 +145,15 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                     <h1 style={{ fontSize: 24, fontWeight: 600, color: C.navy, margin: 0, letterSpacing: '-.01em' }}>
                         Detail Kandidat
                     </h1>
-                    <StageBadge stage={applicant.stage} label={stageLabel(applicant.stage)} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {applicant.blacklisted ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 11px', borderRadius: 100, fontSize: 11.5, fontWeight: 600, color: C.red, background: 'rgba(220,38,38,.1)' }}>
+                                <AIcon name="ban" size={13} color={C.red} />
+                                Blacklist
+                            </span>
+                        ) : null}
+                        <StageBadge stage={applicant.stage} label={stageLabel(applicant.stage)} />
+                    </div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr)', gap: 20, alignItems: 'start' }}>
@@ -491,6 +500,45 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                                     <button type="submit" disabled={offerForm.processing} style={{ ...btnP, width: '100%', justifyContent: 'center', background: C.green }}>Kirim Penawaran</button>
                                 </form>
                             ) : null}
+
+                            <div style={{ borderTop: `1px solid ${C.line}`, margin: '14px 0' }} />
+
+                            {applicant.blacklisted ? (
+                                <>
+                                    {applicant.blacklist_reason ? (
+                                        <div style={{ fontSize: 12, color: C.muted, marginBottom: 8, lineHeight: 1.5 }}>
+                                            Alasan: {applicant.blacklist_reason}
+                                        </div>
+                                    ) : null}
+                                    <button
+                                        onClick={() => router.post(RecruitmentController.toggleBlacklist(applicant.id).url, { blacklisted: false }, { preserveScroll: true })}
+                                        style={{ ...btnOut, width: '100%', justifyContent: 'center', color: C.green, borderColor: C.green }}
+                                    >
+                                        <AIcon name="rotate-ccw" size={15} color={C.green} />
+                                        Keluarkan dari Blacklist
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <button onClick={() => setPanel((p) => (p === 'blacklist' ? null : 'blacklist'))} style={{ ...btnOut, width: '100%', justifyContent: 'center', color: C.red, borderColor: 'rgba(220,38,38,.4)' }}>
+                                        <AIcon name="ban" size={15} color={C.red} />
+                                        Masukkan Blacklist
+                                    </button>
+                                    {panel === 'blacklist' ? (
+                                        <form
+                                            onSubmit={(event) => {
+                                                event.preventDefault();
+                                                blacklistForm.submit(RecruitmentController.toggleBlacklist(applicant.id), { onSuccess: () => setPanel(null) });
+                                            }}
+                                            style={{ marginTop: 10, padding: 14, background: C.surface, borderRadius: 10 }}
+                                        >
+                                            <label style={fieldLabelStyle}>Alasan Blacklist</label>
+                                            <textarea value={blacklistForm.data.blacklist_reason} onChange={(e) => blacklistForm.setData('blacklist_reason', e.target.value)} style={{ ...textareaStyle, marginBottom: 10 }} />
+                                            <button type="submit" disabled={blacklistForm.processing} style={{ ...btnP, width: '100%', justifyContent: 'center', background: C.red }}>Konfirmasi Blacklist</button>
+                                        </form>
+                                    ) : null}
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>

@@ -172,6 +172,7 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     Route::post('rekrutmen/pelamar/{applicant}/offer', [RecruitmentController::class, 'makeOffer'])->name('rekrutmen.pelamar.offer');
     Route::post('rekrutmen/pelamar/{applicant}/medical', [RecruitmentController::class, 'storeMedicalCheck'])->name('rekrutmen.pelamar.medical');
     Route::post('rekrutmen/pelamar/{applicant}/background', [RecruitmentController::class, 'storeBackgroundCheck'])->name('rekrutmen.pelamar.background');
+    Route::post('rekrutmen/pelamar/{applicant}/blacklist', [RecruitmentController::class, 'toggleBlacklist'])->name('rekrutmen.pelamar.blacklist');
 
     // Perjalanan dinas (duty travel)
     Route::get('dinas', [DutyTravelController::class, 'index'])->name('dinas');

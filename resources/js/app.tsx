@@ -18,6 +18,9 @@ createInertiaApp({
             // AvanaHR sidebar/topbar chrome for a clean browser Print-to-PDF.
             case name.endsWith('/print'):
                 return null;
+            // Public unauthenticated pages (careers portal) render standalone.
+            case name.startsWith('public/'):
+                return null;
             case name.startsWith('auth/'):
                 return AuthLayout;
             case name.startsWith('settings/'):

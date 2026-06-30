@@ -239,6 +239,27 @@ class RecruitmentController extends Controller
     }
 
     /**
+     * Toggle the candidate's blacklist flag (with an optional reason).
+     */
+    public function toggleBlacklist(Request $request, Applicant $applicant): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureTenantOwnership($request, $applicant);
+
+        $data = $request->validate([
+            'blacklisted' => ['required', 'boolean'],
+            'blacklist_reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $applicant->update([
+            'blacklisted' => $data['blacklisted'],
+            'blacklist_reason' => $data['blacklisted'] ? ($data['blacklist_reason'] ?? null) : null,
+        ]);
+
+        return back()->with('success', $data['blacklisted'] ? 'Kandidat masuk blacklist' : 'Kandidat dikeluarkan dari blacklist');
+    }
+
+    /**
      * Display the full candidate detail screen for a single applicant.
      */
     public function showApplicant(Request $request, Applicant $applicant): Response
@@ -490,6 +511,8 @@ class RecruitmentController extends Controller
             'phone' => $applicant->phone,
             'source' => $applicant->source,
             'stage' => $applicant->stage,
+            'blacklisted' => (bool) $applicant->blacklisted,
+            'blacklist_reason' => $applicant->blacklist_reason,
             'position' => $applicant->position ?? $applicant->jobPosting?->title,
             'photo_url' => $applicant->photo_path ? Storage::disk('public')->url($applicant->photo_path) : null,
             'linkedin_url' => $applicant->linkedin_url,
