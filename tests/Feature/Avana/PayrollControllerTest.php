@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Avana\PayrollController;
 use App\Http\Controllers\Avana\PositionComponentController;
+use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\EmployeeSalaryComponent;
 use App\Models\PayrollComponent;
@@ -31,6 +32,7 @@ beforeEach(function (): void {
     // on collision-free paths so the controllers can be exercised in isolation.
     Route::middleware('web')->prefix('spec-avana')->name('spec.')->group(function (): void {
         Route::get('payroll', [PayrollController::class, 'index'])->name('payroll');
+        Route::post('payroll/periods', [PayrollController::class, 'storePeriod'])->name('payroll.periods.store');
         Route::post('payroll/run', [PayrollController::class, 'run'])->name('payroll.run');
         Route::get('payroll/components', [PositionComponentController::class, 'index'])->name('payroll.components');
         Route::put('payroll/components', [PositionComponentController::class, 'update'])->name('payroll.components.update');
@@ -264,4 +266,73 @@ it('forbids users without payroll permissions from viewing payroll', function ()
     actingAs($staff)
         ->get('spec-avana/payroll')
         ->assertForbidden();
+});
+
+it('creates a weekly payroll period', function (): void {
+    actingAs($this->admin)
+        ->post('spec-avana/payroll/periods', [
+            'name' => 'Gaji Minggu 1 Juli 2026',
+            'cycle' => 'weekly',
+            'start_date' => '2026-07-06',
+            'end_date' => '2026-07-12',
+            'pay_date' => '2026-07-13',
+        ])
+        ->assertSessionHas('success');
+
+    $period = PayrollPeriod::forTenant($this->tenant->id)->where('cycle', 'weekly')->firstOrFail();
+
+    expect($period->cycle)->toBe('weekly');
+    expect($period->status)->toBe('draft');
+    expect($period->code)->toStartWith('WK-2026070');
+    expect($period->start_date->toDateString())->toBe('2026-07-06');
+    expect($period->end_date->toDateString())->toBe('2026-07-12');
+});
+
+it('rejects a period whose end date precedes the start date', function (): void {
+    actingAs($this->admin)
+        ->post('spec-avana/payroll/periods', [
+            'name' => 'Salah',
+            'cycle' => 'weekly',
+            'start_date' => '2026-07-12',
+            'end_date' => '2026-07-06',
+        ])
+        ->assertSessionHasErrors(['end_date']);
+});
+
+it('scopes present-day pay to the weekly period window', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->whereNotNull('position_id')->orderBy('id')->firstOrFail();
+
+    $component = PayrollComponent::forTenant($this->tenant->id)->where('calc_basis', 'per_present_day')->first()
+        ?? PayrollComponent::forTenant($this->tenant->id)->firstOrFail();
+    $component->update(['calc_basis' => 'per_present_day', 'type' => 'earning']);
+
+    PositionPayrollComponent::updateOrCreate(
+        ['position_id' => $employee->position_id, 'payroll_component_id' => $component->id],
+        ['tenant_id' => $this->tenant->id, 'amount' => 25000],
+    );
+
+    actingAs($this->admin)->post('spec-avana/payroll/periods', [
+        'name' => 'Minggu Uji',
+        'cycle' => 'weekly',
+        'start_date' => '2026-07-06',
+        'end_date' => '2026-07-12',
+    ])->assertSessionHas('success');
+
+    // 2 present days inside the window, 1 the following week (out of window).
+    foreach (['2026-07-06', '2026-07-08', '2026-07-15'] as $date) {
+        Attendance::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $employee->id,
+            'branch_id' => $employee->branch_id,
+            'date' => $date,
+            'status' => 'present',
+        ]);
+    }
+
+    actingAs($this->admin)->post('spec-avana/payroll/run')->assertSessionHas('success');
+
+    $period = PayrollPeriod::forTenant($this->tenant->id)->where('cycle', 'weekly')->firstOrFail();
+    $item = PayrollRunItem::where('payroll_period_id', $period->id)->where('employee_id', $employee->id)->firstOrFail();
+
+    expect($item->calculation_snapshot['present_days'])->toBe(2);
 });

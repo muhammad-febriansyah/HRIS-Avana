@@ -9,6 +9,10 @@ export type { FlashProps, PaginationMeta } from '../employees/types';
 export interface Period {
     id: number;
     periode: string;
+    cycle: string;
+    cycle_label: string;
+    mulai: string | null;
+    selesai: string | null;
     bayar: string | null;
     karyawan: number;
     netR: string;

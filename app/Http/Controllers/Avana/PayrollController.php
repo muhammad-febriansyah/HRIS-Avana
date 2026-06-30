@@ -20,6 +20,8 @@ use App\Models\TaxProfile;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -27,6 +29,13 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class PayrollController extends Controller
 {
     use AuthorizesRequests;
+
+    /**
+     * Supported payroll cycles (period length presets).
+     *
+     * @var array<int, string>
+     */
+    private const CYCLES = ['monthly', 'weekly', 'biweekly'];
 
     /**
      * Display the payroll periods list, latest-run summary and a sample payslip.
@@ -151,6 +160,57 @@ class PayrollController extends Controller
         ]);
 
         return back()->with('success', 'Payroll dihitung');
+    }
+
+    /**
+     * Create a new draft payroll period for a given cycle and date range.
+     * Weekly/biweekly periods reuse the same engine — pay components keyed on
+     * present-days/overtime are counted within the period's date window.
+     */
+    public function storePeriod(Request $request): RedirectResponse
+    {
+        $this->authorize('run', PayrollPeriod::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'cycle' => ['required', Rule::in(self::CYCLES)],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'pay_date' => ['nullable', 'date'],
+        ]);
+
+        PayrollPeriod::create([
+            'tenant_id' => $tenantId,
+            'code' => $this->generatePeriodCode($tenantId, $data['cycle'], $data['start_date']),
+            'name' => $data['name'],
+            'cycle' => $data['cycle'],
+            'start_date' => $data['start_date'],
+            'end_date' => $data['end_date'],
+            'pay_date' => $data['pay_date'] ?? null,
+            'status' => 'draft',
+        ]);
+
+        return back()->with('success', 'Periode payroll dibuat');
+    }
+
+    /**
+     * Build a unique per-tenant period code from its cycle and start date.
+     */
+    private function generatePeriodCode(int $tenantId, string $cycle, string $start): string
+    {
+        $prefix = ['monthly' => 'MN', 'weekly' => 'WK', 'biweekly' => 'BW'][$cycle] ?? 'PR';
+        $base = $prefix.'-'.Carbon::parse($start)->format('Ymd');
+
+        $code = $base;
+        $suffix = 1;
+
+        while (PayrollPeriod::forTenant($tenantId)->where('code', $code)->exists()) {
+            $code = $base.'-'.(++$suffix);
+        }
+
+        return $code;
     }
 
     /**

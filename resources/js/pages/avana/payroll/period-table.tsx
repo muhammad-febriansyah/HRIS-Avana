@@ -130,14 +130,28 @@ export function PeriodTable({ periods, meta, onGoToPage }: PeriodTableProps) {
                                             padding: '13px 18px',
                                         }}
                                     >
-                                        <div
-                                            style={{
-                                                fontSize: 13.5,
-                                                fontWeight: 600,
-                                                color: C.navy,
-                                            }}
-                                        >
-                                            {period.periode}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <div
+                                                style={{
+                                                    fontSize: 13.5,
+                                                    fontWeight: 600,
+                                                    color: C.navy,
+                                                }}
+                                            >
+                                                {period.periode}
+                                            </div>
+                                            <span
+                                                style={{
+                                                    padding: '2px 8px',
+                                                    borderRadius: 100,
+                                                    fontSize: 10.5,
+                                                    fontWeight: 600,
+                                                    color: C.primary,
+                                                    background: 'rgba(47,84,201,.1)',
+                                                }}
+                                            >
+                                                {period.cycle_label}
+                                            </span>
                                         </div>
                                         <div
                                             style={{
@@ -145,6 +159,9 @@ export function PeriodTable({ periods, meta, onGoToPage }: PeriodTableProps) {
                                                 color: C.faint,
                                             }}
                                         >
+                                            {period.mulai && period.selesai
+                                                ? `${period.mulai} – ${period.selesai} · `
+                                                : ''}
                                             {period.karyawan} karyawan
                                         </div>
                                     </td>

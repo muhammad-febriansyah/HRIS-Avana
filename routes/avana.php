@@ -86,6 +86,7 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     Route::post('approval/{type}/{id}/reject', [ApprovalController::class, 'reject'])->name('approval.reject');
 
     Route::get('payroll', [PayrollController::class, 'index'])->name('payroll');
+    Route::post('payroll/periods', [PayrollController::class, 'storePeriod'])->name('payroll.periods.store');
     Route::post('payroll/run', [PayrollController::class, 'run'])->name('payroll.run');
     Route::post('payroll/lock', [PayrollController::class, 'lock'])->name('payroll.lock');
     Route::post('payroll/thr', [PayrollController::class, 'thr'])->name('payroll.thr');

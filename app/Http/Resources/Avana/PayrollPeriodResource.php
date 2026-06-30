@@ -27,6 +27,17 @@ final class PayrollPeriodResource extends JsonResource
     ];
 
     /**
+     * Indonesian labels for the payroll cycle enum.
+     *
+     * @var array<string, string>
+     */
+    public const CYCLE_LABELS = [
+        'monthly' => 'Bulanan',
+        'weekly' => 'Mingguan',
+        'biweekly' => 'Dwi-Mingguan',
+    ];
+
+    /**
      * Transform the resource into an array.
      *
      * @return array<string, mixed>
@@ -38,6 +49,10 @@ final class PayrollPeriodResource extends JsonResource
         return [
             'id' => $this->id,
             'periode' => $this->name,
+            'cycle' => $this->cycle ?? 'monthly',
+            'cycle_label' => self::CYCLE_LABELS[$this->cycle ?? 'monthly'] ?? ($this->cycle ?? 'monthly'),
+            'mulai' => $this->start_date?->format('d M Y'),
+            'selesai' => $this->end_date?->format('d M Y'),
             'bayar' => $this->pay_date?->format('d M Y'),
             'karyawan' => (int) ($latestRun?->employee_count
                 ?? ($this->relationLoaded('runs') ? $this->runs->sum('employee_count') : 0)),
