@@ -13,7 +13,6 @@ export default function Perusahaan(props: PerusahaanProps) {
     const { options } = props;
 
     const [activeKey, setActiveKey] = useState<string>('branches');
-    const [openMenu, setOpenMenu] = useState<number | null>(null);
     const [editing, setEditing] = useState<EntityRecord | null>(null);
     const [modalOpen, setModalOpen] = useState(false);
     const [confirm, setConfirm] = useState<EntityRecord | null>(null);
@@ -44,7 +43,6 @@ export default function Perusahaan(props: PerusahaanProps) {
     const openEdit = (row: EntityRecord) => {
         setEditing(row);
         setModalOpen(true);
-        setOpenMenu(null);
     };
 
     const closeModal = () => {
@@ -118,7 +116,6 @@ export default function Perusahaan(props: PerusahaanProps) {
                                 key={item.key}
                                 onClick={() => {
                                     setActiveKey(item.key);
-                                    setOpenMenu(null);
                                 }}
                                 style={{
                                     display: 'inline-flex',
@@ -151,15 +148,10 @@ export default function Perusahaan(props: PerusahaanProps) {
                 <EntityTable
                     tab={tab}
                     rows={rows}
-                    openMenu={openMenu}
-                    onToggleMenu={(id) =>
-                        setOpenMenu((prev) => (prev === id ? null : id))
-                    }
                     onCreate={openCreate}
                     onEdit={openEdit}
                     onDelete={(row) => {
                         setConfirm(row);
-                        setOpenMenu(null);
                     }}
                 />
             </div>

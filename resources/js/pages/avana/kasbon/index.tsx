@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import CashAdvanceController from '@/actions/App/Http/Controllers/Avana/CashAdvanceController';
-import { AIcon, btnP, C, card, rp } from '@/lib/avana';
+import { AIcon, ActionBtn, btnP, C, card, rp } from '@/lib/avana';
 import { StatusPill } from './components';
 import { STATUS_OPTIONS } from './types';
 import type { FlashProps, KasbonFilters, KasbonIndexProps } from './types';
@@ -394,64 +394,27 @@ export default function KasbonIndex({ requests, filters }: KasbonIndexProps) {
                                                     style={{
                                                         display: 'inline-flex',
                                                         gap: 6,
+                                                        flexWrap: 'wrap',
+                                                        justifyContent:
+                                                            'flex-end',
                                                     }}
                                                 >
-                                                    <button
+                                                    <ActionBtn
+                                                        icon="check"
+                                                        label="Setujui"
+                                                        variant="success"
                                                         onClick={() =>
                                                             approve(row.id)
                                                         }
-                                                        style={{
-                                                            display:
-                                                                'inline-flex',
-                                                            alignItems: 'center',
-                                                            gap: 5,
-                                                            height: 30,
-                                                            padding: '0 11px',
-                                                            border: 'none',
-                                                            borderRadius: 7,
-                                                            background:
-                                                                'rgba(22,163,74,.1)',
-                                                            color: C.green,
-                                                            fontSize: 12,
-                                                            fontWeight: 600,
-                                                            cursor: 'pointer',
-                                                            transition: '.15s',
-                                                        }}
-                                                    >
-                                                        <AIcon
-                                                            name="check"
-                                                            size={14}
-                                                            color={C.green}
-                                                        />
-                                                        Setujui
-                                                    </button>
-                                                    <button
+                                                    />
+                                                    <ActionBtn
+                                                        icon="x"
+                                                        label="Tolak"
+                                                        variant="warning"
                                                         onClick={() =>
                                                             reject(row.id)
                                                         }
-                                                        style={{
-                                                            width: 30,
-                                                            height: 30,
-                                                            border: 'none',
-                                                            borderRadius: 7,
-                                                            background:
-                                                                'rgba(220,38,38,.08)',
-                                                            color: C.red,
-                                                            cursor: 'pointer',
-                                                            display:
-                                                                'inline-flex',
-                                                            alignItems: 'center',
-                                                            justifyContent:
-                                                                'center',
-                                                            transition: '.15s',
-                                                        }}
-                                                    >
-                                                        <AIcon
-                                                            name="x"
-                                                            size={14}
-                                                            color={C.red}
-                                                        />
-                                                    </button>
+                                                    />
                                                 </div>
                                             ) : (
                                                 <span

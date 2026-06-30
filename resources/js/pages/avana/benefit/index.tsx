@@ -3,12 +3,11 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import BenefitController from '@/actions/App/Http/Controllers/Avana/BenefitController';
-import { AIcon, btnOut, btnP, C, card, rp, thCell } from '@/lib/avana';
+import { AIcon, ActionBtn, btnOut, btnP, C, card, rp, thCell } from '@/lib/avana';
 import {
     ConfirmModal,
     FieldError,
     fieldLabelStyle,
-    iconBtn,
     inputStyle,
     selectStyle,
     StatusPill,
@@ -335,34 +334,31 @@ export default function BenefitIndex({
                                                     style={{
                                                         display: 'inline-flex',
                                                         gap: 6,
+                                                        flexWrap: 'wrap',
+                                                        justifyContent:
+                                                            'flex-end',
                                                     }}
                                                 >
-                                                    <Link
-                                                        title="Ubah"
-                                                        href={BenefitController.edit(
-                                                            benefit.id,
-                                                        )}
-                                                        style={iconBtn}
-                                                    >
-                                                        <AIcon
-                                                            name="pencil"
-                                                            size={15}
-                                                            color={C.muted}
-                                                        />
-                                                    </Link>
-                                                    <button
-                                                        title="Hapus"
+                                                    <ActionBtn
+                                                        icon="pencil"
+                                                        label="Edit"
+                                                        variant="neutral"
+                                                        onClick={() =>
+                                                            router.visit(
+                                                                BenefitController.edit(
+                                                                    benefit.id,
+                                                                ).url,
+                                                            )
+                                                        }
+                                                    />
+                                                    <ActionBtn
+                                                        icon="trash-2"
+                                                        label="Hapus"
+                                                        variant="danger"
                                                         onClick={() =>
                                                             setConfirm(benefit)
                                                         }
-                                                        style={iconBtn}
-                                                    >
-                                                        <AIcon
-                                                            name="trash-2"
-                                                            size={15}
-                                                            color={C.red}
-                                                        />
-                                                    </button>
+                                                    />
                                                 </div>
                                             </td>
                                         </tr>
@@ -501,19 +497,14 @@ export default function BenefitIndex({
                                                     textAlign: 'right',
                                                 }}
                                             >
-                                                <button
-                                                    title="Batalkan"
+                                                <ActionBtn
+                                                    icon="x"
+                                                    label="Batalkan"
+                                                    variant="warning"
                                                     onClick={() =>
                                                         setUnassignTarget(row)
                                                     }
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={15}
-                                                        color={C.red}
-                                                    />
-                                                </button>
+                                                />
                                             </td>
                                         </tr>
                                     ))}

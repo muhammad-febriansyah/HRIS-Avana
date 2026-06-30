@@ -1,7 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
-import { AIcon, btnOut, btnP, C, card, rp } from '@/lib/avana';
+import { AIcon, btnOut, btnP, C, card, rp, RupiahInput } from '@/lib/avana';
 import {
     dateInputStyle,
     Field,
@@ -82,16 +82,10 @@ export function KasbonForm({
                 </Field>
 
                 <Field label="Jumlah (Rp)" required error={errors.amount}>
-                    <input
-                        type="number"
-                        min="1"
-                        step="1000"
-                        placeholder="1000000"
+                    <RupiahInput
                         value={data.amount}
-                        onChange={(event) =>
-                            setData('amount', event.target.value)
-                        }
-                        style={withError(textInputStyle, !!errors.amount)}
+                        onChange={(raw) => setData('amount', raw)}
+                        invalid={!!errors.amount}
                     />
                 </Field>
 

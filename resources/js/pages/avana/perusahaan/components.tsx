@@ -51,21 +51,6 @@ const errorTextStyle: CSSProperties = {
     gap: 5,
 };
 
-export const rowMenuItemStyle: CSSProperties = {
-    width: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 9,
-    padding: '8px 10px',
-    border: 'none',
-    background: 'none',
-    borderRadius: 7,
-    fontSize: 13,
-    color: C.text,
-    cursor: 'pointer',
-    transition: '.12s',
-};
-
 /** Apply the red error border to a base style when invalid. */
 export function withError(base: CSSProperties, hasError: boolean): CSSProperties {
     return hasError

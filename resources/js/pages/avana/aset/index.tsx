@@ -3,13 +3,12 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import AssetController from '@/actions/App/Http/Controllers/Avana/AssetController';
-import { AIcon, btnP, C, card, rp, thCell } from '@/lib/avana';
+import { AIcon, ActionBtn, btnP, C, card, rp, thCell } from '@/lib/avana';
 import {
     ConditionBadge,
     ConfirmModal,
     FieldError,
     fieldLabelStyle,
-    iconBtn,
     inputStyle,
     selectStyle,
     StatusPill,
@@ -435,11 +434,15 @@ export default function AsetIndex({
                                                 style={{
                                                     display: 'inline-flex',
                                                     gap: 6,
+                                                    flexWrap: 'wrap',
+                                                    justifyContent: 'flex-end',
                                                 }}
                                             >
                                                 {asset.current_assignment ? (
-                                                    <button
-                                                        title="Kembalikan aset"
+                                                    <ActionBtn
+                                                        icon="undo-2"
+                                                        label="Kembalikan"
+                                                        variant="warning"
                                                         onClick={() =>
                                                             returnAsset(
                                                                 asset
@@ -447,71 +450,41 @@ export default function AsetIndex({
                                                                     .id,
                                                             )
                                                         }
-                                                        style={iconBtn}
-                                                    >
-                                                        <AIcon
-                                                            name="undo-2"
-                                                            size={15}
-                                                            color={C.amber}
-                                                        />
-                                                    </button>
+                                                    />
                                                 ) : (
-                                                    <button
-                                                        title="Tugaskan ke karyawan"
-                                                        onClick={() =>
-                                                            openAssign(asset)
-                                                        }
+                                                    <ActionBtn
+                                                        icon="user-plus"
+                                                        label="Tugaskan"
+                                                        variant="primary"
                                                         disabled={
                                                             employees.length ===
                                                             0
                                                         }
-                                                        style={{
-                                                            ...iconBtn,
-                                                            opacity:
-                                                                employees.length ===
-                                                                0
-                                                                    ? 0.5
-                                                                    : 1,
-                                                            cursor:
-                                                                employees.length ===
-                                                                0
-                                                                    ? 'not-allowed'
-                                                                    : 'pointer',
-                                                        }}
-                                                    >
-                                                        <AIcon
-                                                            name="user-plus"
-                                                            size={15}
-                                                            color={C.primary}
-                                                        />
-                                                    </button>
-                                                )}
-                                                <Link
-                                                    title="Ubah"
-                                                    href={AssetController.edit(
-                                                        asset.id,
-                                                    )}
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="pencil"
-                                                        size={15}
-                                                        color={C.muted}
+                                                        onClick={() =>
+                                                            openAssign(asset)
+                                                        }
                                                     />
-                                                </Link>
-                                                <button
-                                                    title="Hapus"
+                                                )}
+                                                <ActionBtn
+                                                    icon="pencil"
+                                                    label="Edit"
+                                                    variant="neutral"
+                                                    onClick={() =>
+                                                        router.visit(
+                                                            AssetController.edit(
+                                                                asset.id,
+                                                            ).url,
+                                                        )
+                                                    }
+                                                />
+                                                <ActionBtn
+                                                    icon="trash-2"
+                                                    label="Hapus"
+                                                    variant="danger"
                                                     onClick={() =>
                                                         setConfirm(asset)
                                                     }
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={15}
-                                                        color={C.red}
-                                                    />
-                                                </button>
+                                                />
                                             </div>
                                         </td>
                                     </tr>
@@ -633,19 +606,14 @@ export default function AsetIndex({
                                                 textAlign: 'right',
                                             }}
                                         >
-                                            <button
-                                                title="Kembalikan aset"
+                                            <ActionBtn
+                                                icon="undo-2"
+                                                label="Kembalikan"
+                                                variant="warning"
                                                 onClick={() =>
                                                     returnAsset(assignment.id)
                                                 }
-                                                style={iconBtn}
-                                            >
-                                                <AIcon
-                                                    name="undo-2"
-                                                    size={15}
-                                                    color={C.amber}
-                                                />
-                                            </button>
+                                            />
                                         </td>
                                     </tr>
                                 ))}

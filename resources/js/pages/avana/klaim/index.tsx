@@ -3,8 +3,8 @@ import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import ClaimController from '@/actions/App/Http/Controllers/Avana/ClaimController';
-import { AIcon, btnP, C, card, rp, thCell } from '@/lib/avana';
-import { ConfirmModal, iconBtn, StatusBadge, TypeChip } from './components';
+import { AIcon, ActionBtn, btnP, C, card, rp, thCell } from '@/lib/avana';
+import { ConfirmModal, StatusBadge, TypeChip } from './components';
 import type { ClaimRow, FlashProps, KlaimIndexProps } from './types';
 
 const kpiCardStyle: CSSProperties = {
@@ -353,12 +353,16 @@ export default function KlaimIndex({ claims, kpis }: KlaimIndexProps) {
                                                 style={{
                                                     display: 'inline-flex',
                                                     gap: 6,
+                                                    flexWrap: 'wrap',
+                                                    justifyContent: 'flex-end',
                                                 }}
                                             >
                                                 {claim.status === 'pending' && (
                                                     <>
-                                                        <button
-                                                            title="Setujui"
+                                                        <ActionBtn
+                                                            icon="check"
+                                                            label="Setujui"
+                                                            variant="success"
                                                             onClick={() =>
                                                                 transition(
                                                                     ClaimController.approve(
@@ -366,16 +370,11 @@ export default function KlaimIndex({ claims, kpis }: KlaimIndexProps) {
                                                                     ).url,
                                                                 )
                                                             }
-                                                            style={iconBtn}
-                                                        >
-                                                            <AIcon
-                                                                name="check"
-                                                                size={15}
-                                                                color={C.green}
-                                                            />
-                                                        </button>
-                                                        <button
-                                                            title="Tolak"
+                                                        />
+                                                        <ActionBtn
+                                                            icon="x"
+                                                            label="Tolak"
+                                                            variant="warning"
                                                             onClick={() =>
                                                                 transition(
                                                                     ClaimController.reject(
@@ -383,19 +382,14 @@ export default function KlaimIndex({ claims, kpis }: KlaimIndexProps) {
                                                                     ).url,
                                                                 )
                                                             }
-                                                            style={iconBtn}
-                                                        >
-                                                            <AIcon
-                                                                name="x"
-                                                                size={15}
-                                                                color={C.red}
-                                                            />
-                                                        </button>
+                                                        />
                                                     </>
                                                 )}
                                                 {claim.status === 'approved' && (
-                                                    <button
-                                                        title="Tandai dibayar"
+                                                    <ActionBtn
+                                                        icon="banknote"
+                                                        label="Tandai Dibayar"
+                                                        variant="success"
                                                         onClick={() =>
                                                             transition(
                                                                 ClaimController.markPaid(
@@ -403,41 +397,28 @@ export default function KlaimIndex({ claims, kpis }: KlaimIndexProps) {
                                                                 ).url,
                                                             )
                                                         }
-                                                        style={iconBtn}
-                                                    >
-                                                        <AIcon
-                                                            name="banknote"
-                                                            size={15}
-                                                            color={C.primary}
-                                                        />
-                                                    </button>
-                                                )}
-                                                <Link
-                                                    title="Ubah"
-                                                    href={ClaimController.edit(
-                                                        claim.id,
-                                                    )}
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="pencil"
-                                                        size={15}
-                                                        color={C.muted}
                                                     />
-                                                </Link>
-                                                <button
-                                                    title="Hapus"
+                                                )}
+                                                <ActionBtn
+                                                    icon="pencil"
+                                                    label="Edit"
+                                                    variant="neutral"
+                                                    onClick={() =>
+                                                        router.visit(
+                                                            ClaimController.edit(
+                                                                claim.id,
+                                                            ).url,
+                                                        )
+                                                    }
+                                                />
+                                                <ActionBtn
+                                                    icon="trash-2"
+                                                    label="Hapus"
+                                                    variant="danger"
                                                     onClick={() =>
                                                         setConfirm(claim)
                                                     }
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={15}
-                                                        color={C.red}
-                                                    />
-                                                </button>
+                                                />
                                             </div>
                                         </td>
                                     </tr>

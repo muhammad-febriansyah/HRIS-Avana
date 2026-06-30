@@ -109,6 +109,53 @@ class BillingController extends Controller
     }
 
     /**
+     * Render the standalone "create subscription" page.
+     */
+    public function createSubscription(Request $request): Response
+    {
+        $this->ensureSuperAdmin($request);
+
+        return Inertia::render('avana/billing/subscription-create', [
+            'tenants' => Tenant::query()->orderBy('name')->get(['id', 'name'])
+                ->map(fn (Tenant $tenant): array => ['id' => $tenant->id, 'name' => $tenant->name])->all(),
+            'packages' => Package::query()->where('is_active', true)->orderBy('name')
+                ->get(['id', 'name', 'price', 'billing_cycle'])
+                ->map(fn (Package $package): array => [
+                    'id' => $package->id,
+                    'name' => $package->name,
+                    'price' => (float) $package->price,
+                    'billing_cycle' => $package->billing_cycle,
+                ])->all(),
+            'subscriptionStatuses' => self::SUBSCRIPTION_STATUSES,
+            'billingCycles' => self::BILLING_CYCLES,
+        ]);
+    }
+
+    /**
+     * Render the standalone "create invoice" page.
+     */
+    public function createInvoice(Request $request): Response
+    {
+        $this->ensureSuperAdmin($request);
+
+        return Inertia::render('avana/billing/invoice-create', [
+            'tenants' => Tenant::query()->orderBy('name')->get(['id', 'name'])
+                ->map(fn (Tenant $tenant): array => ['id' => $tenant->id, 'name' => $tenant->name])->all(),
+            'subscriptions' => Subscription::query()
+                ->with(['tenant:id,name', 'package:id,name'])
+                ->latest('id')
+                ->get()
+                ->map(fn (Subscription $subscription): array => [
+                    'id' => $subscription->id,
+                    'tenant_id' => $subscription->tenant_id,
+                    'tenant' => $subscription->tenant?->name,
+                    'package' => $subscription->package?->name,
+                    'price' => (float) $subscription->price,
+                ])->all(),
+        ]);
+    }
+
+    /**
      * Create a subscription assigning a package to a tenant.
      */
     public function storeSubscription(Request $request): RedirectResponse

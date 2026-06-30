@@ -2,8 +2,8 @@
  * The position × component nominal matrix table (card + sticky columns).
  */
 
-import { AIcon, C, card } from '@/lib/avana';
-import { BasisSelect, RupiahInput } from './components';
+import { AIcon, C, card, RupiahInput } from '@/lib/avana';
+import { BasisSelect } from './components';
 import type { CalcBasis, ComponentRef, PositionRef } from './types';
 import { cellKey } from './types';
 
@@ -168,13 +168,20 @@ export function ComponentMatrix({
                                                         )
                                                     ] ?? 0
                                                 }
-                                                onChange={(amount) =>
+                                                onChange={(raw) =>
                                                     onAmountChange(
                                                         position.id,
                                                         component.id,
-                                                        amount,
+                                                        raw === ''
+                                                            ? 0
+                                                            : Number(raw),
                                                     )
                                                 }
+                                                style={{
+                                                    height: 38,
+                                                    minWidth: 150,
+                                                    textAlign: 'right',
+                                                }}
                                             />
                                         </td>
                                     ))}

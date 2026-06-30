@@ -1,7 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
-import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
 import {
     dateInputStyle,
     Field,
@@ -132,32 +132,17 @@ export function DinasForm({
                     }}
                 >
                     <Field label="Estimasi Biaya" error={errors.estimated_cost}>
-                        <input
-                            type="number"
-                            min="0"
-                            step="1000"
-                            placeholder="0"
+                        <RupiahInput
                             value={data.estimated_cost}
-                            onChange={(event) =>
-                                setData('estimated_cost', event.target.value)
-                            }
-                            style={withError(
-                                textInputStyle,
-                                !!errors.estimated_cost,
-                            )}
+                            onChange={(raw) => setData('estimated_cost', raw)}
+                            invalid={!!errors.estimated_cost}
                         />
                     </Field>
                     <Field label="Uang Saku" error={errors.per_diem}>
-                        <input
-                            type="number"
-                            min="0"
-                            step="1000"
-                            placeholder="0"
+                        <RupiahInput
                             value={data.per_diem}
-                            onChange={(event) =>
-                                setData('per_diem', event.target.value)
-                            }
-                            style={withError(textInputStyle, !!errors.per_diem)}
+                            onChange={(raw) => setData('per_diem', raw)}
+                            invalid={!!errors.per_diem}
                         />
                     </Field>
                 </div>

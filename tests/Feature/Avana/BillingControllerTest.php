@@ -54,6 +54,42 @@ it('forbids a non super admin from the billing dashboard', function (): void {
         ->assertForbidden();
 });
 
+it('renders the create subscription page for a super admin', function (): void {
+    actingAs($this->superAdmin)
+        ->get(route('avana.billing.subscription.create'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/billing/subscription-create', false)
+            ->has('tenants')
+            ->has('packages')
+            ->has('subscriptionStatuses')
+            ->has('billingCycles'));
+});
+
+it('forbids a non super admin from the create subscription page', function (): void {
+    actingAs($this->admin)
+        ->get(route('avana.billing.subscription.create'))
+        ->assertForbidden();
+});
+
+it('renders the create invoice page for a super admin', function (): void {
+    makeSubscription($this->tenant->id);
+
+    actingAs($this->superAdmin)
+        ->get(route('avana.billing.invoice.create'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/billing/invoice-create', false)
+            ->has('tenants')
+            ->has('subscriptions.0'));
+});
+
+it('forbids a non super admin from the create invoice page', function (): void {
+    actingAs($this->admin)
+        ->get(route('avana.billing.invoice.create'))
+        ->assertForbidden();
+});
+
 it('creates a subscription', function (): void {
     actingAs($this->superAdmin)
         ->post(route('avana.billing.subscription.store'), [

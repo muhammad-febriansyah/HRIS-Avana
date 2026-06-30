@@ -1,8 +1,8 @@
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import DynamicReportController from '@/actions/App/Http/Controllers/Avana/DynamicReportController';
-import { AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
+import { AIcon, ActionBtn, btnOut, btnP, C, card, thCell } from '@/lib/avana';
 import { EmptyState, inputStyle, labelStyle } from './components';
 import type {
     BuilderFormData,
@@ -436,67 +436,48 @@ export default function DynamicReportIndex({
                                                 >
                                                     <div
                                                         style={{
-                                                            display: 'flex',
-                                                            gap: 8,
+                                                            display:
+                                                                'inline-flex',
+                                                            gap: 6,
+                                                            flexWrap: 'wrap',
                                                             justifyContent:
                                                                 'flex-end',
                                                         }}
                                                     >
-                                                        <Link
-                                                            href={
-                                                                DynamicReportController.run(
-                                                                    report.id,
-                                                                ).url
+                                                        <ActionBtn
+                                                            icon="eye"
+                                                            label="Lihat"
+                                                            variant="primary"
+                                                            onClick={() =>
+                                                                router.visit(
+                                                                    DynamicReportController.run(
+                                                                        report.id,
+                                                                    ).url,
+                                                                )
                                                             }
-                                                            style={{
-                                                                ...iconBtn,
-                                                                color: C.primary,
-                                                            }}
-                                                            title="Lihat"
-                                                        >
-                                                            <AIcon
-                                                                name="eye"
-                                                                size={16}
-                                                                color={C.primary}
-                                                            />
-                                                        </Link>
-                                                        <a
+                                                        />
+                                                        <ActionBtn
+                                                            icon="download"
+                                                            label="Unduh"
+                                                            variant="success"
+                                                            title="Export CSV"
                                                             href={
                                                                 DynamicReportController.export(
                                                                     report.id,
                                                                 ).url
                                                             }
-                                                            style={{
-                                                                ...iconBtn,
-                                                                color: C.green,
-                                                            }}
-                                                            title="Export CSV"
-                                                        >
-                                                            <AIcon
-                                                                name="download"
-                                                                size={16}
-                                                                color={C.green}
-                                                            />
-                                                        </a>
-                                                        <button
-                                                            type="button"
+                                                            download
+                                                        />
+                                                        <ActionBtn
+                                                            icon="trash-2"
+                                                            label="Hapus"
+                                                            variant="danger"
                                                             onClick={() =>
                                                                 setConfirm(
                                                                     report,
                                                                 )
                                                             }
-                                                            style={{
-                                                                ...iconBtn,
-                                                                color: C.red,
-                                                            }}
-                                                            title="Hapus"
-                                                        >
-                                                            <AIcon
-                                                                name="trash-2"
-                                                                size={16}
-                                                                color={C.red}
-                                                            />
-                                                        </button>
+                                                        />
                                                     </div>
                                                 </td>
                                             </tr>
@@ -568,19 +549,6 @@ const errorStyle = {
     fontSize: 12,
     color: C.red,
     marginTop: 6,
-};
-
-const iconBtn = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 34,
-    height: 34,
-    borderRadius: 8,
-    border: `1px solid ${C.border}`,
-    background: '#fff',
-    cursor: 'pointer',
-    textDecoration: 'none',
 };
 
 const overlay = {

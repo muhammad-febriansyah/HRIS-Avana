@@ -163,6 +163,16 @@ class PayrollController extends Controller
     }
 
     /**
+     * Render the standalone "create payroll period" page.
+     */
+    public function createPeriod(): Response
+    {
+        $this->authorize('run', PayrollPeriod::class);
+
+        return Inertia::render('avana/payroll/period-create');
+    }
+
+    /**
      * Create a new draft payroll period for a given cycle and date range.
      * Weekly/biweekly periods reuse the same engine — pay components keyed on
      * present-days/overtime are counted within the period's date window.

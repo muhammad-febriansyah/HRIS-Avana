@@ -3,13 +3,8 @@ import type { CSSProperties } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import ContractController from '@/actions/App/Http/Controllers/Avana/ContractController';
-import { AIcon, btnP, C, rp, thCell } from '@/lib/avana';
-import {
-    ConfirmModal,
-    ExpiringBadge,
-    iconBtn,
-    StatusPill,
-} from './components';
+import { AIcon, ActionBtn, btnP, C, rp, thCell } from '@/lib/avana';
+import { ConfirmModal, ExpiringBadge, StatusPill } from './components';
 import { contractTypeLabel, formatDate, statusOptions } from './types';
 import type {
     ContractRow,
@@ -517,34 +512,30 @@ export default function KontrakIndex({
                                                 style={{
                                                     display: 'inline-flex',
                                                     gap: 6,
+                                                    flexWrap: 'wrap',
+                                                    justifyContent: 'flex-end',
                                                 }}
                                             >
-                                                <Link
-                                                    title="Ubah"
-                                                    href={ContractController.edit(
-                                                        contract.id,
-                                                    )}
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="pencil"
-                                                        size={15}
-                                                        color={C.muted}
-                                                    />
-                                                </Link>
-                                                <button
-                                                    title="Hapus"
+                                                <ActionBtn
+                                                    icon="pencil"
+                                                    label="Edit"
+                                                    variant="neutral"
+                                                    onClick={() =>
+                                                        router.visit(
+                                                            ContractController.edit(
+                                                                contract.id,
+                                                            ).url,
+                                                        )
+                                                    }
+                                                />
+                                                <ActionBtn
+                                                    icon="trash-2"
+                                                    label="Hapus"
+                                                    variant="danger"
                                                     onClick={() =>
                                                         setConfirm(contract)
                                                     }
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={15}
-                                                        color={C.red}
-                                                    />
-                                                </button>
+                                                />
                                             </div>
                                         </td>
                                     </tr>

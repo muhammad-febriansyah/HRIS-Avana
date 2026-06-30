@@ -32,6 +32,7 @@ beforeEach(function (): void {
     // on collision-free paths so the controllers can be exercised in isolation.
     Route::middleware('web')->prefix('spec-avana')->name('spec.')->group(function (): void {
         Route::get('payroll', [PayrollController::class, 'index'])->name('payroll');
+        Route::get('payroll/periods/create', [PayrollController::class, 'createPeriod'])->name('payroll.periods.create');
         Route::post('payroll/periods', [PayrollController::class, 'storePeriod'])->name('payroll.periods.store');
         Route::post('payroll/run', [PayrollController::class, 'run'])->name('payroll.run');
         Route::get('payroll/components', [PositionComponentController::class, 'index'])->name('payroll.components');
@@ -265,6 +266,24 @@ it('forbids users without payroll permissions from viewing payroll', function ()
 
     actingAs($staff)
         ->get('spec-avana/payroll')
+        ->assertForbidden();
+});
+
+it('renders the create payroll period page', function (): void {
+    actingAs($this->admin)
+        ->get('spec-avana/payroll/periods/create')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->component('avana/payroll/period-create', false));
+});
+
+it('forbids users without payroll permissions from the create period page', function (): void {
+    $employeeRole = Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->firstOrFail();
+
+    $staff = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $staff->roles()->sync([$employeeRole->id]);
+
+    actingAs($staff)
+        ->get('spec-avana/payroll/periods/create')
         ->assertForbidden();
 });
 

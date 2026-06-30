@@ -1,23 +1,19 @@
-import { AIcon, btnP, C, card, thCell } from '@/lib/avana';
-import { renderCell, rowMenuItemStyle } from './components';
+import { AIcon, ActionBtn, btnP, C, card, thCell } from '@/lib/avana';
+import { renderCell } from './components';
 import type { EntityRecord, TabDef } from './types';
 
 interface EntityTableProps {
     tab: TabDef;
     rows: EntityRecord[];
-    openMenu: number | null;
-    onToggleMenu: (id: number) => void;
     onCreate: () => void;
     onEdit: (row: EntityRecord) => void;
     onDelete: (row: EntityRecord) => void;
 }
 
-/** Entity card: count header, master table, and per-row action menu. */
+/** Entity card: count header, master table, and per-row action buttons. */
 export function EntityTable({
     tab,
     rows,
-    openMenu,
-    onToggleMenu,
     onCreate,
     onEdit,
     onDelete,
@@ -148,78 +144,24 @@ export function EntityTable({
                                 >
                                     <div
                                         style={{
-                                            position: 'relative',
-                                            display: 'inline-block',
+                                            display: 'inline-flex',
+                                            gap: 6,
+                                            flexWrap: 'wrap',
+                                            justifyContent: 'flex-end',
                                         }}
                                     >
-                                        <button
-                                            onClick={() => onToggleMenu(row.id)}
-                                            aria-label="Aksi"
-                                            style={{
-                                                width: 32,
-                                                height: 32,
-                                                border: `1px solid ${C.border}`,
-                                                background: '#fff',
-                                                borderRadius: 8,
-                                                cursor: 'pointer',
-                                                color: C.muted,
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                transition: '.15s',
-                                            }}
-                                        >
-                                            <AIcon
-                                                name="ellipsis-vertical"
-                                                size={16}
-                                            />
-                                        </button>
-                                        <div
-                                            style={{
-                                                display:
-                                                    openMenu === row.id
-                                                        ? 'block'
-                                                        : 'none',
-                                                position: 'absolute',
-                                                right: 0,
-                                                top: 38,
-                                                width: 148,
-                                                background: '#fff',
-                                                border: `1px solid ${C.border}`,
-                                                borderRadius: 10,
-                                                boxShadow:
-                                                    '0 8px 24px rgba(15,23,42,.12)',
-                                                zIndex: 20,
-                                                padding: 5,
-                                                textAlign: 'left',
-                                            }}
-                                        >
-                                            <button
-                                                onClick={() => onEdit(row)}
-                                                style={rowMenuItemStyle}
-                                            >
-                                                <AIcon
-                                                    name="pencil"
-                                                    size={15}
-                                                    color={C.muted}
-                                                />
-                                                Ubah
-                                            </button>
-                                            <button
-                                                onClick={() => onDelete(row)}
-                                                style={{
-                                                    ...rowMenuItemStyle,
-                                                    color: C.red,
-                                                }}
-                                            >
-                                                <AIcon
-                                                    name="trash-2"
-                                                    size={15}
-                                                    color={C.red}
-                                                />
-                                                Hapus
-                                            </button>
-                                        </div>
+                                        <ActionBtn
+                                            icon="pencil"
+                                            label="Ubah"
+                                            variant="neutral"
+                                            onClick={() => onEdit(row)}
+                                        />
+                                        <ActionBtn
+                                            icon="trash-2"
+                                            label="Hapus"
+                                            variant="danger"
+                                            onClick={() => onDelete(row)}
+                                        />
                                     </div>
                                 </td>
                             </tr>

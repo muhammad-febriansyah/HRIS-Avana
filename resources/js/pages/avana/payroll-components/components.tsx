@@ -1,61 +1,11 @@
 /**
- * Shared presentational bits for the payroll-components matrix: the rupiah
- * cell input and the per-component calculation-basis editor.
+ * Shared presentational bits for the payroll-components matrix: the
+ * per-component calculation-basis editor.
  */
 
-import type { ChangeEvent } from 'react';
 import { C } from '@/lib/avana';
 import type { CalcBasis, ComponentRef } from './types';
 import { calcBasisTag } from './types';
-
-interface RupiahInputProps {
-    value: number;
-    onChange: (amount: number) => void;
-}
-
-/** Rupiah-prefixed numeric input with thousand separators. */
-export function RupiahInput({ value, onChange }: RupiahInputProps) {
-    const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-        const digits = event.target.value.replace(/\D/g, '');
-        onChange(digits === '' ? 0 : Number(digits));
-    };
-
-    return (
-        <div
-            style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                height: 36,
-                padding: '0 10px',
-                border: `1px solid ${C.border}`,
-                borderRadius: 8,
-                background: '#fff',
-                minWidth: 140,
-            }}
-        >
-            <span style={{ fontSize: 12, color: C.faint, flex: 'none' }}>
-                Rp
-            </span>
-            <input
-                inputMode="numeric"
-                value={value ? value.toLocaleString('id-ID') : ''}
-                onChange={handleChange}
-                placeholder="0"
-                style={{
-                    border: 'none',
-                    outline: 'none',
-                    width: '100%',
-                    fontSize: 13,
-                    color: C.text,
-                    textAlign: 'right',
-                    background: 'transparent',
-                    fontVariantNumeric: 'tabular-nums',
-                }}
-            />
-        </div>
-    );
-}
 
 interface BasisSelectProps {
     component: ComponentRef;

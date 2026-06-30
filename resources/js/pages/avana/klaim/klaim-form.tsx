@@ -1,7 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
 import {
     dateInputStyle,
     FieldError,
@@ -145,15 +145,10 @@ export function KlaimForm({
                     <label style={fieldLabelStyle}>
                         Nominal (Rp) <span style={{ color: C.red }}>*</span>
                     </label>
-                    <input
-                        type="number"
-                        min={0}
-                        placeholder="0"
+                    <RupiahInput
                         value={data.amount}
-                        onChange={(event) =>
-                            setData('amount', event.target.value)
-                        }
-                        style={withError(inputStyle, !!errors.amount)}
+                        onChange={(raw) => setData('amount', raw)}
+                        invalid={!!errors.amount}
                     />
                     <FieldError message={errors.amount} />
                 </div>

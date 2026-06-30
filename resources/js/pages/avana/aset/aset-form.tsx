@@ -1,7 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
-import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
 import {
     FieldError,
     fieldLabelStyle,
@@ -142,19 +142,10 @@ export function AsetForm({
                             Harga Beli (Rp){' '}
                             <span style={{ color: C.red }}>*</span>
                         </label>
-                        <input
-                            type="number"
-                            min={0}
-                            step="0.01"
+                        <RupiahInput
                             value={data.purchase_cost}
-                            onChange={(event) =>
-                                setData('purchase_cost', event.target.value)
-                            }
-                            placeholder="0"
-                            style={withError(
-                                inputStyle,
-                                !!errors.purchase_cost,
-                            )}
+                            onChange={(raw) => setData('purchase_cost', raw)}
+                            invalid={!!errors.purchase_cost}
                         />
                         <FieldError message={errors.purchase_cost} />
                     </div>

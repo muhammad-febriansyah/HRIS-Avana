@@ -86,6 +86,7 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     Route::post('approval/{type}/{id}/reject', [ApprovalController::class, 'reject'])->name('approval.reject');
 
     Route::get('payroll', [PayrollController::class, 'index'])->name('payroll');
+    Route::get('payroll/periods/create', [PayrollController::class, 'createPeriod'])->name('payroll.periods.create');
     Route::post('payroll/periods', [PayrollController::class, 'storePeriod'])->name('payroll.periods.store');
     Route::post('payroll/run', [PayrollController::class, 'run'])->name('payroll.run');
     Route::post('payroll/lock', [PayrollController::class, 'lock'])->name('payroll.lock');
@@ -215,6 +216,8 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
 
     // Billing & Invoice (super admin) — client subscriptions + invoices
     Route::get('billing', [BillingController::class, 'index'])->name('billing');
+    Route::get('billing/subscription/create', [BillingController::class, 'createSubscription'])->name('billing.subscription.create');
+    Route::get('billing/invoice/create', [BillingController::class, 'createInvoice'])->name('billing.invoice.create');
     Route::post('billing/subscription', [BillingController::class, 'storeSubscription'])->name('billing.subscription.store');
     Route::put('billing/subscription/{subscription}', [BillingController::class, 'updateSubscription'])->name('billing.subscription.update');
     Route::post('billing/invoice', [BillingController::class, 'storeInvoice'])->name('billing.invoice.store');

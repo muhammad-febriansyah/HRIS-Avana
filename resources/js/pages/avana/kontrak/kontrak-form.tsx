@@ -1,7 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
-import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
 import {
     FieldError,
     fieldLabelStyle,
@@ -159,16 +159,10 @@ export function KontrakForm({
                         <label style={fieldLabelStyle}>
                             Gaji Pokok <span style={{ color: C.red }}>*</span>
                         </label>
-                        <input
-                            type="number"
-                            min={0}
-                            step="0.01"
+                        <RupiahInput
                             value={data.basic_salary}
-                            onChange={(event) =>
-                                setData('basic_salary', event.target.value)
-                            }
-                            placeholder="Rupiah, mis. 7500000"
-                            style={withError(inputStyle, !!errors.basic_salary)}
+                            onChange={(raw) => setData('basic_salary', raw)}
+                            invalid={!!errors.basic_salary}
                         />
                         <FieldError message={errors.basic_salary} />
                     </div>

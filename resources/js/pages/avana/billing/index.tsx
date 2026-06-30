@@ -1,16 +1,11 @@
-import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { useEffect } from 'react';
 import { toast } from 'sonner';
 import BillingController from '@/actions/App/Http/Controllers/Avana/BillingController';
-import { ActionBtn, AIcon, btnOut, btnP, C, card, RupiahInput, thCell } from '@/lib/avana';
+import { ActionBtn, AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
 import {
-    fieldLabelStyle,
-    iconBtn,
-    inputStyle,
     InvoiceStatusPill,
     KpiCard,
-    Modal,
-    selectStyle,
     SubscriptionStatusPill,
 } from './components';
 import {
@@ -29,49 +24,14 @@ const tdCell = { padding: '13px 16px', fontSize: 13, color: C.text, borderTop: `
 const sectionHead = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 };
 const sectionTitle = { fontSize: 16, fontWeight: 600, color: C.navy };
 
-export default function BillingIndex({ invoices, subscriptions, tenants, packages, kpis, subscriptionStatuses, billingCycles }: BillingIndexProps) {
+export default function BillingIndex({ invoices, subscriptions, kpis }: BillingIndexProps) {
     const { flash } = usePage<FlashProps>().props;
-    const [modal, setModal] = useState<null | 'subscription' | 'invoice'>(null);
 
     useEffect(() => {
         if (flash?.success) {
             toast.success(flash.success);
         }
     }, [flash?.success]);
-
-    const subForm = useForm({
-        tenant_id: '',
-        package_id: '',
-        status: 'active',
-        billing_cycle: 'monthly',
-        price: '',
-        start_date: '',
-        end_date: '',
-    });
-
-    const invForm = useForm<{
-        tenant_id: string;
-        subscription_id: string;
-        issue_date: string;
-        due_date: string;
-        tax: string;
-        notes: string;
-        items: { description: string; quantity: string; unit_price: string }[];
-    }>({
-        tenant_id: '',
-        subscription_id: '',
-        issue_date: '',
-        due_date: '',
-        tax: '0',
-        notes: '',
-        items: [{ description: '', quantity: '1', unit_price: '' }],
-    });
-
-    const invoiceSubtotal = invForm.data.items.reduce(
-        (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unit_price) || 0),
-        0,
-    );
-    const invoiceTotal = invoiceSubtotal + (Number(invForm.data.tax) || 0);
 
     const oneClick = (url: string, message: string, method: 'post' | 'delete' = 'post') => {
         router[method](url, {}, { preserveScroll: true, onSuccess: () => toast.success(message) });
@@ -87,14 +47,14 @@ export default function BillingIndex({ invoices, subscriptions, tenants, package
                         <p style={{ fontSize: 13.5, color: C.muted, margin: '6px 0 0' }}>Kelola langganan klien & tagihan platform AvanaHR.</p>
                     </div>
                     <div style={{ display: 'flex', gap: 10 }}>
-                        <button onClick={() => setModal('subscription')} style={btnOut}>
+                        <Link href={BillingController.createSubscription().url} style={{ ...btnOut, textDecoration: 'none' }}>
                             <AIcon name="repeat" size={15} />
                             Buat Langganan
-                        </button>
-                        <button onClick={() => setModal('invoice')} style={btnP}>
+                        </Link>
+                        <Link href={BillingController.createInvoice().url} style={{ ...btnP, textDecoration: 'none' }}>
                             <AIcon name="plus" size={15} />
                             Buat Invoice
-                        </button>
+                        </Link>
                     </div>
                 </div>
 
@@ -200,180 +160,6 @@ export default function BillingIndex({ invoices, subscriptions, tenants, package
                     </table>
                 </div>
             </div>
-
-            {/* ---------- Subscription modal ---------- */}
-            {modal === 'subscription' ? (
-                <Modal title="Buat Langganan" onClose={() => setModal(null)}>
-                    <form
-                        onSubmit={(event) => {
-                            event.preventDefault();
-                            subForm.submit(BillingController.storeSubscription(), { onSuccess: () => { subForm.reset(); setModal(null); } });
-                        }}
-                        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}
-                    >
-                        <div style={{ gridColumn: '1 / -1' }}>
-                            <label style={fieldLabelStyle}>Klien</label>
-                            <select value={subForm.data.tenant_id} onChange={(e) => subForm.setData('tenant_id', e.target.value)} style={selectStyle}>
-                                <option value="">Pilih klien</option>
-                                {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label style={fieldLabelStyle}>Paket</label>
-                            <select
-                                value={subForm.data.package_id}
-                                onChange={(e) => {
-                                    const pkg = packages.find((p) => String(p.id) === e.target.value);
-                                    subForm.setData((data) => ({
-                                        ...data,
-                                        package_id: e.target.value,
-                                        price: pkg ? String(pkg.price) : data.price,
-                                        billing_cycle: pkg ? pkg.billing_cycle : data.billing_cycle,
-                                    }));
-                                }}
-                                style={selectStyle}
-                            >
-                                <option value="">Tanpa paket</option>
-                                {packages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label style={fieldLabelStyle}>Harga</label>
-                            <RupiahInput value={subForm.data.price} onChange={(v) => subForm.setData('price', v)} />
-                        </div>
-                        <div>
-                            <label style={fieldLabelStyle}>Siklus</label>
-                            <select value={subForm.data.billing_cycle} onChange={(e) => subForm.setData('billing_cycle', e.target.value)} style={selectStyle}>
-                                {billingCycles.map((c) => <option key={c} value={c}>{BILLING_CYCLE_LABEL[c] ?? c}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label style={fieldLabelStyle}>Status</label>
-                            <select value={subForm.data.status} onChange={(e) => subForm.setData('status', e.target.value)} style={selectStyle}>
-                                {subscriptionStatuses.map((s) => <option key={s} value={s}>{s}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label style={fieldLabelStyle}>Mulai</label>
-                            <input type="date" value={subForm.data.start_date} onChange={(e) => subForm.setData('start_date', e.target.value)} style={inputStyle} />
-                        </div>
-                        <div>
-                            <label style={fieldLabelStyle}>Berakhir</label>
-                            <input type="date" value={subForm.data.end_date} onChange={(e) => subForm.setData('end_date', e.target.value)} style={inputStyle} />
-                        </div>
-                        <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 6 }}>
-                            <button type="button" onClick={() => setModal(null)} style={btnOut}>Batal</button>
-                            <button type="submit" disabled={subForm.processing} style={btnP}>Simpan</button>
-                        </div>
-                    </form>
-                </Modal>
-            ) : null}
-
-            {/* ---------- Invoice modal ---------- */}
-            {modal === 'invoice' ? (
-                <Modal title="Buat Invoice" onClose={() => setModal(null)} width={680}>
-                    <form
-                        onSubmit={(event) => {
-                            event.preventDefault();
-                            invForm.submit(BillingController.storeInvoice(), { onSuccess: () => { invForm.reset(); setModal(null); } });
-                        }}
-                        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}
-                    >
-                        <div>
-                            <label style={fieldLabelStyle}>Klien</label>
-                            <select value={invForm.data.tenant_id} onChange={(e) => invForm.setData('tenant_id', e.target.value)} style={selectStyle}>
-                                <option value="">Pilih klien</option>
-                                {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label style={fieldLabelStyle}>Langganan (opsional)</label>
-                            <select
-                                value={invForm.data.subscription_id}
-                                onChange={(e) => {
-                                    const sub = subscriptions.find((s) => String(s.id) === e.target.value);
-                                    invForm.setData((data) => ({
-                                        ...data,
-                                        subscription_id: e.target.value,
-                                        tenant_id: sub ? String(sub.tenant_id) : data.tenant_id,
-                                        items: sub
-                                            ? [{ description: `Langganan ${sub.package ?? 'AvanaHR'}`, quantity: '1', unit_price: String(sub.price) }]
-                                            : data.items,
-                                    }));
-                                }}
-                                style={selectStyle}
-                            >
-                                <option value="">—</option>
-                                {subscriptions.map((s) => <option key={s.id} value={s.id}>{s.tenant} · {s.package ?? '—'}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label style={fieldLabelStyle}>Tanggal Terbit</label>
-                            <input type="date" value={invForm.data.issue_date} onChange={(e) => invForm.setData('issue_date', e.target.value)} style={inputStyle} />
-                        </div>
-                        <div>
-                            <label style={fieldLabelStyle}>Jatuh Tempo</label>
-                            <input type="date" value={invForm.data.due_date} onChange={(e) => invForm.setData('due_date', e.target.value)} style={inputStyle} />
-                        </div>
-
-                        <div style={{ gridColumn: '1 / -1' }}>
-                            <label style={fieldLabelStyle}>Item</label>
-                            {invForm.data.items.map((item, index) => (
-                                <div key={index} style={{ display: 'grid', gridTemplateColumns: '2fr 0.7fr 1fr auto', gap: 8, marginBottom: 8 }}>
-                                    <input
-                                        placeholder="Deskripsi"
-                                        value={item.description}
-                                        onChange={(e) => invForm.setData('items', invForm.data.items.map((it, i) => i === index ? { ...it, description: e.target.value } : it))}
-                                        style={inputStyle}
-                                    />
-                                    <input
-                                        type="number"
-                                        placeholder="Qty"
-                                        value={item.quantity}
-                                        onChange={(e) => invForm.setData('items', invForm.data.items.map((it, i) => i === index ? { ...it, quantity: e.target.value } : it))}
-                                        style={inputStyle}
-                                    />
-                                    <RupiahInput
-                                        value={item.unit_price}
-                                        onChange={(v) => invForm.setData('items', invForm.data.items.map((it, i) => i === index ? { ...it, unit_price: v } : it))}
-                                    />
-                                    <button
-                                        type="button"
-                                        title="Hapus item"
-                                        onClick={() => invForm.setData('items', invForm.data.items.filter((_, i) => i !== index))}
-                                        disabled={invForm.data.items.length === 1}
-                                        style={iconBtn}
-                                    >
-                                        <AIcon name="x" size={15} color={C.red} />
-                                    </button>
-                                </div>
-                            ))}
-                            <button
-                                type="button"
-                                onClick={() => invForm.setData('items', [...invForm.data.items, { description: '', quantity: '1', unit_price: '' }])}
-                                style={{ ...btnOut, height: 34, marginTop: 2 }}
-                            >
-                                <AIcon name="plus" size={14} />
-                                Tambah Item
-                            </button>
-                        </div>
-
-                        <div>
-                            <label style={fieldLabelStyle}>Pajak</label>
-                            <RupiahInput value={invForm.data.tax} onChange={(v) => invForm.setData('tax', v)} />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                            <div style={{ fontSize: 12.5, color: C.muted }}>Subtotal: {formatRupiah(invoiceSubtotal)}</div>
-                            <div style={{ fontSize: 16, fontWeight: 700, color: C.navy }}>Total: {formatRupiah(invoiceTotal)}</div>
-                        </div>
-
-                        <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 6 }}>
-                            <button type="button" onClick={() => setModal(null)} style={btnOut}>Batal</button>
-                            <button type="submit" disabled={invForm.processing} style={btnP}>Buat Invoice</button>
-                        </div>
-                    </form>
-                </Modal>
-            ) : null}
         </>
     );
 }

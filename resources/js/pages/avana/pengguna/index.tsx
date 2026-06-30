@@ -3,8 +3,8 @@ import type { CSSProperties } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import UserController from '@/actions/App/Http/Controllers/Avana/UserController';
-import { AIcon, btnP, C, thCell } from '@/lib/avana';
-import { ConfirmModal, iconBtn, StatusPill } from './components';
+import { AIcon, ActionBtn, btnP, C, thCell } from '@/lib/avana';
+import { ConfirmModal, StatusPill } from './components';
 import { scopeShortLabel } from './types';
 import type {
     FlashProps,
@@ -478,61 +478,50 @@ export default function PenggunaIndex({
                                                 style={{
                                                     display: 'inline-flex',
                                                     gap: 6,
+                                                    flexWrap: 'wrap',
+                                                    justifyContent: 'flex-end',
                                                 }}
                                             >
-                                                <Link
-                                                    title="Ubah"
-                                                    href={UserController.edit(
-                                                        user.id,
-                                                    )}
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="pencil"
-                                                        size={15}
-                                                        color={C.muted}
-                                                    />
-                                                </Link>
-                                                <button
-                                                    title={
+                                                <ActionBtn
+                                                    icon="pencil"
+                                                    label="Ubah"
+                                                    variant="neutral"
+                                                    onClick={() =>
+                                                        router.visit(
+                                                            UserController.edit(
+                                                                user.id,
+                                                            ),
+                                                        )
+                                                    }
+                                                />
+                                                <ActionBtn
+                                                    icon={
+                                                        user.status === 'active'
+                                                            ? 'toggle-right'
+                                                            : 'toggle-left'
+                                                    }
+                                                    label={
                                                         user.status === 'active'
                                                             ? 'Nonaktifkan'
                                                             : 'Aktifkan'
                                                     }
+                                                    variant={
+                                                        user.status === 'active'
+                                                            ? 'warning'
+                                                            : 'success'
+                                                    }
                                                     onClick={() =>
                                                         toggleStatus(user)
                                                     }
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name={
-                                                            user.status ===
-                                                            'active'
-                                                                ? 'toggle-right'
-                                                                : 'toggle-left'
-                                                        }
-                                                        size={16}
-                                                        color={
-                                                            user.status ===
-                                                            'active'
-                                                                ? C.green
-                                                                : C.faint
-                                                        }
-                                                    />
-                                                </button>
-                                                <button
-                                                    title="Hapus"
+                                                />
+                                                <ActionBtn
+                                                    icon="trash-2"
+                                                    label="Hapus"
+                                                    variant="danger"
                                                     onClick={() =>
                                                         setConfirm(user)
                                                     }
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={15}
-                                                        color={C.red}
-                                                    />
-                                                </button>
+                                                />
                                             </div>
                                         </td>
                                     </tr>

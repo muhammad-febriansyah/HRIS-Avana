@@ -51,20 +51,6 @@ const errorTextStyle: CSSProperties = {
     gap: 5,
 };
 
-export const iconBtn: CSSProperties = {
-    width: 32,
-    height: 32,
-    border: `1px solid ${C.border}`,
-    background: '#fff',
-    borderRadius: 8,
-    cursor: 'pointer',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transition: '.15s',
-    textDecoration: 'none',
-};
-
 /** Apply the red error border to a base style when invalid. */
 export function withError(
     base: CSSProperties,

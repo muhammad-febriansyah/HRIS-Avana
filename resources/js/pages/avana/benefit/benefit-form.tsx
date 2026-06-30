@@ -1,7 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
-import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
 import {
     FieldError,
     fieldLabelStyle,
@@ -127,15 +127,10 @@ export function BenefitForm({
                         <label style={fieldLabelStyle}>
                             Nilai (Rp) <span style={{ color: C.red }}>*</span>
                         </label>
-                        <input
-                            type="number"
-                            min={0}
+                        <RupiahInput
                             value={data.value}
-                            onChange={(event) =>
-                                setData('value', event.target.value)
-                            }
-                            placeholder="0"
-                            style={withError(inputStyle, !!errors.value)}
+                            onChange={(raw) => setData('value', raw)}
+                            invalid={!!errors.value}
                         />
                         <FieldError message={errors.value} />
                     </div>

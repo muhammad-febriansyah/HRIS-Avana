@@ -3,7 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import DutyTravelController from '@/actions/App/Http/Controllers/Avana/DutyTravelController';
-import { AIcon, btnP, C, card, rp, statusBadge } from '@/lib/avana';
+import { AIcon, ActionBtn, btnP, C, card, rp, statusBadge } from '@/lib/avana';
 import { statusOptions } from './types';
 import type {
     DinasFilters,
@@ -296,46 +296,26 @@ export default function DinasIndex({ travels, filters }: DinasIndexProps) {
                                             </td>
                                             <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                                                 {row.status === 'pending' ? (
-                                                    <div style={{ display: 'inline-flex', gap: 6 }}>
-                                                        <button
+                                                    <div
+                                                        style={{
+                                                            display: 'inline-flex',
+                                                            gap: 6,
+                                                            flexWrap: 'wrap',
+                                                            justifyContent: 'flex-end',
+                                                        }}
+                                                    >
+                                                        <ActionBtn
+                                                            icon="check"
+                                                            label="Setujui"
+                                                            variant="success"
                                                             onClick={() => approveTravel(row.id)}
-                                                            style={{
-                                                                display: 'inline-flex',
-                                                                alignItems: 'center',
-                                                                gap: 5,
-                                                                height: 30,
-                                                                padding: '0 11px',
-                                                                border: 'none',
-                                                                borderRadius: 7,
-                                                                background: 'rgba(22,163,74,.1)',
-                                                                color: C.green,
-                                                                fontSize: 12,
-                                                                fontWeight: 600,
-                                                                cursor: 'pointer',
-                                                                transition: '.15s',
-                                                            }}
-                                                        >
-                                                            <AIcon name="check" size={14} color={C.green} />
-                                                            Setujui
-                                                        </button>
-                                                        <button
+                                                        />
+                                                        <ActionBtn
+                                                            icon="x"
+                                                            label="Tolak"
+                                                            variant="warning"
                                                             onClick={() => rejectTravel(row.id)}
-                                                            style={{
-                                                                width: 30,
-                                                                height: 30,
-                                                                border: 'none',
-                                                                borderRadius: 7,
-                                                                background: 'rgba(220,38,38,.08)',
-                                                                color: C.red,
-                                                                cursor: 'pointer',
-                                                                display: 'inline-flex',
-                                                                alignItems: 'center',
-                                                                justifyContent: 'center',
-                                                                transition: '.15s',
-                                                            }}
-                                                        >
-                                                            <AIcon name="x" size={14} color={C.red} />
-                                                        </button>
+                                                        />
                                                     </div>
                                                 ) : (
                                                     <span style={{ fontSize: 12.5, color: C.faint }}>—</span>
