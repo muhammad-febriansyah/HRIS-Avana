@@ -3,24 +3,18 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-final class PerformanceReview extends Model
+final class Objective extends Model
 {
-    use HasFactory;
-
     protected $guarded = [];
 
     protected function casts(): array
     {
         return [
-            'self_score' => 'decimal:2',
-            'manager_score' => 'decimal:2',
-            'final_score' => 'decimal:2',
-            'review_date' => 'date',
+            'progress' => 'integer',
         ];
     }
 
@@ -44,13 +38,8 @@ final class PerformanceReview extends Model
         return $this->belongsTo(Employee::class);
     }
 
-    public function reviewer(): BelongsTo
+    public function keyResults(): HasMany
     {
-        return $this->belongsTo(Employee::class, 'reviewer_id');
-    }
-
-    public function feedbacks(): HasMany
-    {
-        return $this->hasMany(PerformanceFeedback::class, 'review_id');
+        return $this->hasMany(KeyResult::class);
     }
 }

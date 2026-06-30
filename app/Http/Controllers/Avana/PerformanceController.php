@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\PerformanceCycle;
+use App\Models\PerformanceFeedback;
 use App\Models\PerformanceReview;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -35,6 +36,13 @@ class PerformanceController extends Controller
      * @var array<int, string>
      */
     private const CYCLE_STATUSES = ['draft', 'active', 'closed'];
+
+    /**
+     * Allowed 360 feedback type values, in display order.
+     *
+     * @var array<int, string>
+     */
+    private const FEEDBACK_TYPES = ['self', 'peer', 'manager', 'subordinate'];
 
     /**
      * Display performance reviews together with the cycle list and KPIs.
@@ -99,6 +107,8 @@ class PerformanceController extends Controller
 
         $tenantId = $request->user()->tenant_id;
 
+        $review->load(['feedbacks' => fn ($query) => $query->latest('id'), 'feedbacks.reviewer:id,full_name']);
+
         return Inertia::render('avana/kinerja/edit', [
             'review' => [
                 'id' => $review->id,
@@ -112,6 +122,8 @@ class PerformanceController extends Controller
                 'notes' => $review->notes,
                 'review_date' => $review->review_date?->toDateString(),
             ],
+            'feedbacks' => $review->feedbacks->map(fn (PerformanceFeedback $feedback): array => $this->transformFeedback($feedback))->all(),
+            'feedbackTypes' => $this->feedbackTypeOptions(),
             'employees' => $this->employeeOptions($tenantId),
             'cycleOptions' => $this->cycleOptions($tenantId),
             'statuses' => $this->reviewStatusOptions(),
@@ -215,6 +227,53 @@ class PerformanceController extends Controller
     }
 
     /**
+     * Attach a 360 feedback entry to a performance review.
+     */
+    public function storeFeedback(Request $request, PerformanceReview $review): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureTenantOwnership($request, $review);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $data = $request->validate([
+            'type' => ['required', Rule::in(self::FEEDBACK_TYPES)],
+            'reviewer_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('employees', 'id')->where('tenant_id', $tenantId),
+            ],
+            'rating' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'comment' => ['nullable', 'string'],
+        ]);
+
+        PerformanceFeedback::create([
+            'tenant_id' => $tenantId,
+            'review_id' => $review->id,
+            'type' => $data['type'],
+            'reviewer_id' => $data['reviewer_id'] ?? null,
+            'rating' => $data['rating'] ?? null,
+            'comment' => $data['comment'] ?? null,
+        ]);
+
+        return back()->with('success', 'Umpan balik ditambahkan');
+    }
+
+    /**
+     * Delete a 360 feedback entry.
+     */
+    public function destroyFeedback(Request $request, PerformanceFeedback $feedback): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+
+        abort_if((int) $feedback->tenant_id !== (int) $request->user()->tenant_id, 404);
+
+        $feedback->delete();
+
+        return back()->with('success', 'Umpan balik dihapus');
+    }
+
+    /**
      * Validate the create/update payload for a performance review.
      *
      * @return array<string, mixed>
@@ -287,6 +346,46 @@ class PerformanceController extends Controller
             'description' => $cycle->description,
             'reviews_count' => $cycle->reviews_count,
         ];
+    }
+
+    /**
+     * Build the row shape consumed by the 360 feedback list.
+     *
+     * @return array<string, mixed>
+     */
+    private function transformFeedback(PerformanceFeedback $feedback): array
+    {
+        return [
+            'id' => $feedback->id,
+            'type' => $feedback->type,
+            'reviewer_id' => $feedback->reviewer_id,
+            'reviewer_name' => $feedback->reviewer?->full_name,
+            'rating' => $feedback->rating !== null ? (float) $feedback->rating : null,
+            'comment' => $feedback->comment,
+            'created_at' => $feedback->created_at?->toDateTimeString(),
+        ];
+    }
+
+    /**
+     * Build the `{ value, label }` list of 360 feedback type options.
+     *
+     * @return array<int, array<string, string>>
+     */
+    private function feedbackTypeOptions(): array
+    {
+        $labels = [
+            'self' => 'Diri Sendiri',
+            'peer' => 'Rekan Kerja',
+            'manager' => 'Atasan',
+            'subordinate' => 'Bawahan',
+        ];
+
+        return collect(self::FEEDBACK_TYPES)
+            ->map(fn (string $type): array => [
+                'value' => $type,
+                'label' => $labels[$type],
+            ])
+            ->all();
     }
 
     /**

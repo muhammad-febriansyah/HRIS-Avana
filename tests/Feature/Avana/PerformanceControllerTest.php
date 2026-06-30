@@ -2,6 +2,7 @@
 
 use App\Models\Employee;
 use App\Models\PerformanceCycle;
+use App\Models\PerformanceFeedback;
 use App\Models\PerformanceReview;
 use App\Models\Role;
 use App\Models\Tenant;
@@ -269,6 +270,115 @@ it('returns 404 when submitting a score for a review from another tenant', funct
     $foreign->refresh();
 
     expect($foreign->status)->toBe('pending');
+});
+
+it('renders the edit screen with feedbacks and feedback type options', function (): void {
+    $review = makePerformanceReview($this->tenant->id);
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+    PerformanceFeedback::create([
+        'tenant_id' => $this->tenant->id,
+        'review_id' => $review->id,
+        'reviewer_id' => $employee->id,
+        'type' => 'peer',
+        'rating' => 88,
+        'comment' => 'Kolaboratif',
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.kinerja.edit', $review))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/kinerja/edit', false)
+            ->has('feedbacks.0', fn (Assert $row) => $row
+                ->has('id')
+                ->has('type')
+                ->has('reviewer_id')
+                ->has('reviewer_name')
+                ->has('rating')
+                ->has('comment')
+                ->has('created_at'))
+            ->has('feedbackTypes')
+            ->has('employees'));
+});
+
+it('stores a 360 feedback entry for a review', function (): void {
+    $review = makePerformanceReview($this->tenant->id);
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.feedback.store', $review), [
+            'type' => 'manager',
+            'reviewer_id' => $employee->id,
+            'rating' => 92.5,
+            'comment' => 'Pemimpin yang baik',
+        ])
+        ->assertSessionHas('success');
+
+    $feedback = PerformanceFeedback::where('review_id', $review->id)->firstOrFail();
+
+    expect($feedback->tenant_id)->toBe($this->tenant->id);
+    expect($feedback->type)->toBe('manager');
+    expect($feedback->reviewer_id)->toBe($employee->id);
+    expect((float) $feedback->rating)->toBe(92.5);
+});
+
+it('validates the feedback type and rating range', function (): void {
+    $review = makePerformanceReview($this->tenant->id);
+
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.feedback.store', $review), [
+            'type' => 'invalid',
+            'rating' => 150,
+        ])
+        ->assertSessionHasErrors(['type', 'rating']);
+});
+
+it('deletes a 360 feedback entry', function (): void {
+    $review = makePerformanceReview($this->tenant->id);
+    $feedback = PerformanceFeedback::create([
+        'tenant_id' => $this->tenant->id,
+        'review_id' => $review->id,
+        'type' => 'self',
+        'rating' => 70,
+        'comment' => 'Refleksi diri',
+    ]);
+
+    actingAs($this->admin)
+        ->delete(route('avana.kinerja.feedback.destroy', $feedback))
+        ->assertSessionHas('success');
+
+    expect(PerformanceFeedback::find($feedback->id))->toBeNull();
+});
+
+it('returns 404 when adding feedback to a review from another tenant', function (): void {
+    $otherTenant = Tenant::create(['name' => 'PT Asing', 'slug' => 'pt-asing']);
+    $foreign = makePerformanceReview($otherTenant->id);
+
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.feedback.store', $foreign), [
+            'type' => 'peer',
+            'rating' => 80,
+        ])
+        ->assertNotFound();
+
+    expect(PerformanceFeedback::where('review_id', $foreign->id)->count())->toBe(0);
+});
+
+it('returns 404 when deleting feedback from another tenant', function (): void {
+    $otherTenant = Tenant::create(['name' => 'PT Asing', 'slug' => 'pt-asing']);
+    $foreign = makePerformanceReview($otherTenant->id);
+    $feedback = PerformanceFeedback::create([
+        'tenant_id' => $otherTenant->id,
+        'review_id' => $foreign->id,
+        'type' => 'peer',
+        'rating' => 80,
+    ]);
+
+    actingAs($this->admin)
+        ->delete(route('avana.kinerja.feedback.destroy', $feedback))
+        ->assertNotFound();
+
+    expect(PerformanceFeedback::find($feedback->id))->not->toBeNull();
 });
 
 it('forbids a plain employee from listing or creating reviews', function (): void {

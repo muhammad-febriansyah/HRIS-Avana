@@ -1,6 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { AIcon, btnOut, C } from '@/lib/avana';
-import { cycleStatusLabel, feedbackTypeLabel, reviewStatusLabel } from './types';
 
 /* ---------- shared field styles (mirror rekrutmen/components.tsx) ---------- */
 
@@ -93,17 +92,10 @@ export function FieldError({ message }: { message?: string }) {
     );
 }
 
-/** Color tokens per review status. */
-const REVIEW_STATUS_COLORS: Record<string, [string, string]> = {
-    pending: [C.muted, 'rgba(107,114,128,.12)'],
-    self_review: [C.sky, 'rgba(110,155,230,.15)'],
-    manager_review: [C.amber, 'rgba(217,119,6,.1)'],
-    completed: [C.green, 'rgba(22,163,74,.1)'],
-};
-
-/** Colored badge describing a performance review status. */
-export function ReviewStatusBadge({ status }: { status: string }) {
-    const [color, bg] = REVIEW_STATUS_COLORS[status] ?? REVIEW_STATUS_COLORS.pending;
+/** Active/inactive template status pill. */
+export function ActivePill({ active }: { active: boolean }) {
+    const color = active ? C.green : C.muted;
+    const bg = active ? 'rgba(22,163,74,.1)' : 'rgba(107,114,128,.12)';
 
     return (
         <span
@@ -117,75 +109,68 @@ export function ReviewStatusBadge({ status }: { status: string }) {
                 background: bg,
             }}
         >
-            {reviewStatusLabel(status)}
+            {active ? 'Aktif' : 'Nonaktif'}
         </span>
     );
 }
 
-/** Color tokens per cycle status. */
-const CYCLE_STATUS_COLORS: Record<string, [string, string]> = {
-    draft: [C.muted, 'rgba(107,114,128,.12)'],
-    active: [C.green, 'rgba(22,163,74,.1)'],
-    closed: [C.navy, 'rgba(14,26,58,.08)'],
-};
+interface PlaceholderLegendProps {
+    placeholders: { token: string; label: string }[];
+}
 
-/** Colored badge describing a performance cycle status. */
-export function CycleStatusBadge({ status }: { status: string }) {
-    const [color, bg] = CYCLE_STATUS_COLORS[status] ?? CYCLE_STATUS_COLORS.draft;
-
+/** Legend listing the supported `{{token}}` placeholders for a template. */
+export function PlaceholderLegend({ placeholders }: PlaceholderLegendProps) {
     return (
-        <span
+        <div
             style={{
-                display: 'inline-block',
-                padding: '3px 10px',
-                borderRadius: 100,
-                fontSize: 11.5,
-                fontWeight: 600,
-                color,
-                background: bg,
+                background: C.surface,
+                border: `1px solid ${C.border}`,
+                borderRadius: 8,
+                padding: '12px 14px',
             }}
         >
-            {cycleStatusLabel(status)}
-        </span>
+            <div
+                style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: C.muted,
+                    marginBottom: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                }}
+            >
+                <AIcon name="braces" size={13} color={C.muted} />
+                Placeholder tersedia
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {placeholders.map((placeholder) => (
+                    <span
+                        key={placeholder.token}
+                        title={placeholder.label}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            padding: '4px 9px',
+                            background: '#fff',
+                            border: `1px solid ${C.border}`,
+                            borderRadius: 6,
+                            fontSize: 12,
+                            color: C.text,
+                        }}
+                    >
+                        <code style={{ color: C.primary, fontWeight: 600 }}>
+                            {placeholder.token}
+                        </code>
+                        <span style={{ color: C.faint }}>
+                            {placeholder.label}
+                        </span>
+                    </span>
+                ))}
+            </div>
+        </div>
     );
-}
-
-/** Color tokens per 360 feedback type. */
-const FEEDBACK_TYPE_COLORS: Record<string, [string, string]> = {
-    self: [C.muted, 'rgba(107,114,128,.12)'],
-    peer: [C.primary, 'rgba(47,84,201,.1)'],
-    manager: [C.amber, 'rgba(217,119,6,.1)'],
-    subordinate: [C.sky, 'rgba(110,155,230,.15)'],
-};
-
-/** Colored badge describing a 360 feedback type. */
-export function FeedbackTypeBadge({ type }: { type: string }) {
-    const [color, bg] = FEEDBACK_TYPE_COLORS[type] ?? FEEDBACK_TYPE_COLORS.peer;
-
-    return (
-        <span
-            style={{
-                display: 'inline-block',
-                padding: '3px 10px',
-                borderRadius: 100,
-                fontSize: 11.5,
-                fontWeight: 600,
-                color,
-                background: bg,
-            }}
-        >
-            {feedbackTypeLabel(type)}
-        </span>
-    );
-}
-
-/** Render a score value, or an em dash when not yet recorded. */
-export function ScoreValue({ value }: { value: number | null }) {
-    if (value === null || value === undefined) {
-        return <span style={{ color: C.faint }}>—</span>;
-    }
-
-    return <span style={{ fontWeight: 600, color: C.navy }}>{value}</span>;
 }
 
 interface ConfirmModalProps {

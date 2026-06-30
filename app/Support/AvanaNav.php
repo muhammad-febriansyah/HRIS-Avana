@@ -45,6 +45,7 @@ final class AvanaNav
                     self::leaf('kontrak', 'Kontrak Kerja', 'file-text', '/avana/kontrak', 'hr_core', ['employee']),
                     self::leaf('mutasi', 'Mutasi & Karir', 'arrow-left-right', '/avana/mutasi', 'hr_core', ['employee']),
                     self::leaf('dokumen', 'Dokumen', 'folder', '/avana/dokumen', 'document'),
+                    self::leaf('surat', 'Template Surat', 'file-signature', '/avana/surat', 'letter'),
                     self::leaf('offboarding', 'Offboarding', 'door-open', '/avana/offboarding', 'offboarding'),
                 ]),
                 self::parent('kehadiran', 'Kehadiran', 'fingerprint', [

@@ -149,6 +149,49 @@ export const CYCLE_STATUS_OPTIONS: SelectOption[] = [
     { value: 'closed', label: 'Selesai' },
 ];
 
+/** A 360 feedback row as serialized by `PerformanceController@edit`. */
+export interface FeedbackRow {
+    id: number;
+    type: string;
+    reviewer_id: number | null;
+    reviewer_name: string | null;
+    rating: number | null;
+    comment: string | null;
+    created_at: string | null;
+}
+
+/** Flat form payload backing the add-feedback inline form. */
+export interface FeedbackFormData {
+    type: string;
+    reviewer_id: string;
+    rating: string;
+    comment: string;
+}
+
+/** Empty defaults for the add-feedback form. */
+export const emptyFeedbackForm: FeedbackFormData = {
+    type: 'peer',
+    reviewer_id: '',
+    rating: '',
+    comment: '',
+};
+
+/** Selectable 360 feedback type enum options. */
+export const FEEDBACK_TYPE_OPTIONS: SelectOption[] = [
+    { value: 'self', label: 'Diri Sendiri' },
+    { value: 'peer', label: 'Rekan Kerja' },
+    { value: 'manager', label: 'Atasan' },
+    { value: 'subordinate', label: 'Bawahan' },
+];
+
+/** Indonesian label for a feedback type enum value. */
+export function feedbackTypeLabel(type: string): string {
+    return (
+        FEEDBACK_TYPE_OPTIONS.find((option) => option.value === type)?.label ??
+        type
+    );
+}
+
 /** Indonesian label for a review status enum value. */
 export function reviewStatusLabel(status: string): string {
     return (

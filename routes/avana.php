@@ -12,6 +12,7 @@ use App\Http\Controllers\Avana\CashAdvanceController;
 use App\Http\Controllers\Avana\ClaimController;
 use App\Http\Controllers\Avana\CompanySetupController;
 use App\Http\Controllers\Avana\ContractController;
+use App\Http\Controllers\Avana\DokumenController;
 use App\Http\Controllers\Avana\DutyTravelController;
 use App\Http\Controllers\Avana\DynamicReportController;
 use App\Http\Controllers\Avana\EmployeeController;
@@ -22,7 +23,9 @@ use App\Http\Controllers\Avana\LaporanController;
 use App\Http\Controllers\Avana\LearningController;
 use App\Http\Controllers\Avana\LeaveController;
 use App\Http\Controllers\Avana\LeaveTypeController;
+use App\Http\Controllers\Avana\LetterTemplateController;
 use App\Http\Controllers\Avana\MovementController;
+use App\Http\Controllers\Avana\OkrController;
 use App\Http\Controllers\Avana\OvertimeController;
 use App\Http\Controllers\Avana\PayrollConfigController;
 use App\Http\Controllers\Avana\PayrollController;
@@ -220,6 +223,36 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     Route::delete('kinerja/{review}', [PerformanceController::class, 'destroy'])->name('kinerja.destroy');
     Route::post('kinerja/cycle', [PerformanceController::class, 'storeCycle'])->name('kinerja.cycle.store');
     Route::post('kinerja/{review}/score', [PerformanceController::class, 'submitScore'])->name('kinerja.score');
+    // 360 feedback on a performance review
+    Route::post('kinerja/{review}/feedback', [PerformanceController::class, 'storeFeedback'])->name('kinerja.feedback.store');
+    Route::delete('kinerja/feedback/{feedback}', [PerformanceController::class, 'destroyFeedback'])->name('kinerja.feedback.destroy');
+
+    // OKR & Goal (objectives + key results)
+    Route::get('okr', [OkrController::class, 'index'])->name('okr');
+    Route::get('okr/create', [OkrController::class, 'create'])->name('okr.create');
+    Route::get('okr/{objective}/edit', [OkrController::class, 'edit'])->name('okr.edit');
+    Route::post('okr', [OkrController::class, 'store'])->name('okr.store');
+    Route::put('okr/{objective}', [OkrController::class, 'update'])->name('okr.update');
+    Route::delete('okr/{objective}', [OkrController::class, 'destroy'])->name('okr.destroy');
+    Route::post('okr/{objective}/key-result', [OkrController::class, 'storeKeyResult'])->name('okr.kr.store');
+    Route::put('okr/key-result/{keyResult}', [OkrController::class, 'updateKeyResult'])->name('okr.kr.update');
+    Route::delete('okr/key-result/{keyResult}', [OkrController::class, 'destroyKeyResult'])->name('okr.kr.destroy');
+
+    // Dokumen Karyawan (employee documents)
+    Route::get('dokumen', [DokumenController::class, 'index'])->name('dokumen');
+    Route::post('dokumen', [DokumenController::class, 'store'])->name('dokumen.store');
+    Route::delete('dokumen/{document}', [DokumenController::class, 'destroy'])->name('dokumen.destroy');
+
+    // Template Surat (HR letter templates + generated letters)
+    Route::get('surat', [LetterTemplateController::class, 'index'])->name('surat');
+    Route::get('surat/create', [LetterTemplateController::class, 'create'])->name('surat.create');
+    Route::get('surat/{letterTemplate}/edit', [LetterTemplateController::class, 'edit'])->name('surat.edit');
+    Route::post('surat', [LetterTemplateController::class, 'store'])->name('surat.store');
+    Route::put('surat/{letterTemplate}', [LetterTemplateController::class, 'update'])->name('surat.update');
+    Route::delete('surat/{letterTemplate}', [LetterTemplateController::class, 'destroy'])->name('surat.destroy');
+    Route::post('surat/generate', [LetterTemplateController::class, 'generate'])->name('surat.generate');
+    Route::get('surat/cetak/{generatedLetter}', [LetterTemplateController::class, 'print'])->name('surat.print');
+    Route::delete('surat/dokumen/{generatedLetter}', [LetterTemplateController::class, 'destroyGenerated'])->name('surat.generated.destroy');
 
     // Pembelajaran (learning / LMS)
     Route::get('pembelajaran', [LearningController::class, 'index'])->name('pembelajaran');

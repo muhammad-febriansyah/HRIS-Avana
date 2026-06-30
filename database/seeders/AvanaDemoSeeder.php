@@ -180,6 +180,7 @@ final class AvanaDemoSeeder extends Seeder
             'hr_core' => ['HR Core', 'core'],
             'organization' => ['Organization', 'core'],
             'document' => ['Manajemen Dokumen', 'core'],
+            'letter' => ['Template Surat', 'core'],
             'offboarding' => ['Offboarding & Clearance', 'core'],
             'helpdesk' => ['HR Helpdesk', 'core'],
             'delegation' => ['Delegasi Approval', 'core'],
