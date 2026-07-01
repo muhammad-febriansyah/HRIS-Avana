@@ -294,6 +294,7 @@ export const NAV: NavGroup[] = [
         title: 'MANAJEMEN',
         items: [
             { id: 'karyawan', label: 'Karyawan', icon: 'users', href: '/avana/employees' },
+            { id: 'organisasi', label: 'Struktur Organisasi', icon: 'network', href: '/avana/organisasi' },
             { id: 'absensi', label: 'Absensi', icon: 'fingerprint', href: '/avana/absensi' },
             { id: 'cuti', label: 'Cuti & Lembur', icon: 'palmtree', href: '/avana/cuti' },
             { id: 'payroll', label: 'Payroll', icon: 'wallet', href: '/avana/payroll' },

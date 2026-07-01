@@ -62,6 +62,7 @@ use Illuminate\Support\Facades\Route;
  * via <Model>::forTenant($request->user()->tenant_id).
  */
 Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(function () {
+    Route::get('organisasi', [EmployeeController::class, 'orgChart'])->name('organisasi');
     Route::resource('employees', EmployeeController::class);
 
     Route::get('absensi', [AttendanceController::class, 'index'])->name('absensi');

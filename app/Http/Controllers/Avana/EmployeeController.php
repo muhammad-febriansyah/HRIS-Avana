@@ -131,7 +131,33 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Display a single employee with its related records.
+     * Render the visual organisation chart from the reporting hierarchy.
+     */
+    public function orgChart(Request $request): Response
+    {
+        $this->authorize('viewAny', Employee::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $employees = Employee::forTenant($tenantId)
+            ->where('status', 'active')
+            ->with(['position:id,name', 'department:id,name'])
+            ->orderBy('full_name')
+            ->get(['id', 'full_name', 'position_id', 'department_id', 'manager_id']);
+
+        return Inertia::render('avana/employees/org-chart', [
+            'nodes' => $employees->map(fn (Employee $employee): array => [
+                'id' => $employee->id,
+                'name' => $employee->full_name,
+                'position' => $employee->position?->name,
+                'department' => $employee->department?->name,
+                'manager_id' => $employee->manager_id,
+            ])->values(),
+        ]);
+    }
+
+    /**
+     * Display the specified employee.
      */
     public function show(Request $request, Employee $employee): Response
     {

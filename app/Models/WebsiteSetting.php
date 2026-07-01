@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -21,22 +20,6 @@ final class WebsiteSetting extends Model
     private const DISK = 'public';
 
     /**
-     * Cache key for the singleton row so we don't hit the DB on every request.
-     */
-    private const CACHE_KEY = 'website_settings.current';
-
-    /**
-     * Bust the cache whenever the row is saved or deleted.
-     */
-    protected static function booted(): void
-    {
-        $forget = static fn () => Cache::forget(self::CACHE_KEY);
-
-        static::saved($forget);
-        static::deleted($forget);
-    }
-
-    /**
      * The singleton settings row, created on first access.
      */
     public static function current(): self
@@ -45,12 +28,13 @@ final class WebsiteSetting extends Model
     }
 
     /**
-     * The singleton row, cached for the lifetime of the cache store. Use this
-     * on hot paths (root view, shared Inertia props) rather than {@see current()}.
+     * Alias of {@see current()} used on hot paths (root view, shared Inertia
+     * props). Kept as a distinct method so a caching layer can be introduced
+     * later without touching callers.
      */
     public static function cached(): self
     {
-        return Cache::rememberForever(self::CACHE_KEY, static fn (): self => self::current());
+        return self::current();
     }
 
     /**
