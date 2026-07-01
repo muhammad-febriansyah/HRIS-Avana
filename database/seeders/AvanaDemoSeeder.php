@@ -81,6 +81,7 @@ final class AvanaDemoSeeder extends Seeder
         );
 
         $employees = $this->seedEmployees($tenant, $branches, $departments, $jobLevel, $admin);
+        $this->seedEmployeeUser($tenant, $employees);
         $leaveTypes = $this->seedLeaveTypes($tenant);
         $this->seedLeaveBalances($tenant, $employees, $leaveTypes);
         $this->seedLeaveRequests($tenant, $employees, $leaveTypes, $admin);
@@ -311,6 +312,40 @@ final class AvanaDemoSeeder extends Seeder
         $this->seedManager($tenant);
 
         return $user;
+    }
+
+    /**
+     * Seed an employee (ESS) user linked to a real employee record, for the
+     * Flutter self-service app.
+     *
+     * @param  array<int, Employee>  $employees
+     */
+    private function seedEmployeeUser(Tenant $tenant, array $employees): void
+    {
+        $employee = $employees[2] ?? reset($employees);
+
+        if (! $employee) {
+            return;
+        }
+
+        $user = User::firstOrCreate(
+            ['email' => 'karyawan@avanahr.co.id'],
+            [
+                'name' => $employee->full_name,
+                'tenant_id' => $tenant->id,
+                'password' => Hash::make('password'),
+                'status' => 'active',
+                'email_verified_at' => now(),
+            ],
+        );
+        $user->forceFill(['tenant_id' => $tenant->id])->save();
+
+        $role = Role::where('tenant_id', $tenant->id)->where('code', 'employee')->first();
+        if ($role) {
+            $user->roles()->syncWithoutDetaching([$role->id]);
+        }
+
+        $employee->forceFill(['user_id' => $user->id])->save();
     }
 
     /** Seed a Manager user (team approvals + limited read scope). */
