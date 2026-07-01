@@ -2,6 +2,7 @@ import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import MenuBuilderController from '@/actions/App/Http/Controllers/Avana/MenuBuilderController';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, ActionBtn, btnOut, btnP, C, card } from '@/lib/avana';
 
 interface MenuRow {
@@ -222,16 +223,14 @@ export default function MenuBuilder({ tree, parents, sections, features, modules
                     </div>
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                         {isSuperAdmin && tenants.length > 0 && (
-                            <select
+                            <SearchableSelect
                                 value={String(selectedTenant)}
-                                onChange={(e) => switchTenant(e.target.value)}
-                                style={{ ...inp, width: 'auto', minWidth: 200 }}
-                                title="Kelola menu untuk tenant"
-                            >
-                                {tenants.map((t) => (
-                                    <option key={t.id} value={String(t.id)}>{t.name}</option>
-                                ))}
-                            </select>
+                                onChange={(v) => v && switchTenant(v)}
+                                options={tenants.map((t) => ({ value: String(t.id), label: t.name }))}
+                                placeholder="Pilih tenant"
+                                searchPlaceholder="Cari tenant…"
+                                style={{ minWidth: 230 }}
+                            />
                         )}
                         <button onClick={openAdd} style={btnP}>
                             <AIcon name="plus" size={16} color="#fff" />

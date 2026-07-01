@@ -103,7 +103,7 @@ class PayrollConfigController extends Controller
      */
     public function storeBpjsProgram(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureSuperAdmin($request);
 
         $validated = $request->validate(
             $this->bpjsProgramRules(),
@@ -128,7 +128,7 @@ class PayrollConfigController extends Controller
      */
     public function updateBpjsProgram(Request $request, BpjsProgram $program): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureSuperAdmin($request);
 
         $validated = $request->validate(
             $this->bpjsProgramRules($program->id),
@@ -164,7 +164,7 @@ class PayrollConfigController extends Controller
      */
     public function destroyBpjsProgram(Request $request, BpjsProgram $program): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureSuperAdmin($request);
 
         $program->delete();
 
@@ -176,7 +176,7 @@ class PayrollConfigController extends Controller
      */
     public function storeTerRate(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureSuperAdmin($request);
 
         $validated = $request->validate(
             $this->terRateRules(),
@@ -201,7 +201,7 @@ class PayrollConfigController extends Controller
      */
     public function updateTerRate(Request $request, Pph21TerRate $rate): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureSuperAdmin($request);
 
         $validated = $request->validate(
             $this->terRateRules(),
@@ -226,7 +226,7 @@ class PayrollConfigController extends Controller
      */
     public function destroyTerRate(Request $request, Pph21TerRate $rate): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureSuperAdmin($request);
 
         $rate->delete();
 
@@ -345,5 +345,20 @@ class PayrollConfigController extends Controller
             ->isNotEmpty();
 
         abort_unless($isPrivileged || $hasManagePermission, 403);
+    }
+
+    /**
+     * Abort with 403 unless the user is a super admin. BPJS programs/rates and
+     * PPh 21 TER rates are GLOBAL (no tenant_id) statutory config shared by every
+     * tenant, so only a super admin may change them — a tenant admin editing them
+     * would alter the rates for all tenants.
+     */
+    private function ensureSuperAdmin(Request $request): void
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $user->loadMissing('roles');
+
+        abort_unless($user->roles->contains(fn ($role): bool => $role->code === 'super_admin'), 403);
     }
 }

@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import OffboardingController from '@/actions/App/Http/Controllers/Avana/OffboardingController';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, ActionBtn, btnOut, btnP, C, card } from '@/lib/avana';
 
 /* ============================================================
@@ -285,12 +286,13 @@ export default function OffboardingIndex({ cases, employees, severanceReasons, k
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                             <div>
                                 <label style={labelStyle}>Karyawan <span style={{ color: C.red }}>*</span></label>
-                                <select value={caseForm.data.employee_id} onChange={(e) => caseForm.setData('employee_id', e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
-                                    <option value="">Pilih karyawan</option>
-                                    {employees.map((emp) => (
-                                        <option key={emp.id} value={String(emp.id)}>{emp.name} ({emp.employee_number})</option>
-                                    ))}
-                                </select>
+                                <SearchableSelect
+                                    value={caseForm.data.employee_id}
+                                    onChange={(v) => caseForm.setData('employee_id', v)}
+                                    options={employees.map((emp) => ({ value: String(emp.id), label: `${emp.name} (${emp.employee_number})` }))}
+                                    placeholder="Pilih karyawan"
+                                    searchPlaceholder="Cari nama / NIK…"
+                                />
                                 {caseForm.errors.employee_id && <FieldError message={caseForm.errors.employee_id} />}
                             </div>
                             <div>
