@@ -29,7 +29,7 @@ it('renders the assistant with the user conversation history', function (): void
             ->has('messages', 2)
             ->where('messages.0.role', 'user')
             ->where('messages.1.role', 'assistant')
-            ->has('model'));
+            ->has('ready'));
 });
 
 it('validates that a message is required to stream', function (): void {

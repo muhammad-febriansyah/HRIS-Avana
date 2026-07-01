@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 use Prism\Prism\Facades\Prism;
+use Prism\Prism\Streaming\Events\StreamEndEvent;
 use Prism\Prism\Streaming\Events\TextDeltaEvent;
 use Prism\Prism\ValueObjects\Messages\AssistantMessage;
 use Prism\Prism\ValueObjects\Messages\UserMessage;
@@ -50,9 +51,7 @@ class AiAssistantController extends Controller
 
         return Inertia::render('avana/ai/index', [
             'messages' => $messages,
-            'model' => (string) config('prism.providers.openai.api_key') !== ''
-                ? (string) env('AI_MODEL', 'gpt-4o-mini')
-                : null,
+            'ready' => (string) config('prism.providers.openai.api_key') !== '',
         ]);
     }
 
@@ -97,6 +96,8 @@ class AiAssistantController extends Controller
             };
 
             $full = '';
+            $promptTokens = null;
+            $completionTokens = null;
 
             if ($apiKey === '') {
                 $full = 'Kunci OpenAI belum dikonfigurasi. Tambahkan `OPENAI` (atau `OPENAI_API_KEY`) di file `.env`, lalu jalankan ulang.';
@@ -113,6 +114,9 @@ class AiAssistantController extends Controller
                         if ($event instanceof TextDeltaEvent && $event->delta !== '') {
                             $full .= $event->delta;
                             $emit($event->delta);
+                        } elseif ($event instanceof StreamEndEvent && $event->usage !== null) {
+                            $promptTokens = $event->usage->promptTokens;
+                            $completionTokens = $event->usage->completionTokens;
                         }
                     }
                 } catch (\Throwable $e) {
@@ -122,11 +126,19 @@ class AiAssistantController extends Controller
                 }
             }
 
+            $totalTokens = $promptTokens !== null || $completionTokens !== null
+                ? (int) $promptTokens + (int) $completionTokens
+                : null;
+
             AiMessage::create([
                 'tenant_id' => $user->tenant_id,
                 'user_id' => $user->id,
                 'role' => 'assistant',
                 'content' => $full !== '' ? $full : '(tidak ada respons)',
+                'model' => $apiKey === '' ? null : $model,
+                'prompt_tokens' => $promptTokens,
+                'completion_tokens' => $completionTokens,
+                'total_tokens' => $totalTokens,
             ]);
         }, 200, [
             'Content-Type' => 'text/plain; charset=utf-8',

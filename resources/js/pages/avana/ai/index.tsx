@@ -11,7 +11,7 @@ interface ChatMessage {
 
 interface AiProps {
     messages: ChatMessage[];
-    model: string | null;
+    ready: boolean;
 }
 
 const SUGGESTIONS = [
@@ -39,7 +39,7 @@ function renderMarkdown(text: string): string {
         .replace(/\n/g, '<br/>');
 }
 
-export default function AiAssistant({ messages: initial, model }: AiProps) {
+export default function AiAssistant({ messages: initial, ready }: AiProps) {
     const [messages, setMessages] = useState<ChatMessage[]>(initial);
     const [input, setInput] = useState('');
     const [streaming, setStreaming] = useState(false);
@@ -124,7 +124,7 @@ export default function AiAssistant({ messages: initial, model }: AiProps) {
                         <div>
                             <div style={{ fontSize: 17, fontWeight: 600, color: C.navy }}>AI Assistant</div>
                             <div style={{ fontSize: 11.5, color: C.faint }}>
-                                {model ? `OpenAI · ${model}` : 'Kunci OpenAI belum diatur'}
+                                {ready ? 'Asisten cerdas AvanaHR' : 'Asisten belum aktif'}
                             </div>
                         </div>
                     </div>
