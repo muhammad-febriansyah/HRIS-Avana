@@ -290,11 +290,6 @@ class PayrollController extends Controller
                 ? (int) floor(abs($employee->join_date->diffInMonths(now())))
                 : 12;
 
-            // Permenaker 6/2016: minimum one continuous month of service.
-            if ($monthsWorked < 1) {
-                continue;
-            }
-
             // THR is based on a full month's wage, never the prorated payslip.
             $base = $this->monthlyBaseWage($employee, $tenantId);
 
@@ -303,12 +298,11 @@ class PayrollController extends Controller
                 $base = $pay['basic'] > 0 ? $pay['basic'] : $pay['gross'];
             }
 
-            $factor = min(1.0, $monthsWorked / 12);
+            // Permenaker 6/2016: eligibility requires at least one continuous
+            // month of service; below that the entitlement is zero (row kept
+            // for a complete run register).
+            $factor = $monthsWorked >= 1 ? min(1.0, $monthsWorked / 12) : 0.0;
             $thr = round($base * $factor);
-
-            if ($thr <= 0) {
-                continue;
-            }
 
             PayrollRunItem::updateOrCreate(
                 ['payroll_run_id' => $run->id, 'employee_id' => $employee->id],

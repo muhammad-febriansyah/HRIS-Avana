@@ -62,9 +62,16 @@ final class WebsiteSetting extends Model
     }
 
     /**
-     * Branding fields shared with the frontend (Inertia props).
+     * Public branding, contact and social fields shared with the frontend
+     * (Inertia props) for the navbar, footer and landing page.
      *
-     * @return array{site_name: ?string, tagline: ?string, logo_url: ?string}
+     * @return array{
+     *     site_name: ?string,
+     *     tagline: ?string,
+     *     logo_url: ?string,
+     *     contact: array{email: ?string, phone: ?string, whatsapp: ?string, address: ?string},
+     *     social: array{facebook: ?string, instagram: ?string, twitter: ?string, youtube: ?string, linkedin: ?string, tiktok: ?string}
+     * }
      */
     public function toBrandingArray(): array
     {
@@ -72,6 +79,20 @@ final class WebsiteSetting extends Model
             'site_name' => $this->site_name,
             'tagline' => $this->tagline,
             'logo_url' => $this->logoUrl(),
+            'contact' => [
+                'email' => $this->contact_email,
+                'phone' => $this->contact_phone,
+                'whatsapp' => $this->contact_whatsapp,
+                'address' => $this->contact_address,
+            ],
+            'social' => [
+                'facebook' => $this->social_facebook,
+                'instagram' => $this->social_instagram,
+                'twitter' => $this->social_twitter,
+                'youtube' => $this->social_youtube,
+                'linkedin' => $this->social_linkedin,
+                'tiktok' => $this->social_tiktok,
+            ],
         ];
     }
 

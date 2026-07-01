@@ -20,6 +20,7 @@ use App\Http\Controllers\Avana\CompanySetupController;
 use App\Http\Controllers\Avana\CompetencyController;
 use App\Http\Controllers\Avana\ContractController;
 use App\Http\Controllers\Avana\CrmController;
+use App\Http\Controllers\Avana\CustomFieldController;
 use App\Http\Controllers\Avana\DokumenController;
 use App\Http\Controllers\Avana\DutyTravelController;
 use App\Http\Controllers\Avana\DynamicReportController;
@@ -63,6 +64,10 @@ use Illuminate\Support\Facades\Route;
  */
 Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(function () {
     Route::get('organisasi', [EmployeeController::class, 'orgChart'])->name('organisasi');
+    Route::get('custom-fields', [CustomFieldController::class, 'index'])->name('custom-fields');
+    Route::post('custom-fields', [CustomFieldController::class, 'store'])->name('custom-fields.store');
+    Route::put('custom-fields/{field}', [CustomFieldController::class, 'update'])->name('custom-fields.update');
+    Route::delete('custom-fields/{field}', [CustomFieldController::class, 'destroy'])->name('custom-fields.destroy');
     Route::resource('employees', EmployeeController::class);
 
     Route::get('absensi', [AttendanceController::class, 'index'])->name('absensi');

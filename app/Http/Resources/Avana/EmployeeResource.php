@@ -69,6 +69,7 @@ final class EmployeeResource extends JsonResource
             'join_date_raw' => $this->join_date?->format('Y-m-d'),
             'status' => $this->status,
             'status_label' => self::STATUS_LABELS[$this->status] ?? $this->status,
+            'custom_data' => $this->custom_data ?? [],
             'initials' => $this->initials(),
             'avatar_color' => $this->avatarColor(),
             'branch' => $this->whenLoaded('branch', fn () => $this->namedRelation($this->branch)),

@@ -172,5 +172,9 @@ it('shares branding as an inertia prop for the frontend', function (): void {
         ->assertInertia(fn (Assert $page) => $page
             ->where('website.site_name', 'AvanaHR')
             ->has('website.logo_url')
-            ->has('website.tagline'));
+            ->has('website.tagline')
+            ->has('website.contact.email')
+            ->has('website.contact.whatsapp')
+            ->has('website.social.instagram')
+            ->has('website.social.linkedin'));
 });

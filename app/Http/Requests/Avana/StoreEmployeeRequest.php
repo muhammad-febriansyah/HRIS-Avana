@@ -2,10 +2,12 @@
 
 namespace App\Http\Requests\Avana;
 
+use App\Models\CustomField;
 use App\Models\Employee;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreEmployeeRequest extends FormRequest
 {
@@ -51,7 +53,35 @@ class StoreEmployeeRequest extends FormRequest
             'position_id' => ['nullable', Rule::exists('positions', 'id')->where('tenant_id', $tenantId)],
             'job_level_id' => ['nullable', Rule::exists('job_levels', 'id')->where('tenant_id', $tenantId)],
             'manager_id' => ['nullable', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
+            'custom_data' => ['nullable', 'array'],
+            'custom_data.*' => ['nullable'],
         ];
+    }
+
+    /**
+     * Enforce the tenant's required custom employee fields.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $tenantId = $this->user()->tenant_id;
+
+            $required = CustomField::forTenant($tenantId)
+                ->where('entity', 'employee')
+                ->where('status', 'active')
+                ->where('is_required', true)
+                ->get(['key', 'label']);
+
+            $data = (array) $this->input('custom_data', []);
+
+            foreach ($required as $field) {
+                $value = $data[$field->key] ?? null;
+
+                if ($value === null || $value === '') {
+                    $validator->errors()->add('custom_data.'.$field->key, $field->label.' wajib diisi.');
+                }
+            }
+        });
     }
 
     /**

@@ -5,6 +5,20 @@ export interface Website {
     site_name: string | null;
     tagline: string | null;
     logo_url: string | null;
+    contact: {
+        email: string | null;
+        phone: string | null;
+        whatsapp: string | null;
+        address: string | null;
+    };
+    social: {
+        facebook: string | null;
+        instagram: string | null;
+        twitter: string | null;
+        youtube: string | null;
+        linkedin: string | null;
+        tiktok: string | null;
+    };
 }
 
 declare module 'react' {

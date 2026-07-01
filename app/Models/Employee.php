@@ -22,6 +22,7 @@ final class Employee extends Model
             'birth_date' => 'date',
             'join_date' => 'date',
             'resign_date' => 'date',
+            'custom_data' => 'array',
         ];
     }
 

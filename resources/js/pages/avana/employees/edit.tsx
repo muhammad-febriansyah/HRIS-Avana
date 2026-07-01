@@ -6,6 +6,7 @@ import EmployeeController from '@/actions/App/Http/Controllers/Avana/EmployeeCon
 import { AIcon, C } from '@/lib/avana';
 import { EmployeeForm } from './employee-form';
 import type {
+    CustomFieldDef,
     Employee,
     EmployeeFormData,
     EmployeeFormOptions,
@@ -17,6 +18,7 @@ interface EmployeesEditProps {
         data: Employee;
     };
     options: EmployeeFormOptions;
+    customFields: CustomFieldDef[];
 }
 
 /** Map a possibly-null relation id to a string for the controlled selects. */
@@ -27,6 +29,7 @@ function relationId(relation?: { id: number } | null): string {
 export default function EmployeesEdit({
     employee,
     options,
+    customFields,
 }: EmployeesEditProps) {
     const { data } = employee;
     const { flash } = usePage<FlashProps>().props;
@@ -50,6 +53,7 @@ export default function EmployeesEdit({
         job_level_id: relationId(data.job_level),
         manager_id: relationId(data.manager),
         status: data.status ?? 'active',
+        custom_data: data.custom_data ?? {},
     });
 
     useEffect(() => {
@@ -116,6 +120,7 @@ export default function EmployeesEdit({
                 <EmployeeForm
                     form={form}
                     options={options}
+                    customFields={customFields}
                     submitLabel="Simpan Perubahan"
                     cancelHref={EmployeeController.index().url}
                     onSubmit={handleSubmit}
