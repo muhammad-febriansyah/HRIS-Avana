@@ -42,6 +42,7 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'name' => config('app.name'),
+            'website' => fn (): array => WebsiteSetting::cached()->toBrandingArray(),
             'auth' => [
                 'user' => $user,
                 'roles' => fn () => $user?->roles()->pluck('code')->all() ?? [],

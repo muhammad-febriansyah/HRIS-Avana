@@ -105,6 +105,7 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     Route::get('payroll/periods/create', [PayrollController::class, 'createPeriod'])->name('payroll.periods.create');
     Route::post('payroll/periods', [PayrollController::class, 'storePeriod'])->name('payroll.periods.store');
     Route::post('payroll/run', [PayrollController::class, 'run'])->name('payroll.run');
+    Route::post('payroll/approve', [PayrollController::class, 'approve'])->name('payroll.approve');
     Route::post('payroll/lock', [PayrollController::class, 'lock'])->name('payroll.lock');
     Route::post('payroll/thr', [PayrollController::class, 'thr'])->name('payroll.thr');
     Route::get('payroll/transfer', [PayrollController::class, 'transferFile'])->name('payroll.transfer');

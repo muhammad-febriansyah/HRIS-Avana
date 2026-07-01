@@ -616,8 +616,15 @@ class PayrollController extends Controller
             ->orderByDesc('id')
             ->first();
 
+        abort_if($run === null, 404);
+
+        // BR-11.3: payroll cannot be finalized before it is reviewed & approved.
+        if ($run->status !== 'approved' && $run->status !== 'locked') {
+            return back()->withErrors(['payroll' => 'Payroll harus direview & disetujui sebelum dikunci.']);
+        }
+
         // Finalizing advances loan/cash-advance installments exactly once.
-        if ($run !== null && $run->status !== 'locked') {
+        if ($run->status !== 'locked') {
             $this->advanceInstallments($run, $tenantId);
             $run->update(['status' => 'locked']);
         }
@@ -625,6 +632,45 @@ class PayrollController extends Controller
         $period->update(['status' => 'locked']);
 
         return back()->with('success', 'Payroll dikunci');
+    }
+
+    /**
+     * Mark the latest calculated run as reviewed & approved (BR-11.3), recording
+     * the approver. Recomputing a run resets it to 'calculated', requiring
+     * re-approval before it can be locked.
+     */
+    public function approve(Request $request): RedirectResponse
+    {
+        $this->authorize('run', PayrollPeriod::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $period = $this->resolveTargetPeriod($tenantId);
+
+        abort_if($period === null, 404);
+
+        $run = PayrollRun::forTenant($tenantId)
+            ->where('payroll_period_id', $period->id)
+            ->orderByDesc('id')
+            ->first();
+
+        abort_if($run === null, 404);
+
+        if ($run->status === 'locked') {
+            return back()->withErrors(['payroll' => 'Payroll sudah dikunci.']);
+        }
+
+        if ($run->status !== 'calculated' && $run->status !== 'approved') {
+            return back()->withErrors(['payroll' => 'Hitung payroll terlebih dahulu.']);
+        }
+
+        $run->update([
+            'status' => 'approved',
+            'approved_by' => $request->user()->id,
+            'approved_at' => now(),
+        ]);
+
+        return back()->with('success', 'Payroll disetujui');
     }
 
     /**

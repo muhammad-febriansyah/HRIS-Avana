@@ -66,9 +66,9 @@ class WebsiteSettingController extends Controller
                 'contact_phone' => $settings->contact_phone,
                 'contact_whatsapp' => $settings->contact_whatsapp,
                 'contact_address' => $settings->contact_address,
-                'logo_url' => $this->fileUrl($settings->logo_path),
-                'favicon_url' => $this->fileUrl($settings->favicon_path),
-                'og_image_url' => $this->fileUrl($settings->og_image_path),
+                'logo_url' => $settings->logoUrl(),
+                'favicon_url' => $settings->faviconUrl(),
+                'og_image_url' => $settings->ogImageUrl(),
             ],
         ]);
     }
@@ -120,14 +120,6 @@ class WebsiteSettingController extends Controller
         $settings->save();
 
         return back()->with('success', 'Pengaturan website berhasil disimpan');
-    }
-
-    /**
-     * Public URL for a stored relative path (null-safe).
-     */
-    private function fileUrl(?string $path): ?string
-    {
-        return $path ? Storage::disk(self::DISK)->url($path) : null;
     }
 
     /**

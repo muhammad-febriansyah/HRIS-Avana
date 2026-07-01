@@ -19,6 +19,7 @@ export default function AvanaPayroll({
     const { flash } = usePage<FlashProps>().props;
     const meta = periods.meta;
     const isLocked = summary.status === 'locked';
+    const isApproved = summary.status === 'approved';
     const [bank, setBank] = useState('generic');
 
     useEffect(() => {
@@ -33,6 +34,14 @@ export default function AvanaPayroll({
         }
 
         router.post(PayrollController.run().url, {}, { preserveScroll: true });
+    };
+
+    const approvePayroll = () => {
+        if (isLocked) {
+            return;
+        }
+
+        router.post(PayrollController.approve().url, {}, { preserveScroll: true });
     };
 
     const lockPayroll = () => {
@@ -159,12 +168,35 @@ export default function AvanaPayroll({
                             Buat Periode
                         </Link>
                         <button
-                            onClick={lockPayroll}
-                            disabled={isLocked}
+                            onClick={approvePayroll}
+                            disabled={isLocked || isApproved}
                             style={{
                                 ...btnOut,
-                                opacity: isLocked ? 0.5 : 1,
-                                cursor: isLocked ? 'not-allowed' : 'pointer',
+                                opacity: isLocked || isApproved ? 0.5 : 1,
+                                cursor:
+                                    isLocked || isApproved
+                                        ? 'not-allowed'
+                                        : 'pointer',
+                            }}
+                        >
+                            <AIcon name="check-check" size={16} />
+                            {isApproved ? 'Disetujui' : 'Setujui'}
+                        </button>
+                        <button
+                            onClick={lockPayroll}
+                            disabled={isLocked || !isApproved}
+                            title={
+                                !isApproved
+                                    ? 'Setujui payroll dulu sebelum mengunci'
+                                    : undefined
+                            }
+                            style={{
+                                ...btnOut,
+                                opacity: isLocked || !isApproved ? 0.5 : 1,
+                                cursor:
+                                    isLocked || !isApproved
+                                        ? 'not-allowed'
+                                        : 'pointer',
                             }}
                         >
                             <AIcon name="lock" size={16} />

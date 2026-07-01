@@ -28,6 +28,7 @@ beforeEach(function (): void {
 
     Route::middleware('web')->prefix('spec-resign')->group(function (): void {
         Route::post('payroll/run', [PayrollController::class, 'run']);
+        Route::post('payroll/approve', [PayrollController::class, 'approve']);
         Route::post('payroll/lock', [PayrollController::class, 'lock']);
     });
 });
@@ -105,6 +106,7 @@ it('deducts an approved loan installment and advances it on lock', function (): 
 
     expect((float) $deductions->firstWhere('name', 'Cicilan Pinjaman')['amount'])->toBe(500_000.0);
 
+    actingAs($this->admin)->post('spec-resign/payroll/approve')->assertSessionHas('success');
     actingAs($this->admin)->post('spec-resign/payroll/lock')->assertSessionHas('success');
 
     expect($loan->fresh()->paid_installments)->toBe(1);
@@ -126,6 +128,7 @@ it('settles a loan once the final installment is paid on lock', function (): voi
     ]);
 
     runResign($this);
+    actingAs($this->admin)->post('spec-resign/payroll/approve')->assertSessionHas('success');
     actingAs($this->admin)->post('spec-resign/payroll/lock')->assertSessionHas('success');
 
     expect($loan->fresh()->paid_installments)->toBe(5);
