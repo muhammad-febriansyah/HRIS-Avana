@@ -372,6 +372,7 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     Route::get('offboarding', [OffboardingController::class, 'index'])->name('offboarding');
     Route::post('offboarding', [OffboardingController::class, 'store'])->name('offboarding.store');
     Route::post('offboarding/item/{item}/toggle', [OffboardingController::class, 'toggleItem'])->name('offboarding.item.toggle');
+    Route::post('offboarding/{case}/settlement', [OffboardingController::class, 'settlement'])->name('offboarding.settlement');
     Route::delete('offboarding/{case}', [OffboardingController::class, 'destroy'])->name('offboarding.destroy');
 
     // Pengumuman (announcements)

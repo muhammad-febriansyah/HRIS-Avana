@@ -20,6 +20,7 @@ final class Employee extends Model
         return [
             'birth_date' => 'date',
             'join_date' => 'date',
+            'resign_date' => 'date',
         ];
     }
 

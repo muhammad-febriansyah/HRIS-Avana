@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\Avana\PayrollPeriodResource;
 use App\Models\Attendance;
 use App\Models\BpjsProgram;
+use App\Models\CashAdvance;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
 use App\Models\EmployeeSalaryComponent;
+use App\Models\Loan;
 use App\Models\OvertimeRequest;
 use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
@@ -21,6 +23,7 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -103,9 +106,7 @@ class PayrollController extends Controller
         $run->status = 'calculated';
         $run->save();
 
-        $employees = Employee::forTenant($tenantId)
-            ->where('status', 'active')
-            ->get();
+        $employees = $this->payableEmployees($tenantId, $period);
 
         $totalGross = 0.0;
         $totalDeduction = 0.0;
@@ -133,6 +134,9 @@ class PayrollController extends Controller
                         'deductions' => $pay['deductions'],
                         'present_days' => $pay['present_days'],
                         'overtime_hours' => $pay['overtime_hours'],
+                        'proration_factor' => $pay['proration_factor'],
+                        'loan_ids' => $pay['loan_ids'],
+                        'advance_ids' => $pay['advance_ids'],
                         'gross' => $pay['gross'],
                         'deduction' => $pay['deduction'],
                         'bpjs' => $pay['bpjs_snapshot'],
@@ -265,22 +269,43 @@ class PayrollController extends Controller
         $run->save();
 
         $employees = Employee::forTenant($tenantId)
-            ->where('status', 'active')
+            ->where(function ($query): void {
+                $query->where('status', 'active')
+                    // Permenaker 6/2016: employees who resigned within 30 days
+                    // before the THR payout remain entitled to a prorated THR.
+                    ->orWhere(fn ($sub) => $sub
+                        ->whereNotNull('resign_date')
+                        ->where('resign_date', '>=', now()->subDays(30)->toDateString()));
+            })
             ->get();
 
         $totalThr = 0.0;
         $count = 0;
 
         foreach ($employees as $employee) {
-            $pay = $this->computeEmployeePay($employee, $basePeriod ?? $period, $tenantId);
-            $base = $pay['gross'] > 0 ? $pay['gross'] : $pay['basic'];
-
             $monthsWorked = $employee->join_date !== null
-                ? (int) abs($employee->join_date->diffInMonths(now()))
+                ? (int) floor(abs($employee->join_date->diffInMonths(now())))
                 : 12;
+
+            // Permenaker 6/2016: minimum one continuous month of service.
+            if ($monthsWorked < 1) {
+                continue;
+            }
+
+            // THR is based on a full month's wage, never the prorated payslip.
+            $base = $this->monthlyBaseWage($employee, $tenantId);
+
+            if ($base <= 0) {
+                $pay = $this->computeEmployeePay($employee, $basePeriod ?? $period, $tenantId);
+                $base = $pay['basic'] > 0 ? $pay['basic'] : $pay['gross'];
+            }
 
             $factor = min(1.0, $monthsWorked / 12);
             $thr = round($base * $factor);
+
+            if ($thr <= 0) {
+                continue;
+            }
 
             PayrollRunItem::updateOrCreate(
                 ['payroll_run_id' => $run->id, 'employee_id' => $employee->id],
@@ -376,15 +401,68 @@ class PayrollController extends Controller
 
         abort_if($period === null, 404);
 
-        PayrollRun::forTenant($tenantId)
+        $run = PayrollRun::forTenant($tenantId)
             ->where('payroll_period_id', $period->id)
             ->orderByDesc('id')
-            ->first()
-            ?->update(['status' => 'locked']);
+            ->first();
+
+        // Finalizing advances loan/cash-advance installments exactly once.
+        if ($run !== null && $run->status !== 'locked') {
+            $this->advanceInstallments($run, $tenantId);
+            $run->update(['status' => 'locked']);
+        }
 
         $period->update(['status' => 'locked']);
 
         return back()->with('success', 'Payroll dikunci');
+    }
+
+    /**
+     * Advance the installment counters for every loan/cash-advance that was
+     * deducted in this run, settling them once fully paid.
+     */
+    private function advanceInstallments(PayrollRun $run, int $tenantId): void
+    {
+        $items = PayrollRunItem::forTenant($tenantId)
+            ->where('payroll_run_id', $run->id)
+            ->get(['calculation_snapshot']);
+
+        $loanIds = [];
+        $advanceIds = [];
+
+        foreach ($items as $item) {
+            $snapshot = $item->calculation_snapshot ?? [];
+
+            foreach ((array) ($snapshot['loan_ids'] ?? []) as $id) {
+                $loanIds[] = (int) $id;
+            }
+
+            foreach ((array) ($snapshot['advance_ids'] ?? []) as $id) {
+                $advanceIds[] = (int) $id;
+            }
+        }
+
+        foreach (Loan::forTenant($tenantId)->whereIn('id', array_unique($loanIds))->get() as $loan) {
+            $paid = min((int) $loan->tenor_months, (int) $loan->paid_installments + 1);
+            $loan->paid_installments = $paid;
+
+            if ($paid >= (int) $loan->tenor_months) {
+                $loan->status = 'paid';
+            }
+
+            $loan->save();
+        }
+
+        foreach (CashAdvance::forTenant($tenantId)->whereIn('id', array_unique($advanceIds))->get() as $advance) {
+            $paid = min((int) $advance->installments, (int) $advance->paid_installments + 1);
+            $advance->paid_installments = $paid;
+
+            if ($paid >= (int) $advance->installments) {
+                $advance->status = 'paid';
+            }
+
+            $advance->save();
+        }
     }
 
     /**
@@ -474,7 +552,7 @@ class PayrollController extends Controller
     private function computeEmployeePay(Employee $employee, PayrollPeriod $period, int $tenantId): array
     {
         $presentDays = 0;
-        $overtimeHours = 0.0;
+        $overtimeRecords = collect();
 
         if ($period->start_date !== null && $period->end_date !== null) {
             $range = [$period->start_date->toDateString(), $period->end_date->toDateString()];
@@ -485,18 +563,21 @@ class PayrollController extends Controller
                 ->where('status', 'present')
                 ->count();
 
-            $overtimeHours = (float) OvertimeRequest::forTenant($tenantId)
+            $overtimeRecords = OvertimeRequest::forTenant($tenantId)
                 ->where('employee_id', $employee->id)
                 ->where('status', 'approved')
                 ->whereBetween('date', $range)
-                ->sum('hours');
+                ->get(['date', 'hours']);
         }
 
-        /** @var list<array{name: string, amount: float}> $earnings */
+        $overtimeHours = (float) $overtimeRecords->sum('hours');
+
+        /** @var list<array{name: string, amount: float, proratable: bool}> $earnings */
         $earnings = [];
         /** @var list<array{name: string, amount: float}> $deductions */
         $deductions = [];
         $basic = 0.0;
+        $hasCustomOvertime = false;
 
         $salaryComponents = EmployeeSalaryComponent::forTenant($tenantId)
             ->where('employee_id', $employee->id)
@@ -510,7 +591,7 @@ class PayrollController extends Controller
                 continue;
             }
 
-            $this->collectComponent($component, (float) $salaryComponent->amount, $earnings, $deductions, $basic);
+            $this->collectComponent($component, (float) $salaryComponent->amount, true, $earnings, $deductions, $basic);
         }
 
         if ($employee->position_id !== null) {
@@ -526,12 +607,52 @@ class PayrollController extends Controller
                     continue;
                 }
 
+                if ($component->calc_basis === 'per_overtime_hour') {
+                    $hasCustomOvertime = true;
+                }
+
                 $amount = $this->amountForBasis((float) $positionComponent->amount, $component->calc_basis, $presentDays, $overtimeHours);
-                $this->collectComponent($component, $amount, $earnings, $deductions, $basic);
+                $proratable = ! in_array($component->calc_basis, ['per_present_day', 'per_overtime_hour'], true);
+                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic);
+            }
+        }
+
+        // Capture the full monthly basic before proration for the overtime rate.
+        $fullBasic = $basic;
+
+        // Prorate fixed earnings for mid-period joiners/leavers so a resigning
+        // employee is still paid — proportionally — for their final month.
+        $factor = $this->prorationFactor($employee, $period);
+
+        if ($factor < 1.0) {
+            foreach ($earnings as $index => $row) {
+                if ($row['proratable']) {
+                    $earnings[$index]['amount'] = round($row['amount'] * $factor);
+                }
+            }
+
+            $basic = round($basic * $factor);
+        }
+
+        // Statutory overtime pay (Kepmenaker 102/2004): 1.5x the first hour and
+        // 2x subsequent hours of an hourly wage of 1/173 of the monthly wage.
+        // Skipped when the tenant already models overtime as a position component.
+        if (! $hasCustomOvertime && $overtimeRecords->isNotEmpty() && $fullBasic > 0) {
+            $overtimePay = $this->computeOvertimePay($fullBasic, $overtimeRecords);
+
+            if ($overtimePay > 0) {
+                $earnings[] = ['name' => 'Lembur', 'amount' => $overtimePay, 'proratable' => false];
             }
         }
 
         $gross = (float) array_sum(array_column($earnings, 'amount'));
+
+        // Recurring loan & cash-advance installments deducted from take-home pay.
+        [$recurring, $loanIds, $advanceIds] = $this->recurringDeductions($employee, $tenantId);
+
+        foreach ($recurring as $line) {
+            $deductions[] = $line;
+        }
 
         // Statutory deductions computed from internal config (no external API).
         $bpjs = $this->computeBpjs($employee, $tenantId, $basic > 0 ? $basic : $gross);
@@ -548,13 +669,19 @@ class PayrollController extends Controller
         $deduction = (float) array_sum(array_column($deductions, 'amount'));
 
         return [
-            'earnings' => $earnings,
+            'earnings' => array_map(
+                static fn (array $row): array => ['name' => $row['name'], 'amount' => $row['amount']],
+                $earnings,
+            ),
             'deductions' => $deductions,
             'gross' => $gross,
             'deduction' => $deduction,
             'net' => $gross - $deduction,
             'present_days' => $presentDays,
             'overtime_hours' => $overtimeHours,
+            'proration_factor' => $factor,
+            'loan_ids' => $loanIds,
+            'advance_ids' => $advanceIds,
             'basic' => $basic,
             'bpjs_employee' => $bpjs['employee'],
             'bpjs_company' => $bpjs['company'],
@@ -562,6 +689,183 @@ class PayrollController extends Controller
             'pph21' => $pph21['amount'],
             'tax_snapshot' => $pph21['snapshot'],
         ];
+    }
+
+    /**
+     * Employees whose pay should be computed for the period: everyone active,
+     * plus anyone whose resignation falls inside the period (final-month pay).
+     * Excludes those who joined after the period or left before it started.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, Employee>
+     */
+    private function payableEmployees(int $tenantId, PayrollPeriod $period): \Illuminate\Database\Eloquent\Collection
+    {
+        $start = $period->start_date?->toDateString();
+        $end = $period->end_date?->toDateString();
+
+        if ($start === null || $end === null) {
+            return Employee::forTenant($tenantId)->where('status', 'active')->get();
+        }
+
+        return Employee::forTenant($tenantId)
+            // Joined on or before the period ends.
+            ->where(fn ($query) => $query->whereNull('join_date')->orWhere('join_date', '<=', $end))
+            // Did not leave before the period starts (so the final month is paid).
+            ->where(fn ($query) => $query->whereNull('resign_date')->orWhere('resign_date', '>=', $start))
+            // Still active, or a leaver whose resignation is dated (covers those
+            // already flipped to inactive once their last working day passed).
+            ->where(fn ($query) => $query->where('status', 'active')->orWhereNotNull('resign_date'))
+            ->get();
+    }
+
+    /**
+     * Fraction of the period an employee actually worked (1.0 = whole period),
+     * based on the overlap of their join/resign dates with the period window.
+     */
+    private function prorationFactor(Employee $employee, PayrollPeriod $period): float
+    {
+        if ($period->start_date === null || $period->end_date === null) {
+            return 1.0;
+        }
+
+        $periodStart = $period->start_date->copy()->startOfDay();
+        $periodEnd = $period->end_date->copy()->startOfDay();
+
+        $workStart = $employee->join_date !== null && $employee->join_date->gt($periodStart)
+            ? $employee->join_date->copy()->startOfDay()
+            : $periodStart;
+
+        $workEnd = $employee->resign_date !== null && $employee->resign_date->lt($periodEnd)
+            ? $employee->resign_date->copy()->startOfDay()
+            : $periodEnd;
+
+        if ($workEnd->lt($workStart)) {
+            return 0.0;
+        }
+
+        $calendarDays = $periodStart->diffInDays($periodEnd) + 1;
+        $workedDays = $workStart->diffInDays($workEnd) + 1;
+
+        if ($calendarDays <= 0) {
+            return 1.0;
+        }
+
+        return min(1.0, $workedDays / $calendarDays);
+    }
+
+    /**
+     * Compute statutory overtime pay across the approved overtime records using
+     * the Kepmenaker 102/2004 workday multipliers (1.5x first hour, 2x after).
+     *
+     * @param  Collection<int, OvertimeRequest>  $records
+     */
+    private function computeOvertimePay(float $monthlyWage, Collection $records): float
+    {
+        $hourlyRate = $monthlyWage / 173;
+        $total = 0.0;
+
+        foreach ($records as $record) {
+            $hours = (float) $record->hours;
+
+            if ($hours <= 0) {
+                continue;
+            }
+
+            if ($hours <= 1) {
+                $total += 1.5 * $hourlyRate * $hours;
+
+                continue;
+            }
+
+            $total += 1.5 * $hourlyRate;
+            $total += 2 * $hourlyRate * ($hours - 1);
+        }
+
+        return round($total);
+    }
+
+    /**
+     * Build recurring loan/cash-advance deduction lines for the employee and the
+     * source record ids so the finalize step can advance their installments.
+     *
+     * @return array{0: list<array{name: string, amount: float, loan_id?: int, cash_advance_id?: int}>, 1: list<int>, 2: list<int>}
+     */
+    private function recurringDeductions(Employee $employee, int $tenantId): array
+    {
+        $lines = [];
+        $loanIds = [];
+        $advanceIds = [];
+
+        $loans = Loan::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->where('status', 'approved')
+            ->get();
+
+        foreach ($loans as $loan) {
+            $remaining = (int) $loan->tenor_months - (int) $loan->paid_installments;
+
+            if ($remaining > 0 && (float) $loan->monthly_installment > 0) {
+                $lines[] = ['name' => 'Cicilan Pinjaman', 'amount' => (float) $loan->monthly_installment, 'loan_id' => $loan->id];
+                $loanIds[] = $loan->id;
+            }
+        }
+
+        $advances = CashAdvance::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->where('status', 'approved')
+            ->get();
+
+        foreach ($advances as $advance) {
+            $remaining = (int) $advance->installments - (int) $advance->paid_installments;
+
+            if ($remaining > 0 && (float) $advance->monthly_deduction > 0) {
+                $lines[] = ['name' => 'Potongan Kasbon', 'amount' => (float) $advance->monthly_deduction, 'cash_advance_id' => $advance->id];
+                $advanceIds[] = $advance->id;
+            }
+        }
+
+        return [$lines, $loanIds, $advanceIds];
+    }
+
+    /**
+     * Sum an employee's full monthly fixed wage (earnings only, no proration and
+     * no attendance-variable components) — the basis for THR and severance.
+     */
+    private function monthlyBaseWage(Employee $employee, int $tenantId): float
+    {
+        $total = 0.0;
+
+        $salaryComponents = EmployeeSalaryComponent::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->with('component')
+            ->get();
+
+        foreach ($salaryComponents as $salaryComponent) {
+            $component = $salaryComponent->component;
+
+            if ($component !== null && $component->type !== 'deduction') {
+                $total += (float) $salaryComponent->amount;
+            }
+        }
+
+        if ($employee->position_id !== null) {
+            $positionComponents = PositionPayrollComponent::forTenant($tenantId)
+                ->where('position_id', $employee->position_id)
+                ->with('component')
+                ->get();
+
+            foreach ($positionComponents as $positionComponent) {
+                $component = $positionComponent->component;
+
+                if ($component !== null
+                    && $component->type !== 'deduction'
+                    && ! in_array($component->calc_basis, ['per_present_day', 'per_overtime_hour'], true)) {
+                    $total += (float) $positionComponent->amount;
+                }
+            }
+        }
+
+        return $total;
     }
 
     /**
@@ -681,21 +985,20 @@ class PayrollController extends Controller
 
     /**
      * Push a component's resolved amount into the earnings or deductions bucket.
+     * Earnings are tagged proratable so mid-period joiners/leavers can be scaled.
      *
-     * @param  list<array{name: string, amount: float}>  $earnings
+     * @param  list<array{name: string, amount: float, proratable: bool}>  $earnings
      * @param  list<array{name: string, amount: float}>  $deductions
      */
-    private function collectComponent(PayrollComponent $component, float $amount, array &$earnings, array &$deductions, float &$basic): void
+    private function collectComponent(PayrollComponent $component, float $amount, bool $proratable, array &$earnings, array &$deductions, float &$basic): void
     {
-        $row = ['name' => (string) $component->name, 'amount' => $amount];
-
         if ($component->type === 'deduction') {
-            $deductions[] = $row;
+            $deductions[] = ['name' => (string) $component->name, 'amount' => $amount];
 
             return;
         }
 
-        $earnings[] = $row;
+        $earnings[] = ['name' => (string) $component->name, 'amount' => $amount, 'proratable' => $proratable];
 
         if ($component->code === 'BASIC') {
             $basic += $amount;

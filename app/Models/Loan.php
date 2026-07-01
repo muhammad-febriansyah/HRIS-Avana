@@ -20,6 +20,7 @@ final class Loan extends Model
             'interest_rate' => 'decimal:2',
             'monthly_installment' => 'decimal:2',
             'tenor_months' => 'integer',
+            'paid_installments' => 'integer',
             'approved_at' => 'datetime',
         ];
     }

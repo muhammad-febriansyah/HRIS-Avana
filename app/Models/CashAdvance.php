@@ -19,6 +19,7 @@ final class CashAdvance extends Model
             'amount' => 'decimal:2',
             'monthly_deduction' => 'decimal:2',
             'installments' => 'integer',
+            'paid_installments' => 'integer',
             'request_date' => 'date',
         ];
     }
