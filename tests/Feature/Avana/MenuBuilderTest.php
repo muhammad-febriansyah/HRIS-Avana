@@ -64,6 +64,29 @@ it('reorders siblings with move', function (): void {
     expect($b->fresh()->sort_order)->toBe(500);
 });
 
+it('reorders siblings from an explicit drag order', function (): void {
+    $a = MenuItem::create(['tenant_id' => $this->tenant->id, 'key' => 'da', 'label' => 'A', 'section' => 'DND', 'sort_order' => 0]);
+    $b = MenuItem::create(['tenant_id' => $this->tenant->id, 'key' => 'db', 'label' => 'B', 'section' => 'DND', 'sort_order' => 1]);
+    $c = MenuItem::create(['tenant_id' => $this->tenant->id, 'key' => 'dc', 'label' => 'C', 'section' => 'DND', 'sort_order' => 2]);
+
+    actingAs($this->admin)
+        ->post(route('avana.menu-builder.reorder'), ['ids' => [$c->id, $a->id, $b->id]])
+        ->assertSessionHas('success');
+
+    expect($c->fresh()->sort_order)->toBe(0);
+    expect($a->fresh()->sort_order)->toBe(1);
+    expect($b->fresh()->sort_order)->toBe(2);
+});
+
+it('rejects a reorder mixing different parents', function (): void {
+    $top = MenuItem::forTenant($this->tenant->id)->whereNull('parent_id')->first();
+    $child = MenuItem::forTenant($this->tenant->id)->whereNotNull('parent_id')->first();
+
+    actingAs($this->admin)
+        ->post(route('avana.menu-builder.reorder'), ['ids' => [$top->id, $child->id]])
+        ->assertStatus(422);
+});
+
 it('refuses to delete a system item but deletes a custom one', function (): void {
     $system = MenuItem::forTenant($this->tenant->id)->where('key', 'crm')->firstOrFail();
     actingAs($this->admin)->delete(route('avana.menu-builder.destroy', $system))->assertStatus(422);

@@ -72,6 +72,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::delete('menu-builder/{menuItem}', [MenuBuilderController::class, 'destroy'])->name('menu-builder.destroy');
     Route::post('menu-builder/{menuItem}/toggle', [MenuBuilderController::class, 'toggle'])->name('menu-builder.toggle');
     Route::post('menu-builder/{menuItem}/move', [MenuBuilderController::class, 'move'])->name('menu-builder.move');
+    Route::post('menu-builder-reorder', [MenuBuilderController::class, 'reorder'])->name('menu-builder.reorder');
     Route::get('custom-fields', [CustomFieldController::class, 'index'])->name('custom-fields');
     Route::post('custom-fields', [CustomFieldController::class, 'store'])->name('custom-fields.store');
     Route::put('custom-fields/{field}', [CustomFieldController::class, 'update'])->name('custom-fields.update');

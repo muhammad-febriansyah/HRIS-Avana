@@ -59,10 +59,38 @@ const emptyForm = {
 export default function MenuBuilder({ tree, parents, sections, features, modules, isSuperAdmin, selectedTenant, tenants }: Props) {
     const { flash } = usePage<FlashProps>().props;
     const [modalOpen, setModalOpen] = useState(false);
+    const [draggingId, setDraggingId] = useState<number | null>(null);
     const form = useForm({ ...emptyForm, tenant_id: selectedTenant });
 
     const switchTenant = (id: string) =>
         router.get(MenuBuilderController.index().url, { tenant: id }, { preserveScroll: true });
+
+    const allRows = useMemo(() => tree.flatMap((t) => [t, ...t.children]), [tree]);
+    const findRow = (id: number) => allRows.find((r) => r.id === id);
+    const siblingIds = (row: MenuRow): number[] =>
+        row.parent_id === null
+            ? tree.map((t) => t.id)
+            : (tree.find((t) => t.id === row.parent_id)?.children ?? []).map((c) => c.id);
+
+    const onDrop = (target: MenuRow) => {
+        const dragId = draggingId;
+        setDraggingId(null);
+        if (dragId === null || dragId === target.id) {
+            return;
+        }
+        const drag = findRow(dragId);
+        // Only reorder within the same level (same parent).
+        if (!drag || drag.parent_id !== target.parent_id) {
+            return;
+        }
+        const ids = siblingIds(target).filter((id) => id !== dragId);
+        ids.splice(ids.indexOf(target.id), 0, dragId);
+        router.post(
+            MenuBuilderController.reorder().url,
+            { ids, tenant_id: selectedTenant },
+            { preserveScroll: true },
+        );
+    };
 
     useEffect(() => {
         if (flash?.success) {
@@ -125,6 +153,14 @@ export default function MenuBuilder({ tree, parents, sections, features, modules
     const renderRow = (row: MenuRow, child = false) => (
         <div
             key={row.id}
+            draggable
+            onDragStart={() => setDraggingId(row.id)}
+            onDragEnd={() => setDraggingId(null)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+                e.preventDefault();
+                onDrop(row);
+            }}
             style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -132,12 +168,15 @@ export default function MenuBuilder({ tree, parents, sections, features, modules
                 padding: '10px 12px',
                 marginLeft: child ? 26 : 0,
                 borderRadius: 9,
-                border: `1px solid ${C.border}`,
+                border: `1px solid ${draggingId === row.id ? C.primary : C.border}`,
                 background: row.is_active ? '#fff' : '#F8FAFC',
-                opacity: row.is_active ? 1 : 0.6,
+                opacity: draggingId === row.id ? 0.4 : row.is_active ? 1 : 0.6,
                 marginBottom: 6,
             }}
         >
+            <span style={{ cursor: 'grab', color: C.faint, display: 'inline-flex' }} title="Seret untuk mengurutkan">
+                <AIcon name="grip-vertical" size={15} color={C.faint} />
+            </span>
             {row.icon && <AIcon name={row.icon} size={15} color={C.muted} />}
             <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 600, color: C.navy }}>

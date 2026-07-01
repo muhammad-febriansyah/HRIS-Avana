@@ -189,6 +189,36 @@ class MenuBuilderController extends Controller
     }
 
     /**
+     * Persist an explicit sibling order (drag-and-drop). All ids must belong to
+     * the same tenant and the same parent.
+     */
+    public function reorder(Request $request): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+
+        $tenantId = $this->resolveTenantId($request);
+
+        $ids = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+        ])['ids'];
+
+        $items = MenuItem::forTenant($tenantId)
+            ->whereIn('id', $ids)
+            ->get()
+            ->keyBy('id');
+
+        abort_if($items->count() !== count($ids), 422, 'Menu tidak valid.');
+        abort_if($items->pluck('parent_id')->unique()->count() > 1, 422, 'Hanya bisa mengurutkan menu selevel.');
+
+        foreach ($ids as $position => $id) {
+            $items->get($id)?->update(['sort_order' => $position]);
+        }
+
+        return back()->with('success', 'Urutan menu diperbarui');
+    }
+
+    /**
      * Validate the menu item payload.
      *
      * @return array<string, mixed>
