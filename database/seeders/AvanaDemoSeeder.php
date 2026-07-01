@@ -297,8 +297,30 @@ final class AvanaDemoSeeder extends Seeder
         }
 
         $this->seedSuperAdmin($tenant);
+        $this->seedManager($tenant);
 
         return $user;
+    }
+
+    /** Seed a Manager user (team approvals + limited read scope). */
+    private function seedManager(Tenant $tenant): void
+    {
+        $manager = User::firstOrCreate(
+            ['email' => 'manager@avanahr.co.id'],
+            [
+                'name' => 'Budi Santoso',
+                'tenant_id' => $tenant->id,
+                'password' => Hash::make('password'),
+                'status' => 'active',
+                'email_verified_at' => now(),
+            ],
+        );
+        $manager->forceFill(['tenant_id' => $tenant->id])->save();
+
+        $role = Role::where('tenant_id', $tenant->id)->where('code', 'manager')->first();
+        if ($role) {
+            $manager->roles()->syncWithoutDetaching([$role->id]);
+        }
     }
 
     /** Seed a Super Admin who can control the tenant's menu/features. */

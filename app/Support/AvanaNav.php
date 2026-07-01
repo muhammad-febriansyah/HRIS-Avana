@@ -221,6 +221,77 @@ final class AvanaNav
     }
 
     /**
+     * Permission modules that grant access to the admin-only screens.
+     *
+     * @return array<int, string>
+     */
+    public static function manageModules(): array
+    {
+        return self::MANAGE_MODULES;
+    }
+
+    /**
+     * Every leaf across all groups, flattened (parents dropped).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function allLeaves(): array
+    {
+        $leaves = [];
+        foreach (self::groups() as $group) {
+            foreach ($group['items'] as $item) {
+                if (isset($item['children'])) {
+                    foreach ($item['children'] as $child) {
+                        $leaves[] = $child;
+                    }
+                } else {
+                    $leaves[] = $item;
+                }
+            }
+        }
+
+        return $leaves;
+    }
+
+    /**
+     * The access requirement for a request path, resolved by the longest leaf
+     * href that prefixes it (so sub-routes like /avana/crm/{id} inherit the CRM
+     * gate). Returns null when the path maps to no gated menu.
+     *
+     * @return array{modules: array<int, string>, adminOnly: bool, superAdminOnly: bool, feature: ?string}|null
+     */
+    public static function requirementFor(string $path): ?array
+    {
+        $path = '/'.ltrim($path, '/');
+        $best = null;
+        $bestLen = -1;
+
+        foreach (self::allLeaves() as $leaf) {
+            $href = $leaf['href'] ?? '';
+
+            if ($href === '' || $href === '/dashboard') {
+                continue;
+            }
+
+            if (($path === $href || str_starts_with($path, $href.'/')) && strlen($href) > $bestLen) {
+                $best = $leaf;
+                $bestLen = strlen($href);
+            }
+        }
+
+        if ($best === null) {
+            return null;
+        }
+
+        return [
+            'modules' => $best['modules'] ?? [],
+            'adminOnly' => $best['adminOnly'] ?? false,
+            'superAdminOnly' => $best['superAdminOnly'] ?? false,
+            'feature' => $best['feature'] ?? null,
+        ];
+    }
+
+    /**
      * @param  array<string, mixed>  $leaf
      * @return array{id: string, label: string, icon: string, href: string}
      */

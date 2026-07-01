@@ -56,13 +56,14 @@ use App\Http\Controllers\Avana\TimesheetController;
 use App\Http\Controllers\Avana\UserController;
 use App\Http\Controllers\Avana\WebsiteSettingController;
 use App\Http\Controllers\Avana\WfhController;
+use App\Http\Middleware\EnsureAvanaAccess;
 use Illuminate\Support\Facades\Route;
 
 /*
  * AvanaHR (authenticated). Tenant scoping is enforced inside the controllers
  * via <Model>::forTenant($request->user()->tenant_id).
  */
-Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(function () {
+Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana')->name('avana.')->group(function () {
     Route::get('organisasi', [EmployeeController::class, 'orgChart'])->name('organisasi');
     Route::get('custom-fields', [CustomFieldController::class, 'index'])->name('custom-fields');
     Route::post('custom-fields', [CustomFieldController::class, 'store'])->name('custom-fields.store');
