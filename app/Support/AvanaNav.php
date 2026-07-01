@@ -3,8 +3,10 @@
 namespace App\Support;
 
 use App\Models\Feature;
+use App\Models\MenuItem;
 use App\Models\Permission;
 use App\Models\User;
+use Illuminate\Support\Collection;
 
 /**
  * Canonical AvanaHR sidebar navigation. Each item is tied to a tenant feature
@@ -111,6 +113,7 @@ final class AvanaNav
                 self::leaf('perusahaan', 'Perusahaan', 'building-2', '/avana/perusahaan', 'organization', ['branch', 'department', 'position', 'organization']),
                 self::leaf('pengguna', 'Pengguna', 'user-cog', '/avana/pengguna', null, ['user']),
                 self::leaf('custom-fields', 'Field Kustom', 'list-plus', '/avana/custom-fields', null, self::MANAGE_MODULES, true),
+                self::leaf('menu-builder', 'Menu Builder', 'list-tree', '/avana/menu-builder', null, self::MANAGE_MODULES, true),
                 self::leaf('hak-akses', 'Hak Akses', 'shield-check', '/avana/hak-akses', null, self::MANAGE_MODULES, true),
                 self::leaf('fitur', 'Menu & Fitur', 'toggle-right', '/avana/fitur', null, self::MANAGE_MODULES, true),
                 self::leaf('audit', 'Audit Trail', 'history', '/avana/audit', null, ['audit']),
@@ -195,7 +198,7 @@ final class AvanaNav
         };
 
         $groups = [];
-        foreach (self::groups() as $group) {
+        foreach (self::tenantGroups($user->tenant_id) as $group) {
             $items = [];
             foreach ($group['items'] as $item) {
                 if (isset($item['children'])) {
@@ -231,14 +234,103 @@ final class AvanaNav
     }
 
     /**
+     * The navigation groups for a tenant: the DB-defined menu when the tenant
+     * has customised it, otherwise the built-in default definition.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function tenantGroups(?int $tenantId): array
+    {
+        if ($tenantId === null) {
+            return self::groups();
+        }
+
+        $rows = MenuItem::forTenant($tenantId)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return self::groups();
+        }
+
+        return self::buildGroups($rows);
+    }
+
+    /**
+     * Rebuild the nav group structure from flat DB rows.
+     *
+     * @param  Collection<int, MenuItem>  $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private static function buildGroups(Collection $rows): array
+    {
+        $byParent = $rows->groupBy(fn (MenuItem $row): int => (int) ($row->parent_id ?? 0));
+
+        $sectionOrder = [];
+        $sections = [];
+
+        foreach ($byParent->get(0, collect()) as $item) {
+            $children = $byParent->get($item->id, collect());
+
+            if ($children->isNotEmpty()) {
+                $leaf = [
+                    'id' => $item->key,
+                    'label' => $item->label,
+                    'icon' => $item->icon,
+                    'children' => $children->map(fn (MenuItem $child): array => self::rowToLeaf($child))->all(),
+                ];
+            } else {
+                $leaf = self::rowToLeaf($item);
+            }
+
+            $section = $item->section;
+
+            if (! array_key_exists($section, $sections)) {
+                $sections[$section] = [];
+                $sectionOrder[] = $section;
+            }
+
+            $sections[$section][] = $leaf;
+        }
+
+        return array_map(
+            fn (?string $title): array => ['title' => $title, 'items' => $sections[$title]],
+            $sectionOrder,
+        );
+    }
+
+    /**
+     * Convert a DB row into a nav leaf carrying its gating metadata.
+     *
+     * @return array<string, mixed>
+     */
+    private static function rowToLeaf(MenuItem $row): array
+    {
+        return [
+            'id' => $row->key,
+            'label' => $row->label,
+            'icon' => $row->icon,
+            'href' => $row->href,
+            'feature' => $row->feature,
+            'modules' => $row->modules ?? [],
+            'adminOnly' => $row->admin_only,
+            'superAdminOnly' => $row->super_admin_only,
+        ];
+    }
+
+    /**
      * Every leaf across all groups, flattened (parents dropped).
      *
      * @return array<int, array<string, mixed>>
      */
-    public static function allLeaves(): array
+    public static function allLeaves(?int $tenantId = null): array
     {
+        $source = $tenantId === null ? self::groups() : self::tenantGroups($tenantId);
         $leaves = [];
-        foreach (self::groups() as $group) {
+
+        foreach ($source as $group) {
             foreach ($group['items'] as $item) {
                 if (isset($item['children'])) {
                     foreach ($item['children'] as $child) {
@@ -260,13 +352,13 @@ final class AvanaNav
      *
      * @return array{modules: array<int, string>, adminOnly: bool, superAdminOnly: bool, feature: ?string}|null
      */
-    public static function requirementFor(string $path): ?array
+    public static function requirementFor(string $path, ?int $tenantId = null): ?array
     {
         $path = '/'.ltrim($path, '/');
         $best = null;
         $bestLen = -1;
 
-        foreach (self::allLeaves() as $leaf) {
+        foreach (self::allLeaves($tenantId) as $leaf) {
             $href = $leaf['href'] ?? '';
 
             if ($href === '' || $href === '/dashboard') {

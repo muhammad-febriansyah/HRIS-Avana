@@ -13,6 +13,7 @@ use App\Models\JobLevel;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Models\MenuItem;
 use App\Models\Package;
 use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
@@ -25,6 +26,7 @@ use App\Models\Shift;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WorkLocation;
+use App\Support\AvanaNav;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
@@ -64,6 +66,7 @@ final class AvanaDemoSeeder extends Seeder
         }
 
         $this->seedPermissionsAndRoles($tenant);
+        $this->seedMenuItems($tenant);
         $admin = $this->seedAdminUser($tenant);
 
         $company = Company::firstOrCreate(
@@ -274,6 +277,55 @@ final class AvanaDemoSeeder extends Seeder
                 default => $permModels->filter(fn ($p) => str_starts_with($p->code, 'own.')),
             };
             $role->permissions()->syncWithoutDetaching($assigned->pluck('id'));
+        }
+    }
+
+    /**
+     * Seed the tenant's editable sidebar menu from the AvanaNav defaults so the
+     * Menu Builder has content and the runtime nav is DB-driven.
+     */
+    private function seedMenuItems(Tenant $tenant): void
+    {
+        $order = 0;
+
+        foreach (AvanaNav::groups() as $group) {
+            foreach ($group['items'] as $item) {
+                $order++;
+
+                $parent = MenuItem::firstOrCreate(
+                    ['tenant_id' => $tenant->id, 'key' => $item['id'], 'parent_id' => null],
+                    [
+                        'section' => $group['title'],
+                        'label' => $item['label'],
+                        'icon' => $item['icon'] ?? null,
+                        'href' => $item['href'] ?? null,
+                        'feature' => $item['feature'] ?? null,
+                        'modules' => $item['modules'] ?? [],
+                        'admin_only' => $item['adminOnly'] ?? false,
+                        'super_admin_only' => $item['superAdminOnly'] ?? false,
+                        'is_system' => true,
+                        'sort_order' => $order,
+                    ],
+                );
+
+                foreach ($item['children'] ?? [] as $childOrder => $child) {
+                    MenuItem::firstOrCreate(
+                        ['tenant_id' => $tenant->id, 'key' => $child['id'], 'parent_id' => $parent->id],
+                        [
+                            'section' => null,
+                            'label' => $child['label'],
+                            'icon' => $child['icon'] ?? null,
+                            'href' => $child['href'] ?? null,
+                            'feature' => $child['feature'] ?? null,
+                            'modules' => $child['modules'] ?? [],
+                            'admin_only' => $child['adminOnly'] ?? false,
+                            'super_admin_only' => $child['superAdminOnly'] ?? false,
+                            'is_system' => true,
+                            'sort_order' => $childOrder,
+                        ],
+                    );
+                }
+            }
         }
     }
 

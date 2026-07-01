@@ -35,6 +35,7 @@ use App\Http\Controllers\Avana\LeaveController;
 use App\Http\Controllers\Avana\LeaveTypeController;
 use App\Http\Controllers\Avana\LetterTemplateController;
 use App\Http\Controllers\Avana\LoanController;
+use App\Http\Controllers\Avana\MenuBuilderController;
 use App\Http\Controllers\Avana\MovementController;
 use App\Http\Controllers\Avana\OffboardingController;
 use App\Http\Controllers\Avana\OkrController;
@@ -65,6 +66,12 @@ use Illuminate\Support\Facades\Route;
  */
 Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana')->name('avana.')->group(function () {
     Route::get('organisasi', [EmployeeController::class, 'orgChart'])->name('organisasi');
+    Route::get('menu-builder', [MenuBuilderController::class, 'index'])->name('menu-builder');
+    Route::post('menu-builder', [MenuBuilderController::class, 'store'])->name('menu-builder.store');
+    Route::put('menu-builder/{menuItem}', [MenuBuilderController::class, 'update'])->name('menu-builder.update');
+    Route::delete('menu-builder/{menuItem}', [MenuBuilderController::class, 'destroy'])->name('menu-builder.destroy');
+    Route::post('menu-builder/{menuItem}/toggle', [MenuBuilderController::class, 'toggle'])->name('menu-builder.toggle');
+    Route::post('menu-builder/{menuItem}/move', [MenuBuilderController::class, 'move'])->name('menu-builder.move');
     Route::get('custom-fields', [CustomFieldController::class, 'index'])->name('custom-fields');
     Route::post('custom-fields', [CustomFieldController::class, 'store'])->name('custom-fields.store');
     Route::put('custom-fields/{field}', [CustomFieldController::class, 'update'])->name('custom-fields.update');

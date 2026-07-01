@@ -38,7 +38,7 @@ class EnsureAvanaAccess
             return $next($request);
         }
 
-        $requirement = AvanaNav::requirementFor($request->path());
+        $requirement = AvanaNav::requirementFor($request->path(), $user->tenant_id);
 
         // Not a gated menu path — leave it to the controller's own policies.
         if ($requirement === null) {
