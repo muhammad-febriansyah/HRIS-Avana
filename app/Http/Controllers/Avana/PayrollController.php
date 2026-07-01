@@ -27,6 +27,8 @@ use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use Mpdf\Mpdf;
+use Mpdf\Output\Destination;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PayrollController extends Controller
@@ -347,13 +349,32 @@ class PayrollController extends Controller
     }
 
     /**
-     * Export the bank transfer file (net pay per employee) for the latest run.
+     * Supported bank transfer file layouts. Each entry defines the CSV header
+     * and the ordered columns produced per employee. `generic` is the default.
+     *
+     * @var array<string, array{header: list<string>}>
+     */
+    private const BANK_FORMATS = [
+        'generic' => ['header' => ['Nama', 'Bank', 'No Rekening', 'Atas Nama', 'Net']],
+        'bca' => ['header' => ['No Rekening Tujuan', 'Nama Penerima', 'Jumlah', 'Berita']],
+        'mandiri' => ['header' => ['No Rekening', 'Nama Penerima', 'Jumlah', 'Keterangan']],
+        'bni' => ['header' => ['No Rekening', 'Nama', 'Nominal', 'Keterangan']],
+        'bri' => ['header' => ['No Rekening', 'Nama', 'Nominal', 'Keterangan']],
+    ];
+
+    /**
+     * Export the bank transfer file (net pay per employee) for the latest run,
+     * in a selectable per-bank column layout (?bank=bca|mandiri|bni|bri).
      */
     public function transferFile(Request $request): StreamedResponse
     {
         $this->authorize('viewAny', PayrollPeriod::class);
 
         $tenantId = $request->user()->tenant_id;
+
+        $format = $request->query('bank', 'generic');
+        $format = isset(self::BANK_FORMATS[$format]) ? $format : 'generic';
+        $header = self::BANK_FORMATS[$format]['header'];
 
         $run = PayrollRun::forTenant($tenantId)
             ->whereHas('period', fn ($query) => $query->where('code', 'not like', 'THR-%'))
@@ -364,28 +385,163 @@ class PayrollController extends Controller
         abort_if($run === null, 404);
 
         $periodCode = $run->period?->code ?? 'run-'.$run->id;
-        $filename = 'transfer-bank-'.$periodCode.'-'.now()->format('Y-m-d').'.csv';
+        $note = 'Gaji '.($run->period?->name ?? $periodCode);
+        $filename = 'transfer-'.$format.'-'.$periodCode.'-'.now()->format('Y-m-d').'.csv';
 
-        return response()->streamDownload(function () use ($run): void {
+        return response()->streamDownload(function () use ($run, $format, $header, $note): void {
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['Nama', 'Bank', 'No Rekening', 'Atas Nama', 'Net']);
+            fputcsv($out, $header);
 
             foreach ($run->items as $item) {
                 $employee = $item->employee;
                 $bank = $employee?->bankAccounts->firstWhere('is_primary', true)
                     ?? $employee?->bankAccounts->first();
 
+                $name = $bank?->account_holder ?? $employee?->full_name ?? '-';
+                $account = $bank?->account_number ?? '-';
+                $net = (int) round((float) $item->net_salary);
+
+                $row = match ($format) {
+                    'bca' => [$account, $name, $net, $note],
+                    'mandiri', 'bni', 'bri' => [$account, $name, $net, $note],
+                    default => [
+                        $employee?->full_name ?? '-',
+                        $bank?->bank_name ?? '-',
+                        $account,
+                        $name,
+                        $net,
+                    ],
+                };
+
+                fputcsv($out, $row);
+            }
+
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
+    /**
+     * Export the BPJS contribution report (employee/company split per program)
+     * for the latest run — the data needed to file via SIPP/EDABU (BR-12.3).
+     */
+    public function bpjsFile(Request $request): StreamedResponse
+    {
+        $this->authorize('viewAny', PayrollPeriod::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $run = PayrollRun::forTenant($tenantId)
+            ->whereHas('period', fn ($query) => $query->where('code', 'not like', 'THR-%'))
+            ->orderByDesc('id')
+            ->with(['period', 'items.employee'])
+            ->first();
+
+        abort_if($run === null, 404);
+
+        $periodCode = $run->period?->code ?? 'run-'.$run->id;
+        $filename = 'bpjs-'.$periodCode.'-'.now()->format('Y-m-d').'.csv';
+
+        return response()->streamDownload(function () use ($run): void {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, [
+                'Nama', 'No Karyawan', 'Upah Dilaporkan',
+                'Kesehatan (Karyawan)', 'Kesehatan (Perusahaan)',
+                'JHT (Karyawan)', 'JHT (Perusahaan)',
+                'JP (Karyawan)', 'JP (Perusahaan)',
+                'JKK (Perusahaan)', 'JKM (Perusahaan)',
+                'Total Karyawan', 'Total Perusahaan',
+            ]);
+
+            foreach ($run->items as $item) {
+                $employee = $item->employee;
+                $bpjs = $item->calculation_snapshot['bpjs'] ?? [];
+                $programs = $bpjs['programs'] ?? [];
+                $cell = fn (string $code, string $side): int => (int) round((float) ($programs[$code][$side] ?? 0));
+
                 fputcsv($out, [
                     $employee?->full_name ?? '-',
-                    $bank?->bank_name ?? '-',
-                    $bank?->account_number ?? '-',
-                    $bank?->account_holder ?? $employee?->full_name ?? '-',
-                    (int) round((float) $item->net_salary),
+                    $employee?->employee_number ?? '-',
+                    (int) round((float) ($bpjs['base_wage'] ?? 0)),
+                    $cell('kesehatan', 'employee'), $cell('kesehatan', 'company'),
+                    $cell('jht', 'employee'), $cell('jht', 'company'),
+                    $cell('jp', 'employee'), $cell('jp', 'company'),
+                    $cell('jkk', 'company'), $cell('jkm', 'company'),
+                    (int) round((float) $item->bpjs_employee_total),
+                    (int) round((float) $item->bpjs_company_total),
                 ]);
             }
 
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
+    /**
+     * Stream a single employee's payslip as a password-protected PDF (BR-11.4).
+     * The password defaults to the employee's birth date (ddmmyyyy).
+     */
+    public function payslipPdf(Request $request, PayrollRunItem $item): \Illuminate\Http\Response
+    {
+        $this->authorize('viewAny', PayrollPeriod::class);
+
+        abort_if((int) $item->tenant_id !== (int) $request->user()->tenant_id, 404);
+
+        $item->loadMissing(['employee.position', 'employee.department', 'employee.tenant', 'period']);
+        $employee = $item->employee;
+
+        abort_if($employee === null, 404);
+
+        $snapshot = $item->calculation_snapshot ?? [];
+
+        $html = view('pdf.payslip', [
+            'company' => $employee->tenant?->company_name ?? $employee->tenant?->name ?? 'AvanaHR',
+            'period' => $item->period?->name ?? '-',
+            'employee' => [
+                'name' => $employee->full_name,
+                'number' => $employee->nik ?: $employee->employee_number,
+                'position' => $employee->position?->name ?? '-',
+                'department' => $employee->department?->name ?? '-',
+            ],
+            'earnings' => array_map(
+                fn (array $row): array => ['name' => $row['name'], 'amount' => $this->rupiah($row['amount'])],
+                $snapshot['earnings'] ?? [],
+            ),
+            'deductions' => array_map(
+                fn (array $row): array => ['name' => $row['name'], 'amount' => $this->rupiah($row['amount'])],
+                $snapshot['deductions'] ?? [],
+            ),
+            'gross' => $this->rupiah($item->gross_salary),
+            'deduction' => $this->rupiah($item->total_deduction),
+            'net' => $this->rupiah($item->net_salary),
+        ])->render();
+
+        $tempDir = storage_path('app/mpdf');
+
+        if (! is_dir($tempDir)) {
+            mkdir($tempDir, 0775, true);
+        }
+
+        $mpdf = new Mpdf(['tempDir' => $tempDir]);
+        $mpdf->SetProtection(['print'], $this->payslipPassword($employee), '');
+        $mpdf->WriteHTML($html);
+
+        $filename = 'slip-'.$employee->employee_number.'-'.($item->period?->code ?? $item->id).'.pdf';
+
+        return response($mpdf->Output('', Destination::STRING_RETURN), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ]);
+    }
+
+    /**
+     * Derive the payslip PDF password: birth date (ddmmyyyy), else NIK/number.
+     */
+    private function payslipPassword(Employee $employee): string
+    {
+        if ($employee->birth_date !== null) {
+            return $employee->birth_date->format('dmY');
+        }
+
+        return (string) ($employee->nik ?: $employee->employee_number ?: 'avanahr');
     }
 
     /**
@@ -499,8 +655,16 @@ class PayrollController extends Controller
             $pay = $this->computeEmployeePay($employee, $period, $tenantId);
 
             if ($pay['earnings'] !== [] || $pay['deductions'] !== []) {
+                // A saved run item enables a downloadable, protected PDF payslip.
+                $payslipId = PayrollRunItem::forTenant($tenantId)
+                    ->where('payroll_period_id', $period->id)
+                    ->where('employee_id', $employee->id)
+                    ->orderByDesc('id')
+                    ->value('id');
+
                 return [
                     'employee' => $employee->full_name,
+                    'payslip_id' => $payslipId,
                     'earnings' => array_map(
                         fn (array $row): array => ['k' => $row['name'], 'v' => $this->rupiah($row['amount'])],
                         $pay['earnings'],

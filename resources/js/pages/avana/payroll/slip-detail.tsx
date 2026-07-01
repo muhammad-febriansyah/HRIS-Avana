@@ -64,8 +64,16 @@ export function SlipDetail({ slip, period }: SlipDetailProps) {
                     </div>
                 </div>
                 <a
-                    href="/avana/laporan/export/payroll"
-                    title="Unduh data payroll"
+                    href={
+                        slip.payslip_id
+                            ? `/avana/payroll/payslip/${slip.payslip_id}/pdf`
+                            : '/avana/laporan/export/payroll'
+                    }
+                    title={
+                        slip.payslip_id
+                            ? 'Unduh slip gaji (PDF terproteksi kata sandi)'
+                            : 'Unduh data payroll'
+                    }
                     style={{
                         width: 34,
                         height: 34,

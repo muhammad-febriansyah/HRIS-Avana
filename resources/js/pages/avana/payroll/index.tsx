@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import PayrollController from '@/actions/App/Http/Controllers/Avana/PayrollController';
 import PositionComponentController from '@/actions/App/Http/Controllers/Avana/PositionComponentController';
@@ -19,6 +19,7 @@ export default function AvanaPayroll({
     const { flash } = usePage<FlashProps>().props;
     const meta = periods.meta;
     const isLocked = summary.status === 'locked';
+    const [bank, setBank] = useState('generic');
 
     useEffect(() => {
         if (flash?.success) {
@@ -124,12 +125,31 @@ export default function AvanaPayroll({
                             <AIcon name="gift" size={16} />
                             Generate THR
                         </button>
+                        <select
+                            value={bank}
+                            onChange={(e) => setBank(e.target.value)}
+                            style={{ ...btnOut, cursor: 'pointer' }}
+                            title="Format bank"
+                        >
+                            <option value="generic">Format Umum</option>
+                            <option value="bca">BCA</option>
+                            <option value="mandiri">Mandiri</option>
+                            <option value="bni">BNI</option>
+                            <option value="bri">BRI</option>
+                        </select>
                         <a
-                            href={PayrollController.transferFile().url}
+                            href={`${PayrollController.transferFile().url}?bank=${bank}`}
                             style={{ ...btnOut, textDecoration: 'none' }}
                         >
                             <AIcon name="banknote" size={16} />
                             File Transfer Bank
+                        </a>
+                        <a
+                            href={PayrollController.bpjsFile().url}
+                            style={{ ...btnOut, textDecoration: 'none' }}
+                        >
+                            <AIcon name="shield-check" size={16} />
+                            Export BPJS
                         </a>
                         <Link
                             href={PayrollController.createPeriod().url}
