@@ -294,6 +294,7 @@ export const NAV: NavGroup[] = [
         title: 'MANAJEMEN',
         items: [
             { id: 'karyawan', label: 'Karyawan', icon: 'users', href: '/avana/employees' },
+            { id: 'organisasi', label: 'Struktur Organisasi', icon: 'network', href: '/avana/organisasi' },
             { id: 'absensi', label: 'Absensi', icon: 'fingerprint', href: '/avana/absensi' },
             { id: 'cuti', label: 'Cuti & Lembur', icon: 'palmtree', href: '/avana/cuti' },
             { id: 'payroll', label: 'Payroll', icon: 'wallet', href: '/avana/payroll' },
@@ -303,6 +304,7 @@ export const NAV: NavGroup[] = [
         title: 'SISTEM',
         items: [
             { id: 'perusahaan', label: 'Perusahaan', icon: 'building-2', href: '/avana/perusahaan' },
+            { id: 'custom-fields', label: 'Field Kustom', icon: 'list-plus', href: '/avana/custom-fields' },
             { id: 'laporan', label: 'Laporan', icon: 'chart-column', href: '/avana/laporan' },
             { id: 'hak-akses', label: 'Hak Akses', icon: 'shield-check', href: '/avana/hak-akses' },
             { id: 'fitur', label: 'Menu & Fitur', icon: 'toggle-right', href: '/avana/fitur' },

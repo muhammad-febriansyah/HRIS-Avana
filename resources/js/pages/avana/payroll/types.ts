@@ -42,6 +42,7 @@ export interface SlipLine {
 /** Computed sample payslip for the first active employee. */
 export interface Slip {
     employee: string;
+    payslip_id?: number | null;
     earnings: SlipLine[];
     deductions: SlipLine[];
     gross: string;

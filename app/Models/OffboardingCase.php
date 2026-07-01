@@ -18,6 +18,8 @@ final class OffboardingCase extends Model
     {
         return [
             'last_day' => 'date',
+            'settlement_amount' => 'decimal:2',
+            'settlement_breakdown' => 'array',
         ];
     }
 

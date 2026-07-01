@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import PayrollController from '@/actions/App/Http/Controllers/Avana/PayrollController';
 import PositionComponentController from '@/actions/App/Http/Controllers/Avana/PositionComponentController';
@@ -19,6 +19,8 @@ export default function AvanaPayroll({
     const { flash } = usePage<FlashProps>().props;
     const meta = periods.meta;
     const isLocked = summary.status === 'locked';
+    const isApproved = summary.status === 'approved';
+    const [bank, setBank] = useState('generic');
 
     useEffect(() => {
         if (flash?.success) {
@@ -32,6 +34,14 @@ export default function AvanaPayroll({
         }
 
         router.post(PayrollController.run().url, {}, { preserveScroll: true });
+    };
+
+    const approvePayroll = () => {
+        if (isLocked) {
+            return;
+        }
+
+        router.post(PayrollController.approve().url, {}, { preserveScroll: true });
     };
 
     const lockPayroll = () => {
@@ -124,12 +134,31 @@ export default function AvanaPayroll({
                             <AIcon name="gift" size={16} />
                             Generate THR
                         </button>
+                        <select
+                            value={bank}
+                            onChange={(e) => setBank(e.target.value)}
+                            style={{ ...btnOut, cursor: 'pointer' }}
+                            title="Format bank"
+                        >
+                            <option value="generic">Format Umum</option>
+                            <option value="bca">BCA</option>
+                            <option value="mandiri">Mandiri</option>
+                            <option value="bni">BNI</option>
+                            <option value="bri">BRI</option>
+                        </select>
                         <a
-                            href={PayrollController.transferFile().url}
+                            href={`${PayrollController.transferFile().url}?bank=${bank}`}
                             style={{ ...btnOut, textDecoration: 'none' }}
                         >
                             <AIcon name="banknote" size={16} />
                             File Transfer Bank
+                        </a>
+                        <a
+                            href={PayrollController.bpjsFile().url}
+                            style={{ ...btnOut, textDecoration: 'none' }}
+                        >
+                            <AIcon name="shield-check" size={16} />
+                            Export BPJS
                         </a>
                         <Link
                             href={PayrollController.createPeriod().url}
@@ -139,12 +168,35 @@ export default function AvanaPayroll({
                             Buat Periode
                         </Link>
                         <button
-                            onClick={lockPayroll}
-                            disabled={isLocked}
+                            onClick={approvePayroll}
+                            disabled={isLocked || isApproved}
                             style={{
                                 ...btnOut,
-                                opacity: isLocked ? 0.5 : 1,
-                                cursor: isLocked ? 'not-allowed' : 'pointer',
+                                opacity: isLocked || isApproved ? 0.5 : 1,
+                                cursor:
+                                    isLocked || isApproved
+                                        ? 'not-allowed'
+                                        : 'pointer',
+                            }}
+                        >
+                            <AIcon name="check-check" size={16} />
+                            {isApproved ? 'Disetujui' : 'Setujui'}
+                        </button>
+                        <button
+                            onClick={lockPayroll}
+                            disabled={isLocked || !isApproved}
+                            title={
+                                !isApproved
+                                    ? 'Setujui payroll dulu sebelum mengunci'
+                                    : undefined
+                            }
+                            style={{
+                                ...btnOut,
+                                opacity: isLocked || !isApproved ? 0.5 : 1,
+                                cursor:
+                                    isLocked || !isApproved
+                                        ? 'not-allowed'
+                                        : 'pointer',
                             }}
                         >
                             <AIcon name="lock" size={16} />

@@ -24,6 +24,7 @@ beforeEach(function (): void {
     // lock/run flow can be exercised in isolation (see PayrollControllerTest).
     Route::middleware('web')->prefix('spec-avana')->name('spec.')->group(function (): void {
         Route::post('payroll/run', [PayrollController::class, 'run'])->name('payroll.run');
+        Route::post('payroll/approve', [PayrollController::class, 'approve'])->name('payroll.approve');
         Route::post('payroll/lock', [PayrollController::class, 'lock'])->name('payroll.lock');
     });
 });
@@ -31,6 +32,8 @@ beforeEach(function (): void {
 it('locks the latest payroll period and its run', function (): void {
     $tenantId = $this->tenant->id;
 
+    actingAs($this->admin)->post('spec-avana/payroll/run')->assertSessionHas('success');
+    actingAs($this->admin)->post('spec-avana/payroll/approve')->assertSessionHas('success');
     actingAs($this->admin)
         ->post('spec-avana/payroll/lock')
         ->assertSessionHas('success');
@@ -42,9 +45,24 @@ it('locks the latest payroll period and its run', function (): void {
     expect($run->status)->toBe('locked');
 });
 
+it('refuses to lock a run that has not been approved', function (): void {
+    $tenantId = $this->tenant->id;
+
+    actingAs($this->admin)
+        ->post('spec-avana/payroll/lock')
+        ->assertSessionHasErrors('payroll');
+
+    $period = PayrollPeriod::forTenant($tenantId)->orderByDesc('start_date')->firstOrFail();
+    $run = PayrollRun::forTenant($tenantId)->where('payroll_period_id', $period->id)->orderByDesc('id')->firstOrFail();
+
+    expect($run->status)->not->toBe('locked');
+});
+
 it('does not recompute a locked period on run', function (): void {
     $tenantId = $this->tenant->id;
 
+    actingAs($this->admin)->post('spec-avana/payroll/run')->assertSessionHas('success');
+    actingAs($this->admin)->post('spec-avana/payroll/approve')->assertSessionHas('success');
     actingAs($this->admin)->post('spec-avana/payroll/lock')->assertSessionHas('success');
 
     actingAs($this->admin)

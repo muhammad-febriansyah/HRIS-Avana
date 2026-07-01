@@ -25,6 +25,7 @@ use App\Models\Shift;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WorkLocation;
+use App\Support\AvanaNav;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
@@ -64,6 +65,7 @@ final class AvanaDemoSeeder extends Seeder
         }
 
         $this->seedPermissionsAndRoles($tenant);
+        $this->seedMenuItems($tenant);
         $admin = $this->seedAdminUser($tenant);
 
         $company = Company::firstOrCreate(
@@ -242,6 +244,15 @@ final class AvanaDemoSeeder extends Seeder
             'tenant.view', 'tenant.create', 'tenant.update', 'tenant.suspend',
             'team.leave.approve', 'team.attendance.view', 'team.overtime.approve',
             'own.profile.view', 'own.attendance.clock_in', 'own.leave.request', 'own.payslip.view',
+            // Per-menu access modules so every sidebar item is role-configurable
+            // from the Hak Akses matrix (not just feature-gated per tenant).
+            'document.view', 'letter.view', 'offboarding.view', 'organization.view',
+            'timesheet.view', 'shift_swap.view', 'delegation.view',
+            'claim.view', 'loan.view', 'journal.view', 'budget.view', 'salary_structure.view',
+            'recruitment.view', 'onboarding.view',
+            'performance.view', 'okr.view', 'competency.view', 'talent.view', 'learning.view',
+            'helpdesk.view', 'announcement.view', 'survey.view', 'calendar.view', 'ai.view',
+            'asset.view', 'crm.view', 'dynamic_report.view',
         ];
         $permModels = collect($perms)->map(function (string $code) {
             [$module, $action] = array_pad(explode('.', $code, 2), 2, '');
@@ -268,6 +279,15 @@ final class AvanaDemoSeeder extends Seeder
         }
     }
 
+    /**
+     * Seed the tenant's editable sidebar menu from the AvanaNav defaults so the
+     * Menu Builder has content and the runtime nav is DB-driven.
+     */
+    private function seedMenuItems(Tenant $tenant): void
+    {
+        AvanaNav::seedDefaultsFor($tenant->id);
+    }
+
     private function seedAdminUser(Tenant $tenant): User
     {
         $user = User::firstOrCreate(
@@ -288,8 +308,30 @@ final class AvanaDemoSeeder extends Seeder
         }
 
         $this->seedSuperAdmin($tenant);
+        $this->seedManager($tenant);
 
         return $user;
+    }
+
+    /** Seed a Manager user (team approvals + limited read scope). */
+    private function seedManager(Tenant $tenant): void
+    {
+        $manager = User::firstOrCreate(
+            ['email' => 'manager@avanahr.co.id'],
+            [
+                'name' => 'Budi Santoso',
+                'tenant_id' => $tenant->id,
+                'password' => Hash::make('password'),
+                'status' => 'active',
+                'email_verified_at' => now(),
+            ],
+        );
+        $manager->forceFill(['tenant_id' => $tenant->id])->save();
+
+        $role = Role::where('tenant_id', $tenant->id)->where('code', 'manager')->first();
+        if ($role) {
+            $manager->roles()->syncWithoutDetaching([$role->id]);
+        }
     }
 
     /** Seed a Super Admin who can control the tenant's menu/features. */

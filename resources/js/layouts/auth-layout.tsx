@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import { Sparkles } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { C } from '@/lib/avana';
@@ -17,6 +17,8 @@ export default function AuthLayout({
     description?: string;
     children: ReactNode;
 }) {
+    const { website } = usePage().props;
+
     return (
         <div style={{ minHeight: '100vh', display: 'flex', background: '#fff', fontFamily: "'Poppins',system-ui,sans-serif", color: C.text }}>
             <Head>
@@ -28,7 +30,7 @@ export default function AuthLayout({
             {/* LEFT — form */}
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
                 <div style={{ width: '100%', maxWidth: 400 }}>
-                    <img src="/avana/logo-full.png" alt="AvanaHR" style={{ height: 46, marginBottom: 40 }} />
+                    <img src={website.logo_url ?? '/avana/logo-full.png'} alt={website.site_name ?? 'AvanaHR'} style={{ height: 46, marginBottom: 40 }} />
                     {title && <div style={{ fontSize: 24, fontWeight: 600, color: C.navy, letterSpacing: '-.01em' }}>{title}</div>}
                     {description && <div style={{ fontSize: 14, color: C.muted, marginTop: 6, marginBottom: 30 }}>{description}</div>}
 

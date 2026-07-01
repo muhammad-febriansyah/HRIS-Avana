@@ -125,6 +125,31 @@
     }
 }
 
+/* Smooth in-page anchor scrolling (landing nav) */
+html {
+    scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+    html {
+        scroll-behavior: auto;
+    }
+}
+
+/* Landing page client marquee */
+@keyframes marquee {
+    from {
+        transform: translateX(0);
+    }
+    to {
+        transform: translateX(-100%);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .animate-\[marquee_28s_linear_infinite\] {
+        animation: none !important;
+    }
+}
+
 /* Rich-text editor (TipTap) content area */
 .avn-rte .ProseMirror {
     outline: none;

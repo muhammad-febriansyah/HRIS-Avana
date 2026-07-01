@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 final class Employee extends Model
@@ -20,6 +21,8 @@ final class Employee extends Model
         return [
             'birth_date' => 'date',
             'join_date' => 'date',
+            'resign_date' => 'date',
+            'custom_data' => 'array',
         ];
     }
 
@@ -109,5 +112,10 @@ final class Employee extends Model
     public function careerHistories(): HasMany
     {
         return $this->hasMany(EmployeeCareerHistory::class);
+    }
+
+    public function taxProfile(): HasOne
+    {
+        return $this->hasOne(TaxProfile::class);
     }
 }

@@ -17,6 +17,7 @@ beforeEach(function (): void {
     $this->seed(AvanaDemoSeeder::class);
 
     $this->admin = User::where('email', 'admin@avanahr.co.id')->firstOrFail();
+    $this->superadmin = User::where('email', 'superadmin@avanahr.co.id')->firstOrFail();
     $this->tenant = Tenant::findOrFail($this->admin->tenant_id);
 
     // Self-contained routes targeting the controller (routes/avana.php is
@@ -47,7 +48,7 @@ it('renders the payroll config screen with the expected props', function (): voi
 });
 
 it('creates a BPJS program together with its primary rate', function (): void {
-    actingAs($this->admin)
+    actingAs($this->superadmin)
         ->post('spec-payroll-config/bpjs', [
             'code' => 'JKK',
             'name' => 'BPJS JKK',
@@ -74,7 +75,7 @@ it('creates a BPJS program together with its primary rate', function (): void {
 });
 
 it('validates required fields on BPJS store', function (): void {
-    actingAs($this->admin)
+    actingAs($this->superadmin)
         ->post('spec-payroll-config/bpjs', [
             'code' => '',
             'name' => '',
@@ -86,7 +87,7 @@ it('validates required fields on BPJS store', function (): void {
 });
 
 it('rejects a duplicate BPJS code', function (): void {
-    actingAs($this->admin)
+    actingAs($this->superadmin)
         ->post('spec-payroll-config/bpjs', [
             'code' => 'KESEHATAN',
             'name' => 'Duplikat',
@@ -101,7 +102,7 @@ it('rejects a duplicate BPJS code', function (): void {
 it('updates a BPJS program and its latest rate', function (): void {
     $program = BpjsProgram::where('code', 'KESEHATAN')->firstOrFail();
 
-    actingAs($this->admin)
+    actingAs($this->superadmin)
         ->put('spec-payroll-config/bpjs/'.$program->id, [
             'code' => 'KESEHATAN',
             'name' => 'BPJS Kesehatan Baru',
@@ -126,7 +127,7 @@ it('updates a BPJS program and its latest rate', function (): void {
 it('soft deletes a BPJS program', function (): void {
     $program = BpjsProgram::where('code', 'JP')->firstOrFail();
 
-    actingAs($this->admin)
+    actingAs($this->superadmin)
         ->delete('spec-payroll-config/bpjs/'.$program->id)
         ->assertRedirect()
         ->assertSessionHas('success');
@@ -136,7 +137,7 @@ it('soft deletes a BPJS program', function (): void {
 });
 
 it('creates a PPh 21 TER rate', function (): void {
-    actingAs($this->admin)
+    actingAs($this->superadmin)
         ->post('spec-payroll-config/pph21', [
             'category' => 'B',
             'income_min' => 6200000,
@@ -154,7 +155,7 @@ it('creates a PPh 21 TER rate', function (): void {
 });
 
 it('validates required fields on PPh 21 store', function (): void {
-    actingAs($this->admin)
+    actingAs($this->superadmin)
         ->post('spec-payroll-config/pph21', [
             'category' => '',
             'income_min' => '',
@@ -166,7 +167,7 @@ it('validates required fields on PPh 21 store', function (): void {
 it('updates a PPh 21 TER rate', function (): void {
     $rate = Pph21TerRate::where('category', 'A')->orderBy('income_min')->firstOrFail();
 
-    actingAs($this->admin)
+    actingAs($this->superadmin)
         ->put('spec-payroll-config/pph21/'.$rate->id, [
             'category' => 'A',
             'income_min' => 0,
@@ -186,7 +187,7 @@ it('updates a PPh 21 TER rate', function (): void {
 it('deletes a PPh 21 TER rate', function (): void {
     $rate = Pph21TerRate::query()->firstOrFail();
 
-    actingAs($this->admin)
+    actingAs($this->superadmin)
         ->delete('spec-payroll-config/pph21/'.$rate->id)
         ->assertRedirect()
         ->assertSessionHas('success');
@@ -212,6 +213,34 @@ it('forbids a plain employee from creating a BPJS program', function (): void {
             'type' => 'jkm',
             'employee_rate' => 0,
             'company_rate' => 0.003,
+            'effective_start_date' => '2026-01-01',
+        ])
+        ->assertForbidden();
+
+    expect(BpjsProgram::where('code', 'JKM')->exists())->toBeFalse();
+});
+
+it('lets an HR admin view but not edit the global statutory config', function (): void {
+    // BPJS/PPh21 tables are global (shared across tenants): a tenant admin can
+    // read them but only a super admin may change them.
+    actingAs($this->admin)->get('spec-payroll-config')->assertOk();
+
+    actingAs($this->admin)
+        ->post('spec-payroll-config/bpjs', [
+            'code' => 'JKM',
+            'name' => 'BPJS JKM',
+            'type' => 'jkm',
+            'employee_rate' => 0,
+            'company_rate' => 0.003,
+            'effective_start_date' => '2026-01-01',
+        ])
+        ->assertForbidden();
+
+    actingAs($this->admin)
+        ->post('spec-payroll-config/pph21', [
+            'category' => 'C',
+            'income_min' => 1000000,
+            'rate' => 0.01,
             'effective_start_date' => '2026-01-01',
         ])
         ->assertForbidden();

@@ -2,6 +2,7 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, C, NAV   } from '@/lib/avana';
 import type {NavGroup, NavItem} from '@/lib/avana';
 import { logout } from '@/routes';
@@ -20,10 +21,18 @@ function AvanaFonts() {
 }
 
 export default function AvanaLayout({ children }: PropsWithChildren) {
-    const page = usePage<{ auth?: { user?: AuthUser }; nav?: NavGroup[] }>();
+    const page = usePage<{
+        auth?: { user?: AuthUser; tenant?: { id: number; name: string } };
+        nav?: NavGroup[];
+        superAdminView?: { is_super: boolean; view_tenant_id: string; tenants: { id: number; name: string }[] };
+    }>();
     const url = page.url;
     const user = page.props.auth?.user;
     const navGroups = page.props.nav?.length ? page.props.nav : NAV;
+    const sav = page.props.superAdminView;
+
+    const switchTenant = (id: string) =>
+        router.post('/avana/view-tenant', { tenant_id: id }, { preserveScroll: false });
     const userName = user?.name ?? 'Rina Anggraeni';
     const userInitials =
         userName
@@ -226,6 +235,25 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                         />
                     </div>
                     <div style={{ flex: 1 }} />
+                    {sav?.is_super && sav.tenants.length > 0 && (
+                        <div
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 4px 4px 10px', border: `1px solid ${sav.view_tenant_id ? '#F59E0B' : C.border}`, borderRadius: 9, background: sav.view_tenant_id ? '#FFFBEB' : '#fff' }}
+                            title="Lihat data sebagai tenant (Super Admin)"
+                        >
+                            <AIcon name="eye" size={15} color={sav.view_tenant_id ? '#B45309' : C.faint} />
+                            <SearchableSelect
+                                value={sav.view_tenant_id}
+                                onChange={switchTenant}
+                                options={[
+                                    { value: '', label: '— Tenant Saya —' },
+                                    ...sav.tenants.map((t) => ({ value: String(t.id), label: t.name })),
+                                ]}
+                                placeholder="Lihat tenant…"
+                                searchPlaceholder="Cari tenant…"
+                                style={{ width: 200 }}
+                            />
+                        </div>
+                    )}
                     <button style={{ position: 'relative', width: 40, height: 40, border: `1px solid ${C.border}`, background: '#fff', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: C.text }}>
                         <AIcon name="bell" size={18} />
                         <span style={{ position: 'absolute', top: 7, right: 7, width: 7, height: 7, background: C.red, borderRadius: '50%', border: '1.5px solid #fff' }} />
@@ -237,7 +265,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                                 <div style={{ width: 36, height: 36, borderRadius: 9, background: 'linear-gradient(135deg,#2F54C9,#6E9BE6)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 14 }}>{userInitials}</div>
                                 <div className="avn-usermeta" style={{ lineHeight: 1.25, textAlign: 'left' }}>
                                     <div style={{ fontSize: 13, fontWeight: 600, color: C.navy }}>{userName}</div>
-                                    <div style={{ fontSize: 11.5, color: C.muted }}>PT Nusantara Jaya</div>
+                                    <div style={{ fontSize: 11.5, color: C.muted }}>{page.props.auth?.tenant?.name ?? 'PT Nusantara Jaya'}</div>
                                 </div>
                                 <AIcon name="chevron-down" size={16} color={C.faint} />
                             </button>

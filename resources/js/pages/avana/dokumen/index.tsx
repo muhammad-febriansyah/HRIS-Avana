@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import DokumenController from '@/actions/App/Http/Controllers/Avana/DokumenController';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
 import {
     ConfirmModal,
@@ -265,23 +266,17 @@ export default function DokumenIndex({
                     >
                         Daftar Dokumen
                     </div>
-                    <select
+                    <SearchableSelect
                         value={employeeFilter}
-                        onChange={(event) =>
-                            setEmployeeFilter(event.target.value)
-                        }
-                        style={{ ...selectStyle, width: 220, height: 38 }}
-                    >
-                        <option value="">Semua karyawan</option>
-                        {employees.map((employee) => (
-                            <option
-                                key={employee.id}
-                                value={String(employee.id)}
-                            >
-                                {employee.name ?? '—'}
-                            </option>
-                        ))}
-                    </select>
+                        onChange={setEmployeeFilter}
+                        options={[
+                            { value: '', label: 'Semua karyawan' },
+                            ...employees.map((employee) => ({ value: String(employee.id), label: employee.name ?? '—' })),
+                        ]}
+                        placeholder="Semua karyawan"
+                        searchPlaceholder="Cari karyawan…"
+                        style={{ width: 220 }}
+                    />
                 </div>
 
                 {/* Documents table */}
@@ -513,29 +508,13 @@ export default function DokumenIndex({
                                     Karyawan{' '}
                                     <span style={{ color: C.red }}>*</span>
                                 </label>
-                                <select
+                                <SearchableSelect
                                     value={form.data.employee_id}
-                                    onChange={(event) =>
-                                        form.setData(
-                                            'employee_id',
-                                            event.target.value,
-                                        )
-                                    }
-                                    style={withError(
-                                        selectStyle,
-                                        !!form.errors.employee_id,
-                                    )}
-                                >
-                                    <option value="">Pilih karyawan</option>
-                                    {employees.map((employee) => (
-                                        <option
-                                            key={employee.id}
-                                            value={String(employee.id)}
-                                        >
-                                            {employee.name ?? '—'}
-                                        </option>
-                                    ))}
-                                </select>
+                                    onChange={(v) => form.setData('employee_id', v)}
+                                    options={employees.map((employee) => ({ value: String(employee.id), label: employee.name ?? '—' }))}
+                                    placeholder="Pilih karyawan"
+                                    searchPlaceholder="Cari karyawan…"
+                                />
                                 <FieldError
                                     message={form.errors.employee_id}
                                 />

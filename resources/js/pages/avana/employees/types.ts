@@ -45,6 +45,7 @@ export type Employee = {
     job_level?: NamedRef | null;
     work_location?: NamedRef | null;
     manager?: ManagerRef | null;
+    custom_data?: Record<string, string>;
 };
 
 /** Laravel paginator `meta` block carried by a resource collection. */
@@ -101,6 +102,16 @@ export type EmployeeFormData = {
     job_level_id: string;
     manager_id: string;
     status: string;
+    custom_data?: Record<string, string>;
+};
+
+/** A tenant-defined custom employee field. */
+export type CustomFieldDef = {
+    key: string;
+    label: string;
+    type: string;
+    options: string[];
+    is_required: boolean;
 };
 
 /** Success flash message shared on every Inertia response. */

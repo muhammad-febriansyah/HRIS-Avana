@@ -5,10 +5,14 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\ClearanceItem;
 use App\Models\Employee;
+use App\Models\EmployeeSalaryComponent;
 use App\Models\OffboardingCase;
+use App\Models\PositionPayrollComponent;
 use App\Models\User;
+use App\Services\SeveranceCalculator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -55,6 +59,10 @@ class OffboardingController extends Controller
         return Inertia::render('avana/offboarding/index', [
             'cases' => $cases,
             'employees' => $this->employeeOptions($tenantId),
+            'severanceReasons' => collect(SeveranceCalculator::REASONS)
+                ->map(fn (array $config, string $key): array => ['value' => $key, 'label' => $config['label']])
+                ->values()
+                ->all(),
             'kpis' => [
                 'active' => $cases->where('status', 'in_progress')->count(),
                 'completed' => $cases->where('status', 'completed')->count(),
@@ -117,6 +125,88 @@ class OffboardingController extends Controller
     }
 
     /**
+     * Compute and persist the termination settlement (pesangon / uang pisah)
+     * for an offboarding case using the statutory PP 35/2021 formula.
+     */
+    public function settlement(Request $request, OffboardingCase $case, SeveranceCalculator $calculator): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureTenantOwnership($request, $case);
+
+        $data = $request->validate([
+            'reason' => ['required', Rule::in(array_keys(SeveranceCalculator::REASONS))],
+            'uph' => ['nullable', 'numeric', 'min:0'],
+            'separation_pay' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $employee = $case->employee;
+
+        abort_if($employee === null, 404);
+
+        $endDate = $case->last_day ?? $employee->resign_date ?? Carbon::today();
+
+        $tenureYears = $employee->join_date !== null
+            ? max(0.0, $employee->join_date->diffInDays($endDate) / 365.25)
+            : 0.0;
+
+        $wage = $this->monthlyBaseWage($employee, (int) $request->user()->tenant_id);
+
+        $breakdown = $calculator->calculate(
+            $wage,
+            $tenureYears,
+            $data['reason'],
+            (float) ($data['uph'] ?? 0),
+            (float) ($data['separation_pay'] ?? 0),
+        );
+
+        $case->update([
+            'settlement_reason' => $data['reason'],
+            'settlement_amount' => $breakdown['total'],
+            'settlement_breakdown' => $breakdown,
+        ]);
+
+        return back()->with('success', 'Settlement dihitung: Rp '.number_format($breakdown['total'], 0, ',', '.'));
+    }
+
+    /**
+     * Sum an employee's full monthly fixed wage — the basis for severance.
+     */
+    private function monthlyBaseWage(Employee $employee, int $tenantId): float
+    {
+        $total = 0.0;
+
+        $salaryComponents = EmployeeSalaryComponent::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->with('component')
+            ->get();
+
+        foreach ($salaryComponents as $salaryComponent) {
+            if ($salaryComponent->component !== null && $salaryComponent->component->type !== 'deduction') {
+                $total += (float) $salaryComponent->amount;
+            }
+        }
+
+        if ($employee->position_id !== null) {
+            $positionComponents = PositionPayrollComponent::forTenant($tenantId)
+                ->where('position_id', $employee->position_id)
+                ->with('component')
+                ->get();
+
+            foreach ($positionComponents as $positionComponent) {
+                $component = $positionComponent->component;
+
+                if ($component !== null
+                    && $component->type !== 'deduction'
+                    && ! in_array($component->calc_basis, ['per_present_day', 'per_overtime_hour'], true)) {
+                    $total += (float) $positionComponent->amount;
+                }
+            }
+        }
+
+        return $total;
+    }
+
+    /**
      * Delete an offboarding case together with its clearance items.
      */
     public function destroy(Request $request, OffboardingCase $case): RedirectResponse
@@ -168,6 +258,9 @@ class OffboardingController extends Controller
             'last_day' => $case->last_day?->toDateString(),
             'reason' => $case->reason,
             'status' => $case->status,
+            'settlement_reason' => $case->settlement_reason,
+            'settlement_amount' => $case->settlement_amount !== null ? (float) $case->settlement_amount : null,
+            'settlement_breakdown' => $case->settlement_breakdown,
             'items' => $items->all(),
             'items_total' => $items->count(),
             'items_cleared' => $clearedCount,

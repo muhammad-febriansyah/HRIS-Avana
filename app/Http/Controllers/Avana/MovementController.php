@@ -11,6 +11,7 @@ use App\Models\Position;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -196,7 +197,13 @@ class MovementController extends Controller
         }
 
         if (in_array($validated['movement_type'], self::EXIT_TYPES, true)) {
-            $employee->status = 'inactive';
+            // Record the last working day but keep the employee active until it
+            // passes, so their final month is still picked up by payroll. The
+            // daily FlagResignedEmployees command flips the status afterwards.
+            $employee->resign_date = $validated['effective_date'];
+            $employee->status = Carbon::parse($validated['effective_date'])->isPast()
+                ? 'inactive'
+                : 'active';
 
             if (! empty($validated['employment_status'])) {
                 $employee->employment_status = $validated['employment_status'];

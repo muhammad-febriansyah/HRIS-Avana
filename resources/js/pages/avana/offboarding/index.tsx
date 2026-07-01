@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import OffboardingController from '@/actions/App/Http/Controllers/Avana/OffboardingController';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, ActionBtn, btnOut, btnP, C, card } from '@/lib/avana';
 
 /* ============================================================
@@ -22,6 +23,16 @@ interface ClearanceRow {
     is_cleared: boolean;
 }
 
+interface SettlementBreakdown {
+    reason_label: string;
+    tenure_years: number;
+    up_amount: number;
+    upmk_amount: number;
+    uph: number;
+    separation_pay: number;
+    total: number;
+}
+
 interface CaseCard {
     id: number;
     employee_id: number;
@@ -29,6 +40,9 @@ interface CaseCard {
     last_day: string | null;
     reason: string | null;
     status: string;
+    settlement_reason: string | null;
+    settlement_amount: number | null;
+    settlement_breakdown: SettlementBreakdown | null;
     items: ClearanceRow[];
     items_total: number;
     items_cleared: number;
@@ -40,11 +54,20 @@ interface OffboardingKpis {
     pending_items: number;
 }
 
+interface ReasonOption {
+    value: string;
+    label: string;
+}
+
 interface OffboardingIndexProps {
     cases: CaseCard[];
     employees: EmployeeOption[];
+    severanceReasons: ReasonOption[];
     kpis: OffboardingKpis;
 }
+
+const rupiah = (value: number): string =>
+    'Rp ' + Math.round(value).toLocaleString('id-ID');
 
 type FlashProps = { flash?: { success?: string } };
 
@@ -82,14 +105,16 @@ const textareaStyle: CSSProperties = {
 
 const kpiCardStyle: CSSProperties = { ...card, padding: '18px 20px', flex: '1 1 180px' };
 
-export default function OffboardingIndex({ cases, employees, kpis }: OffboardingIndexProps) {
+export default function OffboardingIndex({ cases, employees, severanceReasons, kpis }: OffboardingIndexProps) {
     const { flash } = usePage<FlashProps>().props;
 
     const [caseModalOpen, setCaseModalOpen] = useState(false);
     const [expanded, setExpanded] = useState<number | null>(cases[0]?.id ?? null);
     const [confirm, setConfirm] = useState<CaseCard | null>(null);
+    const [settleCase, setSettleCase] = useState<CaseCard | null>(null);
 
     const caseForm = useForm({ employee_id: '', last_day: '', reason: '' });
+    const settleForm = useForm({ reason: '', uph: '', separation_pay: '' });
 
     useEffect(() => {
         if (flash?.success) {
@@ -125,6 +150,30 @@ export default function OffboardingIndex({ cases, employees, kpis }: Offboarding
         router.delete(OffboardingController.destroy(confirm.id).url, {
             preserveScroll: true,
             onSuccess: () => setConfirm(null),
+        });
+    };
+
+    const openSettlement = (item: CaseCard) => {
+        settleForm.clearErrors();
+        settleForm.setData({
+            reason: item.settlement_reason ?? (severanceReasons[0]?.value ?? ''),
+            uph: '',
+            separation_pay: '',
+        });
+        setSettleCase(item);
+    };
+
+    const submitSettlement = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!settleCase) {
+            return;
+        }
+        settleForm.post(OffboardingController.settlement(settleCase.id).url, {
+            preserveScroll: true,
+            onSuccess: () => {
+                settleForm.reset();
+                setSettleCase(null);
+            },
         });
     };
 
@@ -205,6 +254,7 @@ export default function OffboardingIndex({ cases, employees, kpis }: Offboarding
                                     <StatusBadge status={item.status} />
                                     <div style={{ display: 'inline-flex', gap: 6 }}>
                                         <ActionBtn icon={open ? 'chevron-up' : 'chevron-down'} label={open ? 'Tutup' : 'Clearance'} variant="neutral" onClick={() => setExpanded(open ? null : item.id)} />
+                                        <ActionBtn icon="banknote" label={item.settlement_amount != null ? rupiah(item.settlement_amount) : 'Pesangon'} variant="primary" onClick={() => openSettlement(item)} />
                                         <ActionBtn icon="trash-2" label="Hapus" variant="danger" onClick={() => setConfirm(item)} />
                                     </div>
                                 </div>
@@ -236,12 +286,13 @@ export default function OffboardingIndex({ cases, employees, kpis }: Offboarding
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                             <div>
                                 <label style={labelStyle}>Karyawan <span style={{ color: C.red }}>*</span></label>
-                                <select value={caseForm.data.employee_id} onChange={(e) => caseForm.setData('employee_id', e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
-                                    <option value="">Pilih karyawan</option>
-                                    {employees.map((emp) => (
-                                        <option key={emp.id} value={String(emp.id)}>{emp.name} ({emp.employee_number})</option>
-                                    ))}
-                                </select>
+                                <SearchableSelect
+                                    value={caseForm.data.employee_id}
+                                    onChange={(v) => caseForm.setData('employee_id', v)}
+                                    options={employees.map((emp) => ({ value: String(emp.id), label: `${emp.name} (${emp.employee_number})` }))}
+                                    placeholder="Pilih karyawan"
+                                    searchPlaceholder="Cari nama / NIK…"
+                                />
                                 {caseForm.errors.employee_id && <FieldError message={caseForm.errors.employee_id} />}
                             </div>
                             <div>
@@ -268,7 +319,65 @@ export default function OffboardingIndex({ cases, employees, kpis }: Offboarding
                     onConfirm={deleteCase}
                 />
             )}
+
+            {settleCase && (
+                <ModalShell onClose={() => setSettleCase(null)} title="Hitung Pesangon / Uang Pisah" subtitle={`Perhitungan PP 35/2021 untuk ${settleCase.employee?.name ?? 'karyawan'}.`}>
+                    <form onSubmit={submitSettlement}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                            <div>
+                                <label style={labelStyle}>Alasan Pengakhiran <span style={{ color: C.red }}>*</span></label>
+                                <select value={settleForm.data.reason} onChange={(e) => settleForm.setData('reason', e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                                    {severanceReasons.map((r) => (
+                                        <option key={r.value} value={r.value}>{r.label}</option>
+                                    ))}
+                                </select>
+                                {settleForm.errors.reason && <FieldError message={settleForm.errors.reason} />}
+                            </div>
+                            <div>
+                                <label style={labelStyle}>Uang Penggantian Hak (UPH)</label>
+                                <input type="number" min="0" value={settleForm.data.uph} onChange={(e) => settleForm.setData('uph', e.target.value)} placeholder="mis. sisa cuti, biaya pulang" style={inputStyle} />
+                                {settleForm.errors.uph && <FieldError message={settleForm.errors.uph} />}
+                            </div>
+                            <div>
+                                <label style={labelStyle}>Uang Pisah (untuk resign/mangkir)</label>
+                                <input type="number" min="0" value={settleForm.data.separation_pay} onChange={(e) => settleForm.setData('separation_pay', e.target.value)} placeholder="sesuai PKB/kebijakan" style={inputStyle} />
+                                {settleForm.errors.separation_pay && <FieldError message={settleForm.errors.separation_pay} />}
+                            </div>
+
+                            {settleCase.settlement_breakdown && (
+                                <div style={{ background: '#F1F5FF', borderRadius: 10, padding: '12px 14px', fontSize: 12.5, color: C.text }}>
+                                    <div style={{ fontWeight: 600, color: C.navy, marginBottom: 6 }}>Hasil terakhir ({settleCase.settlement_breakdown.reason_label})</div>
+                                    <Row k={`Masa kerja`} v={`${settleCase.settlement_breakdown.tenure_years} th`} />
+                                    <Row k="Uang Pesangon (UP)" v={rupiah(settleCase.settlement_breakdown.up_amount)} />
+                                    <Row k="Uang Penghargaan (UPMK)" v={rupiah(settleCase.settlement_breakdown.upmk_amount)} />
+                                    <Row k="UPH" v={rupiah(settleCase.settlement_breakdown.uph)} />
+                                    <Row k="Uang Pisah" v={rupiah(settleCase.settlement_breakdown.separation_pay)} />
+                                    <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 6, paddingTop: 6, display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: C.primary }}>
+                                        <span>Total</span><span>{rupiah(settleCase.settlement_breakdown.total)}</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
+                            <button type="button" onClick={() => setSettleCase(null)} style={{ ...btnOut, flex: 1, height: 44, justifyContent: 'center' }}>Tutup</button>
+                            <button type="submit" disabled={settleForm.processing} style={{ ...btnP, flex: 1, height: 44, justifyContent: 'center', opacity: settleForm.processing ? 0.7 : 1 }}>
+                                <AIcon name="calculator" size={16} color="#fff" />
+                                Hitung &amp; Simpan
+                            </button>
+                        </div>
+                    </form>
+                </ModalShell>
+            )}
         </>
+    );
+}
+
+function Row({ k, v }: { k: string; v: string }) {
+    return (
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+            <span style={{ color: C.muted }}>{k}</span>
+            <span>{v}</span>
+        </div>
     );
 }
 

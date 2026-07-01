@@ -6,6 +6,7 @@ import EmployeeController from '@/actions/App/Http/Controllers/Avana/EmployeeCon
 import { AIcon, C } from '@/lib/avana';
 import { EmployeeForm } from './employee-form';
 import type {
+    CustomFieldDef,
     EmployeeFormData,
     EmployeeFormOptions,
     FlashProps,
@@ -13,9 +14,13 @@ import type {
 
 interface EmployeesCreateProps {
     options: EmployeeFormOptions;
+    customFields: CustomFieldDef[];
 }
 
-export default function EmployeesCreate({ options }: EmployeesCreateProps) {
+export default function EmployeesCreate({
+    options,
+    customFields,
+}: EmployeesCreateProps) {
     const { flash } = usePage<FlashProps>().props;
 
     const form = useForm<EmployeeFormData>({
@@ -37,6 +42,7 @@ export default function EmployeesCreate({ options }: EmployeesCreateProps) {
         job_level_id: '',
         manager_id: '',
         status: 'active',
+        custom_data: {},
     });
 
     useEffect(() => {
@@ -92,6 +98,7 @@ export default function EmployeesCreate({ options }: EmployeesCreateProps) {
                 <EmployeeForm
                     form={form}
                     options={options}
+                    customFields={customFields}
                     submitLabel="Simpan Karyawan"
                     cancelHref={EmployeeController.index().url}
                     onSubmit={handleSubmit}

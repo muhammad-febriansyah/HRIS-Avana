@@ -2,7 +2,11 @@ import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
 import { AIcon, C, card } from '@/lib/avana';
-import type { EmployeeFormData, EmployeeFormOptions } from './types';
+import type {
+    CustomFieldDef,
+    EmployeeFormData,
+    EmployeeFormOptions,
+} from './types';
 
 const labelStyle: CSSProperties = {
     display: 'block',
@@ -56,6 +60,7 @@ interface EmployeeFormProps {
     submitLabel: string;
     cancelHref: string;
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+    customFields?: CustomFieldDef[];
 }
 
 function SectionHeader({
@@ -137,11 +142,15 @@ export function EmployeeForm({
     submitLabel,
     cancelHref,
     onSubmit,
+    customFields = [],
 }: EmployeeFormProps) {
     const { data, setData, errors, processing } = form;
 
     const styleFor = (hasError: boolean, base: CSSProperties): CSSProperties =>
         hasError ? { ...base, ...errorBorder } : base;
+
+    const setCustom = (key: string, value: string) =>
+        setData('custom_data', { ...(data.custom_data ?? {}), [key]: value });
 
     return (
         <form
@@ -533,6 +542,75 @@ export function EmployeeForm({
                     </Field>
                 </div>
             </div>
+
+            {/* Data Tambahan (custom fields per tenant) */}
+            {customFields.length > 0 && (
+                <div style={card}>
+                    <SectionHeader
+                        icon="list-plus"
+                        title="Data Tambahan"
+                        desc="Field kustom sesuai kebutuhan perusahaan."
+                    />
+                    <div className="avn-2col" style={sectionGrid}>
+                        {customFields.map((field) => {
+                            const error = (errors as Record<string, string>)[
+                                `custom_data.${field.key}`
+                            ];
+                            const value = data.custom_data?.[field.key] ?? '';
+
+                            return (
+                                <Field
+                                    key={field.key}
+                                    htmlFor={`cf_${field.key}`}
+                                    label={field.label}
+                                    required={field.is_required}
+                                    error={error}
+                                >
+                                    {field.type === 'select' ? (
+                                        <select
+                                            id={`cf_${field.key}`}
+                                            value={value}
+                                            onChange={(event) =>
+                                                setCustom(
+                                                    field.key,
+                                                    event.target.value,
+                                                )
+                                            }
+                                            style={styleFor(!!error, selectStyle)}
+                                        >
+                                            <option value="">— Pilih —</option>
+                                            {field.options.map((opt) => (
+                                                <option key={opt} value={opt}>
+                                                    {opt}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <input
+                                            id={`cf_${field.key}`}
+                                            type={
+                                                field.type === 'number'
+                                                    ? 'number'
+                                                    : field.type === 'date'
+                                                      ? 'date'
+                                                      : 'text'
+                                            }
+                                            value={value}
+                                            onChange={(event) =>
+                                                setCustom(
+                                                    field.key,
+                                                    event.target.value,
+                                                )
+                                            }
+                                            style={styleFor(!!error, inputStyle)}
+                                        />
+                                    )}
+                                </Field>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Footer */}
             <div

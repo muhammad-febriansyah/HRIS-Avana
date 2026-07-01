@@ -8,6 +8,7 @@ use App\Http\Requests\Avana\StoreEmployeeRequest;
 use App\Http\Requests\Avana\UpdateEmployeeRequest;
 use App\Http\Resources\Avana\EmployeeResource;
 use App\Models\Branch;
+use App\Models\CustomField;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\JobLevel;
@@ -105,6 +106,7 @@ class EmployeeController extends Controller
 
         return Inertia::render('avana/employees/create', [
             'options' => $this->formOptions($request),
+            'customFields' => $this->customFields($request->user()->tenant_id),
         ]);
     }
 
@@ -131,7 +133,33 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Display a single employee with its related records.
+     * Render the visual organisation chart from the reporting hierarchy.
+     */
+    public function orgChart(Request $request): Response
+    {
+        $this->authorize('viewAny', Employee::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $employees = Employee::forTenant($tenantId)
+            ->where('status', 'active')
+            ->with(['position:id,name', 'department:id,name'])
+            ->orderBy('full_name')
+            ->get(['id', 'full_name', 'position_id', 'department_id', 'manager_id']);
+
+        return Inertia::render('avana/employees/org-chart', [
+            'nodes' => $employees->map(fn (Employee $employee): array => [
+                'id' => $employee->id,
+                'name' => $employee->full_name,
+                'position' => $employee->position?->name,
+                'department' => $employee->department?->name,
+                'manager_id' => $employee->manager_id,
+            ])->values(),
+        ]);
+    }
+
+    /**
+     * Display the specified employee.
      */
     public function show(Request $request, Employee $employee): Response
     {
@@ -149,6 +177,7 @@ class EmployeeController extends Controller
 
         return Inertia::render('avana/employees/show', [
             'employee' => new EmployeeResource($employee),
+            'customFields' => $this->customFields($request->user()->tenant_id),
         ]);
     }
 
@@ -171,6 +200,7 @@ class EmployeeController extends Controller
         return Inertia::render('avana/employees/edit', [
             'employee' => new EmployeeResource($employee),
             'options' => $this->formOptions($request),
+            'customFields' => $this->customFields($request->user()->tenant_id),
         ]);
     }
 
@@ -240,6 +270,29 @@ class EmployeeController extends Controller
                 ['value' => 'resigned', 'label' => 'Resign'],
             ],
         ];
+    }
+
+    /**
+     * The tenant's active custom employee field definitions.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function customFields(int $tenantId): array
+    {
+        return CustomField::forTenant($tenantId)
+            ->where('entity', 'employee')
+            ->where('status', 'active')
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['key', 'label', 'type', 'options', 'is_required'])
+            ->map(fn (CustomField $field): array => [
+                'key' => $field->key,
+                'label' => $field->label,
+                'type' => $field->type,
+                'options' => $field->options ?? [],
+                'is_required' => $field->is_required,
+            ])
+            ->all();
     }
 
     /**

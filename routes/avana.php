@@ -20,6 +20,7 @@ use App\Http\Controllers\Avana\CompanySetupController;
 use App\Http\Controllers\Avana\CompetencyController;
 use App\Http\Controllers\Avana\ContractController;
 use App\Http\Controllers\Avana\CrmController;
+use App\Http\Controllers\Avana\CustomFieldController;
 use App\Http\Controllers\Avana\DokumenController;
 use App\Http\Controllers\Avana\DutyTravelController;
 use App\Http\Controllers\Avana\DynamicReportController;
@@ -34,6 +35,7 @@ use App\Http\Controllers\Avana\LeaveController;
 use App\Http\Controllers\Avana\LeaveTypeController;
 use App\Http\Controllers\Avana\LetterTemplateController;
 use App\Http\Controllers\Avana\LoanController;
+use App\Http\Controllers\Avana\MenuBuilderController;
 use App\Http\Controllers\Avana\MovementController;
 use App\Http\Controllers\Avana\OffboardingController;
 use App\Http\Controllers\Avana\OkrController;
@@ -53,15 +55,30 @@ use App\Http\Controllers\Avana\TalentController;
 use App\Http\Controllers\Avana\TenantController;
 use App\Http\Controllers\Avana\TimesheetController;
 use App\Http\Controllers\Avana\UserController;
+use App\Http\Controllers\Avana\ViewTenantController;
 use App\Http\Controllers\Avana\WebsiteSettingController;
 use App\Http\Controllers\Avana\WfhController;
+use App\Http\Middleware\EnsureAvanaAccess;
 use Illuminate\Support\Facades\Route;
 
 /*
  * AvanaHR (authenticated). Tenant scoping is enforced inside the controllers
  * via <Model>::forTenant($request->user()->tenant_id).
  */
-Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(function () {
+Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana')->name('avana.')->group(function () {
+    Route::post('view-tenant', [ViewTenantController::class, 'store'])->name('view-tenant');
+    Route::get('organisasi', [EmployeeController::class, 'orgChart'])->name('organisasi');
+    Route::get('menu-builder', [MenuBuilderController::class, 'index'])->name('menu-builder');
+    Route::post('menu-builder', [MenuBuilderController::class, 'store'])->name('menu-builder.store');
+    Route::put('menu-builder/{menuItem}', [MenuBuilderController::class, 'update'])->name('menu-builder.update');
+    Route::delete('menu-builder/{menuItem}', [MenuBuilderController::class, 'destroy'])->name('menu-builder.destroy');
+    Route::post('menu-builder/{menuItem}/toggle', [MenuBuilderController::class, 'toggle'])->name('menu-builder.toggle');
+    Route::post('menu-builder/{menuItem}/move', [MenuBuilderController::class, 'move'])->name('menu-builder.move');
+    Route::post('menu-builder-reorder', [MenuBuilderController::class, 'reorder'])->name('menu-builder.reorder');
+    Route::get('custom-fields', [CustomFieldController::class, 'index'])->name('custom-fields');
+    Route::post('custom-fields', [CustomFieldController::class, 'store'])->name('custom-fields.store');
+    Route::put('custom-fields/{field}', [CustomFieldController::class, 'update'])->name('custom-fields.update');
+    Route::delete('custom-fields/{field}', [CustomFieldController::class, 'destroy'])->name('custom-fields.destroy');
     Route::resource('employees', EmployeeController::class);
 
     Route::get('absensi', [AttendanceController::class, 'index'])->name('absensi');
@@ -105,9 +122,13 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     Route::get('payroll/periods/create', [PayrollController::class, 'createPeriod'])->name('payroll.periods.create');
     Route::post('payroll/periods', [PayrollController::class, 'storePeriod'])->name('payroll.periods.store');
     Route::post('payroll/run', [PayrollController::class, 'run'])->name('payroll.run');
+    Route::post('payroll/approve', [PayrollController::class, 'approve'])->name('payroll.approve');
     Route::post('payroll/lock', [PayrollController::class, 'lock'])->name('payroll.lock');
     Route::post('payroll/thr', [PayrollController::class, 'thr'])->name('payroll.thr');
     Route::get('payroll/transfer', [PayrollController::class, 'transferFile'])->name('payroll.transfer');
+    Route::get('payroll/payslip/{item}/pdf', [PayrollController::class, 'payslipPdf'])->name('payroll.payslip.pdf');
+    Route::get('payroll/bpjs-export', [PayrollController::class, 'bpjsFile'])->name('payroll.bpjs.export');
+    Route::get('payroll/1721/{employee}', [PayrollController::class, 'taxForm1721'])->name('payroll.tax1721');
     Route::get('payroll/components', [PositionComponentController::class, 'index'])->name('payroll.components');
     Route::put('payroll/components', [PositionComponentController::class, 'update'])->name('payroll.components.update');
     Route::put('payroll/components/basis', [PositionComponentController::class, 'updateBasis'])->name('payroll.components.basis');
@@ -257,6 +278,7 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     Route::delete('kinerja/{review}', [PerformanceController::class, 'destroy'])->name('kinerja.destroy');
     Route::post('kinerja/cycle', [PerformanceController::class, 'storeCycle'])->name('kinerja.cycle.store');
     Route::post('kinerja/{review}/score', [PerformanceController::class, 'submitScore'])->name('kinerja.score');
+    Route::post('kinerja/{review}/calibrate', [PerformanceController::class, 'calibrate'])->name('kinerja.calibrate');
     // 360 feedback on a performance review
     Route::post('kinerja/{review}/feedback', [PerformanceController::class, 'storeFeedback'])->name('kinerja.feedback.store');
     Route::delete('kinerja/feedback/{feedback}', [PerformanceController::class, 'destroyFeedback'])->name('kinerja.feedback.destroy');
@@ -372,6 +394,7 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     Route::get('offboarding', [OffboardingController::class, 'index'])->name('offboarding');
     Route::post('offboarding', [OffboardingController::class, 'store'])->name('offboarding.store');
     Route::post('offboarding/item/{item}/toggle', [OffboardingController::class, 'toggleItem'])->name('offboarding.item.toggle');
+    Route::post('offboarding/{case}/settlement', [OffboardingController::class, 'settlement'])->name('offboarding.settlement');
     Route::delete('offboarding/{case}', [OffboardingController::class, 'destroy'])->name('offboarding.destroy');
 
     // Pengumuman (announcements)

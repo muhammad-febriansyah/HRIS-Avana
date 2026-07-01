@@ -81,11 +81,24 @@ export default function KinerjaEdit({
 
     const feedbackForm = useForm<FeedbackFormData>({ ...emptyFeedbackForm });
 
+    const calibrateForm = useForm({
+        calibrated_score:
+            review.final_score !== null ? String(review.final_score) : '',
+        notes: review.notes ?? '',
+    });
+
     useEffect(() => {
         if (flash?.success) {
             toast.success(flash.success);
         }
     }, [flash?.success]);
+
+    const submitCalibrate = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        calibrateForm.post(PerformanceController.calibrate(review.id).url, {
+            preserveScroll: true,
+        });
+    };
 
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -159,6 +172,150 @@ export default function KinerjaEdit({
                     cancelHref={PerformanceController.index().url}
                     onSubmit={handleSubmit}
                 />
+
+                {/* Kalibrasi & finalisasi (BR-19) */}
+                <div style={{ ...card, maxWidth: 640, marginTop: 24 }}>
+                    <div
+                        style={{
+                            padding: '20px 24px',
+                            borderBottom: `1px solid ${C.line}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 12,
+                        }}
+                    >
+                        <div>
+                            <div style={sectionTitleStyle}>
+                                Kalibrasi &amp; Finalisasi
+                            </div>
+                            <div
+                                style={{
+                                    fontSize: 13,
+                                    color: C.muted,
+                                    marginTop: 4,
+                                }}
+                            >
+                                Tetapkan nilai akhir hasil kalibrasi tim untuk
+                                menjaga objektivitas; penilaian ditandai selesai.
+                            </div>
+                        </div>
+                        {review.status === 'completed' && (
+                            <span
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 5,
+                                    padding: '4px 10px',
+                                    borderRadius: 100,
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    color: C.green,
+                                    background: 'rgba(22,163,74,.1)',
+                                    whiteSpace: 'nowrap',
+                                }}
+                            >
+                                <AIcon
+                                    name="circle-check"
+                                    size={13}
+                                    color={C.green}
+                                />
+                                Terkalibrasi
+                            </span>
+                        )}
+                    </div>
+                    <form
+                        onSubmit={submitCalibrate}
+                        style={{
+                            padding: '16px 24px 22px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 14,
+                        }}
+                    >
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: '200px 1fr',
+                                gap: 14,
+                                alignItems: 'start',
+                            }}
+                        >
+                            <div>
+                                <label style={fieldLabelStyle}>
+                                    Nilai Kalibrasi{' '}
+                                    <span style={{ color: C.red }}>*</span>
+                                </label>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    step="0.01"
+                                    value={calibrateForm.data.calibrated_score}
+                                    onChange={(event) =>
+                                        calibrateForm.setData(
+                                            'calibrated_score',
+                                            event.target.value,
+                                        )
+                                    }
+                                    placeholder="0 - 100"
+                                    style={withError(
+                                        inputStyle,
+                                        !!calibrateForm.errors.calibrated_score,
+                                    )}
+                                />
+                                <FieldError
+                                    message={
+                                        calibrateForm.errors.calibrated_score
+                                    }
+                                />
+                            </div>
+                            <div>
+                                <label style={fieldLabelStyle}>
+                                    Catatan Kalibrasi
+                                </label>
+                                <textarea
+                                    value={calibrateForm.data.notes}
+                                    onChange={(event) =>
+                                        calibrateForm.setData(
+                                            'notes',
+                                            event.target.value,
+                                        )
+                                    }
+                                    placeholder="Alasan penyesuaian nilai (opsional)"
+                                    style={withError(
+                                        textareaStyle,
+                                        !!calibrateForm.errors.notes,
+                                    )}
+                                />
+                                <FieldError message={calibrateForm.errors.notes} />
+                            </div>
+                        </div>
+                        <div
+                            style={{
+                                display: 'flex',
+                                justifyContent: 'flex-end',
+                            }}
+                        >
+                            <button
+                                type="submit"
+                                disabled={calibrateForm.processing}
+                                style={{
+                                    ...btnP,
+                                    height: 42,
+                                    justifyContent: 'center',
+                                    opacity: calibrateForm.processing ? 0.7 : 1,
+                                    cursor: calibrateForm.processing
+                                        ? 'not-allowed'
+                                        : 'pointer',
+                                }}
+                            >
+                                <AIcon name="scale" size={16} color="#fff" />
+                                Kalibrasi &amp; Selesaikan
+                            </button>
+                        </div>
+                    </form>
+                </div>
 
                 {/* 360 feedback */}
                 <div style={{ ...card, maxWidth: 640, marginTop: 24 }}>

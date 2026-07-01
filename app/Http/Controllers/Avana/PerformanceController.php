@@ -28,7 +28,7 @@ class PerformanceController extends Controller
      *
      * @var array<int, string>
      */
-    private const REVIEW_STATUSES = ['pending', 'self_review', 'manager_review', 'completed'];
+    private const REVIEW_STATUSES = ['pending', 'self_review', 'manager_review', 'calibration', 'completed'];
 
     /**
      * Allowed performance cycle status values, in display order.
@@ -294,6 +294,33 @@ class PerformanceController extends Controller
     }
 
     /**
+     * Calibrate a review (BR-19): set the calibrated final score, record the
+     * calibrator, and mark the review completed. This is the objectivity gate
+     * before a rating becomes final.
+     */
+    public function calibrate(Request $request, PerformanceReview $review): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureTenantOwnership($request, $review);
+
+        $data = $request->validate([
+            'calibrated_score' => ['required', 'numeric', 'min:0', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $review->update([
+            'calibrated_score' => $data['calibrated_score'],
+            'final_score' => $data['calibrated_score'],
+            'calibrated_by' => $request->user()->id,
+            'calibrated_at' => now(),
+            'notes' => $data['notes'] ?? $review->notes,
+            'status' => 'completed',
+        ]);
+
+        return back()->with('success', 'Penilaian dikalibrasi & difinalisasi');
+    }
+
+    /**
      * Attach a 360 feedback entry to a performance review.
      */
     public function storeFeedback(Request $request, PerformanceReview $review): RedirectResponse
@@ -501,6 +528,7 @@ class PerformanceController extends Controller
             'pending' => 'Menunggu',
             'self_review' => 'Penilaian Mandiri',
             'manager_review' => 'Penilaian Atasan',
+            'calibration' => 'Kalibrasi',
             'completed' => 'Selesai',
         ];
 

@@ -128,3 +128,53 @@ it('removes the logo and frees the file when remove flag is set', function (): v
     expect(WebsiteSetting::current()->logo_path)->toBeNull();
     Storage::disk('public')->assertMissing($path);
 });
+
+it('renders database-driven SEO meta and favicon in the document head', function (): void {
+    Storage::fake('public');
+
+    WebsiteSetting::current()->update([
+        'site_name' => 'AvanaHR',
+        'meta_title' => 'AvanaHR HRIS Indonesia',
+        'meta_description' => 'Platform HRIS all-in-one untuk perusahaan Indonesia.',
+        'meta_keywords' => 'hris, payroll, absensi',
+        'favicon_path' => 'website/favicon.png',
+        'og_image_path' => 'website/og.png',
+    ]);
+
+    $html = $this->get('/login')->assertOk()->getContent();
+
+    expect($html)
+        ->toContain('name="description" content="Platform HRIS all-in-one untuk perusahaan Indonesia."')
+        ->toContain('name="keywords" content="hris, payroll, absensi"')
+        ->toContain('property="og:title" content="AvanaHR HRIS Indonesia"')
+        ->toContain('property="og:site_name" content="AvanaHR"')
+        ->toContain('website/favicon.png')
+        ->toContain('website/og.png');
+});
+
+it('falls back to the bundled favicon and app name when settings are empty', function (): void {
+    $html = $this->get('/login')->assertOk()->getContent();
+
+    expect($html)
+        ->toContain('href="/avana/logo-icon.png"')
+        ->toContain('property="og:site_name" content="'.config('app.name', 'AvanaHR').'"');
+});
+
+it('shares branding as an inertia prop for the frontend', function (): void {
+    Storage::fake('public');
+
+    WebsiteSetting::current()->update([
+        'site_name' => 'AvanaHR',
+        'logo_path' => 'website/logo.png',
+    ]);
+
+    $this->get('/login')
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('website.site_name', 'AvanaHR')
+            ->has('website.logo_url')
+            ->has('website.tagline')
+            ->has('website.contact.email')
+            ->has('website.contact.whatsapp')
+            ->has('website.social.instagram')
+            ->has('website.social.linkedin'));
+});
