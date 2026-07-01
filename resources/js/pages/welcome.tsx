@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { ComponentType, ReactNode } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
     MobileNav,
     MobileNavHeader,
@@ -119,6 +119,31 @@ function Reveal({ children, delay = 0, className }: { children: ReactNode; delay
 export default function Welcome() {
     const { auth, website } = usePage().props;
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [activeSection, setActiveSection] = useState('');
+
+    // Scrollspy: mark the nav item whose section is currently in view as active.
+    useEffect(() => {
+        const ids = NAV_ITEMS.map((i) => i.link.slice(1));
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (entry.isIntersecting) {
+                        setActiveSection(`#${entry.target.id}`);
+                    }
+                });
+            },
+            { rootMargin: '-45% 0px -50% 0px' },
+        );
+        ids.forEach((id) => {
+            const el = document.getElementById(id);
+
+            if (el) {
+                observer.observe(el);
+            }
+        });
+
+        return () => observer.disconnect();
+    }, []);
 
     const brand = website.site_name ?? 'AvanaHR';
     const logo = website.logo_url ?? '/avana/logo-full.png';
@@ -135,14 +160,26 @@ export default function Welcome() {
         <>
             <Head title={`${brand} — Platform HRIS & Payroll Indonesia`} />
 
-            <div className="min-h-dvh bg-white font-sans text-[#1A2333]">
+            <div className="relative min-h-dvh overflow-x-clip bg-white font-sans text-[#1A2333]">
+                {/* Hero backdrop — spans behind the navbar so the top never shows a plain white band */}
+                <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 top-0 h-[860px] [mask-image:linear-gradient(to_bottom,black,transparent_82%)]"
+                    style={{
+                        backgroundImage:
+                            'linear-gradient(to right, rgba(14,26,58,0.045) 1px, transparent 1px), linear-gradient(to bottom, rgba(14,26,58,0.045) 1px, transparent 1px)',
+                        backgroundSize: '44px 44px',
+                    }}
+                />
+                <div className="pointer-events-none absolute top-0 left-1/2 h-[540px] w-[860px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(47,84,201,0.12),transparent)]" />
+
                 {/* NAVBAR */}
                 <Navbar>
                     <NavBody>
                         <Link href="/" className="relative z-20 flex items-center gap-2 px-2 py-1">
                             <img src={logo} alt={brand} className="h-8 w-auto object-contain" />
                         </Link>
-                        <NavItems items={NAV_ITEMS} />
+                        <NavItems items={NAV_ITEMS} activeLink={activeSection} />
                         <div className="relative z-20 flex items-center gap-2">
                             {auth.user ? (
                                 <NavbarButton as={Link} href={dashboard().url} variant="primary">
@@ -150,7 +187,12 @@ export default function Welcome() {
                                 </NavbarButton>
                             ) : (
                                 <>
-                                    <NavbarButton as={Link} href={login().url} variant="secondary">
+                                    <NavbarButton
+                                        as={Link}
+                                        href={login().url}
+                                        variant="secondary"
+                                        className="border border-[#E5E9F2] hover:border-[#2F54C9]"
+                                    >
                                         Masuk
                                     </NavbarButton>
                                     <NavbarButton as={Link} href={register().url} variant="primary">
@@ -174,7 +216,10 @@ export default function Welcome() {
                                     key={item.link}
                                     href={item.link}
                                     onClick={() => setMobileOpen(false)}
-                                    className="w-full rounded-lg px-2 py-2 text-[15px] font-medium text-[#1A2333] hover:bg-[#F4F6FB]"
+                                    className={
+                                        'w-full rounded-lg px-2 py-2 text-[15px] font-medium hover:bg-[#F4F6FB] ' +
+                                        (activeSection === item.link ? 'bg-[#2F54C9]/10 text-[#2F54C9]' : 'text-[#1A2333]')
+                                    }
                                 >
                                     {item.name}
                                 </a>
@@ -200,119 +245,166 @@ export default function Welcome() {
                 </Navbar>
 
                 {/* HERO */}
-                <section className="relative overflow-hidden">
-                    <div
-                        aria-hidden
-                        className="pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,black,transparent)]"
-                        style={{
-                            backgroundImage:
-                                'linear-gradient(to right, rgba(14,26,58,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(14,26,58,0.05) 1px, transparent 1px)',
-                            backgroundSize: '44px 44px',
-                        }}
-                    />
-                    <div className="pointer-events-none absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(47,84,201,0.14),transparent)]" />
-                    <div className="mx-auto grid max-w-7xl items-center gap-14 px-6 pt-28 pb-20 lg:grid-cols-2 lg:pt-36">
-                        <div>
-                            <Reveal>
-                                <span className="inline-flex items-center gap-2 rounded-full border border-[#E5E9F2] bg-white px-3.5 py-1.5 text-xs font-medium text-[#2F54C9] shadow-sm">
-                                    <Sparkles className="h-3.5 w-3.5" />
-                                    Platform HRIS / HCM Multi-tenant
-                                </span>
-                            </Reveal>
-                            <Reveal delay={0.05}>
-                                <h1 className="mt-5 text-4xl font-bold leading-[1.12] tracking-tight text-[#0E1A3A] sm:text-5xl lg:text-[3.4rem]">
-                                    Satu platform untuk seluruh{' '}
-                                    <span className="bg-gradient-to-r from-[#2F54C9] to-[#6E9BE6] bg-clip-text text-transparent">
-                                        siklus karyawan
-                                    </span>{' '}
-                                    Anda.
-                                </h1>
-                            </Reveal>
-                            <Reveal delay={0.1}>
-                                <p className="mt-5 max-w-xl text-base leading-relaxed text-[#6B7280] sm:text-lg">
-                                    {website.tagline ??
-                                        'Dari rekrutmen, absensi berbasis GPS, pengajuan cuti, hingga payroll & slip gaji — semua terintegrasi dan sesuai regulasi Indonesia.'}
-                                </p>
-                            </Reveal>
-                            <Reveal delay={0.15}>
-                                <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                                    <Link
-                                        href={register().url}
-                                        className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#2F54C9] px-7 text-[15px] font-semibold text-white shadow-[0_10px_24px_-8px_rgba(47,84,201,0.6)] transition hover:-translate-y-0.5 hover:bg-[#2546ad]"
-                                    >
-                                        Coba Gratis 14 Hari
-                                        <ArrowRight className="h-4 w-4" />
-                                    </Link>
-                                    <a
-                                        href="#kontak"
-                                        className="inline-flex h-12 items-center justify-center rounded-full border border-[#E5E9F2] bg-white px-7 text-[15px] font-semibold text-[#1A2333] transition hover:-translate-y-0.5 hover:border-[#2F54C9]"
-                                    >
-                                        Hubungi Sales
-                                    </a>
-                                </div>
-                            </Reveal>
-                            <Reveal delay={0.2}>
-                                <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-[#6B7280]">
-                                    {['Tanpa kartu kredit', 'Sesuai regulasi Indonesia', 'Data terenkripsi'].map((t) => (
-                                        <span key={t} className="inline-flex items-center gap-1.5">
-                                            <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
-                                            {t}
-                                        </span>
-                                    ))}
-                                </div>
-                            </Reveal>
-                        </div>
-
-                        {/* Hero visual */}
+                <section className="relative">
+                    <div className="mx-auto max-w-7xl px-6 pt-28 pb-16 text-center lg:pt-36">
+                        <Reveal className="flex justify-center">
+                            <span className="inline-flex items-center gap-2 rounded-full border border-[#E5E9F2] bg-white/70 px-3.5 py-1.5 text-xs font-medium text-[#2F54C9] shadow-sm backdrop-blur">
+                                <Sparkles className="h-3.5 w-3.5" />
+                                Platform HRIS / HCM Multi-tenant
+                            </span>
+                        </Reveal>
+                        <Reveal delay={0.05}>
+                            <h1 className="mx-auto mt-6 max-w-4xl text-4xl font-bold leading-[1.1] tracking-tight text-[#0E1A3A] sm:text-5xl lg:text-6xl">
+                                Kelola seluruh{' '}
+                                <span className="bg-gradient-to-r from-[#2F54C9] to-[#6E9BE6] bg-clip-text text-transparent">siklus karyawan</span> dalam
+                                satu platform.
+                            </h1>
+                        </Reveal>
+                        <Reveal delay={0.1}>
+                            <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-[#6B7280] sm:text-lg">
+                                {website.tagline ??
+                                    'Dari rekrutmen, absensi berbasis GPS, pengajuan cuti, hingga payroll & slip gaji — terintegrasi dan sesuai regulasi Indonesia.'}
+                            </p>
+                        </Reveal>
                         <Reveal delay={0.15}>
-                            <div className="relative">
-                                <div className="rounded-2xl border border-[#E5E9F2] bg-white p-5 shadow-[0_30px_80px_-30px_rgba(14,26,58,0.35)]">
-                                    <div className="flex items-center gap-1.5 pb-4">
-                                        <span className="h-2.5 w-2.5 rounded-full bg-[#E5E9F2]" />
-                                        <span className="h-2.5 w-2.5 rounded-full bg-[#E5E9F2]" />
-                                        <span className="h-2.5 w-2.5 rounded-full bg-[#E5E9F2]" />
-                                    </div>
-                                    <div className="rounded-xl bg-gradient-to-br from-[#0E1A3A] via-[#1c3175] to-[#2F54C9] p-6 text-white">
-                                        <div className="text-xs text-white/70">Total Payroll Bulan Ini</div>
-                                        <div className="mt-1 text-3xl font-bold tabular-nums">Rp 4,82 M</div>
-                                        <div className="mt-4 grid grid-cols-3 gap-3">
-                                            {[
-                                                ['Karyawan', '1.284'],
-                                                ['Hadir', '96,4%'],
-                                                ['Cuti', '38'],
-                                            ].map(([k, v]) => (
-                                                <div key={k} className="rounded-lg bg-white/10 p-3">
-                                                    <div className="text-[11px] text-white/60">{k}</div>
-                                                    <div className="mt-0.5 text-lg font-semibold tabular-nums">{v}</div>
-                                                </div>
-                                            ))}
+                            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                                <Link
+                                    href={register().url}
+                                    className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#2F54C9] px-7 text-[15px] font-semibold text-white shadow-[0_10px_24px_-8px_rgba(47,84,201,0.6)] transition hover:-translate-y-0.5 hover:bg-[#2546ad]"
+                                >
+                                    Coba Gratis 14 Hari
+                                    <ArrowRight className="h-4 w-4" />
+                                </Link>
+                                <a
+                                    href="#kontak"
+                                    className="inline-flex h-12 items-center justify-center rounded-full border border-[#E5E9F2] bg-white px-7 text-[15px] font-semibold text-[#1A2333] transition hover:-translate-y-0.5 hover:border-[#2F54C9]"
+                                >
+                                    Hubungi Sales
+                                </a>
+                            </div>
+                        </Reveal>
+                        <Reveal delay={0.2}>
+                            <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[13px] text-[#6B7280]">
+                                {['Tanpa kartu kredit', 'Sesuai regulasi Indonesia', 'Data terenkripsi'].map((t) => (
+                                    <span key={t} className="inline-flex items-center gap-1.5">
+                                        <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
+                                        {t}
+                                    </span>
+                                ))}
+                            </div>
+                        </Reveal>
+
+                        {/* Product preview */}
+                        <Reveal delay={0.25}>
+                            <div className="relative mx-auto mt-16 max-w-5xl">
+                                <div className="pointer-events-none absolute -inset-x-8 -top-8 bottom-0 rounded-[2.5rem] bg-[radial-gradient(55%_45%_at_50%_0%,rgba(47,84,201,0.18),transparent)]" />
+                                <div className="relative overflow-hidden rounded-2xl border border-[#E5E9F2] bg-white shadow-[0_40px_100px_-40px_rgba(14,26,58,0.5)]">
+                                    {/* browser chrome */}
+                                    <div className="flex items-center gap-2 border-b border-[#F1F3F9] bg-[#FBFCFE] px-4 py-3">
+                                        <span className="h-3 w-3 rounded-full bg-[#FF5F57]" />
+                                        <span className="h-3 w-3 rounded-full bg-[#FEBC2E]" />
+                                        <span className="h-3 w-3 rounded-full bg-[#28C840]" />
+                                        <div className="mx-auto hidden h-6 w-full max-w-xs items-center justify-center rounded-md border border-[#EDF1F7] bg-white px-3 text-[11px] text-[#9CA3AF] sm:flex">
+                                            app.avanahr.co.id/dashboard
                                         </div>
                                     </div>
-                                    <div className="mt-4 space-y-2.5">
-                                        {[
-                                            ['Payroll Juli 2026', 'Selesai', '#16A34A'],
-                                            ['Rekap Absensi', 'Diproses', '#2F54C9'],
-                                        ].map(([k, v, c]) => (
-                                            <div key={k} className="flex items-center justify-between rounded-lg border border-[#F1F3F9] px-3.5 py-2.5">
-                                                <span className="text-sm text-[#1A2333]">{k}</span>
-                                                <span className="text-xs font-medium" style={{ color: c }}>
-                                                    {v}
+                                    {/* dashboard body */}
+                                    <div className="flex text-left">
+                                        <aside className="hidden w-52 shrink-0 border-r border-[#F1F3F9] bg-white p-4 lg:block">
+                                            <div className="flex items-center gap-2 px-1 pb-4">
+                                                <img src={logo} alt={brand} className="h-6 w-auto object-contain" />
+                                            </div>
+                                            {[
+                                                { icon: LayoutDashboard, label: 'Dashboard', active: true },
+                                                { icon: Users, label: 'Karyawan', active: false },
+                                                { icon: Fingerprint, label: 'Absensi', active: false },
+                                                { icon: Wallet, label: 'Payroll', active: false },
+                                                { icon: Target, label: 'Kinerja', active: false },
+                                            ].map((n) => (
+                                                <div
+                                                    key={n.label}
+                                                    className={
+                                                        'mb-1 flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm ' +
+                                                        (n.active ? 'bg-[#2F54C9]/10 font-medium text-[#2F54C9]' : 'text-[#6B7280]')
+                                                    }
+                                                >
+                                                    <n.icon className="h-4 w-4" />
+                                                    {n.label}
+                                                </div>
+                                            ))}
+                                        </aside>
+                                        <div className="flex-1 bg-[#F9FAFC] p-5 sm:p-6">
+                                            <div className="mb-5 flex items-center justify-between">
+                                                <div>
+                                                    <div className="text-base font-semibold text-[#0E1A3A]">Dashboard HR</div>
+                                                    <div className="text-xs text-[#9CA3AF]">Ringkasan Juli 2026</div>
+                                                </div>
+                                                <span className="hidden rounded-full bg-[#16A34A]/10 px-3 py-1 text-xs font-medium text-[#16A34A] sm:inline">
+                                                    Payroll selesai
                                                 </span>
                                             </div>
-                                        ))}
+                                            <div className="grid grid-cols-3 gap-3">
+                                                {[
+                                                    { k: 'Karyawan Aktif', v: '1.284', icon: Users },
+                                                    { k: 'Kehadiran', v: '96,4%', icon: Fingerprint },
+                                                    { k: 'Payroll Bulan Ini', v: 'Rp 4,82 M', icon: Wallet },
+                                                ].map((c) => (
+                                                    <div key={c.k} className="rounded-xl border border-[#EDF1F7] bg-white p-4">
+                                                        <c.icon className="h-4 w-4 text-[#2F54C9]" />
+                                                        <div className="mt-3 text-lg font-bold text-[#0E1A3A] tabular-nums sm:text-xl">{c.v}</div>
+                                                        <div className="text-[11px] text-[#9CA3AF]">{c.k}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="mt-3 grid gap-3 lg:grid-cols-5">
+                                                <div className="rounded-xl border border-[#EDF1F7] bg-white p-4 lg:col-span-3">
+                                                    <div className="mb-3 flex items-center justify-between">
+                                                        <span className="text-sm font-medium text-[#1A2333]">Tren Kehadiran</span>
+                                                        <span className="text-[11px] text-[#9CA3AF]">7 hari</span>
+                                                    </div>
+                                                    <div className="flex h-28 items-end gap-2">
+                                                        {[62, 78, 54, 88, 72, 95, 84].map((h, i) => (
+                                                            <div key={i} className="flex-1 rounded-t-md bg-gradient-to-t from-[#2F54C9]/30 to-[#2F54C9]" style={{ height: `${h}%` }} />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <div className="rounded-xl bg-gradient-to-br from-[#0E1A3A] to-[#2F54C9] p-4 text-white lg:col-span-2">
+                                                    <div className="text-[11px] text-white/60">Payroll Juli 2026</div>
+                                                    <div className="mt-1 text-xl font-bold tabular-nums">Rp 4,82 M</div>
+                                                    <div className="mt-4 space-y-2">
+                                                        {[
+                                                            ['Gaji pokok', '82%'],
+                                                            ['Tunjangan', '13%'],
+                                                            ['BPJS & PPh21', '5%'],
+                                                        ].map(([k, v]) => (
+                                                            <div key={k}>
+                                                                <div className="flex justify-between text-[11px] text-white/70">
+                                                                    <span>{k}</span>
+                                                                    <span>{v}</span>
+                                                                </div>
+                                                                <div className="mt-1 h-1.5 rounded-full bg-white/15">
+                                                                    <div className="h-full rounded-full bg-white/70" style={{ width: v }} />
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
+
                                 <motion.div
                                     initial={{ opacity: 0, y: 12 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: 0.5 }}
-                                    className="absolute -right-4 -bottom-6 hidden rounded-xl border border-[#E5E9F2] bg-white px-4 py-3 shadow-[0_16px_40px_-16px_rgba(14,26,58,0.4)] sm:block"
+                                    transition={{ delay: 0.6 }}
+                                    className="absolute -top-5 -right-3 hidden rounded-xl border border-[#E5E9F2] bg-white px-4 py-3 shadow-[0_16px_40px_-16px_rgba(14,26,58,0.4)] sm:block"
                                 >
                                     <div className="flex items-center gap-2.5">
                                         <span className="grid h-9 w-9 place-items-center rounded-lg bg-[#16A34A]/10 text-[#16A34A]">
                                             <CheckCircle2 className="h-5 w-5" />
                                         </span>
-                                        <div>
+                                        <div className="text-left">
                                             <div className="text-xs text-[#6B7280]">Slip gaji terkirim</div>
                                             <div className="text-sm font-semibold">1.284 karyawan</div>
                                         </div>

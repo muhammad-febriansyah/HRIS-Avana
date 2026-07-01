@@ -23,9 +23,8 @@
             <link rel="icon" href="{{ $faviconUrl }}">
             <link rel="apple-touch-icon" href="{{ $faviconUrl }}">
         @else
-            <link rel="icon" href="/favicon.ico" sizes="any">
-            <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-            <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+            <link rel="icon" href="/avana/logo-icon.png" type="image/png">
+            <link rel="apple-touch-icon" href="/avana/logo-icon.png">
         @endif
 
         {{-- SEO meta (database-driven; per-page <Head> may override). --}}

@@ -156,7 +156,7 @@ it('falls back to the bundled favicon and app name when settings are empty', fun
     $html = $this->get('/login')->assertOk()->getContent();
 
     expect($html)
-        ->toContain('href="/favicon.ico"')
+        ->toContain('href="/avana/logo-icon.png"')
         ->toContain('property="og:site_name" content="'.config('app.name', 'AvanaHR').'"');
 });
 

@@ -125,6 +125,16 @@
     }
 }
 
+/* Smooth in-page anchor scrolling (landing nav) */
+html {
+    scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+    html {
+        scroll-behavior: auto;
+    }
+}
+
 /* Landing page client marquee */
 @keyframes marquee {
     from {

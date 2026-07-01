@@ -242,6 +242,15 @@ final class AvanaDemoSeeder extends Seeder
             'tenant.view', 'tenant.create', 'tenant.update', 'tenant.suspend',
             'team.leave.approve', 'team.attendance.view', 'team.overtime.approve',
             'own.profile.view', 'own.attendance.clock_in', 'own.leave.request', 'own.payslip.view',
+            // Per-menu access modules so every sidebar item is role-configurable
+            // from the Hak Akses matrix (not just feature-gated per tenant).
+            'document.view', 'letter.view', 'offboarding.view', 'organization.view',
+            'timesheet.view', 'shift_swap.view', 'delegation.view',
+            'claim.view', 'loan.view', 'journal.view', 'budget.view', 'salary_structure.view',
+            'recruitment.view', 'onboarding.view',
+            'performance.view', 'okr.view', 'competency.view', 'talent.view', 'learning.view',
+            'helpdesk.view', 'announcement.view', 'survey.view', 'calendar.view', 'ai.view',
+            'asset.view', 'crm.view', 'dynamic_report.view',
         ];
         $permModels = collect($perms)->map(function (string $code) {
             [$module, $action] = array_pad(explode('.', $code, 2), 2, '');
