@@ -19,6 +19,7 @@ use App\Models\PayrollRunItem;
 use App\Models\PositionPayrollComponent;
 use App\Models\Pph21TerRate;
 use App\Models\TaxProfile;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -533,6 +534,59 @@ class PayrollController extends Controller
     }
 
     /**
+     * Generate an annual PPh 21 withholding slip (form 1721-A1) for an employee,
+     * aggregating every run item in the requested tax year.
+     */
+    public function taxForm1721(Request $request, Employee $employee): \Illuminate\Http\Response
+    {
+        $this->authorize('viewAny', PayrollPeriod::class);
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        abort_if((int) $employee->tenant_id !== $tenantId, 404);
+
+        $year = (int) $request->query('year', (string) now()->year);
+
+        $items = PayrollRunItem::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->whereHas('period', fn ($query) => $query->whereYear('start_date', $year))
+            ->get(['gross_salary', 'pph21_total', 'bpjs_employee_total']);
+
+        $employee->loadMissing(['position', 'tenant', 'taxProfile']);
+
+        $annualGross = (float) $items->sum('gross_salary');
+        $withheld = (float) $items->sum('pph21_total');
+        $biayaJabatan = min($annualGross * 0.05, 6_000_000);
+        $ptkpStatus = $employee->taxProfile?->ptkp_status;
+        $ptkp = $this->ptkpFor($ptkpStatus);
+        $pkp = max(0.0, floor(($annualGross - $biayaJabatan - $ptkp) / 1000) * 1000);
+        $annualTax = $this->progressiveTax($pkp);
+
+        $pdf = Pdf::loadView('pdf.bukti-potong-1721', [
+            'company' => $employee->tenant?->company_name ?? $employee->tenant?->name ?? 'AvanaHR',
+            'year' => $year,
+            'employee' => [
+                'name' => $employee->full_name,
+                'nik' => $employee->nik ?: '-',
+                'number' => $employee->employee_number,
+                'position' => $employee->position?->name ?? '-',
+                'ptkp' => $ptkpStatus ?? 'TK/0',
+            ],
+            'rows' => [
+                ['Penghasilan Bruto Setahun', $this->rupiah($annualGross)],
+                ['Pengurangan — Biaya Jabatan', $this->rupiah($biayaJabatan)],
+                ['Penghasilan Neto', $this->rupiah($annualGross - $biayaJabatan)],
+                ['PTKP ('.($ptkpStatus ?? 'TK/0').')', $this->rupiah($ptkp)],
+                ['Penghasilan Kena Pajak (PKP)', $this->rupiah($pkp)],
+                ['PPh 21 Terutang Setahun', $this->rupiah($annualTax)],
+                ['PPh 21 Telah Dipotong', $this->rupiah($withheld)],
+            ],
+        ])->setPaper('a4');
+
+        return $pdf->download('1721-A1-'.$employee->employee_number.'-'.$year.'.pdf');
+    }
+
+    /**
      * Derive the payslip PDF password: birth date (ddmmyyyy), else NIK/number.
      */
     private function payslipPassword(Employee $employee): string
@@ -820,7 +874,13 @@ class PayrollController extends Controller
 
         // Statutory deductions computed from internal config (no external API).
         $bpjs = $this->computeBpjs($employee, $tenantId, $basic > 0 ? $basic : $gross);
-        $pph21 = $this->computePph21($employee, $tenantId, $gross);
+
+        // December (or the employee's final tax month) reconciles the year's
+        // withholding against the progressive Pasal 17 tariff; other months use
+        // the monthly TER bracket.
+        $pph21 = $this->isFinalTaxMonth($employee, $period)
+            ? $this->computeAnnualPph21($employee, $tenantId, $period, $gross)
+            : $this->computePph21($employee, $tenantId, $gross);
 
         if ($bpjs['employee'] > 0) {
             $deductions[] = ['name' => 'BPJS (Karyawan)', 'amount' => $bpjs['employee']];
@@ -1145,6 +1205,126 @@ class PayrollController extends Controller
                 'pph21_amount' => $amount,
             ],
         ];
+    }
+
+    /**
+     * Whether this period is the employee's last taxable month of the year —
+     * December, or the month their resignation falls in — and thus needs an
+     * annual reconciliation rather than a flat monthly TER deduction.
+     */
+    private function isFinalTaxMonth(Employee $employee, PayrollPeriod $period): bool
+    {
+        if ($period->end_date === null) {
+            return false;
+        }
+
+        if ((int) $period->end_date->month === 12) {
+            return true;
+        }
+
+        return $employee->resign_date !== null
+            && $employee->resign_date->between($period->start_date, $period->end_date);
+    }
+
+    /**
+     * Reconcile the annual PPh 21 (progressive Pasal 17 tariff on year-to-date
+     * income less biaya jabatan and PTKP) against tax already withheld this year.
+     * The final-month deduction is the remaining balance.
+     *
+     * @return array{amount: float, snapshot: array<string, mixed>}
+     */
+    private function computeAnnualPph21(Employee $employee, int $tenantId, PayrollPeriod $period, float $currentGross): array
+    {
+        $profile = TaxProfile::where('tenant_id', $tenantId)
+            ->where('employee_id', $employee->id)
+            ->first();
+
+        $year = (int) ($period->start_date?->year ?? now()->year);
+
+        // Year-to-date figures from every earlier run item this calendar year.
+        $prior = PayrollRunItem::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->where('payroll_period_id', '!=', $period->id)
+            ->whereHas('period', fn ($query) => $query->whereYear('start_date', $year))
+            ->get(['gross_salary', 'pph21_total']);
+
+        $ytdGross = (float) $prior->sum('gross_salary');
+        $ytdWithheld = (float) $prior->sum('pph21_total');
+
+        $annualGross = $ytdGross + $currentGross;
+        $biayaJabatan = min($annualGross * 0.05, 6_000_000);
+        $ptkp = $this->ptkpFor($profile?->ptkp_status);
+
+        $pkp = max(0.0, $annualGross - $biayaJabatan - $ptkp);
+        $pkp = floor($pkp / 1000) * 1000; // taxable income is floored to thousands
+
+        $annualTax = $this->progressiveTax($pkp);
+        $amount = max(0.0, round($annualTax - $ytdWithheld));
+
+        return [
+            'amount' => $amount,
+            'snapshot' => [
+                'method' => 'annual_reconciliation',
+                'ptkp_status' => $profile?->ptkp_status,
+                'annual_gross' => round($annualGross),
+                'biaya_jabatan' => round($biayaJabatan),
+                'ptkp' => $ptkp,
+                'pkp' => $pkp,
+                'annual_tax' => $annualTax,
+                'ytd_withheld' => round($ytdWithheld),
+                'pph21_amount' => $amount,
+            ],
+        ];
+    }
+
+    /**
+     * Resolve the annual PTKP allowance from a status code such as TK/0 or K/3
+     * (base 54jt, +4,5jt married, +4,5jt per dependant capped at three).
+     */
+    private function ptkpFor(?string $status): float
+    {
+        $base = 54_000_000.0;
+
+        if ($status === null || $status === '') {
+            return $base;
+        }
+
+        $status = strtoupper(trim($status));
+        $married = str_starts_with($status, 'K');
+        $dependents = preg_match('/(\d+)/', $status, $matches) ? min((int) $matches[1], 3) : 0;
+
+        return $base + ($married ? 4_500_000 : 0) + 4_500_000 * $dependents;
+    }
+
+    /**
+     * Progressive annual income tax on taxable income (PKP) using the UU HPP
+     * Pasal 17 brackets: 5/15/25/30/35% across the statutory thresholds.
+     */
+    private function progressiveTax(float $pkp): float
+    {
+        // [bracket width, rate] — 0-60jt, 60-250jt, 250-500jt, 500jt-5M, >5M.
+        $brackets = [
+            [60_000_000, 0.05],
+            [190_000_000, 0.15],
+            [250_000_000, 0.25],
+            [4_500_000_000, 0.30],
+            [PHP_INT_MAX, 0.35],
+        ];
+
+        $tax = 0.0;
+        $remaining = $pkp;
+
+        foreach ($brackets as [$width, $rate]) {
+            if ($remaining <= 0) {
+                break;
+            }
+
+            $slice = min($remaining, (float) $width);
+            $tax += $slice * $rate;
+            $remaining -= $slice;
+        }
+
+        return round($tax);
     }
 
     /**

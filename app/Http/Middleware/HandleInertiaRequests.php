@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\WebsiteSetting;
 use App\Support\AvanaNav;
 use Illuminate\Http\Request;
 use Inertia\Middleware;

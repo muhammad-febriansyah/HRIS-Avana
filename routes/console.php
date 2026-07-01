@@ -10,3 +10,6 @@ Artisan::command('inspire', function () {
 
 // Deactivate employees the day after their last working day.
 Schedule::command('avana:flag-resigned-employees')->dailyAt('00:15');
+
+// Warn HR about employee contracts nearing their end date.
+Schedule::command('avana:remind-expiring-contracts')->dailyAt('06:00');

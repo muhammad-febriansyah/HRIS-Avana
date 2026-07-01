@@ -110,6 +110,7 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     Route::get('payroll/transfer', [PayrollController::class, 'transferFile'])->name('payroll.transfer');
     Route::get('payroll/payslip/{item}/pdf', [PayrollController::class, 'payslipPdf'])->name('payroll.payslip.pdf');
     Route::get('payroll/bpjs-export', [PayrollController::class, 'bpjsFile'])->name('payroll.bpjs.export');
+    Route::get('payroll/1721/{employee}', [PayrollController::class, 'taxForm1721'])->name('payroll.tax1721');
     Route::get('payroll/components', [PositionComponentController::class, 'index'])->name('payroll.components');
     Route::put('payroll/components', [PositionComponentController::class, 'update'])->name('payroll.components.update');
     Route::put('payroll/components/basis', [PositionComponentController::class, 'updateBasis'])->name('payroll.components.basis');

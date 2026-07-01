@@ -35,6 +35,7 @@ beforeEach(function (): void {
         Route::get('payroll/payslip/{item}/pdf', [PayrollController::class, 'payslipPdf']);
         Route::get('payroll/transfer', [PayrollController::class, 'transferFile']);
         Route::get('payroll/bpjs', [PayrollController::class, 'bpjsFile']);
+        Route::get('payroll/1721/{employee}', [PayrollController::class, 'taxForm1721']);
     });
 
     actingAs($this->admin)->post('spec-export/payroll/run')->assertSessionHas('success');
@@ -70,4 +71,14 @@ it('exports the BPJS contribution report', function (): void {
 
     $response->assertOk();
     expect($response->streamedContent())->toContain('JHT (Karyawan)');
+});
+
+it('generates an annual 1721-A1 tax slip PDF', function (): void {
+    $year = $this->period->start_date->year;
+
+    $response = actingAs($this->admin)->get("spec-export/payroll/1721/{$this->employee->id}?year={$year}");
+
+    $response->assertOk();
+    $response->assertHeader('content-type', 'application/pdf');
+    expect(substr($response->getContent(), 0, 4))->toBe('%PDF');
 });
