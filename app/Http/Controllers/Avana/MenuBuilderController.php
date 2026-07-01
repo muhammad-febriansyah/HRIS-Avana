@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Feature;
 use App\Models\MenuItem;
 use App\Models\Permission;
+use App\Models\Tenant;
 use App\Models\User;
+use App\Support\AvanaNav;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -30,7 +32,12 @@ class MenuBuilderController extends Controller
     {
         $this->ensureCanManage($request);
 
-        $tenantId = $request->user()->tenant_id;
+        $tenantId = $this->resolveTenantId($request);
+
+        // A tenant that has never been seeded gets the default menu to edit.
+        if (MenuItem::forTenant($tenantId)->doesntExist()) {
+            AvanaNav::seedDefaultsFor($tenantId);
+        }
 
         $rows = MenuItem::forTenant($tenantId)
             ->orderBy('sort_order')
@@ -44,12 +51,19 @@ class MenuBuilderController extends Controller
             'children' => $byParent->get($item->id, collect())->map(fn (MenuItem $c): array => $this->row($c))->all(),
         ])->all();
 
+        $isSuperAdmin = $this->isSuperAdmin($request);
+
         return Inertia::render('avana/menu-builder/index', [
             'tree' => $tree,
             'parents' => $byParent->get(0, collect())->map(fn (MenuItem $i): array => ['id' => $i->id, 'label' => $i->label])->values()->all(),
             'sections' => $byParent->get(0, collect())->pluck('section')->filter()->unique()->values()->all(),
             'features' => Feature::orderBy('name')->get(['code', 'name'])->map(fn (Feature $f): array => ['value' => $f->code, 'label' => $f->name])->all(),
             'modules' => Permission::query()->distinct()->orderBy('module')->pluck('module')->all(),
+            'isSuperAdmin' => $isSuperAdmin,
+            'selectedTenant' => $tenantId,
+            'tenants' => $isSuperAdmin
+                ? Tenant::orderBy('name')->get(['id', 'name'])->map(fn (Tenant $t): array => ['id' => $t->id, 'name' => $t->name])->all()
+                : [],
         ]);
     }
 
@@ -60,7 +74,7 @@ class MenuBuilderController extends Controller
     {
         $this->ensureCanManage($request);
 
-        $tenantId = $request->user()->tenant_id;
+        $tenantId = $this->resolveTenantId($request);
         $data = $this->validated($request);
 
         $parentId = $data['parent_id'] ?? null;
@@ -237,10 +251,44 @@ class MenuBuilderController extends Controller
     }
 
     /**
-     * Abort with 404 when the item is outside the user's tenant.
+     * The tenant whose menu is being edited: a super admin may target any tenant
+     * (via ?tenant= or a tenant_id field); everyone else edits their own.
+     */
+    private function resolveTenantId(Request $request): int
+    {
+        $own = (int) $request->user()->tenant_id;
+
+        if (! $this->isSuperAdmin($request)) {
+            return $own;
+        }
+
+        $requested = (int) ($request->input('tenant_id') ?? $request->query('tenant') ?? 0);
+
+        if ($requested > 0 && Tenant::whereKey($requested)->exists()) {
+            return $requested;
+        }
+
+        return $own > 0 ? $own : (int) (Tenant::orderBy('id')->value('id') ?? 0);
+    }
+
+    private function isSuperAdmin(Request $request): bool
+    {
+        $user = $request->user();
+        $user->loadMissing('roles');
+
+        return $user->roles->contains(fn ($role): bool => $role->code === 'super_admin');
+    }
+
+    /**
+     * Abort with 404 when the item is outside the editable tenant. A super admin
+     * may manage any tenant's menu.
      */
     private function ensureTenantOwnership(Request $request, MenuItem $menuItem): void
     {
+        if ($this->isSuperAdmin($request)) {
+            return;
+        }
+
         abort_if((int) $menuItem->tenant_id !== (int) $request->user()->tenant_id, 404);
     }
 

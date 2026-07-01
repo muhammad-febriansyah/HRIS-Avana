@@ -36,6 +36,9 @@ interface Props {
     sections: string[];
     features: Option[];
     modules: string[];
+    isSuperAdmin: boolean;
+    selectedTenant: number;
+    tenants: { id: number; name: string }[];
 }
 
 type FlashProps = { flash?: { success?: string } };
@@ -53,10 +56,13 @@ const emptyForm = {
     super_admin_only: false,
 };
 
-export default function MenuBuilder({ tree, parents, sections, features, modules }: Props) {
+export default function MenuBuilder({ tree, parents, sections, features, modules, isSuperAdmin, selectedTenant, tenants }: Props) {
     const { flash } = usePage<FlashProps>().props;
     const [modalOpen, setModalOpen] = useState(false);
-    const form = useForm({ ...emptyForm });
+    const form = useForm({ ...emptyForm, tenant_id: selectedTenant });
+
+    const switchTenant = (id: string) =>
+        router.get(MenuBuilderController.index().url, { tenant: id }, { preserveScroll: true });
 
     useEffect(() => {
         if (flash?.success) {
@@ -68,13 +74,14 @@ export default function MenuBuilder({ tree, parents, sections, features, modules
 
     const openAdd = () => {
         form.clearErrors();
-        form.setData({ ...emptyForm });
+        form.setData({ ...emptyForm, tenant_id: selectedTenant });
         setModalOpen(true);
     };
 
     const openEdit = (row: MenuRow) => {
         form.clearErrors();
         form.setData({
+            tenant_id: selectedTenant,
             id: row.id,
             label: row.label,
             parent_id: row.parent_id ? String(row.parent_id) : '',
@@ -174,10 +181,24 @@ export default function MenuBuilder({ tree, parents, sections, features, modules
                             Atur sidebar: tambah, ubah nama, ikon, urutan, sembunyikan, & hak akses menu.
                         </p>
                     </div>
-                    <button onClick={openAdd} style={btnP}>
-                        <AIcon name="plus" size={16} color="#fff" />
-                        Tambah Menu
-                    </button>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                        {isSuperAdmin && tenants.length > 0 && (
+                            <select
+                                value={String(selectedTenant)}
+                                onChange={(e) => switchTenant(e.target.value)}
+                                style={{ ...inp, width: 'auto', minWidth: 200 }}
+                                title="Kelola menu untuk tenant"
+                            >
+                                {tenants.map((t) => (
+                                    <option key={t.id} value={String(t.id)}>{t.name}</option>
+                                ))}
+                            </select>
+                        )}
+                        <button onClick={openAdd} style={btnP}>
+                            <AIcon name="plus" size={16} color="#fff" />
+                            Tambah Menu
+                        </button>
+                    </div>
                 </div>
 
                 {tree.map((group) => (

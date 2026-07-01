@@ -45,6 +45,11 @@ class EnsureAvanaAccess
             return $next($request);
         }
 
+        // A hidden menu blocks access entirely (sidebar + route).
+        if (($requirement['is_active'] ?? true) === false) {
+            abort(403);
+        }
+
         if ($requirement['superAdminOnly']) {
             abort(403);
         }

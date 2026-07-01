@@ -13,7 +13,6 @@ use App\Models\JobLevel;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
-use App\Models\MenuItem;
 use App\Models\Package;
 use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
@@ -286,47 +285,7 @@ final class AvanaDemoSeeder extends Seeder
      */
     private function seedMenuItems(Tenant $tenant): void
     {
-        $order = 0;
-
-        foreach (AvanaNav::groups() as $group) {
-            foreach ($group['items'] as $item) {
-                $order++;
-
-                $parent = MenuItem::firstOrCreate(
-                    ['tenant_id' => $tenant->id, 'key' => $item['id'], 'parent_id' => null],
-                    [
-                        'section' => $group['title'],
-                        'label' => $item['label'],
-                        'icon' => $item['icon'] ?? null,
-                        'href' => $item['href'] ?? null,
-                        'feature' => $item['feature'] ?? null,
-                        'modules' => $item['modules'] ?? [],
-                        'admin_only' => $item['adminOnly'] ?? false,
-                        'super_admin_only' => $item['superAdminOnly'] ?? false,
-                        'is_system' => true,
-                        'sort_order' => $order,
-                    ],
-                );
-
-                foreach ($item['children'] ?? [] as $childOrder => $child) {
-                    MenuItem::firstOrCreate(
-                        ['tenant_id' => $tenant->id, 'key' => $child['id'], 'parent_id' => $parent->id],
-                        [
-                            'section' => null,
-                            'label' => $child['label'],
-                            'icon' => $child['icon'] ?? null,
-                            'href' => $child['href'] ?? null,
-                            'feature' => $child['feature'] ?? null,
-                            'modules' => $child['modules'] ?? [],
-                            'admin_only' => $child['adminOnly'] ?? false,
-                            'super_admin_only' => $child['superAdminOnly'] ?? false,
-                            'is_system' => true,
-                            'sort_order' => $childOrder,
-                        ],
-                    );
-                }
-            }
-        }
+        AvanaNav::seedDefaultsFor($tenant->id);
     }
 
     private function seedAdminUser(Tenant $tenant): User

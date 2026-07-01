@@ -350,11 +350,51 @@ final class AvanaNav
      * href that prefixes it (so sub-routes like /avana/crm/{id} inherit the CRM
      * gate). Returns null when the path maps to no gated menu.
      *
-     * @return array{modules: array<int, string>, adminOnly: bool, superAdminOnly: bool, feature: ?string}|null
+     * A hidden (is_active=false) menu is reported with is_active=false so the
+     * access gate can block it — hiding a menu removes both sidebar AND access.
+     *
+     * @return array{modules: array<int, string>, adminOnly: bool, superAdminOnly: bool, feature: ?string, is_active: bool}|null
      */
     public static function requirementFor(string $path, ?int $tenantId = null): ?array
     {
         $path = '/'.ltrim($path, '/');
+
+        // When the tenant has a DB menu, resolve against ALL its items (active
+        // and hidden) so a hidden menu still blocks direct-URL access.
+        if ($tenantId !== null) {
+            $rows = MenuItem::forTenant($tenantId)->whereNotNull('href')->get();
+
+            if ($rows->isNotEmpty()) {
+                $best = null;
+                $bestLen = -1;
+
+                foreach ($rows as $row) {
+                    $href = (string) $row->href;
+
+                    if ($href === '' || $href === '/dashboard') {
+                        continue;
+                    }
+
+                    if (($path === $href || str_starts_with($path, $href.'/')) && strlen($href) > $bestLen) {
+                        $best = $row;
+                        $bestLen = strlen($href);
+                    }
+                }
+
+                if ($best === null) {
+                    return null;
+                }
+
+                return [
+                    'modules' => $best->modules ?? [],
+                    'adminOnly' => (bool) $best->admin_only,
+                    'superAdminOnly' => (bool) $best->super_admin_only,
+                    'feature' => $best->feature,
+                    'is_active' => (bool) $best->is_active,
+                ];
+            }
+        }
+
         $best = null;
         $bestLen = -1;
 
@@ -380,7 +420,57 @@ final class AvanaNav
             'adminOnly' => $best['adminOnly'] ?? false,
             'superAdminOnly' => $best['superAdminOnly'] ?? false,
             'feature' => $best['feature'] ?? null,
+            'is_active' => true,
         ];
+    }
+
+    /**
+     * Populate a tenant's menu_items from the built-in default navigation.
+     * Idempotent — existing customised rows are left untouched.
+     */
+    public static function seedDefaultsFor(int $tenantId): void
+    {
+        $order = 0;
+
+        foreach (self::groups() as $group) {
+            foreach ($group['items'] as $item) {
+                $order++;
+
+                $parent = MenuItem::firstOrCreate(
+                    ['tenant_id' => $tenantId, 'key' => $item['id'], 'parent_id' => null],
+                    [
+                        'section' => $group['title'],
+                        'label' => $item['label'],
+                        'icon' => $item['icon'] ?? null,
+                        'href' => $item['href'] ?? null,
+                        'feature' => $item['feature'] ?? null,
+                        'modules' => $item['modules'] ?? [],
+                        'admin_only' => $item['adminOnly'] ?? false,
+                        'super_admin_only' => $item['superAdminOnly'] ?? false,
+                        'is_system' => true,
+                        'sort_order' => $order,
+                    ],
+                );
+
+                foreach ($item['children'] ?? [] as $childOrder => $child) {
+                    MenuItem::firstOrCreate(
+                        ['tenant_id' => $tenantId, 'key' => $child['id'], 'parent_id' => $parent->id],
+                        [
+                            'section' => null,
+                            'label' => $child['label'],
+                            'icon' => $child['icon'] ?? null,
+                            'href' => $child['href'] ?? null,
+                            'feature' => $child['feature'] ?? null,
+                            'modules' => $child['modules'] ?? [],
+                            'admin_only' => $child['adminOnly'] ?? false,
+                            'super_admin_only' => $child['superAdminOnly'] ?? false,
+                            'is_system' => true,
+                            'sort_order' => $childOrder,
+                        ],
+                    );
+                }
+            }
+        }
     }
 
     /**

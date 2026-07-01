@@ -74,6 +74,43 @@ it('refuses to delete a system item but deletes a custom one', function (): void
     expect(MenuItem::find($custom->id))->toBeNull();
 });
 
+it('blocks page access when its menu is hidden', function (): void {
+    // Karyawan reachable while active.
+    actingAs($this->admin)->get('/avana/employees')->assertOk();
+
+    MenuItem::forTenant($this->tenant->id)->where('key', 'karyawan')->update(['is_active' => false]);
+
+    // Hidden → blocked at the route, even though EmployeeController has a policy.
+    actingAs($this->admin)->get('/avana/employees')->assertForbidden();
+
+    MenuItem::forTenant($this->tenant->id)->where('key', 'karyawan')->update(['is_active' => true]);
+    actingAs($this->admin)->get('/avana/employees')->assertOk();
+});
+
+it('lets a super admin manage another tenant menu and seeds it on demand', function (): void {
+    $superadmin = User::where('email', 'superadmin@avanahr.co.id')->firstOrFail();
+    $other = Tenant::create(['name' => 'PT Lain', 'company_name' => 'PT Lain', 'slug' => 'lain', 'status' => 'active']);
+
+    expect(MenuItem::forTenant($other->id)->count())->toBe(0);
+
+    actingAs($superadmin)->get(route('avana.menu-builder', ['tenant' => $other->id]))->assertOk();
+
+    // Opening the other tenant seeds its default menu.
+    expect(MenuItem::forTenant($other->id)->where('key', 'karyawan')->exists())->toBeTrue();
+
+    // Super admin can add a menu for that tenant.
+    actingAs($superadmin)
+        ->post(route('avana.menu-builder.store'), [
+            'label' => 'Menu Tenant Lain',
+            'href' => '/avana/crm',
+            'tenant_id' => $other->id,
+            'modules' => ['crm'],
+        ])
+        ->assertSessionHas('success');
+
+    expect(MenuItem::forTenant($other->id)->where('label', 'Menu Tenant Lain')->exists())->toBeTrue();
+});
+
 it('forbids a manager from the menu builder', function (): void {
     $manager = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $manager->roles()->sync([Role::where('tenant_id', $this->tenant->id)->where('code', 'manager')->firstOrFail()->id]);
