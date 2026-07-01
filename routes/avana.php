@@ -55,6 +55,7 @@ use App\Http\Controllers\Avana\TalentController;
 use App\Http\Controllers\Avana\TenantController;
 use App\Http\Controllers\Avana\TimesheetController;
 use App\Http\Controllers\Avana\UserController;
+use App\Http\Controllers\Avana\ViewTenantController;
 use App\Http\Controllers\Avana\WebsiteSettingController;
 use App\Http\Controllers\Avana\WfhController;
 use App\Http\Middleware\EnsureAvanaAccess;
@@ -65,6 +66,7 @@ use Illuminate\Support\Facades\Route;
  * via <Model>::forTenant($request->user()->tenant_id).
  */
 Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana')->name('avana.')->group(function () {
+    Route::post('view-tenant', [ViewTenantController::class, 'store'])->name('view-tenant');
     Route::get('organisasi', [EmployeeController::class, 'orgChart'])->name('organisasi');
     Route::get('menu-builder', [MenuBuilderController::class, 'index'])->name('menu-builder');
     Route::post('menu-builder', [MenuBuilderController::class, 'store'])->name('menu-builder.store');

@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Tenant;
+use App\Models\User;
 use App\Models\WebsiteSetting;
 use App\Support\AvanaNav;
 use Illuminate\Http\Request;
@@ -50,11 +52,30 @@ class HandleInertiaRequests extends Middleware
                 'tenant' => fn () => $user?->tenant?->only('id', 'name', 'company_name'),
             ],
             'nav' => fn () => AvanaNav::forUser($user),
+            'superAdminView' => fn (): array => $this->superAdminView($request, $user),
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+        ];
+    }
+
+    /**
+     * The "view as tenant" state for the topbar switcher (super admin only).
+     *
+     * @return array{is_super: bool, view_tenant_id: string, tenants: array<int, array{id: int, name: string}>}
+     */
+    private function superAdminView(Request $request, ?User $user): array
+    {
+        $isSuper = $user !== null && $user->roles()->where('code', 'super_admin')->exists();
+
+        return [
+            'is_super' => $isSuper,
+            'view_tenant_id' => (string) ($request->session()->get('view_tenant_id') ?? ''),
+            'tenants' => $isSuper
+                ? Tenant::orderBy('name')->get(['id', 'name'])->map(fn (Tenant $t): array => ['id' => $t->id, 'name' => $t->name])->all()
+                : [],
         ];
     }
 }
