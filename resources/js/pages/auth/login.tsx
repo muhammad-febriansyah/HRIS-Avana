@@ -21,6 +21,9 @@ export default function Login({ status, canResetPassword }: Props) {
         onSuccess: (response) => router.visit(response.redirect ?? '/dashboard'),
     });
 
+    // Passkey login is hidden for now. Flip to `true` to bring the button back.
+    const showPasskeyLogin = false;
+
     return (
         <>
             <Head title="Masuk" />
@@ -78,8 +81,7 @@ export default function Login({ status, canResetPassword }: Props) {
                 )}
             </Form>
 
-            {/* Passkey login hidden for now — set to `passkeySupported && (` to restore */}
-            {false && (
+            {showPasskeyLogin && passkeySupported && (
                 <>
                     <div className="my-6 flex items-center gap-3.5 text-xs text-[#9CA3AF]">
                         <div className="h-px flex-1 bg-[#E5E9F2]" />

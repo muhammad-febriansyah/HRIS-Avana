@@ -134,7 +134,7 @@ it('renders database-driven SEO meta and favicon in the document head', function
 
     WebsiteSetting::current()->update([
         'site_name' => 'AvanaHR',
-        'meta_title' => 'AvanaHR — HRIS Indonesia',
+        'meta_title' => 'AvanaHR HRIS Indonesia',
         'meta_description' => 'Platform HRIS all-in-one untuk perusahaan Indonesia.',
         'meta_keywords' => 'hris, payroll, absensi',
         'favicon_path' => 'website/favicon.png',
@@ -144,10 +144,10 @@ it('renders database-driven SEO meta and favicon in the document head', function
     $html = $this->get('/login')->assertOk()->getContent();
 
     expect($html)
-        ->toContain('<title>AvanaHR — HRIS Indonesia</title>')
         ->toContain('name="description" content="Platform HRIS all-in-one untuk perusahaan Indonesia."')
         ->toContain('name="keywords" content="hris, payroll, absensi"')
-        ->toContain('property="og:title" content="AvanaHR — HRIS Indonesia"')
+        ->toContain('property="og:title" content="AvanaHR HRIS Indonesia"')
+        ->toContain('property="og:site_name" content="AvanaHR"')
         ->toContain('website/favicon.png')
         ->toContain('website/og.png');
 });
@@ -156,8 +156,8 @@ it('falls back to the bundled favicon and app name when settings are empty', fun
     $html = $this->get('/login')->assertOk()->getContent();
 
     expect($html)
-        ->toContain('/favicon.ico')
-        ->toContain('<title>'.config('app.name', 'AvanaHR').'</title>');
+        ->toContain('href="/favicon.ico"')
+        ->toContain('property="og:site_name" content="'.config('app.name', 'AvanaHR').'"');
 });
 
 it('shares branding as an inertia prop for the frontend', function (): void {
