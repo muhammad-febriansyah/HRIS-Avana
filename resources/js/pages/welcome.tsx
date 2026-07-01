@@ -6,6 +6,7 @@ import {
     Facebook,
     Fingerprint,
     Instagram,
+    LayoutDashboard,
     Linkedin,
     Mail,
     MapPin,
@@ -200,6 +201,15 @@ export default function Welcome() {
 
                 {/* HERO */}
                 <section className="relative overflow-hidden">
+                    <div
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,black,transparent)]"
+                        style={{
+                            backgroundImage:
+                                'linear-gradient(to right, rgba(14,26,58,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(14,26,58,0.05) 1px, transparent 1px)',
+                            backgroundSize: '44px 44px',
+                        }}
+                    />
                     <div className="pointer-events-none absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(47,84,201,0.14),transparent)]" />
                     <div className="mx-auto grid max-w-7xl items-center gap-14 px-6 pt-28 pb-20 lg:grid-cols-2 lg:pt-36">
                         <div>
@@ -280,13 +290,14 @@ export default function Welcome() {
                                     </div>
                                     <div className="mt-4 space-y-2.5">
                                         {[
-                                            ['Payroll Juli 2026', 'Selesai'],
-                                            ['Rekap Absensi', 'Diproses'],
-                                            ['Approval Cuti', '5 menunggu'],
-                                        ].map(([k, v]) => (
+                                            ['Payroll Juli 2026', 'Selesai', '#16A34A'],
+                                            ['Rekap Absensi', 'Diproses', '#2F54C9'],
+                                        ].map(([k, v, c]) => (
                                             <div key={k} className="flex items-center justify-between rounded-lg border border-[#F1F3F9] px-3.5 py-2.5">
                                                 <span className="text-sm text-[#1A2333]">{k}</span>
-                                                <span className="text-xs font-medium text-[#2F54C9]">{v}</span>
+                                                <span className="text-xs font-medium" style={{ color: c }}>
+                                                    {v}
+                                                </span>
                                             </div>
                                         ))}
                                     </div>
@@ -295,7 +306,7 @@ export default function Welcome() {
                                     initial={{ opacity: 0, y: 12 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: 0.5 }}
-                                    className="absolute -bottom-5 -left-5 hidden rounded-xl border border-[#E5E9F2] bg-white px-4 py-3 shadow-lg sm:block"
+                                    className="absolute -right-4 -bottom-6 hidden rounded-xl border border-[#E5E9F2] bg-white px-4 py-3 shadow-[0_16px_40px_-16px_rgba(14,26,58,0.4)] sm:block"
                                 >
                                     <div className="flex items-center gap-2.5">
                                         <span className="grid h-9 w-9 place-items-center rounded-lg bg-[#16A34A]/10 text-[#16A34A]">
@@ -340,13 +351,17 @@ export default function Welcome() {
 
                 {/* STATS */}
                 <section className="mx-auto max-w-7xl px-6 py-16">
-                    <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-y-8 rounded-2xl border border-[#E5E9F2] bg-white px-6 py-10 shadow-[0_20px_50px_-30px_rgba(14,26,58,0.25)] lg:grid-cols-4 lg:gap-y-0">
                         {STATS.map((s, i) => (
-                            <Reveal key={s.label} delay={i * 0.05}>
-                                <div className="text-center">
-                                    <div className="text-3xl font-bold text-[#0E1A3A] tabular-nums sm:text-4xl">{s.value}</div>
-                                    <div className="mt-1 text-sm text-[#6B7280]">{s.label}</div>
+                            <Reveal
+                                key={s.label}
+                                delay={i * 0.05}
+                                className="text-center lg:border-l lg:border-[#E5E9F2] lg:first:border-l-0"
+                            >
+                                <div className="bg-gradient-to-b from-[#0E1A3A] to-[#2F54C9] bg-clip-text text-3xl font-bold text-transparent tabular-nums sm:text-4xl">
+                                    {s.value}
                                 </div>
+                                <div className="mt-1.5 text-sm text-[#6B7280]">{s.label}</div>
                             </Reveal>
                         ))}
                     </div>

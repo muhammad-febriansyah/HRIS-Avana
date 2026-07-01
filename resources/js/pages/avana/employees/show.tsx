@@ -205,10 +205,14 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                                 paddingBottom: 4,
                             }}
                         >
-                            <button style={btnOut}>
-                                <AIcon name="message-square" size={16} />
-                                Pesan
-                            </button>
+                            <a
+                                href={`/avana/payroll/1721/${emp.id}?year=${new Date().getFullYear()}`}
+                                style={{ ...btnOut, textDecoration: 'none' }}
+                                title="Unduh bukti potong PPh 21 tahunan"
+                            >
+                                <AIcon name="file-text" size={16} />
+                                Bukti Potong 1721-A1
+                            </a>
                             <Link
                                 href={EmployeeController.edit(emp.id)}
                                 style={{ ...btnP, textDecoration: 'none' }}
