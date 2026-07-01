@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
+use App\Models\AiConversation;
 use App\Models\AiMessage;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 use Prism\Prism\Facades\Prism;
@@ -34,29 +36,47 @@ class AiAssistantController extends Controller
         .'(list, bold). Jika pertanyaan di luar konteks HR, tetap bantu dengan sopan.';
 
     /**
-     * Render the GPT-style chat with this user's conversation history.
+     * Render the GPT-style chat with the conversation history sidebar.
      */
     public function index(Request $request): Response
     {
         $this->ensureCanManage($request);
 
-        $messages = AiMessage::forUser($request->user()->id)
-            ->orderBy('id')
-            ->get(['id', 'role', 'content'])
-            ->map(fn (AiMessage $message): array => [
-                'id' => $message->id,
-                'role' => $message->role,
-                'content' => $message->content,
+        $userId = $request->user()->id;
+
+        $conversations = AiConversation::forUser($userId)
+            ->latest('updated_at')
+            ->latest('id')
+            ->get(['id', 'title', 'updated_at'])
+            ->map(fn (AiConversation $conversation): array => [
+                'id' => $conversation->id,
+                'title' => $conversation->title,
+                'updated_at' => $conversation->updated_at?->diffForHumans(),
             ]);
 
+        $active = $request->integer('c') > 0
+            ? AiConversation::forUser($userId)->find($request->integer('c'))
+            : null;
+
+        $messages = $active
+            ? $active->messages()->orderBy('id')->get(['id', 'role', 'content'])
+                ->map(fn (AiMessage $message): array => [
+                    'id' => $message->id,
+                    'role' => $message->role,
+                    'content' => $message->content,
+                ])
+            : collect();
+
         return Inertia::render('avana/ai/index', [
+            'conversations' => $conversations,
+            'activeId' => $active?->id,
             'messages' => $messages,
             'ready' => (string) config('prism.providers.openai.api_key') !== '',
         ]);
     }
 
     /**
-     * Stream an assistant reply token-by-token via Prism + OpenAI.
+     * Stream an assistant reply token-by-token into a conversation via Prism.
      */
     public function stream(Request $request): StreamedResponse
     {
@@ -64,18 +84,32 @@ class AiAssistantController extends Controller
 
         $data = $request->validate([
             'message' => ['required', 'string', 'max:4000'],
+            'conversation_id' => ['nullable', 'integer'],
         ]);
 
         $user = $request->user();
 
+        $conversation = ! empty($data['conversation_id'])
+            ? AiConversation::forUser($user->id)->find($data['conversation_id'])
+            : null;
+
+        if ($conversation === null) {
+            $conversation = AiConversation::create([
+                'tenant_id' => $user->tenant_id,
+                'user_id' => $user->id,
+                'title' => Str::limit($data['message'], 48),
+            ]);
+        }
+
         AiMessage::create([
+            'conversation_id' => $conversation->id,
             'tenant_id' => $user->tenant_id,
             'user_id' => $user->id,
             'role' => 'user',
             'content' => $data['message'],
         ]);
 
-        $history = AiMessage::forUser($user->id)
+        $history = $conversation->messages()
             ->orderBy('id')
             ->get(['role', 'content'])
             ->map(fn (AiMessage $message) => $message->role === 'assistant'
@@ -85,8 +119,9 @@ class AiAssistantController extends Controller
 
         $apiKey = (string) config('prism.providers.openai.api_key');
         $model = (string) env('AI_MODEL', 'gpt-4o-mini');
+        $conversationId = $conversation->id;
 
-        return response()->stream(function () use ($history, $user, $apiKey, $model): void {
+        return response()->stream(function () use ($history, $user, $apiKey, $model, $conversationId): void {
             $emit = static function (string $text): void {
                 echo $text;
                 if (ob_get_level() > 0) {
@@ -131,6 +166,7 @@ class AiAssistantController extends Controller
                 : null;
 
             AiMessage::create([
+                'conversation_id' => $conversationId,
                 'tenant_id' => $user->tenant_id,
                 'user_id' => $user->id,
                 'role' => 'assistant',
@@ -140,21 +176,25 @@ class AiAssistantController extends Controller
                 'completion_tokens' => $completionTokens,
                 'total_tokens' => $totalTokens,
             ]);
+
+            AiConversation::whereKey($conversationId)->update(['updated_at' => now()]);
         }, 200, [
             'Content-Type' => 'text/plain; charset=utf-8',
             'Cache-Control' => 'no-cache',
             'X-Accel-Buffering' => 'no',
+            'X-Conversation-Id' => (string) $conversation->id,
         ]);
     }
 
     /**
-     * Clear the acting user's conversation history.
+     * Delete a single conversation and its messages.
      */
-    public function clear(Request $request): RedirectResponse
+    public function destroyConversation(Request $request, AiConversation $conversation): RedirectResponse
     {
         $this->ensureCanManage($request);
+        abort_if($conversation->user_id !== $request->user()->id, 404);
 
-        AiMessage::forUser($request->user()->id)->delete();
+        $conversation->delete();
 
         return back();
     }

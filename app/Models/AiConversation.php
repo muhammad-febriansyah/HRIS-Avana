@@ -5,8 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-final class AiMessage extends Model
+final class AiConversation extends Model
 {
     protected $guarded = [];
 
@@ -20,8 +21,8 @@ final class AiMessage extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function conversation(): BelongsTo
+    public function messages(): HasMany
     {
-        return $this->belongsTo(AiConversation::class, 'conversation_id');
+        return $this->hasMany(AiMessage::class, 'conversation_id');
     }
 }

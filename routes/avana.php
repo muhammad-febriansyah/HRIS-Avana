@@ -440,5 +440,5 @@ Route::middleware(['auth', 'verified'])->prefix('avana')->name('avana.')->group(
     // AI Assistant (Prism + OpenAI streaming)
     Route::get('ai', [AiAssistantController::class, 'index'])->name('ai');
     Route::post('ai/stream', [AiAssistantController::class, 'stream'])->name('ai.stream');
-    Route::post('ai/clear', [AiAssistantController::class, 'clear'])->name('ai.clear');
+    Route::delete('ai/conversation/{conversation}', [AiAssistantController::class, 'destroyConversation'])->name('ai.conversation.destroy');
 });
