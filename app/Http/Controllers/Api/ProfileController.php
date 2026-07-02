@@ -7,10 +7,15 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-/** Employee self-service profile updates (limited to safe personal fields). */
+/** Employee self-service profile (view + limited self-update). */
 class ProfileController extends Controller
 {
     use ResolvesApiEmployee;
+
+    public function show(Request $request): JsonResponse
+    {
+        return response()->json(['data' => $this->employeeProfile($this->currentEmployee($request))]);
+    }
 
     public function update(Request $request): JsonResponse
     {
@@ -23,6 +28,6 @@ class ProfileController extends Controller
 
         $employee->update($data);
 
-        return response()->json(['message' => 'Profil diperbarui']);
+        return response()->json(['data' => $this->employeeProfile($employee->fresh())]);
     }
 }

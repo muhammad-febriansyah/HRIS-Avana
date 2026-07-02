@@ -17,21 +17,14 @@ class PayslipController extends Controller
     {
         $employee = $this->currentEmployee($request);
 
-        $items = PayrollRunItem::forTenant($employee->tenant_id)
+        $data = PayrollRunItem::forTenant($employee->tenant_id)
             ->where('employee_id', $employee->id)
-            ->with('period:id,name,code')
+            ->with('period:id,name')
             ->orderByDesc('id')
             ->get()
-            ->map(fn (PayrollRunItem $i): array => [
-                'id' => $i->id,
-                'period' => $i->period?->name,
-                'gross' => (float) $i->gross_salary,
-                'deduction' => (float) $i->total_deduction,
-                'net' => (float) $i->net_salary,
-                'status' => $i->status,
-            ]);
+            ->map(fn (PayrollRunItem $i): array => $this->summary($i));
 
-        return response()->json(['data' => $items]);
+        return response()->json(['data' => $data]);
     }
 
     public function show(Request $request, PayrollRunItem $item): JsonResponse
@@ -40,21 +33,34 @@ class PayslipController extends Controller
 
         abort_if((int) $item->tenant_id !== (int) $employee->tenant_id || (int) $item->employee_id !== (int) $employee->id, 404);
 
-        $item->loadMissing('period:id,name,code');
+        $item->loadMissing('period:id,name');
         $snapshot = $item->calculation_snapshot ?? [];
 
-        return response()->json([
-            'data' => [
-                'id' => $item->id,
-                'period' => $item->period?->name,
-                'earnings' => $snapshot['earnings'] ?? [],
-                'deductions' => $snapshot['deductions'] ?? [],
-                'gross' => (float) $item->gross_salary,
-                'deduction' => (float) $item->total_deduction,
-                'net' => (float) $item->net_salary,
-                'bpjs_employee' => (float) $item->bpjs_employee_total,
-                'pph21' => (float) $item->pph21_total,
-            ],
-        ]);
+        $lines = [];
+        foreach (($snapshot['earnings'] ?? []) as $row) {
+            $lines[] = ['component_code' => '', 'component_name' => $row['name'] ?? '', 'type' => 'earning', 'amount' => (int) round((float) ($row['amount'] ?? 0))];
+        }
+        foreach (($snapshot['deductions'] ?? []) as $row) {
+            $lines[] = ['component_code' => '', 'component_name' => $row['name'] ?? '', 'type' => 'deduction', 'amount' => (int) round((float) ($row['amount'] ?? 0))];
+        }
+
+        return response()->json(['data' => [...$this->summary($item), 'lines' => $lines]]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function summary(PayrollRunItem $i): array
+    {
+        return [
+            'id' => $i->id,
+            'period' => $i->period?->name,
+            'gross' => (int) round((float) $i->gross_salary),
+            'deductions' => (int) round((float) $i->total_deduction),
+            'tax' => (int) round((float) $i->pph21_total),
+            'bpjs_employee' => (int) round((float) $i->bpjs_employee_total),
+            'net' => (int) round((float) $i->net_salary),
+            'issued_at' => $i->created_at?->toDateString(),
+        ];
     }
 }

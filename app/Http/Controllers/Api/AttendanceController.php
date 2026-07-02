@@ -6,68 +6,76 @@ use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\AttendanceSelfie;
+use App\Models\Employee;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
 /**
- * Employee self-service attendance: clock in/out (GPS + optional selfie) and
- * history. All records are scoped to the authenticated employee.
+ * Employee self-service attendance: today status, monthly history, and a single
+ * clock endpoint (type = in|out) with GPS + optional selfie.
  */
 class AttendanceController extends Controller
 {
     use ResolvesApiEmployee;
 
-    /**
-     * Monthly attendance history (defaults to the current month).
-     */
-    public function index(Request $request): JsonResponse
-    {
-        $employee = $this->currentEmployee($request);
-        $month = $request->query('month', now()->format('Y-m'));
-        $start = Carbon::parse($month.'-01')->startOfMonth();
-        $end = $start->copy()->endOfMonth();
-
-        $records = Attendance::forTenant($employee->tenant_id)
-            ->where('employee_id', $employee->id)
-            ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
-            ->orderByDesc('date')
-            ->get()
-            ->map(fn (Attendance $a): array => $this->row($a));
-
-        return response()->json(['month' => $month, 'data' => $records]);
-    }
-
-    /**
-     * Today's attendance record (or null if not clocked in yet).
-     */
     public function today(Request $request): JsonResponse
     {
         $employee = $this->currentEmployee($request);
         $record = $this->todayRecord($employee->tenant_id, $employee->id);
 
-        return response()->json(['data' => $record === null ? null : $this->row($record)]);
+        return response()->json(['data' => $this->todayShape($record)]);
     }
 
-    /**
-     * Clock in for today with GPS coordinates and an optional selfie.
-     */
-    public function clockIn(Request $request): JsonResponse
+    public function history(Request $request): JsonResponse
+    {
+        $employee = $this->currentEmployee($request);
+        $month = $request->query('month', now()->format('Y-m'));
+        $start = Carbon::parse($month.'-01')->startOfMonth();
+
+        $records = Attendance::forTenant($employee->tenant_id)
+            ->where('employee_id', $employee->id)
+            ->whereBetween('date', [$start->toDateString(), $start->copy()->endOfMonth()->toDateString()])
+            ->orderByDesc('date')
+            ->get()
+            ->map(fn (Attendance $a): array => [
+                'id' => $a->id,
+                'date' => $a->date instanceof Carbon ? $a->date->toDateString() : $a->date,
+                'clock_in' => $a->clock_in_at?->format('H:i'),
+                'clock_out' => $a->clock_out_at?->format('H:i'),
+                'status' => $a->status,
+                'work_minutes' => (int) $a->work_minutes,
+            ]);
+
+        return response()->json(['data' => $records, 'meta' => ['month' => $month]]);
+    }
+
+    public function clock(Request $request): JsonResponse
     {
         $employee = $this->currentEmployee($request);
 
         $data = $request->validate([
-            'lat' => ['nullable', 'numeric', 'between:-90,90'],
-            'lng' => ['nullable', 'numeric', 'between:-180,180'],
+            'type' => ['required', 'in:in,out'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'face_confidence' => ['nullable', 'numeric'],
             'selfie' => ['nullable', 'image', 'max:4096'],
         ]);
 
-        $today = now()->toDateString();
+        return $data['type'] === 'in'
+            ? $this->clockIn($request, $employee, $data)
+            : $this->clockOut($employee, $data);
+    }
 
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function clockIn(Request $request, Employee $employee, array $data): JsonResponse
+    {
         $attendance = Attendance::firstOrNew([
             'tenant_id' => $employee->tenant_id,
             'employee_id' => $employee->id,
-            'date' => $today,
+            'date' => now()->toDateString(),
         ]);
 
         if ($attendance->clock_in_at !== null) {
@@ -78,41 +86,33 @@ class AttendanceController extends Controller
             'branch_id' => $employee->branch_id,
             'work_location_id' => $employee->work_location_id,
             'clock_in_at' => now(),
-            'clock_in_lat' => $data['lat'] ?? null,
-            'clock_in_lng' => $data['lng'] ?? null,
+            'clock_in_lat' => $data['latitude'] ?? null,
+            'clock_in_lng' => $data['longitude'] ?? null,
             'status' => 'present',
-            'location_status' => isset($data['lat']) ? 'inside' : null,
+            'location_status' => isset($data['latitude']) ? 'inside' : null,
         ]);
         $attendance->save();
 
         if ($request->hasFile('selfie')) {
-            $path = $request->file('selfie')->store('selfies', 'public');
             AttendanceSelfie::create([
                 'tenant_id' => $employee->tenant_id,
                 'attendance_id' => $attendance->id,
                 'employee_id' => $employee->id,
-                'file_path' => $path,
-                'latitude' => $data['lat'] ?? null,
-                'longitude' => $data['lng'] ?? null,
+                'file_path' => $request->file('selfie')->store('selfies', 'public'),
+                'latitude' => $data['latitude'] ?? null,
+                'longitude' => $data['longitude'] ?? null,
                 'captured_at' => now(),
             ]);
         }
 
-        return response()->json(['message' => 'Clock-in berhasil', 'data' => $this->row($attendance)]);
+        return response()->json(['message' => 'Clock-in berhasil', 'data' => $this->todayShape($attendance)]);
     }
 
     /**
-     * Clock out for today.
+     * @param  array<string, mixed>  $data
      */
-    public function clockOut(Request $request): JsonResponse
+    private function clockOut(Employee $employee, array $data): JsonResponse
     {
-        $employee = $this->currentEmployee($request);
-
-        $data = $request->validate([
-            'lat' => ['nullable', 'numeric', 'between:-90,90'],
-            'lng' => ['nullable', 'numeric', 'between:-180,180'],
-        ]);
-
         $attendance = $this->todayRecord($employee->tenant_id, $employee->id);
 
         if ($attendance === null || $attendance->clock_in_at === null) {
@@ -124,12 +124,12 @@ class AttendanceController extends Controller
         }
 
         $attendance->clock_out_at = now();
-        $attendance->clock_out_lat = $data['lat'] ?? null;
-        $attendance->clock_out_lng = $data['lng'] ?? null;
+        $attendance->clock_out_lat = $data['latitude'] ?? null;
+        $attendance->clock_out_lng = $data['longitude'] ?? null;
         $attendance->work_minutes = (int) $attendance->clock_in_at->diffInMinutes(now());
         $attendance->save();
 
-        return response()->json(['message' => 'Clock-out berhasil', 'data' => $this->row($attendance)]);
+        return response()->json(['message' => 'Clock-out berhasil', 'data' => $this->todayShape($attendance)]);
     }
 
     private function todayRecord(int $tenantId, int $employeeId): ?Attendance
@@ -143,17 +143,24 @@ class AttendanceController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function row(Attendance $a): array
+    private function todayShape(?Attendance $a): array
     {
+        $nextAction = 'done';
+        if ($a === null || $a->clock_in_at === null) {
+            $nextAction = 'in';
+        } elseif ($a->clock_out_at === null) {
+            $nextAction = 'out';
+        }
+
         return [
-            'id' => $a->id,
-            'date' => $a->date instanceof Carbon ? $a->date->toDateString() : $a->date,
-            'clock_in_at' => $a->clock_in_at?->toDateTimeString(),
-            'clock_out_at' => $a->clock_out_at?->toDateTimeString(),
-            'status' => $a->status,
-            'late_minutes' => (int) $a->late_minutes,
-            'work_minutes' => (int) $a->work_minutes,
-            'location_status' => $a->location_status,
+            'date' => now()->toDateString(),
+            'clock_in' => $a?->clock_in_at?->format('H:i'),
+            'clock_out' => $a?->clock_out_at?->format('H:i'),
+            'next_action' => $nextAction,
+            'summary' => [
+                'status' => $a?->status,
+                'work_minutes' => (int) ($a?->work_minutes ?? 0),
+            ],
         ];
     }
 }

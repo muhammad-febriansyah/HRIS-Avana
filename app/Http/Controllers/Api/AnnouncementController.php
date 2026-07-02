@@ -30,7 +30,7 @@ class AnnouncementController extends Controller
                 'body' => $a->body,
                 'category' => $a->category,
                 'pinned' => (bool) $a->pinned,
-                'published_at' => $a->published_at instanceof Carbon ? $a->published_at->toDateTimeString() : $a->published_at,
+                'published_at' => $a->published_at instanceof Carbon ? $a->published_at->toIso8601String() : $a->published_at,
             ]);
 
         return response()->json(['data' => $data]);

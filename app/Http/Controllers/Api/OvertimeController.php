@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\OvertimeRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 /** Employee self-service overtime requests. */
 class OvertimeController extends Controller
@@ -20,7 +21,14 @@ class OvertimeController extends Controller
         $data = OvertimeRequest::forTenant($employee->tenant_id)
             ->where('employee_id', $employee->id)
             ->orderByDesc('date')
-            ->get(['id', 'date', 'hours', 'reason', 'status']);
+            ->get(['id', 'date', 'hours', 'reason', 'status'])
+            ->map(fn (OvertimeRequest $o): array => [
+                'id' => $o->id,
+                'date' => $o->date instanceof Carbon ? $o->date->toDateString() : $o->date,
+                'hours' => (float) $o->hours,
+                'reason' => $o->reason,
+                'status' => $o->status,
+            ]);
 
         return response()->json(['data' => $data]);
     }
@@ -46,6 +54,6 @@ class OvertimeController extends Controller
             'status' => 'pending',
         ]);
 
-        return response()->json(['message' => 'Pengajuan lembur terkirim', 'id' => $overtime->id], 201);
+        return response()->json(['message' => 'Pengajuan lembur terkirim', 'data' => ['id' => $overtime->id]], 201);
     }
 }

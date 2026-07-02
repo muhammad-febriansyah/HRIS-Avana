@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\WfhRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 /** Employee self-service work-from-home requests. */
 class WfhController extends Controller
@@ -20,7 +21,14 @@ class WfhController extends Controller
         $data = WfhRequest::forTenant($employee->tenant_id)
             ->where('employee_id', $employee->id)
             ->orderByDesc('start_date')
-            ->get(['id', 'start_date', 'end_date', 'reason', 'status']);
+            ->get(['id', 'start_date', 'end_date', 'reason', 'status'])
+            ->map(fn (WfhRequest $w): array => [
+                'id' => $w->id,
+                'start_date' => $w->start_date instanceof Carbon ? $w->start_date->toDateString() : $w->start_date,
+                'end_date' => $w->end_date instanceof Carbon ? $w->end_date->toDateString() : $w->end_date,
+                'reason' => $w->reason,
+                'status' => $w->status,
+            ]);
 
         return response()->json(['data' => $data]);
     }
@@ -45,6 +53,6 @@ class WfhController extends Controller
             'status' => 'pending',
         ]);
 
-        return response()->json(['message' => 'Pengajuan WFH terkirim', 'id' => $wfh->id], 201);
+        return response()->json(['message' => 'Pengajuan WFH terkirim', 'data' => ['id' => $wfh->id]], 201);
     }
 }

@@ -12,51 +12,49 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
-/**
- * Employee self-service leave: types, balances, own requests, and submitting a
- * new request with an automatic balance check.
- */
+/** Employee self-service leave: balances, types, own requests, submit. */
 class LeaveController extends Controller
 {
     use ResolvesApiEmployee;
+
+    public function balances(Request $request): JsonResponse
+    {
+        $employee = $this->currentEmployee($request);
+        $year = (int) $request->query('year', (string) now()->year);
+
+        $data = LeaveBalance::forTenant($employee->tenant_id)
+            ->where('employee_id', $employee->id)
+            ->where('year', $year)
+            ->with('leaveType:id,name')
+            ->get()
+            ->map(fn (LeaveBalance $b): array => [
+                'leave_type' => $b->leaveType?->name,
+                'year' => (int) $b->year,
+                'entitled' => (float) $b->quota,
+                'used' => (float) $b->used,
+                'pending' => 0.0,
+                'available' => (float) $b->remaining,
+            ]);
+
+        return response()->json(['data' => $data]);
+    }
 
     public function types(Request $request): JsonResponse
     {
         $employee = $this->currentEmployee($request);
 
-        $types = LeaveType::forTenant($employee->tenant_id)
+        $data = LeaveType::forTenant($employee->tenant_id)
             ->where('status', 'active')
-            ->get(['id', 'code', 'name', 'default_quota', 'allow_negative', 'requires_attachment']);
+            ->get(['id', 'code', 'name', 'default_quota', 'requires_attachment']);
 
-        return response()->json(['data' => $types]);
-    }
-
-    public function balance(Request $request): JsonResponse
-    {
-        $employee = $this->currentEmployee($request);
-        $year = (int) $request->query('year', (string) now()->year);
-
-        $balances = LeaveBalance::forTenant($employee->tenant_id)
-            ->where('employee_id', $employee->id)
-            ->where('year', $year)
-            ->with('leaveType:id,code,name')
-            ->get()
-            ->map(fn (LeaveBalance $b): array => [
-                'leave_type' => $b->leaveType?->name,
-                'code' => $b->leaveType?->code,
-                'quota' => (int) $b->quota,
-                'used' => (int) $b->used,
-                'remaining' => (int) $b->remaining,
-            ]);
-
-        return response()->json(['year' => $year, 'data' => $balances]);
+        return response()->json(['data' => $data]);
     }
 
     public function index(Request $request): JsonResponse
     {
         $employee = $this->currentEmployee($request);
 
-        $requests = LeaveRequest::forTenant($employee->tenant_id)
+        $data = LeaveRequest::forTenant($employee->tenant_id)
             ->where('employee_id', $employee->id)
             ->with('leaveType:id,name')
             ->orderByDesc('start_date')
@@ -71,7 +69,7 @@ class LeaveController extends Controller
                 'status' => $r->status,
             ]);
 
-        return response()->json(['data' => $requests]);
+        return response()->json(['data' => $data]);
     }
 
     public function store(Request $request): JsonResponse
@@ -83,7 +81,6 @@ class LeaveController extends Controller
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'reason' => ['nullable', 'string', 'max:1000'],
-            'attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:4096'],
         ]);
 
         $start = Carbon::parse($data['start_date']);
@@ -102,14 +99,9 @@ class LeaveController extends Controller
 
         if (! $type->allow_negative && $totalDays > $remaining) {
             return response()->json([
-                'message' => 'Saldo cuti tidak mencukupi.',
-                'errors' => ['leave_type_id' => ['Sisa saldo '.$remaining.' hari, pengajuan '.$totalDays.' hari.']],
+                'message' => 'Saldo cuti tidak mencukupi (sisa '.$remaining.' hari).',
             ], 422);
         }
-
-        $path = $request->hasFile('attachment')
-            ? $request->file('attachment')->store('leave-attachments', 'public')
-            : null;
 
         $leave = LeaveRequest::create([
             'tenant_id' => $employee->tenant_id,
@@ -120,11 +112,10 @@ class LeaveController extends Controller
             'end_date' => $end->toDateString(),
             'total_days' => $totalDays,
             'reason' => $data['reason'] ?? null,
-            'file_path' => $path,
             'current_approver_id' => $employee->manager_id,
             'status' => 'pending',
         ]);
 
-        return response()->json(['message' => 'Pengajuan cuti terkirim', 'id' => $leave->id], 201);
+        return response()->json(['message' => 'Pengajuan cuti terkirim', 'data' => ['id' => $leave->id]], 201);
     }
 }

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PermissionRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 /** Employee self-service hourly permission (izin keluar) requests. */
 class PermissionController extends Controller
@@ -20,7 +21,16 @@ class PermissionController extends Controller
         $data = PermissionRequest::forTenant($employee->tenant_id)
             ->where('employee_id', $employee->id)
             ->orderByDesc('date')
-            ->get(['id', 'date', 'type', 'start_time', 'end_time', 'reason', 'status']);
+            ->get(['id', 'date', 'type', 'start_time', 'end_time', 'reason', 'status'])
+            ->map(fn (PermissionRequest $p): array => [
+                'id' => $p->id,
+                'date' => $p->date instanceof Carbon ? $p->date->toDateString() : $p->date,
+                'type' => $p->type,
+                'start_time' => $p->start_time,
+                'end_time' => $p->end_time,
+                'reason' => $p->reason,
+                'status' => $p->status,
+            ]);
 
         return response()->json(['data' => $data]);
     }
@@ -49,6 +59,6 @@ class PermissionController extends Controller
             'status' => 'pending',
         ]);
 
-        return response()->json(['message' => 'Pengajuan izin terkirim', 'id' => $permission->id], 201);
+        return response()->json(['message' => 'Pengajuan izin terkirim', 'data' => ['id' => $permission->id]], 201);
     }
 }
