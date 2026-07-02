@@ -4,6 +4,8 @@ use App\Http\Controllers\Api\AnnouncementController;
 use App\Http\Controllers\Api\AppConfigController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\DocumentController;
+use App\Http\Controllers\Api\FieldVisitController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OnboardingSlideController;
@@ -12,6 +14,7 @@ use App\Http\Controllers\Api\PayslipController;
 use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ReimbursementController;
+use App\Http\Controllers\Api\ShiftSwapController;
 use App\Http\Controllers\Api\WfhController;
 use Illuminate\Support\Facades\Route;
 
@@ -66,6 +69,16 @@ Route::prefix('v1')->group(function (): void {
             Route::get('notifications', [NotificationController::class, 'index']);
             Route::post('notifications/read-all', [NotificationController::class, 'markAllRead']);
             Route::post('notifications/{notification}/read', [NotificationController::class, 'markRead']);
+
+            Route::get('documents', [DocumentController::class, 'index']);
+            Route::post('documents', [DocumentController::class, 'store']);
+
+            Route::get('field-visits', [FieldVisitController::class, 'index']);
+            Route::post('field-visits', [FieldVisitController::class, 'store']);
+
+            Route::get('shift-swaps', [ShiftSwapController::class, 'index']);
+            Route::post('shift-swaps', [ShiftSwapController::class, 'store']);
+            Route::get('shift-swaps/colleagues', [ShiftSwapController::class, 'colleagues']);
         });
     });
 });

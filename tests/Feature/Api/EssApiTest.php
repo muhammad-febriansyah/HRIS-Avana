@@ -2,6 +2,7 @@
 
 use App\Models\Employee;
 use App\Models\LeaveType;
+use App\Models\User;
 use App\Models\WorkLocation;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Http\UploadedFile;
@@ -144,4 +145,55 @@ it('forbids a non-employee user (admin) from ESS endpoints', function (): void {
     $this->withHeader('Authorization', 'Bearer '.$token)
         ->getJson('/api/v1/me/profile')
         ->assertForbidden();
+});
+
+it('uploads and lists a personal document', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/documents', [
+        'name' => 'KTP',
+        'type' => 'identitas',
+        'file' => UploadedFile::fake()->create('ktp.pdf', 100, 'application/pdf'),
+    ])->assertCreated();
+
+    ($this->auth)()->getJson('/api/v1/me/documents')->assertOk()
+        ->assertJsonStructure(['data' => [['id', 'name', 'type', 'url', 'uploaded_at']]]);
+});
+
+it('records and lists a field visit with photo + GPS', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/field-visits', [
+        'visit_date' => now()->toDateString(),
+        'location' => 'Bandung',
+        'client_name' => 'PT Klien',
+        'purpose' => 'Meeting',
+        'latitude' => -6.9,
+        'longitude' => 107.6,
+        'photo' => UploadedFile::fake()->image('visit.jpg'),
+    ])->assertCreated();
+
+    ($this->auth)()->getJson('/api/v1/me/field-visits')->assertOk()
+        ->assertJsonStructure(['data' => [['id', 'location', 'photo_url', 'status']]]);
+});
+
+it('requests and lists a shift swap with a colleague', function (): void {
+    $colleagues = ($this->auth)()->getJson('/api/v1/me/shift-swaps/colleagues')
+        ->assertOk()->json('data');
+
+    expect($colleagues)->not->toBeEmpty();
+
+    ($this->auth)()->postJson('/api/v1/me/shift-swaps', [
+        'target_id' => $colleagues[0]['id'],
+        'date' => now()->addDay()->toDateString(),
+        'reason' => 'Ada acara keluarga',
+    ])->assertCreated();
+
+    ($this->auth)()->getJson('/api/v1/me/shift-swaps')->assertOk()
+        ->assertJsonStructure(['data' => [['id', 'direction', 'status', 'target']]]);
+});
+
+it('rejects a shift swap with yourself', function (): void {
+    $me = User::where('email', 'karyawan@avanahr.co.id')->firstOrFail()->employee;
+
+    ($this->auth)()->postJson('/api/v1/me/shift-swaps', [
+        'target_id' => $me->id,
+        'date' => now()->addDay()->toDateString(),
+    ])->assertStatus(422);
 });
