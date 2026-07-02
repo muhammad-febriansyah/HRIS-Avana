@@ -24,7 +24,11 @@ export function actionBadge(action: AuditRow['action']): {
 } {
     switch (action) {
         case 'created':
-            return { label: 'Dibuat', color: C.green, bg: 'rgba(22,163,74,.1)' };
+            return {
+                label: 'Dibuat',
+                color: C.green,
+                bg: 'rgba(22,163,74,.1)',
+            };
         case 'deleted':
             return { label: 'Dihapus', color: C.red, bg: 'rgba(220,38,38,.1)' };
         default:

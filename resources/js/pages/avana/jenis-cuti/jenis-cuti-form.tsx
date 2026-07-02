@@ -101,7 +101,10 @@ export function JenisCutiForm({
                                 setData('default_quota', event.target.value)
                             }
                             placeholder="0"
-                            style={withError(inputStyle, !!errors.default_quota)}
+                            style={withError(
+                                inputStyle,
+                                !!errors.default_quota,
+                            )}
                         />
                         <FieldError message={errors.default_quota} />
                     </div>

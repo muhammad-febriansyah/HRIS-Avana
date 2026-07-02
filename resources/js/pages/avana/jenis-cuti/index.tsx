@@ -3,17 +3,8 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import LeaveTypeController from '@/actions/App/Http/Controllers/Avana/LeaveTypeController';
 import { AIcon, btnP, C, card, thCell } from '@/lib/avana';
-import {
-    ConfirmModal,
-    iconBtn,
-    StatusPill,
-    YesNoPill,
-} from './components';
-import type {
-    FlashProps,
-    JenisCutiIndexProps,
-    LeaveTypeRow,
-} from './types';
+import { ConfirmModal, iconBtn, StatusPill, YesNoPill } from './components';
+import type { FlashProps, JenisCutiIndexProps, LeaveTypeRow } from './types';
 
 export default function JenisCutiIndex({ leaveTypes }: JenisCutiIndexProps) {
     const { flash } = usePage<FlashProps>().props;
@@ -65,7 +56,10 @@ export default function JenisCutiIndex({ leaveTypes }: JenisCutiIndexProps) {
                         >
                             <Link
                                 href="/avana/cuti"
-                                style={{ color: C.faint, textDecoration: 'none' }}
+                                style={{
+                                    color: C.faint,
+                                    textDecoration: 'none',
+                                }}
                             >
                                 Cuti &amp; Lembur
                             </Link>
@@ -188,9 +182,7 @@ export default function JenisCutiIndex({ leaveTypes }: JenisCutiIndexProps) {
                                                     size={28}
                                                     color={C.faint}
                                                 />
-                                                <div>
-                                                    Belum ada jenis cuti.
-                                                </div>
+                                                <div>Belum ada jenis cuti.</div>
                                             </div>
                                         </td>
                                     </tr>

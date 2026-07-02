@@ -4,13 +4,55 @@ import { typeMeta } from './types';
 
 /** The six summary stat cards across the top of the approval center. */
 export function StatCards({ counts }: { counts: ApprovalCounts }) {
-    const stats: { key: FilterKey; label: string; value: number; icon: string; color: string }[] = [
-        { key: 'all', label: 'Total Menunggu', value: counts.total, icon: 'inbox', color: C.navy },
-        { key: 'leave', label: 'Cuti', value: counts.leave, icon: typeMeta.leave.icon, color: typeMeta.leave.color },
-        { key: 'lembur', label: 'Lembur', value: counts.lembur, icon: typeMeta.lembur.icon, color: typeMeta.lembur.color },
-        { key: 'izin', label: 'Izin', value: counts.izin, icon: typeMeta.izin.icon, color: typeMeta.izin.color },
-        { key: 'wfh', label: 'WFH', value: counts.wfh, icon: typeMeta.wfh.icon, color: typeMeta.wfh.color },
-        { key: 'koreksi', label: 'Koreksi', value: counts.koreksi, icon: typeMeta.koreksi.icon, color: typeMeta.koreksi.color },
+    const stats: {
+        key: FilterKey;
+        label: string;
+        value: number;
+        icon: string;
+        color: string;
+    }[] = [
+        {
+            key: 'all',
+            label: 'Total Menunggu',
+            value: counts.total,
+            icon: 'inbox',
+            color: C.navy,
+        },
+        {
+            key: 'leave',
+            label: 'Cuti',
+            value: counts.leave,
+            icon: typeMeta.leave.icon,
+            color: typeMeta.leave.color,
+        },
+        {
+            key: 'lembur',
+            label: 'Lembur',
+            value: counts.lembur,
+            icon: typeMeta.lembur.icon,
+            color: typeMeta.lembur.color,
+        },
+        {
+            key: 'izin',
+            label: 'Izin',
+            value: counts.izin,
+            icon: typeMeta.izin.icon,
+            color: typeMeta.izin.color,
+        },
+        {
+            key: 'wfh',
+            label: 'WFH',
+            value: counts.wfh,
+            icon: typeMeta.wfh.icon,
+            color: typeMeta.wfh.color,
+        },
+        {
+            key: 'koreksi',
+            label: 'Koreksi',
+            value: counts.koreksi,
+            icon: typeMeta.koreksi.icon,
+            color: typeMeta.koreksi.color,
+        },
     ];
 
     return (
@@ -40,10 +82,19 @@ export function StatCards({ counts }: { counts: ApprovalCounts }) {
                     >
                         <AIcon name={stat.icon} size={18} color={stat.color} />
                     </div>
-                    <div style={{ fontSize: 26, fontWeight: 700, color: C.navy, lineHeight: 1 }}>
+                    <div
+                        style={{
+                            fontSize: 26,
+                            fontWeight: 700,
+                            color: C.navy,
+                            lineHeight: 1,
+                        }}
+                    >
                         {stat.value}
                     </div>
-                    <div style={{ fontSize: 12.5, color: C.muted, marginTop: 5 }}>
+                    <div
+                        style={{ fontSize: 12.5, color: C.muted, marginTop: 5 }}
+                    >
                         {stat.label}
                     </div>
                 </div>

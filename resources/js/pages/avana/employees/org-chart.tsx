@@ -3,10 +3,11 @@ import { useMemo } from 'react';
 import ReactFlow, {
     Background,
     Controls,
-    type Edge,
-    type Node,
-    Position,
+    
+    
+    Position
 } from 'reactflow';
+import type {Edge, Node} from 'reactflow';
 import 'reactflow/dist/style.css';
 import { C } from '@/lib/avana';
 

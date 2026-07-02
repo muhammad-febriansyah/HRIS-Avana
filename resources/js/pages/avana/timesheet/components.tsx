@@ -65,7 +65,10 @@ export const iconBtn: CSSProperties = {
 };
 
 /** Apply the red error border to a base style when invalid. */
-export function withError(base: CSSProperties, hasError: boolean): CSSProperties {
+export function withError(
+    base: CSSProperties,
+    hasError: boolean,
+): CSSProperties {
     return hasError
         ? {
               ...base,
@@ -97,7 +100,12 @@ interface ConfirmModalProps {
 }
 
 /** Centered destructive-action confirmation modal. */
-export function ConfirmModal({ title, body, onCancel, onConfirm }: ConfirmModalProps) {
+export function ConfirmModal({
+    title,
+    body,
+    onCancel,
+    onConfirm,
+}: ConfirmModalProps) {
     return (
         <div
             style={{
@@ -112,7 +120,11 @@ export function ConfirmModal({ title, body, onCancel, onConfirm }: ConfirmModalP
         >
             <div
                 onClick={onCancel}
-                style={{ position: 'absolute', inset: 0, background: 'rgba(14,26,58,.45)' }}
+                style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(14,26,58,.45)',
+                }}
             />
             <div
                 style={{
@@ -141,14 +153,28 @@ export function ConfirmModal({ title, body, onCancel, onConfirm }: ConfirmModalP
                 >
                     <AIcon name="trash-2" size={22} color={C.red} />
                 </div>
-                <div style={{ fontSize: 18, fontWeight: 600, color: C.navy }}>{title}</div>
-                <div style={{ fontSize: 13.5, color: C.muted, marginTop: 8, lineHeight: 1.55 }}>
+                <div style={{ fontSize: 18, fontWeight: 600, color: C.navy }}>
+                    {title}
+                </div>
+                <div
+                    style={{
+                        fontSize: 13.5,
+                        color: C.muted,
+                        marginTop: 8,
+                        lineHeight: 1.55,
+                    }}
+                >
                     {body}
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
                     <button
                         onClick={onCancel}
-                        style={{ ...btnOut, flex: 1, height: 44, justifyContent: 'center' }}
+                        style={{
+                            ...btnOut,
+                            flex: 1,
+                            height: 44,
+                            justifyContent: 'center',
+                        }}
                     >
                         Batal
                     </button>
@@ -188,7 +214,12 @@ interface PageHeaderProps {
 }
 
 /** Standard AvanaHR page header with breadcrumb, title and right-side actions. */
-export function PageHeader({ crumb, title, subtitle, actions }: PageHeaderProps) {
+export function PageHeader({
+    crumb,
+    title,
+    subtitle,
+    actions,
+}: PageHeaderProps) {
     return (
         <div
             style={{
@@ -226,9 +257,15 @@ export function PageHeader({ crumb, title, subtitle, actions }: PageHeaderProps)
                 >
                     {title}
                 </h1>
-                <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>{subtitle}</div>
+                <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
+                    {subtitle}
+                </div>
             </div>
-            {actions && <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>{actions}</div>}
+            {actions && (
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    {actions}
+                </div>
+            )}
         </div>
     );
 }
@@ -243,7 +280,14 @@ interface KpiItem {
 /** Row of KPI summary cards. */
 export function KpiRow({ items }: { items: KpiItem[] }) {
     return (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 22 }}>
+        <div
+            style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 14,
+                marginBottom: 22,
+            }}
+        >
             {items.map((item) => (
                 <div
                     key={item.label}
@@ -256,7 +300,14 @@ export function KpiRow({ items }: { items: KpiItem[] }) {
                         flex: '1 1 180px',
                     }}
                 >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            marginBottom: 10,
+                        }}
+                    >
                         <div
                             style={{
                                 width: 34,
@@ -268,9 +319,19 @@ export function KpiRow({ items }: { items: KpiItem[] }) {
                                 justifyContent: 'center',
                             }}
                         >
-                            <AIcon name={item.icon} size={17} color={item.color} />
+                            <AIcon
+                                name={item.icon}
+                                size={17}
+                                color={item.color}
+                            />
                         </div>
-                        <span style={{ fontSize: 12.5, color: C.muted, fontWeight: 500 }}>
+                        <span
+                            style={{
+                                fontSize: 12.5,
+                                color: C.muted,
+                                fontWeight: 500,
+                            }}
+                        >
                             {item.label}
                         </span>
                     </div>

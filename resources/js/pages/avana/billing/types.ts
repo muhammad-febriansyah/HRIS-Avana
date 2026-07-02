@@ -82,7 +82,10 @@ export interface BillingIndexProps {
 
 /** Props for the printable invoice page. */
 export interface InvoicePrintProps {
-    invoice: InvoiceRow & { tenant_company: string | null; notes: string | null };
+    invoice: InvoiceRow & {
+        tenant_company: string | null;
+        notes: string | null;
+    };
 }
 
 /** Indonesian label for an invoice status. */
@@ -123,6 +126,7 @@ export function formatDate(value: string | null): string {
     if (!value) {
         return '—';
     }
+
     return new Date(value).toLocaleDateString('id-ID', {
         day: 'numeric',
         month: 'short',

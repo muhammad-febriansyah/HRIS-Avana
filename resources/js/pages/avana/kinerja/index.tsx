@@ -96,9 +96,12 @@ export default function KinerjaIndex({
     const openScore = (review: ReviewRow) => {
         scoreForm.clearErrors();
         scoreForm.setData({
-            self_score: review.self_score !== null ? String(review.self_score) : '',
+            self_score:
+                review.self_score !== null ? String(review.self_score) : '',
             manager_score:
-                review.manager_score !== null ? String(review.manager_score) : '',
+                review.manager_score !== null
+                    ? String(review.manager_score)
+                    : '',
             final_score:
                 review.final_score !== null ? String(review.final_score) : '',
             status: review.status,
@@ -750,7 +753,8 @@ export default function KinerjaIndex({
 
                             <div>
                                 <label style={fieldLabelStyle}>
-                                    Status <span style={{ color: C.red }}>*</span>
+                                    Status{' '}
+                                    <span style={{ color: C.red }}>*</span>
                                 </label>
                                 <select
                                     value={cycleForm.data.status}
@@ -992,7 +996,8 @@ export default function KinerjaIndex({
 
                             <div>
                                 <label style={fieldLabelStyle}>
-                                    Status <span style={{ color: C.red }}>*</span>
+                                    Status{' '}
+                                    <span style={{ color: C.red }}>*</span>
                                 </label>
                                 <select
                                     value={scoreForm.data.status}

@@ -25,14 +25,41 @@ export default function AvanaFitur({ features, tenantName }: FiturIndexProps) {
         <>
             <Head title="Menu & Fitur" />
             <div style={{ padding: '28px 32px', maxWidth: 880 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: C.faint, marginBottom: 7 }}>
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 7,
+                        fontSize: 12.5,
+                        color: C.faint,
+                        marginBottom: 7,
+                    }}
+                >
                     <span>Pengaturan</span>
                     <AIcon name="chevron-right" size={13} />
                     <span style={{ color: C.muted }}>Menu &amp; Fitur</span>
                 </div>
-                <h1 style={{ fontSize: 24, fontWeight: 600, color: C.navy, margin: 0, letterSpacing: '-.01em' }}>Menu &amp; Fitur</h1>
-                <div style={{ fontSize: 14, color: C.muted, marginTop: 4, marginBottom: 24 }}>
-                    Atur modul yang aktif untuk {tenantName ?? 'perusahaan'}. Modul nonaktif otomatis disembunyikan dari menu sidebar.
+                <h1
+                    style={{
+                        fontSize: 24,
+                        fontWeight: 600,
+                        color: C.navy,
+                        margin: 0,
+                        letterSpacing: '-.01em',
+                    }}
+                >
+                    Menu &amp; Fitur
+                </h1>
+                <div
+                    style={{
+                        fontSize: 14,
+                        color: C.muted,
+                        marginTop: 4,
+                        marginBottom: 24,
+                    }}
+                >
+                    Atur modul yang aktif untuk {tenantName ?? 'perusahaan'}.
+                    Modul nonaktif otomatis disembunyikan dari menu sidebar.
                 </div>
 
                 <div style={{ ...card, overflow: 'hidden' }}>
@@ -44,10 +71,17 @@ export default function AvanaFitur({ features, tenantName }: FiturIndexProps) {
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
                                 padding: '16px 20px',
-                                borderTop: i === 0 ? 'none' : `1px solid ${C.line}`,
+                                borderTop:
+                                    i === 0 ? 'none' : `1px solid ${C.line}`,
                             }}
                         >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 13,
+                                }}
+                            >
                                 <div
                                     style={{
                                         width: 38,
@@ -56,17 +90,41 @@ export default function AvanaFitur({ features, tenantName }: FiturIndexProps) {
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        background: feature.is_enabled ? 'rgba(47,84,201,.1)' : '#F1F3F9',
-                                        color: feature.is_enabled ? C.primary : C.faint,
+                                        background: feature.is_enabled
+                                            ? 'rgba(47,84,201,.1)'
+                                            : '#F1F3F9',
+                                        color: feature.is_enabled
+                                            ? C.primary
+                                            : C.faint,
                                     }}
                                 >
-                                    <AIcon name="layout-grid" size={18} color={feature.is_enabled ? C.primary : C.faint} />
+                                    <AIcon
+                                        name="layout-grid"
+                                        size={18}
+                                        color={
+                                            feature.is_enabled
+                                                ? C.primary
+                                                : C.faint
+                                        }
+                                    />
                                 </div>
                                 <div>
-                                    <div style={{ fontSize: 14, fontWeight: 600, color: C.navy }}>{feature.name}</div>
-                                    <div style={{ fontSize: 12, color: C.faint }}>
+                                    <div
+                                        style={{
+                                            fontSize: 14,
+                                            fontWeight: 600,
+                                            color: C.navy,
+                                        }}
+                                    >
+                                        {feature.name}
+                                    </div>
+                                    <div
+                                        style={{ fontSize: 12, color: C.faint }}
+                                    >
                                         {feature.code}
-                                        {feature.module_group ? ` · ${feature.module_group}` : ''}
+                                        {feature.module_group
+                                            ? ` · ${feature.module_group}`
+                                            : ''}
                                     </div>
                                 </div>
                             </div>
@@ -83,7 +141,9 @@ export default function AvanaFitur({ features, tenantName }: FiturIndexProps) {
                                     cursor: 'pointer',
                                     position: 'relative',
                                     transition: 'background .15s',
-                                    background: feature.is_enabled ? C.primary : '#D5DCEA',
+                                    background: feature.is_enabled
+                                        ? C.primary
+                                        : '#D5DCEA',
                                     flex: 'none',
                                 }}
                             >
@@ -97,7 +157,8 @@ export default function AvanaFitur({ features, tenantName }: FiturIndexProps) {
                                         borderRadius: '50%',
                                         background: '#fff',
                                         transition: 'left .15s',
-                                        boxShadow: '0 1px 3px rgba(15,23,42,.2)',
+                                        boxShadow:
+                                            '0 1px 3px rgba(15,23,42,.2)',
                                     }}
                                 />
                             </button>

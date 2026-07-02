@@ -39,7 +39,11 @@ export function TypeBadge({ type }: { type: ApprovalType }) {
 }
 
 /** The avatar + name + employee number cell shared by both tables. */
-export function EmployeeCell({ employee }: { employee: ApprovalEmployee | null }) {
+export function EmployeeCell({
+    employee,
+}: {
+    employee: ApprovalEmployee | null;
+}) {
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div

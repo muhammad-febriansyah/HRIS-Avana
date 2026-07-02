@@ -18,7 +18,13 @@ export function HistoryTable({ items }: { items: ApprovalItem[] }) {
                 Riwayat Persetujuan
             </div>
             <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
+                <table
+                    style={{
+                        width: '100%',
+                        borderCollapse: 'collapse',
+                        minWidth: 760,
+                    }}
+                >
                     <thead>
                         <tr style={{ background: '#FAFBFD' }}>
                             <th style={headThStyle}>Karyawan</th>
@@ -49,8 +55,14 @@ export function HistoryTable({ items }: { items: ApprovalItem[] }) {
                                             gap: 10,
                                         }}
                                     >
-                                        <AIcon name="history" size={28} color={C.faint} />
-                                        <div>Belum ada riwayat persetujuan.</div>
+                                        <AIcon
+                                            name="history"
+                                            size={28}
+                                            color={C.faint}
+                                        />
+                                        <div>
+                                            Belum ada riwayat persetujuan.
+                                        </div>
                                     </div>
                                 </td>
                             </tr>
@@ -64,7 +76,9 @@ export function HistoryTable({ items }: { items: ApprovalItem[] }) {
                                     style={{ borderTop: `1px solid ${C.line}` }}
                                 >
                                     <td style={{ padding: '12px 18px' }}>
-                                        <EmployeeCell employee={item.employee} />
+                                        <EmployeeCell
+                                            employee={item.employee}
+                                        />
                                     </td>
                                     <td style={{ padding: '12px 16px' }}>
                                         <TypeBadge type={item.type} />

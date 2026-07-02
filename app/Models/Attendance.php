@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class Attendance extends Model
 {
@@ -61,5 +62,10 @@ final class Attendance extends Model
     public function workLocation(): BelongsTo
     {
         return $this->belongsTo(WorkLocation::class);
+    }
+
+    public function selfies(): HasMany
+    {
+        return $this->hasMany(AttendanceSelfie::class);
     }
 }

@@ -46,7 +46,7 @@ export interface ColumnDef {
 export interface FieldDef {
     name: string;
     label: string;
-    type: 'text' | 'number' | 'time' | 'textarea' | 'select';
+    type: 'text' | 'number' | 'time' | 'textarea' | 'select' | 'map';
     required?: boolean;
     span?: 'half' | 'full';
     default?: string;
@@ -280,6 +280,12 @@ export const TABS: TabDef[] = [
                 span: 'full',
             },
             {
+                name: 'map',
+                label: 'Titik Lokasi (klik peta / seret pin)',
+                type: 'map',
+                span: 'full',
+            },
+            {
                 name: 'latitude',
                 label: 'Latitude',
                 type: 'text',
@@ -376,6 +382,12 @@ export function buildInitialForm(
     const data: Record<string, string> = {};
 
     for (const field of tab.fields) {
+        // The map picker is a visual control over latitude/longitude, not its
+        // own persisted field.
+        if (field.type === 'map') {
+            continue;
+        }
+
         if (record) {
             const raw = record[field.name];
             let value = raw === null || raw === undefined ? '' : String(raw);

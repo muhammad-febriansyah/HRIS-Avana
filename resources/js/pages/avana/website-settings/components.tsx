@@ -4,7 +4,13 @@ import { AIcon, C } from '@/lib/avana';
 
 /* ---------- shared field styles ---------- */
 
-export const labelStyle: CSSProperties = { display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 7, color: C.text };
+export const labelStyle: CSSProperties = {
+    display: 'block',
+    fontSize: 13,
+    fontWeight: 500,
+    marginBottom: 7,
+    color: C.text,
+};
 
 export const inputStyle: CSSProperties = {
     width: '100%',
@@ -18,11 +24,27 @@ export const inputStyle: CSSProperties = {
     outline: 'none',
 };
 
-export const textareaStyle: CSSProperties = { ...inputStyle, height: 'auto', padding: '11px 13px', minHeight: 90, resize: 'vertical', lineHeight: 1.5 };
+export const textareaStyle: CSSProperties = {
+    ...inputStyle,
+    height: 'auto',
+    padding: '11px 13px',
+    minHeight: 90,
+    resize: 'vertical',
+    lineHeight: 1.5,
+};
 
 /** Apply the red error border to a base style when invalid. */
-export function withError(base: CSSProperties, hasError: boolean): CSSProperties {
-    return hasError ? { ...base, border: `1px solid ${C.red}`, boxShadow: '0 0 0 3px rgba(220,38,38,.08)' } : base;
+export function withError(
+    base: CSSProperties,
+    hasError: boolean,
+): CSSProperties {
+    return hasError
+        ? {
+              ...base,
+              border: `1px solid ${C.red}`,
+              boxShadow: '0 0 0 3px rgba(220,38,38,.08)',
+          }
+        : base;
 }
 
 /** Inline error message rendered under a field. */
@@ -32,7 +54,16 @@ export function FieldError({ message }: { message?: string }) {
     }
 
     return (
-        <div style={{ fontSize: 12, color: C.red, marginTop: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+        <div
+            style={{
+                fontSize: 12,
+                color: C.red,
+                marginTop: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+            }}
+        >
             <AIcon name="circle-alert" size={13} color={C.red} />
             {message}
         </div>
@@ -53,7 +84,11 @@ export function Field({ label, children, error, hint, full }: FieldProps) {
         <div style={{ gridColumn: full ? '1 / -1' : 'auto' }}>
             <label style={labelStyle}>{label}</label>
             {children}
-            {hint && !error && <div style={{ fontSize: 12, color: C.faint, marginTop: 6 }}>{hint}</div>}
+            {hint && !error && (
+                <div style={{ fontSize: 12, color: C.faint, marginTop: 6 }}>
+                    {hint}
+                </div>
+            )}
             <FieldError message={error} />
         </div>
     );
@@ -72,7 +107,17 @@ interface ImageUploadProps {
 }
 
 /** Drag-and-drop image picker with live preview; old image is freed server-side. */
-export function ImageUpload({ label, hint, accept, file, currentUrl, error, square, onPick, onClear }: ImageUploadProps) {
+export function ImageUpload({
+    label,
+    hint,
+    accept,
+    file,
+    currentUrl,
+    error,
+    square,
+    onPick,
+    onClear,
+}: ImageUploadProps) {
     const inputRef = useRef<HTMLInputElement>(null);
     const [preview, setPreview] = useState<string | null>(null);
     const [dragging, setDragging] = useState(false);
@@ -83,6 +128,7 @@ export function ImageUpload({ label, hint, accept, file, currentUrl, error, squa
 
             return;
         }
+
         const url = URL.createObjectURL(file);
         setPreview(url);
 
@@ -107,7 +153,14 @@ export function ImageUpload({ label, hint, accept, file, currentUrl, error, squa
     return (
         <div>
             <label style={labelStyle}>{label}</label>
-            <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <div
+                style={{
+                    display: 'flex',
+                    gap: 16,
+                    alignItems: 'flex-start',
+                    flexWrap: 'wrap',
+                }}
+            >
                 {/* Preview */}
                 <div
                     style={{
@@ -126,7 +179,15 @@ export function ImageUpload({ label, hint, accept, file, currentUrl, error, squa
                     }}
                 >
                     {shown ? (
-                        <img src={shown} alt={label} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                        <img
+                            src={shown}
+                            alt={label}
+                            style={{
+                                maxWidth: '100%',
+                                maxHeight: '100%',
+                                objectFit: 'contain',
+                            }}
+                        />
                     ) : (
                         <AIcon name="image" size={26} color={C.faint} />
                     )}
@@ -144,7 +205,9 @@ export function ImageUpload({ label, hint, accept, file, currentUrl, error, squa
                         onDrop={onDrop}
                         style={{
                             border: `1.5px dashed ${dragging ? C.primary : C.border}`,
-                            background: dragging ? 'rgba(47,84,201,.04)' : C.surface,
+                            background: dragging
+                                ? 'rgba(47,84,201,.04)'
+                                : C.surface,
                             borderRadius: 10,
                             padding: '18px 16px',
                             textAlign: 'center',
@@ -152,11 +215,31 @@ export function ImageUpload({ label, hint, accept, file, currentUrl, error, squa
                             transition: '.15s',
                         }}
                     >
-                        <AIcon name="upload-cloud" size={22} color={C.primary} style={{ margin: '0 auto 6px' }} />
-                        <div style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>
-                            Tarik gambar ke sini atau <span style={{ color: C.primary }}>pilih file</span>
+                        <AIcon
+                            name="upload-cloud"
+                            size={22}
+                            color={C.primary}
+                            style={{ margin: '0 auto 6px' }}
+                        />
+                        <div
+                            style={{
+                                fontSize: 13,
+                                color: C.text,
+                                fontWeight: 500,
+                            }}
+                        >
+                            Tarik gambar ke sini atau{' '}
+                            <span style={{ color: C.primary }}>pilih file</span>
                         </div>
-                        <div style={{ fontSize: 11.5, color: C.faint, marginTop: 4 }}>{hint}</div>
+                        <div
+                            style={{
+                                fontSize: 11.5,
+                                color: C.faint,
+                                marginTop: 4,
+                            }}
+                        >
+                            {hint}
+                        </div>
                     </div>
                     <input
                         ref={inputRef}
@@ -195,6 +278,7 @@ export function ImageUpload({ label, hint, accept, file, currentUrl, error, squa
                                 type="button"
                                 onClick={() => {
                                     onClear();
+
                                     if (inputRef.current) {
                                         inputRef.current.value = '';
                                     }

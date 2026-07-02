@@ -9,7 +9,11 @@ interface PendingTableProps {
 }
 
 /** The pending-approval table with per-row approve / reject actions. */
-export function PendingTable({ items, onApprove, onReject }: PendingTableProps) {
+export function PendingTable({
+    items,
+    onApprove,
+    onReject,
+}: PendingTableProps) {
     return (
         <div style={{ ...card, overflow: 'hidden', marginBottom: 24 }}>
             <div
@@ -24,7 +28,13 @@ export function PendingTable({ items, onApprove, onReject }: PendingTableProps) 
                 Menunggu Persetujuan
             </div>
             <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
+                <table
+                    style={{
+                        width: '100%',
+                        borderCollapse: 'collapse',
+                        minWidth: 760,
+                    }}
+                >
                     <thead>
                         <tr style={{ background: '#FAFBFD' }}>
                             <th style={headThStyle}>Karyawan</th>
@@ -32,7 +42,9 @@ export function PendingTable({ items, onApprove, onReject }: PendingTableProps) 
                             <th style={headThStyle}>Detail</th>
                             <th style={headThStyle}>Alasan</th>
                             <th style={headThStyle}>Diajukan</th>
-                            <th style={{ ...headThStyle, textAlign: 'right' }}>Aksi</th>
+                            <th style={{ ...headThStyle, textAlign: 'right' }}>
+                                Aksi
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
@@ -55,8 +67,15 @@ export function PendingTable({ items, onApprove, onReject }: PendingTableProps) 
                                             gap: 10,
                                         }}
                                     >
-                                        <AIcon name="check-check" size={28} color={C.faint} />
-                                        <div>Tidak ada pengajuan yang menunggu persetujuan.</div>
+                                        <AIcon
+                                            name="check-check"
+                                            size={28}
+                                            color={C.faint}
+                                        />
+                                        <div>
+                                            Tidak ada pengajuan yang menunggu
+                                            persetujuan.
+                                        </div>
                                     </div>
                                 </td>
                             </tr>
@@ -95,8 +114,18 @@ export function PendingTable({ items, onApprove, onReject }: PendingTableProps) 
                                 >
                                     {item.requested_at ?? '—'}
                                 </td>
-                                <td style={{ padding: '12px 18px', textAlign: 'right' }}>
-                                    <div style={{ display: 'inline-flex', gap: 6 }}>
+                                <td
+                                    style={{
+                                        padding: '12px 18px',
+                                        textAlign: 'right',
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            display: 'inline-flex',
+                                            gap: 6,
+                                        }}
+                                    >
                                         <button
                                             onClick={() => onApprove(item)}
                                             style={{
@@ -107,7 +136,8 @@ export function PendingTable({ items, onApprove, onReject }: PendingTableProps) 
                                                 padding: '0 11px',
                                                 border: 'none',
                                                 borderRadius: 7,
-                                                background: 'rgba(22,163,74,.1)',
+                                                background:
+                                                    'rgba(22,163,74,.1)',
                                                 color: C.green,
                                                 fontSize: 12,
                                                 fontWeight: 600,
@@ -115,7 +145,11 @@ export function PendingTable({ items, onApprove, onReject }: PendingTableProps) 
                                                 transition: '.15s',
                                             }}
                                         >
-                                            <AIcon name="check" size={14} color={C.green} />
+                                            <AIcon
+                                                name="check"
+                                                size={14}
+                                                color={C.green}
+                                            />
                                             Setujui
                                         </button>
                                         <button
@@ -125,7 +159,8 @@ export function PendingTable({ items, onApprove, onReject }: PendingTableProps) 
                                                 height: 30,
                                                 border: 'none',
                                                 borderRadius: 7,
-                                                background: 'rgba(220,38,38,.08)',
+                                                background:
+                                                    'rgba(220,38,38,.08)',
                                                 color: C.red,
                                                 cursor: 'pointer',
                                                 display: 'inline-flex',
@@ -134,7 +169,11 @@ export function PendingTable({ items, onApprove, onReject }: PendingTableProps) 
                                                 transition: '.15s',
                                             }}
                                         >
-                                            <AIcon name="x" size={14} color={C.red} />
+                                            <AIcon
+                                                name="x"
+                                                size={14}
+                                                color={C.red}
+                                            />
                                         </button>
                                     </div>
                                 </td>

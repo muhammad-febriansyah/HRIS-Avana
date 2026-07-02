@@ -1,5 +1,6 @@
 import { useForm } from '@inertiajs/react';
 import type { FormEvent } from 'react';
+import { LocationPicker } from '@/components/map/location-picker';
 import { AIcon, btnOut, btnP, C } from '@/lib/avana';
 import {
     FieldError,
@@ -20,7 +21,12 @@ interface EntityModalProps {
 }
 
 /** Inline create/edit form for the active tab. */
-export function EntityModal({ tab, options, record, onClose }: EntityModalProps) {
+export function EntityModal({
+    tab,
+    options,
+    record,
+    onClose,
+}: EntityModalProps) {
     const form = useForm<Record<string, string>>(buildInitialForm(tab, record));
 
     const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -136,7 +142,27 @@ export function EntityModal({ tab, options, record, onClose }: EntityModalProps)
                                         )}
                                     </label>
 
-                                    {field.type === 'select' ? (
+                                    {field.type === 'map' ? (
+                                        <LocationPicker
+                                            latitude={form.data.latitude ?? ''}
+                                            longitude={
+                                                form.data.longitude ?? ''
+                                            }
+                                            radiusMeter={
+                                                form.data.radius_meter ?? ''
+                                            }
+                                            onChange={(coords) => {
+                                                form.setData(
+                                                    'latitude',
+                                                    coords.latitude,
+                                                );
+                                                form.setData(
+                                                    'longitude',
+                                                    coords.longitude,
+                                                );
+                                            }}
+                                        />
+                                    ) : field.type === 'select' ? (
                                         <select
                                             value={value}
                                             onChange={(event) =>

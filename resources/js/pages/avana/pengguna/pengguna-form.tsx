@@ -69,7 +69,9 @@ export function PenggunaForm({
                     <input
                         type="text"
                         value={data.name}
-                        onChange={(event) => setData('name', event.target.value)}
+                        onChange={(event) =>
+                            setData('name', event.target.value)
+                        }
                         placeholder="Nama lengkap"
                         style={withError(inputStyle, !!errors.name)}
                     />

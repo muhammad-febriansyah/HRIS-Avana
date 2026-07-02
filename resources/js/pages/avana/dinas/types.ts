@@ -16,7 +16,8 @@ export interface RowEmployee {
 }
 
 export type TravelStatus = 'pending' | 'approved' | 'rejected' | 'completed';
-export type TravelStatusLabel = 'Menunggu' | 'Disetujui' | 'Ditolak' | 'Selesai';
+export type TravelStatusLabel =
+    'Menunggu' | 'Disetujui' | 'Ditolak' | 'Selesai';
 
 /** A single duty travel record as shaped by `DutyTravelController`. */
 export interface TravelRow {

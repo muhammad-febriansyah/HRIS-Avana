@@ -271,7 +271,10 @@ export default function DokumenIndex({
                         onChange={setEmployeeFilter}
                         options={[
                             { value: '', label: 'Semua karyawan' },
-                            ...employees.map((employee) => ({ value: String(employee.id), label: employee.name ?? '—' })),
+                            ...employees.map((employee) => ({
+                                value: String(employee.id),
+                                label: employee.name ?? '—',
+                            })),
                         ]}
                         placeholder="Semua karyawan"
                         searchPlaceholder="Cari karyawan…"
@@ -510,14 +513,17 @@ export default function DokumenIndex({
                                 </label>
                                 <SearchableSelect
                                     value={form.data.employee_id}
-                                    onChange={(v) => form.setData('employee_id', v)}
-                                    options={employees.map((employee) => ({ value: String(employee.id), label: employee.name ?? '—' }))}
+                                    onChange={(v) =>
+                                        form.setData('employee_id', v)
+                                    }
+                                    options={employees.map((employee) => ({
+                                        value: String(employee.id),
+                                        label: employee.name ?? '—',
+                                    }))}
                                     placeholder="Pilih karyawan"
                                     searchPlaceholder="Cari karyawan…"
                                 />
-                                <FieldError
-                                    message={form.errors.employee_id}
-                                />
+                                <FieldError message={form.errors.employee_id} />
                             </div>
 
                             <div>

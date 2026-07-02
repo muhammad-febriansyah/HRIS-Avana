@@ -3,7 +3,16 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import ShiftSwapController from '@/actions/App/Http/Controllers/Avana/ShiftSwapController';
-import { ActionBtn, AIcon, btnOut, btnP, C, card, statusBadge, thCell } from '@/lib/avana';
+import {
+    ActionBtn,
+    AIcon,
+    btnOut,
+    btnP,
+    C,
+    card,
+    statusBadge,
+    thCell,
+} from '@/lib/avana';
 import {
     ConfirmModal,
     FieldError,
@@ -19,9 +28,18 @@ import { emptySwapForm } from './types';
 import type { ShiftSwapIndexProps, SwapFormData, SwapRow } from './types';
 import type { FlashProps } from './types';
 
-const cellStyle = { padding: '13px 16px', fontSize: 13, color: C.text } as const;
+const cellStyle = {
+    padding: '13px 16px',
+    fontSize: 13,
+    color: C.text,
+} as const;
 
-export default function ShiftSwapIndex({ swaps, employees, shifts, kpis }: ShiftSwapIndexProps) {
+export default function ShiftSwapIndex({
+    swaps,
+    employees,
+    shifts,
+    kpis,
+}: ShiftSwapIndexProps) {
     const { flash } = usePage<FlashProps>().props;
 
     const [modalOpen, setModalOpen] = useState(false);
@@ -60,11 +78,19 @@ export default function ShiftSwapIndex({ swaps, employees, shifts, kpis }: Shift
     };
 
     const approve = (swap: SwapRow) => {
-        router.post(ShiftSwapController.approve(swap.id).url, {}, { preserveScroll: true });
+        router.post(
+            ShiftSwapController.approve(swap.id).url,
+            {},
+            { preserveScroll: true },
+        );
     };
 
     const reject = (swap: SwapRow) => {
-        router.post(ShiftSwapController.reject(swap.id).url, {}, { preserveScroll: true });
+        router.post(
+            ShiftSwapController.reject(swap.id).url,
+            {},
+            { preserveScroll: true },
+        );
     };
 
     const deleteSwap = () => {
@@ -93,7 +119,10 @@ export default function ShiftSwapIndex({ swaps, employees, shifts, kpis }: Shift
                             style={{
                                 ...btnP,
                                 opacity: employees.length < 2 ? 0.6 : 1,
-                                cursor: employees.length < 2 ? 'not-allowed' : 'pointer',
+                                cursor:
+                                    employees.length < 2
+                                        ? 'not-allowed'
+                                        : 'pointer',
                             }}
                         >
                             <AIcon name="plus" size={16} color="#fff" />
@@ -133,7 +162,13 @@ export default function ShiftSwapIndex({ swaps, employees, shifts, kpis }: Shift
 
                 <div style={{ ...card, overflow: 'hidden' }}>
                     <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 880 }}>
+                        <table
+                            style={{
+                                width: '100%',
+                                borderCollapse: 'collapse',
+                                minWidth: 880,
+                            }}
+                        >
                             <thead>
                                 <tr style={{ background: '#FAFBFD' }}>
                                     <th style={thCell}>Pemohon</th>
@@ -154,7 +189,11 @@ export default function ShiftSwapIndex({ swaps, employees, shifts, kpis }: Shift
                             </thead>
                             <tbody>
                                 {swaps.length === 0 && (
-                                    <tr style={{ borderTop: `1px solid ${C.line}` }}>
+                                    <tr
+                                        style={{
+                                            borderTop: `1px solid ${C.line}`,
+                                        }}
+                                    >
                                         <td
                                             colSpan={6}
                                             style={{
@@ -172,19 +211,30 @@ export default function ShiftSwapIndex({ swaps, employees, shifts, kpis }: Shift
                                                     gap: 10,
                                                 }}
                                             >
-                                                <AIcon name="repeat" size={28} color={C.faint} />
-                                                <div>Belum ada pengajuan tukar shift.</div>
+                                                <AIcon
+                                                    name="repeat"
+                                                    size={28}
+                                                    color={C.faint}
+                                                />
+                                                <div>
+                                                    Belum ada pengajuan tukar
+                                                    shift.
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
                                 )}
                                 {swaps.map((swap) => {
-                                    const badge = statusBadge(swap.status_label);
+                                    const badge = statusBadge(
+                                        swap.status_label,
+                                    );
 
                                     return (
                                         <tr
                                             key={swap.id}
-                                            style={{ borderTop: `1px solid ${C.line}` }}
+                                            style={{
+                                                borderTop: `1px solid ${C.line}`,
+                                            }}
                                         >
                                             <td
                                                 style={{
@@ -195,14 +245,20 @@ export default function ShiftSwapIndex({ swaps, employees, shifts, kpis }: Shift
                                             >
                                                 {swap.requester ?? '—'}
                                             </td>
-                                            <td style={cellStyle}>{swap.target ?? '—'}</td>
-                                            <td style={cellStyle}>{swap.date ?? '—'}</td>
+                                            <td style={cellStyle}>
+                                                {swap.target ?? '—'}
+                                            </td>
+                                            <td style={cellStyle}>
+                                                {swap.date ?? '—'}
+                                            </td>
                                             <td style={cellStyle}>
                                                 {(swap.requester_shift ?? '—') +
                                                     ' → ' +
                                                     (swap.target_shift ?? '—')}
                                             </td>
-                                            <td style={{ padding: '13px 16px' }}>
+                                            <td
+                                                style={{ padding: '13px 16px' }}
+                                            >
                                                 <span
                                                     style={{
                                                         display: 'inline-block',
@@ -228,22 +284,30 @@ export default function ShiftSwapIndex({ swaps, employees, shifts, kpis }: Shift
                                                         display: 'inline-flex',
                                                         gap: 6,
                                                         flexWrap: 'wrap',
-                                                        justifyContent: 'flex-end',
+                                                        justifyContent:
+                                                            'flex-end',
                                                     }}
                                                 >
-                                                    {swap.status === 'pending' && (
+                                                    {swap.status ===
+                                                        'pending' && (
                                                         <>
                                                             <ActionBtn
                                                                 icon="check"
                                                                 label="Setujui"
                                                                 variant="success"
-                                                                onClick={() => approve(swap)}
+                                                                onClick={() =>
+                                                                    approve(
+                                                                        swap,
+                                                                    )
+                                                                }
                                                             />
                                                             <ActionBtn
                                                                 icon="x"
                                                                 label="Tolak"
                                                                 variant="warning"
-                                                                onClick={() => reject(swap)}
+                                                                onClick={() =>
+                                                                    reject(swap)
+                                                                }
                                                             />
                                                         </>
                                                     )}
@@ -251,7 +315,9 @@ export default function ShiftSwapIndex({ swaps, employees, shifts, kpis }: Shift
                                                         icon="trash-2"
                                                         label="Hapus"
                                                         variant="danger"
-                                                        onClick={() => setConfirm(swap)}
+                                                        onClick={() =>
+                                                            setConfirm(swap)
+                                                        }
                                                     />
                                                 </div>
                                             </td>
@@ -279,7 +345,11 @@ export default function ShiftSwapIndex({ swaps, employees, shifts, kpis }: Shift
                 >
                     <div
                         onClick={closeModal}
-                        style={{ position: 'absolute', inset: 0, background: 'rgba(14,26,58,.45)' }}
+                        style={{
+                            position: 'absolute',
+                            inset: 0,
+                            background: 'rgba(14,26,58,.45)',
+                        }}
                     />
                     <form
                         onSubmit={submit}
@@ -299,45 +369,79 @@ export default function ShiftSwapIndex({ swaps, employees, shifts, kpis }: Shift
                             gap: 14,
                         }}
                     >
-                        <div style={{ fontSize: 18, fontWeight: 600, color: C.navy }}>
+                        <div
+                            style={{
+                                fontSize: 18,
+                                fontWeight: 600,
+                                color: C.navy,
+                            }}
+                        >
                             Ajukan Tukar Shift
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr',
+                                gap: 14,
+                            }}
+                        >
                             <div>
                                 <label style={fieldLabelStyle}>
-                                    Pemohon <span style={{ color: C.red }}>*</span>
+                                    Pemohon{' '}
+                                    <span style={{ color: C.red }}>*</span>
                                 </label>
                                 <select
                                     value={form.data.requester_id}
                                     onChange={(event) =>
-                                        form.setData('requester_id', event.target.value)
+                                        form.setData(
+                                            'requester_id',
+                                            event.target.value,
+                                        )
                                     }
-                                    style={withError(selectStyle, !!form.errors.requester_id)}
+                                    style={withError(
+                                        selectStyle,
+                                        !!form.errors.requester_id,
+                                    )}
                                 >
                                     <option value="">Pilih</option>
                                     {employees.map((employee) => (
-                                        <option key={employee.id} value={String(employee.id)}>
+                                        <option
+                                            key={employee.id}
+                                            value={String(employee.id)}
+                                        >
                                             {employee.name}
                                         </option>
                                     ))}
                                 </select>
-                                <FieldError message={form.errors.requester_id} />
+                                <FieldError
+                                    message={form.errors.requester_id}
+                                />
                             </div>
                             <div>
                                 <label style={fieldLabelStyle}>
-                                    Karyawan Tujuan <span style={{ color: C.red }}>*</span>
+                                    Karyawan Tujuan{' '}
+                                    <span style={{ color: C.red }}>*</span>
                                 </label>
                                 <select
                                     value={form.data.target_id}
                                     onChange={(event) =>
-                                        form.setData('target_id', event.target.value)
+                                        form.setData(
+                                            'target_id',
+                                            event.target.value,
+                                        )
                                     }
-                                    style={withError(selectStyle, !!form.errors.target_id)}
+                                    style={withError(
+                                        selectStyle,
+                                        !!form.errors.target_id,
+                                    )}
                                 >
                                     <option value="">Pilih</option>
                                     {employees.map((employee) => (
-                                        <option key={employee.id} value={String(employee.id)}>
+                                        <option
+                                            key={employee.id}
+                                            value={String(employee.id)}
+                                        >
                                             {employee.name}
                                         </option>
                                     ))}
@@ -353,19 +457,35 @@ export default function ShiftSwapIndex({ swaps, employees, shifts, kpis }: Shift
                             <input
                                 type="date"
                                 value={form.data.date}
-                                onChange={(event) => form.setData('date', event.target.value)}
-                                style={withError(inputStyle, !!form.errors.date)}
+                                onChange={(event) =>
+                                    form.setData('date', event.target.value)
+                                }
+                                style={withError(
+                                    inputStyle,
+                                    !!form.errors.date,
+                                )}
                             />
                             <FieldError message={form.errors.date} />
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr',
+                                gap: 14,
+                            }}
+                        >
                             <div>
-                                <label style={fieldLabelStyle}>Shift Pemohon</label>
+                                <label style={fieldLabelStyle}>
+                                    Shift Pemohon
+                                </label>
                                 <select
                                     value={form.data.requester_shift_id}
                                     onChange={(event) =>
-                                        form.setData('requester_shift_id', event.target.value)
+                                        form.setData(
+                                            'requester_shift_id',
+                                            event.target.value,
+                                        )
                                     }
                                     style={withError(
                                         selectStyle,
@@ -374,30 +494,48 @@ export default function ShiftSwapIndex({ swaps, employees, shifts, kpis }: Shift
                                 >
                                     <option value="">—</option>
                                     {shifts.map((shift) => (
-                                        <option key={shift.id} value={String(shift.id)}>
+                                        <option
+                                            key={shift.id}
+                                            value={String(shift.id)}
+                                        >
                                             {shift.name}
                                         </option>
                                     ))}
                                 </select>
-                                <FieldError message={form.errors.requester_shift_id} />
+                                <FieldError
+                                    message={form.errors.requester_shift_id}
+                                />
                             </div>
                             <div>
-                                <label style={fieldLabelStyle}>Shift Tujuan</label>
+                                <label style={fieldLabelStyle}>
+                                    Shift Tujuan
+                                </label>
                                 <select
                                     value={form.data.target_shift_id}
                                     onChange={(event) =>
-                                        form.setData('target_shift_id', event.target.value)
+                                        form.setData(
+                                            'target_shift_id',
+                                            event.target.value,
+                                        )
                                     }
-                                    style={withError(selectStyle, !!form.errors.target_shift_id)}
+                                    style={withError(
+                                        selectStyle,
+                                        !!form.errors.target_shift_id,
+                                    )}
                                 >
                                     <option value="">—</option>
                                     {shifts.map((shift) => (
-                                        <option key={shift.id} value={String(shift.id)}>
+                                        <option
+                                            key={shift.id}
+                                            value={String(shift.id)}
+                                        >
                                             {shift.name}
                                         </option>
                                     ))}
                                 </select>
-                                <FieldError message={form.errors.target_shift_id} />
+                                <FieldError
+                                    message={form.errors.target_shift_id}
+                                />
                             </div>
                         </div>
 
@@ -405,9 +543,14 @@ export default function ShiftSwapIndex({ swaps, employees, shifts, kpis }: Shift
                             <label style={fieldLabelStyle}>Alasan</label>
                             <textarea
                                 value={form.data.reason}
-                                onChange={(event) => form.setData('reason', event.target.value)}
+                                onChange={(event) =>
+                                    form.setData('reason', event.target.value)
+                                }
                                 placeholder="Alasan pertukaran (opsional)"
-                                style={withError(textareaStyle, !!form.errors.reason)}
+                                style={withError(
+                                    textareaStyle,
+                                    !!form.errors.reason,
+                                )}
                             />
                             <FieldError message={form.errors.reason} />
                         </div>
@@ -416,7 +559,12 @@ export default function ShiftSwapIndex({ swaps, employees, shifts, kpis }: Shift
                             <button
                                 type="button"
                                 onClick={closeModal}
-                                style={{ ...btnOut, flex: 1, height: 44, justifyContent: 'center' }}
+                                style={{
+                                    ...btnOut,
+                                    flex: 1,
+                                    height: 44,
+                                    justifyContent: 'center',
+                                }}
                             >
                                 Batal
                             </button>
@@ -429,7 +577,9 @@ export default function ShiftSwapIndex({ swaps, employees, shifts, kpis }: Shift
                                     height: 44,
                                     justifyContent: 'center',
                                     opacity: form.processing ? 0.7 : 1,
-                                    cursor: form.processing ? 'not-allowed' : 'pointer',
+                                    cursor: form.processing
+                                        ? 'not-allowed'
+                                        : 'pointer',
                                 }}
                             >
                                 <AIcon name="check" size={16} color="#fff" />
@@ -447,8 +597,10 @@ export default function ShiftSwapIndex({ swaps, employees, shifts, kpis }: Shift
                     body={
                         <>
                             Pengajuan tukar shift{' '}
-                            <strong style={{ color: C.text }}>{confirm.requester}</strong> akan
-                            dihapus.
+                            <strong style={{ color: C.text }}>
+                                {confirm.requester}
+                            </strong>{' '}
+                            akan dihapus.
                         </>
                     }
                     onCancel={() => setConfirm(null)}

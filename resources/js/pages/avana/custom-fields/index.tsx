@@ -169,7 +169,9 @@ export default function CustomFields({ fields, types }: CustomFieldsProps) {
                 </form>
 
                 <div style={{ ...card, overflow: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <table
+                        style={{ width: '100%', borderCollapse: 'collapse' }}
+                    >
                         <thead>
                             <tr>
                                 <th style={thCell}>Nama</th>
@@ -198,6 +200,7 @@ export default function CustomFields({ fields, types }: CustomFieldsProps) {
                             ) : (
                                 fields.map((f) => {
                                     const badge = statusBadge(f.status);
+
                                     return (
                                         <tr
                                             key={f.id}
@@ -225,7 +228,11 @@ export default function CustomFields({ fields, types }: CustomFieldsProps) {
                                                             }}
                                                         >
                                                             {' '}
-                                                            ({f.options.join(', ')})
+                                                            (
+                                                            {f.options.join(
+                                                                ', ',
+                                                            )}
+                                                            )
                                                         </span>
                                                     )}
                                             </td>

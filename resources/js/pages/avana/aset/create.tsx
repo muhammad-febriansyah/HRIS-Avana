@@ -6,11 +6,7 @@ import AssetController from '@/actions/App/Http/Controllers/Avana/AssetControlle
 import { AIcon, C } from '@/lib/avana';
 import { AsetForm } from './aset-form';
 import { emptyAssetForm } from './types';
-import type {
-    AssetFormData,
-    AssetFormOptions,
-    FlashProps,
-} from './types';
+import type { AssetFormData, AssetFormOptions, FlashProps } from './types';
 
 export default function AsetCreate({
     categories,

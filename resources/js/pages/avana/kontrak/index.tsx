@@ -6,11 +6,7 @@ import ContractController from '@/actions/App/Http/Controllers/Avana/ContractCon
 import { AIcon, ActionBtn, btnP, C, rp, thCell } from '@/lib/avana';
 import { ConfirmModal, ExpiringBadge, StatusPill } from './components';
 import { contractTypeLabel, formatDate, statusOptions } from './types';
-import type {
-    ContractRow,
-    FlashProps,
-    KontrakIndexProps,
-} from './types';
+import type { ContractRow, FlashProps, KontrakIndexProps } from './types';
 
 const filterSelectStyle: CSSProperties = {
     height: 38,
@@ -204,7 +200,9 @@ export default function KontrakIndex({
                         >
                             <span>Manajemen</span>
                             <AIcon name="chevron-right" size={13} />
-                            <span style={{ color: C.muted }}>Kontrak Kerja</span>
+                            <span style={{ color: C.muted }}>
+                                Kontrak Kerja
+                            </span>
                         </div>
                         <h1
                             style={{

@@ -3,7 +3,16 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import BenefitController from '@/actions/App/Http/Controllers/Avana/BenefitController';
-import { AIcon, ActionBtn, btnOut, btnP, C, card, rp, thCell } from '@/lib/avana';
+import {
+    AIcon,
+    ActionBtn,
+    btnOut,
+    btnP,
+    C,
+    card,
+    rp,
+    thCell,
+} from '@/lib/avana';
 import {
     ConfirmModal,
     FieldError,
@@ -307,7 +316,9 @@ export default function BenefitIndex({
                                             >
                                                 {benefit.name}
                                             </td>
-                                            <td style={{ padding: '13px 16px' }}>
+                                            <td
+                                                style={{ padding: '13px 16px' }}
+                                            >
                                                 <TypeChip type={benefit.type} />
                                             </td>
                                             <td
@@ -319,7 +330,9 @@ export default function BenefitIndex({
                                             >
                                                 {rp(benefit.value)}
                                             </td>
-                                            <td style={{ padding: '13px 16px' }}>
+                                            <td
+                                                style={{ padding: '13px 16px' }}
+                                            >
                                                 <StatusPill
                                                     status={benefit.status}
                                                 />
@@ -441,7 +454,9 @@ export default function BenefitIndex({
                                                 borderTop: `1px solid ${C.line}`,
                                             }}
                                         >
-                                            <td style={{ padding: '13px 16px' }}>
+                                            <td
+                                                style={{ padding: '13px 16px' }}
+                                            >
                                                 <div
                                                     style={{
                                                         fontSize: 13.5,
@@ -461,7 +476,9 @@ export default function BenefitIndex({
                                                         ?.employee_number ?? ''}
                                                 </div>
                                             </td>
-                                            <td style={{ padding: '13px 16px' }}>
+                                            <td
+                                                style={{ padding: '13px 16px' }}
+                                            >
                                                 <div
                                                     style={{
                                                         fontSize: 13,
@@ -486,7 +503,9 @@ export default function BenefitIndex({
                                             >
                                                 {periodLabel(row)}
                                             </td>
-                                            <td style={{ padding: '13px 16px' }}>
+                                            <td
+                                                style={{ padding: '13px 16px' }}
+                                            >
                                                 <StatusPill
                                                     status={row.status}
                                                 />

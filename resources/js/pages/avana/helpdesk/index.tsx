@@ -636,8 +636,8 @@ export default function HelpdeskIndex({
                             <strong style={{ color: C.text }}>
                                 {confirm.ticket_no}
                             </strong>{' '}
-                            beserta seluruh balasannya akan dihapus. Tindakan ini
-                            tidak dapat dibatalkan.
+                            beserta seluruh balasannya akan dihapus. Tindakan
+                            ini tidak dapat dibatalkan.
                         </>
                     }
                     onCancel={() => setConfirm(null)}

@@ -45,7 +45,10 @@ const errorTextStyle: CSSProperties = {
 };
 
 /** Apply the red error border to a base style when invalid. */
-export function withError(base: CSSProperties, hasError: boolean): CSSProperties {
+export function withError(
+    base: CSSProperties,
+    hasError: boolean,
+): CSSProperties {
     return hasError
         ? {
               ...base,
@@ -89,7 +92,14 @@ export function KpiCard({ label, value, icon, color }: KpiCardProps) {
                 flex: '1 1 180px',
             }}
         >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    marginBottom: 10,
+                }}
+            >
                 <div
                     style={{
                         width: 34,
@@ -103,9 +113,20 @@ export function KpiCard({ label, value, icon, color }: KpiCardProps) {
                 >
                     <AIcon name={icon} size={17} color={color} />
                 </div>
-                <span style={{ fontSize: 12.5, color: C.muted, fontWeight: 500 }}>{label}</span>
+                <span
+                    style={{ fontSize: 12.5, color: C.muted, fontWeight: 500 }}
+                >
+                    {label}
+                </span>
             </div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: C.navy, letterSpacing: '-.02em' }}>
+            <div
+                style={{
+                    fontSize: 26,
+                    fontWeight: 700,
+                    color: C.navy,
+                    letterSpacing: '-.02em',
+                }}
+            >
                 {value}
             </div>
         </div>
@@ -144,7 +165,11 @@ export function ModalShell({
         >
             <div
                 onClick={onClose}
-                style={{ position: 'absolute', inset: 0, background: 'rgba(14,26,58,.45)' }}
+                style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(14,26,58,.45)',
+                }}
             />
             <form
                 onSubmit={onSubmit}
@@ -161,18 +186,46 @@ export function ModalShell({
                     animation: 'toastIn .2s ease',
                 }}
             >
-                <div style={{ fontSize: 18, fontWeight: 600, color: C.navy, marginBottom: 4 }}>
+                <div
+                    style={{
+                        fontSize: 18,
+                        fontWeight: 600,
+                        color: C.navy,
+                        marginBottom: 4,
+                    }}
+                >
                     {title}
                 </div>
                 {subtitle && (
-                    <div style={{ fontSize: 13, color: C.muted, marginBottom: 18 }}>{subtitle}</div>
+                    <div
+                        style={{
+                            fontSize: 13,
+                            color: C.muted,
+                            marginBottom: 18,
+                        }}
+                    >
+                        {subtitle}
+                    </div>
                 )}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{children}</div>
+                <div
+                    style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 14,
+                    }}
+                >
+                    {children}
+                </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
                     <button
                         type="button"
                         onClick={onClose}
-                        style={{ ...btnOut, flex: 1, height: 44, justifyContent: 'center' }}
+                        style={{
+                            ...btnOut,
+                            flex: 1,
+                            height: 44,
+                            justifyContent: 'center',
+                        }}
                     >
                         Batal
                     </button>
@@ -205,7 +258,12 @@ interface ConfirmModalProps {
 }
 
 /** Centered destructive-action confirmation modal. */
-export function ConfirmModal({ title, body, onCancel, onConfirm }: ConfirmModalProps) {
+export function ConfirmModal({
+    title,
+    body,
+    onCancel,
+    onConfirm,
+}: ConfirmModalProps) {
     return (
         <div
             style={{
@@ -220,7 +278,11 @@ export function ConfirmModal({ title, body, onCancel, onConfirm }: ConfirmModalP
         >
             <div
                 onClick={onCancel}
-                style={{ position: 'absolute', inset: 0, background: 'rgba(14,26,58,.45)' }}
+                style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(14,26,58,.45)',
+                }}
             />
             <div
                 style={{
@@ -249,14 +311,28 @@ export function ConfirmModal({ title, body, onCancel, onConfirm }: ConfirmModalP
                 >
                     <AIcon name="trash-2" size={22} color={C.red} />
                 </div>
-                <div style={{ fontSize: 18, fontWeight: 600, color: C.navy }}>{title}</div>
-                <div style={{ fontSize: 13.5, color: C.muted, marginTop: 8, lineHeight: 1.55 }}>
+                <div style={{ fontSize: 18, fontWeight: 600, color: C.navy }}>
+                    {title}
+                </div>
+                <div
+                    style={{
+                        fontSize: 13.5,
+                        color: C.muted,
+                        marginTop: 8,
+                        lineHeight: 1.55,
+                    }}
+                >
                     {body}
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
                     <button
                         onClick={onCancel}
-                        style={{ ...btnOut, flex: 1, height: 44, justifyContent: 'center' }}
+                        style={{
+                            ...btnOut,
+                            flex: 1,
+                            height: 44,
+                            justifyContent: 'center',
+                        }}
                     >
                         Batal
                     </button>

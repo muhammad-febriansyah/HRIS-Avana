@@ -3,7 +3,16 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import LearningController from '@/actions/App/Http/Controllers/Avana/LearningController';
-import { AIcon, ActionBtn, btnOut, btnP, C, card, rp, thCell } from '@/lib/avana';
+import {
+    AIcon,
+    ActionBtn,
+    btnOut,
+    btnP,
+    C,
+    card,
+    rp,
+    thCell,
+} from '@/lib/avana';
 import {
     ConfirmModal,
     EnrollmentStatusPill,
@@ -61,7 +70,9 @@ export default function PembelajaranIndex({
 
     const [confirm, setConfirm] = useState<TrainingRow | null>(null);
     const [enrollModalOpen, setEnrollModalOpen] = useState(false);
-    const [updateTarget, setUpdateTarget] = useState<EnrollmentRow | null>(null);
+    const [updateTarget, setUpdateTarget] = useState<EnrollmentRow | null>(
+        null,
+    );
 
     const enrollForm = useForm<EnrollFormData>({ ...emptyEnrollForm });
     const updateForm = useForm<EnrollmentUpdateFormData>({
@@ -132,10 +143,13 @@ export default function PembelajaranIndex({
             return;
         }
 
-        updateForm.submit(LearningController.updateEnrollment(updateTarget.id), {
-            preserveScroll: true,
-            onSuccess: () => closeUpdate(),
-        });
+        updateForm.submit(
+            LearningController.updateEnrollment(updateTarget.id),
+            {
+                preserveScroll: true,
+                onSuccess: () => closeUpdate(),
+            },
+        );
     };
 
     const kpiItems = [
@@ -371,9 +385,7 @@ export default function PembelajaranIndex({
                                                     size={28}
                                                     color={C.faint}
                                                 />
-                                                <div>
-                                                    Belum ada pelatihan.
-                                                </div>
+                                                <div>Belum ada pelatihan.</div>
                                             </div>
                                         </td>
                                     </tr>

@@ -57,33 +57,55 @@ const emptyForm = {
     super_admin_only: false,
 };
 
-export default function MenuBuilder({ tree, parents, sections, features, modules, isSuperAdmin, selectedTenant, tenants }: Props) {
+export default function MenuBuilder({
+    tree,
+    parents,
+    sections,
+    features,
+    modules,
+    isSuperAdmin,
+    selectedTenant,
+    tenants,
+}: Props) {
     const { flash } = usePage<FlashProps>().props;
     const [modalOpen, setModalOpen] = useState(false);
     const [draggingId, setDraggingId] = useState<number | null>(null);
     const form = useForm({ ...emptyForm, tenant_id: selectedTenant });
 
     const switchTenant = (id: string) =>
-        router.get(MenuBuilderController.index().url, { tenant: id }, { preserveScroll: true });
+        router.get(
+            MenuBuilderController.index().url,
+            { tenant: id },
+            { preserveScroll: true },
+        );
 
-    const allRows = useMemo(() => tree.flatMap((t) => [t, ...t.children]), [tree]);
+    const allRows = useMemo(
+        () => tree.flatMap((t) => [t, ...t.children]),
+        [tree],
+    );
     const findRow = (id: number) => allRows.find((r) => r.id === id);
     const siblingIds = (row: MenuRow): number[] =>
         row.parent_id === null
             ? tree.map((t) => t.id)
-            : (tree.find((t) => t.id === row.parent_id)?.children ?? []).map((c) => c.id);
+            : (tree.find((t) => t.id === row.parent_id)?.children ?? []).map(
+                  (c) => c.id,
+              );
 
     const onDrop = (target: MenuRow) => {
         const dragId = draggingId;
         setDraggingId(null);
+
         if (dragId === null || dragId === target.id) {
             return;
         }
+
         const drag = findRow(dragId);
+
         // Only reorder within the same level (same parent).
         if (!drag || drag.parent_id !== target.parent_id) {
             return;
         }
+
         const ids = siblingIds(target).filter((id) => id !== dragId);
         ids.splice(ids.indexOf(target.id), 0, dragId);
         router.post(
@@ -134,6 +156,7 @@ export default function MenuBuilder({ tree, parents, sections, features, modules
                 form.reset();
             },
         };
+
         if (form.data.id) {
             form.put(MenuBuilderController.update(form.data.id).url, opts);
         } else {
@@ -142,12 +165,22 @@ export default function MenuBuilder({ tree, parents, sections, features, modules
     };
 
     const move = (row: MenuRow, direction: 'up' | 'down') =>
-        router.post(MenuBuilderController.move(row.id).url, { direction }, { preserveScroll: true });
+        router.post(
+            MenuBuilderController.move(row.id).url,
+            { direction },
+            { preserveScroll: true },
+        );
     const toggle = (row: MenuRow) =>
-        router.post(MenuBuilderController.toggle(row.id).url, {}, { preserveScroll: true });
+        router.post(
+            MenuBuilderController.toggle(row.id).url,
+            {},
+            { preserveScroll: true },
+        );
     const remove = (row: MenuRow) => {
         if (confirm(`Hapus menu "${row.label}"?`)) {
-            router.delete(MenuBuilderController.destroy(row.id).url, { preserveScroll: true });
+            router.delete(MenuBuilderController.destroy(row.id).url, {
+                preserveScroll: true,
+            });
         }
     };
 
@@ -175,7 +208,14 @@ export default function MenuBuilder({ tree, parents, sections, features, modules
                 marginBottom: 6,
             }}
         >
-            <span style={{ cursor: 'grab', color: C.faint, display: 'inline-flex' }} title="Seret untuk mengurutkan">
+            <span
+                style={{
+                    cursor: 'grab',
+                    color: C.faint,
+                    display: 'inline-flex',
+                }}
+                title="Seret untuk mengurutkan"
+            >
                 <AIcon name="grip-vertical" size={15} color={C.faint} />
             </span>
             {row.icon && <AIcon name={row.icon} size={15} color={C.muted} />}
@@ -183,28 +223,54 @@ export default function MenuBuilder({ tree, parents, sections, features, modules
                 <div style={{ fontSize: 13.5, fontWeight: 600, color: C.navy }}>
                     {row.label}
                     {row.is_system && <Badge text="Bawaan" color={C.muted} />}
-                    {!row.is_active && <Badge text="Disembunyikan" color={C.amber} />}
-                    {row.super_admin_only && <Badge text="Super Admin" color={C.primary} />}
+                    {!row.is_active && (
+                        <Badge text="Disembunyikan" color={C.amber} />
+                    )}
+                    {row.super_admin_only && (
+                        <Badge text="Super Admin" color={C.primary} />
+                    )}
                     {row.admin_only && <Badge text="Admin" color={C.primary} />}
                 </div>
                 <div style={{ fontSize: 11.5, color: C.faint, marginTop: 2 }}>
                     {row.href || '— grup —'}
-                    {row.modules.length > 0 ? ` · modul: ${row.modules.join(', ')}` : ''}
+                    {row.modules.length > 0
+                        ? ` · modul: ${row.modules.join(', ')}`
+                        : ''}
                     {row.feature ? ` · fitur: ${row.feature}` : ''}
                 </div>
             </div>
             <div style={{ display: 'inline-flex', gap: 5 }}>
-                <ActionBtn icon="chevron-up" label="" variant="neutral" onClick={() => move(row, 'up')} />
-                <ActionBtn icon="chevron-down" label="" variant="neutral" onClick={() => move(row, 'down')} />
+                <ActionBtn
+                    icon="chevron-up"
+                    label=""
+                    variant="neutral"
+                    onClick={() => move(row, 'up')}
+                />
+                <ActionBtn
+                    icon="chevron-down"
+                    label=""
+                    variant="neutral"
+                    onClick={() => move(row, 'down')}
+                />
                 <ActionBtn
                     icon={row.is_active ? 'eye-off' : 'eye'}
                     label={row.is_active ? 'Sembunyikan' : 'Tampilkan'}
                     variant={row.is_active ? 'warning' : 'success'}
                     onClick={() => toggle(row)}
                 />
-                <ActionBtn icon="pencil" label="Edit" variant="primary" onClick={() => openEdit(row)} />
+                <ActionBtn
+                    icon="pencil"
+                    label="Edit"
+                    variant="primary"
+                    onClick={() => openEdit(row)}
+                />
                 {!row.is_system && (
-                    <ActionBtn icon="trash-2" label="Hapus" variant="danger" onClick={() => remove(row)} />
+                    <ActionBtn
+                        icon="trash-2"
+                        label="Hapus"
+                        variant="danger"
+                        onClick={() => remove(row)}
+                    />
                 )}
             </div>
         </div>
@@ -214,19 +280,47 @@ export default function MenuBuilder({ tree, parents, sections, features, modules
         <>
             <Head title="Menu Builder" />
             <div style={{ padding: '22px 26px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 18 }}>
+                <div
+                    style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        gap: 16,
+                        marginBottom: 18,
+                    }}
+                >
                     <div>
-                        <h1 style={{ fontSize: 20, fontWeight: 700, color: C.navy, marginBottom: 4 }}>Menu Builder</h1>
+                        <h1
+                            style={{
+                                fontSize: 20,
+                                fontWeight: 700,
+                                color: C.navy,
+                                marginBottom: 4,
+                            }}
+                        >
+                            Menu Builder
+                        </h1>
                         <p style={{ fontSize: 13, color: C.faint }}>
-                            Atur sidebar: tambah, ubah nama, ikon, urutan, sembunyikan, & hak akses menu.
+                            Atur sidebar: tambah, ubah nama, ikon, urutan,
+                            sembunyikan, & hak akses menu.
                         </p>
                     </div>
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div
+                        style={{
+                            display: 'flex',
+                            gap: 10,
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                        }}
+                    >
                         {isSuperAdmin && tenants.length > 0 && (
                             <SearchableSelect
                                 value={String(selectedTenant)}
                                 onChange={(v) => v && switchTenant(v)}
-                                options={tenants.map((t) => ({ value: String(t.id), label: t.name }))}
+                                options={tenants.map((t) => ({
+                                    value: String(t.id),
+                                    label: t.name,
+                                }))}
                                 placeholder="Pilih tenant"
                                 searchPlaceholder="Cari tenant…"
                                 style={{ minWidth: 230 }}
@@ -240,9 +334,21 @@ export default function MenuBuilder({ tree, parents, sections, features, modules
                 </div>
 
                 {tree.map((group) => (
-                    <div key={group.id} style={{ ...card, padding: 14, marginBottom: 12 }}>
+                    <div
+                        key={group.id}
+                        style={{ ...card, padding: 14, marginBottom: 12 }}
+                    >
                         {group.section && (
-                            <div style={{ fontSize: 11, fontWeight: 700, color: C.faint, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 8 }}>
+                            <div
+                                style={{
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    color: C.faint,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '.05em',
+                                    marginBottom: 8,
+                                }}
+                            >
                                 {group.section}
                             </div>
                         )}
@@ -253,62 +359,243 @@ export default function MenuBuilder({ tree, parents, sections, features, modules
             </div>
 
             {modalOpen && (
-                <div style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-                    <div onClick={() => setModalOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(14,26,58,.45)' }} />
-                    <div style={{ position: 'relative', width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto', background: '#fff', borderRadius: 14, padding: 24 }}>
-                        <div style={{ fontSize: 17, fontWeight: 600, color: C.navy, marginBottom: 16 }}>
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: 80,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 20,
+                    }}
+                >
+                    <div
+                        onClick={() => setModalOpen(false)}
+                        style={{
+                            position: 'absolute',
+                            inset: 0,
+                            background: 'rgba(14,26,58,.45)',
+                        }}
+                    />
+                    <div
+                        style={{
+                            position: 'relative',
+                            width: '100%',
+                            maxWidth: 480,
+                            maxHeight: '90vh',
+                            overflowY: 'auto',
+                            background: '#fff',
+                            borderRadius: 14,
+                            padding: 24,
+                        }}
+                    >
+                        <div
+                            style={{
+                                fontSize: 17,
+                                fontWeight: 600,
+                                color: C.navy,
+                                marginBottom: 16,
+                            }}
+                        >
                             {form.data.id ? 'Ubah Menu' : 'Tambah Menu'}
                         </div>
-                        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            <Field label="Nama Menu *" error={form.errors.label}>
-                                <input value={form.data.label} onChange={(e) => form.setData('label', e.target.value)} style={inp} />
+                        <form
+                            onSubmit={submit}
+                            style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 12,
+                            }}
+                        >
+                            <Field
+                                label="Nama Menu *"
+                                error={form.errors.label}
+                            >
+                                <input
+                                    value={form.data.label}
+                                    onChange={(e) =>
+                                        form.setData('label', e.target.value)
+                                    }
+                                    style={inp}
+                                />
                             </Field>
                             <Field label="Induk (kosongkan untuk grup utama)">
-                                <select value={form.data.parent_id} onChange={(e) => form.setData('parent_id', e.target.value)} style={inp}>
+                                <select
+                                    value={form.data.parent_id}
+                                    onChange={(e) =>
+                                        form.setData(
+                                            'parent_id',
+                                            e.target.value,
+                                        )
+                                    }
+                                    style={inp}
+                                >
                                     <option value="">— Grup utama —</option>
                                     {parents.map((p) => (
-                                        <option key={p.id} value={String(p.id)}>{p.label}</option>
+                                        <option key={p.id} value={String(p.id)}>
+                                            {p.label}
+                                        </option>
                                     ))}
                                 </select>
                             </Field>
                             {form.data.parent_id === '' && (
                                 <Field label="Judul Grup (section)">
-                                    <input list="sections" value={form.data.section} onChange={(e) => form.setData('section', e.target.value)} style={inp} placeholder="mis. MANAJEMEN" />
+                                    <input
+                                        list="sections"
+                                        value={form.data.section}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'section',
+                                                e.target.value,
+                                            )
+                                        }
+                                        style={inp}
+                                        placeholder="mis. MANAJEMEN"
+                                    />
                                     <datalist id="sections">
-                                        {sections.map((s) => <option key={s} value={s} />)}
+                                        {sections.map((s) => (
+                                            <option key={s} value={s} />
+                                        ))}
                                     </datalist>
                                 </Field>
                             )}
-                            <Field label="URL (kosong = grup/pemisah)" error={form.errors.href}>
-                                <input value={form.data.href} onChange={(e) => form.setData('href', e.target.value)} style={inp} placeholder="/avana/..." />
+                            <Field
+                                label="URL (kosong = grup/pemisah)"
+                                error={form.errors.href}
+                            >
+                                <input
+                                    value={form.data.href}
+                                    onChange={(e) =>
+                                        form.setData('href', e.target.value)
+                                    }
+                                    style={inp}
+                                    placeholder="/avana/..."
+                                />
                             </Field>
                             <Field label="Ikon (nama lucide)">
-                                <input value={form.data.icon} onChange={(e) => form.setData('icon', e.target.value)} style={inp} placeholder="mis. users, wallet, star" />
+                                <input
+                                    value={form.data.icon}
+                                    onChange={(e) =>
+                                        form.setData('icon', e.target.value)
+                                    }
+                                    style={inp}
+                                    placeholder="mis. users, wallet, star"
+                                />
                             </Field>
                             <Field label="Fitur (opsional)">
-                                <select value={form.data.feature} onChange={(e) => form.setData('feature', e.target.value)} style={inp}>
-                                    <option value="">— tanpa gate fitur —</option>
+                                <select
+                                    value={form.data.feature}
+                                    onChange={(e) =>
+                                        form.setData('feature', e.target.value)
+                                    }
+                                    style={inp}
+                                >
+                                    <option value="">
+                                        — tanpa gate fitur —
+                                    </option>
                                     {features.map((f) => (
-                                        <option key={f.value} value={f.value}>{f.label}</option>
+                                        <option key={f.value} value={f.value}>
+                                            {f.label}
+                                        </option>
                                     ))}
                                 </select>
                             </Field>
                             <Field label="Modul akses (pisah koma)">
-                                <input value={form.data.modules} onChange={(e) => form.setData('modules', e.target.value)} style={inp} placeholder="mis. crm, report" />
-                                <div style={{ fontSize: 10.5, color: C.faint, marginTop: 4, maxHeight: 46, overflow: 'auto' }}>Tersedia: {moduleHint}</div>
+                                <input
+                                    value={form.data.modules}
+                                    onChange={(e) =>
+                                        form.setData('modules', e.target.value)
+                                    }
+                                    style={inp}
+                                    placeholder="mis. crm, report"
+                                />
+                                <div
+                                    style={{
+                                        fontSize: 10.5,
+                                        color: C.faint,
+                                        marginTop: 4,
+                                        maxHeight: 46,
+                                        overflow: 'auto',
+                                    }}
+                                >
+                                    Tersedia: {moduleHint}
+                                </div>
                             </Field>
-                            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: C.muted }}>
-                                <input type="checkbox" checked={form.data.admin_only} onChange={(e) => form.setData('admin_only', e.target.checked)} />
+                            <label
+                                style={{
+                                    display: 'flex',
+                                    gap: 8,
+                                    alignItems: 'center',
+                                    fontSize: 13,
+                                    color: C.muted,
+                                }}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={form.data.admin_only}
+                                    onChange={(e) =>
+                                        form.setData(
+                                            'admin_only',
+                                            e.target.checked,
+                                        )
+                                    }
+                                />
                                 Hanya admin/HR
                             </label>
-                            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: C.muted }}>
-                                <input type="checkbox" checked={form.data.super_admin_only} onChange={(e) => form.setData('super_admin_only', e.target.checked)} />
+                            <label
+                                style={{
+                                    display: 'flex',
+                                    gap: 8,
+                                    alignItems: 'center',
+                                    fontSize: 13,
+                                    color: C.muted,
+                                }}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={form.data.super_admin_only}
+                                    onChange={(e) =>
+                                        form.setData(
+                                            'super_admin_only',
+                                            e.target.checked,
+                                        )
+                                    }
+                                />
                                 Hanya super admin
                             </label>
-                            <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-                                <button type="button" onClick={() => setModalOpen(false)} style={{ ...btnOut, flex: 1, justifyContent: 'center' }}>Batal</button>
-                                <button type="submit" disabled={form.processing} style={{ ...btnP, flex: 1, justifyContent: 'center' }}>
-                                    <AIcon name="check" size={16} color="#fff" />
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    gap: 10,
+                                    marginTop: 8,
+                                }}
+                            >
+                                <button
+                                    type="button"
+                                    onClick={() => setModalOpen(false)}
+                                    style={{
+                                        ...btnOut,
+                                        flex: 1,
+                                        justifyContent: 'center',
+                                    }}
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={form.processing}
+                                    style={{
+                                        ...btnP,
+                                        flex: 1,
+                                        justifyContent: 'center',
+                                    }}
+                                >
+                                    <AIcon
+                                        name="check"
+                                        size={16}
+                                        color="#fff"
+                                    />
                                     Simpan
                                 </button>
                             </div>
@@ -320,19 +607,43 @@ export default function MenuBuilder({ tree, parents, sections, features, modules
     );
 }
 
-function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
+function Field({
+    label,
+    error,
+    children,
+}: {
+    label: string;
+    error?: string;
+    children: React.ReactNode;
+}) {
     return (
         <div>
-            <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 5 }}>{label}</div>
+            <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 5 }}>
+                {label}
+            </div>
             {children}
-            {error && <div style={{ fontSize: 11.5, color: C.red, marginTop: 4 }}>{error}</div>}
+            {error && (
+                <div style={{ fontSize: 11.5, color: C.red, marginTop: 4 }}>
+                    {error}
+                </div>
+            )}
         </div>
     );
 }
 
 function Badge({ text, color }: { text: string; color: string }) {
     return (
-        <span style={{ marginLeft: 8, padding: '1px 7px', borderRadius: 6, fontSize: 10.5, fontWeight: 600, color, background: `${color}1a` }}>
+        <span
+            style={{
+                marginLeft: 8,
+                padding: '1px 7px',
+                borderRadius: 6,
+                fontSize: 10.5,
+                fontWeight: 600,
+                color,
+                background: `${color}1a`,
+            }}
+        >
             {text}
         </span>
     );

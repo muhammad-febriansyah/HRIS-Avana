@@ -5,11 +5,7 @@ import { toast } from 'sonner';
 import ContractController from '@/actions/App/Http/Controllers/Avana/ContractController';
 import { AIcon, C } from '@/lib/avana';
 import { KontrakForm } from './kontrak-form';
-import type {
-    ContractFormData,
-    EmployeeOption,
-    FlashProps,
-} from './types';
+import type { ContractFormData, EmployeeOption, FlashProps } from './types';
 
 /** The flat contract record serialized by `ContractController@edit`. */
 interface EditContract {

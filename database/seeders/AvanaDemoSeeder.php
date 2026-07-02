@@ -104,32 +104,56 @@ final class AvanaDemoSeeder extends Seeder
 
         $today = Carbon::today()->toDateString();
 
-        // emp no => [clock_in, clock_out, late_minutes, status]
+        $workLocation = WorkLocation::forTenant($tenant->id)
+            ->where('name', 'Kantor Pusat Jakarta')
+            ->first();
+
+        // emp no => [clock_in, clock_out, late_minutes, status, [lat, lng]]
+        // Most pins sit inside the Jakarta geofence; emp #2 is ~2 km away to
+        // demo an "outside area" flag on the admin rekap map.
         $rows = [
-            1 => ['07:54', '17:08', 0, 'present'],
-            2 => ['08:21', '17:30', 21, 'late'],
-            3 => ['07:48', '17:02', 0, 'present'],
-            4 => [null, null, 0, 'leave'],
-            5 => ['07:59', '17:05', 0, 'present'],
-            6 => ['12:55', null, 0, 'incomplete'],
-            7 => ['08:05', '17:10', 5, 'late'],
-            8 => ['07:50', '17:01', 0, 'present'],
-            9 => [null, null, 0, 'absent'],
-            10 => ['07:45', '17:03', 0, 'present'],
+            1 => ['07:54', '17:08', 0, 'present', [-6.21465, 106.84515]],
+            2 => ['08:21', '17:30', 21, 'late', [-6.20500, 106.83000]],
+            3 => ['07:48', '17:02', 0, 'present', [-6.21450, 106.84505]],
+            4 => [null, null, 0, 'leave', null],
+            5 => ['07:59', '17:05', 0, 'present', [-6.21470, 106.84520]],
+            6 => ['12:55', null, 0, 'incomplete', [-6.21455, 106.84500]],
+            7 => ['08:05', '17:10', 5, 'late', [-6.21440, 106.84495]],
+            8 => ['07:50', '17:01', 0, 'present', [-6.21468, 106.84530]],
+            9 => [null, null, 0, 'absent', null],
+            10 => ['07:45', '17:03', 0, 'present', [-6.21452, 106.84508]],
         ];
 
-        foreach ($rows as $no => [$in, $out, $late, $status]) {
+        $radius = (int) ($workLocation->radius_meter ?? 0);
+
+        foreach ($rows as $no => [$in, $out, $late, $status, $coords]) {
             $employee = $employees[$no];
+
+            [$lat, $lng] = $coords ?? [null, null];
+            $locationStatus = null;
+
+            if ($in !== null && $lat !== null && $workLocation !== null) {
+                $distance = $workLocation->distanceMeters($lat, $lng);
+                $locationStatus = $distance !== null && $radius > 0 && $distance > $radius
+                    ? 'outside'
+                    : 'inside';
+            }
+
             Attendance::firstOrCreate(
                 ['tenant_id' => $tenant->id, 'employee_id' => $employee->id, 'date' => $today, 'shift_id' => $shift->id],
                 [
                     'branch_id' => $employee->branch_id,
+                    'work_location_id' => $in ? $workLocation?->id : null,
                     'clock_in_at' => $in ? $today.' '.$in.':00' : null,
                     'clock_out_at' => $out ? $today.' '.$out.':00' : null,
+                    'clock_in_lat' => $in ? $lat : null,
+                    'clock_in_lng' => $in ? $lng : null,
+                    'clock_out_lat' => $out ? $lat : null,
+                    'clock_out_lng' => $out ? $lng : null,
                     'late_minutes' => $late,
                     'work_minutes' => $in && $out ? 540 : 0,
                     'status' => $status,
-                    'location_status' => $in ? 'inside' : null,
+                    'location_status' => $locationStatus,
                 ],
             );
         }
@@ -345,7 +369,15 @@ final class AvanaDemoSeeder extends Seeder
             $user->roles()->syncWithoutDetaching([$role->id]);
         }
 
-        $employee->forceFill(['user_id' => $user->id])->save();
+        $workLocation = WorkLocation::forTenant($tenant->id)
+            ->where('name', 'Kantor Pusat Jakarta')
+            ->first();
+
+        $employee->forceFill([
+            'user_id' => $user->id,
+            'work_location_id' => $workLocation?->id,
+            'branch_id' => $workLocation?->branch_id ?? $employee->branch_id,
+        ])->save();
     }
 
     /** Seed a Manager user (team approvals + limited read scope). */

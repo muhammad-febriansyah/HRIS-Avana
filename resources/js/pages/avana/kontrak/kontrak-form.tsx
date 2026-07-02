@@ -56,7 +56,10 @@ export function KontrakForm({
                     >
                         <option value="">Pilih karyawan…</option>
                         {employees.map((employee) => (
-                            <option key={employee.id} value={String(employee.id)}>
+                            <option
+                                key={employee.id}
+                                value={String(employee.id)}
+                            >
                                 {employee.name} ({employee.employee_number})
                             </option>
                         ))}
@@ -100,7 +103,10 @@ export function KontrakForm({
                             onChange={(event) =>
                                 setData('contract_type', event.target.value)
                             }
-                            style={withError(selectStyle, !!errors.contract_type)}
+                            style={withError(
+                                selectStyle,
+                                !!errors.contract_type,
+                            )}
                         >
                             {contractTypeOptions.map((option) => (
                                 <option key={option.value} value={option.value}>
@@ -192,7 +198,9 @@ export function KontrakForm({
                     <label style={fieldLabelStyle}>Catatan</label>
                     <textarea
                         value={data.notes}
-                        onChange={(event) => setData('notes', event.target.value)}
+                        onChange={(event) =>
+                            setData('notes', event.target.value)
+                        }
                         placeholder="Catatan tambahan (opsional)"
                         style={withError(textareaStyle, !!errors.notes)}
                     />

@@ -7,6 +7,7 @@ interface RekapTableProps {
     search: string;
     onSearchChange: (value: string) => void;
     onGoToPage: (page: number) => void;
+    onRowClick: (row: Attendance) => void;
 }
 
 /** Daily attendance rekap table with a search header and pagination footer. */
@@ -16,6 +17,7 @@ export function RekapTable({
     search,
     onSearchChange,
     onGoToPage,
+    onRowClick,
 }: RekapTableProps) {
     return (
         <div
@@ -146,6 +148,18 @@ export function RekapTable({
                             </th>
                             <th
                                 style={{
+                                    padding: '11px 16px',
+                                    textAlign: 'left',
+                                    fontSize: 11.5,
+                                    fontWeight: 600,
+                                    color: C.faint,
+                                    textTransform: 'uppercase',
+                                }}
+                            >
+                                Lokasi
+                            </th>
+                            <th
+                                style={{
                                     padding: '11px 18px',
                                     textAlign: 'left',
                                     fontSize: 11.5,
@@ -166,7 +180,7 @@ export function RekapTable({
                                 }}
                             >
                                 <td
-                                    colSpan={6}
+                                    colSpan={7}
                                     style={{
                                         padding: '48px 18px',
                                         textAlign: 'center',
@@ -197,12 +211,18 @@ export function RekapTable({
                         )}
                         {rows.map((row) => {
                             const badge = statusBadge(row.status_label);
+                            const hasPoint = row.clock_in_coords !== null;
+                            const outside = row.location_status === 'outside';
 
                             return (
                                 <tr
                                     key={row.id}
+                                    onClick={() => hasPoint && onRowClick(row)}
                                     style={{
                                         borderTop: `1px solid ${C.line}`,
+                                        cursor: hasPoint
+                                            ? 'pointer'
+                                            : 'default',
                                     }}
                                 >
                                     <td
@@ -285,6 +305,54 @@ export function RekapTable({
                                         }}
                                     >
                                         {row.telat}
+                                    </td>
+                                    <td
+                                        style={{
+                                            padding: '12px 16px',
+                                            fontSize: 12.5,
+                                        }}
+                                    >
+                                        {hasPoint ? (
+                                            <span
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: 6,
+                                                    color: outside
+                                                        ? C.red
+                                                        : '#059669',
+                                                    fontWeight: 500,
+                                                }}
+                                            >
+                                                <AIcon
+                                                    name="map-pin"
+                                                    size={13}
+                                                    color={
+                                                        outside
+                                                            ? C.red
+                                                            : '#059669'
+                                                    }
+                                                />
+                                                {outside
+                                                    ? 'Luar area'
+                                                    : 'Dalam area'}
+                                                {row.distance_meter !==
+                                                    null && (
+                                                    <span
+                                                        style={{
+                                                            color: C.faint,
+                                                            fontWeight: 400,
+                                                        }}
+                                                    >
+                                                        · {row.distance_meter} m
+                                                    </span>
+                                                )}
+                                            </span>
+                                        ) : (
+                                            <span style={{ color: C.faint }}>
+                                                —
+                                            </span>
+                                        )}
                                     </td>
                                     <td
                                         style={{

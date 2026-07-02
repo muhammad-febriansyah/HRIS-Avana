@@ -1,6 +1,8 @@
 <?php
 
+use App\Models\Employee;
 use App\Models\LeaveType;
+use App\Models\WorkLocation;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -34,10 +36,43 @@ it('updates the profile', function (): void {
 });
 
 it('clocks in via the unified endpoint with GPS + selfie', function (): void {
+    // Coordinates match the seeded work-location pin (Kantor Pusat Jakarta),
+    // so the caller is inside the geofence radius.
     ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
-        'type' => 'in', 'latitude' => -6.2, 'longitude' => 106.8,
+        'type' => 'in', 'latitude' => -6.2146, 'longitude' => 106.8451,
         'selfie' => UploadedFile::fake()->image('selfie.jpg'),
     ])->assertOk()->assertJsonPath('data.next_action', 'out');
+});
+
+it('rejects clock-in outside the work-location radius', function (): void {
+    // ~5 km from the seeded pin (-6.2146, 106.8451), well beyond the 150 m radius.
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+        'type' => 'in', 'latitude' => -6.17, 'longitude' => 106.80,
+    ])->assertStatus(422)->assertJsonPath('message', fn (string $m): bool => str_contains($m, 'di luar area'));
+});
+
+it('rejects clock-in when GPS coordinates are missing', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', ['type' => 'in'])
+        ->assertStatus(422)
+        ->assertJsonPath('message', fn (string $m): bool => str_contains($m, 'GPS'));
+});
+
+it('resolves the geofence via the branch when no explicit work location is set', function (): void {
+    // Employee keeps only their branch; the branch's work location is used.
+    Employee::query()->update(['work_location_id' => null]);
+
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+        'type' => 'in', 'latitude' => -6.2146, 'longitude' => 106.8451,
+    ])->assertOk()->assertJsonPath('data.next_action', 'out');
+});
+
+it('rejects clock-in when neither the employee nor their branch has a work location', function (): void {
+    Employee::query()->update(['work_location_id' => null]);
+    WorkLocation::query()->update(['status' => 'inactive']);
+
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+        'type' => 'in', 'latitude' => -6.2146, 'longitude' => 106.8451,
+    ])->assertStatus(422)->assertJsonPath('message', fn (string $m): bool => str_contains($m, 'Lokasi kerja belum diatur'));
 });
 
 it('returns today status and history', function (): void {

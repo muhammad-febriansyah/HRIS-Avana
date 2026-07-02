@@ -59,7 +59,10 @@ const errorTextStyle: CSSProperties = {
 };
 
 /** Apply the red error border to a base input/select style when invalid. */
-export function withError(base: CSSProperties, hasError: boolean): CSSProperties {
+export function withError(
+    base: CSSProperties,
+    hasError: boolean,
+): CSSProperties {
     return hasError
         ? {
               ...base,
@@ -84,7 +87,10 @@ export function FieldError({ message }: { message?: string }) {
 }
 
 /** Visual treatment per movement type, keyed by stored value. */
-const movementMeta: Record<string, { label: string; color: string; bg: string }> = {
+const movementMeta: Record<
+    string,
+    { label: string; color: string; bg: string }
+> = {
     promotion: { label: 'Promosi', color: C.green, bg: 'rgba(22,163,74,.1)' },
     mutation: { label: 'Mutasi', color: C.primary, bg: 'rgba(47,84,201,.1)' },
     transfer: { label: 'Transfer', color: C.primary, bg: 'rgba(47,84,201,.1)' },

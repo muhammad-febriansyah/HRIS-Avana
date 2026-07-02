@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="1800" viewBox="0 0 1200 900" role="img" aria-labelledby="title desc">
+<title>AvanaHR Leave and Payroll SVG Asset</title>
+<desc>Raw scalable SVG onboarding illustration asset for AvanaHR Flutter HRIS app.</desc>
+
+<defs>
+  <linearGradient id="blue" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" stop-color="#2F6BFF"/>
+    <stop offset="100%" stop-color="#0F4AD8"/>
+  </linearGradient>
+  <linearGradient id="blueSoft" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" stop-color="#EAF2FF"/>
+    <stop offset="100%" stop-color="#F8FBFF"/>
+  </linearGradient>
+  <linearGradient id="navy" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" stop-color="#0C2D67"/>
+    <stop offset="100%" stop-color="#061A3F"/>
+  </linearGradient>
+  <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+    <feDropShadow dx="0" dy="20" stdDeviation="20" flood-color="#103B83" flood-opacity="0.14"/>
+  </filter>
+  <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+    <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#1E4EC9" flood-opacity="0.12"/>
+  </filter>
+  <style>
+    .dark{fill:#071B45}.muted{fill:#6B7894}.line{stroke:#D8E5FF;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}
+    .blueStroke{stroke:#2363F6;stroke-width:5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+    .card{fill:#FFFFFF;stroke:#DDE9FF;stroke-width:2;filter:url(#softShadow)}
+    .micro{font-family:Arial, Helvetica, sans-serif;font-size:20px;fill:#5E6C89}.label{font-family:Arial, Helvetica, sans-serif;font-size:26px;font-weight:700;fill:#071B45}
+    .small{font-family:Arial, Helvetica, sans-serif;font-size:18px;fill:#70809B}.whiteText{font-family:Arial, Helvetica, sans-serif;fill:#FFFFFF}
+  </style>
+</defs>
+
+<rect width="1200" height="900" fill="none"/>
+<ellipse cx="600" cy="510" rx="500" ry="320" fill="url(#blueSoft)" opacity="0.8"/>
+<path d="M85 790 C250 700 385 820 550 735 C760 625 875 825 1120 710 L1120 900 L85 900 Z" fill="#E9F2FF" opacity=".7"/>
+<path d="M120 720 C270 680 382 768 525 720 C731 652 850 760 1085 675" class="line" opacity=".5"/>
+
+<g id="brand" transform="translate(430 42)">
+  <g transform="translate(0 0) scale(.9)">
+    <path d="M27 96 L78 5 Q84 -6 94 5 L156 140 L119 140 L100 96 Q96 87 87 87 H77 Q67 87 63 97 L43 140 H8 Z" fill="url(#blue)"/>
+    <rect x="170" y="0" width="42" height="140" rx="10" fill="url(#blue)"/>
+    <circle cx="109" cy="82" r="22" fill="#FFFFFF"/>
+    <circle cx="109" cy="82" r="15" fill="#6EA0FF"/>
+    <path d="M42 109 C88 83 161 78 230 121" stroke="#79A8FF" stroke-width="17" fill="none" stroke-linecap="round" opacity=".9"/>
+  </g>
+  <text x="215" y="86" font-family="Arial, Helvetica, sans-serif" font-size="74" font-weight="500" fill="#071B45">Avana</text>
+  <text x="435" y="86" font-family="Arial, Helvetica, sans-serif" font-size="74" font-weight="500" fill="#2F6BFF">HR</text>
+  <text x="220" y="122" font-family="Arial, Helvetica, sans-serif" font-size="22" fill="#40506D">Advancing People, Empowering Growth</text>
+</g>
+
+<g opacity=".32"><rect x="100" y="440" width="85" height="250" rx="8" fill="#CFE0FF"/><rect x="900" y="420" width="90" height="270" rx="8" fill="#BED5FF"/></g>
+<g id="calendar" transform="translate(90 255)" filter="url(#softShadow)">
+  <rect width="230" height="190" rx="18" fill="#FFFFFF" stroke="#DDE9FF" stroke-width="2"/>
+  <path d="M0 18 Q0 0 18 0 H212 Q230 0 230 18 V55 H0 Z" fill="url(#blue)"/>
+  <text x="72" y="36" class="whiteText" font-size="20" font-weight="700">May 2024</text>
+  <g fill="#071B45" opacity=".75" font-family="Arial" font-size="15"><text x="28" y="83">S</text><text x="58" y="83">M</text><text x="88" y="83">T</text><text x="118" y="83">W</text><text x="148" y="83">T</text><text x="178" y="83">F</text><text x="208" y="83">S</text></g>
+  <g fill="#526584" font-family="Arial" font-size="15" opacity=".75"><text x="27" y="112">28</text><text x="57" y="112">29</text><text x="87" y="112">30</text><text x="117" y="112">31</text><text x="147" y="112">1</text><text x="177" y="112">2</text><text x="207" y="112">3</text><text x="27" y="138">4</text><text x="57" y="138">5</text><text x="87" y="138">6</text><text x="117" y="138">7</text><text x="147" y="138">8</text><text x="177" y="138">9</text><text x="207" y="138">10</text><text x="27" y="164">11</text><text x="57" y="164">12</text><text x="87" y="164">13</text><text x="117" y="164">14</text><text x="147" y="164">15</text><text x="177" y="164">16</text><text x="207" y="164">17</text><text x="27" y="190">18</text><text x="57" y="190">19</text><text x="87" y="190">20</text><text x="117" y="190">21</text><text x="147" y="190">22</text><text x="177" y="190">23</text><text x="207" y="190">24</text><text x="27" y="216">25</text><text x="57" y="216">26</text><text x="87" y="216">27</text><text x="117" y="216">28</text><text x="147" y="216">29</text><text x="177" y="216">30</text><text x="207" y="216">31</text></g>
+  <rect x="128" y="161" width="88" height="23" rx="12" fill="#2363F6" opacity=".9"/><text x="136" y="178" font-family="Arial" font-size="14" fill="#FFFFFF">28 29 30</text>
+  <circle cx="208" cy="135" r="14" fill="#2363F6"/><text x="203" y="140" font-family="Arial" font-size="13" fill="#FFFFFF">17</text>
+</g>
+<g id="payslip" transform="translate(855 250)" filter="url(#softShadow)">
+  <rect width="250" height="200" rx="20" class="card"/>
+  <text x="28" y="43" class="label">Payslip</text><text x="28" y="74" class="small">May 2024</text>
+  <path d="M206 33 v27 M195 50 l12 12 l12-12" class="blueStroke" stroke-width="4"/><line x1="28" y1="92" x2="222" y2="92" stroke="#E7EFFD" stroke-width="3"/>
+  <text x="28" y="122" class="small">Basic Salary</text><text x="148" y="122" class="small">$3,400</text>
+  <text x="28" y="152" class="small">Allowances</text><text x="154" y="152" class="small">$600</text>
+  <text x="28" y="182" class="label" font-size="20">Net Pay</text><text x="145" y="182" class="label" font-size="20" fill="#2363F6">$2,850</text>
+</g>
+
+<g id="phone" transform="translate(430 190)" filter="url(#shadow)">
+  <rect x="0" y="0" width="340" height="560" rx="52" fill="#071B45"/>
+  <rect x="16" y="16" width="308" height="528" rx="40" fill="#FFFFFF"/>
+  <path d="M16 56 Q16 16 56 16 H284 Q324 16 324 56 V156 H16 Z" fill="url(#blue)"/>
+  <rect x="130" y="25" width="82" height="18" rx="9" fill="#071B45" opacity=".65"/>
+  <circle cx="225" cy="34" r="5" fill="#17356E"/>
+  <text x="44" y="54" class="whiteText" font-size="18" font-weight="700">9:41</text>
+
+  <text x="89" y="99" class="whiteText" font-size="27" font-weight="700">Leave &amp; Payroll</text>
+  <rect x="38" y="140" width="264" height="115" rx="24" fill="#FFFFFF" filter="url(#softShadow)"/>
+  <text x="62" y="178" class="label">Leave Balance</text><text x="62" y="226" font-family="Arial" font-size="52" font-weight="700" fill="#071B45">15</text><text x="122" y="226" class="micro">Days Left</text>
+  <path d="M237 202 q30 -25 55 4 q-25 -5 -36 28" stroke="#2363F6" stroke-width="6" fill="none" stroke-linecap="round"/><circle cx="255" cy="215" r="9" fill="#FF9B43"/>
+  <rect x="38" y="280" width="264" height="155" rx="24" fill="#FFFFFF" filter="url(#softShadow)"/>
+  <text x="62" y="318" class="label">Leave Requests</text>
+  <circle cx="75" cy="360" r="15" fill="#E9FFF2" stroke="#23B26D" stroke-width="4"/><path d="M68 360 l6 6 l13-15" stroke="#23B26D" stroke-width="4" fill="none"/>
+  <text x="108" y="361" class="label" font-size="22">May 28 - May 31</text><rect x="218" y="340" width="65" height="31" rx="10" fill="#DFF8EA"/><text x="226" y="361" font-family="Arial" font-size="15" font-weight="700" fill="#159451">Approved</text>
+  <circle cx="75" cy="405" r="15" fill="#EEF5FF" stroke="#2363F6" stroke-width="4"/><text x="108" y="409" class="label" font-size="22">Jun 10 - Jun 11</text><rect x="224" y="389" width="59" height="31" rx="10" fill="#EEF5FF"/><text x="234" y="410" font-family="Arial" font-size="15" font-weight="700" fill="#2363F6">Pending</text>
+  <rect x="38" y="460" width="264" height="110" rx="24" fill="url(#blue)"/>
+  <text x="62" y="496" class="whiteText" font-size="23" font-weight="700">Payroll Overview</text><text x="62" y="531" class="whiteText" font-size="20" opacity=".85">Net Pay</text><text x="62" y="562" class="whiteText" font-size="35" font-weight="700">$2,850</text>
+</g>
+
+<g id="womanLeft" transform="translate(200 510)">
+  <ellipse cx="70" cy="250" rx="70" ry="18" fill="#BED5FF" opacity=".45"/>
+  <circle cx="70" cy="45" r="30" fill="#F6B68B"/><path d="M44 47 C38 20 60 0 90 18 C104 35 100 67 88 94 C72 78 55 73 44 47 Z" fill="#071B45"/>
+  <rect x="33" y="86" width="75" height="135" rx="24" fill="#2363F6"/><rect x="54" y="89" width="42" height="132" fill="#FFFFFF"/>
+  <rect x="41" y="215" width="27" height="82" rx="10" fill="#071B45"/><rect x="79" y="215" width="27" height="82" rx="10" fill="#071B45"/>
+  <path d="M108 111 C145 127 160 140 176 166" stroke="#F6B68B" stroke-width="12" stroke-linecap="round"/>
+  <rect x="48" y="119" width="58" height="57" rx="8" fill="#0C2D67" transform="rotate(-5 77 147)"/>
+</g>
+<g id="deskTeam" transform="translate(820 512)">
+  <ellipse cx="116" cy="248" rx="110" ry="18" fill="#BED5FF" opacity=".45"/>
+  <rect x="0" y="126" width="220" height="14" rx="7" fill="#D8E5FF"/><rect x="28" y="140" width="12" height="105" fill="#D8E5FF"/><rect x="182" y="140" width="12" height="105" fill="#D8E5FF"/>
+  <circle cx="88" cy="70" r="29" fill="#F2B184"/><path d="M62 55 C63 22 96 16 111 42 C102 34 86 43 69 62 Z" fill="#071B45"/>
+  <rect x="52" y="101" width="78" height="105" rx="25" fill="#2363F6"/><rect x="73" y="198" width="28" height="70" rx="12" fill="#071B45"/><rect x="110" y="198" width="28" height="70" rx="12" fill="#071B45"/>
+  <rect x="80" y="112" width="130" height="76" rx="8" fill="#0C2D67" transform="skewX(-8)"/><circle cx="147" cy="150" r="8" fill="#FFFFFF" opacity=".8"/>
+  <circle cx="165" cy="43" r="31" fill="#9C633F"/><path d="M135 43 C137 8 160 -7 188 9 C211 22 201 67 187 88 C180 62 157 62 135 43 Z" fill="#071B45"/>
+  <rect x="133" y="82" width="78" height="135" rx="23" fill="#AFCBFF"/><rect x="154" y="88" width="43" height="129" fill="#FFFFFF"/>
+</g>
+<path d="M925 510 l55 55 l115 -125" stroke="#FFFFFF" stroke-width="15" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M915 470 Q1008 432 1100 470 V565 Q1007 615 915 565 Z" fill="url(#blue)" opacity=".95"/>
+<path d="M954 515 l34 35 l72 -82" stroke="#FFFFFF" stroke-width="13" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

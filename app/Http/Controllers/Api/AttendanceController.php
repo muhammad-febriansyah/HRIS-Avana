@@ -7,9 +7,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\AttendanceSelfie;
 use App\Models\Employee;
+use App\Models\WorkLocation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 /**
  * Employee self-service attendance: today status, monthly history, and a single
@@ -82,14 +84,20 @@ class AttendanceController extends Controller
             return response()->json(['message' => 'Anda sudah clock-in hari ini.'], 422);
         }
 
+        $geofence = $this->geofenceCheck($employee, $data);
+
+        if ($geofence instanceof JsonResponse) {
+            return $geofence;
+        }
+
         $attendance->fill([
             'branch_id' => $employee->branch_id,
-            'work_location_id' => $employee->work_location_id,
+            'work_location_id' => $geofence->id,
             'clock_in_at' => now(),
             'clock_in_lat' => $data['latitude'] ?? null,
             'clock_in_lng' => $data['longitude'] ?? null,
             'status' => 'present',
-            'location_status' => isset($data['latitude']) ? 'inside' : null,
+            'location_status' => 'inside',
         ]);
         $attendance->save();
 
@@ -123,6 +131,12 @@ class AttendanceController extends Controller
             return response()->json(['message' => 'Anda sudah clock-out hari ini.'], 422);
         }
 
+        $geofence = $this->geofenceCheck($employee, $data);
+
+        if ($geofence instanceof JsonResponse) {
+            return $geofence;
+        }
+
         $attendance->clock_out_at = now();
         $attendance->clock_out_lat = $data['latitude'] ?? null;
         $attendance->clock_out_lng = $data['longitude'] ?? null;
@@ -130,6 +144,96 @@ class AttendanceController extends Controller
         $attendance->save();
 
         return response()->json(['message' => 'Clock-out berhasil', 'data' => $this->todayShape($attendance)]);
+    }
+
+    /**
+     * Enforce the work-location geofence for a clock action. Returns the matched
+     * WorkLocation when the caller is inside an allowed area, or a 422
+     * JsonResponse to reject.
+     *
+     * Rejected when there is no allowed location, when GPS is missing, or when
+     * the caller is outside the nearest allowed location's radius.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function geofenceCheck(Employee $employee, array $data): WorkLocation|JsonResponse
+    {
+        $locations = $this->allowedWorkLocations($employee);
+
+        if ($locations->isEmpty()) {
+            return response()->json([
+                'message' => 'Lokasi kerja belum diatur admin. Hubungi HR.',
+            ], 422);
+        }
+
+        if (! isset($data['latitude'], $data['longitude'])) {
+            return response()->json([
+                'message' => 'Lokasi GPS tidak terdeteksi. Aktifkan izin lokasi lalu coba lagi.',
+            ], 422);
+        }
+
+        $latitude = (float) $data['latitude'];
+        $longitude = (float) $data['longitude'];
+
+        $nearest = null;
+        $nearestDistance = null;
+
+        foreach ($locations as $location) {
+            $distance = $location->distanceMeters($latitude, $longitude);
+
+            if ($distance === null) {
+                continue;
+            }
+
+            if ($nearestDistance === null || $distance < $nearestDistance) {
+                $nearestDistance = $distance;
+                $nearest = $location;
+            }
+        }
+
+        if ($nearest === null) {
+            return response()->json([
+                'message' => 'Titik lokasi kerja belum lengkap. Hubungi HR.',
+            ], 422);
+        }
+
+        $radius = (int) ($nearest->radius_meter ?? 0);
+
+        if ($radius > 0 && $nearestDistance > $radius) {
+            return response()->json([
+                'message' => 'Anda di luar area kantor ('.round($nearestDistance).' m dari titik, radius '.$radius.' m).',
+            ], 422);
+        }
+
+        return $nearest;
+    }
+
+    /**
+     * The work locations a clock action may be validated against: the employee's
+     * explicit assignment when set, otherwise every active work location of their
+     * branch. This lets admins configure locations per branch instead of wiring
+     * each employee individually.
+     *
+     * @return Collection<int, WorkLocation>
+     */
+    private function allowedWorkLocations(Employee $employee): Collection
+    {
+        if ($employee->work_location_id !== null) {
+            $employee->loadMissing('workLocation');
+
+            return $employee->workLocation !== null
+                ? collect([$employee->workLocation])
+                : collect();
+        }
+
+        if ($employee->branch_id === null) {
+            return collect();
+        }
+
+        return WorkLocation::forTenant($employee->tenant_id)
+            ->where('branch_id', $employee->branch_id)
+            ->where('status', 'active')
+            ->get();
     }
 
     private function todayRecord(int $tenantId, int $employeeId): ?Attendance

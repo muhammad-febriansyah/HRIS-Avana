@@ -37,6 +37,7 @@ export default function EmployeesCreate({
         employment_status: '',
         join_date: '',
         branch_id: '',
+        work_location_id: '',
         department_id: '',
         position_id: '',
         job_level_id: '',

@@ -72,6 +72,8 @@ final class EmployeeResource extends JsonResource
             'custom_data' => $this->custom_data ?? [],
             'initials' => $this->initials(),
             'avatar_color' => $this->avatarColor(),
+            'branch_id' => $this->branch_id,
+            'work_location_id' => $this->work_location_id,
             'branch' => $this->whenLoaded('branch', fn () => $this->namedRelation($this->branch)),
             'department' => $this->whenLoaded('department', fn () => $this->namedRelation($this->department)),
             'position' => $this->whenLoaded('position', fn () => $this->namedRelation($this->position)),

@@ -48,8 +48,14 @@ export interface RosterProps {
 
 /** Deterministic chip palette assigned to shifts by their order. */
 export const SHIFT_PALETTE = [
-    '#2F54C9', '#16A34A', '#D97706', '#8b5cf6',
-    '#0ea5e9', '#ec4899', '#14b8a6', '#f97316',
+    '#2F54C9',
+    '#16A34A',
+    '#D97706',
+    '#8b5cf6',
+    '#0ea5e9',
+    '#ec4899',
+    '#14b8a6',
+    '#f97316',
 ];
 
 /** Format a Date as a local `Y-m-d` string (no UTC drift). */

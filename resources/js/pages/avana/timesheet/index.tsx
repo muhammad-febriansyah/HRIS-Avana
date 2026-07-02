@@ -15,11 +15,7 @@ import {
     textareaStyle,
     withError,
 } from './components';
-import {
-    emptyEntryForm,
-    emptyProjectForm,
-    projectStatusLabel,
-} from './types';
+import { emptyEntryForm, emptyProjectForm, projectStatusLabel } from './types';
 import type {
     EntryFormData,
     FlashProps,
@@ -28,7 +24,11 @@ import type {
     TimesheetIndexProps,
 } from './types';
 
-const cellStyle = { padding: '13px 16px', fontSize: 13, color: C.text } as const;
+const cellStyle = {
+    padding: '13px 16px',
+    fontSize: 13,
+    color: C.text,
+} as const;
 
 export default function TimesheetIndex({
     entries,
@@ -56,8 +56,10 @@ export default function TimesheetIndex({
         router.get(
             TimesheetController.index().url,
             {
-                project_id: key === 'project_id' ? value : (filters.project_id ?? ''),
-                employee_id: key === 'employee_id' ? value : (filters.employee_id ?? ''),
+                project_id:
+                    key === 'project_id' ? value : (filters.project_id ?? ''),
+                employee_id:
+                    key === 'employee_id' ? value : (filters.employee_id ?? ''),
             },
             { preserveScroll: true, preserveState: true, replace: true },
         );
@@ -128,18 +130,29 @@ export default function TimesheetIndex({
                     actions={
                         <>
                             <button onClick={openProjectModal} style={btnOut}>
-                                <AIcon name="folder-plus" size={16} color={C.text} />
+                                <AIcon
+                                    name="folder-plus"
+                                    size={16}
+                                    color={C.text}
+                                />
                                 Tambah Proyek
                             </button>
                             <button
                                 onClick={openEntryModal}
-                                disabled={projects.length === 0 || employees.length === 0}
+                                disabled={
+                                    projects.length === 0 ||
+                                    employees.length === 0
+                                }
                                 style={{
                                     ...btnP,
                                     opacity:
-                                        projects.length === 0 || employees.length === 0 ? 0.6 : 1,
+                                        projects.length === 0 ||
+                                        employees.length === 0
+                                            ? 0.6
+                                            : 1,
                                     cursor:
-                                        projects.length === 0 || employees.length === 0
+                                        projects.length === 0 ||
+                                        employees.length === 0
                                             ? 'not-allowed'
                                             : 'pointer',
                                 }}
@@ -181,12 +194,25 @@ export default function TimesheetIndex({
                 />
 
                 {/* Projects */}
-                <div style={{ fontSize: 15, fontWeight: 600, color: C.navy, marginBottom: 12 }}>
+                <div
+                    style={{
+                        fontSize: 15,
+                        fontWeight: 600,
+                        color: C.navy,
+                        marginBottom: 12,
+                    }}
+                >
                     Daftar Proyek
                 </div>
                 <div style={{ ...card, overflow: 'hidden', marginBottom: 28 }}>
                     <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
+                        <table
+                            style={{
+                                width: '100%',
+                                borderCollapse: 'collapse',
+                                minWidth: 560,
+                            }}
+                        >
                             <thead>
                                 <tr style={{ background: '#FAFBFD' }}>
                                     <th style={thCell}>Nama Proyek</th>
@@ -197,7 +223,11 @@ export default function TimesheetIndex({
                             </thead>
                             <tbody>
                                 {projects.length === 0 && (
-                                    <tr style={{ borderTop: `1px solid ${C.line}` }}>
+                                    <tr
+                                        style={{
+                                            borderTop: `1px solid ${C.line}`,
+                                        }}
+                                    >
                                         <td
                                             colSpan={4}
                                             style={{
@@ -212,7 +242,12 @@ export default function TimesheetIndex({
                                     </tr>
                                 )}
                                 {projects.map((project) => (
-                                    <tr key={project.id} style={{ borderTop: `1px solid ${C.line}` }}>
+                                    <tr
+                                        key={project.id}
+                                        style={{
+                                            borderTop: `1px solid ${C.line}`,
+                                        }}
+                                    >
                                         <td
                                             style={{
                                                 ...cellStyle,
@@ -222,7 +257,9 @@ export default function TimesheetIndex({
                                         >
                                             {project.name}
                                         </td>
-                                        <td style={cellStyle}>{project.code ?? '—'}</td>
+                                        <td style={cellStyle}>
+                                            {project.code ?? '—'}
+                                        </td>
                                         <td style={cellStyle}>
                                             <span
                                                 style={{
@@ -232,19 +269,25 @@ export default function TimesheetIndex({
                                                     fontSize: 11.5,
                                                     fontWeight: 600,
                                                     color:
-                                                        project.status === 'active'
+                                                        project.status ===
+                                                        'active'
                                                             ? C.green
                                                             : C.muted,
                                                     background:
-                                                        project.status === 'active'
+                                                        project.status ===
+                                                        'active'
                                                             ? 'rgba(22,163,74,.1)'
                                                             : 'rgba(107,114,128,.12)',
                                                 }}
                                             >
-                                                {projectStatusLabel(project.status)}
+                                                {projectStatusLabel(
+                                                    project.status,
+                                                )}
                                             </span>
                                         </td>
-                                        <td style={cellStyle}>{project.timesheets_count}</td>
+                                        <td style={cellStyle}>
+                                            {project.timesheets_count}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -263,30 +306,42 @@ export default function TimesheetIndex({
                         marginBottom: 12,
                     }}
                 >
-                    <div style={{ fontSize: 15, fontWeight: 600, color: C.navy }}>
+                    <div
+                        style={{ fontSize: 15, fontWeight: 600, color: C.navy }}
+                    >
                         Entri Timesheet
                     </div>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                         <select
                             value={filters.project_id ?? ''}
-                            onChange={(event) => applyFilter('project_id', event.target.value)}
+                            onChange={(event) =>
+                                applyFilter('project_id', event.target.value)
+                            }
                             style={{ ...selectStyle, width: 200, height: 38 }}
                         >
                             <option value="">Semua proyek</option>
                             {projects.map((project) => (
-                                <option key={project.id} value={String(project.id)}>
+                                <option
+                                    key={project.id}
+                                    value={String(project.id)}
+                                >
                                     {project.name}
                                 </option>
                             ))}
                         </select>
                         <select
                             value={filters.employee_id ?? ''}
-                            onChange={(event) => applyFilter('employee_id', event.target.value)}
+                            onChange={(event) =>
+                                applyFilter('employee_id', event.target.value)
+                            }
                             style={{ ...selectStyle, width: 200, height: 38 }}
                         >
                             <option value="">Semua karyawan</option>
                             {employees.map((employee) => (
-                                <option key={employee.id} value={String(employee.id)}>
+                                <option
+                                    key={employee.id}
+                                    value={String(employee.id)}
+                                >
                                     {employee.name}
                                 </option>
                             ))}
@@ -295,7 +350,13 @@ export default function TimesheetIndex({
                 </div>
                 <div style={{ ...card, overflow: 'hidden' }}>
                     <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
+                        <table
+                            style={{
+                                width: '100%',
+                                borderCollapse: 'collapse',
+                                minWidth: 760,
+                            }}
+                        >
                             <thead>
                                 <tr style={{ background: '#FAFBFD' }}>
                                     <th style={thCell}>Karyawan</th>
@@ -316,7 +377,11 @@ export default function TimesheetIndex({
                             </thead>
                             <tbody>
                                 {entries.length === 0 && (
-                                    <tr style={{ borderTop: `1px solid ${C.line}` }}>
+                                    <tr
+                                        style={{
+                                            borderTop: `1px solid ${C.line}`,
+                                        }}
+                                    >
                                         <td
                                             colSpan={6}
                                             style={{
@@ -334,14 +399,25 @@ export default function TimesheetIndex({
                                                     gap: 10,
                                                 }}
                                             >
-                                                <AIcon name="clock" size={28} color={C.faint} />
-                                                <div>Belum ada entri timesheet.</div>
+                                                <AIcon
+                                                    name="clock"
+                                                    size={28}
+                                                    color={C.faint}
+                                                />
+                                                <div>
+                                                    Belum ada entri timesheet.
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
                                 )}
                                 {entries.map((entry) => (
-                                    <tr key={entry.id} style={{ borderTop: `1px solid ${C.line}` }}>
+                                    <tr
+                                        key={entry.id}
+                                        style={{
+                                            borderTop: `1px solid ${C.line}`,
+                                        }}
+                                    >
                                         <td
                                             style={{
                                                 ...cellStyle,
@@ -351,18 +427,36 @@ export default function TimesheetIndex({
                                         >
                                             {entry.employee ?? '—'}
                                         </td>
-                                        <td style={cellStyle}>{entry.project ?? '—'}</td>
-                                        <td style={cellStyle}>{entry.date ?? '—'}</td>
-                                        <td style={{ ...cellStyle, fontWeight: 600 }}>
+                                        <td style={cellStyle}>
+                                            {entry.project ?? '—'}
+                                        </td>
+                                        <td style={cellStyle}>
+                                            {entry.date ?? '—'}
+                                        </td>
+                                        <td
+                                            style={{
+                                                ...cellStyle,
+                                                fontWeight: 600,
+                                            }}
+                                        >
                                             {entry.hours} jam
                                         </td>
-                                        <td style={cellStyle}>{entry.task ?? '—'}</td>
-                                        <td style={{ padding: '13px 18px', textAlign: 'right' }}>
+                                        <td style={cellStyle}>
+                                            {entry.task ?? '—'}
+                                        </td>
+                                        <td
+                                            style={{
+                                                padding: '13px 18px',
+                                                textAlign: 'right',
+                                            }}
+                                        >
                                             <ActionBtn
                                                 icon="trash-2"
                                                 label="Hapus"
                                                 variant="danger"
-                                                onClick={() => setConfirm(entry)}
+                                                onClick={() =>
+                                                    setConfirm(entry)
+                                                }
                                             />
                                         </td>
                                     </tr>
@@ -387,7 +481,13 @@ export default function TimesheetIndex({
                                         >
                                             Total Jam
                                         </td>
-                                        <td style={{ ...cellStyle, fontWeight: 700, color: C.navy }}>
+                                        <td
+                                            style={{
+                                                ...cellStyle,
+                                                fontWeight: 700,
+                                                color: C.navy,
+                                            }}
+                                        >
                                             {kpis.total_hours} jam
                                         </td>
                                         <td colSpan={2} />
@@ -401,7 +501,11 @@ export default function TimesheetIndex({
 
             {/* Add project modal */}
             {projectModalOpen && (
-                <ModalShell onClose={closeProjectModal} title="Tambah Proyek" onSubmit={submitProject}>
+                <ModalShell
+                    onClose={closeProjectModal}
+                    title="Tambah Proyek"
+                    onSubmit={submitProject}
+                >
                     <div>
                         <label style={fieldLabelStyle}>
                             Nama Proyek <span style={{ color: C.red }}>*</span>
@@ -409,21 +513,40 @@ export default function TimesheetIndex({
                         <input
                             type="text"
                             value={projectForm.data.name}
-                            onChange={(event) => projectForm.setData('name', event.target.value)}
+                            onChange={(event) =>
+                                projectForm.setData('name', event.target.value)
+                            }
                             placeholder="Nama proyek"
-                            style={withError(inputStyle, !!projectForm.errors.name)}
+                            style={withError(
+                                inputStyle,
+                                !!projectForm.errors.name,
+                            )}
                         />
                         <FieldError message={projectForm.errors.name} />
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr',
+                            gap: 14,
+                        }}
+                    >
                         <div>
                             <label style={fieldLabelStyle}>Kode</label>
                             <input
                                 type="text"
                                 value={projectForm.data.code}
-                                onChange={(event) => projectForm.setData('code', event.target.value)}
+                                onChange={(event) =>
+                                    projectForm.setData(
+                                        'code',
+                                        event.target.value,
+                                    )
+                                }
                                 placeholder="PRJ-01"
-                                style={withError(inputStyle, !!projectForm.errors.code)}
+                                style={withError(
+                                    inputStyle,
+                                    !!projectForm.errors.code,
+                                )}
                             />
                             <FieldError message={projectForm.errors.code} />
                         </div>
@@ -431,8 +554,16 @@ export default function TimesheetIndex({
                             <label style={fieldLabelStyle}>Status</label>
                             <select
                                 value={projectForm.data.status}
-                                onChange={(event) => projectForm.setData('status', event.target.value)}
-                                style={withError(selectStyle, !!projectForm.errors.status)}
+                                onChange={(event) =>
+                                    projectForm.setData(
+                                        'status',
+                                        event.target.value,
+                                    )
+                                }
+                                style={withError(
+                                    selectStyle,
+                                    !!projectForm.errors.status,
+                                )}
                             >
                                 <option value="active">Aktif</option>
                                 <option value="archived">Arsip</option>
@@ -449,19 +580,34 @@ export default function TimesheetIndex({
 
             {/* Add entry modal */}
             {entryModalOpen && (
-                <ModalShell onClose={closeEntryModal} title="Tambah Entri Timesheet" onSubmit={submitEntry}>
+                <ModalShell
+                    onClose={closeEntryModal}
+                    title="Tambah Entri Timesheet"
+                    onSubmit={submitEntry}
+                >
                     <div>
                         <label style={fieldLabelStyle}>
                             Karyawan <span style={{ color: C.red }}>*</span>
                         </label>
                         <select
                             value={entryForm.data.employee_id}
-                            onChange={(event) => entryForm.setData('employee_id', event.target.value)}
-                            style={withError(selectStyle, !!entryForm.errors.employee_id)}
+                            onChange={(event) =>
+                                entryForm.setData(
+                                    'employee_id',
+                                    event.target.value,
+                                )
+                            }
+                            style={withError(
+                                selectStyle,
+                                !!entryForm.errors.employee_id,
+                            )}
                         >
                             <option value="">Pilih karyawan</option>
                             {employees.map((employee) => (
-                                <option key={employee.id} value={String(employee.id)}>
+                                <option
+                                    key={employee.id}
+                                    value={String(employee.id)}
+                                >
                                     {employee.name}
                                 </option>
                             ))}
@@ -474,19 +620,36 @@ export default function TimesheetIndex({
                         </label>
                         <select
                             value={entryForm.data.project_id}
-                            onChange={(event) => entryForm.setData('project_id', event.target.value)}
-                            style={withError(selectStyle, !!entryForm.errors.project_id)}
+                            onChange={(event) =>
+                                entryForm.setData(
+                                    'project_id',
+                                    event.target.value,
+                                )
+                            }
+                            style={withError(
+                                selectStyle,
+                                !!entryForm.errors.project_id,
+                            )}
                         >
                             <option value="">Pilih proyek</option>
                             {projects.map((project) => (
-                                <option key={project.id} value={String(project.id)}>
+                                <option
+                                    key={project.id}
+                                    value={String(project.id)}
+                                >
                                     {project.name}
                                 </option>
                             ))}
                         </select>
                         <FieldError message={entryForm.errors.project_id} />
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr',
+                            gap: 14,
+                        }}
+                    >
                         <div>
                             <label style={fieldLabelStyle}>
                                 Tanggal <span style={{ color: C.red }}>*</span>
@@ -494,8 +657,16 @@ export default function TimesheetIndex({
                             <input
                                 type="date"
                                 value={entryForm.data.date}
-                                onChange={(event) => entryForm.setData('date', event.target.value)}
-                                style={withError(inputStyle, !!entryForm.errors.date)}
+                                onChange={(event) =>
+                                    entryForm.setData(
+                                        'date',
+                                        event.target.value,
+                                    )
+                                }
+                                style={withError(
+                                    inputStyle,
+                                    !!entryForm.errors.date,
+                                )}
                             />
                             <FieldError message={entryForm.errors.date} />
                         </div>
@@ -509,9 +680,17 @@ export default function TimesheetIndex({
                                 min="0.5"
                                 max="24"
                                 value={entryForm.data.hours}
-                                onChange={(event) => entryForm.setData('hours', event.target.value)}
+                                onChange={(event) =>
+                                    entryForm.setData(
+                                        'hours',
+                                        event.target.value,
+                                    )
+                                }
                                 placeholder="8"
-                                style={withError(inputStyle, !!entryForm.errors.hours)}
+                                style={withError(
+                                    inputStyle,
+                                    !!entryForm.errors.hours,
+                                )}
                             />
                             <FieldError message={entryForm.errors.hours} />
                         </div>
@@ -521,9 +700,14 @@ export default function TimesheetIndex({
                         <input
                             type="text"
                             value={entryForm.data.task}
-                            onChange={(event) => entryForm.setData('task', event.target.value)}
+                            onChange={(event) =>
+                                entryForm.setData('task', event.target.value)
+                            }
                             placeholder="Deskripsi singkat pekerjaan"
-                            style={withError(inputStyle, !!entryForm.errors.task)}
+                            style={withError(
+                                inputStyle,
+                                !!entryForm.errors.task,
+                            )}
                         />
                         <FieldError message={entryForm.errors.task} />
                     </div>
@@ -531,13 +715,21 @@ export default function TimesheetIndex({
                         <label style={fieldLabelStyle}>Catatan</label>
                         <textarea
                             value={entryForm.data.notes}
-                            onChange={(event) => entryForm.setData('notes', event.target.value)}
+                            onChange={(event) =>
+                                entryForm.setData('notes', event.target.value)
+                            }
                             placeholder="Catatan (opsional)"
-                            style={withError(textareaStyle, !!entryForm.errors.notes)}
+                            style={withError(
+                                textareaStyle,
+                                !!entryForm.errors.notes,
+                            )}
                         />
                         <FieldError message={entryForm.errors.notes} />
                     </div>
-                    <ModalActions processing={entryForm.processing} onCancel={closeEntryModal} />
+                    <ModalActions
+                        processing={entryForm.processing}
+                        onCancel={closeEntryModal}
+                    />
                 </ModalShell>
             )}
 
@@ -548,8 +740,10 @@ export default function TimesheetIndex({
                     body={
                         <>
                             Entri timesheet{' '}
-                            <strong style={{ color: C.text }}>{confirm.employee}</strong> pada{' '}
-                            {confirm.date} akan dihapus.
+                            <strong style={{ color: C.text }}>
+                                {confirm.employee}
+                            </strong>{' '}
+                            pada {confirm.date} akan dihapus.
                         </>
                     }
                     onCancel={() => setConfirm(null)}
@@ -584,7 +778,11 @@ function ModalShell({ title, onClose, onSubmit, children }: ModalShellProps) {
         >
             <div
                 onClick={onClose}
-                style={{ position: 'absolute', inset: 0, background: 'rgba(14,26,58,.45)' }}
+                style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(14,26,58,.45)',
+                }}
             />
             <form
                 onSubmit={onSubmit}
@@ -604,20 +802,33 @@ function ModalShell({ title, onClose, onSubmit, children }: ModalShellProps) {
                     gap: 14,
                 }}
             >
-                <div style={{ fontSize: 18, fontWeight: 600, color: C.navy }}>{title}</div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: C.navy }}>
+                    {title}
+                </div>
                 {children}
             </form>
         </div>
     );
 }
 
-function ModalActions({ processing, onCancel }: { processing: boolean; onCancel: () => void }) {
+function ModalActions({
+    processing,
+    onCancel,
+}: {
+    processing: boolean;
+    onCancel: () => void;
+}) {
     return (
         <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
             <button
                 type="button"
                 onClick={onCancel}
-                style={{ ...btnOut, flex: 1, height: 44, justifyContent: 'center' }}
+                style={{
+                    ...btnOut,
+                    flex: 1,
+                    height: 44,
+                    justifyContent: 'center',
+                }}
             >
                 Batal
             </button>

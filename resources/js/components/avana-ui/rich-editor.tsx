@@ -1,12 +1,7 @@
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import {
-    forwardRef,
-    useEffect,
-    useImperativeHandle
-    
-} from 'react';
-import type {CSSProperties} from 'react';
+import { forwardRef, useEffect, useImperativeHandle } from 'react';
+import type { CSSProperties } from 'react';
 import { AIcon, C } from '@/lib/avana';
 
 export interface RichEditorHandle {

@@ -98,9 +98,7 @@ export function ComponentMatrix({
                         {!hasMatrix && (
                             <tr style={{ borderTop: `1px solid ${C.line}` }}>
                                 <td
-                                    colSpan={
-                                        Math.max(components.length, 1) + 1
-                                    }
+                                    colSpan={Math.max(components.length, 1) + 1}
                                     style={{
                                         padding: '48px 18px',
                                         textAlign: 'center',

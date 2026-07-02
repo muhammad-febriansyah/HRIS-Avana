@@ -77,8 +77,8 @@ export default function AvanaAudit({ logs, filters }: AuditProps) {
                         Audit Trail
                     </h1>
                     <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
-                        Catatan perubahan data sensitif: karyawan, payroll, cuti,
-                        peran, pengguna &amp; tenant
+                        Catatan perubahan data sensitif: karyawan, payroll,
+                        cuti, peran, pengguna &amp; tenant
                     </div>
                 </div>
 

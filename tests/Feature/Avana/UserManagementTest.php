@@ -99,6 +99,55 @@ it('validates required fields and unique email on store', function (): void {
         ->assertSessionHasErrors(['email']);
 });
 
+it('rejects assigning the global super_admin role on store (privilege escalation)', function (): void {
+    $superAdminRole = Role::whereNull('tenant_id')->where('code', 'super_admin')->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.pengguna.store'), [
+            'name' => 'Penyusup',
+            'email' => 'penyusup@pengguna.test',
+            'password' => 'rahasia123',
+            'status' => 'active',
+            'role_ids' => [$superAdminRole->id],
+        ])
+        ->assertSessionHasErrors('role_ids.0');
+
+    expect(User::where('email', 'penyusup@pengguna.test')->exists())->toBeFalse();
+});
+
+it('rejects assigning another tenant\'s role on store', function (): void {
+    $otherTenant = Tenant::create(['name' => 'PT Seberang', 'slug' => 'pt-seberang']);
+    $foreignRole = Role::create(['tenant_id' => $otherTenant->id, 'code' => 'employee', 'name' => 'Karyawan']);
+
+    actingAs($this->admin)
+        ->post(route('avana.pengguna.store'), [
+            'name' => 'Lintas Tenant',
+            'email' => 'lintas@pengguna.test',
+            'password' => 'rahasia123',
+            'status' => 'active',
+            'role_ids' => [$foreignRole->id],
+        ])
+        ->assertSessionHasErrors('role_ids.0');
+
+    expect(User::where('email', 'lintas@pengguna.test')->exists())->toBeFalse();
+});
+
+it('rejects escalating an existing user to super_admin on update', function (): void {
+    $target = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $superAdminRole = Role::whereNull('tenant_id')->where('code', 'super_admin')->firstOrFail();
+
+    actingAs($this->admin)
+        ->put(route('avana.pengguna.update', $target), [
+            'name' => $target->name,
+            'email' => $target->email,
+            'status' => 'active',
+            'role_ids' => [$superAdminRole->id],
+        ])
+        ->assertSessionHasErrors('role_ids.0');
+
+    expect($target->fresh()->roles->pluck('code')->doesntContain('super_admin'))->toBeTrue();
+});
+
 it('updates an existing user fields and roles', function (): void {
     $target = User::factory()->create(['tenant_id' => $this->tenant->id, 'status' => 'active']);
 

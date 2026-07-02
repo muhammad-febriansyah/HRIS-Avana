@@ -6,11 +6,7 @@ import ContractController from '@/actions/App/Http/Controllers/Avana/ContractCon
 import { AIcon, C } from '@/lib/avana';
 import { KontrakForm } from './kontrak-form';
 import { emptyContractForm } from './types';
-import type {
-    ContractFormData,
-    EmployeeOption,
-    FlashProps,
-} from './types';
+import type { ContractFormData, EmployeeOption, FlashProps } from './types';
 
 interface KontrakCreateProps {
     employees: EmployeeOption[];

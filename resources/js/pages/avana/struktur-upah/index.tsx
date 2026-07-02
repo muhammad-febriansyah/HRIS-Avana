@@ -3,7 +3,17 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import SalaryStructureController from '@/actions/App/Http/Controllers/Avana/SalaryStructureController';
-import { ActionBtn, AIcon, btnOut, btnP, C, card, rp, RupiahInput, thCell } from '@/lib/avana';
+import {
+    ActionBtn,
+    AIcon,
+    btnOut,
+    btnP,
+    C,
+    card,
+    rp,
+    RupiahInput,
+    thCell,
+} from '@/lib/avana';
 import {
     ConfirmModal,
     FieldError,
@@ -14,12 +24,23 @@ import {
     withError,
 } from './components';
 import { emptyGradeForm } from './types';
-import type { GradeFormData, GradeRow, SalaryStructureIndexProps } from './types';
+import type {
+    GradeFormData,
+    GradeRow,
+    SalaryStructureIndexProps,
+} from './types';
 import type { FlashProps } from './types';
 
-const cellStyle = { padding: '13px 16px', fontSize: 13, color: C.text } as const;
+const cellStyle = {
+    padding: '13px 16px',
+    fontSize: 13,
+    color: C.text,
+} as const;
 
-export default function SalaryStructureIndex({ grades, kpis }: SalaryStructureIndexProps) {
+export default function SalaryStructureIndex({
+    grades,
+    kpis,
+}: SalaryStructureIndexProps) {
     const { flash } = usePage<FlashProps>().props;
 
     const [modalOpen, setModalOpen] = useState(false);
@@ -128,7 +149,13 @@ export default function SalaryStructureIndex({ grades, kpis }: SalaryStructureIn
 
                 <div style={{ ...card, overflow: 'hidden' }}>
                     <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 880 }}>
+                        <table
+                            style={{
+                                width: '100%',
+                                borderCollapse: 'collapse',
+                                minWidth: 880,
+                            }}
+                        >
                             <thead>
                                 <tr style={{ background: '#FAFBFD' }}>
                                     <th style={thCell}>Kode</th>
@@ -150,7 +177,11 @@ export default function SalaryStructureIndex({ grades, kpis }: SalaryStructureIn
                             </thead>
                             <tbody>
                                 {grades.length === 0 && (
-                                    <tr style={{ borderTop: `1px solid ${C.line}` }}>
+                                    <tr
+                                        style={{
+                                            borderTop: `1px solid ${C.line}`,
+                                        }}
+                                    >
                                         <td
                                             colSpan={7}
                                             style={{
@@ -168,14 +199,23 @@ export default function SalaryStructureIndex({ grades, kpis }: SalaryStructureIn
                                                     gap: 10,
                                                 }}
                                             >
-                                                <AIcon name="layers" size={28} color={C.faint} />
+                                                <AIcon
+                                                    name="layers"
+                                                    size={28}
+                                                    color={C.faint}
+                                                />
                                                 <div>Belum ada grade upah.</div>
                                             </div>
                                         </td>
                                     </tr>
                                 )}
                                 {grades.map((grade) => (
-                                    <tr key={grade.id} style={{ borderTop: `1px solid ${C.line}` }}>
+                                    <tr
+                                        key={grade.id}
+                                        style={{
+                                            borderTop: `1px solid ${C.line}`,
+                                        }}
+                                    >
                                         <td
                                             style={{
                                                 ...cellStyle,
@@ -185,12 +225,25 @@ export default function SalaryStructureIndex({ grades, kpis }: SalaryStructureIn
                                         >
                                             {grade.grade_code}
                                         </td>
-                                        <td style={cellStyle}>{grade.grade_name}</td>
+                                        <td style={cellStyle}>
+                                            {grade.grade_name}
+                                        </td>
                                         <td style={cellStyle}>{grade.level}</td>
-                                        <td style={cellStyle}>{rp(grade.min_salary)}</td>
-                                        <td style={cellStyle}>{rp(grade.mid_salary)}</td>
-                                        <td style={cellStyle}>{rp(grade.max_salary)}</td>
-                                        <td style={{ padding: '13px 18px', textAlign: 'right' }}>
+                                        <td style={cellStyle}>
+                                            {rp(grade.min_salary)}
+                                        </td>
+                                        <td style={cellStyle}>
+                                            {rp(grade.mid_salary)}
+                                        </td>
+                                        <td style={cellStyle}>
+                                            {rp(grade.max_salary)}
+                                        </td>
+                                        <td
+                                            style={{
+                                                padding: '13px 18px',
+                                                textAlign: 'right',
+                                            }}
+                                        >
                                             <div
                                                 style={{
                                                     display: 'inline-flex',
@@ -202,13 +255,17 @@ export default function SalaryStructureIndex({ grades, kpis }: SalaryStructureIn
                                                     icon="pencil"
                                                     label="Ubah"
                                                     variant="primary"
-                                                    onClick={() => openEdit(grade)}
+                                                    onClick={() =>
+                                                        openEdit(grade)
+                                                    }
                                                 />
                                                 <ActionBtn
                                                     icon="trash-2"
                                                     label="Hapus"
                                                     variant="danger"
-                                                    onClick={() => setConfirm(grade)}
+                                                    onClick={() =>
+                                                        setConfirm(grade)
+                                                    }
                                                 />
                                             </div>
                                         </td>
@@ -235,7 +292,11 @@ export default function SalaryStructureIndex({ grades, kpis }: SalaryStructureIn
                 >
                     <div
                         onClick={closeModal}
-                        style={{ position: 'absolute', inset: 0, background: 'rgba(14,26,58,.45)' }}
+                        style={{
+                            position: 'absolute',
+                            inset: 0,
+                            background: 'rgba(14,26,58,.45)',
+                        }}
                     />
                     <form
                         onSubmit={submit}
@@ -255,11 +316,23 @@ export default function SalaryStructureIndex({ grades, kpis }: SalaryStructureIn
                             gap: 14,
                         }}
                     >
-                        <div style={{ fontSize: 18, fontWeight: 600, color: C.navy }}>
+                        <div
+                            style={{
+                                fontSize: 18,
+                                fontWeight: 600,
+                                color: C.navy,
+                            }}
+                        >
                             {editing ? 'Ubah Grade' : 'Tambah Grade'}
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr',
+                                gap: 14,
+                            }}
+                        >
                             <div>
                                 <label style={fieldLabelStyle}>
                                     Kode <span style={{ color: C.red }}>*</span>
@@ -268,24 +341,39 @@ export default function SalaryStructureIndex({ grades, kpis }: SalaryStructureIn
                                     type="text"
                                     value={form.data.grade_code}
                                     onChange={(event) =>
-                                        form.setData('grade_code', event.target.value)
+                                        form.setData(
+                                            'grade_code',
+                                            event.target.value,
+                                        )
                                     }
                                     placeholder="G1"
-                                    style={withError(inputStyle, !!form.errors.grade_code)}
+                                    style={withError(
+                                        inputStyle,
+                                        !!form.errors.grade_code,
+                                    )}
                                 />
                                 <FieldError message={form.errors.grade_code} />
                             </div>
                             <div>
                                 <label style={fieldLabelStyle}>
-                                    Level <span style={{ color: C.red }}>*</span>
+                                    Level{' '}
+                                    <span style={{ color: C.red }}>*</span>
                                 </label>
                                 <input
                                     type="number"
                                     min="1"
                                     value={form.data.level}
-                                    onChange={(event) => form.setData('level', event.target.value)}
+                                    onChange={(event) =>
+                                        form.setData(
+                                            'level',
+                                            event.target.value,
+                                        )
+                                    }
                                     placeholder="1"
-                                    style={withError(inputStyle, !!form.errors.level)}
+                                    style={withError(
+                                        inputStyle,
+                                        !!form.errors.level,
+                                    )}
                                 />
                                 <FieldError message={form.errors.level} />
                             </div>
@@ -293,25 +381,37 @@ export default function SalaryStructureIndex({ grades, kpis }: SalaryStructureIn
 
                         <div>
                             <label style={fieldLabelStyle}>
-                                Nama Grade <span style={{ color: C.red }}>*</span>
+                                Nama Grade{' '}
+                                <span style={{ color: C.red }}>*</span>
                             </label>
                             <input
                                 type="text"
                                 value={form.data.grade_name}
-                                onChange={(event) => form.setData('grade_name', event.target.value)}
+                                onChange={(event) =>
+                                    form.setData(
+                                        'grade_name',
+                                        event.target.value,
+                                    )
+                                }
                                 placeholder="Staff"
-                                style={withError(inputStyle, !!form.errors.grade_name)}
+                                style={withError(
+                                    inputStyle,
+                                    !!form.errors.grade_name,
+                                )}
                             />
                             <FieldError message={form.errors.grade_name} />
                         </div>
 
                         <div>
                             <label style={fieldLabelStyle}>
-                                Upah Minimum <span style={{ color: C.red }}>*</span>
+                                Upah Minimum{' '}
+                                <span style={{ color: C.red }}>*</span>
                             </label>
                             <RupiahInput
                                 value={form.data.min_salary}
-                                onChange={(raw) => form.setData('min_salary', raw)}
+                                onChange={(raw) =>
+                                    form.setData('min_salary', raw)
+                                }
                                 invalid={!!form.errors.min_salary}
                             />
                             <FieldError message={form.errors.min_salary} />
@@ -319,11 +419,14 @@ export default function SalaryStructureIndex({ grades, kpis }: SalaryStructureIn
 
                         <div>
                             <label style={fieldLabelStyle}>
-                                Upah Tengah <span style={{ color: C.red }}>*</span>
+                                Upah Tengah{' '}
+                                <span style={{ color: C.red }}>*</span>
                             </label>
                             <RupiahInput
                                 value={form.data.mid_salary}
-                                onChange={(raw) => form.setData('mid_salary', raw)}
+                                onChange={(raw) =>
+                                    form.setData('mid_salary', raw)
+                                }
                                 invalid={!!form.errors.mid_salary}
                             />
                             <FieldError message={form.errors.mid_salary} />
@@ -331,11 +434,14 @@ export default function SalaryStructureIndex({ grades, kpis }: SalaryStructureIn
 
                         <div>
                             <label style={fieldLabelStyle}>
-                                Upah Maksimum <span style={{ color: C.red }}>*</span>
+                                Upah Maksimum{' '}
+                                <span style={{ color: C.red }}>*</span>
                             </label>
                             <RupiahInput
                                 value={form.data.max_salary}
-                                onChange={(raw) => form.setData('max_salary', raw)}
+                                onChange={(raw) =>
+                                    form.setData('max_salary', raw)
+                                }
                                 invalid={!!form.errors.max_salary}
                             />
                             <FieldError message={form.errors.max_salary} />
@@ -345,7 +451,12 @@ export default function SalaryStructureIndex({ grades, kpis }: SalaryStructureIn
                             <button
                                 type="button"
                                 onClick={closeModal}
-                                style={{ ...btnOut, flex: 1, height: 44, justifyContent: 'center' }}
+                                style={{
+                                    ...btnOut,
+                                    flex: 1,
+                                    height: 44,
+                                    justifyContent: 'center',
+                                }}
                             >
                                 Batal
                             </button>
@@ -358,7 +469,9 @@ export default function SalaryStructureIndex({ grades, kpis }: SalaryStructureIn
                                     height: 44,
                                     justifyContent: 'center',
                                     opacity: form.processing ? 0.7 : 1,
-                                    cursor: form.processing ? 'not-allowed' : 'pointer',
+                                    cursor: form.processing
+                                        ? 'not-allowed'
+                                        : 'pointer',
                                 }}
                             >
                                 <AIcon name="check" size={16} color="#fff" />
@@ -376,8 +489,10 @@ export default function SalaryStructureIndex({ grades, kpis }: SalaryStructureIn
                     body={
                         <>
                             Grade{' '}
-                            <strong style={{ color: C.text }}>{confirm.grade_name}</strong> akan
-                            dihapus.
+                            <strong style={{ color: C.text }}>
+                                {confirm.grade_name}
+                            </strong>{' '}
+                            akan dihapus.
                         </>
                     }
                     onCancel={() => setConfirm(null)}

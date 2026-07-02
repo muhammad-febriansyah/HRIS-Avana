@@ -53,7 +53,10 @@ export const iconBtn: CSSProperties = {
 };
 
 /** Apply the red error border to a base style when invalid. */
-export function withError(base: CSSProperties, hasError: boolean): CSSProperties {
+export function withError(
+    base: CSSProperties,
+    hasError: boolean,
+): CSSProperties {
     return hasError
         ? {
               ...base,

@@ -48,6 +48,7 @@ export default function EmployeesEdit({
         employment_status: data.employment_status ?? '',
         join_date: data.join_date_raw ?? '',
         branch_id: relationId(data.branch),
+        work_location_id: relationId(data.work_location),
         department_id: relationId(data.department),
         position_id: relationId(data.position),
         job_level_id: relationId(data.job_level),

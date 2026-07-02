@@ -8,7 +8,10 @@ import { KlaimForm } from './klaim-form';
 import { emptyClaimForm } from './types';
 import type { ClaimFormData, KlaimCreateProps } from './types';
 
-export default function KlaimCreate({ employees, claimTypes }: KlaimCreateProps) {
+export default function KlaimCreate({
+    employees,
+    claimTypes,
+}: KlaimCreateProps) {
     const { flash } = usePage<{ flash?: { success?: string } }>().props;
 
     const form = useForm<ClaimFormData>({ ...emptyClaimForm });

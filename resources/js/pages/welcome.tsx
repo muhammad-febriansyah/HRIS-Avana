@@ -43,16 +43,56 @@ const NAV_ITEMS = [
     { name: 'Kontak', link: '#kontak' },
 ];
 
-const FEATURES: { icon: ComponentType<{ className?: string }>; title: string; desc: string }[] = [
-    { icon: Users, title: 'Data Karyawan & Kontrak', desc: 'Kelola profil, kontrak, mutasi, dan dokumen karyawan dalam satu tempat.' },
-    { icon: Fingerprint, title: 'Absensi GPS & Roster', desc: 'Presensi berbasis lokasi, jadwal shift, tukar shift, dan timesheet.' },
-    { icon: TreePalm, title: 'Cuti, Lembur & Approval', desc: 'Pengajuan cuti/lembur dengan alur persetujuan berjenjang & delegasi.' },
-    { icon: Wallet, title: 'Payroll & Slip Gaji', desc: 'Hitung gaji, BPJS, dan PPh21 TER otomatis. Slip gaji siap kirim.' },
-    { icon: UserPlus, title: 'Rekrutmen & Onboarding', desc: 'Lowongan, pelamar, hingga onboarding karyawan baru yang terstruktur.' },
-    { icon: Target, title: 'Kinerja, OKR & LMS', desc: 'Penilaian kinerja, goal setting, kompetensi, dan pembelajaran.' },
-    { icon: BarChart3, title: 'HR Analytics & Laporan', desc: 'Dashboard analitik dan laporan dinamis untuk keputusan berbasis data.' },
-    { icon: Sparkles, title: 'AI Assistant', desc: 'Asisten pintar untuk tanya-jawab data HR dan otomasi tugas rutin.' },
-    { icon: ShieldCheck, title: 'Hak Akses & Audit', desc: 'Kontrol akses berbasis peran dan jejak audit setiap aktivitas.' },
+const FEATURES: {
+    icon: ComponentType<{ className?: string }>;
+    title: string;
+    desc: string;
+}[] = [
+    {
+        icon: Users,
+        title: 'Data Karyawan & Kontrak',
+        desc: 'Kelola profil, kontrak, mutasi, dan dokumen karyawan dalam satu tempat.',
+    },
+    {
+        icon: Fingerprint,
+        title: 'Absensi GPS & Roster',
+        desc: 'Presensi berbasis lokasi, jadwal shift, tukar shift, dan timesheet.',
+    },
+    {
+        icon: TreePalm,
+        title: 'Cuti, Lembur & Approval',
+        desc: 'Pengajuan cuti/lembur dengan alur persetujuan berjenjang & delegasi.',
+    },
+    {
+        icon: Wallet,
+        title: 'Payroll & Slip Gaji',
+        desc: 'Hitung gaji, BPJS, dan PPh21 TER otomatis. Slip gaji siap kirim.',
+    },
+    {
+        icon: UserPlus,
+        title: 'Rekrutmen & Onboarding',
+        desc: 'Lowongan, pelamar, hingga onboarding karyawan baru yang terstruktur.',
+    },
+    {
+        icon: Target,
+        title: 'Kinerja, OKR & LMS',
+        desc: 'Penilaian kinerja, goal setting, kompetensi, dan pembelajaran.',
+    },
+    {
+        icon: BarChart3,
+        title: 'HR Analytics & Laporan',
+        desc: 'Dashboard analitik dan laporan dinamis untuk keputusan berbasis data.',
+    },
+    {
+        icon: Sparkles,
+        title: 'AI Assistant',
+        desc: 'Asisten pintar untuk tanya-jawab data HR dan otomasi tugas rutin.',
+    },
+    {
+        icon: ShieldCheck,
+        title: 'Hak Akses & Audit',
+        desc: 'Kontrol akses berbasis peran dan jejak audit setiap aktivitas.',
+    },
 ];
 
 const STATS = [
@@ -69,7 +109,14 @@ const COMPLIANCE = [
     'Multi-tenant dengan akses berbasis peran',
 ];
 
-const CLIENTS = ['Nusantara Group', 'Bahari Tbk', 'Sentosa Karya', 'Meridian Co', 'Cahaya Abadi', 'Prima Logistik'];
+const CLIENTS = [
+    'Nusantara Group',
+    'Bahari Tbk',
+    'Sentosa Karya',
+    'Meridian Co',
+    'Cahaya Abadi',
+    'Prima Logistik',
+];
 
 const PRICING = [
     {
@@ -77,7 +124,12 @@ const PRICING = [
         price: 'Rp15rb',
         unit: '/karyawan/bln',
         desc: 'Untuk tim kecil yang baru mulai.',
-        features: ['Data karyawan & kontrak', 'Absensi GPS', 'Cuti & lembur', 'Slip gaji dasar'],
+        features: [
+            'Data karyawan & kontrak',
+            'Absensi GPS',
+            'Cuti & lembur',
+            'Slip gaji dasar',
+        ],
         highlighted: false,
     },
     {
@@ -85,7 +137,13 @@ const PRICING = [
         price: 'Rp25rb',
         unit: '/karyawan/bln',
         desc: 'Paling populer untuk perusahaan berkembang.',
-        features: ['Semua fitur Starter', 'Payroll penuh + BPJS/PPh21', 'Rekrutmen & onboarding', 'Kinerja & OKR', 'HR Analytics'],
+        features: [
+            'Semua fitur Starter',
+            'Payroll penuh + BPJS/PPh21',
+            'Rekrutmen & onboarding',
+            'Kinerja & OKR',
+            'HR Analytics',
+        ],
         highlighted: true,
     },
     {
@@ -93,7 +151,13 @@ const PRICING = [
         price: 'Kustom',
         unit: '',
         desc: 'Skala besar, kebutuhan khusus.',
-        features: ['Semua fitur Growth', 'AI Assistant', 'LMS & suksesi', 'SSO & audit lanjutan', 'Dukungan prioritas'],
+        features: [
+            'Semua fitur Growth',
+            'AI Assistant',
+            'LMS & suksesi',
+            'SSO & audit lanjutan',
+            'Dukungan prioritas',
+        ],
         highlighted: false,
     },
 ];
@@ -103,7 +167,15 @@ const PRICING = [
  * visible after hydration, never gated behind an intersection observer that
  * may fail to fire for off-screen or reduced-motion users).
  */
-function Reveal({ children, delay = 0, className }: { children: ReactNode; delay?: number; className?: string }) {
+function Reveal({
+    children,
+    delay = 0,
+    className,
+}: {
+    children: ReactNode;
+    delay?: number;
+    className?: string;
+}) {
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -176,13 +248,27 @@ export default function Welcome() {
                 {/* NAVBAR */}
                 <Navbar>
                     <NavBody>
-                        <Link href="/" className="relative z-20 flex items-center gap-2 px-2 py-1">
-                            <img src={logo} alt={brand} className="h-8 w-auto object-contain" />
+                        <Link
+                            href="/"
+                            className="relative z-20 flex items-center gap-2 px-2 py-1"
+                        >
+                            <img
+                                src={logo}
+                                alt={brand}
+                                className="h-8 w-auto object-contain"
+                            />
                         </Link>
-                        <NavItems items={NAV_ITEMS} activeLink={activeSection} />
+                        <NavItems
+                            items={NAV_ITEMS}
+                            activeLink={activeSection}
+                        />
                         <div className="relative z-20 flex items-center gap-2">
                             {auth.user ? (
-                                <NavbarButton as={Link} href={dashboard().url} variant="primary">
+                                <NavbarButton
+                                    as={Link}
+                                    href={dashboard().url}
+                                    variant="primary"
+                                >
                                     Dashboard
                                 </NavbarButton>
                             ) : (
@@ -195,7 +281,11 @@ export default function Welcome() {
                                     >
                                         Masuk
                                     </NavbarButton>
-                                    <NavbarButton as={Link} href={register().url} variant="primary">
+                                    <NavbarButton
+                                        as={Link}
+                                        href={register().url}
+                                        variant="primary"
+                                    >
                                         Coba Gratis
                                     </NavbarButton>
                                 </>
@@ -205,12 +295,25 @@ export default function Welcome() {
 
                     <MobileNav>
                         <MobileNavHeader>
-                            <Link href="/" className="flex items-center gap-2 px-2 py-1">
-                                <img src={logo} alt={brand} className="h-7 w-auto object-contain" />
+                            <Link
+                                href="/"
+                                className="flex items-center gap-2 px-2 py-1"
+                            >
+                                <img
+                                    src={logo}
+                                    alt={brand}
+                                    className="h-7 w-auto object-contain"
+                                />
                             </Link>
-                            <MobileNavToggle isOpen={mobileOpen} onClick={() => setMobileOpen((v) => !v)} />
+                            <MobileNavToggle
+                                isOpen={mobileOpen}
+                                onClick={() => setMobileOpen((v) => !v)}
+                            />
                         </MobileNavHeader>
-                        <MobileNavMenu isOpen={mobileOpen} onClose={() => setMobileOpen(false)}>
+                        <MobileNavMenu
+                            isOpen={mobileOpen}
+                            onClose={() => setMobileOpen(false)}
+                        >
                             {NAV_ITEMS.map((item) => (
                                 <a
                                     key={item.link}
@@ -218,7 +321,9 @@ export default function Welcome() {
                                     onClick={() => setMobileOpen(false)}
                                     className={
                                         'w-full rounded-lg px-2 py-2 text-[15px] font-medium hover:bg-[#F4F6FB] ' +
-                                        (activeSection === item.link ? 'bg-[#2F54C9]/10 text-[#2F54C9]' : 'text-[#1A2333]')
+                                        (activeSection === item.link
+                                            ? 'bg-[#2F54C9]/10 text-[#2F54C9]'
+                                            : 'text-[#1A2333]')
                                     }
                                 >
                                     {item.name}
@@ -226,15 +331,30 @@ export default function Welcome() {
                             ))}
                             <div className="mt-2 flex w-full flex-col gap-2">
                                 {auth.user ? (
-                                    <NavbarButton as={Link} href={dashboard().url} variant="primary" className="w-full">
+                                    <NavbarButton
+                                        as={Link}
+                                        href={dashboard().url}
+                                        variant="primary"
+                                        className="w-full"
+                                    >
                                         Dashboard
                                     </NavbarButton>
                                 ) : (
                                     <>
-                                        <NavbarButton as={Link} href={login().url} variant="secondary" className="w-full border border-[#E5E9F2]">
+                                        <NavbarButton
+                                            as={Link}
+                                            href={login().url}
+                                            variant="secondary"
+                                            className="w-full border border-[#E5E9F2]"
+                                        >
                                             Masuk
                                         </NavbarButton>
-                                        <NavbarButton as={Link} href={register().url} variant="primary" className="w-full">
+                                        <NavbarButton
+                                            as={Link}
+                                            href={register().url}
+                                            variant="primary"
+                                            className="w-full"
+                                        >
                                             Coba Gratis
                                         </NavbarButton>
                                     </>
@@ -254,10 +374,12 @@ export default function Welcome() {
                             </span>
                         </Reveal>
                         <Reveal delay={0.05}>
-                            <h1 className="mx-auto mt-6 max-w-4xl text-4xl font-bold leading-[1.1] tracking-tight text-[#0E1A3A] sm:text-5xl lg:text-6xl">
+                            <h1 className="mx-auto mt-6 max-w-4xl text-4xl leading-[1.1] font-bold tracking-tight text-[#0E1A3A] sm:text-5xl lg:text-6xl">
                                 Kelola seluruh{' '}
-                                <span className="bg-gradient-to-r from-[#2F54C9] to-[#6E9BE6] bg-clip-text text-transparent">siklus karyawan</span> dalam
-                                satu platform.
+                                <span className="bg-gradient-to-r from-[#2F54C9] to-[#6E9BE6] bg-clip-text text-transparent">
+                                    siklus karyawan
+                                </span>{' '}
+                                dalam satu platform.
                             </h1>
                         </Reveal>
                         <Reveal delay={0.1}>
@@ -285,8 +407,15 @@ export default function Welcome() {
                         </Reveal>
                         <Reveal delay={0.2}>
                             <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[13px] text-[#6B7280]">
-                                {['Tanpa kartu kredit', 'Sesuai regulasi Indonesia', 'Data terenkripsi'].map((t) => (
-                                    <span key={t} className="inline-flex items-center gap-1.5">
+                                {[
+                                    'Tanpa kartu kredit',
+                                    'Sesuai regulasi Indonesia',
+                                    'Data terenkripsi',
+                                ].map((t) => (
+                                    <span
+                                        key={t}
+                                        className="inline-flex items-center gap-1.5"
+                                    >
                                         <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
                                         {t}
                                     </span>
@@ -312,20 +441,46 @@ export default function Welcome() {
                                     <div className="flex text-left">
                                         <aside className="hidden w-52 shrink-0 border-r border-[#F1F3F9] bg-white p-4 lg:block">
                                             <div className="flex items-center gap-2 px-1 pb-4">
-                                                <img src={logo} alt={brand} className="h-6 w-auto object-contain" />
+                                                <img
+                                                    src={logo}
+                                                    alt={brand}
+                                                    className="h-6 w-auto object-contain"
+                                                />
                                             </div>
                                             {[
-                                                { icon: LayoutDashboard, label: 'Dashboard', active: true },
-                                                { icon: Users, label: 'Karyawan', active: false },
-                                                { icon: Fingerprint, label: 'Absensi', active: false },
-                                                { icon: Wallet, label: 'Payroll', active: false },
-                                                { icon: Target, label: 'Kinerja', active: false },
+                                                {
+                                                    icon: LayoutDashboard,
+                                                    label: 'Dashboard',
+                                                    active: true,
+                                                },
+                                                {
+                                                    icon: Users,
+                                                    label: 'Karyawan',
+                                                    active: false,
+                                                },
+                                                {
+                                                    icon: Fingerprint,
+                                                    label: 'Absensi',
+                                                    active: false,
+                                                },
+                                                {
+                                                    icon: Wallet,
+                                                    label: 'Payroll',
+                                                    active: false,
+                                                },
+                                                {
+                                                    icon: Target,
+                                                    label: 'Kinerja',
+                                                    active: false,
+                                                },
                                             ].map((n) => (
                                                 <div
                                                     key={n.label}
                                                     className={
                                                         'mb-1 flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm ' +
-                                                        (n.active ? 'bg-[#2F54C9]/10 font-medium text-[#2F54C9]' : 'text-[#6B7280]')
+                                                        (n.active
+                                                            ? 'bg-[#2F54C9]/10 font-medium text-[#2F54C9]'
+                                                            : 'text-[#6B7280]')
                                                     }
                                                 >
                                                     <n.icon className="h-4 w-4" />
@@ -336,8 +491,12 @@ export default function Welcome() {
                                         <div className="flex-1 bg-[#F9FAFC] p-5 sm:p-6">
                                             <div className="mb-5 flex items-center justify-between">
                                                 <div>
-                                                    <div className="text-base font-semibold text-[#0E1A3A]">Dashboard HR</div>
-                                                    <div className="text-xs text-[#9CA3AF]">Ringkasan Juli 2026</div>
+                                                    <div className="text-base font-semibold text-[#0E1A3A]">
+                                                        Dashboard HR
+                                                    </div>
+                                                    <div className="text-xs text-[#9CA3AF]">
+                                                        Ringkasan Juli 2026
+                                                    </div>
                                                 </div>
                                                 <span className="hidden rounded-full bg-[#16A34A]/10 px-3 py-1 text-xs font-medium text-[#16A34A] sm:inline">
                                                     Payroll selesai
@@ -345,45 +504,99 @@ export default function Welcome() {
                                             </div>
                                             <div className="grid grid-cols-3 gap-3">
                                                 {[
-                                                    { k: 'Karyawan Aktif', v: '1.284', icon: Users },
-                                                    { k: 'Kehadiran', v: '96,4%', icon: Fingerprint },
-                                                    { k: 'Payroll Bulan Ini', v: 'Rp 4,82 M', icon: Wallet },
+                                                    {
+                                                        k: 'Karyawan Aktif',
+                                                        v: '1.284',
+                                                        icon: Users,
+                                                    },
+                                                    {
+                                                        k: 'Kehadiran',
+                                                        v: '96,4%',
+                                                        icon: Fingerprint,
+                                                    },
+                                                    {
+                                                        k: 'Payroll Bulan Ini',
+                                                        v: 'Rp 4,82 M',
+                                                        icon: Wallet,
+                                                    },
                                                 ].map((c) => (
-                                                    <div key={c.k} className="rounded-xl border border-[#EDF1F7] bg-white p-4">
+                                                    <div
+                                                        key={c.k}
+                                                        className="rounded-xl border border-[#EDF1F7] bg-white p-4"
+                                                    >
                                                         <c.icon className="h-4 w-4 text-[#2F54C9]" />
-                                                        <div className="mt-3 text-lg font-bold text-[#0E1A3A] tabular-nums sm:text-xl">{c.v}</div>
-                                                        <div className="text-[11px] text-[#9CA3AF]">{c.k}</div>
+                                                        <div className="mt-3 text-lg font-bold text-[#0E1A3A] tabular-nums sm:text-xl">
+                                                            {c.v}
+                                                        </div>
+                                                        <div className="text-[11px] text-[#9CA3AF]">
+                                                            {c.k}
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>
                                             <div className="mt-3 grid gap-3 lg:grid-cols-5">
                                                 <div className="rounded-xl border border-[#EDF1F7] bg-white p-4 lg:col-span-3">
                                                     <div className="mb-3 flex items-center justify-between">
-                                                        <span className="text-sm font-medium text-[#1A2333]">Tren Kehadiran</span>
-                                                        <span className="text-[11px] text-[#9CA3AF]">7 hari</span>
+                                                        <span className="text-sm font-medium text-[#1A2333]">
+                                                            Tren Kehadiran
+                                                        </span>
+                                                        <span className="text-[11px] text-[#9CA3AF]">
+                                                            7 hari
+                                                        </span>
                                                     </div>
                                                     <div className="flex h-28 items-end gap-2">
-                                                        {[62, 78, 54, 88, 72, 95, 84].map((h, i) => (
-                                                            <div key={i} className="flex-1 rounded-t-md bg-gradient-to-t from-[#2F54C9]/30 to-[#2F54C9]" style={{ height: `${h}%` }} />
+                                                        {[
+                                                            62, 78, 54, 88, 72,
+                                                            95, 84,
+                                                        ].map((h, i) => (
+                                                            <div
+                                                                key={i}
+                                                                className="flex-1 rounded-t-md bg-gradient-to-t from-[#2F54C9]/30 to-[#2F54C9]"
+                                                                style={{
+                                                                    height: `${h}%`,
+                                                                }}
+                                                            />
                                                         ))}
                                                     </div>
                                                 </div>
                                                 <div className="rounded-xl bg-gradient-to-br from-[#0E1A3A] to-[#2F54C9] p-4 text-white lg:col-span-2">
-                                                    <div className="text-[11px] text-white/60">Payroll Juli 2026</div>
-                                                    <div className="mt-1 text-xl font-bold tabular-nums">Rp 4,82 M</div>
+                                                    <div className="text-[11px] text-white/60">
+                                                        Payroll Juli 2026
+                                                    </div>
+                                                    <div className="mt-1 text-xl font-bold tabular-nums">
+                                                        Rp 4,82 M
+                                                    </div>
                                                     <div className="mt-4 space-y-2">
                                                         {[
-                                                            ['Gaji pokok', '82%'],
-                                                            ['Tunjangan', '13%'],
-                                                            ['BPJS & PPh21', '5%'],
+                                                            [
+                                                                'Gaji pokok',
+                                                                '82%',
+                                                            ],
+                                                            [
+                                                                'Tunjangan',
+                                                                '13%',
+                                                            ],
+                                                            [
+                                                                'BPJS & PPh21',
+                                                                '5%',
+                                                            ],
                                                         ].map(([k, v]) => (
                                                             <div key={k}>
                                                                 <div className="flex justify-between text-[11px] text-white/70">
-                                                                    <span>{k}</span>
-                                                                    <span>{v}</span>
+                                                                    <span>
+                                                                        {k}
+                                                                    </span>
+                                                                    <span>
+                                                                        {v}
+                                                                    </span>
                                                                 </div>
                                                                 <div className="mt-1 h-1.5 rounded-full bg-white/15">
-                                                                    <div className="h-full rounded-full bg-white/70" style={{ width: v }} />
+                                                                    <div
+                                                                        className="h-full rounded-full bg-white/70"
+                                                                        style={{
+                                                                            width: v,
+                                                                        }}
+                                                                    />
                                                                 </div>
                                                             </div>
                                                         ))}
@@ -405,8 +618,12 @@ export default function Welcome() {
                                             <CheckCircle2 className="h-5 w-5" />
                                         </span>
                                         <div className="text-left">
-                                            <div className="text-xs text-[#6B7280]">Slip gaji terkirim</div>
-                                            <div className="text-sm font-semibold">1.284 karyawan</div>
+                                            <div className="text-xs text-[#6B7280]">
+                                                Slip gaji terkirim
+                                            </div>
+                                            <div className="text-sm font-semibold">
+                                                1.284 karyawan
+                                            </div>
                                         </div>
                                     </div>
                                 </motion.div>
@@ -423,7 +640,10 @@ export default function Welcome() {
                     <div className="group relative flex overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_12%,black_88%,transparent)]">
                         <div className="flex shrink-0 animate-[marquee_28s_linear_infinite] items-center gap-14 pr-14 group-hover:[animation-play-state:paused]">
                             {[...CLIENTS, ...CLIENTS].map((c, i) => (
-                                <span key={i} className="text-lg font-semibold whitespace-nowrap text-[#9CA3AF]">
+                                <span
+                                    key={i}
+                                    className="text-lg font-semibold whitespace-nowrap text-[#9CA3AF]"
+                                >
                                     {c}
                                 </span>
                             ))}
@@ -433,7 +653,10 @@ export default function Welcome() {
                             className="flex shrink-0 animate-[marquee_28s_linear_infinite] items-center gap-14 pr-14 group-hover:[animation-play-state:paused]"
                         >
                             {[...CLIENTS, ...CLIENTS].map((c, i) => (
-                                <span key={i} className="text-lg font-semibold whitespace-nowrap text-[#9CA3AF]">
+                                <span
+                                    key={i}
+                                    className="text-lg font-semibold whitespace-nowrap text-[#9CA3AF]"
+                                >
                                     {c}
                                 </span>
                             ))}
@@ -453,21 +676,31 @@ export default function Welcome() {
                                 <div className="bg-gradient-to-b from-[#0E1A3A] to-[#2F54C9] bg-clip-text text-3xl font-bold text-transparent tabular-nums sm:text-4xl">
                                     {s.value}
                                 </div>
-                                <div className="mt-1.5 text-sm text-[#6B7280]">{s.label}</div>
+                                <div className="mt-1.5 text-sm text-[#6B7280]">
+                                    {s.label}
+                                </div>
                             </Reveal>
                         ))}
                     </div>
                 </section>
 
                 {/* FEATURES */}
-                <section id="fitur" className="mx-auto max-w-7xl scroll-mt-28 px-6 py-20">
+                <section
+                    id="fitur"
+                    className="mx-auto max-w-7xl scroll-mt-28 px-6 py-20"
+                >
                     <Reveal>
                         <div className="mx-auto max-w-2xl text-center">
-                            <span className="text-sm font-semibold text-[#2F54C9]">Fitur Lengkap</span>
+                            <span className="text-sm font-semibold text-[#2F54C9]">
+                                Fitur Lengkap
+                            </span>
                             <h2 className="mt-2 text-3xl font-bold tracking-tight text-[#0E1A3A] sm:text-4xl">
                                 Semua yang tim HR Anda butuhkan
                             </h2>
-                            <p className="mt-3 text-[#6B7280]">Satu sistem terintegrasi menggantikan puluhan spreadsheet dan aplikasi terpisah.</p>
+                            <p className="mt-3 text-[#6B7280]">
+                                Satu sistem terintegrasi menggantikan puluhan
+                                spreadsheet dan aplikasi terpisah.
+                            </p>
                         </div>
                     </Reveal>
                     <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -477,8 +710,12 @@ export default function Welcome() {
                                     <span className="grid h-11 w-11 place-items-center rounded-xl bg-[#2F54C9]/10 text-[#2F54C9] transition group-hover:bg-[#2F54C9] group-hover:text-white">
                                         <f.icon className="h-5 w-5" />
                                     </span>
-                                    <h3 className="mt-4 text-lg font-semibold text-[#0E1A3A]">{f.title}</h3>
-                                    <p className="mt-1.5 text-sm leading-relaxed text-[#6B7280]">{f.desc}</p>
+                                    <h3 className="mt-4 text-lg font-semibold text-[#0E1A3A]">
+                                        {f.title}
+                                    </h3>
+                                    <p className="mt-1.5 text-sm leading-relaxed text-[#6B7280]">
+                                        {f.desc}
+                                    </p>
                                 </div>
                             </Reveal>
                         ))}
@@ -486,22 +723,34 @@ export default function Welcome() {
                 </section>
 
                 {/* SOLUSI / COMPLIANCE */}
-                <section id="solusi" className="scroll-mt-28 bg-[#F4F6FB] py-20">
+                <section
+                    id="solusi"
+                    className="scroll-mt-28 bg-[#F4F6FB] py-20"
+                >
                     <div className="mx-auto grid max-w-7xl items-center gap-14 px-6 lg:grid-cols-2">
                         <Reveal>
                             <div>
-                                <span className="text-sm font-semibold text-[#2F54C9]">Sesuai Regulasi Indonesia</span>
+                                <span className="text-sm font-semibold text-[#2F54C9]">
+                                    Sesuai Regulasi Indonesia
+                                </span>
                                 <h2 className="mt-2 text-3xl font-bold tracking-tight text-[#0E1A3A] sm:text-4xl">
                                     Payroll akurat, patuh, dan tanpa pusing
                                 </h2>
                                 <p className="mt-3 text-[#6B7280]">
-                                    Perhitungan otomatis mengikuti aturan ketenagakerjaan dan perpajakan terbaru — hemat waktu, minim kesalahan.
+                                    Perhitungan otomatis mengikuti aturan
+                                    ketenagakerjaan dan perpajakan terbaru —
+                                    hemat waktu, minim kesalahan.
                                 </p>
                                 <ul className="mt-6 space-y-3">
                                     {COMPLIANCE.map((c) => (
-                                        <li key={c} className="flex items-start gap-3">
+                                        <li
+                                            key={c}
+                                            className="flex items-start gap-3"
+                                        >
                                             <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#16A34A]" />
-                                            <span className="text-[15px] text-[#1A2333]">{c}</span>
+                                            <span className="text-[15px] text-[#1A2333]">
+                                                {c}
+                                            </span>
                                         </li>
                                     ))}
                                 </ul>
@@ -510,17 +759,40 @@ export default function Welcome() {
                         <Reveal delay={0.1}>
                             <div className="grid grid-cols-2 gap-4">
                                 {[
-                                    { icon: Wallet, k: 'BPJS & PPh21', v: 'Otomatis' },
-                                    { icon: Fingerprint, k: 'Absensi', v: 'Real-time' },
-                                    { icon: ShieldCheck, k: 'Keamanan', v: 'Terenkripsi' },
-                                    { icon: BarChart3, k: 'Laporan', v: 'Instan' },
+                                    {
+                                        icon: Wallet,
+                                        k: 'BPJS & PPh21',
+                                        v: 'Otomatis',
+                                    },
+                                    {
+                                        icon: Fingerprint,
+                                        k: 'Absensi',
+                                        v: 'Real-time',
+                                    },
+                                    {
+                                        icon: ShieldCheck,
+                                        k: 'Keamanan',
+                                        v: 'Terenkripsi',
+                                    },
+                                    {
+                                        icon: BarChart3,
+                                        k: 'Laporan',
+                                        v: 'Instan',
+                                    },
                                 ].map((b) => (
-                                    <div key={b.k} className="rounded-2xl border border-[#E5E9F2] bg-white p-5">
+                                    <div
+                                        key={b.k}
+                                        className="rounded-2xl border border-[#E5E9F2] bg-white p-5"
+                                    >
                                         <span className="grid h-10 w-10 place-items-center rounded-lg bg-[#2F54C9]/10 text-[#2F54C9]">
                                             <b.icon className="h-5 w-5" />
                                         </span>
-                                        <div className="mt-3 text-sm text-[#6B7280]">{b.k}</div>
-                                        <div className="text-lg font-semibold text-[#0E1A3A]">{b.v}</div>
+                                        <div className="mt-3 text-sm text-[#6B7280]">
+                                            {b.k}
+                                        </div>
+                                        <div className="text-lg font-semibold text-[#0E1A3A]">
+                                            {b.v}
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -529,12 +801,22 @@ export default function Welcome() {
                 </section>
 
                 {/* PRICING */}
-                <section id="harga" className="mx-auto max-w-7xl scroll-mt-28 px-6 py-20">
+                <section
+                    id="harga"
+                    className="mx-auto max-w-7xl scroll-mt-28 px-6 py-20"
+                >
                     <Reveal>
                         <div className="mx-auto max-w-2xl text-center">
-                            <span className="text-sm font-semibold text-[#2F54C9]">Harga Transparan</span>
-                            <h2 className="mt-2 text-3xl font-bold tracking-tight text-[#0E1A3A] sm:text-4xl">Pilih paket sesuai skala Anda</h2>
-                            <p className="mt-3 text-[#6B7280]">Bayar per karyawan aktif. Tanpa biaya tersembunyi.</p>
+                            <span className="text-sm font-semibold text-[#2F54C9]">
+                                Harga Transparan
+                            </span>
+                            <h2 className="mt-2 text-3xl font-bold tracking-tight text-[#0E1A3A] sm:text-4xl">
+                                Pilih paket sesuai skala Anda
+                            </h2>
+                            <p className="mt-3 text-[#6B7280]">
+                                Bayar per karyawan aktif. Tanpa biaya
+                                tersembunyi.
+                            </p>
                         </div>
                     </Reveal>
                     <div className="mt-12 grid gap-6 lg:grid-cols-3">
@@ -553,17 +835,71 @@ export default function Welcome() {
                                             Paling Populer
                                         </span>
                                     )}
-                                    <h3 className={'text-lg font-semibold ' + (p.highlighted ? 'text-white' : 'text-[#0E1A3A]')}>{p.name}</h3>
+                                    <h3
+                                        className={
+                                            'text-lg font-semibold ' +
+                                            (p.highlighted
+                                                ? 'text-white'
+                                                : 'text-[#0E1A3A]')
+                                        }
+                                    >
+                                        {p.name}
+                                    </h3>
                                     <div className="mt-3 flex items-end gap-1">
-                                        <span className={'text-3xl font-bold ' + (p.highlighted ? 'text-white' : 'text-[#0E1A3A]')}>{p.price}</span>
-                                        <span className={'pb-1 text-sm ' + (p.highlighted ? 'text-white/60' : 'text-[#9CA3AF]')}>{p.unit}</span>
+                                        <span
+                                            className={
+                                                'text-3xl font-bold ' +
+                                                (p.highlighted
+                                                    ? 'text-white'
+                                                    : 'text-[#0E1A3A]')
+                                            }
+                                        >
+                                            {p.price}
+                                        </span>
+                                        <span
+                                            className={
+                                                'pb-1 text-sm ' +
+                                                (p.highlighted
+                                                    ? 'text-white/60'
+                                                    : 'text-[#9CA3AF]')
+                                            }
+                                        >
+                                            {p.unit}
+                                        </span>
                                     </div>
-                                    <p className={'mt-2 text-sm ' + (p.highlighted ? 'text-white/70' : 'text-[#6B7280]')}>{p.desc}</p>
+                                    <p
+                                        className={
+                                            'mt-2 text-sm ' +
+                                            (p.highlighted
+                                                ? 'text-white/70'
+                                                : 'text-[#6B7280]')
+                                        }
+                                    >
+                                        {p.desc}
+                                    </p>
                                     <ul className="mt-5 flex-1 space-y-2.5">
                                         {p.features.map((f) => (
-                                            <li key={f} className="flex items-start gap-2.5 text-sm">
-                                                <CheckCircle2 className={'mt-0.5 h-4 w-4 shrink-0 ' + (p.highlighted ? 'text-[#6E9BE6]' : 'text-[#16A34A]')} />
-                                                <span className={p.highlighted ? 'text-white/90' : 'text-[#1A2333]'}>{f}</span>
+                                            <li
+                                                key={f}
+                                                className="flex items-start gap-2.5 text-sm"
+                                            >
+                                                <CheckCircle2
+                                                    className={
+                                                        'mt-0.5 h-4 w-4 shrink-0 ' +
+                                                        (p.highlighted
+                                                            ? 'text-[#6E9BE6]'
+                                                            : 'text-[#16A34A]')
+                                                    }
+                                                />
+                                                <span
+                                                    className={
+                                                        p.highlighted
+                                                            ? 'text-white/90'
+                                                            : 'text-[#1A2333]'
+                                                    }
+                                                >
+                                                    {f}
+                                                </span>
                                             </li>
                                         ))}
                                     </ul>
@@ -576,7 +912,9 @@ export default function Welcome() {
                                                 : 'border border-[#E5E9F2] text-[#1A2333] hover:border-[#2F54C9]')
                                         }
                                     >
-                                        {p.name === 'Enterprise' ? 'Hubungi Sales' : 'Mulai Sekarang'}
+                                        {p.name === 'Enterprise'
+                                            ? 'Hubungi Sales'
+                                            : 'Mulai Sekarang'}
                                     </Link>
                                 </div>
                             </Reveal>
@@ -590,9 +928,12 @@ export default function Welcome() {
                         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0E1A3A] via-[#1c3175] to-[#2F54C9] px-8 py-16 text-center sm:px-16">
                             <div className="pointer-events-none absolute -top-16 -right-10 h-64 w-64 rounded-full bg-white/10" />
                             <div className="pointer-events-none absolute -bottom-20 -left-10 h-72 w-72 rounded-full bg-white/5" />
-                            <h2 className="relative text-3xl font-bold tracking-tight text-white sm:text-4xl">Siap modernkan HR perusahaan Anda?</h2>
+                            <h2 className="relative text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                                Siap modernkan HR perusahaan Anda?
+                            </h2>
                             <p className="relative mx-auto mt-3 max-w-xl text-white/70">
-                                Coba {brand} gratis 14 hari. Tanpa kartu kredit, bisa langsung pakai.
+                                Coba {brand} gratis 14 hari. Tanpa kartu kredit,
+                                bisa langsung pakai.
                             </p>
                             <div className="relative mt-8 flex flex-col justify-center gap-3 sm:flex-row">
                                 <Link
@@ -614,12 +955,20 @@ export default function Welcome() {
                 </section>
 
                 {/* FOOTER */}
-                <footer id="kontak" className="border-t border-[#F1F3F9] bg-[#F4F6FB]">
+                <footer
+                    id="kontak"
+                    className="border-t border-[#F1F3F9] bg-[#F4F6FB]"
+                >
                     <div className="mx-auto grid max-w-7xl gap-10 px-6 py-14 sm:grid-cols-2 lg:grid-cols-4">
                         <div className="lg:col-span-2">
-                            <img src={logo} alt={brand} className="h-9 w-auto object-contain" />
+                            <img
+                                src={logo}
+                                alt={brand}
+                                className="h-9 w-auto object-contain"
+                            />
                             <p className="mt-4 max-w-xs text-sm leading-relaxed text-[#6B7280]">
-                                {website.tagline ?? 'Platform HRIS/HCM multi-tenant untuk mengelola seluruh siklus karyawan Anda.'}
+                                {website.tagline ??
+                                    'Platform HRIS/HCM multi-tenant untuk mengelola seluruh siklus karyawan Anda.'}
                             </p>
                             {socials.length > 0 && (
                                 <div className="mt-5 flex gap-2.5">
@@ -640,28 +989,70 @@ export default function Welcome() {
                         </div>
 
                         <div>
-                            <div className="text-sm font-semibold text-[#0E1A3A]">Produk</div>
+                            <div className="text-sm font-semibold text-[#0E1A3A]">
+                                Produk
+                            </div>
                             <ul className="mt-4 space-y-2.5 text-sm text-[#6B7280]">
-                                <li><a href="#fitur" className="hover:text-[#2F54C9]">Fitur</a></li>
-                                <li><a href="#solusi" className="hover:text-[#2F54C9]">Solusi</a></li>
-                                <li><a href="#harga" className="hover:text-[#2F54C9]">Harga</a></li>
-                                <li><Link href={login().url} className="hover:text-[#2F54C9]">Masuk</Link></li>
+                                <li>
+                                    <a
+                                        href="#fitur"
+                                        className="hover:text-[#2F54C9]"
+                                    >
+                                        Fitur
+                                    </a>
+                                </li>
+                                <li>
+                                    <a
+                                        href="#solusi"
+                                        className="hover:text-[#2F54C9]"
+                                    >
+                                        Solusi
+                                    </a>
+                                </li>
+                                <li>
+                                    <a
+                                        href="#harga"
+                                        className="hover:text-[#2F54C9]"
+                                    >
+                                        Harga
+                                    </a>
+                                </li>
+                                <li>
+                                    <Link
+                                        href={login().url}
+                                        className="hover:text-[#2F54C9]"
+                                    >
+                                        Masuk
+                                    </Link>
+                                </li>
                             </ul>
                         </div>
 
                         <div>
-                            <div className="text-sm font-semibold text-[#0E1A3A]">Kontak</div>
+                            <div className="text-sm font-semibold text-[#0E1A3A]">
+                                Kontak
+                            </div>
                             <ul className="mt-4 space-y-3 text-sm text-[#6B7280]">
                                 {website.contact.email && (
                                     <li className="flex items-center gap-2.5">
                                         <Mail className="h-4 w-4 shrink-0 text-[#2F54C9]" />
-                                        <a href={`mailto:${website.contact.email}`} className="hover:text-[#2F54C9]">{website.contact.email}</a>
+                                        <a
+                                            href={`mailto:${website.contact.email}`}
+                                            className="hover:text-[#2F54C9]"
+                                        >
+                                            {website.contact.email}
+                                        </a>
                                     </li>
                                 )}
                                 {website.contact.phone && (
                                     <li className="flex items-center gap-2.5">
                                         <Phone className="h-4 w-4 shrink-0 text-[#2F54C9]" />
-                                        <a href={`tel:${website.contact.phone}`} className="hover:text-[#2F54C9]">{website.contact.phone}</a>
+                                        <a
+                                            href={`tel:${website.contact.phone}`}
+                                            className="hover:text-[#2F54C9]"
+                                        >
+                                            {website.contact.phone}
+                                        </a>
                                     </li>
                                 )}
                                 {website.contact.address && (

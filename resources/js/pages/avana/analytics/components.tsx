@@ -48,7 +48,9 @@ export function KpiCard({ kpi }: { kpi: Kpi }) {
                 <AIcon name={kpi.icon} size={22} color={kpi.color} />
             </div>
             <div>
-                <div style={{ fontSize: 12.5, color: C.muted }}>{kpi.label}</div>
+                <div style={{ fontSize: 12.5, color: C.muted }}>
+                    {kpi.label}
+                </div>
                 <div
                     style={{
                         fontSize: 22,

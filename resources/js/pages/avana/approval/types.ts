@@ -48,7 +48,10 @@ export interface ApprovalProps {
 export type FilterKey = 'all' | ApprovalType;
 
 /** Per-type presentation metadata: label, icon and accent colour. */
-export const typeMeta: Record<ApprovalType, { label: string; icon: string; color: string }> = {
+export const typeMeta: Record<
+    ApprovalType,
+    { label: string; icon: string; color: string }
+> = {
     leave: { label: 'Cuti', icon: 'palmtree', color: '#2F54C9' },
     lembur: { label: 'Lembur', icon: 'clock', color: '#D97706' },
     izin: { label: 'Izin', icon: 'door-open', color: '#6E9BE6' },

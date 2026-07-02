@@ -4,9 +4,9 @@ import { useEffect } from 'react';
 import { toast } from 'sonner';
 import FieldVisitController from '@/actions/App/Http/Controllers/Avana/FieldVisitController';
 import { AIcon, C } from '@/lib/avana';
-import { VisitingForm } from './visiting-form';
 import { emptyVisitForm } from './types';
 import type { FlashProps, VisitFormData, VisitingCreateProps } from './types';
+import { VisitingForm } from './visiting-form';
 
 export default function VisitingCreate({ employees }: VisitingCreateProps) {
     const { flash } = usePage<FlashProps>().props;

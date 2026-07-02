@@ -66,7 +66,51 @@ final class AttendanceResource extends JsonResource
             'telat' => (int) $this->late_minutes > 0 ? (int) $this->late_minutes.' mnt' : '—',
             'status' => $this->status,
             'status_label' => self::STATUS_LABELS[$this->status] ?? $this->status,
+            'location_status' => $this->location_status,
+            'clock_in_coords' => $this->coords($this->clock_in_lat, $this->clock_in_lng),
+            'clock_out_coords' => $this->coords($this->clock_out_lat, $this->clock_out_lng),
+            'work_location' => $this->whenLoaded('workLocation', fn () => $this->workLocation === null ? null : [
+                'id' => $this->workLocation->id,
+                'name' => $this->workLocation->name,
+                'latitude' => $this->workLocation->latitude === null ? null : (float) $this->workLocation->latitude,
+                'longitude' => $this->workLocation->longitude === null ? null : (float) $this->workLocation->longitude,
+                'radius_meter' => (int) ($this->workLocation->radius_meter ?? 0),
+            ]),
+            'distance_meter' => $this->distanceMeter(),
         ];
+    }
+
+    /**
+     * Compact {lat, lng} float pair, or null when either component is unset.
+     *
+     * @return array{lat: float, lng: float}|null
+     */
+    private function coords(mixed $lat, mixed $lng): ?array
+    {
+        if ($lat === null || $lng === null) {
+            return null;
+        }
+
+        return ['lat' => (float) $lat, 'lng' => (float) $lng];
+    }
+
+    /**
+     * Distance in meters between the clock-in point and the assigned work
+     * location pin, rounded. Null when either coordinate is missing.
+     */
+    private function distanceMeter(): ?int
+    {
+        if (! $this->relationLoaded('workLocation') || $this->workLocation === null) {
+            return null;
+        }
+
+        if ($this->clock_in_lat === null || $this->clock_in_lng === null) {
+            return null;
+        }
+
+        $distance = $this->workLocation->distanceMeters((float) $this->clock_in_lat, (float) $this->clock_in_lng);
+
+        return $distance === null ? null : (int) round($distance);
     }
 
     /**

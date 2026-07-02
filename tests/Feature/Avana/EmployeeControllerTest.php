@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\WorkLocation;
 use Database\Seeders\AvanaDemoSeeder;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -85,6 +86,49 @@ it('creates an employee and auto-generates the employee number', function (): vo
 
     expect($employee->tenant_id)->toBe($this->tenant->id);
     expect($employee->employee_number)->toStartWith('EMP-');
+});
+
+it('assigns a tenant work location to the employee on store', function (): void {
+    $workLocation = WorkLocation::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), [
+            'full_name' => 'Dewi Lokasi',
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'branch_id' => $workLocation->branch_id,
+            'work_location_id' => $workLocation->id,
+        ])
+        ->assertRedirect(route('avana.employees.index'))
+        ->assertSessionHas('success');
+
+    expect(Employee::where('full_name', 'Dewi Lokasi')->firstOrFail()->work_location_id)
+        ->toBe($workLocation->id);
+});
+
+it('rejects a work location that belongs to another tenant', function (): void {
+    $otherTenant = Tenant::create(['name' => 'PT Seberang', 'slug' => 'pt-seberang-wl']);
+    $foreignBranch = Branch::create(['tenant_id' => $otherTenant->id, 'code' => 'XX', 'name' => 'Cabang X', 'status' => 'active']);
+    $foreignLocation = WorkLocation::create([
+        'tenant_id' => $otherTenant->id,
+        'branch_id' => $foreignBranch->id,
+        'name' => 'Lokasi Asing',
+        'latitude' => -6.9,
+        'longitude' => 107.6,
+        'radius_meter' => 100,
+        'status' => 'active',
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), [
+            'full_name' => 'Bocor Lokasi',
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'work_location_id' => $foreignLocation->id,
+        ])
+        ->assertSessionHasErrors('work_location_id');
+
+    expect(Employee::where('full_name', 'Bocor Lokasi')->exists())->toBeFalse();
 });
 
 it('validates required fields and the NIK format on store', function (): void {

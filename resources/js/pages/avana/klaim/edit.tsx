@@ -7,7 +7,11 @@ import { AIcon, C } from '@/lib/avana';
 import { KlaimForm } from './klaim-form';
 import type { ClaimFormData, KlaimEditProps } from './types';
 
-export default function KlaimEdit({ claim, employees, claimTypes }: KlaimEditProps) {
+export default function KlaimEdit({
+    claim,
+    employees,
+    claimTypes,
+}: KlaimEditProps) {
     const { flash } = usePage<{ flash?: { success?: string } }>().props;
 
     const form = useForm<ClaimFormData>({

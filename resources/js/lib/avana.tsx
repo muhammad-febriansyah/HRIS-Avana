@@ -44,15 +44,47 @@ interface AIconProps {
 }
 
 /** Renders a Lucide icon by its kebab-case template name. */
-export function AIcon({ name, size = 18, color, style, strokeWidth = 2 }: AIconProps) {
+export function AIcon({
+    name,
+    size = 18,
+    color,
+    style,
+    strokeWidth = 2,
+}: AIconProps) {
     const key = ICON_ALIASES[name] ?? pascal(name);
-    const Cmp = (icons as Record<string, React.ComponentType<{ size?: number; color?: string; style?: CSSProperties; strokeWidth?: number }>>)[key];
+    const Cmp = (
+        icons as Record<
+            string,
+            React.ComponentType<{
+                size?: number;
+                color?: string;
+                style?: CSSProperties;
+                strokeWidth?: number;
+            }>
+        >
+    )[key];
 
     if (!Cmp) {
-        return <span style={{ display: 'inline-block', width: size, height: size, ...style }} />;
+        return (
+            <span
+                style={{
+                    display: 'inline-block',
+                    width: size,
+                    height: size,
+                    ...style,
+                }}
+            />
+        );
     }
 
-    return <Cmp size={size} color={color} strokeWidth={strokeWidth} style={{ flex: 'none', ...style }} />;
+    return (
+        <Cmp
+            size={size}
+            color={color}
+            strokeWidth={strokeWidth}
+            style={{ flex: 'none', ...style }}
+        />
+    );
 }
 
 /** Format a number as Indonesian Rupiah. */
@@ -98,7 +130,9 @@ export function statusBadge(st: string): Badge {
 
 /** Strip everything but digits from a money string. */
 export function digitsOnly(value: string | number | null | undefined): string {
-    return value === null || value === undefined ? '' : String(value).replace(/[^\d]/g, '');
+    return value === null || value === undefined
+        ? ''
+        : String(value).replace(/[^\d]/g, '');
 }
 
 interface RupiahInputProps {
@@ -114,7 +148,14 @@ interface RupiahInputProps {
  * Text input that shows a thousand-separated Rupiah value (e.g. "1.500.000")
  * with an "Rp" prefix while reporting the raw digit string back to the form.
  */
-export function RupiahInput({ value, onChange, style, placeholder, disabled, invalid }: RupiahInputProps) {
+export function RupiahInput({
+    value,
+    onChange,
+    style,
+    placeholder,
+    disabled,
+    invalid,
+}: RupiahInputProps) {
     const raw = digitsOnly(value);
     const display = raw === '' ? '' : Number(raw).toLocaleString('id-ID');
 
@@ -159,14 +200,34 @@ export function RupiahInput({ value, onChange, style, placeholder, disabled, inv
 
 /* ---------- color-coded action button (icon + label) ---------- */
 
-export type ActionVariant = 'neutral' | 'primary' | 'success' | 'warning' | 'danger';
+export type ActionVariant =
+    'neutral' | 'primary' | 'success' | 'warning' | 'danger';
 
-const ACTION_VARIANTS: Record<ActionVariant, { color: string; border: string; bg: string }> = {
+const ACTION_VARIANTS: Record<
+    ActionVariant,
+    { color: string; border: string; bg: string }
+> = {
     neutral: { color: C.text, border: C.border, bg: '#fff' },
-    primary: { color: C.primary, border: 'rgba(47,84,201,.35)', bg: 'rgba(47,84,201,.07)' },
-    success: { color: C.green, border: 'rgba(22,163,74,.35)', bg: 'rgba(22,163,74,.07)' },
-    warning: { color: C.amber, border: 'rgba(217,119,6,.35)', bg: 'rgba(217,119,6,.07)' },
-    danger: { color: C.red, border: 'rgba(220,38,38,.35)', bg: 'rgba(220,38,38,.07)' },
+    primary: {
+        color: C.primary,
+        border: 'rgba(47,84,201,.35)',
+        bg: 'rgba(47,84,201,.07)',
+    },
+    success: {
+        color: C.green,
+        border: 'rgba(22,163,74,.35)',
+        bg: 'rgba(22,163,74,.07)',
+    },
+    warning: {
+        color: C.amber,
+        border: 'rgba(217,119,6,.35)',
+        bg: 'rgba(217,119,6,.07)',
+    },
+    danger: {
+        color: C.red,
+        border: 'rgba(220,38,38,.35)',
+        bg: 'rgba(220,38,38,.07)',
+    },
 };
 
 interface ActionBtnProps {
@@ -184,7 +245,17 @@ interface ActionBtnProps {
 /** Compact table/row action that always pairs an icon with a label and is
  * color-coded by intent (neutral/primary/success/warning/danger). Renders an
  * anchor when `href` is given (for downloads/links), otherwise a button. */
-export function ActionBtn({ icon, label, variant = 'neutral', onClick, type = 'button', disabled, title, href, download }: ActionBtnProps) {
+export function ActionBtn({
+    icon,
+    label,
+    variant = 'neutral',
+    onClick,
+    type = 'button',
+    disabled,
+    title,
+    href,
+    download,
+}: ActionBtnProps) {
     const v = ACTION_VARIANTS[variant];
 
     const style: CSSProperties = {
@@ -208,7 +279,14 @@ export function ActionBtn({ icon, label, variant = 'neutral', onClick, type = 'b
 
     if (href !== undefined) {
         return (
-            <a href={href} title={title ?? label} download={download} target={download ? undefined : '_blank'} rel="noreferrer" style={style}>
+            <a
+                href={href}
+                title={title ?? label}
+                download={download}
+                target={download ? undefined : '_blank'}
+                rel="noreferrer"
+                style={style}
+            >
                 <AIcon name={icon} size={14} color={v.color} />
                 {label}
             </a>
@@ -216,7 +294,13 @@ export function ActionBtn({ icon, label, variant = 'neutral', onClick, type = 'b
     }
 
     return (
-        <button type={type} onClick={onClick} disabled={disabled} title={title ?? label} style={style}>
+        <button
+            type={type}
+            onClick={onClick}
+            disabled={disabled}
+            title={title ?? label}
+            style={style}
+        >
             <AIcon name={icon} size={14} color={v.color} />
             {label}
         </button>
@@ -289,26 +373,85 @@ export interface NavGroup {
 }
 
 export const NAV: NavGroup[] = [
-    { title: null, items: [{ id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard', href: '/dashboard' }] },
+    {
+        title: null,
+        items: [
+            {
+                id: 'dashboard',
+                label: 'Dashboard',
+                icon: 'layout-dashboard',
+                href: '/dashboard',
+            },
+        ],
+    },
     {
         title: 'MANAJEMEN',
         items: [
-            { id: 'karyawan', label: 'Karyawan', icon: 'users', href: '/avana/employees' },
-            { id: 'organisasi', label: 'Struktur Organisasi', icon: 'network', href: '/avana/organisasi' },
-            { id: 'absensi', label: 'Absensi', icon: 'fingerprint', href: '/avana/absensi' },
-            { id: 'cuti', label: 'Cuti & Lembur', icon: 'palmtree', href: '/avana/cuti' },
-            { id: 'payroll', label: 'Payroll', icon: 'wallet', href: '/avana/payroll' },
+            {
+                id: 'karyawan',
+                label: 'Karyawan',
+                icon: 'users',
+                href: '/avana/employees',
+            },
+            {
+                id: 'organisasi',
+                label: 'Struktur Organisasi',
+                icon: 'network',
+                href: '/avana/organisasi',
+            },
+            {
+                id: 'absensi',
+                label: 'Absensi',
+                icon: 'fingerprint',
+                href: '/avana/absensi',
+            },
+            {
+                id: 'cuti',
+                label: 'Cuti & Lembur',
+                icon: 'palmtree',
+                href: '/avana/cuti',
+            },
+            {
+                id: 'payroll',
+                label: 'Payroll',
+                icon: 'wallet',
+                href: '/avana/payroll',
+            },
         ],
     },
     {
         title: 'SISTEM',
         items: [
-            { id: 'perusahaan', label: 'Perusahaan', icon: 'building-2', href: '/avana/perusahaan' },
-            { id: 'custom-fields', label: 'Field Kustom', icon: 'list-plus', href: '/avana/custom-fields' },
-            { id: 'laporan', label: 'Laporan', icon: 'chart-column', href: '/avana/laporan' },
-            { id: 'hak-akses', label: 'Hak Akses', icon: 'shield-check', href: '/avana/hak-akses' },
-            { id: 'fitur', label: 'Menu & Fitur', icon: 'toggle-right', href: '/avana/fitur' },
+            {
+                id: 'perusahaan',
+                label: 'Perusahaan',
+                icon: 'building-2',
+                href: '/avana/perusahaan',
+            },
+            {
+                id: 'custom-fields',
+                label: 'Field Kustom',
+                icon: 'list-plus',
+                href: '/avana/custom-fields',
+            },
+            {
+                id: 'laporan',
+                label: 'Laporan',
+                icon: 'chart-column',
+                href: '/avana/laporan',
+            },
+            {
+                id: 'hak-akses',
+                label: 'Hak Akses',
+                icon: 'shield-check',
+                href: '/avana/hak-akses',
+            },
+            {
+                id: 'fitur',
+                label: 'Menu & Fitur',
+                icon: 'toggle-right',
+                href: '/avana/fitur',
+            },
         ],
     },
 ];
-

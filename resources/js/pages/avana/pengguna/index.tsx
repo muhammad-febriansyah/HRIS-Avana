@@ -6,11 +6,7 @@ import UserController from '@/actions/App/Http/Controllers/Avana/UserController'
 import { AIcon, ActionBtn, btnP, C, thCell } from '@/lib/avana';
 import { ConfirmModal, StatusPill } from './components';
 import { scopeShortLabel } from './types';
-import type {
-    FlashProps,
-    PenggunaIndexProps,
-    UserRow,
-} from './types';
+import type { FlashProps, PenggunaIndexProps, UserRow } from './types';
 
 const filterSelectStyle: CSSProperties = {
     height: 38,

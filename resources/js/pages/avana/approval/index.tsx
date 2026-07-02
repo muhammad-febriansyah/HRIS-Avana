@@ -7,9 +7,18 @@ import { FilterChips } from './filter-chips';
 import { HistoryTable } from './history-table';
 import { PendingTable } from './pending-table';
 import { StatCards } from './stat-cards';
-import type { ApprovalItem, ApprovalProps, FilterKey, FlashProps } from './types';
+import type {
+    ApprovalItem,
+    ApprovalProps,
+    FilterKey,
+    FlashProps,
+} from './types';
 
-export default function AvanaApproval({ pending, history, counts }: ApprovalProps) {
+export default function AvanaApproval({
+    pending,
+    history,
+    counts,
+}: ApprovalProps) {
     const { flash } = usePage<FlashProps>().props;
     const [filter, setFilter] = useState<FilterKey>('all');
 
@@ -20,7 +29,9 @@ export default function AvanaApproval({ pending, history, counts }: ApprovalProp
     }, [flash?.success]);
 
     const visiblePending =
-        filter === 'all' ? pending : pending.filter((item) => item.type === filter);
+        filter === 'all'
+            ? pending
+            : pending.filter((item) => item.type === filter);
 
     const approve = (item: ApprovalItem) =>
         router.post(
@@ -76,7 +87,11 @@ export default function AvanaApproval({ pending, history, counts }: ApprovalProp
                 <StatCards counts={counts} />
 
                 {/* Filter chips */}
-                <FilterChips filter={filter} counts={counts} onFilter={setFilter} />
+                <FilterChips
+                    filter={filter}
+                    counts={counts}
+                    onFilter={setFilter}
+                />
 
                 {/* Pending table */}
                 <PendingTable

@@ -4,7 +4,12 @@ import { AIcon, btnOut, btnP, C } from '@/lib/avana';
 import { DataTable } from './components';
 import type { ReportShowProps } from './types';
 
-export default function ReportShow({ report, headers, rows, count }: ReportShowProps) {
+export default function ReportShow({
+    report,
+    headers,
+    rows,
+    count,
+}: ReportShowProps) {
     return (
         <>
             <Head title={report.name} />
@@ -43,7 +48,9 @@ export default function ReportShow({ report, headers, rows, count }: ReportShowP
                                 Laporan Dinamis
                             </Link>
                             <AIcon name="chevron-right" size={13} />
-                            <span style={{ color: C.muted }}>{report.name}</span>
+                            <span style={{ color: C.muted }}>
+                                {report.name}
+                            </span>
                         </div>
                         <h1
                             style={{

@@ -83,10 +83,13 @@ export default function SuratIndex({
             return;
         }
 
-        router.delete(LetterTemplateController.destroy(confirmTemplate.id).url, {
-            preserveScroll: true,
-            onSuccess: () => setConfirmTemplate(null),
-        });
+        router.delete(
+            LetterTemplateController.destroy(confirmTemplate.id).url,
+            {
+                preserveScroll: true,
+                onSuccess: () => setConfirmTemplate(null),
+            },
+        );
     };
 
     const deleteLetter = () => {
@@ -149,7 +152,11 @@ export default function SuratIndex({
                             Template Surat
                         </h1>
                         <div
-                            style={{ fontSize: 14, color: C.muted, marginTop: 4 }}
+                            style={{
+                                fontSize: 14,
+                                color: C.muted,
+                                marginTop: 4,
+                            }}
                         >
                             Kelola template &amp; buat surat HR otomatis.
                         </div>
@@ -164,11 +171,7 @@ export default function SuratIndex({
                                 cursor: canGenerate ? 'pointer' : 'not-allowed',
                             }}
                         >
-                            <AIcon
-                                name="file-plus"
-                                size={16}
-                                color={C.text}
-                            />
+                            <AIcon name="file-plus" size={16} color={C.text} />
                             Generate Surat
                         </button>
                         <Link
@@ -454,14 +457,20 @@ export default function SuratIndex({
                                                     icon="file-down"
                                                     label="PDF"
                                                     variant="primary"
-                                                    href={LetterTemplateController.print(letter.id).url}
+                                                    href={
+                                                        LetterTemplateController.print(
+                                                            letter.id,
+                                                        ).url
+                                                    }
                                                     download
                                                 />
                                                 <ActionBtn
                                                     icon="trash-2"
                                                     label="Hapus"
                                                     variant="danger"
-                                                    onClick={() => setConfirmLetter(letter)}
+                                                    onClick={() =>
+                                                        setConfirmLetter(letter)
+                                                    }
                                                 />
                                             </div>
                                         </td>

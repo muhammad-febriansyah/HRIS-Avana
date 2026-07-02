@@ -10,11 +10,7 @@ import {
     textInputStyle,
     withError,
 } from './components';
-import type {
-    EmployeeOption,
-    OvertimeFormData,
-    OvertimeRow,
-} from './types';
+import type { EmployeeOption, OvertimeFormData, OvertimeRow } from './types';
 
 interface LemburTabProps {
     form: InertiaFormProps<OvertimeFormData>;
@@ -66,11 +62,7 @@ export function LemburTab({
                         style={withError(dateInputStyle, !!form.errors.date)}
                     />
                 </Field>
-                <Field
-                    label="Durasi (jam)"
-                    required
-                    error={form.errors.hours}
-                >
+                <Field label="Durasi (jam)" required error={form.errors.hours}>
                     <input
                         type="number"
                         step="0.5"

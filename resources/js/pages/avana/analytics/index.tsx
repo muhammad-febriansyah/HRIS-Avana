@@ -80,7 +80,10 @@ export default function AnalyticsIndex({
                         alignItems: 'start',
                     }}
                 >
-                    <ChartCard title="Karyawan per Departemen" icon="building-2">
+                    <ChartCard
+                        title="Karyawan per Departemen"
+                        icon="building-2"
+                    >
                         <BarList data={byDepartment} />
                     </ChartCard>
 

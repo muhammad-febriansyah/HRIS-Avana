@@ -1,5 +1,6 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import {  useEffect, useMemo, useState } from 'react';
+import type {FormEvent} from 'react';
 import { toast } from 'sonner';
 import DynamicReportController from '@/actions/App/Http/Controllers/Avana/DynamicReportController';
 import { AIcon, ActionBtn, btnOut, btnP, C, card, thCell } from '@/lib/avana';
@@ -222,9 +223,7 @@ export default function DynamicReportIndex({
                                         >
                                             <AIcon
                                                 name={
-                                                    checked
-                                                        ? 'check'
-                                                        : 'plus'
+                                                    checked ? 'check' : 'plus'
                                                 }
                                                 size={14}
                                                 color={
@@ -245,82 +244,92 @@ export default function DynamicReportIndex({
                             )}
                         </div>
 
-                        {selectedEntity && selectedEntity.filters.length > 0 && (
-                            <div style={{ marginBottom: 16 }}>
-                                <label style={labelStyle}>Filter</label>
-                                <div
-                                    style={{
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        gap: 12,
-                                    }}
-                                >
-                                    {selectedEntity.filters.map((filter) => (
-                                        <div key={filter.key}>
-                                            <div
-                                                style={{
-                                                    fontSize: 12,
-                                                    color: C.faint,
-                                                    marginBottom: 5,
-                                                }}
-                                            >
-                                                {filter.label}
-                                            </div>
-                                            {filter.type === 'equals' ? (
-                                                <select
-                                                    value={
-                                                        form.data.filters[
-                                                            filter.key
-                                                        ] ?? ''
-                                                    }
-                                                    onChange={(event) =>
-                                                        setFilter(
-                                                            filter.key,
-                                                            event.target.value,
-                                                        )
-                                                    }
-                                                    style={inputStyle}
-                                                >
-                                                    <option value="">
-                                                        Semua
-                                                    </option>
-                                                    {filter.options.map(
-                                                        (option) => (
-                                                            <option
-                                                                key={
-                                                                    option.value
-                                                                }
-                                                                value={
-                                                                    option.value
-                                                                }
-                                                            >
-                                                                {option.label}
+                        {selectedEntity &&
+                            selectedEntity.filters.length > 0 && (
+                                <div style={{ marginBottom: 16 }}>
+                                    <label style={labelStyle}>Filter</label>
+                                    <div
+                                        style={{
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: 12,
+                                        }}
+                                    >
+                                        {selectedEntity.filters.map(
+                                            (filter) => (
+                                                <div key={filter.key}>
+                                                    <div
+                                                        style={{
+                                                            fontSize: 12,
+                                                            color: C.faint,
+                                                            marginBottom: 5,
+                                                        }}
+                                                    >
+                                                        {filter.label}
+                                                    </div>
+                                                    {filter.type ===
+                                                    'equals' ? (
+                                                        <select
+                                                            value={
+                                                                form.data
+                                                                    .filters[
+                                                                    filter.key
+                                                                ] ?? ''
+                                                            }
+                                                            onChange={(event) =>
+                                                                setFilter(
+                                                                    filter.key,
+                                                                    event.target
+                                                                        .value,
+                                                                )
+                                                            }
+                                                            style={inputStyle}
+                                                        >
+                                                            <option value="">
+                                                                Semua
                                                             </option>
-                                                        ),
+                                                            {filter.options.map(
+                                                                (option) => (
+                                                                    <option
+                                                                        key={
+                                                                            option.value
+                                                                        }
+                                                                        value={
+                                                                            option.value
+                                                                        }
+                                                                    >
+                                                                        {
+                                                                            option.label
+                                                                        }
+                                                                    </option>
+                                                                ),
+                                                            )}
+                                                        </select>
+                                                    ) : (
+                                                        <input
+                                                            value={
+                                                                form.data
+                                                                    .filters[
+                                                                    filter.key
+                                                                ] ?? ''
+                                                            }
+                                                            onChange={(event) =>
+                                                                setFilter(
+                                                                    filter.key,
+                                                                    event.target
+                                                                        .value,
+                                                                )
+                                                            }
+                                                            placeholder={`Cari ${filter.label.toLowerCase()}`}
+                                                            style={inputStyle}
+                                                        />
                                                     )}
-                                                </select>
-                                            ) : (
-                                                <input
-                                                    value={
-                                                        form.data.filters[
-                                                            filter.key
-                                                        ] ?? ''
-                                                    }
-                                                    onChange={(event) =>
-                                                        setFilter(
-                                                            filter.key,
-                                                            event.target.value,
-                                                        )
-                                                    }
-                                                    placeholder={`Cari ${filter.label.toLowerCase()}`}
-                                                    style={inputStyle}
-                                                />
-                                            )}
-                                        </div>
-                                    ))}
+                                                </div>
+                                            ),
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
                         <button
                             type="submit"
@@ -426,7 +435,10 @@ export default function DynamicReportIndex({
                                                         color: C.muted,
                                                     }}
                                                 >
-                                                    {report.column_labels.length}{' '}
+                                                    {
+                                                        report.column_labels
+                                                            .length
+                                                    }{' '}
                                                     kolom
                                                 </td>
                                                 <td

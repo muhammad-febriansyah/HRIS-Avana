@@ -13,6 +13,7 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\JobLevel;
 use App\Models\Position;
+use App\Models\WorkLocation;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -194,6 +195,7 @@ class EmployeeController extends Controller
             'department:id,name',
             'position:id,name',
             'jobLevel:id,name',
+            'workLocation:id,name',
             'manager:id,full_name,employee_number',
         ]);
 
@@ -242,6 +244,11 @@ class EmployeeController extends Controller
 
         return [
             'branches' => Branch::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
+            'workLocations' => WorkLocation::forTenant($tenantId)
+                ->where('status', 'active')
+                ->select('id', 'name', 'branch_id')
+                ->orderBy('name')
+                ->get(),
             'departments' => Department::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
             'positions' => Position::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
             'jobLevels' => JobLevel::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),

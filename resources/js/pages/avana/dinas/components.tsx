@@ -79,7 +79,10 @@ export function FieldError({ message }: { message?: string }) {
 }
 
 /** Apply the red error border to a base input/select style when invalid. */
-export function withError(base: CSSProperties, hasError: boolean): CSSProperties {
+export function withError(
+    base: CSSProperties,
+    hasError: boolean,
+): CSSProperties {
     return hasError
         ? {
               ...base,

@@ -169,9 +169,7 @@ export function PlaceholderLegend({
 
                     const content = (
                         <>
-                            <code
-                                style={{ color: C.primary, fontWeight: 600 }}
-                            >
+                            <code style={{ color: C.primary, fontWeight: 600 }}>
                                 {placeholder.token}
                             </code>
                             <span style={{ color: C.faint }}>

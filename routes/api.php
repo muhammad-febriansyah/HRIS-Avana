@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\OnboardingSlideController;
 use App\Http\Controllers\Api\OvertimeController;
 use App\Http\Controllers\Api\PayslipController;
 use App\Http\Controllers\Api\PermissionController;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\Route;
  */
 Route::prefix('v1')->group(function (): void {
     Route::get('app-config', [AppConfigController::class, 'show']);
+    Route::get('onboarding-slides', [OnboardingSlideController::class, 'index']);
 
     Route::prefix('auth')->group(function (): void {
         Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');

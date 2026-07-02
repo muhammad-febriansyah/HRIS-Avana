@@ -113,7 +113,9 @@ export function PermissionMatrix({
                                     <ToggleCell
                                         key={role.id}
                                         on={matrix[rowIdx][colIdx]}
-                                        onToggle={() => onToggle(rowIdx, colIdx)}
+                                        onToggle={() =>
+                                            onToggle(rowIdx, colIdx)
+                                        }
                                     />
                                 ))}
                             </tr>

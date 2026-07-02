@@ -40,6 +40,7 @@ use App\Http\Controllers\Avana\MovementController;
 use App\Http\Controllers\Avana\OffboardingController;
 use App\Http\Controllers\Avana\OkrController;
 use App\Http\Controllers\Avana\OnboardingController;
+use App\Http\Controllers\Avana\OnboardingSlideController;
 use App\Http\Controllers\Avana\OvertimeController;
 use App\Http\Controllers\Avana\PayrollConfigController;
 use App\Http\Controllers\Avana\PayrollController;
@@ -82,6 +83,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::resource('employees', EmployeeController::class);
 
     Route::get('absensi', [AttendanceController::class, 'index'])->name('absensi');
+    Route::get('absensi/{attendance}', [AttendanceController::class, 'show'])->name('absensi.show');
     Route::post('absensi/corrections/{correction}/approve', [AttendanceController::class, 'approveCorrection'])->name('absensi.corrections.approve');
     Route::post('absensi/corrections/{correction}/reject', [AttendanceController::class, 'rejectCorrection'])->name('absensi.corrections.reject');
 
@@ -267,6 +269,12 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     // Pengaturan website (super admin) — edit-only, single settings row
     Route::get('website-settings', [WebsiteSettingController::class, 'edit'])->name('website-settings');
     Route::post('website-settings', [WebsiteSettingController::class, 'update'])->name('website-settings.update');
+
+    // Onboarding slides — mobile app intro carousel (super admin)
+    Route::get('onboarding-slides', [OnboardingSlideController::class, 'index'])->name('onboarding-slides');
+    Route::post('onboarding-slides', [OnboardingSlideController::class, 'store'])->name('onboarding-slides.store');
+    Route::post('onboarding-slides/{onboardingSlide}', [OnboardingSlideController::class, 'update'])->name('onboarding-slides.update');
+    Route::delete('onboarding-slides/{onboardingSlide}', [OnboardingSlideController::class, 'destroy'])->name('onboarding-slides.destroy');
 
     // Kinerja (performance management)
     Route::get('kinerja', [PerformanceController::class, 'index'])->name('kinerja');

@@ -1,16 +1,37 @@
 import { Head, router, usePage } from '@inertiajs/react';
+import type { CSSProperties } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { AIcon, btnOut, C } from '@/lib/avana';
 import { KpiStrip } from './components';
 import { RekapTable } from './rekap-table';
-import type { AbsensiProps, FlashProps } from './types';
+import type { AbsensiProps, Attendance, FlashProps } from './types';
+
+const STATUS_OPTIONS = [
+    { value: 'present', label: 'Hadir' },
+    { value: 'late', label: 'Terlambat' },
+    { value: 'leave', label: 'Cuti / Izin' },
+    { value: 'absent', label: 'Alpa' },
+    { value: 'incomplete', label: 'Belum Lengkap' },
+];
+
+const filterControl: CSSProperties = {
+    height: 40,
+    padding: '0 12px',
+    background: '#fff',
+    border: `1px solid ${C.border}`,
+    borderRadius: 8,
+    fontSize: 13.5,
+    color: C.text,
+    outline: 'none',
+};
 
 export default function AvanaAbsensi({
     attendances,
     filters,
     date,
     kpis,
+    branches,
 }: AbsensiProps) {
     const { flash } = usePage<FlashProps>().props;
     const meta = attendances.meta;
@@ -51,12 +72,32 @@ export default function AvanaAbsensi({
         );
     };
 
+    const changeFilter = (key: 'branch_id' | 'status', value: string) => {
+        router.get(
+            window.location.pathname,
+            { ...filters, [key]: value || undefined, page: 1 },
+            { preserveState: true, preserveScroll: true, replace: true },
+        );
+    };
+
+    const goToday = () => {
+        router.get(
+            window.location.pathname,
+            { ...filters, date: undefined, page: 1 },
+            { preserveState: true, preserveScroll: true, replace: true },
+        );
+    };
+
     const goToPage = (page: number) => {
         router.get(
             window.location.pathname,
             { ...filters, page },
             { preserveState: true, preserveScroll: true },
         );
+    };
+
+    const openDetail = (row: Attendance) => {
+        router.visit(`/avana/absensi/${row.id}`);
     };
 
     return (
@@ -114,24 +155,47 @@ export default function AvanaAbsensi({
                             display: 'flex',
                             alignItems: 'center',
                             gap: 10,
+                            flexWrap: 'wrap',
                         }}
                     >
+                        <select
+                            value={filters.branch_id ?? ''}
+                            onChange={(event) =>
+                                changeFilter('branch_id', event.target.value)
+                            }
+                            style={filterControl}
+                        >
+                            <option value="">Semua cabang</option>
+                            {branches.map((branch) => (
+                                <option key={branch.id} value={String(branch.id)}>
+                                    {branch.name}
+                                </option>
+                            ))}
+                        </select>
+                        <select
+                            value={filters.status ?? ''}
+                            onChange={(event) =>
+                                changeFilter('status', event.target.value)
+                            }
+                            style={filterControl}
+                        >
+                            <option value="">Semua status</option>
+                            {STATUS_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
                         <input
                             type="date"
                             value={filters.date}
                             onChange={(event) => changeDate(event.target.value)}
-                            style={{
-                                height: 40,
-                                padding: '0 12px',
-                                background: '#fff',
-                                border: `1px solid ${C.border}`,
-                                borderRadius: 8,
-                                fontSize: 13.5,
-                                color: C.text,
-                                outline: 'none',
-                                cursor: 'pointer',
-                            }}
+                            style={{ ...filterControl, cursor: 'pointer' }}
                         />
+                        <button onClick={goToday} style={btnOut} type="button">
+                            <AIcon name="calendar-check" size={16} />
+                            Hari ini
+                        </button>
                         <a
                             href="/avana/laporan/export/absensi"
                             style={{ ...btnOut, textDecoration: 'none' }}
@@ -159,6 +223,7 @@ export default function AvanaAbsensi({
                             search={search}
                             onSearchChange={setSearch}
                             onGoToPage={goToPage}
+                            onRowClick={openDetail}
                         />
                     </div>
                 </div>

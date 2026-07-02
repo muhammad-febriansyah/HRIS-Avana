@@ -57,7 +57,10 @@ export function SanksiForm({
                     >
                         <option value="">Pilih karyawan…</option>
                         {employees.map((employee) => (
-                            <option key={employee.id} value={String(employee.id)}>
+                            <option
+                                key={employee.id}
+                                value={String(employee.id)}
+                            >
                                 {employee.name} ({employee.employee_number})
                             </option>
                         ))}
@@ -72,7 +75,9 @@ export function SanksiForm({
                     <input
                         type="date"
                         value={data.date}
-                        onChange={(event) => setData('date', event.target.value)}
+                        onChange={(event) =>
+                            setData('date', event.target.value)
+                        }
                         style={withError(inputStyle, !!errors.date)}
                     />
                     <FieldError message={errors.date} />
@@ -117,7 +122,10 @@ export function SanksiForm({
                             onChange={(event) =>
                                 setData('penalty_type', event.target.value)
                             }
-                            style={withError(selectStyle, !!errors.penalty_type)}
+                            style={withError(
+                                selectStyle,
+                                !!errors.penalty_type,
+                            )}
                         >
                             <option value="warning">Peringatan</option>
                             <option value="deduction">Potongan</option>
@@ -152,7 +160,9 @@ export function SanksiForm({
                     <label style={fieldLabelStyle}>Catatan</label>
                     <textarea
                         value={data.notes}
-                        onChange={(event) => setData('notes', event.target.value)}
+                        onChange={(event) =>
+                            setData('notes', event.target.value)
+                        }
                         placeholder="Keterangan tambahan…"
                         style={withError(textareaStyle, !!errors.notes)}
                     />

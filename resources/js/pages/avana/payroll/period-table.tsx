@@ -130,7 +130,13 @@ export function PeriodTable({ periods, meta, onGoToPage }: PeriodTableProps) {
                                             padding: '13px 18px',
                                         }}
                                     >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <div
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 8,
+                                            }}
+                                        >
                                             <div
                                                 style={{
                                                     fontSize: 13.5,
@@ -147,7 +153,8 @@ export function PeriodTable({ periods, meta, onGoToPage }: PeriodTableProps) {
                                                     fontSize: 10.5,
                                                     fontWeight: 600,
                                                     color: C.primary,
-                                                    background: 'rgba(47,84,201,.1)',
+                                                    background:
+                                                        'rgba(47,84,201,.1)',
                                                 }}
                                             >
                                                 {period.cycle_label}

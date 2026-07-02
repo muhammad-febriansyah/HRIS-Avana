@@ -12,11 +12,12 @@ import {
 } from './components';
 import {
     employmentStatusOptions,
-    movementOptions,
-    type EmployeeOption,
-    type MovementFormData,
-    type NamedOption,
+    movementOptions
+    
+    
+    
 } from './types';
+import type {EmployeeOption, MovementFormData, NamedOption} from './types';
 
 interface MutasiFormProps {
     form: InertiaFormProps<MovementFormData>;

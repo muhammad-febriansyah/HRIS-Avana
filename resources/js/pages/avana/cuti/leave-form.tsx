@@ -229,11 +229,7 @@ export function LeaveRequestForm({
                             transition: '.15s',
                         }}
                     >
-                        <AIcon
-                            name="upload-cloud"
-                            size={22}
-                            color={C.faint}
-                        />
+                        <AIcon name="upload-cloud" size={22} color={C.faint} />
                         <div
                             style={{
                                 fontSize: 12.5,

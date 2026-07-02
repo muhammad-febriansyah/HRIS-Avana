@@ -117,10 +117,9 @@ export default function KinerjaEdit({
     };
 
     const deleteFeedback = (feedback: FeedbackRow) => {
-        router.delete(
-            PerformanceController.destroyFeedback(feedback.id).url,
-            { preserveScroll: true },
-        );
+        router.delete(PerformanceController.destroyFeedback(feedback.id).url, {
+            preserveScroll: true,
+        });
     };
 
     return (
@@ -197,7 +196,8 @@ export default function KinerjaEdit({
                                 }}
                             >
                                 Tetapkan nilai akhir hasil kalibrasi tim untuk
-                                menjaga objektivitas; penilaian ditandai selesai.
+                                menjaga objektivitas; penilaian ditandai
+                                selesai.
                             </div>
                         </div>
                         {review.status === 'completed' && (
@@ -288,7 +288,9 @@ export default function KinerjaEdit({
                                         !!calibrateForm.errors.notes,
                                     )}
                                 />
-                                <FieldError message={calibrateForm.errors.notes} />
+                                <FieldError
+                                    message={calibrateForm.errors.notes}
+                                />
                             </div>
                         </div>
                         <div
@@ -385,8 +387,7 @@ export default function KinerjaEdit({
                                                 color: C.navy,
                                             }}
                                         >
-                                            {feedback.reviewer_name ??
-                                                'Anonim'}
+                                            {feedback.reviewer_name ?? 'Anonim'}
                                         </span>
                                         {feedback.rating !== null && (
                                             <span
@@ -411,9 +412,7 @@ export default function KinerjaEdit({
                                     <button
                                         type="button"
                                         title="Hapus umpan balik"
-                                        onClick={() =>
-                                            deleteFeedback(feedback)
-                                        }
+                                        onClick={() => deleteFeedback(feedback)}
                                         style={iconBtn}
                                     >
                                         <AIcon
@@ -562,7 +561,12 @@ export default function KinerjaEdit({
                             />
                             <FieldError message={feedbackForm.errors.comment} />
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <div
+                            style={{
+                                display: 'flex',
+                                justifyContent: 'flex-end',
+                            }}
+                        >
                             <button
                                 type="submit"
                                 disabled={feedbackForm.processing}

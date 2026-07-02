@@ -52,9 +52,27 @@ const SUBSCRIPTION_COLORS: Record<string, [string, string]> = {
     cancelled: [C.muted, 'rgba(107,114,128,.12)'],
 };
 
-function Pill({ color, bg, label }: { color: string; bg: string; label: string }) {
+function Pill({
+    color,
+    bg,
+    label,
+}: {
+    color: string;
+    bg: string;
+    label: string;
+}) {
     return (
-        <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 100, fontSize: 11.5, fontWeight: 600, color, background: bg }}>
+        <span
+            style={{
+                display: 'inline-block',
+                padding: '3px 10px',
+                borderRadius: 100,
+                fontSize: 11.5,
+                fontWeight: 600,
+                color,
+                background: bg,
+            }}
+        >
             {label}
         </span>
     );
@@ -63,19 +81,49 @@ function Pill({ color, bg, label }: { color: string; bg: string; label: string }
 export function InvoiceStatusPill({ status }: { status: string }) {
     const [color, bg] = INVOICE_COLORS[status] ?? INVOICE_COLORS.cancelled;
 
-    return <Pill color={color} bg={bg} label={INVOICE_STATUS_LABEL[status] ?? status} />;
+    return (
+        <Pill
+            color={color}
+            bg={bg}
+            label={INVOICE_STATUS_LABEL[status] ?? status}
+        />
+    );
 }
 
 export function SubscriptionStatusPill({ status }: { status: string }) {
-    const [color, bg] = SUBSCRIPTION_COLORS[status] ?? SUBSCRIPTION_COLORS.cancelled;
+    const [color, bg] =
+        SUBSCRIPTION_COLORS[status] ?? SUBSCRIPTION_COLORS.cancelled;
 
-    return <Pill color={color} bg={bg} label={SUBSCRIPTION_STATUS_LABEL[status] ?? status} />;
+    return (
+        <Pill
+            color={color}
+            bg={bg}
+            label={SUBSCRIPTION_STATUS_LABEL[status] ?? status}
+        />
+    );
 }
 
-export function KpiCard({ icon, label, value, accent }: { icon: string; label: string; value: ReactNode; accent?: string }) {
+export function KpiCard({
+    icon,
+    label,
+    value,
+    accent,
+}: {
+    icon: string;
+    label: string;
+    value: ReactNode;
+    accent?: string;
+}) {
     return (
         <div style={{ ...card, padding: 18, flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    marginBottom: 10,
+                }}
+            >
                 <div
                     style={{
                         width: 34,
@@ -92,19 +140,75 @@ export function KpiCard({ icon, label, value, accent }: { icon: string; label: s
                 </div>
                 <div style={{ fontSize: 12.5, color: C.muted }}>{label}</div>
             </div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: C.navy }}>{value}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: C.navy }}>
+                {value}
+            </div>
         </div>
     );
 }
 
-export function Modal({ title, onClose, children, width = 560 }: { title: string; onClose: () => void; children: ReactNode; width?: number }) {
+export function Modal({
+    title,
+    onClose,
+    children,
+    width = 560,
+}: {
+    title: string;
+    onClose: () => void;
+    children: ReactNode;
+    width?: number;
+}) {
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '48px 20px', overflowY: 'auto' }}>
-            <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(14,26,58,.45)' }} />
-            <div style={{ position: 'relative', width: '100%', maxWidth: width, background: '#fff', borderRadius: 14, boxShadow: '0 20px 50px rgba(15,23,42,.25)', padding: 26, animation: 'toastIn .2s ease' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-                    <div style={{ fontSize: 18, fontWeight: 600, color: C.navy }}>{title}</div>
-                    <button onClick={onClose} style={iconBtn} aria-label="Tutup">
+        <div
+            style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 80,
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'center',
+                padding: '48px 20px',
+                overflowY: 'auto',
+            }}
+        >
+            <div
+                onClick={onClose}
+                style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(14,26,58,.45)',
+                }}
+            />
+            <div
+                style={{
+                    position: 'relative',
+                    width: '100%',
+                    maxWidth: width,
+                    background: '#fff',
+                    borderRadius: 14,
+                    boxShadow: '0 20px 50px rgba(15,23,42,.25)',
+                    padding: 26,
+                    animation: 'toastIn .2s ease',
+                }}
+            >
+                <div
+                    style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: 18,
+                    }}
+                >
+                    <div
+                        style={{ fontSize: 18, fontWeight: 600, color: C.navy }}
+                    >
+                        {title}
+                    </div>
+                    <button
+                        onClick={onClose}
+                        style={iconBtn}
+                        aria-label="Tutup"
+                    >
                         <AIcon name="x" size={16} color={C.muted} />
                     </button>
                 </div>

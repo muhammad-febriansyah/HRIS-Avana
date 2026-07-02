@@ -112,7 +112,11 @@ export function perspectiveLabel(perspective: string | null): string {
     if (!perspective) {
         return '—';
     }
-    return PERSPECTIVE_OPTIONS.find((option) => option.value === perspective)?.label ?? perspective;
+
+    return (
+        PERSPECTIVE_OPTIONS.find((option) => option.value === perspective)
+            ?.label ?? perspective
+    );
 }
 
 /** Flat form payload backing the add/edit key result inline form. */
@@ -148,10 +152,15 @@ export const STATUS_OPTIONS: SelectOption[] = [
 
 /** Indonesian label for an objective level enum value. */
 export function levelLabel(level: string): string {
-    return LEVEL_OPTIONS.find((option) => option.value === level)?.label ?? level;
+    return (
+        LEVEL_OPTIONS.find((option) => option.value === level)?.label ?? level
+    );
 }
 
 /** Indonesian label for an objective status enum value. */
 export function statusLabel(status: string): string {
-    return STATUS_OPTIONS.find((option) => option.value === status)?.label ?? status;
+    return (
+        STATUS_OPTIONS.find((option) => option.value === status)?.label ??
+        status
+    );
 }

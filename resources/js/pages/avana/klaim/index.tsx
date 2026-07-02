@@ -341,7 +341,9 @@ export default function KlaimIndex({ claims, kpis }: KlaimIndexProps) {
                                             )}
                                         </td>
                                         <td style={{ padding: '13px 16px' }}>
-                                            <StatusBadge status={claim.status} />
+                                            <StatusBadge
+                                                status={claim.status}
+                                            />
                                         </td>
                                         <td
                                             style={{
@@ -385,7 +387,8 @@ export default function KlaimIndex({ claims, kpis }: KlaimIndexProps) {
                                                         />
                                                     </>
                                                 )}
-                                                {claim.status === 'approved' && (
+                                                {claim.status ===
+                                                    'approved' && (
                                                     <ActionBtn
                                                         icon="banknote"
                                                         label="Tandai Dibayar"

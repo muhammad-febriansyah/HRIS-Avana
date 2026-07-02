@@ -66,11 +66,7 @@ export default function AvanaRoster({
         );
     };
 
-    const assignShift = (
-        employeeId: number,
-        date: string,
-        shiftId: number,
-    ) => {
+    const assignShift = (employeeId: number, date: string, shiftId: number) => {
         router.post(
             RosterController.store().url,
             { employee_id: employeeId, shift_id: shiftId, date },
@@ -147,7 +143,10 @@ export default function AvanaRoster({
                         onNext={() => shiftWeek(7)}
                         onToday={goToday}
                     />
-                    <ShiftLegend shifts={shifts} colorForShift={colorForShift} />
+                    <ShiftLegend
+                        shifts={shifts}
+                        colorForShift={colorForShift}
+                    />
                 </div>
 
                 {/* Roster grid */}

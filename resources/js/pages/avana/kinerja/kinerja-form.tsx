@@ -71,10 +71,7 @@ export function KinerjaForm({
                         >
                             <option value="">Pilih siklus</option>
                             {cycleOptions.map((cycle) => (
-                                <option
-                                    key={cycle.id}
-                                    value={String(cycle.id)}
-                                >
+                                <option key={cycle.id} value={String(cycle.id)}>
                                     {cycle.name}
                                 </option>
                             ))}
@@ -199,7 +196,10 @@ export function KinerjaForm({
                                 setData('manager_score', event.target.value)
                             }
                             placeholder="0 - 100"
-                            style={withError(inputStyle, !!errors.manager_score)}
+                            style={withError(
+                                inputStyle,
+                                !!errors.manager_score,
+                            )}
                         />
                         <FieldError message={errors.manager_score} />
                     </div>

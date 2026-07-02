@@ -152,6 +152,7 @@ export function priorityLabel(priority: string): string {
 /** Indonesian label for a ticket status enum value. */
 export function statusLabel(status: string): string {
     return (
-        STATUS_OPTIONS.find((option) => option.value === status)?.label ?? status
+        STATUS_OPTIONS.find((option) => option.value === status)?.label ??
+        status
     );
 }

@@ -1,6 +1,10 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { AIcon, btnOut, C } from '@/lib/avana';
-import { cycleStatusLabel, feedbackTypeLabel, reviewStatusLabel } from './types';
+import {
+    cycleStatusLabel,
+    feedbackTypeLabel,
+    reviewStatusLabel,
+} from './types';
 
 /* ---------- shared field styles (mirror rekrutmen/components.tsx) ---------- */
 
@@ -103,7 +107,8 @@ const REVIEW_STATUS_COLORS: Record<string, [string, string]> = {
 
 /** Colored badge describing a performance review status. */
 export function ReviewStatusBadge({ status }: { status: string }) {
-    const [color, bg] = REVIEW_STATUS_COLORS[status] ?? REVIEW_STATUS_COLORS.pending;
+    const [color, bg] =
+        REVIEW_STATUS_COLORS[status] ?? REVIEW_STATUS_COLORS.pending;
 
     return (
         <span
@@ -131,7 +136,8 @@ const CYCLE_STATUS_COLORS: Record<string, [string, string]> = {
 
 /** Colored badge describing a performance cycle status. */
 export function CycleStatusBadge({ status }: { status: string }) {
-    const [color, bg] = CYCLE_STATUS_COLORS[status] ?? CYCLE_STATUS_COLORS.draft;
+    const [color, bg] =
+        CYCLE_STATUS_COLORS[status] ?? CYCLE_STATUS_COLORS.draft;
 
     return (
         <span

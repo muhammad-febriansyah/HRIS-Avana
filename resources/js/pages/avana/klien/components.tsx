@@ -53,7 +53,10 @@ export const iconBtn: CSSProperties = {
 };
 
 /** Apply the red error border to a base style when invalid. */
-export function withError(base: CSSProperties, hasError: boolean): CSSProperties {
+export function withError(
+    base: CSSProperties,
+    hasError: boolean,
+): CSSProperties {
     return hasError
         ? {
               ...base,
@@ -85,7 +88,11 @@ const STATUS_META: Record<
     active: { label: 'Aktif', color: C.green, bg: 'rgba(22,163,74,.1)' },
     trial: { label: 'Trial', color: C.primary, bg: 'rgba(47,84,201,.1)' },
     suspended: { label: 'Suspended', color: C.red, bg: 'rgba(220,38,38,.1)' },
-    inactive: { label: 'Nonaktif', color: C.muted, bg: 'rgba(107,114,128,.12)' },
+    inactive: {
+        label: 'Nonaktif',
+        color: C.muted,
+        bg: 'rgba(107,114,128,.12)',
+    },
 };
 
 /** Colored pill describing a tenant status. */

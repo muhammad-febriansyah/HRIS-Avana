@@ -6,11 +6,7 @@ import MovementController from '@/actions/App/Http/Controllers/Avana/MovementCon
 import { AIcon, C } from '@/lib/avana';
 import { MutasiForm } from './mutasi-form';
 import { emptyMovementForm } from './types';
-import type {
-    FlashProps,
-    MovementFormData,
-    MutasiCreateProps,
-} from './types';
+import type { FlashProps, MovementFormData, MutasiCreateProps } from './types';
 
 export default function MutasiCreate({
     employees,

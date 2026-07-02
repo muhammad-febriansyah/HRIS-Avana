@@ -52,7 +52,10 @@ export function DinasForm({
                     >
                         <option value="">Pilih karyawan</option>
                         {employees.map((employee) => (
-                            <option key={employee.id} value={String(employee.id)}>
+                            <option
+                                key={employee.id}
+                                value={String(employee.id)}
+                            >
                                 {employee.name} ({employee.employee_number})
                             </option>
                         ))}
@@ -97,7 +100,10 @@ export function DinasForm({
                             onChange={(event) =>
                                 setData('start_date', event.target.value)
                             }
-                            style={withError(dateInputStyle, !!errors.start_date)}
+                            style={withError(
+                                dateInputStyle,
+                                !!errors.start_date,
+                            )}
                         />
                     </Field>
                     <Field label="Selesai" required error={errors.end_date}>

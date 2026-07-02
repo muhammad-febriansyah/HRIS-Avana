@@ -145,8 +145,15 @@ export default function KlienIndex({
                         >
                             Klien / Tenant
                         </h1>
-                        <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
-                            Kelola perusahaan pelanggan, paket langganan, dan modul yang aktif
+                        <div
+                            style={{
+                                fontSize: 14,
+                                color: C.muted,
+                                marginTop: 4,
+                            }}
+                        >
+                            Kelola perusahaan pelanggan, paket langganan, dan
+                            modul yang aktif
                         </div>
                     </div>
                     <Link
@@ -171,16 +178,30 @@ export default function KlienIndex({
                             alignItems: 'center',
                         }}
                     >
-                        <div style={{ position: 'relative', flex: 1, minWidth: 220, maxWidth: 340 }}>
+                        <div
+                            style={{
+                                position: 'relative',
+                                flex: 1,
+                                minWidth: 220,
+                                maxWidth: 340,
+                            }}
+                        >
                             <AIcon
                                 name="search"
                                 size={16}
                                 color={C.faint}
-                                style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}
+                                style={{
+                                    position: 'absolute',
+                                    left: 12,
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                }}
                             />
                             <input
                                 value={search}
-                                onChange={(event) => setSearch(event.target.value)}
+                                onChange={(event) =>
+                                    setSearch(event.target.value)
+                                }
                                 placeholder="Cari nama klien atau perusahaan…"
                                 style={{
                                     width: '100%',
@@ -197,7 +218,9 @@ export default function KlienIndex({
                         <select
                             aria-label="Status"
                             value={filters.status ?? ''}
-                            onChange={(event) => applyFilter('status', event.target.value)}
+                            onChange={(event) =>
+                                applyFilter('status', event.target.value)
+                            }
                             style={filterSelectStyle}
                         >
                             <option value="">Semua Status</option>
@@ -211,7 +234,13 @@ export default function KlienIndex({
 
                     {/* Table */}
                     <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+                        <table
+                            style={{
+                                width: '100%',
+                                borderCollapse: 'collapse',
+                                minWidth: 900,
+                            }}
+                        >
                             <thead>
                                 <tr style={{ background: '#FAFBFD' }}>
                                     <th style={thCell}>Klien</th>
@@ -220,12 +249,24 @@ export default function KlienIndex({
                                     <th style={thCell}>Pengguna</th>
                                     <th style={thCell}>Karyawan</th>
                                     <th style={thCell}>Cabang</th>
-                                    <th style={{ ...thCell, textAlign: 'right', padding: '12px 18px' }}>Aksi</th>
+                                    <th
+                                        style={{
+                                            ...thCell,
+                                            textAlign: 'right',
+                                            padding: '12px 18px',
+                                        }}
+                                    >
+                                        Aksi
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {tenants.data.length === 0 && (
-                                    <tr style={{ borderTop: `1px solid ${C.line}` }}>
+                                    <tr
+                                        style={{
+                                            borderTop: `1px solid ${C.line}`,
+                                        }}
+                                    >
                                         <td
                                             colSpan={7}
                                             style={{
@@ -235,42 +276,104 @@ export default function KlienIndex({
                                                 color: C.muted,
                                             }}
                                         >
-                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-                                                <AIcon name="building-2" size={28} color={C.faint} />
-                                                <div>Belum ada klien yang terdaftar.</div>
+                                            <div
+                                                style={{
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    alignItems: 'center',
+                                                    gap: 10,
+                                                }}
+                                            >
+                                                <AIcon
+                                                    name="building-2"
+                                                    size={28}
+                                                    color={C.faint}
+                                                />
+                                                <div>
+                                                    Belum ada klien yang
+                                                    terdaftar.
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
                                 )}
                                 {tenants.data.map((tenant) => (
-                                    <tr key={tenant.id} style={{ borderTop: `1px solid ${C.line}` }}>
+                                    <tr
+                                        key={tenant.id}
+                                        style={{
+                                            borderTop: `1px solid ${C.line}`,
+                                        }}
+                                    >
                                         <td style={{ padding: '13px 16px' }}>
-                                            <div style={{ fontSize: 13.5, fontWeight: 600, color: C.navy }}>
+                                            <div
+                                                style={{
+                                                    fontSize: 13.5,
+                                                    fontWeight: 600,
+                                                    color: C.navy,
+                                                }}
+                                            >
                                                 {tenant.name}
                                             </div>
-                                            <div style={{ fontSize: 12, color: C.faint }}>
-                                                {tenant.company_name ?? '—'} · {tenant.slug}
+                                            <div
+                                                style={{
+                                                    fontSize: 12,
+                                                    color: C.faint,
+                                                }}
+                                            >
+                                                {tenant.company_name ?? '—'} ·{' '}
+                                                {tenant.slug}
                                             </div>
                                         </td>
-                                        <td style={{ padding: '13px 16px', fontSize: 13, color: C.text }}>
+                                        <td
+                                            style={{
+                                                padding: '13px 16px',
+                                                fontSize: 13,
+                                                color: C.text,
+                                            }}
+                                        >
                                             {tenant.package?.name ?? '—'}
                                         </td>
                                         <td style={{ padding: '13px 16px' }}>
-                                            <StatusBadge status={tenant.status} />
+                                            <StatusBadge
+                                                status={tenant.status}
+                                            />
                                         </td>
                                         <td style={{ padding: '13px 16px' }}>
-                                            <Usage used={tenant.users_count} limit={tenant.max_users} />
+                                            <Usage
+                                                used={tenant.users_count}
+                                                limit={tenant.max_users}
+                                            />
                                         </td>
                                         <td style={{ padding: '13px 16px' }}>
-                                            <Usage used={tenant.employees_count} limit={tenant.max_employees} />
+                                            <Usage
+                                                used={tenant.employees_count}
+                                                limit={tenant.max_employees}
+                                            />
                                         </td>
                                         <td style={{ padding: '13px 16px' }}>
-                                            <Usage used={tenant.branches_count} limit={tenant.max_branches} />
+                                            <Usage
+                                                used={tenant.branches_count}
+                                                limit={tenant.max_branches}
+                                            />
                                         </td>
-                                        <td style={{ padding: '13px 18px', textAlign: 'right' }}>
-                                            <div style={{ display: 'inline-flex', gap: 6 }}>
+                                        <td
+                                            style={{
+                                                padding: '13px 18px',
+                                                textAlign: 'right',
+                                            }}
+                                        >
+                                            <div
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    gap: 6,
+                                                }}
+                                            >
                                                 <button
-                                                    onClick={() => setFeatureTenantId(tenant.id)}
+                                                    onClick={() =>
+                                                        setFeatureTenantId(
+                                                            tenant.id,
+                                                        )
+                                                    }
                                                     title="Kelola fitur"
                                                     style={{
                                                         display: 'inline-flex',
@@ -287,22 +390,38 @@ export default function KlienIndex({
                                                         cursor: 'pointer',
                                                     }}
                                                 >
-                                                    <AIcon name="layout-grid" size={15} color={C.primary} />
+                                                    <AIcon
+                                                        name="layout-grid"
+                                                        size={15}
+                                                        color={C.primary}
+                                                    />
                                                     Fitur
                                                 </button>
                                                 <Link
-                                                    href={TenantController.edit(tenant.id)}
+                                                    href={TenantController.edit(
+                                                        tenant.id,
+                                                    )}
                                                     title="Edit klien"
                                                     style={iconBtn}
                                                 >
-                                                    <AIcon name="pencil" size={15} color={C.muted} />
+                                                    <AIcon
+                                                        name="pencil"
+                                                        size={15}
+                                                        color={C.muted}
+                                                    />
                                                 </Link>
                                                 <button
-                                                    onClick={() => setConfirm(tenant)}
+                                                    onClick={() =>
+                                                        setConfirm(tenant)
+                                                    }
                                                     title="Hapus klien"
                                                     style={iconBtn}
                                                 >
-                                                    <AIcon name="trash-2" size={15} color={C.red} />
+                                                    <AIcon
+                                                        name="trash-2"
+                                                        size={15}
+                                                        color={C.red}
+                                                    />
                                                 </button>
                                             </div>
                                         </td>
@@ -335,7 +454,13 @@ export default function KlienIndex({
                             </span>{' '}
                             klien
                         </div>
-                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <div
+                            style={{
+                                display: 'flex',
+                                gap: 6,
+                                alignItems: 'center',
+                            }}
+                        >
                             <button
                                 disabled={meta.current_page <= 1}
                                 onClick={() => goToPage(meta.current_page - 1)}
@@ -347,15 +472,27 @@ export default function KlienIndex({
                                     background: '#fff',
                                     borderRadius: 8,
                                     fontSize: 13,
-                                    color: meta.current_page <= 1 ? C.faint : C.text,
-                                    cursor: meta.current_page <= 1 ? 'not-allowed' : 'pointer',
+                                    color:
+                                        meta.current_page <= 1
+                                            ? C.faint
+                                            : C.text,
+                                    cursor:
+                                        meta.current_page <= 1
+                                            ? 'not-allowed'
+                                            : 'pointer',
                                     display: 'inline-flex',
                                     alignItems: 'center',
                                 }}
                             >
                                 <AIcon name="chevron-left" size={15} />
                             </button>
-                            <span style={{ fontSize: 13, color: C.muted, padding: '0 4px' }}>
+                            <span
+                                style={{
+                                    fontSize: 13,
+                                    color: C.muted,
+                                    padding: '0 4px',
+                                }}
+                            >
                                 {meta.current_page} / {meta.last_page}
                             </span>
                             <button
@@ -369,8 +506,14 @@ export default function KlienIndex({
                                     background: '#fff',
                                     borderRadius: 8,
                                     fontSize: 13,
-                                    color: meta.current_page >= meta.last_page ? C.faint : C.text,
-                                    cursor: meta.current_page >= meta.last_page ? 'not-allowed' : 'pointer',
+                                    color:
+                                        meta.current_page >= meta.last_page
+                                            ? C.faint
+                                            : C.text,
+                                    cursor:
+                                        meta.current_page >= meta.last_page
+                                            ? 'not-allowed'
+                                            : 'pointer',
                                     display: 'inline-flex',
                                     alignItems: 'center',
                                 }}
@@ -397,7 +540,11 @@ export default function KlienIndex({
                 >
                     <div
                         onClick={() => setFeatureTenantId(null)}
-                        style={{ position: 'absolute', inset: 0, background: 'rgba(14,26,58,.45)' }}
+                        style={{
+                            position: 'absolute',
+                            inset: 0,
+                            background: 'rgba(14,26,58,.45)',
+                        }}
                     />
                     <div
                         style={{
@@ -422,10 +569,26 @@ export default function KlienIndex({
                             }}
                         >
                             <div>
-                                <div style={{ fontSize: 18, fontWeight: 600, color: C.navy }}>Kelola Fitur</div>
-                                <div style={{ fontSize: 12.5, color: C.muted, marginTop: 3 }}>
+                                <div
+                                    style={{
+                                        fontSize: 18,
+                                        fontWeight: 600,
+                                        color: C.navy,
+                                    }}
+                                >
+                                    Kelola Fitur
+                                </div>
+                                <div
+                                    style={{
+                                        fontSize: 12.5,
+                                        color: C.muted,
+                                        marginTop: 3,
+                                    }}
+                                >
                                     Modul aktif untuk{' '}
-                                    <strong style={{ color: C.text }}>{featureTenant.name}</strong>
+                                    <strong style={{ color: C.text }}>
+                                        {featureTenant.name}
+                                    </strong>
                                 </div>
                             </div>
                             <button
@@ -449,7 +612,10 @@ export default function KlienIndex({
 
                         <div style={{ padding: '8px 24px 20px' }}>
                             {features.map((feature, index) => {
-                                const enabled = featureTenant.feature_codes.includes(feature.code);
+                                const enabled =
+                                    featureTenant.feature_codes.includes(
+                                        feature.code,
+                                    );
 
                                 return (
                                     <div
@@ -459,10 +625,19 @@ export default function KlienIndex({
                                             alignItems: 'center',
                                             justifyContent: 'space-between',
                                             padding: '14px 0',
-                                            borderTop: index === 0 ? 'none' : `1px solid ${C.line}`,
+                                            borderTop:
+                                                index === 0
+                                                    ? 'none'
+                                                    : `1px solid ${C.line}`,
                                         }}
                                     >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+                                        <div
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 13,
+                                            }}
+                                        >
                                             <div
                                                 style={{
                                                     width: 36,
@@ -471,24 +646,54 @@ export default function KlienIndex({
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
-                                                    background: enabled ? 'rgba(47,84,201,.1)' : '#F1F3F9',
-                                                    color: enabled ? C.primary : C.faint,
+                                                    background: enabled
+                                                        ? 'rgba(47,84,201,.1)'
+                                                        : '#F1F3F9',
+                                                    color: enabled
+                                                        ? C.primary
+                                                        : C.faint,
                                                 }}
                                             >
-                                                <AIcon name="layout-grid" size={17} color={enabled ? C.primary : C.faint} />
+                                                <AIcon
+                                                    name="layout-grid"
+                                                    size={17}
+                                                    color={
+                                                        enabled
+                                                            ? C.primary
+                                                            : C.faint
+                                                    }
+                                                />
                                             </div>
                                             <div>
-                                                <div style={{ fontSize: 14, fontWeight: 600, color: C.navy }}>
+                                                <div
+                                                    style={{
+                                                        fontSize: 14,
+                                                        fontWeight: 600,
+                                                        color: C.navy,
+                                                    }}
+                                                >
                                                     {feature.name}
                                                 </div>
-                                                <div style={{ fontSize: 12, color: C.faint }}>{feature.code}</div>
+                                                <div
+                                                    style={{
+                                                        fontSize: 12,
+                                                        color: C.faint,
+                                                    }}
+                                                >
+                                                    {feature.code}
+                                                </div>
                                             </div>
                                         </div>
                                         <button
                                             type="button"
                                             role="switch"
                                             aria-checked={enabled}
-                                            onClick={() => toggleFeature(featureTenant.id, feature.id)}
+                                            onClick={() =>
+                                                toggleFeature(
+                                                    featureTenant.id,
+                                                    feature.id,
+                                                )
+                                            }
                                             style={{
                                                 width: 46,
                                                 height: 26,
@@ -497,7 +702,9 @@ export default function KlienIndex({
                                                 cursor: 'pointer',
                                                 position: 'relative',
                                                 transition: 'background .15s',
-                                                background: enabled ? C.primary : '#D5DCEA',
+                                                background: enabled
+                                                    ? C.primary
+                                                    : '#D5DCEA',
                                                 flex: 'none',
                                             }}
                                         >
@@ -511,7 +718,8 @@ export default function KlienIndex({
                                                     borderRadius: '50%',
                                                     background: '#fff',
                                                     transition: 'left .15s',
-                                                    boxShadow: '0 1px 3px rgba(15,23,42,.2)',
+                                                    boxShadow:
+                                                        '0 1px 3px rgba(15,23,42,.2)',
                                                 }}
                                             />
                                         </button>
@@ -530,8 +738,11 @@ export default function KlienIndex({
                     body={
                         <>
                             Klien{' '}
-                            <strong style={{ color: C.text }}>{confirm.name}</strong>{' '}
-                            akan diarsipkan. Data tenant tidak akan tampil lagi di daftar.
+                            <strong style={{ color: C.text }}>
+                                {confirm.name}
+                            </strong>{' '}
+                            akan diarsipkan. Data tenant tidak akan tampil lagi
+                            di daftar.
                         </>
                     }
                     onCancel={() => setConfirm(null)}

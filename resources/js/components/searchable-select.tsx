@@ -44,9 +44,11 @@ export function SearchableSelect({
 
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
+
         if (!q) {
             return options;
         }
+
         return options.filter((o) => o.label.toLowerCase().includes(q));
     }, [options, query]);
 
@@ -54,6 +56,7 @@ export function SearchableSelect({
         if (!open) {
             return;
         }
+
         const onDocClick = (e: MouseEvent) => {
             if (boxRef.current && !boxRef.current.contains(e.target as Node)) {
                 setOpen(false);
@@ -61,6 +64,7 @@ export function SearchableSelect({
             }
         };
         document.addEventListener('mousedown', onDocClick);
+
         return () => document.removeEventListener('mousedown', onDocClick);
     }, [open]);
 
@@ -94,7 +98,16 @@ export function SearchableSelect({
                 }}
             >
                 {selected ? selected.label : placeholder}
-                <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', display: 'inline-flex', gap: 4 }}>
+                <span
+                    style={{
+                        position: 'absolute',
+                        right: 10,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        display: 'inline-flex',
+                        gap: 4,
+                    }}
+                >
                     {allowClear && selected && (
                         <span
                             onClick={(e) => {
@@ -126,7 +139,12 @@ export function SearchableSelect({
                     }}
                 >
                     {showSearch && (
-                        <div style={{ padding: 8, borderBottom: `1px solid ${C.line}` }}>
+                        <div
+                            style={{
+                                padding: 8,
+                                borderBottom: `1px solid ${C.line}`,
+                            }}
+                        >
                             <input
                                 autoFocus
                                 value={query}
@@ -136,19 +154,36 @@ export function SearchableSelect({
                                         setOpen(false);
                                         setQuery('');
                                     }
+
                                     if (e.key === 'Enter' && filtered[0]) {
                                         e.preventDefault();
                                         pick(filtered[0].value);
                                     }
                                 }}
                                 placeholder={searchPlaceholder}
-                                style={{ width: '100%', height: 34, padding: '0 10px', border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, outline: 'none' }}
+                                style={{
+                                    width: '100%',
+                                    height: 34,
+                                    padding: '0 10px',
+                                    border: `1px solid ${C.border}`,
+                                    borderRadius: 6,
+                                    fontSize: 13,
+                                    outline: 'none',
+                                }}
                             />
                         </div>
                     )}
                     <div style={{ maxHeight: 240, overflowY: 'auto' }}>
                         {filtered.length === 0 && (
-                            <div style={{ padding: '12px 14px', fontSize: 12.5, color: C.faint }}>Tidak ada hasil.</div>
+                            <div
+                                style={{
+                                    padding: '12px 14px',
+                                    fontSize: 12.5,
+                                    color: C.faint,
+                                }}
+                            >
+                                Tidak ada hasil.
+                            </div>
                         )}
                         {filtered.map((o) => (
                             <button
@@ -162,8 +197,10 @@ export function SearchableSelect({
                                     padding: '9px 14px',
                                     fontSize: 13,
                                     border: 'none',
-                                    background: o.value === value ? '#EEF2FF' : '#fff',
-                                    color: o.value === value ? C.primary : C.text,
+                                    background:
+                                        o.value === value ? '#EEF2FF' : '#fff',
+                                    color:
+                                        o.value === value ? C.primary : C.text,
                                     fontWeight: o.value === value ? 600 : 400,
                                     cursor: 'pointer',
                                 }}

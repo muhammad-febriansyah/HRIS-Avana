@@ -238,3 +238,44 @@ it('forbids users without attendance permissions from listing the rekap', functi
         ->get(route('avana.absensi'))
         ->assertForbidden();
 });
+
+it('renders the attendance detail page with the expected props', function (): void {
+    $attendance = makeAttendance($this->tenant->id, $this->shift->id, [
+        'clock_in_lat' => -6.2146,
+        'clock_in_lng' => 106.8451,
+        'location_status' => 'inside',
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.absensi.show', $attendance))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/absensi/show', false)
+            ->where('attendance.id', $attendance->id)
+            ->has('attendance.employee.name')
+            ->has('attendance.clock_in')
+            ->has('attendance.clock_out')
+            ->has('attendance.selfies'));
+});
+
+it('returns 404 for an attendance detail from another tenant', function (): void {
+    $other = Tenant::create(['name' => 'PT Asing', 'slug' => 'pt-asing-att']);
+    $employee = Employee::create([
+        'tenant_id' => $other->id,
+        'employee_number' => 'EMP-8888',
+        'full_name' => 'Karyawan Asing',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+    ]);
+    $attendance = Attendance::create([
+        'tenant_id' => $other->id,
+        'employee_id' => $employee->id,
+        'branch_id' => $employee->branch_id,
+        'date' => TEST_DATE,
+        'status' => 'present',
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.absensi.show', $attendance))
+        ->assertNotFound();
+});

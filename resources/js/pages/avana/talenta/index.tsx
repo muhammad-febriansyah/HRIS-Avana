@@ -17,24 +17,28 @@ import {
 import {
     emptyAssessmentForm,
     LEVEL_RANK,
-    levelLabel,
-    type AssessmentChip,
-    type AssessmentFormData,
-    type TalentIndexProps,
-    type FlashProps,
+    levelLabel
+    
+    
+    
+    
 } from './types';
+import type {AssessmentChip, AssessmentFormData, TalentIndexProps, FlashProps} from './types';
 
 /** Tint a 9-box cell by its combined performance + potential score (0-4). */
 function cellTint(score: number): { bg: string; border: string } {
     if (score >= 3) {
         return { bg: 'rgba(22,163,74,.08)', border: 'rgba(22,163,74,.28)' };
     }
+
     if (score === 2) {
         return { bg: 'rgba(47,84,201,.06)', border: 'rgba(47,84,201,.22)' };
     }
+
     if (score === 1) {
         return { bg: 'rgba(217,119,6,.07)', border: 'rgba(217,119,6,.25)' };
     }
+
     return { bg: 'rgba(220,38,38,.07)', border: 'rgba(220,38,38,.25)' };
 }
 
@@ -111,6 +115,7 @@ export default function TalentIndex({
             preserveScroll: true,
             onSuccess: () => {
                 setConfirm(null);
+
                 if (editingId === confirm.id) {
                     resetForm();
                 }
@@ -140,7 +145,9 @@ export default function TalentIndex({
                     >
                         <span>Manajemen</span>
                         <AIcon name="chevron-right" size={13} />
-                        <span style={{ color: C.muted }}>Talenta &amp; Suksesi</span>
+                        <span style={{ color: C.muted }}>
+                            Talenta &amp; Suksesi
+                        </span>
                     </div>
                     <h1
                         style={{
@@ -154,14 +161,32 @@ export default function TalentIndex({
                         Talenta &amp; Suksesi
                     </h1>
                     <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
-                        Petakan talenta pada matriks 9-box &amp; kelola calon penerus.
+                        Petakan talenta pada matriks 9-box &amp; kelola calon
+                        penerus.
                     </div>
                 </div>
 
                 {/* KPI cards */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 22 }}>
-                    <KpiCard label="Dinilai" value={kpis.assessed} icon="users" color={C.primary} />
-                    <KpiCard label="Bintang" value={kpis.stars} icon="star" color={C.green} />
+                <div
+                    style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 14,
+                        marginBottom: 22,
+                    }}
+                >
+                    <KpiCard
+                        label="Dinilai"
+                        value={kpis.assessed}
+                        icon="users"
+                        color={C.primary}
+                    />
+                    <KpiCard
+                        label="Bintang"
+                        value={kpis.stars}
+                        icon="star"
+                        color={C.green}
+                    />
                     <KpiCard
                         label="Risiko"
                         value={kpis.risks}
@@ -173,7 +198,8 @@ export default function TalentIndex({
                 <div
                     style={{
                         display: 'grid',
-                        gridTemplateColumns: 'minmax(0, 1.7fr) minmax(280px, 1fr)',
+                        gridTemplateColumns:
+                            'minmax(0, 1.7fr) minmax(280px, 1fr)',
                         gap: 18,
                         alignItems: 'start',
                     }}
@@ -219,11 +245,14 @@ export default function TalentIndex({
                                         performanceCols.map((performance) => {
                                             const chips = assessments.filter(
                                                 (a) =>
-                                                    a.potential_level === potential &&
-                                                    a.performance_level === performance,
+                                                    a.potential_level ===
+                                                        potential &&
+                                                    a.performance_level ===
+                                                        performance,
                                             );
                                             const score =
-                                                LEVEL_RANK[potential] + LEVEL_RANK[performance];
+                                                LEVEL_RANK[potential] +
+                                                LEVEL_RANK[performance];
                                             const tint = cellTint(score);
                                             const key = `${LEVEL_RANK[performance]}-${LEVEL_RANK[potential]}`;
 
@@ -245,8 +274,10 @@ export default function TalentIndex({
                                                         style={{
                                                             fontSize: 10.5,
                                                             fontWeight: 700,
-                                                            letterSpacing: '.03em',
-                                                            textTransform: 'uppercase',
+                                                            letterSpacing:
+                                                                '.03em',
+                                                            textTransform:
+                                                                'uppercase',
                                                             color: C.faint,
                                                         }}
                                                     >
@@ -255,24 +286,33 @@ export default function TalentIndex({
                                                     {chips.map((chip) => (
                                                         <button
                                                             key={chip.id}
-                                                            onClick={() => editChip(chip)}
+                                                            onClick={() =>
+                                                                editChip(chip)
+                                                            }
                                                             title="Klik untuk menilai ulang"
                                                             style={{
-                                                                textAlign: 'left',
+                                                                textAlign:
+                                                                    'left',
                                                                 border: `1px solid ${C.border}`,
-                                                                background: '#fff',
+                                                                background:
+                                                                    '#fff',
                                                                 borderRadius: 7,
-                                                                padding: '5px 8px',
+                                                                padding:
+                                                                    '5px 8px',
                                                                 fontSize: 12,
                                                                 fontWeight: 600,
                                                                 color: C.navy,
                                                                 cursor: 'pointer',
-                                                                whiteSpace: 'nowrap',
-                                                                overflow: 'hidden',
-                                                                textOverflow: 'ellipsis',
+                                                                whiteSpace:
+                                                                    'nowrap',
+                                                                overflow:
+                                                                    'hidden',
+                                                                textOverflow:
+                                                                    'ellipsis',
                                                             }}
                                                         >
-                                                            {chip.employee ?? '—'}
+                                                            {chip.employee ??
+                                                                '—'}
                                                         </button>
                                                     ))}
                                                 </div>
@@ -298,8 +338,17 @@ export default function TalentIndex({
                     </div>
 
                     {/* Side form + successors */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                        <form onSubmit={submit} style={{ ...card, padding: 18 }}>
+                    <div
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 18,
+                        }}
+                    >
+                        <form
+                            onSubmit={submit}
+                            style={{ ...card, padding: 18 }}
+                        >
                             <div
                                 style={{
                                     display: 'flex',
@@ -308,8 +357,16 @@ export default function TalentIndex({
                                     marginBottom: 14,
                                 }}
                             >
-                                <div style={{ fontSize: 15, fontWeight: 600, color: C.navy }}>
-                                    {editingId ? 'Ubah Penilaian' : 'Nilai Talenta'}
+                                <div
+                                    style={{
+                                        fontSize: 15,
+                                        fontWeight: 600,
+                                        color: C.navy,
+                                    }}
+                                >
+                                    {editingId
+                                        ? 'Ubah Penilaian'
+                                        : 'Nilai Talenta'}
                                 </div>
                                 {editingId && (
                                     <button
@@ -329,32 +386,50 @@ export default function TalentIndex({
                             </div>
 
                             <div
-                                style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+                                style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 14,
+                                }}
                             >
                                 <div>
                                     <label style={fieldLabelStyle}>
-                                        Karyawan <span style={{ color: C.red }}>*</span>
+                                        Karyawan{' '}
+                                        <span style={{ color: C.red }}>*</span>
                                     </label>
                                     <select
                                         value={form.data.employee_id}
                                         disabled={!!editingId}
                                         onChange={(event) =>
-                                            form.setData('employee_id', event.target.value)
+                                            form.setData(
+                                                'employee_id',
+                                                event.target.value,
+                                            )
                                         }
                                         style={{
-                                            ...withError(selectStyle, !!form.errors.employee_id),
+                                            ...withError(
+                                                selectStyle,
+                                                !!form.errors.employee_id,
+                                            ),
                                             opacity: editingId ? 0.7 : 1,
-                                            cursor: editingId ? 'not-allowed' : 'pointer',
+                                            cursor: editingId
+                                                ? 'not-allowed'
+                                                : 'pointer',
                                         }}
                                     >
                                         <option value="">Pilih karyawan</option>
                                         {employees.map((employee) => (
-                                            <option key={employee.id} value={String(employee.id)}>
+                                            <option
+                                                key={employee.id}
+                                                value={String(employee.id)}
+                                            >
                                                 {employee.name}
                                             </option>
                                         ))}
                                     </select>
-                                    <FieldError message={form.errors.employee_id} />
+                                    <FieldError
+                                        message={form.errors.employee_id}
+                                    />
                                 </div>
 
                                 <div
@@ -365,7 +440,9 @@ export default function TalentIndex({
                                     }}
                                 >
                                     <div>
-                                        <label style={fieldLabelStyle}>Kinerja</label>
+                                        <label style={fieldLabelStyle}>
+                                            Kinerja
+                                        </label>
                                         <select
                                             value={form.data.performance_level}
                                             onChange={(event) =>
@@ -380,15 +457,24 @@ export default function TalentIndex({
                                             )}
                                         >
                                             {levels.map((level) => (
-                                                <option key={level.value} value={level.value}>
+                                                <option
+                                                    key={level.value}
+                                                    value={level.value}
+                                                >
                                                     {level.label}
                                                 </option>
                                             ))}
                                         </select>
-                                        <FieldError message={form.errors.performance_level} />
+                                        <FieldError
+                                            message={
+                                                form.errors.performance_level
+                                            }
+                                        />
                                     </div>
                                     <div>
-                                        <label style={fieldLabelStyle}>Potensi</label>
+                                        <label style={fieldLabelStyle}>
+                                            Potensi
+                                        </label>
                                         <select
                                             value={form.data.potential_level}
                                             onChange={(event) =>
@@ -403,44 +489,75 @@ export default function TalentIndex({
                                             )}
                                         >
                                             {levels.map((level) => (
-                                                <option key={level.value} value={level.value}>
+                                                <option
+                                                    key={level.value}
+                                                    value={level.value}
+                                                >
                                                     {level.label}
                                                 </option>
                                             ))}
                                         </select>
-                                        <FieldError message={form.errors.potential_level} />
+                                        <FieldError
+                                            message={
+                                                form.errors.potential_level
+                                            }
+                                        />
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label style={fieldLabelStyle}>Calon Penerus Untuk</label>
+                                    <label style={fieldLabelStyle}>
+                                        Calon Penerus Untuk
+                                    </label>
                                     <input
                                         type="text"
                                         value={form.data.successor_for}
                                         onChange={(event) =>
-                                            form.setData('successor_for', event.target.value)
+                                            form.setData(
+                                                'successor_for',
+                                                event.target.value,
+                                            )
                                         }
                                         placeholder="cth. Manajer Operasional"
-                                        style={withError(inputStyle, !!form.errors.successor_for)}
+                                        style={withError(
+                                            inputStyle,
+                                            !!form.errors.successor_for,
+                                        )}
                                     />
-                                    <FieldError message={form.errors.successor_for} />
+                                    <FieldError
+                                        message={form.errors.successor_for}
+                                    />
                                 </div>
 
                                 <div>
-                                    <label style={fieldLabelStyle}>Catatan</label>
+                                    <label style={fieldLabelStyle}>
+                                        Catatan
+                                    </label>
                                     <textarea
                                         value={form.data.note}
                                         onChange={(event) =>
-                                            form.setData('note', event.target.value)
+                                            form.setData(
+                                                'note',
+                                                event.target.value,
+                                            )
                                         }
                                         placeholder="Catatan penilaian (opsional)"
-                                        style={withError(textareaStyle, !!form.errors.note)}
+                                        style={withError(
+                                            textareaStyle,
+                                            !!form.errors.note,
+                                        )}
                                     />
                                     <FieldError message={form.errors.note} />
                                 </div>
                             </div>
 
-                            <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    gap: 10,
+                                    marginTop: 18,
+                                }}
+                            >
                                 {editingId && (
                                     <button
                                         type="button"
@@ -448,6 +565,7 @@ export default function TalentIndex({
                                             const chip = assessments.find(
                                                 (a) => a.id === editingId,
                                             );
+
                                             if (chip) {
                                                 setConfirm(chip);
                                             }
@@ -467,7 +585,11 @@ export default function TalentIndex({
                                             gap: 6,
                                         }}
                                     >
-                                        <AIcon name="trash-2" size={15} color={C.red} />
+                                        <AIcon
+                                            name="trash-2"
+                                            size={15}
+                                            color={C.red}
+                                        />
                                     </button>
                                 )}
                                 <button
@@ -479,10 +601,16 @@ export default function TalentIndex({
                                         height: 44,
                                         justifyContent: 'center',
                                         opacity: form.processing ? 0.7 : 1,
-                                        cursor: form.processing ? 'not-allowed' : 'pointer',
+                                        cursor: form.processing
+                                            ? 'not-allowed'
+                                            : 'pointer',
                                     }}
                                 >
-                                    <AIcon name="check" size={16} color="#fff" />
+                                    <AIcon
+                                        name="check"
+                                        size={16}
+                                        color="#fff"
+                                    />
                                     Simpan Penilaian
                                 </button>
                             </div>
@@ -512,7 +640,13 @@ export default function TalentIndex({
                                     Belum ada calon penerus.
                                 </div>
                             )}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 10,
+                                }}
+                            >
                                 {successors.map((chip) => (
                                     <button
                                         key={chip.id}
@@ -559,7 +693,9 @@ export default function TalentIndex({
                                                 marginTop: 4,
                                             }}
                                         >
-                                            Kinerja {levelLabel(chip.performance_level)} · Potensi{' '}
+                                            Kinerja{' '}
+                                            {levelLabel(chip.performance_level)}{' '}
+                                            · Potensi{' '}
                                             {levelLabel(chip.potential_level)}
                                         </div>
                                     </button>
@@ -576,8 +712,10 @@ export default function TalentIndex({
                     body={
                         <>
                             Penilaian untuk{' '}
-                            <strong style={{ color: C.text }}>{confirm.employee}</strong> akan
-                            dihapus dari matriks.
+                            <strong style={{ color: C.text }}>
+                                {confirm.employee}
+                            </strong>{' '}
+                            akan dihapus dari matriks.
                         </>
                     }
                     onCancel={() => setConfirm(null)}

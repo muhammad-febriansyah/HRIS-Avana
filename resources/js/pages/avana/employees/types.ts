@@ -70,9 +70,17 @@ export type NamedOption = {
     name: string;
 };
 
+/** Work-location option carries its branch so the picker can filter by branch. */
+export type WorkLocationOption = {
+    id: number;
+    name: string;
+    branch_id: number | null;
+};
+
 /** Option lists shared by the create and edit forms. */
 export type EmployeeFormOptions = {
     branches: NamedOption[];
+    workLocations: WorkLocationOption[];
     departments: NamedOption[];
     positions: NamedOption[];
     jobLevels: NamedOption[];
@@ -97,6 +105,7 @@ export type EmployeeFormData = {
     employment_status: string;
     join_date: string;
     branch_id: string;
+    work_location_id: string;
     department_id: string;
     position_id: string;
     job_level_id: string;

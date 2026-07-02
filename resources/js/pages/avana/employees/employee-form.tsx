@@ -149,6 +149,14 @@ export function EmployeeForm({
     const styleFor = (hasError: boolean, base: CSSProperties): CSSProperties =>
         hasError ? { ...base, ...errorBorder } : base;
 
+    // Only offer work locations that belong to the chosen branch (all of them
+    // until a branch is picked).
+    const availableWorkLocations = options.workLocations.filter(
+        (location) =>
+            !data.branch_id ||
+            String(location.branch_id ?? '') === data.branch_id,
+    );
+
     const setCustom = (key: string, value: string) =>
         setData('custom_data', { ...(data.custom_data ?? {}), [key]: value });
 
@@ -403,9 +411,12 @@ export function EmployeeForm({
                         <select
                             id="branch_id"
                             value={data.branch_id}
-                            onChange={(event) =>
-                                setData('branch_id', event.target.value)
-                            }
+                            onChange={(event) => {
+                                setData('branch_id', event.target.value);
+                                // A work location belongs to one branch; drop
+                                // the selection when the branch changes.
+                                setData('work_location_id', '');
+                            }}
                             style={styleFor(!!errors.branch_id, selectStyle)}
                         >
                             <option value="">Pilih cabang</option>
@@ -415,6 +426,36 @@ export function EmployeeForm({
                                     value={String(branch.id)}
                                 >
                                     {branch.name}
+                                </option>
+                            ))}
+                        </select>
+                    </Field>
+
+                    <Field
+                        htmlFor="work_location_id"
+                        label="Lokasi Kerja (Absensi)"
+                        error={errors.work_location_id}
+                    >
+                        <select
+                            id="work_location_id"
+                            value={data.work_location_id}
+                            onChange={(event) =>
+                                setData('work_location_id', event.target.value)
+                            }
+                            style={styleFor(
+                                !!errors.work_location_id,
+                                selectStyle,
+                            )}
+                        >
+                            <option value="">
+                                Otomatis (ikut cabang)
+                            </option>
+                            {availableWorkLocations.map((location) => (
+                                <option
+                                    key={location.id}
+                                    value={String(location.id)}
+                                >
+                                    {location.name}
                                 </option>
                             ))}
                         </select>
@@ -576,7 +617,10 @@ export function EmployeeForm({
                                                     event.target.value,
                                                 )
                                             }
-                                            style={styleFor(!!error, selectStyle)}
+                                            style={styleFor(
+                                                !!error,
+                                                selectStyle,
+                                            )}
                                         >
                                             <option value="">— Pilih —</option>
                                             {field.options.map((opt) => (
@@ -602,7 +646,10 @@ export function EmployeeForm({
                                                     event.target.value,
                                                 )
                                             }
-                                            style={styleFor(!!error, inputStyle)}
+                                            style={styleFor(
+                                                !!error,
+                                                inputStyle,
+                                            )}
                                         />
                                     )}
                                 </Field>

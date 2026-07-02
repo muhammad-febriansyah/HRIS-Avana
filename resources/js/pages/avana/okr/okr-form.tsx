@@ -158,10 +158,7 @@ export function OkrForm({
                         >
                             <option value="">Tanpa siklus</option>
                             {cycles.map((cycle) => (
-                                <option
-                                    key={cycle.id}
-                                    value={String(cycle.id)}
-                                >
+                                <option key={cycle.id} value={String(cycle.id)}>
                                     {cycle.name}
                                 </option>
                             ))}

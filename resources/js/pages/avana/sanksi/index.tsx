@@ -19,10 +19,7 @@ import {
 import { violationOptions } from './types';
 import type { FlashProps, PenaltyRow, SanksiIndexProps } from './types';
 
-export default function SanksiIndex({
-    penalties,
-    filters,
-}: SanksiIndexProps) {
+export default function SanksiIndex({ penalties, filters }: SanksiIndexProps) {
     const { flash } = usePage<FlashProps>().props;
     const meta = penalties.meta;
 
@@ -235,7 +232,10 @@ export default function SanksiIndex({
                             aria-label="Jenis Pelanggaran"
                             value={filters.violation_type ?? ''}
                             onChange={(event) =>
-                                applyFilter('violation_type', event.target.value)
+                                applyFilter(
+                                    'violation_type',
+                                    event.target.value,
+                                )
                             }
                             style={filterSelectStyle}
                         >
@@ -631,8 +631,9 @@ export default function SanksiIndex({
                                 marginBottom: 18,
                             }}
                         >
-                            Buat sanksi peringatan otomatis dari data keterlambatan
-                            dan ketidakhadiran pada rentang tanggal.
+                            Buat sanksi peringatan otomatis dari data
+                            keterlambatan dan ketidakhadiran pada rentang
+                            tanggal.
                         </div>
 
                         <div

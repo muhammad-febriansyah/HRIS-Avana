@@ -130,7 +130,11 @@ export default function AvanaCuti({
             { preserveScroll: true },
         );
     const approveWfh = (id: number) =>
-        router.post(WfhController.approve(id).url, {}, { preserveScroll: true });
+        router.post(
+            WfhController.approve(id).url,
+            {},
+            { preserveScroll: true },
+        );
     const rejectWfh = (id: number) =>
         router.post(WfhController.reject(id).url, {}, { preserveScroll: true });
 
@@ -151,11 +155,19 @@ export default function AvanaCuti({
     };
 
     const approveRequest = (id: number) => {
-        router.post(LeaveController.approve(id).url, {}, { preserveScroll: true });
+        router.post(
+            LeaveController.approve(id).url,
+            {},
+            { preserveScroll: true },
+        );
     };
 
     const rejectRequest = (id: number) => {
-        router.post(LeaveController.reject(id).url, {}, { preserveScroll: true });
+        router.post(
+            LeaveController.reject(id).url,
+            {},
+            { preserveScroll: true },
+        );
     };
 
     return (
@@ -239,7 +251,9 @@ export default function AvanaCuti({
                                     fontSize: 13.5,
                                     fontWeight: 600,
                                     color: active ? '#fff' : C.muted,
-                                    background: active ? C.primary : 'transparent',
+                                    background: active
+                                        ? C.primary
+                                        : 'transparent',
                                     cursor: 'pointer',
                                     transition: '.15s',
                                 }}

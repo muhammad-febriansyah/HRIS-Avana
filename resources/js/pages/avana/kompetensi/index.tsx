@@ -16,16 +16,18 @@ import {
 } from './components';
 import {
     emptyCompetencyForm,
-    LEVEL_OPTIONS,
-    type CompetencyFormData,
-    type CompetencyRow,
-    type FlashProps,
-    type KompetensiIndexProps,
+    LEVEL_OPTIONS
+    
+    
+    
+    
 } from './types';
+import type {CompetencyFormData, CompetencyRow, FlashProps, KompetensiIndexProps} from './types';
 
 /** Background tint for a level chip in the matrix (1 = faint, 5 = strong). */
 function levelTint(level: number): string {
     const alpha = 0.08 + level * 0.07;
+
     return `rgba(47,84,201,${alpha.toFixed(2)})`;
 }
 
@@ -98,7 +100,11 @@ export default function KompetensiIndex({
     };
 
     /** Persist a single matrix cell's level via the assess endpoint. */
-    const assess = (employeeId: number, competencyId: number, level: string) => {
+    const assess = (
+        employeeId: number,
+        competencyId: number,
+        level: string,
+    ) => {
         if (level === '') {
             return;
         }
@@ -155,7 +161,13 @@ export default function KompetensiIndex({
                         >
                             Kerangka Kompetensi
                         </h1>
-                        <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
+                        <div
+                            style={{
+                                fontSize: 14,
+                                color: C.muted,
+                                marginTop: 4,
+                            }}
+                        >
                             Kelola kamus kompetensi &amp; nilai level karyawan.
                         </div>
                     </div>
@@ -166,7 +178,14 @@ export default function KompetensiIndex({
                 </div>
 
                 {/* KPI cards */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 22 }}>
+                <div
+                    style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 14,
+                        marginBottom: 22,
+                    }}
+                >
                     <KpiCard
                         label="Jumlah Kompetensi"
                         value={kpis.total_competencies}
@@ -182,13 +201,24 @@ export default function KompetensiIndex({
                 </div>
 
                 {/* Competency master table */}
-                <div style={{ fontSize: 15, fontWeight: 600, color: C.navy, marginBottom: 12 }}>
+                <div
+                    style={{
+                        fontSize: 15,
+                        fontWeight: 600,
+                        color: C.navy,
+                        marginBottom: 12,
+                    }}
+                >
                     Kamus Kompetensi
                 </div>
                 <div style={{ ...card, overflow: 'hidden', marginBottom: 28 }}>
                     <div style={{ overflowX: 'auto' }}>
                         <table
-                            style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}
+                            style={{
+                                width: '100%',
+                                borderCollapse: 'collapse',
+                                minWidth: 720,
+                            }}
                         >
                             <thead>
                                 <tr style={{ background: '#FAFBFD' }}>
@@ -208,7 +238,11 @@ export default function KompetensiIndex({
                             </thead>
                             <tbody>
                                 {competencies.length === 0 && (
-                                    <tr style={{ borderTop: `1px solid ${C.line}` }}>
+                                    <tr
+                                        style={{
+                                            borderTop: `1px solid ${C.line}`,
+                                        }}
+                                    >
                                         <td
                                             colSpan={4}
                                             style={{
@@ -239,7 +273,9 @@ export default function KompetensiIndex({
                                 {competencies.map((competency) => (
                                     <tr
                                         key={competency.id}
-                                        style={{ borderTop: `1px solid ${C.line}` }}
+                                        style={{
+                                            borderTop: `1px solid ${C.line}`,
+                                        }}
                                     >
                                         <td
                                             style={{
@@ -270,19 +306,33 @@ export default function KompetensiIndex({
                                         >
                                             {competency.description ?? '—'}
                                         </td>
-                                        <td style={{ padding: '13px 18px', textAlign: 'right' }}>
-                                            <div style={{ display: 'inline-flex', gap: 6 }}>
+                                        <td
+                                            style={{
+                                                padding: '13px 18px',
+                                                textAlign: 'right',
+                                            }}
+                                        >
+                                            <div
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    gap: 6,
+                                                }}
+                                            >
                                                 <ActionBtn
                                                     icon="pencil"
                                                     label="Ubah"
                                                     variant="neutral"
-                                                    onClick={() => openEdit(competency)}
+                                                    onClick={() =>
+                                                        openEdit(competency)
+                                                    }
                                                 />
                                                 <ActionBtn
                                                     icon="trash-2"
                                                     label="Hapus"
                                                     variant="danger"
-                                                    onClick={() => setConfirm(competency)}
+                                                    onClick={() =>
+                                                        setConfirm(competency)
+                                                    }
                                                 />
                                             </div>
                                         </td>
@@ -294,7 +344,14 @@ export default function KompetensiIndex({
                 </div>
 
                 {/* Assessment matrix */}
-                <div style={{ fontSize: 15, fontWeight: 600, color: C.navy, marginBottom: 12 }}>
+                <div
+                    style={{
+                        fontSize: 15,
+                        fontWeight: 600,
+                        color: C.navy,
+                        marginBottom: 12,
+                    }}
+                >
                     Matriks Penilaian
                 </div>
                 <div style={{ ...card, overflow: 'hidden' }}>
@@ -307,11 +364,17 @@ export default function KompetensiIndex({
                                 color: C.muted,
                             }}
                         >
-                            Tambahkan kompetensi &amp; karyawan untuk mulai menilai.
+                            Tambahkan kompetensi &amp; karyawan untuk mulai
+                            menilai.
                         </div>
                     ) : (
                         <div style={{ overflowX: 'auto' }}>
-                            <table style={{ borderCollapse: 'collapse', minWidth: 600 }}>
+                            <table
+                                style={{
+                                    borderCollapse: 'collapse',
+                                    minWidth: 600,
+                                }}
+                            >
                                 <thead>
                                     <tr style={{ background: '#FAFBFD' }}>
                                         <th
@@ -328,7 +391,11 @@ export default function KompetensiIndex({
                                         {competencies.map((competency) => (
                                             <th
                                                 key={competency.id}
-                                                style={{ ...thCell, textAlign: 'center', minWidth: 130 }}
+                                                style={{
+                                                    ...thCell,
+                                                    textAlign: 'center',
+                                                    minWidth: 130,
+                                                }}
                                             >
                                                 {competency.name}
                                             </th>
@@ -339,7 +406,9 @@ export default function KompetensiIndex({
                                     {employees.map((employee) => (
                                         <tr
                                             key={employee.id}
-                                            style={{ borderTop: `1px solid ${C.line}` }}
+                                            style={{
+                                                borderTop: `1px solid ${C.line}`,
+                                            }}
                                         >
                                             <td
                                                 style={{
@@ -372,7 +441,8 @@ export default function KompetensiIndex({
                                                                 assess(
                                                                     employee.id,
                                                                     competency.id,
-                                                                    event.target.value,
+                                                                    event.target
+                                                                        .value,
                                                                 )
                                                             }
                                                             style={{
@@ -380,25 +450,41 @@ export default function KompetensiIndex({
                                                                 height: 34,
                                                                 borderRadius: 7,
                                                                 border: `1px solid ${C.border}`,
-                                                                background: level
-                                                                    ? levelTint(level)
-                                                                    : '#fff',
-                                                                color: level ? C.navy : C.faint,
+                                                                background:
+                                                                    level
+                                                                        ? levelTint(
+                                                                              level,
+                                                                          )
+                                                                        : '#fff',
+                                                                color: level
+                                                                    ? C.navy
+                                                                    : C.faint,
                                                                 fontSize: 13,
                                                                 fontWeight: 600,
                                                                 cursor: 'pointer',
-                                                                textAlign: 'center',
+                                                                textAlign:
+                                                                    'center',
                                                             }}
                                                         >
-                                                            <option value="">—</option>
-                                                            {LEVEL_OPTIONS.map((option) => (
-                                                                <option
-                                                                    key={option.value}
-                                                                    value={option.value}
-                                                                >
-                                                                    {option.value}
-                                                                </option>
-                                                            ))}
+                                                            <option value="">
+                                                                —
+                                                            </option>
+                                                            {LEVEL_OPTIONS.map(
+                                                                (option) => (
+                                                                    <option
+                                                                        key={
+                                                                            option.value
+                                                                        }
+                                                                        value={
+                                                                            option.value
+                                                                        }
+                                                                    >
+                                                                        {
+                                                                            option.value
+                                                                        }
+                                                                    </option>
+                                                                ),
+                                                            )}
                                                         </select>
                                                     </td>
                                                 );
@@ -428,7 +514,9 @@ export default function KompetensiIndex({
                         <input
                             type="text"
                             value={form.data.name}
-                            onChange={(event) => form.setData('name', event.target.value)}
+                            onChange={(event) =>
+                                form.setData('name', event.target.value)
+                            }
                             placeholder="cth. Komunikasi"
                             style={withError(inputStyle, !!form.errors.name)}
                         />
@@ -439,9 +527,14 @@ export default function KompetensiIndex({
                         <input
                             type="text"
                             value={form.data.category}
-                            onChange={(event) => form.setData('category', event.target.value)}
+                            onChange={(event) =>
+                                form.setData('category', event.target.value)
+                            }
                             placeholder="cth. Soft Skill, Teknis"
-                            style={withError(inputStyle, !!form.errors.category)}
+                            style={withError(
+                                inputStyle,
+                                !!form.errors.category,
+                            )}
                         />
                         <FieldError message={form.errors.category} />
                     </div>
@@ -449,9 +542,14 @@ export default function KompetensiIndex({
                         <label style={fieldLabelStyle}>Deskripsi</label>
                         <textarea
                             value={form.data.description}
-                            onChange={(event) => form.setData('description', event.target.value)}
+                            onChange={(event) =>
+                                form.setData('description', event.target.value)
+                            }
                             placeholder="Deskripsi kompetensi (opsional)"
-                            style={withError(textareaStyle, !!form.errors.description)}
+                            style={withError(
+                                textareaStyle,
+                                !!form.errors.description,
+                            )}
                         />
                         <FieldError message={form.errors.description} />
                     </div>
@@ -465,8 +563,10 @@ export default function KompetensiIndex({
                     body={
                         <>
                             Kompetensi{' '}
-                            <strong style={{ color: C.text }}>{confirm.name}</strong> beserta
-                            seluruh penilaiannya akan dihapus.
+                            <strong style={{ color: C.text }}>
+                                {confirm.name}
+                            </strong>{' '}
+                            beserta seluruh penilaiannya akan dihapus.
                         </>
                     }
                     onCancel={() => setConfirm(null)}

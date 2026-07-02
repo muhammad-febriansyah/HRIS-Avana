@@ -4,6 +4,8 @@
  * branches).
  */
 
+import type { PaginationMeta } from '../employees/types';
+
 export type { FlashProps, PaginationMeta } from '../employees/types';
 
 export interface AttendanceEmployee {
@@ -20,6 +22,19 @@ export interface AttendanceShift {
     label: string;
 }
 
+export interface LatLng {
+    lat: number;
+    lng: number;
+}
+
+export interface AttendanceWorkLocation {
+    id: number;
+    name: string;
+    latitude: number | null;
+    longitude: number | null;
+    radius_meter: number;
+}
+
 /** A single attendance row as serialized by `AttendanceResource`. */
 export interface Attendance {
     id: number;
@@ -33,6 +48,11 @@ export interface Attendance {
     telat: string;
     status: string;
     status_label: string;
+    location_status: string | null;
+    clock_in_coords: LatLng | null;
+    clock_out_coords: LatLng | null;
+    work_location?: AttendanceWorkLocation | null;
+    distance_meter: number | null;
 }
 
 export interface BranchOption {
@@ -53,7 +73,7 @@ export interface AbsensiFilters {
 export interface AbsensiProps {
     attendances: {
         data: Attendance[];
-        meta: import('../employees/types').PaginationMeta;
+        meta: PaginationMeta;
         links: Record<string, string | null>;
     };
     filters: AbsensiFilters;

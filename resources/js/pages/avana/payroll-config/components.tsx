@@ -11,11 +11,12 @@ import { AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
 import {
     asPercent,
     asRupiah,
-    buildInitialForm,
-    type ColumnDef,
-    type FlatRecord,
-    type SectionDef,
+    buildInitialForm
+    
+    
+    
 } from './types';
+import type {ColumnDef, FlatRecord, SectionDef} from './types';
 
 /* ---------- shared field styles (mirror perusahaan.tsx) ---------- */
 
@@ -102,7 +103,10 @@ export const iconBtn: CSSProperties = {
 };
 
 /** Apply the red error border to a base style when invalid. */
-export function withError(base: CSSProperties, hasError: boolean): CSSProperties {
+export function withError(
+    base: CSSProperties,
+    hasError: boolean,
+): CSSProperties {
     return hasError
         ? {
               ...base,
@@ -497,7 +501,9 @@ export function ConfigModal({ section, record, onClose }: ConfigModalProps) {
                         justifyContent: 'space-between',
                     }}
                 >
-                    <div style={{ fontSize: 16, fontWeight: 600, color: C.navy }}>
+                    <div
+                        style={{ fontSize: 16, fontWeight: 600, color: C.navy }}
+                    >
                         {record
                             ? `Ubah ${section.entityLabel}`
                             : `Tambah ${section.entityLabel}`}

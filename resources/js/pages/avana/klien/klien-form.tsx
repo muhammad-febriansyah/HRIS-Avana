@@ -152,7 +152,10 @@ export function KlienForm({
                             onChange={(event) =>
                                 setData('max_employees', event.target.value)
                             }
-                            style={withError(inputStyle, !!errors.max_employees)}
+                            style={withError(
+                                inputStyle,
+                                !!errors.max_employees,
+                            )}
                         />
                         <FieldError message={errors.max_employees} />
                     </div>

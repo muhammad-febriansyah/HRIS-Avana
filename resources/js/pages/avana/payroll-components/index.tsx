@@ -5,11 +5,7 @@ import PayrollController from '@/actions/App/Http/Controllers/Avana/PayrollContr
 import PositionComponentController from '@/actions/App/Http/Controllers/Avana/PositionComponentController';
 import { AIcon, btnP, C } from '@/lib/avana';
 import { ComponentMatrix } from './matrix';
-import type {
-    CalcBasis,
-    FlashProps,
-    PayrollComponentsProps,
-} from './types';
+import type { CalcBasis, FlashProps, PayrollComponentsProps } from './types';
 import { cellKey } from './types';
 
 export default function AvanaPayrollComponents({

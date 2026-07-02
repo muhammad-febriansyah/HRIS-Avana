@@ -1,9 +1,9 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
-import { useRef  } from 'react';
-import type {FormEvent} from 'react';
-import { RichEditor  } from '@/components/avana-ui/rich-editor';
-import type {RichEditorHandle} from '@/components/avana-ui/rich-editor';
+import { useRef } from 'react';
+import type { FormEvent } from 'react';
+import { RichEditor } from '@/components/avana-ui/rich-editor';
+import type { RichEditorHandle } from '@/components/avana-ui/rich-editor';
 import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
 import {
     FieldError,
@@ -13,11 +13,7 @@ import {
     selectStyle,
     withError,
 } from './components';
-import type {
-    PlaceholderToken,
-    SelectOption,
-    TemplateFormData,
-} from './types';
+import type { PlaceholderToken, SelectOption, TemplateFormData } from './types';
 
 interface SuratFormProps {
     form: InertiaFormProps<TemplateFormData>;

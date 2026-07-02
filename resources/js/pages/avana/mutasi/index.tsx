@@ -13,10 +13,7 @@ import {
 import { movementOptions } from './types';
 import type { FlashProps, MutasiIndexProps } from './types';
 
-export default function MutasiIndex({
-    movements,
-    filters,
-}: MutasiIndexProps) {
+export default function MutasiIndex({ movements, filters }: MutasiIndexProps) {
     const { flash } = usePage<FlashProps>().props;
     const meta = movements.meta;
 

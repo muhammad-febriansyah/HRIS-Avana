@@ -3,7 +3,17 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import CrmController from '@/actions/App/Http/Controllers/Avana/CrmController';
-import { AIcon, ActionBtn, btnOut, btnP, C, card, rp, RupiahInput, thCell } from '@/lib/avana';
+import {
+    AIcon,
+    ActionBtn,
+    btnOut,
+    btnP,
+    C,
+    card,
+    rp,
+    RupiahInput,
+    thCell,
+} from '@/lib/avana';
 import {
     ConfirmModal,
     FieldError,
@@ -19,13 +29,14 @@ import {
 } from './components';
 import {
     emptyContactForm,
-    emptyDealForm,
-    type ContactFormData,
-    type CrmIndexProps,
-    type DealCard,
-    type DealFormData,
-    type FlashProps,
+    emptyDealForm
+    
+    
+    
+    
+    
 } from './types';
+import type {ContactFormData, CrmIndexProps, DealCard, DealFormData, FlashProps} from './types';
 
 export default function CrmIndex({
     pipeline,
@@ -178,7 +189,13 @@ export default function CrmIndex({
                         >
                             CRM &amp; Sales Pipeline
                         </h1>
-                        <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
+                        <div
+                            style={{
+                                fontSize: 14,
+                                color: C.muted,
+                                marginTop: 4,
+                            }}
+                        >
                             Kelola kontak &amp; pipeline penjualan.
                         </div>
                     </div>
@@ -195,7 +212,14 @@ export default function CrmIndex({
                 </div>
 
                 {/* KPI cards */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 22 }}>
+                <div
+                    style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 14,
+                        marginBottom: 22,
+                    }}
+                >
                     <KpiCard
                         label="Total Deal"
                         value={kpis.total_deals}
@@ -217,7 +241,14 @@ export default function CrmIndex({
                 </div>
 
                 {/* Pipeline board */}
-                <div style={{ fontSize: 15, fontWeight: 600, color: C.navy, marginBottom: 12 }}>
+                <div
+                    style={{
+                        fontSize: 15,
+                        fontWeight: 600,
+                        color: C.navy,
+                        marginBottom: 12,
+                    }}
+                >
                     Pipeline Deal
                 </div>
                 <div
@@ -252,8 +283,17 @@ export default function CrmIndex({
                                         justifyContent: 'space-between',
                                     }}
                                 >
-                                    <StageBadge stage={stage.value} label={stage.label} />
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>
+                                    <StageBadge
+                                        stage={stage.value}
+                                        label={stage.label}
+                                    />
+                                    <span
+                                        style={{
+                                            fontSize: 12,
+                                            fontWeight: 600,
+                                            color: C.muted,
+                                        }}
+                                    >
                                         {cards.length}
                                     </span>
                                 </div>
@@ -310,9 +350,15 @@ export default function CrmIndex({
                                                 gap: 5,
                                             }}
                                         >
-                                            <AIcon name="user" size={12} color={C.faint} />
+                                            <AIcon
+                                                name="user"
+                                                size={12}
+                                                color={C.faint}
+                                            />
                                             {deal.contact ?? 'Tanpa kontak'}
-                                            {deal.company ? ` · ${deal.company}` : ''}
+                                            {deal.company
+                                                ? ` · ${deal.company}`
+                                                : ''}
                                         </div>
                                         {deal.owner && (
                                             <div
@@ -344,7 +390,9 @@ export default function CrmIndex({
                                         >
                                             <button
                                                 title="Tahap sebelumnya"
-                                                onClick={() => moveStage(deal, -1)}
+                                                onClick={() =>
+                                                    moveStage(deal, -1)
+                                                }
                                                 style={iconBtn}
                                             >
                                                 <AIcon
@@ -353,23 +401,34 @@ export default function CrmIndex({
                                                     color={C.muted}
                                                 />
                                             </button>
-                                            <div style={{ display: 'flex', gap: 6 }}>
+                                            <div
+                                                style={{
+                                                    display: 'flex',
+                                                    gap: 6,
+                                                }}
+                                            >
                                                 <ActionBtn
                                                     icon="pencil"
                                                     label="Ubah"
                                                     variant="neutral"
-                                                    onClick={() => openDeal(deal)}
+                                                    onClick={() =>
+                                                        openDeal(deal)
+                                                    }
                                                 />
                                                 <ActionBtn
                                                     icon="trash-2"
                                                     label="Hapus"
                                                     variant="danger"
-                                                    onClick={() => setConfirm(deal)}
+                                                    onClick={() =>
+                                                        setConfirm(deal)
+                                                    }
                                                 />
                                             </div>
                                             <button
                                                 title="Tahap berikutnya"
-                                                onClick={() => moveStage(deal, 1)}
+                                                onClick={() =>
+                                                    moveStage(deal, 1)
+                                                }
                                                 style={iconBtn}
                                             >
                                                 <AIcon
@@ -387,13 +446,24 @@ export default function CrmIndex({
                 </div>
 
                 {/* Contacts table */}
-                <div style={{ fontSize: 15, fontWeight: 600, color: C.navy, marginBottom: 12 }}>
+                <div
+                    style={{
+                        fontSize: 15,
+                        fontWeight: 600,
+                        color: C.navy,
+                        marginBottom: 12,
+                    }}
+                >
                     Daftar Kontak
                 </div>
                 <div style={{ ...card, overflow: 'hidden' }}>
                     <div style={{ overflowX: 'auto' }}>
                         <table
-                            style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}
+                            style={{
+                                width: '100%',
+                                borderCollapse: 'collapse',
+                                minWidth: 700,
+                            }}
                         >
                             <thead>
                                 <tr style={{ background: '#FAFBFD' }}>
@@ -406,7 +476,11 @@ export default function CrmIndex({
                             </thead>
                             <tbody>
                                 {contacts.length === 0 && (
-                                    <tr style={{ borderTop: `1px solid ${C.line}` }}>
+                                    <tr
+                                        style={{
+                                            borderTop: `1px solid ${C.line}`,
+                                        }}
+                                    >
                                         <td
                                             colSpan={5}
                                             style={{
@@ -437,7 +511,9 @@ export default function CrmIndex({
                                 {contacts.map((contact) => (
                                     <tr
                                         key={contact.id}
-                                        style={{ borderTop: `1px solid ${C.line}` }}
+                                        style={{
+                                            borderTop: `1px solid ${C.line}`,
+                                        }}
                                     >
                                         <td
                                             style={{
@@ -509,9 +585,14 @@ export default function CrmIndex({
                         <input
                             type="text"
                             value={contactForm.data.name}
-                            onChange={(event) => contactForm.setData('name', event.target.value)}
+                            onChange={(event) =>
+                                contactForm.setData('name', event.target.value)
+                            }
                             placeholder="Nama kontak"
-                            style={withError(inputStyle, !!contactForm.errors.name)}
+                            style={withError(
+                                inputStyle,
+                                !!contactForm.errors.name,
+                            )}
                         />
                         <FieldError message={contactForm.errors.name} />
                     </div>
@@ -521,24 +602,42 @@ export default function CrmIndex({
                             type="text"
                             value={contactForm.data.company}
                             onChange={(event) =>
-                                contactForm.setData('company', event.target.value)
+                                contactForm.setData(
+                                    'company',
+                                    event.target.value,
+                                )
                             }
                             placeholder="Nama perusahaan"
-                            style={withError(inputStyle, !!contactForm.errors.company)}
+                            style={withError(
+                                inputStyle,
+                                !!contactForm.errors.company,
+                            )}
                         />
                         <FieldError message={contactForm.errors.company} />
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr',
+                            gap: 14,
+                        }}
+                    >
                         <div>
                             <label style={fieldLabelStyle}>Email</label>
                             <input
                                 type="email"
                                 value={contactForm.data.email}
                                 onChange={(event) =>
-                                    contactForm.setData('email', event.target.value)
+                                    contactForm.setData(
+                                        'email',
+                                        event.target.value,
+                                    )
                                 }
                                 placeholder="email@contoh.com"
-                                style={withError(inputStyle, !!contactForm.errors.email)}
+                                style={withError(
+                                    inputStyle,
+                                    !!contactForm.errors.email,
+                                )}
                             />
                             <FieldError message={contactForm.errors.email} />
                         </div>
@@ -548,10 +647,16 @@ export default function CrmIndex({
                                 type="text"
                                 value={contactForm.data.phone}
                                 onChange={(event) =>
-                                    contactForm.setData('phone', event.target.value)
+                                    contactForm.setData(
+                                        'phone',
+                                        event.target.value,
+                                    )
                                 }
                                 placeholder="08xxxxxxxxxx"
-                                style={withError(inputStyle, !!contactForm.errors.phone)}
+                                style={withError(
+                                    inputStyle,
+                                    !!contactForm.errors.phone,
+                                )}
                             />
                             <FieldError message={contactForm.errors.phone} />
                         </div>
@@ -560,9 +665,14 @@ export default function CrmIndex({
                         <label style={fieldLabelStyle}>Catatan</label>
                         <textarea
                             value={contactForm.data.notes}
-                            onChange={(event) => contactForm.setData('notes', event.target.value)}
+                            onChange={(event) =>
+                                contactForm.setData('notes', event.target.value)
+                            }
                             placeholder="Catatan (opsional)"
-                            style={withError(textareaStyle, !!contactForm.errors.notes)}
+                            style={withError(
+                                textareaStyle,
+                                !!contactForm.errors.notes,
+                            )}
                         />
                         <FieldError message={contactForm.errors.notes} />
                     </div>
@@ -585,20 +695,33 @@ export default function CrmIndex({
                         <input
                             type="text"
                             value={dealForm.data.title}
-                            onChange={(event) => dealForm.setData('title', event.target.value)}
+                            onChange={(event) =>
+                                dealForm.setData('title', event.target.value)
+                            }
                             placeholder="Nama deal"
-                            style={withError(inputStyle, !!dealForm.errors.title)}
+                            style={withError(
+                                inputStyle,
+                                !!dealForm.errors.title,
+                            )}
                         />
                         <FieldError message={dealForm.errors.title} />
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr',
+                            gap: 14,
+                        }}
+                    >
                         <div>
                             <label style={fieldLabelStyle}>
                                 Nilai <span style={{ color: C.red }}>*</span>
                             </label>
                             <RupiahInput
                                 value={dealForm.data.value}
-                                onChange={(raw) => dealForm.setData('value', raw)}
+                                onChange={(raw) =>
+                                    dealForm.setData('value', raw)
+                                }
                                 invalid={!!dealForm.errors.value}
                             />
                             <FieldError message={dealForm.errors.value} />
@@ -609,11 +732,22 @@ export default function CrmIndex({
                             </label>
                             <select
                                 value={dealForm.data.stage}
-                                onChange={(event) => dealForm.setData('stage', event.target.value)}
-                                style={withError(selectStyle, !!dealForm.errors.stage)}
+                                onChange={(event) =>
+                                    dealForm.setData(
+                                        'stage',
+                                        event.target.value,
+                                    )
+                                }
+                                style={withError(
+                                    selectStyle,
+                                    !!dealForm.errors.stage,
+                                )}
                             >
                                 {stages.map((option) => (
-                                    <option key={option.value} value={option.value}>
+                                    <option
+                                        key={option.value}
+                                        value={option.value}
+                                    >
                                         {option.label}
                                     </option>
                                 ))}
@@ -625,12 +759,23 @@ export default function CrmIndex({
                         <label style={fieldLabelStyle}>Kontak</label>
                         <select
                             value={dealForm.data.contact_id}
-                            onChange={(event) => dealForm.setData('contact_id', event.target.value)}
-                            style={withError(selectStyle, !!dealForm.errors.contact_id)}
+                            onChange={(event) =>
+                                dealForm.setData(
+                                    'contact_id',
+                                    event.target.value,
+                                )
+                            }
+                            style={withError(
+                                selectStyle,
+                                !!dealForm.errors.contact_id,
+                            )}
                         >
                             <option value="">Tanpa kontak</option>
                             {contactOptions.map((option) => (
-                                <option key={option.id} value={String(option.id)}>
+                                <option
+                                    key={option.id}
+                                    value={String(option.id)}
+                                >
                                     {option.name}
                                 </option>
                             ))}
@@ -641,12 +786,20 @@ export default function CrmIndex({
                         <label style={fieldLabelStyle}>Pemilik (PIC)</label>
                         <select
                             value={dealForm.data.owner_id}
-                            onChange={(event) => dealForm.setData('owner_id', event.target.value)}
-                            style={withError(selectStyle, !!dealForm.errors.owner_id)}
+                            onChange={(event) =>
+                                dealForm.setData('owner_id', event.target.value)
+                            }
+                            style={withError(
+                                selectStyle,
+                                !!dealForm.errors.owner_id,
+                            )}
                         >
                             <option value="">Tanpa pemilik</option>
                             {owners.map((option) => (
-                                <option key={option.id} value={String(option.id)}>
+                                <option
+                                    key={option.id}
+                                    value={String(option.id)}
+                                >
                                     {option.name}
                                 </option>
                             ))}
@@ -659,9 +812,15 @@ export default function CrmIndex({
                             type="date"
                             value={dealForm.data.expected_close}
                             onChange={(event) =>
-                                dealForm.setData('expected_close', event.target.value)
+                                dealForm.setData(
+                                    'expected_close',
+                                    event.target.value,
+                                )
                             }
-                            style={withError(inputStyle, !!dealForm.errors.expected_close)}
+                            style={withError(
+                                inputStyle,
+                                !!dealForm.errors.expected_close,
+                            )}
                         />
                         <FieldError message={dealForm.errors.expected_close} />
                     </div>
@@ -669,9 +828,14 @@ export default function CrmIndex({
                         <label style={fieldLabelStyle}>Catatan</label>
                         <textarea
                             value={dealForm.data.notes}
-                            onChange={(event) => dealForm.setData('notes', event.target.value)}
+                            onChange={(event) =>
+                                dealForm.setData('notes', event.target.value)
+                            }
                             placeholder="Catatan (opsional)"
-                            style={withError(textareaStyle, !!dealForm.errors.notes)}
+                            style={withError(
+                                textareaStyle,
+                                !!dealForm.errors.notes,
+                            )}
                         />
                         <FieldError message={dealForm.errors.notes} />
                     </div>
@@ -685,8 +849,10 @@ export default function CrmIndex({
                     body={
                         <>
                             Deal{' '}
-                            <strong style={{ color: C.text }}>{confirm.title}</strong> akan
-                            dihapus. Tindakan ini tidak dapat dibatalkan.
+                            <strong style={{ color: C.text }}>
+                                {confirm.title}
+                            </strong>{' '}
+                            akan dihapus. Tindakan ini tidak dapat dibatalkan.
                         </>
                     }
                     onCancel={() => setConfirm(null)}

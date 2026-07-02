@@ -12,6 +12,7 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -26,6 +27,30 @@ class AttendanceController extends Controller
      * @var array<int, string>
      */
     private const SORTABLE = ['clock_in_at', 'created_at'];
+
+    /**
+     * Indonesian labels for the attendance status enum.
+     *
+     * @var array<string, string>
+     */
+    private const STATUS_LABELS = [
+        'present' => 'Hadir',
+        'late' => 'Terlambat',
+        'absent' => 'Alpa',
+        'leave' => 'Cuti',
+        'incomplete' => 'Belum Lengkap',
+        'need_correction' => 'Perlu Koreksi',
+    ];
+
+    /**
+     * Deterministic avatar background palette.
+     *
+     * @var array<int, string>
+     */
+    private const AVATAR_PALETTE = [
+        '#0ea5e9', '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e',
+        '#f97316', '#f59e0b', '#10b981', '#14b8a6', '#3b82f6',
+    ];
 
     /**
      * Display the daily attendance rekap with status KPIs for a single date.
@@ -52,6 +77,7 @@ class AttendanceController extends Controller
                 'employee:id,full_name,employee_number,branch_id',
                 'employee.branch:id,name',
                 'shift:id,name,start_time,end_time',
+                'workLocation:id,name,latitude,longitude,radius_meter',
             ])
             ->when($request->query('search'), function ($query, $search): void {
                 $query->whereHas('employee', function ($q) use ($search): void {
@@ -99,6 +125,157 @@ class AttendanceController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name']),
         ]);
+    }
+
+    /**
+     * Show a single attendance record: employee, clock in/out, selfies, and the
+     * clock-in point against the work-location geofence.
+     */
+    public function show(Request $request, Attendance $attendance): Response
+    {
+        $this->authorize('viewAny', Attendance::class);
+
+        abort_if((int) $attendance->tenant_id !== (int) $request->user()->tenant_id, 404);
+
+        $this->assertBranchVisible($request, $attendance);
+
+        $attendance->load([
+            'employee:id,full_name,employee_number,branch_id,department_id,position_id',
+            'employee.department:id,name',
+            'employee.position:id,name',
+            'branch:id,name',
+            'shift:id,name,start_time,end_time',
+            'workLocation:id,name,latitude,longitude,radius_meter,address',
+            'selfies',
+        ]);
+
+        return Inertia::render('avana/absensi/show', [
+            'attendance' => $this->detailPayload($attendance),
+        ]);
+    }
+
+    /**
+     * Build the rich detail payload for the attendance show page.
+     *
+     * @return array<string, mixed>
+     */
+    private function detailPayload(Attendance $attendance): array
+    {
+        $location = $attendance->workLocation;
+        $distance = null;
+
+        if ($location !== null && $attendance->clock_in_lat !== null && $attendance->clock_in_lng !== null) {
+            $meters = $location->distanceMeters((float) $attendance->clock_in_lat, (float) $attendance->clock_in_lng);
+            $distance = $meters === null ? null : (int) round($meters);
+        }
+
+        $selfies = $attendance->selfies
+            ->map(fn ($selfie): array => [
+                'url' => Storage::disk('public')->url($selfie->file_path),
+                'captured_at' => $selfie->captured_at?->format('d M Y H:i'),
+                'coords' => $this->coords($selfie->latitude, $selfie->longitude),
+            ])
+            ->values()
+            ->all();
+
+        $employee = $attendance->employee;
+
+        return [
+            'id' => $attendance->id,
+            'date' => $attendance->date?->format('d M Y'),
+            'date_raw' => $attendance->date?->format('Y-m-d'),
+            'status' => $attendance->status,
+            'status_label' => self::STATUS_LABELS[$attendance->status] ?? $attendance->status,
+            'location_status' => $attendance->location_status,
+            'late_minutes' => (int) $attendance->late_minutes,
+            'work_minutes' => (int) $attendance->work_minutes,
+            'distance_meter' => $distance,
+            'employee' => $employee === null ? null : [
+                'id' => $employee->id,
+                'name' => $employee->full_name,
+                'employee_number' => $employee->employee_number,
+                'initials' => $this->initials($employee->full_name),
+                'avatar_color' => $this->avatarColor($employee->full_name),
+                'department' => $employee->department?->name,
+                'position' => $employee->position?->name,
+            ],
+            'branch' => $attendance->branch?->name,
+            'shift' => $attendance->shift === null ? null : [
+                'name' => $attendance->shift->name,
+                'start_time' => $attendance->shift->start_time,
+                'end_time' => $attendance->shift->end_time,
+            ],
+            'clock_in' => [
+                'time' => $attendance->clock_in_at?->format('H:i'),
+                'coords' => $this->coords($attendance->clock_in_lat, $attendance->clock_in_lng),
+                'photo_url' => $selfies[0]['url'] ?? null,
+            ],
+            'clock_out' => [
+                'time' => $attendance->clock_out_at?->format('H:i'),
+                'coords' => $this->coords($attendance->clock_out_lat, $attendance->clock_out_lng),
+            ],
+            'work_location' => $location === null ? null : [
+                'name' => $location->name,
+                'address' => $location->address,
+                'latitude' => $location->latitude === null ? null : (float) $location->latitude,
+                'longitude' => $location->longitude === null ? null : (float) $location->longitude,
+                'radius_meter' => (int) ($location->radius_meter ?? 0),
+            ],
+            'selfies' => $selfies,
+        ];
+    }
+
+    /**
+     * Compact {lat, lng} float pair, or null when either component is unset.
+     *
+     * @return array{lat: float, lng: float}|null
+     */
+    private function coords(mixed $lat, mixed $lng): ?array
+    {
+        if ($lat === null || $lng === null) {
+            return null;
+        }
+
+        return ['lat' => (float) $lat, 'lng' => (float) $lng];
+    }
+
+    /**
+     * Abort with 404 when a branch/own-scoped user views another scope's record.
+     */
+    private function assertBranchVisible(Request $request, Attendance $attendance): void
+    {
+        $user = $request->user();
+        $scope = $this->effectiveScope($user);
+
+        if ($scope === 'branch') {
+            abort_if(! in_array((int) $attendance->branch_id, $this->scopedBranchIds($user), true), 404);
+        } elseif ($scope === 'own') {
+            abort_if((int) $attendance->employee_id !== (int) ($user->employee?->id ?? 0), 404);
+        }
+    }
+
+    /**
+     * Build up to two uppercase initials from a full name.
+     */
+    private function initials(?string $fullName): string
+    {
+        $words = preg_split('/\s+/', trim((string) $fullName)) ?: [];
+
+        $initials = collect($words)
+            ->filter()
+            ->take(2)
+            ->map(fn (string $word): string => mb_strtoupper(mb_substr($word, 0, 1)))
+            ->implode('');
+
+        return $initials !== '' ? $initials : '?';
+    }
+
+    /**
+     * Pick a deterministic avatar color derived from the employee name.
+     */
+    private function avatarColor(?string $fullName): string
+    {
+        return self::AVATAR_PALETTE[crc32((string) $fullName) % count(self::AVATAR_PALETTE)];
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Role;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
@@ -158,7 +159,7 @@ class UserController extends Controller
             'password' => ['required', 'string', 'min:8'],
             'status' => ['required', 'in:active,inactive'],
             'role_ids' => ['array'],
-            'role_ids.*' => ['integer', 'exists:roles,id'],
+            'role_ids.*' => ['integer', Rule::in($this->assignableRoleIds($request->user()->tenant_id))],
             'data_scope' => ['nullable', 'in:company,branch,team,own'],
             'branch_ids' => ['array'],
             'branch_ids.*' => ['integer', $this->branchOwnedByTenant($request)],
@@ -196,7 +197,7 @@ class UserController extends Controller
             'password' => ['nullable', 'string', 'min:8'],
             'status' => ['required', 'in:active,inactive'],
             'role_ids' => ['array'],
-            'role_ids.*' => ['integer', 'exists:roles,id'],
+            'role_ids.*' => ['integer', Rule::in($this->assignableRoleIds($request->user()->tenant_id))],
             'data_scope' => ['nullable', 'in:company,branch,team,own'],
             'branch_ids' => ['array'],
             'branch_ids.*' => ['integer', $this->branchOwnedByTenant($request)],
@@ -342,14 +343,33 @@ class UserController extends Controller
      */
     private function assignableRoles(?int $tenantId): array
     {
+        return $this->assignableRolesQuery($tenantId)
+            ->orderBy('id')
+            ->get(['id', 'name', 'code'])
+            ->all();
+    }
+
+    /**
+     * IDs of the roles a tenant admin may assign. Enforced on write so a crafted
+     * request cannot attach super_admin or another tenant's role (privilege escalation).
+     *
+     * @return array<int, int>
+     */
+    private function assignableRoleIds(?int $tenantId): array
+    {
+        return $this->assignableRolesQuery($tenantId)->pluck('id')->all();
+    }
+
+    /**
+     * Base query for roles a tenant may use: tenant-owned or global, never super_admin.
+     */
+    private function assignableRolesQuery(?int $tenantId): Builder
+    {
         return Role::query()
             ->where(function ($query) use ($tenantId): void {
                 $query->where('tenant_id', $tenantId)->orWhereNull('tenant_id');
             })
-            ->where('code', '!=', 'super_admin')
-            ->orderBy('id')
-            ->get(['id', 'name', 'code'])
-            ->all();
+            ->where('code', '!=', 'super_admin');
     }
 
     /**

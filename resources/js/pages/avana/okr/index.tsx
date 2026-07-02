@@ -230,11 +230,7 @@ function ObjectiveCard({
                                     color: C.muted,
                                 }}
                             >
-                                <AIcon
-                                    name="user"
-                                    size={13}
-                                    color={C.faint}
-                                />
+                                <AIcon name="user" size={13} color={C.faint} />
                                 {objective.employee}
                             </span>
                         )}
@@ -413,8 +409,7 @@ function ObjectiveCard({
                         </div>
                         <div>
                             <label style={fieldLabelStyle}>
-                                Saat Ini{' '}
-                                <span style={{ color: C.red }}>*</span>
+                                Saat Ini <span style={{ color: C.red }}>*</span>
                             </label>
                             <input
                                 type="number"
@@ -574,7 +569,9 @@ export default function OkrIndex({ objectives, kpis }: OkrIndexProps) {
                         >
                             <span>Manajemen</span>
                             <AIcon name="chevron-right" size={13} />
-                            <span style={{ color: C.muted }}>OKR &amp; Goal</span>
+                            <span style={{ color: C.muted }}>
+                                OKR &amp; Goal
+                            </span>
                         </div>
                         <h1
                             style={{

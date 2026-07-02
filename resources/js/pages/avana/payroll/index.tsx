@@ -41,7 +41,11 @@ export default function AvanaPayroll({
             return;
         }
 
-        router.post(PayrollController.approve().url, {}, { preserveScroll: true });
+        router.post(
+            PayrollController.approve().url,
+            {},
+            { preserveScroll: true },
+        );
     };
 
     const lockPayroll = () => {

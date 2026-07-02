@@ -10,11 +10,7 @@ import {
     textareaStyle,
     withError,
 } from './components';
-import type {
-    EmployeeOption,
-    IzinFormData,
-    PermissionRow,
-} from './types';
+import type { EmployeeOption, IzinFormData, PermissionRow } from './types';
 
 interface IzinTabProps {
     form: InertiaFormProps<IzinFormData>;

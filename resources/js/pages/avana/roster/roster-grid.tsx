@@ -81,7 +81,7 @@ function ShiftCell({
                     }
                 >
                     {schedule && shift ? (
-                        shift.code ?? shift.name
+                        (shift.code ?? shift.name)
                     ) : (
                         <AIcon name="plus" size={15} color={C.faint} />
                     )}
@@ -107,7 +107,10 @@ interface RosterGridProps {
     week: RosterWeekDay[];
     openCell: string | null;
     setOpenCell: Dispatch<SetStateAction<string | null>>;
-    scheduleFor: (employeeId: number, date: string) => RosterSchedule | undefined;
+    scheduleFor: (
+        employeeId: number,
+        date: string,
+    ) => RosterSchedule | undefined;
     shiftFor: (shiftId: number) => RosterShift | undefined;
     colorForShift: (shiftId: number) => string;
     onAssign: (employeeId: number, date: string, shiftId: number) => void;
