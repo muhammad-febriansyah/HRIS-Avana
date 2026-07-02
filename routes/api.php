@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AppConfigController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DocumentController;
+use App\Http\Controllers\Api\FaceController;
 use App\Http\Controllers\Api\FieldVisitController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\NotificationController;
@@ -79,6 +80,9 @@ Route::prefix('v1')->group(function (): void {
             Route::get('shift-swaps', [ShiftSwapController::class, 'index']);
             Route::post('shift-swaps', [ShiftSwapController::class, 'store']);
             Route::get('shift-swaps/colleagues', [ShiftSwapController::class, 'colleagues']);
+
+            Route::get('face', [FaceController::class, 'status']);
+            Route::post('face/enroll', [FaceController::class, 'enroll']);
         });
     });
 });

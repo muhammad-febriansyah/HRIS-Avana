@@ -7,7 +7,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\AttendanceSelfie;
 use App\Models\Employee;
+use App\Models\EmployeeFaceEmbedding;
 use App\Models\WorkLocation;
+use App\Support\FaceMatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -65,6 +67,8 @@ class AttendanceController extends Controller
             'is_rooted' => ['nullable', 'boolean'],
             // Original clock time for entries queued offline and synced later.
             'clocked_at' => ['nullable', 'date', 'after_or_equal:'.now()->subDays(7)->toDateTimeString()],
+            'face_embedding' => ['nullable', 'array', 'min:64', 'max:1024'],
+            'face_embedding.*' => ['numeric'],
             'selfie' => ['nullable', 'image', 'max:4096'],
         ]);
 
@@ -85,6 +89,30 @@ class AttendanceController extends Controller
             return response()->json([
                 'message' => 'Perangkat terdeteksi di-root/jailbreak. Absen tidak diizinkan dari perangkat ini.',
             ], 422);
+        }
+
+        // Face verification — only enforced once the employee has enrolled a face.
+        $data['face_confidence'] = null;
+        $enrolled = EmployeeFaceEmbedding::where('employee_id', $employee->id)->first();
+
+        if ($enrolled !== null) {
+            $submitted = $data['face_embedding'] ?? null;
+
+            if (! is_array($submitted) || $submitted === []) {
+                return response()->json([
+                    'message' => 'Verifikasi wajah diperlukan. Aktifkan kamera lalu coba lagi.',
+                ], 422);
+            }
+
+            $score = FaceMatcher::cosine($enrolled->embedding, $submitted);
+
+            if ($score < FaceMatcher::THRESHOLD) {
+                return response()->json([
+                    'message' => 'Wajah tidak cocok dengan data terdaftar. Coba lagi.',
+                ], 422);
+            }
+
+            $data['face_confidence'] = round($score, 4);
         }
 
         return $data['type'] === 'in'
@@ -123,6 +151,7 @@ class AttendanceController extends Controller
             'clock_in_lng' => $data['longitude'] ?? null,
             'status' => 'present',
             'location_status' => 'inside',
+            'face_confidence' => $data['face_confidence'] ?? null,
         ]);
         $attendance->save();
 
@@ -171,6 +200,9 @@ class AttendanceController extends Controller
         $attendance->clock_out_lat = $data['latitude'] ?? null;
         $attendance->clock_out_lng = $data['longitude'] ?? null;
         $attendance->work_minutes = (int) $attendance->clock_in_at->diffInMinutes($clockedAt);
+        if (($data['face_confidence'] ?? null) !== null) {
+            $attendance->face_confidence = $data['face_confidence'];
+        }
         $attendance->save();
 
         return response()->json(['message' => 'Clock-out berhasil', 'data' => $this->todayShape($attendance)]);

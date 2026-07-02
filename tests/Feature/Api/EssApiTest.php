@@ -229,3 +229,60 @@ it('ignores a future clocked_at and uses now', function (): void {
     expect($att->clock_in_at->isToday())->toBeTrue();
     expect($att->clock_in_at->isFuture())->toBeFalse();
 });
+
+/** A 128-d unit vector with 1.0 at $at, else 0. */
+function faceVec(int $at = 0): array
+{
+    $v = array_fill(0, 128, 0.0);
+    $v[$at] = 1.0;
+
+    return $v;
+}
+
+it('reports face enrollment status and enrolls a face', function (): void {
+    ($this->auth)()->getJson('/api/v1/me/face')->assertOk()->assertJsonPath('data.enrolled', false);
+
+    ($this->auth)()->postJson('/api/v1/me/face/enroll', ['embedding' => faceVec()])
+        ->assertOk()->assertJsonPath('message', fn (string $m): bool => str_contains($m, 'didaftarkan'));
+
+    ($this->auth)()->getJson('/api/v1/me/face')->assertOk()
+        ->assertJsonPath('data.enrolled', true)
+        ->assertJsonPath('data.dimensions', 128);
+});
+
+it('rejects a too-short face embedding on enroll', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/face/enroll', ['embedding' => [1, 2, 3]])
+        ->assertStatus(422)->assertJsonValidationErrors('embedding');
+});
+
+it('requires a face at clock-in once enrolled', function (): void {
+    Attendance::query()->update(['clock_in_at' => null, 'clock_out_at' => null]);
+    ($this->auth)()->postJson('/api/v1/me/face/enroll', ['embedding' => faceVec()]);
+
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+        'type' => 'in', 'latitude' => -6.2146, 'longitude' => 106.8451,
+    ])->assertStatus(422)->assertJsonPath('message', fn (string $m): bool => str_contains($m, 'Verifikasi wajah'));
+});
+
+it('accepts a matching face and records the confidence', function (): void {
+    Attendance::query()->update(['clock_in_at' => null, 'clock_out_at' => null]);
+    ($this->auth)()->postJson('/api/v1/me/face/enroll', ['embedding' => faceVec()]);
+
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+        'type' => 'in', 'latitude' => -6.2146, 'longitude' => 106.8451,
+        'face_embedding' => faceVec(),
+    ])->assertOk();
+
+    $att = Attendance::whereNotNull('clock_in_at')->latest('id')->firstOrFail();
+    expect((float) $att->face_confidence)->toBeGreaterThan(0.9);
+});
+
+it('rejects a non-matching face at clock-in', function (): void {
+    Attendance::query()->update(['clock_in_at' => null, 'clock_out_at' => null]);
+    ($this->auth)()->postJson('/api/v1/me/face/enroll', ['embedding' => faceVec(0)]);
+
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+        'type' => 'in', 'latitude' => -6.2146, 'longitude' => 106.8451,
+        'face_embedding' => faceVec(50),
+    ])->assertStatus(422)->assertJsonPath('message', fn (string $m): bool => str_contains($m, 'tidak cocok'));
+});
