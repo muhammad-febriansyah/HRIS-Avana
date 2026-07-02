@@ -33,6 +33,11 @@ export interface UserRow {
     avatar_color: string;
     data_scope: string;
     branch_ids: number[];
+    device: {
+        label: string;
+        platform: string | null;
+        last_login: string | null;
+    } | null;
 }
 
 /** Active filters echoed back into the index DataTable. */

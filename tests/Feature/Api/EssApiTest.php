@@ -51,6 +51,13 @@ it('rejects clock-in outside the work-location radius', function (): void {
     ])->assertStatus(422)->assertJsonPath('message', fn (string $m): bool => str_contains($m, 'di luar area'));
 });
 
+it('rejects clock-in flagged as a mock (fake GPS) location', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+        'type' => 'in', 'latitude' => -6.2146, 'longitude' => 106.8451,
+        'is_mock_location' => true,
+    ])->assertStatus(422)->assertJsonPath('message', fn (string $m): bool => str_contains($m, 'Fake GPS'));
+});
+
 it('rejects clock-in when GPS coordinates are missing', function (): void {
     ($this->auth)()->postJson('/api/v1/me/attendance/clock', ['type' => 'in'])
         ->assertStatus(422)

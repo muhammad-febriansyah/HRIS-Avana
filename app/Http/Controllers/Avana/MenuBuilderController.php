@@ -39,7 +39,12 @@ class MenuBuilderController extends Controller
             AvanaNav::seedDefaultsFor($tenantId);
         }
 
+        $isSuperAdmin = $this->isSuperAdmin($request);
+
+        // Platform (super-admin-only) menus are managed by the platform team;
+        // hide them from a tenant admin's builder entirely.
         $rows = MenuItem::forTenant($tenantId)
+            ->when(! $isSuperAdmin, fn ($query) => $query->where('super_admin_only', false))
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
@@ -50,8 +55,6 @@ class MenuBuilderController extends Controller
             ...$this->row($item),
             'children' => $byParent->get($item->id, collect())->map(fn (MenuItem $c): array => $this->row($c))->all(),
         ])->all();
-
-        $isSuperAdmin = $this->isSuperAdmin($request);
 
         return Inertia::render('avana/menu-builder/index', [
             'tree' => $tree,
@@ -99,7 +102,7 @@ class MenuBuilderController extends Controller
             'feature' => $data['feature'] ?? null,
             'modules' => $data['modules'] ?? [],
             'admin_only' => $data['admin_only'] ?? false,
-            'super_admin_only' => $data['super_admin_only'] ?? false,
+            'super_admin_only' => $this->isSuperAdmin($request) ? ($data['super_admin_only'] ?? false) : false,
             'is_active' => true,
             'is_system' => false,
             'sort_order' => $maxOrder + 1,
@@ -115,6 +118,7 @@ class MenuBuilderController extends Controller
     {
         $this->ensureCanManage($request);
         $this->ensureTenantOwnership($request, $menuItem);
+        $this->ensureNotPlatformMenu($request, $menuItem);
 
         $data = $this->validated($request);
 
@@ -126,7 +130,7 @@ class MenuBuilderController extends Controller
             'feature' => $data['feature'] ?? null,
             'modules' => $data['modules'] ?? [],
             'admin_only' => $data['admin_only'] ?? false,
-            'super_admin_only' => $data['super_admin_only'] ?? false,
+            'super_admin_only' => $this->isSuperAdmin($request) ? ($data['super_admin_only'] ?? false) : $menuItem->super_admin_only,
         ]);
 
         return back()->with('success', 'Menu diperbarui');
@@ -139,6 +143,7 @@ class MenuBuilderController extends Controller
     {
         $this->ensureCanManage($request);
         $this->ensureTenantOwnership($request, $menuItem);
+        $this->ensureNotPlatformMenu($request, $menuItem);
 
         abort_if($menuItem->is_system, 422, 'Menu bawaan tidak bisa dihapus, sembunyikan saja.');
 
@@ -154,6 +159,7 @@ class MenuBuilderController extends Controller
     {
         $this->ensureCanManage($request);
         $this->ensureTenantOwnership($request, $menuItem);
+        $this->ensureNotPlatformMenu($request, $menuItem);
 
         $menuItem->update(['is_active' => ! $menuItem->is_active]);
 
@@ -167,6 +173,7 @@ class MenuBuilderController extends Controller
     {
         $this->ensureCanManage($request);
         $this->ensureTenantOwnership($request, $menuItem);
+        $this->ensureNotPlatformMenu($request, $menuItem);
 
         $direction = $request->validate([
             'direction' => ['required', 'in:up,down'],
@@ -320,6 +327,15 @@ class MenuBuilderController extends Controller
         }
 
         abort_if((int) $menuItem->tenant_id !== (int) $request->user()->tenant_id, 404);
+    }
+
+    /**
+     * Abort with 403 when a non-super-admin tries to modify a platform
+     * (super-admin-only) menu item.
+     */
+    private function ensureNotPlatformMenu(Request $request, MenuItem $menuItem): void
+    {
+        abort_if($menuItem->super_admin_only && ! $this->isSuperAdmin($request), 403);
     }
 
     /**

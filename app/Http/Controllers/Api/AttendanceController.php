@@ -61,8 +61,15 @@ class AttendanceController extends Controller
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'face_confidence' => ['nullable', 'numeric'],
+            'is_mock_location' => ['nullable', 'boolean'],
             'selfie' => ['nullable', 'image', 'max:4096'],
         ]);
+
+        if ($request->boolean('is_mock_location')) {
+            return response()->json([
+                'message' => 'Terdeteksi lokasi palsu (Fake GPS). Nonaktifkan mock location lalu coba lagi.',
+            ], 422);
+        }
 
         return $data['type'] === 'in'
             ? $this->clockIn($request, $employee, $data)

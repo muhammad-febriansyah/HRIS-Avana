@@ -126,6 +126,22 @@ export default function PenggunaIndex({
         );
     };
 
+    const resetDevice = (user: UserRow) => {
+        if (
+            !window.confirm(
+                `Reset perangkat ${user.name}? Pengguna dapat login dari HP baru.`,
+            )
+        ) {
+            return;
+        }
+
+        router.post(
+            `/avana/pengguna/${user.id}/reset-device`,
+            {},
+            { preserveScroll: true },
+        );
+    };
+
     const deleteUser = () => {
         if (!confirm) {
             return;
@@ -387,6 +403,33 @@ export default function PenggunaIndex({
                                                     >
                                                         {user.email}
                                                     </div>
+                                                    {user.device ? (
+                                                        <div
+                                                            title={
+                                                                user.device
+                                                                    .last_login
+                                                                    ? `Login terakhir ${user.device.last_login}`
+                                                                    : undefined
+                                                            }
+                                                            style={{
+                                                                display:
+                                                                    'inline-flex',
+                                                                alignItems:
+                                                                    'center',
+                                                                gap: 4,
+                                                                marginTop: 4,
+                                                                fontSize: 11.5,
+                                                                color: '#0f766e',
+                                                            }}
+                                                        >
+                                                            <AIcon
+                                                                name="smartphone"
+                                                                size={12}
+                                                                color="#0f766e"
+                                                            />
+                                                            {user.device.label}
+                                                        </div>
+                                                    ) : null}
                                                     <div
                                                         style={{
                                                             display:
@@ -510,6 +553,16 @@ export default function PenggunaIndex({
                                                         toggleStatus(user)
                                                     }
                                                 />
+                                                {user.device ? (
+                                                    <ActionBtn
+                                                        icon="smartphone"
+                                                        label={`Reset perangkat (${user.device.label})`}
+                                                        variant="neutral"
+                                                        onClick={() =>
+                                                            resetDevice(user)
+                                                        }
+                                                    />
+                                                ) : null}
                                                 <ActionBtn
                                                     icon="trash-2"
                                                     label="Hapus"

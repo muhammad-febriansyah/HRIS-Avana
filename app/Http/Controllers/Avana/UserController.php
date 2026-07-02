@@ -58,6 +58,7 @@ class UserController extends Controller
                 'roles:id,name,code',
                 'branchAccesses:id,user_id,branch_id',
                 'dataScopes:id,user_id,scope_type,scope_value',
+                'activeDevice',
             ])
             ->when($request->query('search'), function ($query, $search): void {
                 $query->where(function ($q) use ($search): void {
@@ -282,7 +283,32 @@ class UserController extends Controller
                 ->map(fn ($id): int => (int) $id)
                 ->values()
                 ->all(),
+            'device' => $user->activeDevice === null ? null : [
+                'label' => trim(($user->activeDevice->model ?? '')
+                    .($user->activeDevice->os_version ? ' · '.$user->activeDevice->os_version : ''))
+                    ?: ($user->activeDevice->device_name ?? 'Perangkat terdaftar'),
+                'platform' => $user->activeDevice->platform,
+                'last_login' => $user->activeDevice->last_login_at?->diffForHumans(),
+            ],
         ];
+    }
+
+    /**
+     * Reset (release) the user's bound mobile device so they can sign in from a
+     * new phone. The next login re-binds whatever device signs in first.
+     */
+    public function resetDevice(Request $request, User $user): RedirectResponse
+    {
+        $this->ensureTenantOwnership($request, $user);
+        $this->authorize('update', $user);
+
+        $user->devices()->where('status', 'active')->update([
+            'status' => 'reset',
+            'reset_by' => $request->user()->id,
+            'reset_at' => now(),
+        ]);
+
+        return back()->with('success', 'Perangkat direset. Pengguna dapat login dari HP baru.');
     }
 
     /**

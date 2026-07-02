@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\UserDevice;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -22,12 +23,21 @@ class AuthController extends Controller
      */
     public function login(Request $request): JsonResponse
     {
-        $credentials = $request->validate([
+        $data = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
+            'device_id' => ['nullable', 'string', 'max:255'],
+            'device_name' => ['nullable', 'string', 'max:255'],
+            'platform' => ['nullable', 'string', 'max:50'],
+            'model' => ['nullable', 'string', 'max:255'],
+            'os_version' => ['nullable', 'string', 'max:100'],
+            'app_version' => ['nullable', 'string', 'max:50'],
         ]);
 
-        $token = auth('api')->attempt($credentials);
+        $token = auth('api')->attempt([
+            'email' => $data['email'],
+            'password' => $data['password'],
+        ]);
 
         if ($token === false) {
             throw ValidationException::withMessages([
@@ -43,6 +53,12 @@ class AuthController extends Controller
             throw ValidationException::withMessages([
                 'email' => ['Akun tidak aktif.'],
             ]);
+        }
+
+        if (($deviceRejection = $this->bindDevice($user, $data)) !== null) {
+            auth('api')->logout();
+
+            return $deviceRejection;
         }
 
         return response()->json([
@@ -84,6 +100,58 @@ class AuthController extends Controller
         auth('api')->logout();
 
         return response()->json(['message' => 'Berhasil keluar.']);
+    }
+
+    /**
+     * Enforce single-device binding. Binds the first device an account signs in
+     * from and records its details; a later sign-in from a different device is
+     * rejected until an admin resets the binding. Returns a 403 JsonResponse to
+     * block the login, or null when the device is allowed.
+     *
+     * Requests without a device_id (e.g. non-mobile clients) skip binding.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function bindDevice(User $user, array $data): ?JsonResponse
+    {
+        $deviceId = $data['device_id'] ?? null;
+
+        if (blank($deviceId)) {
+            return null;
+        }
+
+        $details = [
+            'device_name' => $data['device_name'] ?? null,
+            'platform' => $data['platform'] ?? null,
+            'model' => $data['model'] ?? null,
+            'os_version' => $data['os_version'] ?? null,
+            'app_version' => $data['app_version'] ?? null,
+            'last_login_at' => now(),
+        ];
+
+        $active = UserDevice::where('user_id', $user->id)->active()->first();
+
+        if ($active === null) {
+            UserDevice::create(array_merge($details, [
+                'tenant_id' => $user->tenant_id,
+                'user_id' => $user->id,
+                'device_id' => $deviceId,
+                'status' => 'active',
+                'bound_at' => now(),
+            ]));
+
+            return null;
+        }
+
+        if ($active->device_id === $deviceId) {
+            $active->update($details);
+
+            return null;
+        }
+
+        return response()->json([
+            'message' => 'Perangkat tidak dikenali. Akun ini terikat ke HP lain — hubungi admin untuk reset perangkat.',
+        ], 403);
     }
 
     /**

@@ -245,6 +245,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::put('pengguna/{user}', [UserController::class, 'update'])->name('pengguna.update');
     Route::delete('pengguna/{user}', [UserController::class, 'destroy'])->name('pengguna.destroy');
     Route::post('pengguna/{user}/toggle', [UserController::class, 'toggleStatus'])->name('pengguna.toggle');
+    Route::post('pengguna/{user}/reset-device', [UserController::class, 'resetDevice'])->name('pengguna.reset-device');
 
     // Tenant / client management (super admin)
     Route::get('klien', [TenantController::class, 'index'])->name('klien');

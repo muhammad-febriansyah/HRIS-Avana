@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, C, card } from '@/lib/avana';
 import type {
     CustomFieldDef,
@@ -543,24 +544,18 @@ export function EmployeeForm({
                         label="Atasan Langsung"
                         error={errors.manager_id}
                     >
-                        <select
-                            id="manager_id"
+                        <SearchableSelect
                             value={data.manager_id}
-                            onChange={(event) =>
-                                setData('manager_id', event.target.value)
-                            }
+                            onChange={(value) => setData('manager_id', value)}
+                            options={options.managers.map((manager) => ({
+                                value: String(manager.id),
+                                label: `${manager.name} (${manager.employee_number})`,
+                            }))}
+                            placeholder="Pilih atasan"
+                            searchPlaceholder="Cari nama karyawan…"
+                            allowClear
                             style={styleFor(!!errors.manager_id, selectStyle)}
-                        >
-                            <option value="">Pilih atasan</option>
-                            {options.managers.map((manager) => (
-                                <option
-                                    key={manager.id}
-                                    value={String(manager.id)}
-                                >
-                                    {manager.name} ({manager.employee_number})
-                                </option>
-                            ))}
-                        </select>
+                        />
                     </Field>
 
                     <Field

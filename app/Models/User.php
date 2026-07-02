@@ -90,6 +90,16 @@ class User extends Authenticatable implements JWTSubject, PasskeyUser
         return $this->hasMany(UserBranchAccess::class);
     }
 
+    public function devices(): HasMany
+    {
+        return $this->hasMany(UserDevice::class);
+    }
+
+    public function activeDevice(): HasOne
+    {
+        return $this->hasOne(UserDevice::class)->where('status', 'active');
+    }
+
     public function dataScopes(): HasMany
     {
         return $this->hasMany(UserDataScope::class);

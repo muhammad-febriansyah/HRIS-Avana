@@ -3,6 +3,7 @@
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\UserDevice;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -272,4 +273,31 @@ it('forbids users without user permissions from managing users', function (): vo
             'status' => 'active',
         ])
         ->assertForbidden();
+});
+
+it('resets a user bound device so a new phone can sign in', function (): void {
+    $target = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    UserDevice::create([
+        'tenant_id' => $this->tenant->id,
+        'user_id' => $target->id,
+        'device_id' => 'DEV-OLD',
+        'status' => 'active',
+        'bound_at' => now(),
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.pengguna.reset-device', $target))
+        ->assertSessionHas('success');
+
+    expect(UserDevice::where('user_id', $target->id)->where('status', 'active')->exists())->toBeFalse();
+    expect(UserDevice::where('user_id', $target->id)->where('status', 'reset')->exists())->toBeTrue();
+});
+
+it('forbids resetting a device for a user from another tenant', function (): void {
+    $otherTenant = Tenant::create(['name' => 'PT Asing', 'slug' => 'pt-asing-dev']);
+    $foreign = User::factory()->create(['tenant_id' => $otherTenant->id]);
+
+    actingAs($this->admin)
+        ->post(route('avana.pengguna.reset-device', $foreign))
+        ->assertNotFound();
 });

@@ -140,3 +140,57 @@ it('forbids a manager from the menu builder', function (): void {
 
     actingAs($manager)->get(route('avana.menu-builder'))->assertForbidden();
 });
+
+it('hides super-admin-only menus from a tenant admin builder', function (): void {
+    // Seed a platform menu item for the tenant.
+    $platform = MenuItem::forTenant($this->tenant->id)
+        ->where('super_admin_only', true)
+        ->first()
+        ?? MenuItem::create([
+            'tenant_id' => $this->tenant->id,
+            'key' => 'klien-x',
+            'label' => 'Klien / Tenant',
+            'href' => '/avana/klien',
+            'super_admin_only' => true,
+            'is_active' => true,
+            'is_system' => true,
+            'sort_order' => 999,
+        ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.menu-builder'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('tree', fn ($tree) => collect($tree)->pluck('id')->doesntContain($platform->id)));
+});
+
+it('forbids a tenant admin from toggling a platform menu item', function (): void {
+    $platform = MenuItem::create([
+        'tenant_id' => $this->tenant->id,
+        'key' => 'billing-x',
+        'label' => 'Billing',
+        'href' => '/avana/billing',
+        'super_admin_only' => true,
+        'is_active' => true,
+        'is_system' => true,
+        'sort_order' => 998,
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.menu-builder.toggle', $platform))
+        ->assertForbidden();
+});
+
+it('prevents a tenant admin from creating a super-admin-only menu', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.menu-builder.store'), [
+            'label' => 'Coba Platform',
+            'href' => '/avana/crm',
+            'section' => 'LAYANAN',
+            'super_admin_only' => true,
+        ])
+        ->assertSessionHas('success');
+
+    expect(MenuItem::forTenant($this->tenant->id)->where('label', 'Coba Platform')->value('super_admin_only'))
+        ->toBeFalsy();
+});
