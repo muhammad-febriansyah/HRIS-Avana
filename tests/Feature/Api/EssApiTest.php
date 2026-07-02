@@ -7,7 +7,6 @@ use App\Models\User;
 use App\Models\WorkLocation;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function (): void {
@@ -304,4 +303,21 @@ it('syncs an offline clock with a matching face and back-dated time', function (
     $att = Attendance::whereNotNull('clock_in_at')->latest('id')->firstOrFail();
     expect($att->date->toDateString())->toBe($yesterday->toDateString());
     expect((float) $att->face_confidence)->toBeGreaterThan(0.9);
+});
+
+it('returns a merged activity feed newest-first', function (): void {
+    ($this->auth)()->getJson('/api/v1/me/activities')
+        ->assertOk()
+        ->assertJsonStructure(['data' => [['type', 'title', 'subtitle', 'status', 'occurred_at']]]);
+});
+
+it('includes a freshly submitted request in the activity feed', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/overtime', [
+        'date' => now()->toDateString(), 'hours' => 2, 'reason' => 'Rilis fitur',
+    ])->assertCreated();
+
+    $res = ($this->auth)()->getJson('/api/v1/me/activities')->assertOk();
+    $types = collect($res->json('data'))->pluck('type');
+
+    expect($types)->toContain('overtime');
 });

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\AnnouncementController;
 use App\Http\Controllers\Api\AppConfigController;
 use App\Http\Controllers\Api\AttendanceController;
@@ -60,6 +61,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('wfh', [WfhController::class, 'index']);
             Route::post('wfh', [WfhController::class, 'store']);
             Route::get('announcements', [AnnouncementController::class, 'index']);
+            Route::get('activities', [ActivityController::class, 'index']);
 
             Route::get('payslips', [PayslipController::class, 'index']);
             Route::get('payslips/{item}', [PayslipController::class, 'show']);
