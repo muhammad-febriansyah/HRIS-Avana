@@ -74,11 +74,17 @@ final class EmployeeResource extends JsonResource
             'avatar_color' => $this->avatarColor(),
             'branch_id' => $this->branch_id,
             'work_location_id' => $this->work_location_id,
+            'has_login' => $this->user_id !== null,
             'branch' => $this->whenLoaded('branch', fn () => $this->namedRelation($this->branch)),
             'department' => $this->whenLoaded('department', fn () => $this->namedRelation($this->department)),
             'position' => $this->whenLoaded('position', fn () => $this->namedRelation($this->position)),
             'job_level' => $this->whenLoaded('jobLevel', fn () => $this->namedRelation($this->jobLevel)),
-            'work_location' => $this->whenLoaded('workLocation', fn () => $this->namedRelation($this->workLocation)),
+            'work_location' => $this->whenLoaded('workLocation', fn () => $this->workLocation === null ? null : [
+                'id' => $this->workLocation->id,
+                'name' => $this->workLocation->name,
+                'radius_meter' => (int) ($this->workLocation->radius_meter ?? 0),
+                'status' => $this->workLocation->status,
+            ]),
             'manager' => $this->whenLoaded('manager', fn () => $this->manager === null ? null : [
                 'id' => $this->manager->id,
                 'name' => $this->manager->full_name,

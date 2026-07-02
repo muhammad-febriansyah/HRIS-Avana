@@ -37,13 +37,19 @@ export type Employee = {
     join_date_raw: string | null;
     status: string;
     status_label: string;
+    has_login?: boolean;
     initials: string;
     avatar_color: string;
     branch?: NamedRef | null;
     department?: NamedRef | null;
     position?: NamedRef | null;
     job_level?: NamedRef | null;
-    work_location?: NamedRef | null;
+    work_location?: {
+        id: number;
+        name: string | null;
+        radius_meter?: number;
+        status?: string;
+    } | null;
     manager?: ManagerRef | null;
     custom_data?: Record<string, string>;
 };
@@ -111,6 +117,7 @@ export type EmployeeFormData = {
     job_level_id: string;
     manager_id: string;
     status: string;
+    password: string;
     custom_data?: Record<string, string>;
 };
 

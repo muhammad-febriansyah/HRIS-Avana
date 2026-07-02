@@ -58,7 +58,7 @@ export default function BenefitIndex({
 
     useEffect(() => {
         if (flash?.success) {
-            toast.success(flash.success);
+            toast.success(flash.success, { id: flash.success });
         }
     }, [flash?.success]);
 

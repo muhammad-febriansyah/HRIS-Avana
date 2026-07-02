@@ -43,12 +43,13 @@ export default function EmployeesCreate({
         job_level_id: '',
         manager_id: '',
         status: 'active',
+        password: '',
         custom_data: {},
     });
 
     useEffect(() => {
         if (flash?.success) {
-            toast.success(flash.success);
+            toast.success(flash.success, { id: flash.success });
         }
     }, [flash?.success]);
 

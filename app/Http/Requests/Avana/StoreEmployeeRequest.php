@@ -4,6 +4,7 @@ namespace App\Http\Requests\Avana;
 
 use App\Models\CustomField;
 use App\Models\Employee;
+use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -54,6 +55,7 @@ class StoreEmployeeRequest extends FormRequest
             'position_id' => ['nullable', Rule::exists('positions', 'id')->where('tenant_id', $tenantId)],
             'job_level_id' => ['nullable', Rule::exists('job_levels', 'id')->where('tenant_id', $tenantId)],
             'manager_id' => ['nullable', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
+            'password' => ['nullable', 'string', 'min:8'],
             'custom_data' => ['nullable', 'array'],
             'custom_data.*' => ['nullable'],
         ];
@@ -80,6 +82,18 @@ class StoreEmployeeRequest extends FormRequest
 
                 if ($value === null || $value === '') {
                     $validator->errors()->add('custom_data.'.$field->key, $field->label.' wajib diisi.');
+                }
+            }
+
+            // A login account is created only when a password is provided, and it
+            // needs a unique email to sign in with.
+            if (filled($this->input('password'))) {
+                $email = $this->input('email');
+
+                if (blank($email)) {
+                    $validator->errors()->add('email', 'Email wajib diisi untuk membuat akun login.');
+                } elseif (User::where('email', $email)->exists()) {
+                    $validator->errors()->add('email', 'Email sudah digunakan akun lain.');
                 }
             }
         });

@@ -19,7 +19,7 @@ export default function KontrakCreate({ employees }: KontrakCreateProps) {
 
     useEffect(() => {
         if (flash?.success) {
-            toast.success(flash.success);
+            toast.success(flash.success, { id: flash.success });
         }
     }, [flash?.success]);
 

@@ -29,7 +29,7 @@ export default function PembelajaranEdit({ training }: PembelajaranEditProps) {
 
     useEffect(() => {
         if (flash?.success) {
-            toast.success(flash.success);
+            toast.success(flash.success, { id: flash.success });
         }
     }, [flash?.success]);
 

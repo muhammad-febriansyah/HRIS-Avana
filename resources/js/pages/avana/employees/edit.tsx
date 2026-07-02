@@ -54,12 +54,13 @@ export default function EmployeesEdit({
         job_level_id: relationId(data.job_level),
         manager_id: relationId(data.manager),
         status: data.status ?? 'active',
+        password: '',
         custom_data: data.custom_data ?? {},
     });
 
     useEffect(() => {
         if (flash?.success) {
-            toast.success(flash.success);
+            toast.success(flash.success, { id: flash.success });
         }
     }, [flash?.success]);
 
@@ -122,6 +123,7 @@ export default function EmployeesEdit({
                     form={form}
                     options={options}
                     customFields={customFields}
+                    hasLogin={data.has_login}
                     submitLabel="Simpan Perubahan"
                     cancelHref={EmployeeController.index().url}
                     onSubmit={handleSubmit}

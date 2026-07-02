@@ -26,7 +26,7 @@ export default function KlaimIndex({ claims, kpis }: KlaimIndexProps) {
 
     useEffect(() => {
         if (flash?.success) {
-            toast.success(flash.success);
+            toast.success(flash.success, { id: flash.success });
         }
     }, [flash?.success]);
 

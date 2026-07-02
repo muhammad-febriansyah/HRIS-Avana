@@ -13,10 +13,15 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\JobLevel;
 use App\Models\Position;
+use App\Models\Role;
+use App\Models\User;
 use App\Models\WorkLocation;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -121,16 +126,85 @@ class EmployeeController extends Controller
         $tenantId = $request->user()->tenant_id;
 
         $data = $request->validated();
+        $password = $data['password'] ?? null;
+        unset($data['password']);
         $data['tenant_id'] = $tenantId;
 
         if (empty($data['employee_number'])) {
             $data['employee_number'] = $this->generateEmployeeNumber($tenantId);
         }
 
-        Employee::create($data);
+        $employee = Employee::create($data);
+
+        $this->syncEmployeeLogin($employee, $password, $tenantId);
 
         return redirect()->route('avana.employees.index')
             ->with('success', 'Karyawan berhasil ditambahkan');
+    }
+
+    /**
+     * Show the multi-row form for adding several employees at once.
+     */
+    public function bulkCreate(Request $request): Response
+    {
+        $this->authorize('create', Employee::class);
+
+        return Inertia::render('avana/employees/bulk-create', [
+            'options' => $this->formOptions($request),
+        ]);
+    }
+
+    /**
+     * Persist a batch of employees in one transaction.
+     */
+    public function bulkStore(Request $request): RedirectResponse
+    {
+        $this->authorize('create', Employee::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $validated = $request->validate([
+            'employees' => ['required', 'array', 'min:1', 'max:200'],
+            'employees.*.full_name' => ['required', 'string', 'max:255'],
+            'employees.*.email' => ['nullable', 'email', 'max:255'],
+            'employees.*.employment_status' => ['required', 'in:probation,contract,permanent,resigned'],
+            'employees.*.status' => ['required', 'in:active,inactive'],
+            'employees.*.branch_id' => ['nullable', Rule::exists('branches', 'id')->where('tenant_id', $tenantId)],
+            'employees.*.work_location_id' => ['nullable', Rule::exists('work_locations', 'id')->where('tenant_id', $tenantId)],
+            'employees.*.department_id' => ['nullable', Rule::exists('departments', 'id')->where('tenant_id', $tenantId)],
+            'employees.*.position_id' => ['nullable', Rule::exists('positions', 'id')->where('tenant_id', $tenantId)],
+            'employees.*.password' => ['nullable', 'string', 'min:8'],
+        ], [
+            'employees.*.full_name.required' => 'Nama lengkap wajib diisi.',
+            'employees.*.employment_status.required' => 'Status kepegawaian wajib dipilih.',
+            'employees.*.email.email' => 'Format email tidak valid.',
+        ]);
+
+        $this->validateBulkLogins($validated['employees']);
+
+        DB::transaction(function () use ($validated, $tenantId): void {
+            foreach ($validated['employees'] as $row) {
+                $employee = Employee::create([
+                    'tenant_id' => $tenantId,
+                    'employee_number' => $this->generateEmployeeNumber($tenantId),
+                    'full_name' => $row['full_name'],
+                    'email' => $row['email'] ?? null,
+                    'employment_status' => $row['employment_status'],
+                    'status' => $row['status'],
+                    'branch_id' => $row['branch_id'] ?? null,
+                    'work_location_id' => $row['work_location_id'] ?? null,
+                    'department_id' => $row['department_id'] ?? null,
+                    'position_id' => $row['position_id'] ?? null,
+                ]);
+
+                $this->syncEmployeeLogin($employee, $row['password'] ?? null, $tenantId);
+            }
+        });
+
+        $count = count($validated['employees']);
+
+        return redirect()->route('avana.employees.index')
+            ->with('success', "{$count} karyawan berhasil ditambahkan");
     }
 
     /**
@@ -172,7 +246,7 @@ class EmployeeController extends Controller
             'department:id,name',
             'position:id,name',
             'jobLevel:id,name',
-            'workLocation:id,name',
+            'workLocation:id,name,radius_meter,status',
             'manager:id,full_name,employee_number',
         ]);
 
@@ -214,10 +288,89 @@ class EmployeeController extends Controller
         $this->ensureTenantOwnership($request, $employee);
         $this->authorize('update', $employee);
 
-        $employee->update($request->validated());
+        $data = $request->validated();
+        $password = $data['password'] ?? null;
+        unset($data['password']);
+
+        $employee->update($data);
+
+        $this->syncEmployeeLogin($employee, $password, $request->user()->tenant_id);
 
         return redirect()->route('avana.employees.index')
             ->with('success', 'Karyawan berhasil diperbarui');
+    }
+
+    /**
+     * A row that sets a password must carry a unique email to log in with,
+     * unique both against existing accounts and within the batch itself.
+     *
+     * @param  array<int, array<string, mixed>>  $rows
+     */
+    private function validateBulkLogins(array $rows): void
+    {
+        $errors = [];
+        $seen = [];
+
+        foreach ($rows as $index => $row) {
+            if (blank($row['password'] ?? null)) {
+                continue;
+            }
+
+            $email = $row['email'] ?? null;
+
+            if (blank($email)) {
+                $errors["employees.{$index}.email"] = 'Email wajib diisi untuk membuat akun login.';
+
+                continue;
+            }
+
+            if (isset($seen[$email]) || User::where('email', $email)->exists()) {
+                $errors["employees.{$index}.email"] = 'Email sudah digunakan akun lain.';
+
+                continue;
+            }
+
+            $seen[$email] = true;
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+    }
+
+    /**
+     * Create or reset the employee's mobile-app login account. A blank password
+     * is a no-op; an existing account has its password reset, otherwise a new
+     * user is created (email + employee role) and linked to the employee.
+     */
+    private function syncEmployeeLogin(Employee $employee, ?string $password, int $tenantId): void
+    {
+        if (blank($password)) {
+            return;
+        }
+
+        if ($employee->user_id !== null) {
+            $employee->user?->update(['password' => $password]);
+
+            return;
+        }
+
+        $user = User::create([
+            'tenant_id' => $tenantId,
+            'name' => $employee->full_name,
+            'email' => $employee->email,
+            'password' => $password,
+            'status' => 'active',
+            'email_verified_at' => now(),
+        ]);
+
+        $role = Role::where('tenant_id', $tenantId)->where('code', 'employee')->first();
+
+        if ($role !== null) {
+            $user->roles()->syncWithoutDetaching([$role->id]);
+        }
+
+        $employee->forceFill(['user_id' => $user->id])->save();
     }
 
     /**

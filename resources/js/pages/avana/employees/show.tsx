@@ -78,7 +78,7 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
 
     useEffect(() => {
         if (flash?.success) {
-            toast.success(flash.success);
+            toast.success(flash.success, { id: flash.success });
         }
     }, [flash?.success]);
 
@@ -467,13 +467,22 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                                 value={dash(emp.branch?.name)}
                             />
                             <Cell
+                                label="Lokasi Kerja (Absensi)"
+                                value={
+                                    emp.work_location
+                                        ? `${emp.work_location.name ?? '—'}${emp.work_location.radius_meter ? ` · radius ${emp.work_location.radius_meter} m` : ''}`
+                                        : 'Otomatis (ikut cabang)'
+                                }
+                                indent
+                            />
+                            <Cell
                                 label="Atasan Langsung"
                                 value={dash(emp.manager?.name)}
-                                indent
                             />
                             <Cell
                                 label="Tgl Bergabung"
                                 value={dash(emp.join_date)}
+                                indent
                                 last
                             />
                         </div>

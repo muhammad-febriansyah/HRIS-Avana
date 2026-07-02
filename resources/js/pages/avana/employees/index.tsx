@@ -98,7 +98,7 @@ export default function EmployeesIndex({
 
     useEffect(() => {
         if (flash?.success) {
-            toast.success(flash.success);
+            toast.success(flash.success, { id: flash.success });
         }
     }, [flash?.success]);
 
@@ -244,6 +244,13 @@ export default function EmployeesIndex({
                             <AIcon name="download" size={16} />
                             Export
                         </a>
+                        <Link
+                            href="/avana/employees/bulk"
+                            style={{ ...btnOut, textDecoration: 'none' }}
+                        >
+                            <AIcon name="users" size={16} />
+                            Tambah Massal
+                        </Link>
                         <Link
                             href={EmployeeController.create()}
                             style={{ ...btnP, textDecoration: 'none' }}

@@ -61,6 +61,7 @@ interface EmployeeFormProps {
     cancelHref: string;
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
     customFields?: CustomFieldDef[];
+    hasLogin?: boolean;
 }
 
 function SectionHeader({
@@ -143,6 +144,7 @@ export function EmployeeForm({
     cancelHref,
     onSubmit,
     customFields = [],
+    hasLogin = false,
 }: EmployeeFormProps) {
     const { data, setData, errors, processing } = form;
 
@@ -658,6 +660,58 @@ export function EmployeeForm({
                     </div>
                 </div>
             )}
+
+            {/* Akun Aplikasi Mobile */}
+            <div style={card}>
+                <SectionHeader
+                    icon="smartphone"
+                    title="Akun Aplikasi Mobile"
+                    desc={
+                        hasLogin
+                            ? 'Karyawan sudah punya akun login. Isi untuk reset password.'
+                            : 'Isi password untuk membuatkan akun login aplikasi (pakai email di atas).'
+                    }
+                />
+                <div className="avn-2col" style={sectionGrid}>
+                    <Field
+                        htmlFor="password"
+                        label={hasLogin ? 'Reset Password' : 'Password Login'}
+                        error={errors.password}
+                    >
+                        <input
+                            id="password"
+                            type="password"
+                            autoComplete="new-password"
+                            value={data.password}
+                            onChange={(event) =>
+                                setData('password', event.target.value)
+                            }
+                            placeholder="Min. 8 karakter"
+                            style={styleFor(!!errors.password, inputStyle)}
+                        />
+                    </Field>
+                    {hasLogin ? (
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                fontSize: 12.5,
+                                color: '#059669',
+                                alignSelf: 'end',
+                                paddingBottom: 12,
+                            }}
+                        >
+                            <AIcon
+                                name="badge-check"
+                                size={16}
+                                color="#059669"
+                            />
+                            Akun login aktif
+                        </div>
+                    ) : null}
+                </div>
+            </div>
 
             {/* Footer */}
             <div

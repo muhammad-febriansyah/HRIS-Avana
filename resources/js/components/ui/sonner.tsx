@@ -10,6 +10,7 @@ function Toaster({ ...props }: ToasterProps) {
     return (
         <Sonner
             theme={appearance}
+            richColors
             className="toaster group"
             position="bottom-right"
             style={

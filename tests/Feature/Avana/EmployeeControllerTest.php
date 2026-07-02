@@ -8,6 +8,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WorkLocation;
 use Database\Seeders\AvanaDemoSeeder;
+use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
 
 use function Pest\Laravel\actingAs;
@@ -192,4 +193,152 @@ it('forbids users without employee permissions from listing employees', function
     actingAs($staff)
         ->get(route('avana.employees.index'))
         ->assertForbidden();
+});
+
+it('bulk-creates multiple employees in one submit', function (): void {
+    $branch = Branch::forTenant($this->tenant->id)->first();
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.bulk.store'), [
+            'employees' => [
+                ['full_name' => 'Massal Satu', 'employment_status' => 'permanent', 'status' => 'active', 'branch_id' => $branch->id],
+                ['full_name' => 'Massal Dua', 'employment_status' => 'contract', 'status' => 'active'],
+            ],
+        ])
+        ->assertRedirect(route('avana.employees.index'))
+        ->assertSessionHas('success');
+
+    $numbers = Employee::whereIn('full_name', ['Massal Satu', 'Massal Dua'])->pluck('employee_number');
+
+    expect($numbers)->toHaveCount(2);
+    expect($numbers->unique())->toHaveCount(2);
+    expect($numbers->every(fn (string $n): bool => str_starts_with($n, 'EMP-')))->toBeTrue();
+});
+
+it('creates no employee when any bulk row is invalid', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.employees.bulk.store'), [
+            'employees' => [
+                ['full_name' => 'Valid Row', 'employment_status' => 'permanent', 'status' => 'active'],
+                ['full_name' => '', 'employment_status' => 'permanent', 'status' => 'active'],
+            ],
+        ])
+        ->assertSessionHasErrors('employees.1.full_name');
+
+    expect(Employee::where('full_name', 'Valid Row')->exists())->toBeFalse();
+});
+
+it('rejects a bulk work location from another tenant', function (): void {
+    $otherTenant = Tenant::create(['name' => 'PT Beda', 'slug' => 'pt-beda-bulk']);
+    $branch = Branch::create(['tenant_id' => $otherTenant->id, 'code' => 'ZZ', 'name' => 'Z', 'status' => 'active']);
+    $foreign = WorkLocation::create([
+        'tenant_id' => $otherTenant->id, 'branch_id' => $branch->id, 'name' => 'WL Beda',
+        'latitude' => -6.1, 'longitude' => 106.1, 'radius_meter' => 100, 'status' => 'active',
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.bulk.store'), [
+            'employees' => [
+                ['full_name' => 'Row X', 'employment_status' => 'permanent', 'status' => 'active', 'work_location_id' => $foreign->id],
+            ],
+        ])
+        ->assertSessionHasErrors('employees.0.work_location_id');
+
+    expect(Employee::where('full_name', 'Row X')->exists())->toBeFalse();
+});
+
+it('creates a mobile login account when a password is set on store', function (): void {
+    $branch = Branch::forTenant($this->tenant->id)->first();
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), [
+            'full_name' => 'Login User',
+            'email' => 'login.user@avanahr.test',
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'branch_id' => $branch->id,
+            'password' => 'rahasia123',
+        ])
+        ->assertRedirect(route('avana.employees.index'));
+
+    $employee = Employee::where('full_name', 'Login User')->firstOrFail();
+    expect($employee->user_id)->not->toBeNull();
+    expect($employee->user->roles->pluck('code'))->toContain('employee');
+
+    // The account authenticates against the mobile API end-to-end.
+    $this->postJson('/api/v1/auth/login', [
+        'email' => 'login.user@avanahr.test',
+        'password' => 'rahasia123',
+    ])->assertOk()->assertJsonStructure(['access_token']);
+});
+
+it('requires an email to create a login on store', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), [
+            'full_name' => 'No Email Login',
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'password' => 'rahasia123',
+        ])
+        ->assertSessionHasErrors('email');
+
+    expect(Employee::where('full_name', 'No Email Login')->exists())->toBeFalse();
+});
+
+it('resets an existing login password on update', function (): void {
+    actingAs($this->admin)->post(route('avana.employees.store'), [
+        'full_name' => 'Reset Target',
+        'email' => 'reset.target@avanahr.test',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+        'password' => 'lamalama1',
+    ]);
+
+    $employee = Employee::where('full_name', 'Reset Target')->firstOrFail();
+
+    actingAs($this->admin)->put(route('avana.employees.update', $employee), [
+        'full_name' => $employee->full_name,
+        'email' => $employee->email,
+        'employment_status' => $employee->employment_status,
+        'status' => 'active',
+        'password' => 'barubaru99',
+    ])->assertRedirect(route('avana.employees.index'));
+
+    expect(Hash::check('barubaru99', $employee->user->fresh()->password))->toBeTrue();
+});
+
+it('creates login accounts within a bulk submit', function (): void {
+    actingAs($this->admin)->post(route('avana.employees.bulk.store'), [
+        'employees' => [
+            ['full_name' => 'Bulk Login A', 'email' => 'bulk.a@avanahr.test', 'employment_status' => 'permanent', 'status' => 'active', 'password' => 'rahasia123'],
+            ['full_name' => 'Bulk NoLogin', 'employment_status' => 'contract', 'status' => 'active'],
+        ],
+    ])->assertRedirect(route('avana.employees.index'));
+
+    expect(Employee::where('full_name', 'Bulk Login A')->firstOrFail()->user_id)->not->toBeNull();
+    expect(Employee::where('full_name', 'Bulk NoLogin')->firstOrFail()->user_id)->toBeNull();
+
+    $this->postJson('/api/v1/auth/login', ['email' => 'bulk.a@avanahr.test', 'password' => 'rahasia123'])
+        ->assertOk()->assertJsonStructure(['access_token']);
+});
+
+it('rejects a bulk row that sets a password without an email', function (): void {
+    actingAs($this->admin)->post(route('avana.employees.bulk.store'), [
+        'employees' => [
+            ['full_name' => 'No Email Bulk', 'employment_status' => 'permanent', 'status' => 'active', 'password' => 'rahasia123'],
+        ],
+    ])->assertSessionHasErrors('employees.0.email');
+
+    expect(Employee::where('full_name', 'No Email Bulk')->exists())->toBeFalse();
+});
+
+it('rejects duplicate login emails within a bulk submit', function (): void {
+    actingAs($this->admin)->post(route('avana.employees.bulk.store'), [
+        'employees' => [
+            ['full_name' => 'Dup One', 'email' => 'dup@avanahr.test', 'employment_status' => 'permanent', 'status' => 'active', 'password' => 'rahasia123'],
+            ['full_name' => 'Dup Two', 'email' => 'dup@avanahr.test', 'employment_status' => 'permanent', 'status' => 'active', 'password' => 'rahasia123'],
+        ],
+    ])->assertSessionHasErrors('employees.1.email');
+
+    expect(Employee::where('full_name', 'Dup One')->exists())->toBeFalse();
 });

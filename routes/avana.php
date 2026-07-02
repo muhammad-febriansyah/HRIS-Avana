@@ -80,6 +80,8 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('custom-fields', [CustomFieldController::class, 'store'])->name('custom-fields.store');
     Route::put('custom-fields/{field}', [CustomFieldController::class, 'update'])->name('custom-fields.update');
     Route::delete('custom-fields/{field}', [CustomFieldController::class, 'destroy'])->name('custom-fields.destroy');
+    Route::get('employees/bulk', [EmployeeController::class, 'bulkCreate'])->name('employees.bulk');
+    Route::post('employees/bulk', [EmployeeController::class, 'bulkStore'])->name('employees.bulk.store');
     Route::resource('employees', EmployeeController::class);
 
     Route::get('absensi', [AttendanceController::class, 'index'])->name('absensi');

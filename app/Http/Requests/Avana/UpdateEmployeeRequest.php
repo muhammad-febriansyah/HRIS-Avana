@@ -4,6 +4,7 @@ namespace App\Http\Requests\Avana;
 
 use App\Models\CustomField;
 use App\Models\Employee;
+use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -63,6 +64,7 @@ class UpdateEmployeeRequest extends FormRequest
                 Rule::exists('employees', 'id')->where('tenant_id', $tenantId),
                 Rule::notIn([$employee?->getKey()]),
             ],
+            'password' => ['nullable', 'string', 'min:8'],
             'custom_data' => ['nullable', 'array'],
             'custom_data.*' => ['nullable'],
         ];
@@ -89,6 +91,22 @@ class UpdateEmployeeRequest extends FormRequest
 
                 if ($value === null || $value === '') {
                     $validator->errors()->add('custom_data.'.$field->key, $field->label.' wajib diisi.');
+                }
+            }
+
+            // A password sets or resets the employee's login. When the employee
+            // has no account yet, a unique email is required to create one.
+            if (filled($this->input('password'))) {
+                $employee = $this->route('employee');
+
+                if ($employee?->user_id === null) {
+                    $email = $this->input('email');
+
+                    if (blank($email)) {
+                        $validator->errors()->add('email', 'Email wajib diisi untuk membuat akun login.');
+                    } elseif (User::where('email', $email)->exists()) {
+                        $validator->errors()->add('email', 'Email sudah digunakan akun lain.');
+                    }
                 }
             }
         });
