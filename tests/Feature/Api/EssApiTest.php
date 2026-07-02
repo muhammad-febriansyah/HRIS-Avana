@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\WorkLocation;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function (): void {
@@ -285,4 +286,22 @@ it('rejects a non-matching face at clock-in', function (): void {
         'type' => 'in', 'latitude' => -6.2146, 'longitude' => 106.8451,
         'face_embedding' => faceVec(50),
     ])->assertStatus(422)->assertJsonPath('message', fn (string $m): bool => str_contains($m, 'tidak cocok'));
+});
+
+it('syncs an offline clock with a matching face and back-dated time', function (): void {
+    Attendance::query()->update(['clock_in_at' => null, 'clock_out_at' => null]);
+    ($this->auth)()->postJson('/api/v1/me/face/enroll', ['embedding' => faceVec()]);
+
+    $yesterday = now()->subDay();
+
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+        'type' => 'in',
+        'latitude' => -6.2146, 'longitude' => 106.8451,
+        'face_embedding' => faceVec(),
+        'clocked_at' => $yesterday->toDateTimeString(),
+    ])->assertOk();
+
+    $att = Attendance::whereNotNull('clock_in_at')->latest('id')->firstOrFail();
+    expect($att->date->toDateString())->toBe($yesterday->toDateString());
+    expect((float) $att->face_confidence)->toBeGreaterThan(0.9);
 });
