@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\LeaveType;
 use App\Models\User;
@@ -196,4 +197,35 @@ it('rejects a shift swap with yourself', function (): void {
         'target_id' => $me->id,
         'date' => now()->addDay()->toDateString(),
     ])->assertStatus(422);
+});
+
+it('records a queued offline clock-in at its original time', function (): void {
+    // Simulate an entry captured offline 2 hours ago and synced now.
+    Attendance::query()->update(['clock_in_at' => null, 'clock_out_at' => null, 'status' => 'absent']);
+    $at = now()->subHours(2)->startOfMinute();
+
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+        'type' => 'in',
+        'latitude' => -6.2146,
+        'longitude' => 106.8451,
+        'clocked_at' => $at->toIso8601String(),
+    ])->assertOk();
+
+    $att = Attendance::whereNotNull('clock_in_at')->latest('id')->firstOrFail();
+    expect($att->clock_in_at->format('Y-m-d H:i'))->toBe($at->format('Y-m-d H:i'));
+});
+
+it('ignores a future clocked_at and uses now', function (): void {
+    Attendance::query()->update(['clock_in_at' => null, 'clock_out_at' => null, 'status' => 'absent']);
+
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+        'type' => 'in',
+        'latitude' => -6.2146,
+        'longitude' => 106.8451,
+        'clocked_at' => now()->addDays(2)->toIso8601String(),
+    ])->assertOk();
+
+    $att = Attendance::whereNotNull('clock_in_at')->latest('id')->firstOrFail();
+    expect($att->clock_in_at->isToday())->toBeTrue();
+    expect($att->clock_in_at->isFuture())->toBeFalse();
 });

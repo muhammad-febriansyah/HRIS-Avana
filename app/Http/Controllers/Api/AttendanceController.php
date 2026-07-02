@@ -63,8 +63,17 @@ class AttendanceController extends Controller
             'face_confidence' => ['nullable', 'numeric'],
             'is_mock_location' => ['nullable', 'boolean'],
             'is_rooted' => ['nullable', 'boolean'],
+            // Original clock time for entries queued offline and synced later.
+            'clocked_at' => ['nullable', 'date', 'after_or_equal:'.now()->subDays(7)->toDateTimeString()],
             'selfie' => ['nullable', 'image', 'max:4096'],
         ]);
+
+        // Resolve the effective clock time; never allow a future timestamp.
+        $clockedAt = isset($data['clocked_at']) ? Carbon::parse($data['clocked_at']) : now();
+        if ($clockedAt->isFuture()) {
+            $clockedAt = now();
+        }
+        $data['clocked_at'] = $clockedAt;
 
         if ($request->boolean('is_mock_location')) {
             return response()->json([
@@ -88,10 +97,12 @@ class AttendanceController extends Controller
      */
     private function clockIn(Request $request, Employee $employee, array $data): JsonResponse
     {
+        $clockedAt = $data['clocked_at'];
+
         $attendance = Attendance::firstOrNew([
             'tenant_id' => $employee->tenant_id,
             'employee_id' => $employee->id,
-            'date' => now()->toDateString(),
+            'date' => $clockedAt->toDateString(),
         ]);
 
         if ($attendance->clock_in_at !== null) {
@@ -107,7 +118,7 @@ class AttendanceController extends Controller
         $attendance->fill([
             'branch_id' => $employee->branch_id,
             'work_location_id' => $geofence->id,
-            'clock_in_at' => now(),
+            'clock_in_at' => $clockedAt,
             'clock_in_lat' => $data['latitude'] ?? null,
             'clock_in_lng' => $data['longitude'] ?? null,
             'status' => 'present',
@@ -123,7 +134,7 @@ class AttendanceController extends Controller
                 'file_path' => $request->file('selfie')->store('selfies', 'public'),
                 'latitude' => $data['latitude'] ?? null,
                 'longitude' => $data['longitude'] ?? null,
-                'captured_at' => now(),
+                'captured_at' => $clockedAt,
             ]);
         }
 
@@ -135,7 +146,12 @@ class AttendanceController extends Controller
      */
     private function clockOut(Employee $employee, array $data): JsonResponse
     {
-        $attendance = $this->todayRecord($employee->tenant_id, $employee->id);
+        $clockedAt = $data['clocked_at'];
+
+        $attendance = Attendance::forTenant($employee->tenant_id)
+            ->where('employee_id', $employee->id)
+            ->whereDate('date', $clockedAt->toDateString())
+            ->first();
 
         if ($attendance === null || $attendance->clock_in_at === null) {
             return response()->json(['message' => 'Anda belum clock-in hari ini.'], 422);
@@ -151,10 +167,10 @@ class AttendanceController extends Controller
             return $geofence;
         }
 
-        $attendance->clock_out_at = now();
+        $attendance->clock_out_at = $clockedAt;
         $attendance->clock_out_lat = $data['latitude'] ?? null;
         $attendance->clock_out_lng = $data['longitude'] ?? null;
-        $attendance->work_minutes = (int) $attendance->clock_in_at->diffInMinutes(now());
+        $attendance->work_minutes = (int) $attendance->clock_in_at->diffInMinutes($clockedAt);
         $attendance->save();
 
         return response()->json(['message' => 'Clock-out berhasil', 'data' => $this->todayShape($attendance)]);
