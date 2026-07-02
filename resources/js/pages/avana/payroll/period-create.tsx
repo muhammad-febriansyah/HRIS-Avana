@@ -224,6 +224,7 @@ export default function PeriodCreate() {
                                 textDecoration: 'none',
                             }}
                         >
+                            <AIcon name="x" size={16} color={C.text} />
                             Batal
                         </Link>
                         <button

@@ -2,7 +2,7 @@ import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import CustomFieldController from '@/actions/App/Http/Controllers/Avana/CustomFieldController';
-import { AIcon, btnOut, btnP, C, card, statusBadge, thCell } from '@/lib/avana';
+import { ActionBtn, AIcon, btnP, C, card, statusBadge, thCell } from '@/lib/avana';
 
 interface CustomFieldRow {
     id: number;
@@ -68,6 +68,20 @@ export default function CustomFields({ fields, types }: CustomFieldsProps) {
         <>
             <Head title="Field Kustom Karyawan" />
             <div style={{ padding: '22px 26px' }}>
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 7,
+                        fontSize: 12.5,
+                        color: C.faint,
+                        marginBottom: 7,
+                    }}
+                >
+                    <span>Sistem</span>
+                    <AIcon name="chevron-right" size={13} />
+                    <span style={{ color: C.muted }}>Field Kustom Karyawan</span>
+                </div>
                 <h1
                     style={{
                         fontSize: 20,
@@ -253,19 +267,12 @@ export default function CustomFields({ fields, types }: CustomFieldsProps) {
                                                 </span>
                                             </td>
                                             <td style={tdStyle}>
-                                                <button
+                                                <ActionBtn
+                                                    icon="trash-2"
+                                                    label="Hapus"
+                                                    variant="danger"
                                                     onClick={() => remove(f.id)}
-                                                    style={{
-                                                        ...btnOut,
-                                                        color: C.red,
-                                                        padding: '4px 10px',
-                                                    }}
-                                                >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={14}
-                                                    />
-                                                </button>
+                                                />
                                             </td>
                                         </tr>
                                     );

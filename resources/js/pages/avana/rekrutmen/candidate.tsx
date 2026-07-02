@@ -408,6 +408,7 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                                             <input
                                                 type={type}
                                                 value={profileForm.data[key]}
+                                                placeholder={`Masukkan ${label.toLowerCase()}`}
                                                 onChange={(event) =>
                                                     profileForm.setData(
                                                         key,
@@ -654,6 +655,7 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                                             disabled={medicalForm.processing}
                                             style={btnP}
                                         >
+                                            <AIcon name="save" size={15} />
                                             Simpan
                                         </button>
                                     </div>
@@ -816,6 +818,7 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                                         </label>
                                         <textarea
                                             value={backgroundForm.data.notes}
+                                            placeholder="Masukkan catatan pemeriksaan"
                                             onChange={(e) =>
                                                 backgroundForm.setData(
                                                     'notes',
@@ -853,6 +856,7 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                                             disabled={backgroundForm.processing}
                                             style={btnP}
                                         >
+                                            <AIcon name="save" size={15} />
                                             Simpan
                                         </button>
                                     </div>
@@ -1057,6 +1061,7 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                                             justifyContent: 'center',
                                         }}
                                     >
+                                        <AIcon name="save" size={15} />
                                         Simpan Jadwal
                                     </button>
                                 </form>
@@ -1100,6 +1105,7 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                                     </label>
                                     <textarea
                                         value={offerForm.data.offer_note}
+                                        placeholder="Masukkan catatan penawaran"
                                         onChange={(e) =>
                                             offerForm.setData(
                                                 'offer_note',
@@ -1121,6 +1127,7 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                                             background: C.green,
                                         }}
                                     >
+                                        <AIcon name="send" size={15} />
                                         Kirim Penawaran
                                     </button>
                                 </form>
@@ -1227,6 +1234,7 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                                                     blacklistForm.data
                                                         .blacklist_reason
                                                 }
+                                                placeholder="Masukkan alasan blacklist"
                                                 onChange={(e) =>
                                                     blacklistForm.setData(
                                                         'blacklist_reason',
@@ -1250,6 +1258,7 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                                                     background: C.red,
                                                 }}
                                             >
+                                                <AIcon name="ban" size={15} />
                                                 Konfirmasi Blacklist
                                             </button>
                                         </form>

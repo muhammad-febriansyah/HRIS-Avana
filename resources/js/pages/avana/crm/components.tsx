@@ -210,6 +210,7 @@ export function ModalShell({
                             justifyContent: 'center',
                         }}
                     >
+                        <AIcon name="x" size={16} />
                         Batal
                     </button>
                     <button
@@ -317,6 +318,7 @@ export function ConfirmModal({
                             justifyContent: 'center',
                         }}
                     >
+                        <AIcon name="x" size={16} />
                         Batal
                     </button>
                     <button

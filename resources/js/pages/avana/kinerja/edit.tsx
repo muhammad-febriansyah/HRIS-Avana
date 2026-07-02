@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import PerformanceController from '@/actions/App/Http/Controllers/Avana/PerformanceController';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, btnP, C, card } from '@/lib/avana';
 import {
     FeedbackTypeBadge,
@@ -488,32 +489,28 @@ export default function KinerjaEdit({
                             </div>
                             <div>
                                 <label style={fieldLabelStyle}>Penilai</label>
-                                <select
+                                <SearchableSelect
                                     value={feedbackForm.data.reviewer_id}
-                                    onChange={(event) =>
+                                    onChange={(value) =>
                                         feedbackForm.setData(
                                             'reviewer_id',
-                                            event.target.value,
+                                            value,
                                         )
                                     }
+                                    options={employees.map((employee) => ({
+                                        value: String(employee.id),
+                                        label: employee.employee_number
+                                            ? `${employee.name} (${employee.employee_number})`
+                                            : employee.name,
+                                    }))}
+                                    placeholder="Anonim"
+                                    searchPlaceholder="Cari nama karyawan…"
+                                    allowClear
                                     style={withError(
                                         selectStyle,
                                         !!feedbackForm.errors.reviewer_id,
                                     )}
-                                >
-                                    <option value="">Anonim</option>
-                                    {employees.map((employee) => (
-                                        <option
-                                            key={employee.id}
-                                            value={String(employee.id)}
-                                        >
-                                            {employee.name}
-                                            {employee.employee_number
-                                                ? ` (${employee.employee_number})`
-                                                : ''}
-                                        </option>
-                                    ))}
-                                </select>
+                                />
                                 <FieldError
                                     message={feedbackForm.errors.reviewer_id}
                                 />

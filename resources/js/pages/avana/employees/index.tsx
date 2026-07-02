@@ -1022,9 +1022,14 @@ export default function EmployeesIndex({
                                     fontSize: 14,
                                     fontWeight: 500,
                                     cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 8,
                                     transition: '.15s',
                                 }}
                             >
+                                <AIcon name="x" size={16} />
                                 Batal
                             </button>
                             <button

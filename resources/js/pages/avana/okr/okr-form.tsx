@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
 import {
     FieldError,
@@ -168,26 +169,19 @@ export function OkrForm({
 
                     <div>
                         <label style={fieldLabelStyle}>Pemilik</label>
-                        <select
+                        <SearchableSelect
                             value={data.employee_id}
-                            onChange={(event) =>
-                                setData('employee_id', event.target.value)
-                            }
-                            style={withError(selectStyle, !!errors.employee_id)}
-                        >
-                            <option value="">Tanpa pemilik</option>
-                            {employees.map((employee) => (
-                                <option
-                                    key={employee.id}
-                                    value={String(employee.id)}
-                                >
-                                    {employee.name}
-                                    {employee.employee_number
-                                        ? ` (${employee.employee_number})`
-                                        : ''}
-                                </option>
-                            ))}
-                        </select>
+                            onChange={(v) => setData('employee_id', v)}
+                            options={employees.map((employee) => ({
+                                value: String(employee.id),
+                                label: employee.employee_number
+                                    ? `${employee.name} (${employee.employee_number})`
+                                    : employee.name,
+                            }))}
+                            placeholder="Tanpa pemilik"
+                            searchPlaceholder="Cari nama karyawan…"
+                            allowClear
+                        />
                         <FieldError message={errors.employee_id} />
                     </div>
                 </div>
@@ -224,6 +218,7 @@ export function OkrForm({
                         textDecoration: 'none',
                     }}
                 >
+                    <AIcon name="x" size={16} color={C.text} />
                     Batal
                 </Link>
                 <button

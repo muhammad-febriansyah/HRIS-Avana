@@ -540,6 +540,7 @@ export default function DynamicReportIndex({
                                 onClick={() => setConfirm(null)}
                                 style={btnOut}
                             >
+                                <AIcon name="x" size={16} />
                                 Batal
                             </button>
                             <button
@@ -547,6 +548,7 @@ export default function DynamicReportIndex({
                                 onClick={deleteReport}
                                 style={{ ...btnP, background: C.red }}
                             >
+                                <AIcon name="trash-2" size={16} color="#fff" />
                                 Hapus
                             </button>
                         </div>

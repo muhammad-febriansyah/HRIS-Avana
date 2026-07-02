@@ -83,6 +83,7 @@ export function WeekNavigator({
                 <AIcon name="chevron-right" size={16} />
             </button>
             <button onClick={onToday} style={navBtnStyle}>
+                <AIcon name="calendar-days" size={16} color={C.text} />
                 Minggu Ini
             </button>
         </div>

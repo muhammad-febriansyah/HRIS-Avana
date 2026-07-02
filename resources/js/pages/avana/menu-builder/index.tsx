@@ -290,6 +290,20 @@ export default function MenuBuilder({
                     }}
                 >
                     <div>
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 7,
+                                fontSize: 12.5,
+                                color: C.faint,
+                                marginBottom: 7,
+                            }}
+                        >
+                            <span>Sistem</span>
+                            <AIcon name="chevron-right" size={13} />
+                            <span style={{ color: C.muted }}>Menu Builder</span>
+                        </div>
                         <h1
                             style={{
                                 fontSize: 20,
@@ -418,6 +432,7 @@ export default function MenuBuilder({
                                         form.setData('label', e.target.value)
                                     }
                                     style={inp}
+                                    placeholder="Masukkan nama menu"
                                 />
                             </Field>
                             <Field label="Induk (kosongkan untuk grup utama)">
@@ -580,6 +595,7 @@ export default function MenuBuilder({
                                         justifyContent: 'center',
                                     }}
                                 >
+                                    <AIcon name="x" size={16} color={C.text} />
                                     Batal
                                 </button>
                                 <button

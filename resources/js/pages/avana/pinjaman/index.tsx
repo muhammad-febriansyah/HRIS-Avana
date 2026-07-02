@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import LoanController from '@/actions/App/Http/Controllers/Avana/LoanController';
+import { SearchableSelect } from '@/components/searchable-select';
 import {
     AIcon,
     ActionBtn,
@@ -877,32 +878,25 @@ export default function PinjamanIndex({
                                     Karyawan{' '}
                                     <span style={{ color: C.red }}>*</span>
                                 </label>
-                                <select
+                                <SearchableSelect
                                     value={form.data.employee_id}
-                                    onChange={(event) =>
-                                        form.setData(
-                                            'employee_id',
-                                            event.target.value,
-                                        )
+                                    onChange={(value) =>
+                                        form.setData('employee_id', value)
                                     }
+                                    options={employees.map((employee) => ({
+                                        value: String(employee.id),
+                                        label: employee.employee_number
+                                            ? `${employee.name} (${employee.employee_number})`
+                                            : employee.name,
+                                    }))}
+                                    placeholder="Pilih karyawan"
+                                    searchPlaceholder="Cari nama karyawan…"
+                                    allowClear
                                     style={withError(
                                         selectStyle,
                                         !!form.errors.employee_id,
                                     )}
-                                >
-                                    <option value="">Pilih karyawan</option>
-                                    {employees.map((employee) => (
-                                        <option
-                                            key={employee.id}
-                                            value={String(employee.id)}
-                                        >
-                                            {employee.name}
-                                            {employee.employee_number
-                                                ? ` (${employee.employee_number})`
-                                                : ''}
-                                        </option>
-                                    ))}
-                                </select>
+                                />
                                 <FieldError message={form.errors.employee_id} />
                             </div>
 
@@ -936,6 +930,7 @@ export default function PinjamanIndex({
                                     <input
                                         type="number"
                                         min={1}
+                                        placeholder="cth. 6"
                                         value={form.data.tenor_months}
                                         onChange={(event) =>
                                             form.setData(
@@ -960,6 +955,7 @@ export default function PinjamanIndex({
                                         type="number"
                                         min={0}
                                         step="0.01"
+                                        placeholder="cth. 2.5"
                                         value={form.data.interest_rate}
                                         onChange={(event) =>
                                             form.setData(
@@ -1044,6 +1040,7 @@ export default function PinjamanIndex({
                                     justifyContent: 'center',
                                 }}
                             >
+                                <AIcon name="x" size={16} />
                                 Batal
                             </button>
                             <button

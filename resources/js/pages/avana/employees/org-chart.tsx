@@ -9,7 +9,7 @@ import ReactFlow, {
 } from 'reactflow';
 import type {Edge, Node} from 'reactflow';
 import 'reactflow/dist/style.css';
-import { C } from '@/lib/avana';
+import { AIcon, C } from '@/lib/avana';
 
 interface OrgNode {
     id: number;
@@ -105,19 +105,41 @@ export default function OrgChart({ nodes }: OrgChartProps) {
         <>
             <Head title="Struktur Organisasi" />
             <div style={{ padding: '22px 26px' }}>
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 7,
+                        fontSize: 12.5,
+                        color: C.faint,
+                        marginBottom: 7,
+                    }}
+                >
+                    <span>Beranda</span>
+                    <AIcon name="chevron-right" size={13} />
+                    <span style={{ color: C.muted }}>Struktur Organisasi</span>
+                </div>
                 <h1
                     style={{
-                        fontSize: 20,
-                        fontWeight: 700,
+                        fontSize: 24,
+                        fontWeight: 600,
                         color: C.navy,
-                        marginBottom: 4,
+                        margin: 0,
+                        letterSpacing: '-.01em',
                     }}
                 >
                     Struktur Organisasi
                 </h1>
-                <p style={{ fontSize: 13, color: C.faint, marginBottom: 16 }}>
+                <div
+                    style={{
+                        fontSize: 14,
+                        color: C.muted,
+                        marginTop: 4,
+                        marginBottom: 16,
+                    }}
+                >
                     Bagan hierarki pelaporan karyawan aktif.
-                </p>
+                </div>
                 <div
                     style={{
                         height: '70vh',

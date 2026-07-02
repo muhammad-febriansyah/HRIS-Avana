@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import AssetController from '@/actions/App/Http/Controllers/Avana/AssetController';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, ActionBtn, btnP, C, card, rp, thCell } from '@/lib/avana';
 import {
     ConditionBadge,
@@ -10,7 +11,6 @@ import {
     FieldError,
     fieldLabelStyle,
     inputStyle,
-    selectStyle,
     StatusPill,
     textareaStyle,
     withError,
@@ -691,32 +691,21 @@ export default function AsetIndex({
                                     Karyawan{' '}
                                     <span style={{ color: C.red }}>*</span>
                                 </label>
-                                <select
+                                <SearchableSelect
                                     value={assignForm.data.employee_id}
-                                    onChange={(event) =>
-                                        assignForm.setData(
-                                            'employee_id',
-                                            event.target.value,
-                                        )
+                                    onChange={(v) =>
+                                        assignForm.setData('employee_id', v)
                                     }
-                                    style={withError(
-                                        selectStyle,
-                                        !!assignForm.errors.employee_id,
-                                    )}
-                                >
-                                    <option value="">Pilih karyawan</option>
-                                    {employees.map((employee) => (
-                                        <option
-                                            key={employee.id}
-                                            value={String(employee.id)}
-                                        >
-                                            {employee.name}
-                                            {employee.employee_number
-                                                ? ` (${employee.employee_number})`
-                                                : ''}
-                                        </option>
-                                    ))}
-                                </select>
+                                    options={employees.map((employee) => ({
+                                        value: String(employee.id),
+                                        label: employee.employee_number
+                                            ? `${employee.name ?? '—'} (${employee.employee_number})`
+                                            : (employee.name ?? '—'),
+                                    }))}
+                                    placeholder="Pilih karyawan"
+                                    searchPlaceholder="Cari nama karyawan…"
+                                    allowClear
+                                />
                                 <FieldError
                                     message={assignForm.errors.employee_id}
                                 />
@@ -786,6 +775,7 @@ export default function AsetIndex({
                                     border: `1px solid ${C.border}`,
                                 }}
                             >
+                                <AIcon name="x" size={16} color={C.text} />
                                 Batal
                             </button>
                             <button

@@ -240,6 +240,7 @@ export function RekrutmenForm({
                         textDecoration: 'none',
                     }}
                 >
+                    <AIcon name="x" size={16} color={C.text} />
                     Batal
                 </Link>
                 <button

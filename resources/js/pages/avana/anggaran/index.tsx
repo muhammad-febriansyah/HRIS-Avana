@@ -754,6 +754,7 @@ export default function AnggaranIndex({
                                     justifyContent: 'center',
                                 }}
                             >
+                                <AIcon name="x" size={16} />
                                 Batal
                             </button>
                             <button
@@ -856,6 +857,7 @@ export default function AnggaranIndex({
                                     justifyContent: 'center',
                                 }}
                             >
+                                <AIcon name="x" size={16} />
                                 Batal
                             </button>
                             <button

@@ -204,7 +204,10 @@ export function EntityModal({
                                     ) : field.type === 'textarea' ? (
                                         <textarea
                                             value={value}
-                                            placeholder={field.placeholder}
+                                            placeholder={
+                                                field.placeholder ??
+                                                `Masukkan ${field.label.toLowerCase()}`
+                                            }
                                             onChange={(event) =>
                                                 onChange(event.target.value)
                                             }
@@ -223,7 +226,12 @@ export function EntityModal({
                                                       : 'text'
                                             }
                                             value={value}
-                                            placeholder={field.placeholder}
+                                            placeholder={
+                                                field.placeholder ??
+                                                (field.type === 'time'
+                                                    ? undefined
+                                                    : `Masukkan ${field.label.toLowerCase()}`)
+                                            }
                                             onChange={(event) =>
                                                 onChange(event.target.value)
                                             }
@@ -252,6 +260,7 @@ export function EntityModal({
                                 justifyContent: 'center',
                             }}
                         >
+                            <AIcon name="x" size={16} />
                             Batal
                         </button>
                         <button

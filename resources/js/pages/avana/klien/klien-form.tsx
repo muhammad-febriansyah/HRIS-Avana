@@ -139,6 +139,7 @@ export function KlienForm({
                             onChange={(event) =>
                                 setData('max_users', event.target.value)
                             }
+                            placeholder="cth. 25"
                             style={withError(inputStyle, !!errors.max_users)}
                         />
                         <FieldError message={errors.max_users} />
@@ -152,6 +153,7 @@ export function KlienForm({
                             onChange={(event) =>
                                 setData('max_employees', event.target.value)
                             }
+                            placeholder="cth. 100"
                             style={withError(
                                 inputStyle,
                                 !!errors.max_employees,
@@ -168,6 +170,7 @@ export function KlienForm({
                             onChange={(event) =>
                                 setData('max_branches', event.target.value)
                             }
+                            placeholder="cth. 5"
                             style={withError(inputStyle, !!errors.max_branches)}
                         />
                         <FieldError message={errors.max_branches} />
@@ -217,6 +220,7 @@ export function KlienForm({
                         textDecoration: 'none',
                     }}
                 >
+                    <AIcon name="x" size={16} color={C.text} />
                     Batal
                 </Link>
                 <button

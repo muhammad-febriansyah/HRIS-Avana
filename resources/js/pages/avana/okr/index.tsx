@@ -124,6 +124,7 @@ function KeyResultItem({ keyResult }: { keyResult: KeyResultRow }) {
                     value={value}
                     onChange={(event) => setValue(event.target.value)}
                     title="Perbarui nilai saat ini"
+                    placeholder="Nilai"
                     style={miniInputStyle}
                 />
                 <button
@@ -400,6 +401,7 @@ function ObjectiveCard({
                                         event.target.value,
                                     )
                                 }
+                                placeholder="cth. 100"
                                 style={withError(
                                     inputStyle,
                                     !!krForm.errors.target_value,
@@ -422,6 +424,7 @@ function ObjectiveCard({
                                         event.target.value,
                                     )
                                 }
+                                placeholder="cth. 0"
                                 style={withError(
                                     inputStyle,
                                     !!krForm.errors.current_value,
@@ -460,6 +463,7 @@ function ObjectiveCard({
                                 justifyContent: 'center',
                             }}
                         >
+                            <AIcon name="x" size={15} color={C.text} />
                             Batal
                         </button>
                         <button

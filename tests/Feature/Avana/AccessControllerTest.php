@@ -29,11 +29,12 @@ beforeEach(function (): void {
     $this->seed(AvanaDemoSeeder::class);
 
     $this->admin = User::where('email', 'admin@avanahr.co.id')->firstOrFail();
+    $this->superAdmin = User::where('email', 'superadmin@avanahr.co.id')->firstOrFail();
     $this->tenant = Tenant::findOrFail($this->admin->tenant_id);
 });
 
 it('renders the hak-akses screen with roles, modules and the permission matrix', function (): void {
-    actingAs($this->admin)
+    actingAs($this->superAdmin)
         ->get('/__access')
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
@@ -52,7 +53,7 @@ it('renders the hak-akses screen with roles, modules and the permission matrix',
 });
 
 it('exposes a matrix row per module with one boolean per role', function (): void {
-    actingAs($this->admin)
+    actingAs($this->superAdmin)
         ->get('/__access')
         ->assertOk()
         ->assertInertia(function (Assert $page): void {
@@ -77,7 +78,7 @@ it('toggles a module on and off for a role', function (): void {
     expect($employeeRole->permissions()->whereIn('permissions.id', $employeePermissionIds)->exists())->toBeFalse();
 
     // First toggle attaches the whole module.
-    actingAs($this->admin)
+    actingAs($this->superAdmin)
         ->post('/__access/toggle', [
             'module_key' => 'karyawan',
             'role_id' => $employeeRole->id,
@@ -88,7 +89,7 @@ it('toggles a module on and off for a role', function (): void {
         ->toBe($employeePermissionIds->count());
 
     // Second toggle detaches the whole module.
-    actingAs($this->admin)
+    actingAs($this->superAdmin)
         ->post('/__access/toggle', [
             'module_key' => 'karyawan',
             'role_id' => $employeeRole->id,
@@ -101,7 +102,7 @@ it('toggles a module on and off for a role', function (): void {
 it('refuses to modify the system super admin role', function (): void {
     $superAdmin = Role::where('code', 'super_admin')->firstOrFail();
 
-    actingAs($this->admin)
+    actingAs($this->superAdmin)
         ->post('/__access/toggle', [
             'module_key' => 'karyawan',
             'role_id' => $superAdmin->id,
@@ -110,7 +111,7 @@ it('refuses to modify the system super admin role', function (): void {
 });
 
 it('creates a tenant role from a name', function (): void {
-    actingAs($this->admin)
+    actingAs($this->superAdmin)
         ->post('/__access/roles', ['name' => 'Auditor Internal'])
         ->assertSessionHas('success', 'Role dibuat');
 
@@ -122,7 +123,7 @@ it('creates a tenant role from a name', function (): void {
 });
 
 it('validates that a role name is required', function (): void {
-    actingAs($this->admin)
+    actingAs($this->superAdmin)
         ->post('/__access/roles', ['name' => ''])
         ->assertSessionHasErrors('name');
 });
@@ -135,5 +136,11 @@ it('forbids non-admin users from viewing the access matrix', function (): void {
 
     actingAs($staff)
         ->get('/__access')
+        ->assertForbidden();
+});
+
+it('forbids a tenant admin from the access-control screen (super-admin only)', function (): void {
+    actingAs($this->admin)
+        ->get(route('avana.hak-akses'))
         ->assertForbidden();
 });

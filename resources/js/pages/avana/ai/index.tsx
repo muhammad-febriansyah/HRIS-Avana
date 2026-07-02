@@ -468,6 +468,9 @@ export default function AiAssistant({
                                             key={s}
                                             onClick={() => send(s)}
                                             style={{
+                                                display: 'flex',
+                                                alignItems: 'flex-start',
+                                                gap: 9,
                                                 textAlign: 'left',
                                                 padding: '13px 15px',
                                                 border: `1px solid ${C.border}`,
@@ -478,7 +481,20 @@ export default function AiAssistant({
                                                 color: C.text,
                                             }}
                                         >
-                                            {s}
+                                            <span
+                                                style={{
+                                                    flex: 'none',
+                                                    display: 'flex',
+                                                    marginTop: 1,
+                                                }}
+                                            >
+                                                <AIcon
+                                                    name="sparkles"
+                                                    size={15}
+                                                    color={C.primary}
+                                                />
+                                            </span>
+                                            <span>{s}</span>
                                         </button>
                                     ))}
                                 </div>

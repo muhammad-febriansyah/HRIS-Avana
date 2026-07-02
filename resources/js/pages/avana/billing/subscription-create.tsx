@@ -239,6 +239,7 @@ export default function SubscriptionCreate({
                                 textDecoration: 'none',
                             }}
                         >
+                            <AIcon name="x" size={16} />
                             Batal
                         </Link>
                         <button

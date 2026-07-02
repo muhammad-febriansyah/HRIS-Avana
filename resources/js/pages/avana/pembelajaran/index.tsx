@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import LearningController from '@/actions/App/Http/Controllers/Avana/LearningController';
+import { SearchableSelect } from '@/components/searchable-select';
 import {
     AIcon,
     ActionBtn,
@@ -741,32 +742,21 @@ export default function PembelajaranIndex({
                                     Karyawan{' '}
                                     <span style={{ color: C.red }}>*</span>
                                 </label>
-                                <select
+                                <SearchableSelect
                                     value={enrollForm.data.employee_id}
-                                    onChange={(event) =>
-                                        enrollForm.setData(
-                                            'employee_id',
-                                            event.target.value,
-                                        )
+                                    onChange={(v) =>
+                                        enrollForm.setData('employee_id', v)
                                     }
-                                    style={withError(
-                                        selectStyle,
-                                        !!enrollForm.errors.employee_id,
-                                    )}
-                                >
-                                    <option value="">Pilih karyawan</option>
-                                    {employees.map((employee) => (
-                                        <option
-                                            key={employee.id}
-                                            value={String(employee.id)}
-                                        >
-                                            {employee.name}
-                                            {employee.employee_number
-                                                ? ` — ${employee.employee_number}`
-                                                : ''}
-                                        </option>
-                                    ))}
-                                </select>
+                                    options={employees.map((employee) => ({
+                                        value: String(employee.id),
+                                        label: employee.employee_number
+                                            ? `${employee.name} — ${employee.employee_number}`
+                                            : employee.name,
+                                    }))}
+                                    placeholder="Pilih karyawan"
+                                    searchPlaceholder="Cari nama karyawan…"
+                                    allowClear
+                                />
                                 <FieldError
                                     message={enrollForm.errors.employee_id}
                                 />
@@ -818,6 +808,7 @@ export default function PembelajaranIndex({
                                     justifyContent: 'center',
                                 }}
                             >
+                                <AIcon name="x" size={16} color={C.text} />
                                 Batal
                             </button>
                             <button
@@ -1032,6 +1023,7 @@ export default function PembelajaranIndex({
                                     justifyContent: 'center',
                                 }}
                             >
+                                <AIcon name="x" size={16} color={C.text} />
                                 Batal
                             </button>
                             <button

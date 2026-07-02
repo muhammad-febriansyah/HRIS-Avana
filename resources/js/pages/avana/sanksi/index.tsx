@@ -3,13 +3,12 @@ import type { FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import AttendancePenaltyController from '@/actions/App/Http/Controllers/Avana/AttendancePenaltyController';
-import { AIcon, btnOut, btnP, C, rp, thCell } from '@/lib/avana';
+import { ActionBtn, AIcon, btnOut, btnP, C, rp, thCell } from '@/lib/avana';
 import {
     ConfirmModal,
     FieldError,
     fieldLabelStyle,
     filterSelectStyle,
-    iconBtn,
     inputStyle,
     pageItems,
     PenaltyBadge,
@@ -430,19 +429,14 @@ export default function SanksiIndex({ penalties, filters }: SanksiIndexProps) {
                                                 textAlign: 'right',
                                             }}
                                         >
-                                            <button
-                                                title="Hapus"
+                                            <ActionBtn
+                                                icon="trash-2"
+                                                label="Hapus"
+                                                variant="danger"
                                                 onClick={() =>
                                                     setConfirm(penalty)
                                                 }
-                                                style={iconBtn}
-                                            >
-                                                <AIcon
-                                                    name="trash-2"
-                                                    size={15}
-                                                    color={C.red}
-                                                />
-                                            </button>
+                                            />
                                         </td>
                                     </tr>
                                 ))}
@@ -705,6 +699,7 @@ export default function SanksiIndex({ penalties, filters }: SanksiIndexProps) {
                                     justifyContent: 'center',
                                 }}
                             >
+                                <AIcon name="x" size={16} color={C.text} />
                                 Batal
                             </button>
                             <button

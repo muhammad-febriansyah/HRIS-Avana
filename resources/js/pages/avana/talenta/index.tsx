@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import TalentController from '@/actions/App/Http/Controllers/Avana/TalentController';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, btnP, C, card } from '@/lib/avana';
 import {
     ConfirmModal,
@@ -14,16 +15,13 @@ import {
     textareaStyle,
     withError,
 } from './components';
-import {
-    emptyAssessmentForm,
-    LEVEL_RANK,
-    levelLabel
-    
-    
-    
-    
+import { emptyAssessmentForm, LEVEL_RANK, levelLabel } from './types';
+import type {
+    AssessmentChip,
+    AssessmentFormData,
+    TalentIndexProps,
+    FlashProps,
 } from './types';
-import type {AssessmentChip, AssessmentFormData, TalentIndexProps, FlashProps} from './types';
 
 /** Tint a 9-box cell by its combined performance + potential score (0-4). */
 function cellTint(score: number): { bg: string; border: string } {
@@ -378,8 +376,16 @@ export default function TalentIndex({
                                             color: C.muted,
                                             fontSize: 12.5,
                                             cursor: 'pointer',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 5,
                                         }}
                                     >
+                                        <AIcon
+                                            name="x"
+                                            size={13}
+                                            color={C.muted}
+                                        />
                                         Batal
                                     </button>
                                 )}
@@ -397,36 +403,21 @@ export default function TalentIndex({
                                         Karyawan{' '}
                                         <span style={{ color: C.red }}>*</span>
                                     </label>
-                                    <select
+                                    <SearchableSelect
                                         value={form.data.employee_id}
                                         disabled={!!editingId}
-                                        onChange={(event) =>
-                                            form.setData(
-                                                'employee_id',
-                                                event.target.value,
-                                            )
+                                        onChange={(value) =>
+                                            form.setData('employee_id', value)
                                         }
-                                        style={{
-                                            ...withError(
-                                                selectStyle,
-                                                !!form.errors.employee_id,
-                                            ),
-                                            opacity: editingId ? 0.7 : 1,
-                                            cursor: editingId
-                                                ? 'not-allowed'
-                                                : 'pointer',
-                                        }}
-                                    >
-                                        <option value="">Pilih karyawan</option>
-                                        {employees.map((employee) => (
-                                            <option
-                                                key={employee.id}
-                                                value={String(employee.id)}
-                                            >
-                                                {employee.name}
-                                            </option>
-                                        ))}
-                                    </select>
+                                        options={employees.map((employee) => ({
+                                            value: String(employee.id),
+                                            label: employee.name,
+                                        }))}
+                                        placeholder="Pilih karyawan"
+                                        searchPlaceholder="Cari nama karyawan…"
+                                        allowClear
+                                        style={{ opacity: editingId ? 0.7 : 1 }}
+                                    />
                                     <FieldError
                                         message={form.errors.employee_id}
                                     />

@@ -155,17 +155,19 @@ export function PendingTable({
                                         <button
                                             onClick={() => onReject(item)}
                                             style={{
-                                                width: 30,
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 5,
                                                 height: 30,
+                                                padding: '0 11px',
                                                 border: 'none',
                                                 borderRadius: 7,
                                                 background:
                                                     'rgba(220,38,38,.08)',
                                                 color: C.red,
+                                                fontSize: 12,
+                                                fontWeight: 600,
                                                 cursor: 'pointer',
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
                                                 transition: '.15s',
                                             }}
                                         >
@@ -174,6 +176,7 @@ export function PendingTable({
                                                 size={14}
                                                 color={C.red}
                                             />
+                                            Tolak
                                         </button>
                                     </div>
                                 </td>

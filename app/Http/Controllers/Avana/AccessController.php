@@ -16,13 +16,6 @@ use Inertia\Response;
 class AccessController extends Controller
 {
     /**
-     * Roles that may view and manage the access-control matrix.
-     *
-     * @var array<int, string>
-     */
-    private const MANAGER_ROLES = ['super_admin', 'admin_tenant_hr'];
-
-    /**
      * Roles that implicitly hold every permission (rendered as a full row).
      * Only super_admin is immutable; every other role — including
      * admin_tenant_hr — reflects its real permissions so the matrix stays in
@@ -225,14 +218,7 @@ class AccessController extends Controller
         $user = $request->user();
         $user->loadMissing('roles.permissions');
 
-        $isPrivileged = $user->roles->whereIn('code', self::MANAGER_ROLES)->isNotEmpty();
-
-        $hasManagePermission = $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains('role.manage');
-
-        abort_unless($isPrivileged || $hasManagePermission, 403);
+        // Access control (roles × permissions) is a platform-level concern.
+        abort_unless($user->roles->contains(fn ($role): bool => $role->code === 'super_admin'), 403);
     }
 }

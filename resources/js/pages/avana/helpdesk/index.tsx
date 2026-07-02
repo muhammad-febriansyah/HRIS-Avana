@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import HelpdeskController from '@/actions/App/Http/Controllers/Avana/HelpdeskController';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, btnP, C, card, thCell } from '@/lib/avana';
 import {
     ConfirmModal,
@@ -570,23 +571,17 @@ export default function HelpdeskIndex({
                             <label style={fieldLabelStyle}>
                                 Penanggung Jawab
                             </label>
-                            <select
+                            <SearchableSelect
                                 value={assigneeId}
-                                onChange={(event) =>
-                                    setAssigneeId(event.target.value)
-                                }
-                                style={selectStyle}
-                            >
-                                <option value="">Belum ditugaskan</option>
-                                {users.map((user) => (
-                                    <option
-                                        key={user.id}
-                                        value={String(user.id)}
-                                    >
-                                        {user.name}
-                                    </option>
-                                ))}
-                            </select>
+                                onChange={(value) => setAssigneeId(value)}
+                                options={users.map((user) => ({
+                                    value: String(user.id),
+                                    label: user.name,
+                                }))}
+                                placeholder="Belum ditugaskan"
+                                searchPlaceholder="Cari nama…"
+                                allowClear
+                            />
                         </div>
 
                         <div
@@ -605,8 +600,13 @@ export default function HelpdeskIndex({
                                     fontSize: 14,
                                     fontWeight: 500,
                                     cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 8,
                                 }}
                             >
+                                <AIcon name="x" size={16} />
                                 Batal
                             </button>
                             <button

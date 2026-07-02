@@ -1,4 +1,5 @@
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, C, card, statusBadge } from '@/lib/avana';
 import type {
     EmployeeOption,
@@ -153,18 +154,18 @@ export function EmployeeSelect({
 }) {
     return (
         <Field label="Karyawan" required error={error}>
-            <select
+            <SearchableSelect
                 value={value}
-                onChange={(event) => onChange(event.target.value)}
+                onChange={onChange}
+                options={employees.map((employee) => ({
+                    value: String(employee.id),
+                    label: `${employee.name} (${employee.employee_number})`,
+                }))}
+                placeholder="Pilih karyawan"
+                searchPlaceholder="Cari nama karyawan…"
+                allowClear
                 style={withError(selectStyle, !!error)}
-            >
-                <option value="">Pilih karyawan</option>
-                {employees.map((employee) => (
-                    <option key={employee.id} value={String(employee.id)}>
-                        {employee.name} ({employee.employee_number})
-                    </option>
-                ))}
-            </select>
+            />
         </Field>
     );
 }

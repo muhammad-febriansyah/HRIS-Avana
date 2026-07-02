@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
 import {
     FieldError,
@@ -76,18 +77,17 @@ export function MutasiForm({
                     <label style={fieldLabelStyle}>
                         Karyawan <span style={{ color: C.red }}>*</span>
                     </label>
-                    <select
+                    <SearchableSelect
                         value={data.employee_id}
-                        onChange={(event) => selectEmployee(event.target.value)}
-                        style={withError(selectStyle, !!errors.employee_id)}
-                    >
-                        <option value="">Pilih karyawan…</option>
-                        {employees.map((employee) => (
-                            <option key={employee.id} value={employee.id}>
-                                {employee.name} ({employee.employee_number})
-                            </option>
-                        ))}
-                    </select>
+                        onChange={(value) => selectEmployee(value)}
+                        options={employees.map((employee) => ({
+                            value: String(employee.id),
+                            label: `${employee.name} (${employee.employee_number})`,
+                        }))}
+                        placeholder="Pilih karyawan…"
+                        searchPlaceholder="Cari nama karyawan…"
+                        allowClear
+                    />
                     <FieldError message={errors.employee_id} />
                 </div>
 
@@ -237,6 +237,7 @@ export function MutasiForm({
                         textDecoration: 'none',
                     }}
                 >
+                    <AIcon name="x" size={16} color={C.text} />
                     Batal
                 </Link>
                 <button

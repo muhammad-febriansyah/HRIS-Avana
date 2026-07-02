@@ -68,6 +68,22 @@ export default function BillingIndex({
                     }}
                 >
                     <div>
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 7,
+                                fontSize: 12.5,
+                                color: C.faint,
+                                marginBottom: 7,
+                            }}
+                        >
+                            <span>Platform</span>
+                            <AIcon name="chevron-right" size={13} />
+                            <span style={{ color: C.muted }}>
+                                Billing & Invoice
+                            </span>
+                        </div>
                         <h1
                             style={{
                                 fontSize: 24,

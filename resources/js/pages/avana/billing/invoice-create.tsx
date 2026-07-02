@@ -374,6 +374,7 @@ export default function InvoiceCreate({
                                 textDecoration: 'none',
                             }}
                         >
+                            <AIcon name="x" size={16} />
                             Batal
                         </Link>
                         <button

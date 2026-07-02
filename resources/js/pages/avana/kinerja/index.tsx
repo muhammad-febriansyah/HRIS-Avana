@@ -3,13 +3,12 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import PerformanceController from '@/actions/App/Http/Controllers/Avana/PerformanceController';
-import { AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
+import { ActionBtn, AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
 import {
     ConfirmModal,
     CycleStatusBadge,
     FieldError,
     fieldLabelStyle,
-    iconBtn,
     inputStyle,
     ReviewStatusBadge,
     ScoreValue,
@@ -440,47 +439,39 @@ export default function KinerjaIndex({
                                                 style={{
                                                     display: 'inline-flex',
                                                     gap: 6,
+                                                    flexWrap: 'wrap',
+                                                    justifyContent: 'flex-end',
                                                 }}
                                             >
-                                                <button
+                                                <ActionBtn
+                                                    icon="star"
+                                                    label="Nilai"
+                                                    variant="warning"
                                                     title="Input Nilai"
                                                     onClick={() =>
                                                         openScore(review)
                                                     }
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="star"
-                                                        size={15}
-                                                        color={C.amber}
-                                                    />
-                                                </button>
-                                                <Link
-                                                    title="Ubah"
-                                                    href={PerformanceController.edit(
-                                                        review.id,
-                                                    )}
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="pencil"
-                                                        size={15}
-                                                        color={C.muted}
-                                                    />
-                                                </Link>
-                                                <button
-                                                    title="Hapus"
+                                                />
+                                                <ActionBtn
+                                                    icon="pencil"
+                                                    label="Ubah"
+                                                    variant="neutral"
+                                                    onClick={() =>
+                                                        router.visit(
+                                                            PerformanceController.edit(
+                                                                review.id,
+                                                            ).url,
+                                                        )
+                                                    }
+                                                />
+                                                <ActionBtn
+                                                    icon="trash-2"
+                                                    label="Hapus"
+                                                    variant="danger"
                                                     onClick={() =>
                                                         setConfirm(review)
                                                     }
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={15}
-                                                        color={C.red}
-                                                    />
-                                                </button>
+                                                />
                                             </div>
                                         </td>
                                     </tr>
@@ -816,6 +807,7 @@ export default function KinerjaIndex({
                                     justifyContent: 'center',
                                 }}
                             >
+                                <AIcon name="x" size={16} />
                                 Batal
                             </button>
                             <button
@@ -1061,6 +1053,7 @@ export default function KinerjaIndex({
                                     justifyContent: 'center',
                                 }}
                             >
+                                <AIcon name="x" size={16} />
                                 Batal
                             </button>
                             <button

@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import CrmController from '@/actions/App/Http/Controllers/Avana/CrmController';
+import { SearchableSelect } from '@/components/searchable-select';
 import {
     AIcon,
     ActionBtn,
@@ -757,53 +758,44 @@ export default function CrmIndex({
                     </div>
                     <div>
                         <label style={fieldLabelStyle}>Kontak</label>
-                        <select
+                        <SearchableSelect
                             value={dealForm.data.contact_id}
-                            onChange={(event) =>
-                                dealForm.setData(
-                                    'contact_id',
-                                    event.target.value,
-                                )
+                            onChange={(value) =>
+                                dealForm.setData('contact_id', value)
                             }
+                            options={contactOptions.map((option) => ({
+                                value: String(option.id),
+                                label: option.name,
+                            }))}
+                            placeholder="Tanpa kontak"
+                            searchPlaceholder="Cari nama kontak…"
+                            allowClear
                             style={withError(
                                 selectStyle,
                                 !!dealForm.errors.contact_id,
                             )}
-                        >
-                            <option value="">Tanpa kontak</option>
-                            {contactOptions.map((option) => (
-                                <option
-                                    key={option.id}
-                                    value={String(option.id)}
-                                >
-                                    {option.name}
-                                </option>
-                            ))}
-                        </select>
+                        />
                         <FieldError message={dealForm.errors.contact_id} />
                     </div>
                     <div>
                         <label style={fieldLabelStyle}>Pemilik (PIC)</label>
-                        <select
+                        <SearchableSelect
                             value={dealForm.data.owner_id}
-                            onChange={(event) =>
-                                dealForm.setData('owner_id', event.target.value)
+                            onChange={(value) =>
+                                dealForm.setData('owner_id', value)
                             }
+                            options={owners.map((option) => ({
+                                value: String(option.id),
+                                label: option.name,
+                            }))}
+                            placeholder="Tanpa pemilik"
+                            searchPlaceholder="Cari nama karyawan…"
+                            allowClear
                             style={withError(
                                 selectStyle,
                                 !!dealForm.errors.owner_id,
                             )}
-                        >
-                            <option value="">Tanpa pemilik</option>
-                            {owners.map((option) => (
-                                <option
-                                    key={option.id}
-                                    value={String(option.id)}
-                                >
-                                    {option.name}
-                                </option>
-                            ))}
-                        </select>
+                        />
                         <FieldError message={dealForm.errors.owner_id} />
                     </div>
                     <div>

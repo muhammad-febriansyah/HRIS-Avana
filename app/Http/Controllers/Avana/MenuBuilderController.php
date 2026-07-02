@@ -22,7 +22,7 @@ class MenuBuilderController extends Controller
      *
      * @var array<int, string>
      */
-    private const PRIVILEGED_ROLES = ['super_admin', 'admin_tenant_hr'];
+    private const PRIVILEGED_ROLES = ['super_admin'];
 
     /**
      * Render the menu builder: the tenant's menu tree plus the option lists the

@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
 import {
     FieldError,
@@ -72,48 +73,37 @@ export function HelpdeskForm({
                         <label style={fieldLabelStyle}>
                             Pelapor <span style={{ color: C.red }}>*</span>
                         </label>
-                        <select
+                        <SearchableSelect
                             value={data.requester_id}
-                            onChange={(event) =>
-                                setData('requester_id', event.target.value)
-                            }
-                            style={withError(
-                                selectStyle,
-                                !!errors.requester_id,
-                            )}
-                        >
-                            <option value="">Pilih karyawan</option>
-                            {employees.map((employee) => (
-                                <option
-                                    key={employee.id}
-                                    value={String(employee.id)}
-                                >
-                                    {employee.name ?? '—'}
-                                    {employee.employee_number
+                            onChange={(value) => setData('requester_id', value)}
+                            options={employees.map((employee) => ({
+                                value: String(employee.id),
+                                label: `${employee.name ?? '—'}${
+                                    employee.employee_number
                                         ? ` (${employee.employee_number})`
-                                        : ''}
-                                </option>
-                            ))}
-                        </select>
+                                        : ''
+                                }`,
+                            }))}
+                            placeholder="Pilih karyawan"
+                            searchPlaceholder="Cari nama karyawan…"
+                            allowClear
+                        />
                         <FieldError message={errors.requester_id} />
                     </div>
 
                     <div>
                         <label style={fieldLabelStyle}>Penanggung Jawab</label>
-                        <select
+                        <SearchableSelect
                             value={data.assignee_id}
-                            onChange={(event) =>
-                                setData('assignee_id', event.target.value)
-                            }
-                            style={withError(selectStyle, !!errors.assignee_id)}
-                        >
-                            <option value="">Belum ditugaskan</option>
-                            {users.map((user) => (
-                                <option key={user.id} value={String(user.id)}>
-                                    {user.name}
-                                </option>
-                            ))}
-                        </select>
+                            onChange={(value) => setData('assignee_id', value)}
+                            options={users.map((user) => ({
+                                value: String(user.id),
+                                label: user.name,
+                            }))}
+                            placeholder="Belum ditugaskan"
+                            searchPlaceholder="Cari nama…"
+                            allowClear
+                        />
                         <FieldError message={errors.assignee_id} />
                     </div>
                 </div>
@@ -200,6 +190,7 @@ export function HelpdeskForm({
                         textDecoration: 'none',
                     }}
                 >
+                    <AIcon name="x" size={16} />
                     Batal
                 </Link>
                 <button

@@ -643,6 +643,11 @@ export function EmployeeForm({
                                                     event.target.value,
                                                 )
                                             }
+                                            placeholder={
+                                                field.type === 'date'
+                                                    ? undefined
+                                                    : `Masukkan ${field.label.toLowerCase()}`
+                                            }
                                             style={styleFor(
                                                 !!error,
                                                 inputStyle,

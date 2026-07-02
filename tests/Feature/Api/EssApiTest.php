@@ -58,6 +58,13 @@ it('rejects clock-in flagged as a mock (fake GPS) location', function (): void {
     ])->assertStatus(422)->assertJsonPath('message', fn (string $m): bool => str_contains($m, 'Fake GPS'));
 });
 
+it('rejects clock-in from a rooted / jailbroken device', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+        'type' => 'in', 'latitude' => -6.2146, 'longitude' => 106.8451,
+        'is_rooted' => true,
+    ])->assertStatus(422)->assertJsonPath('message', fn (string $m): bool => str_contains($m, 'root/jailbreak'));
+});
+
 it('rejects clock-in when GPS coordinates are missing', function (): void {
     ($this->auth)()->postJson('/api/v1/me/attendance/clock', ['type' => 'in'])
         ->assertStatus(422)

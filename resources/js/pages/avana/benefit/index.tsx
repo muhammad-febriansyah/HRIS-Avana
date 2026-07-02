@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import BenefitController from '@/actions/App/Http/Controllers/Avana/BenefitController';
+import { SearchableSelect } from '@/components/searchable-select';
 import {
     AIcon,
     ActionBtn,
@@ -602,32 +603,25 @@ export default function BenefitIndex({
                                     Karyawan{' '}
                                     <span style={{ color: C.red }}>*</span>
                                 </label>
-                                <select
+                                <SearchableSelect
                                     value={assignForm.data.employee_id}
-                                    onChange={(event) =>
-                                        assignForm.setData(
-                                            'employee_id',
-                                            event.target.value,
-                                        )
+                                    onChange={(value) =>
+                                        assignForm.setData('employee_id', value)
                                     }
+                                    options={employees.map((employee) => ({
+                                        value: String(employee.id),
+                                        label: employee.employee_number
+                                            ? `${employee.name ?? '—'} (${employee.employee_number})`
+                                            : (employee.name ?? '—'),
+                                    }))}
+                                    placeholder="Pilih karyawan"
+                                    searchPlaceholder="Cari nama karyawan…"
+                                    allowClear
                                     style={withError(
                                         selectStyle,
                                         !!assignForm.errors.employee_id,
                                     )}
-                                >
-                                    <option value="">Pilih karyawan</option>
-                                    {employees.map((employee) => (
-                                        <option
-                                            key={employee.id}
-                                            value={String(employee.id)}
-                                        >
-                                            {employee.name}
-                                            {employee.employee_number
-                                                ? ` (${employee.employee_number})`
-                                                : ''}
-                                        </option>
-                                    ))}
-                                </select>
+                                />
                                 <FieldError
                                     message={assignForm.errors.employee_id}
                                 />
@@ -751,6 +745,7 @@ export default function BenefitIndex({
                                     justifyContent: 'center',
                                 }}
                             >
+                                <AIcon name="x" size={16} />
                                 Batal
                             </button>
                             <button

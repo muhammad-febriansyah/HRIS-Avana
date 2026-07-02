@@ -2,13 +2,8 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import FieldVisitController from '@/actions/App/Http/Controllers/Avana/FieldVisitController';
-import { AIcon, btnP, C, card } from '@/lib/avana';
-import {
-    ConfirmModal,
-    filterSelectStyle,
-    headThStyle,
-    iconBtn,
-} from './components';
+import { ActionBtn, AIcon, btnP, C, card } from '@/lib/avana';
+import { ConfirmModal, filterSelectStyle, headThStyle } from './components';
 import type { FlashProps, VisitingIndexProps, VisitRow } from './types';
 
 export default function VisitingIndex({ visits, filters }: VisitingIndexProps) {
@@ -394,17 +389,12 @@ export default function VisitingIndex({ visits, filters }: VisitingIndexProps) {
                                                 textAlign: 'right',
                                             }}
                                         >
-                                            <button
-                                                title="Hapus"
+                                            <ActionBtn
+                                                icon="trash-2"
+                                                label="Hapus"
+                                                variant="danger"
                                                 onClick={() => setConfirm(row)}
-                                                style={iconBtn}
-                                            >
-                                                <AIcon
-                                                    name="trash-2"
-                                                    size={15}
-                                                    color={C.red}
-                                                />
-                                            </button>
+                                            />
                                         </td>
                                     </tr>
                                 ))}

@@ -14,6 +14,7 @@ beforeEach(function (): void {
     $this->seed(AvanaDemoSeeder::class);
     $this->tenant = Tenant::where('code', '!=', '')->firstOrFail();
     $this->admin = User::where('email', 'admin@avanahr.co.id')->firstOrFail();
+    $this->superAdmin = User::where('email', 'superadmin@avanahr.co.id')->firstOrFail();
 });
 
 it('seeds the tenant menu from the AvanaNav defaults', function (): void {
@@ -22,7 +23,7 @@ it('seeds the tenant menu from the AvanaNav defaults', function (): void {
 });
 
 it('adds a custom menu item that appears in the nav', function (): void {
-    actingAs($this->admin)
+    actingAs($this->superAdmin)
         ->post(route('avana.menu-builder.store'), [
             'label' => 'Portal Vendor',
             'href' => '/avana/crm',
@@ -43,7 +44,7 @@ it('adds a custom menu item that appears in the nav', function (): void {
 it('hides an item via toggle so it drops out of the nav', function (): void {
     $crm = MenuItem::forTenant($this->tenant->id)->where('key', 'crm')->firstOrFail();
 
-    actingAs($this->admin)->post(route('avana.menu-builder.toggle', $crm))->assertSessionHas('success');
+    actingAs($this->superAdmin)->post(route('avana.menu-builder.toggle', $crm))->assertSessionHas('success');
 
     expect($crm->fresh()->is_active)->toBeFalse();
 
@@ -58,7 +59,7 @@ it('reorders siblings with move', function (): void {
     $a = MenuItem::create(['tenant_id' => $this->tenant->id, 'key' => 'aaa', 'label' => 'AAA', 'section' => 'TEST', 'sort_order' => 500]);
     $b = MenuItem::create(['tenant_id' => $this->tenant->id, 'key' => 'bbb', 'label' => 'BBB', 'section' => 'TEST', 'sort_order' => 501]);
 
-    actingAs($this->admin)->post(route('avana.menu-builder.move', $b), ['direction' => 'up'])->assertSessionHas('success');
+    actingAs($this->superAdmin)->post(route('avana.menu-builder.move', $b), ['direction' => 'up'])->assertSessionHas('success');
 
     expect($a->fresh()->sort_order)->toBe(501);
     expect($b->fresh()->sort_order)->toBe(500);
@@ -69,7 +70,7 @@ it('reorders siblings from an explicit drag order', function (): void {
     $b = MenuItem::create(['tenant_id' => $this->tenant->id, 'key' => 'db', 'label' => 'B', 'section' => 'DND', 'sort_order' => 1]);
     $c = MenuItem::create(['tenant_id' => $this->tenant->id, 'key' => 'dc', 'label' => 'C', 'section' => 'DND', 'sort_order' => 2]);
 
-    actingAs($this->admin)
+    actingAs($this->superAdmin)
         ->post(route('avana.menu-builder.reorder'), ['ids' => [$c->id, $a->id, $b->id]])
         ->assertSessionHas('success');
 
@@ -82,23 +83,23 @@ it('rejects a reorder mixing different parents', function (): void {
     $top = MenuItem::forTenant($this->tenant->id)->whereNull('parent_id')->first();
     $child = MenuItem::forTenant($this->tenant->id)->whereNotNull('parent_id')->first();
 
-    actingAs($this->admin)
+    actingAs($this->superAdmin)
         ->post(route('avana.menu-builder.reorder'), ['ids' => [$top->id, $child->id]])
         ->assertStatus(422);
 });
 
 it('refuses to delete a system item but deletes a custom one', function (): void {
     $system = MenuItem::forTenant($this->tenant->id)->where('key', 'crm')->firstOrFail();
-    actingAs($this->admin)->delete(route('avana.menu-builder.destroy', $system))->assertStatus(422);
+    actingAs($this->superAdmin)->delete(route('avana.menu-builder.destroy', $system))->assertStatus(422);
     expect($system->fresh())->not->toBeNull();
 
     $custom = MenuItem::create(['tenant_id' => $this->tenant->id, 'key' => 'ccc', 'label' => 'CCC', 'is_system' => false]);
-    actingAs($this->admin)->delete(route('avana.menu-builder.destroy', $custom))->assertSessionHas('success');
+    actingAs($this->superAdmin)->delete(route('avana.menu-builder.destroy', $custom))->assertSessionHas('success');
     expect(MenuItem::find($custom->id))->toBeNull();
 });
 
 it('blocks page access when its menu is hidden', function (): void {
-    // Karyawan reachable while active.
+    // A tenant admin is subject to the nav gate (super admin bypasses it).
     actingAs($this->admin)->get('/avana/employees')->assertOk();
 
     MenuItem::forTenant($this->tenant->id)->where('key', 'karyawan')->update(['is_active' => false]);
@@ -141,56 +142,25 @@ it('forbids a manager from the menu builder', function (): void {
     actingAs($manager)->get(route('avana.menu-builder'))->assertForbidden();
 });
 
-it('hides super-admin-only menus from a tenant admin builder', function (): void {
-    // Seed a platform menu item for the tenant.
-    $platform = MenuItem::forTenant($this->tenant->id)
-        ->where('super_admin_only', true)
-        ->first()
-        ?? MenuItem::create([
-            'tenant_id' => $this->tenant->id,
-            'key' => 'klien-x',
-            'label' => 'Klien / Tenant',
-            'href' => '/avana/klien',
-            'super_admin_only' => true,
-            'is_active' => true,
-            'is_system' => true,
-            'sort_order' => 999,
-        ]);
-
+it('forbids a tenant admin from the menu builder (super-admin only)', function (): void {
     actingAs($this->admin)
         ->get(route('avana.menu-builder'))
-        ->assertOk()
-        ->assertInertia(fn ($page) => $page
-            ->where('tree', fn ($tree) => collect($tree)->pluck('id')->doesntContain($platform->id)));
-});
+        ->assertForbidden();
 
-it('forbids a tenant admin from toggling a platform menu item', function (): void {
-    $platform = MenuItem::create([
-        'tenant_id' => $this->tenant->id,
-        'key' => 'billing-x',
-        'label' => 'Billing',
-        'href' => '/avana/billing',
-        'super_admin_only' => true,
-        'is_active' => true,
-        'is_system' => true,
-        'sort_order' => 998,
-    ]);
+    $item = MenuItem::forTenant($this->tenant->id)->where('key', 'crm')->firstOrFail();
 
     actingAs($this->admin)
-        ->post(route('avana.menu-builder.toggle', $platform))
+        ->post(route('avana.menu-builder.toggle', $item))
         ->assertForbidden();
 });
 
-it('prevents a tenant admin from creating a super-admin-only menu', function (): void {
-    actingAs($this->admin)
-        ->post(route('avana.menu-builder.store'), [
-            'label' => 'Coba Platform',
-            'href' => '/avana/crm',
-            'section' => 'LAYANAN',
-            'super_admin_only' => true,
-        ])
-        ->assertSessionHas('success');
+it('hides menu-builder and hak-akses from the tenant admin sidebar', function (): void {
+    $labels = collect(AvanaNav::forUser($this->admin->fresh()))
+        ->flatMap(fn ($g) => $g['items'])
+        ->pluck('label');
 
-    expect(MenuItem::forTenant($this->tenant->id)->where('label', 'Coba Platform')->value('super_admin_only'))
-        ->toBeFalsy();
+    expect($labels)->not->toContain('Menu Builder');
+    expect($labels)->not->toContain('Hak Akses');
+    // Menu & Fitur stays available to the tenant admin.
+    expect($labels)->toContain('Menu & Fitur');
 });

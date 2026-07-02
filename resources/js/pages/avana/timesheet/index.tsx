@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import TimesheetController from '@/actions/App/Http/Controllers/Avana/TimesheetController';
+import { SearchableSelect } from '@/components/searchable-select';
 import { ActionBtn, AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
 import {
     ConfirmModal,
@@ -329,23 +330,20 @@ export default function TimesheetIndex({
                                 </option>
                             ))}
                         </select>
-                        <select
+                        <SearchableSelect
                             value={filters.employee_id ?? ''}
-                            onChange={(event) =>
-                                applyFilter('employee_id', event.target.value)
+                            onChange={(value) =>
+                                applyFilter('employee_id', value)
                             }
-                            style={{ ...selectStyle, width: 200, height: 38 }}
-                        >
-                            <option value="">Semua karyawan</option>
-                            {employees.map((employee) => (
-                                <option
-                                    key={employee.id}
-                                    value={String(employee.id)}
-                                >
-                                    {employee.name}
-                                </option>
-                            ))}
-                        </select>
+                            options={employees.map((employee) => ({
+                                value: String(employee.id),
+                                label: employee.name,
+                            }))}
+                            placeholder="Semua karyawan"
+                            searchPlaceholder="Cari nama karyawan…"
+                            allowClear
+                            style={{ width: 200 }}
+                        />
                     </div>
                 </div>
                 <div style={{ ...card, overflow: 'hidden' }}>
@@ -589,29 +587,19 @@ export default function TimesheetIndex({
                         <label style={fieldLabelStyle}>
                             Karyawan <span style={{ color: C.red }}>*</span>
                         </label>
-                        <select
+                        <SearchableSelect
                             value={entryForm.data.employee_id}
-                            onChange={(event) =>
-                                entryForm.setData(
-                                    'employee_id',
-                                    event.target.value,
-                                )
+                            onChange={(value) =>
+                                entryForm.setData('employee_id', value)
                             }
-                            style={withError(
-                                selectStyle,
-                                !!entryForm.errors.employee_id,
-                            )}
-                        >
-                            <option value="">Pilih karyawan</option>
-                            {employees.map((employee) => (
-                                <option
-                                    key={employee.id}
-                                    value={String(employee.id)}
-                                >
-                                    {employee.name}
-                                </option>
-                            ))}
-                        </select>
+                            options={employees.map((employee) => ({
+                                value: String(employee.id),
+                                label: employee.name,
+                            }))}
+                            placeholder="Pilih karyawan"
+                            searchPlaceholder="Cari nama karyawan…"
+                            allowClear
+                        />
                         <FieldError message={entryForm.errors.employee_id} />
                     </div>
                     <div>
@@ -830,6 +818,7 @@ function ModalActions({
                     justifyContent: 'center',
                 }}
             >
+                <AIcon name="x" size={16} color={C.text} />
                 Batal
             </button>
             <button

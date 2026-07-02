@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import ApprovalDelegationController from '@/actions/App/Http/Controllers/Avana/ApprovalDelegationController';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, ActionBtn, btnOut, btnP, C, card, thCell } from '@/lib/avana';
 
 /* ---------- types (mirror ApprovalDelegationController payloads) ---------- */
@@ -630,29 +631,25 @@ export default function DelegasiIndex({
                                     Pemberi Delegasi{' '}
                                     <span style={{ color: C.red }}>*</span>
                                 </label>
-                                <select
+                                <SearchableSelect
                                     value={form.data.delegator_id}
-                                    onChange={(event) =>
-                                        form.setData(
-                                            'delegator_id',
-                                            event.target.value,
-                                        )
+                                    onChange={(value) =>
+                                        form.setData('delegator_id', value)
                                     }
+                                    options={employees.map((employee) => ({
+                                        value: String(employee.id),
+                                        label: employee.employee_number
+                                            ? `${employee.name} (${employee.employee_number})`
+                                            : employee.name,
+                                    }))}
+                                    placeholder="Pilih karyawan"
+                                    searchPlaceholder="Cari nama karyawan…"
+                                    allowClear
                                     style={withError(
                                         selectStyle,
                                         !!form.errors.delegator_id,
                                     )}
-                                >
-                                    <option value="">Pilih karyawan</option>
-                                    {employees.map((employee) => (
-                                        <option
-                                            key={employee.id}
-                                            value={String(employee.id)}
-                                        >
-                                            {employee.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                />
                                 <FieldError
                                     message={form.errors.delegator_id}
                                 />
@@ -662,29 +659,25 @@ export default function DelegasiIndex({
                                     Penerima Delegasi{' '}
                                     <span style={{ color: C.red }}>*</span>
                                 </label>
-                                <select
+                                <SearchableSelect
                                     value={form.data.delegate_id}
-                                    onChange={(event) =>
-                                        form.setData(
-                                            'delegate_id',
-                                            event.target.value,
-                                        )
+                                    onChange={(value) =>
+                                        form.setData('delegate_id', value)
                                     }
+                                    options={employees.map((employee) => ({
+                                        value: String(employee.id),
+                                        label: employee.employee_number
+                                            ? `${employee.name} (${employee.employee_number})`
+                                            : employee.name,
+                                    }))}
+                                    placeholder="Pilih karyawan"
+                                    searchPlaceholder="Cari nama karyawan…"
+                                    allowClear
                                     style={withError(
                                         selectStyle,
                                         !!form.errors.delegate_id,
                                     )}
-                                >
-                                    <option value="">Pilih karyawan</option>
-                                    {employees.map((employee) => (
-                                        <option
-                                            key={employee.id}
-                                            value={String(employee.id)}
-                                        >
-                                            {employee.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                />
                                 <FieldError message={form.errors.delegate_id} />
                             </div>
                             <div>
@@ -785,6 +778,7 @@ export default function DelegasiIndex({
                                     justifyContent: 'center',
                                 }}
                             >
+                                <AIcon name="x" size={16} />
                                 Batal
                             </button>
                             <button
@@ -885,6 +879,7 @@ export default function DelegasiIndex({
                                     justifyContent: 'center',
                                 }}
                             >
+                                <AIcon name="x" size={16} />
                                 Batal
                             </button>
                             <button

@@ -470,6 +470,7 @@ export default function OnboardingSlides({ slides }: OnboardingSlidesProps) {
                                                 Number(e.target.value),
                                             )
                                         }
+                                        placeholder="0"
                                         style={withError(
                                             inputStyle,
                                             !!form.errors.sort_order,
@@ -541,6 +542,7 @@ export default function OnboardingSlides({ slides }: OnboardingSlidesProps) {
                                     justifyContent: 'center',
                                 }}
                             >
+                                <AIcon name="x" size={16} color={C.text} />
                                 Batal
                             </button>
                             <button
@@ -643,6 +645,7 @@ export default function OnboardingSlides({ slides }: OnboardingSlidesProps) {
                                     justifyContent: 'center',
                                 }}
                             >
+                                <AIcon name="x" size={16} color={C.text} />
                                 Batal
                             </button>
                             <button

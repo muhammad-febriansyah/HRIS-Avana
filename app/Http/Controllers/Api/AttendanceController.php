@@ -62,12 +62,19 @@ class AttendanceController extends Controller
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'face_confidence' => ['nullable', 'numeric'],
             'is_mock_location' => ['nullable', 'boolean'],
+            'is_rooted' => ['nullable', 'boolean'],
             'selfie' => ['nullable', 'image', 'max:4096'],
         ]);
 
         if ($request->boolean('is_mock_location')) {
             return response()->json([
                 'message' => 'Terdeteksi lokasi palsu (Fake GPS). Nonaktifkan mock location lalu coba lagi.',
+            ], 422);
+        }
+
+        if ($request->boolean('is_rooted')) {
+            return response()->json([
+                'message' => 'Perangkat terdeteksi di-root/jailbreak. Absen tidak diizinkan dari perangkat ini.',
             ], 422);
         }
 

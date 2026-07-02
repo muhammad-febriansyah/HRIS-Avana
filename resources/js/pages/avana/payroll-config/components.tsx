@@ -594,7 +594,10 @@ export function ConfigModal({ section, record, onClose }: ConfigModalProps) {
                                     ) : field.type === 'textarea' ? (
                                         <textarea
                                             value={value}
-                                            placeholder={field.placeholder}
+                                            placeholder={
+                                                field.placeholder ??
+                                                `Masukkan ${field.label.toLowerCase()}`
+                                            }
                                             onChange={(event) =>
                                                 onChange(event.target.value)
                                             }
@@ -614,7 +617,12 @@ export function ConfigModal({ section, record, onClose }: ConfigModalProps) {
                                             }
                                             step={field.step}
                                             value={value}
-                                            placeholder={field.placeholder}
+                                            placeholder={
+                                                field.placeholder ??
+                                                (field.type === 'date'
+                                                    ? undefined
+                                                    : `Masukkan ${field.label.toLowerCase()}`)
+                                            }
                                             onChange={(event) =>
                                                 onChange(event.target.value)
                                             }
@@ -648,6 +656,7 @@ export function ConfigModal({ section, record, onClose }: ConfigModalProps) {
                                 justifyContent: 'center',
                             }}
                         >
+                            <AIcon name="x" size={16} />
                             Batal
                         </button>
                         <button
@@ -761,6 +770,7 @@ export function ConfirmModal({
                             justifyContent: 'center',
                         }}
                     >
+                        <AIcon name="x" size={16} />
                         Batal
                     </button>
                     <button

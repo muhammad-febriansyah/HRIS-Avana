@@ -690,8 +690,13 @@ function ConfirmDelete({
                             fontSize: 14,
                             fontWeight: 500,
                             cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 8,
                         }}
                     >
+                        <AIcon name="x" size={16} color={C.text} />
                         Batal
                     </button>
                     <button

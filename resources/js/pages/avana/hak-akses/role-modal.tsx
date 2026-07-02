@@ -129,8 +129,13 @@ export function RoleModal({
                             fontWeight: 500,
                             cursor: 'pointer',
                             transition: '.15s',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 8,
                         }}
                     >
+                        <AIcon name="x" size={16} />
                         Batal
                     </button>
                     <button

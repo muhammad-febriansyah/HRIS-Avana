@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, btnOut, btnP, C, card, rp, RupiahInput } from '@/lib/avana';
 import {
     dateInputStyle,
@@ -62,23 +63,18 @@ export function KasbonForm({
                 }}
             >
                 <Field label="Karyawan" required error={errors.employee_id}>
-                    <select
+                    <SearchableSelect
                         value={data.employee_id}
-                        onChange={(event) =>
-                            setData('employee_id', event.target.value)
-                        }
+                        onChange={(value) => setData('employee_id', value)}
+                        options={employees.map((employee) => ({
+                            value: String(employee.id),
+                            label: `${employee.name} (${employee.employee_number})`,
+                        }))}
+                        placeholder="Pilih karyawan"
+                        searchPlaceholder="Cari nama karyawan…"
+                        allowClear
                         style={withError(selectStyle, !!errors.employee_id)}
-                    >
-                        <option value="">Pilih karyawan</option>
-                        {employees.map((employee) => (
-                            <option
-                                key={employee.id}
-                                value={String(employee.id)}
-                            >
-                                {employee.name} ({employee.employee_number})
-                            </option>
-                        ))}
-                    </select>
+                    />
                 </Field>
 
                 <Field label="Jumlah (Rp)" required error={errors.amount}>
@@ -172,6 +168,7 @@ export function KasbonForm({
                         textDecoration: 'none',
                     }}
                 >
+                    <AIcon name="x" size={16} />
                     Batal
                 </Link>
                 <button

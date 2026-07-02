@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import SurveyController from '@/actions/App/Http/Controllers/Avana/SurveyController';
+import { SearchableSelect } from '@/components/searchable-select';
 import {
     AIcon,
     ActionBtn,
@@ -1077,6 +1078,7 @@ export default function SurveiIndex({
                                     justifyContent: 'center',
                                 }}
                             >
+                                <AIcon name="x" size={16} color={C.text} />
                                 Batal
                             </button>
                             <button
@@ -1166,25 +1168,21 @@ export default function SurveiIndex({
                                     <label style={fieldLabelStyle}>
                                         Karyawan
                                     </label>
-                                    <select
+                                    <SearchableSelect
                                         value={respondEmployee}
-                                        onChange={(event) =>
-                                            setRespondEmployee(
-                                                event.target.value,
-                                            )
+                                        onChange={(value) =>
+                                            setRespondEmployee(value)
                                         }
-                                        style={selectStyle}
-                                    >
-                                        <option value="">Pilih karyawan</option>
-                                        {employees.map((employee) => (
-                                            <option
-                                                key={employee.id}
-                                                value={String(employee.id)}
-                                            >
-                                                {employee.name}
-                                            </option>
-                                        ))}
-                                    </select>
+                                        options={employees.map((employee) => ({
+                                            value: String(employee.id),
+                                            label: employee.employee_number
+                                                ? `${employee.name} (${employee.employee_number})`
+                                                : employee.name,
+                                        }))}
+                                        placeholder="Pilih karyawan"
+                                        searchPlaceholder="Cari nama karyawan…"
+                                        allowClear
+                                    />
                                 </div>
                             )}
                             {selected.questions.length === 0 && (
@@ -1301,6 +1299,7 @@ export default function SurveiIndex({
                                     justifyContent: 'center',
                                 }}
                             >
+                                <AIcon name="x" size={16} color={C.text} />
                                 Batal
                             </button>
                             <button
@@ -1413,6 +1412,7 @@ export default function SurveiIndex({
                                     justifyContent: 'center',
                                 }}
                             >
+                                <AIcon name="x" size={16} color={C.text} />
                                 Batal
                             </button>
                             <button

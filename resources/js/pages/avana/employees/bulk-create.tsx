@@ -421,6 +421,7 @@ export default function EmployeesBulkCreate({
                         onClick={() => router.visit('/avana/employees')}
                         style={btnOut}
                     >
+                        <AIcon name="x" size={16} />
                         Batal
                     </button>
                     <button

@@ -255,6 +255,7 @@ export function AsetForm({
                         textDecoration: 'none',
                     }}
                 >
+                    <AIcon name="x" size={16} color={C.muted} />
                     Batal
                 </Link>
                 <button

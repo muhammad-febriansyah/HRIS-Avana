@@ -893,6 +893,7 @@ export default function OffboardingIndex({
                                     justifyContent: 'center',
                                 }}
                             >
+                                <AIcon name="x" size={16} color={C.text} />
                                 Tutup
                             </button>
                             <button
@@ -1060,6 +1061,7 @@ function ModalActions({
                     justifyContent: 'center',
                 }}
             >
+                <AIcon name="x" size={16} color={C.text} />
                 Batal
             </button>
             <button
@@ -1160,6 +1162,7 @@ function ConfirmModal({
                             justifyContent: 'center',
                         }}
                     >
+                        <AIcon name="x" size={16} color={C.text} />
                         Batal
                     </button>
                     <button

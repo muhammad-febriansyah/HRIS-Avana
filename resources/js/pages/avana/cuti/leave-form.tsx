@@ -1,5 +1,6 @@
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, C, card } from '@/lib/avana';
 import {
     dateInputStyle,
@@ -80,26 +81,23 @@ export function LeaveRequestForm({
                     <label style={fieldLabelStyle}>
                         Karyawan <span style={{ color: C.red }}>*</span>
                     </label>
-                    <select
+                    <SearchableSelect
                         value={form.data.employee_id}
-                        onChange={(event) =>
-                            form.setData('employee_id', event.target.value)
+                        onChange={(value) =>
+                            form.setData('employee_id', value)
                         }
+                        options={employees.map((employee) => ({
+                            value: String(employee.id),
+                            label: `${employee.name} (${employee.employee_number})`,
+                        }))}
+                        placeholder="Pilih karyawan"
+                        searchPlaceholder="Cari nama karyawan…"
+                        allowClear
                         style={withError(
                             selectStyle,
                             !!form.errors.employee_id,
                         )}
-                    >
-                        <option value="">Pilih karyawan</option>
-                        {employees.map((employee) => (
-                            <option
-                                key={employee.id}
-                                value={String(employee.id)}
-                            >
-                                {employee.name} ({employee.employee_number})
-                            </option>
-                        ))}
-                    </select>
+                    />
                     <FieldError message={form.errors.employee_id} />
                 </div>
                 <div>

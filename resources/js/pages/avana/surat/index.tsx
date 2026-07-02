@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import LetterTemplateController from '@/actions/App/Http/Controllers/Avana/LetterTemplateController';
+import { SearchableSelect } from '@/components/searchable-select';
 import { ActionBtn, AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
 import {
     ActivePill,
@@ -587,29 +588,22 @@ export default function SuratIndex({
                                     Karyawan{' '}
                                     <span style={{ color: C.red }}>*</span>
                                 </label>
-                                <select
+                                <SearchableSelect
                                     value={generateForm.data.employee_id}
-                                    onChange={(event) =>
+                                    onChange={(value) =>
                                         generateForm.setData(
                                             'employee_id',
-                                            event.target.value,
+                                            value,
                                         )
                                     }
-                                    style={withError(
-                                        selectStyle,
-                                        !!generateForm.errors.employee_id,
-                                    )}
-                                >
-                                    <option value="">Pilih karyawan</option>
-                                    {employees.map((employee) => (
-                                        <option
-                                            key={employee.id}
-                                            value={String(employee.id)}
-                                        >
-                                            {employee.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                    options={employees.map((employee) => ({
+                                        value: String(employee.id),
+                                        label: employee.name,
+                                    }))}
+                                    placeholder="Pilih karyawan"
+                                    searchPlaceholder="Cari nama karyawan…"
+                                    allowClear
+                                />
                                 <FieldError
                                     message={generateForm.errors.employee_id}
                                 />
@@ -687,6 +681,7 @@ export default function SuratIndex({
                                     justifyContent: 'center',
                                 }}
                             >
+                                <AIcon name="x" size={16} color={C.text} />
                                 Batal
                             </button>
                             <button

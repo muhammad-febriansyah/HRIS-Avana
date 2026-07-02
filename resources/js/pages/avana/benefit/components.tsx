@@ -219,6 +219,7 @@ export function ConfirmModal({
                             justifyContent: 'center',
                         }}
                     >
+                        <AIcon name="x" size={16} color={C.text} />
                         Batal
                     </button>
                     <button

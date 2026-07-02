@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import OnboardingController from '@/actions/App/Http/Controllers/Avana/OnboardingController';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, ActionBtn, btnOut, btnP, C, card } from '@/lib/avana';
 
 /* ============================================================
@@ -667,26 +668,19 @@ export default function OnboardingIndex({
                                     Karyawan{' '}
                                     <span style={{ color: C.red }}>*</span>
                                 </label>
-                                <select
+                                <SearchableSelect
                                     value={programForm.data.employee_id}
-                                    onChange={(e) =>
-                                        programForm.setData(
-                                            'employee_id',
-                                            e.target.value,
-                                        )
+                                    onChange={(v) =>
+                                        programForm.setData('employee_id', v)
                                     }
-                                    style={{ ...inputStyle, cursor: 'pointer' }}
-                                >
-                                    <option value="">Pilih karyawan</option>
-                                    {employees.map((emp) => (
-                                        <option
-                                            key={emp.id}
-                                            value={String(emp.id)}
-                                        >
-                                            {emp.name} ({emp.employee_number})
-                                        </option>
-                                    ))}
-                                </select>
+                                    options={employees.map((emp) => ({
+                                        value: String(emp.id),
+                                        label: `${emp.name} (${emp.employee_number})`,
+                                    }))}
+                                    placeholder="Pilih karyawan"
+                                    searchPlaceholder="Cari nama karyawan…"
+                                    allowClear
+                                />
                                 {programForm.errors.employee_id && (
                                     <FieldError
                                         message={programForm.errors.employee_id}
@@ -865,6 +859,7 @@ function ModalActions({
                     justifyContent: 'center',
                 }}
             >
+                <AIcon name="x" size={16} color={C.text} />
                 Batal
             </button>
             <button
@@ -965,6 +960,7 @@ function ConfirmModal({
                             justifyContent: 'center',
                         }}
                     >
+                        <AIcon name="x" size={16} color={C.text} />
                         Batal
                     </button>
                     <button

@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import ShiftSwapController from '@/actions/App/Http/Controllers/Avana/ShiftSwapController';
+import { SearchableSelect } from '@/components/searchable-select';
 import {
     ActionBtn,
     AIcon,
@@ -391,29 +392,23 @@ export default function ShiftSwapIndex({
                                     Pemohon{' '}
                                     <span style={{ color: C.red }}>*</span>
                                 </label>
-                                <select
+                                <SearchableSelect
                                     value={form.data.requester_id}
-                                    onChange={(event) =>
-                                        form.setData(
-                                            'requester_id',
-                                            event.target.value,
-                                        )
+                                    onChange={(value) =>
+                                        form.setData('requester_id', value)
                                     }
+                                    options={employees.map((employee) => ({
+                                        value: String(employee.id),
+                                        label: employee.name,
+                                    }))}
+                                    placeholder="Pilih"
+                                    searchPlaceholder="Cari nama karyawan…"
+                                    allowClear
                                     style={withError(
                                         selectStyle,
                                         !!form.errors.requester_id,
                                     )}
-                                >
-                                    <option value="">Pilih</option>
-                                    {employees.map((employee) => (
-                                        <option
-                                            key={employee.id}
-                                            value={String(employee.id)}
-                                        >
-                                            {employee.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                />
                                 <FieldError
                                     message={form.errors.requester_id}
                                 />
@@ -423,29 +418,23 @@ export default function ShiftSwapIndex({
                                     Karyawan Tujuan{' '}
                                     <span style={{ color: C.red }}>*</span>
                                 </label>
-                                <select
+                                <SearchableSelect
                                     value={form.data.target_id}
-                                    onChange={(event) =>
-                                        form.setData(
-                                            'target_id',
-                                            event.target.value,
-                                        )
+                                    onChange={(value) =>
+                                        form.setData('target_id', value)
                                     }
+                                    options={employees.map((employee) => ({
+                                        value: String(employee.id),
+                                        label: employee.name,
+                                    }))}
+                                    placeholder="Pilih"
+                                    searchPlaceholder="Cari nama karyawan…"
+                                    allowClear
                                     style={withError(
                                         selectStyle,
                                         !!form.errors.target_id,
                                     )}
-                                >
-                                    <option value="">Pilih</option>
-                                    {employees.map((employee) => (
-                                        <option
-                                            key={employee.id}
-                                            value={String(employee.id)}
-                                        >
-                                            {employee.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                />
                                 <FieldError message={form.errors.target_id} />
                             </div>
                         </div>
@@ -566,6 +555,7 @@ export default function ShiftSwapIndex({
                                     justifyContent: 'center',
                                 }}
                             >
+                                <AIcon name="x" size={16} color={C.text} />
                                 Batal
                             </button>
                             <button
