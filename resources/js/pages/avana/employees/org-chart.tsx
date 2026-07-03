@@ -3,6 +3,14 @@ import { useMemo, useState } from 'react';
 import ReactFlow, { Background, Controls, Position } from 'reactflow';
 import type { Edge, Node } from 'reactflow';
 import 'reactflow/dist/style.css';
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetFooter,
+    SheetHeader,
+    SheetTitle,
+} from '@/components/ui/sheet';
 import { AIcon, C } from '@/lib/avana';
 
 interface OrgNode {
@@ -271,12 +279,10 @@ export default function OrgChart({ nodes }: OrgChartProps) {
                 </div>
                 <div
                     style={{
-                        position: 'relative',
                         height: '70vh',
                         border: `1px solid ${C.border}`,
                         borderRadius: 12,
                         background: '#F8FAFC',
-                        overflow: 'hidden',
                     }}
                 >
                     {flowNodes.length === 0 ? (
@@ -312,32 +318,24 @@ export default function OrgChart({ nodes }: OrgChartProps) {
                             <Controls showInteractive={false} />
                         </ReactFlow>
                     )}
+                </div>
+            </div>
 
+            <Sheet
+                open={selected !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setSelected(null);
+                    }
+                }}
+            >
+                <SheetContent
+                    side="left"
+                    className="w-[340px] gap-0 sm:max-w-[340px]"
+                >
                     {selected && (
-                        <aside
-                            style={{
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                bottom: 0,
-                                width: 320,
-                                zIndex: 5,
-                                background: '#fff',
-                                borderRight: `1px solid ${C.border}`,
-                                boxShadow: '2px 0 18px rgba(15,26,58,.10)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                            }}
-                        >
-                            <div
-                                style={{
-                                    padding: '16px 18px',
-                                    borderBottom: `1px solid ${C.border}`,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 12,
-                                }}
-                            >
+                        <>
+                            <SheetHeader className="flex-row items-center gap-3 border-b">
                                 <div
                                     style={{
                                         width: 44,
@@ -357,46 +355,16 @@ export default function OrgChart({ nodes }: OrgChartProps) {
                                 >
                                     {initials(selected.name)}
                                 </div>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div
-                                        style={{
-                                            fontSize: 15,
-                                            fontWeight: 600,
-                                            color: C.navy,
-                                            whiteSpace: 'nowrap',
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
-                                        }}
-                                    >
+                                <div style={{ minWidth: 0 }}>
+                                    <SheetTitle className="truncate">
                                         {selected.name}
-                                    </div>
-                                    <div
-                                        style={{
-                                            fontSize: 12.5,
-                                            color: C.muted,
-                                            whiteSpace: 'nowrap',
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
-                                        }}
-                                    >
+                                    </SheetTitle>
+                                    <SheetDescription className="truncate">
                                         {selected.position ?? '—'}
-                                    </div>
+                                    </SheetDescription>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setSelected(null)}
-                                    aria-label="Tutup"
-                                    style={{
-                                        border: 'none',
-                                        background: 'transparent',
-                                        cursor: 'pointer',
-                                        color: C.faint,
-                                        display: 'flex',
-                                    }}
-                                >
-                                    <AIcon name="x" size={18} />
-                                </button>
-                            </div>
+                            </SheetHeader>
+
                             <div
                                 style={{
                                     flex: 1,
@@ -429,12 +397,8 @@ export default function OrgChart({ nodes }: OrgChartProps) {
                                     value={selected.join_date}
                                 />
                             </div>
-                            <div
-                                style={{
-                                    padding: '12px 18px',
-                                    borderTop: `1px solid ${C.border}`,
-                                }}
-                            >
+
+                            <SheetFooter className="border-t">
                                 <Link
                                     href={`/avana/employees/${selected.id}`}
                                     style={{
@@ -459,11 +423,11 @@ export default function OrgChart({ nodes }: OrgChartProps) {
                                     />
                                     Lihat Profil Lengkap
                                 </Link>
-                            </div>
-                        </aside>
+                            </SheetFooter>
+                        </>
                     )}
-                </div>
-            </div>
+                </SheetContent>
+            </Sheet>
         </>
     );
 }
