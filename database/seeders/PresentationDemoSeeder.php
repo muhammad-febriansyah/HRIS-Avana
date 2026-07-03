@@ -10,9 +10,13 @@ use App\Models\Employee;
 use App\Models\JobLevel;
 use App\Models\MoodCheckin;
 use App\Models\Position;
+use App\Models\Role;
 use App\Models\Tenant;
+use App\Models\User;
 use App\Models\WebsiteSetting;
+use App\Models\WorkLocation;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
@@ -61,13 +65,82 @@ class PresentationDemoSeeder extends Seeder
         Storage::disk('public')->makeDirectory('branding');
         Storage::disk('public')->makeDirectory('avatars');
 
+        $workLocations = $this->seedWorkLocations($tenant, $branches);
+
         $this->seedLogo($tenant);
-        $employees = $this->seedEmployees($tenant, $branches, $departments, $jobLevel);
+        $employees = $this->seedEmployees($tenant, $branches, $departments, $jobLevel, $workLocations);
+        $this->seedEmployeeLogins($tenant, $employees);
         $this->seedAvatars($employees);
         $this->seedMoods($tenant, $employees);
         $this->seedAttendance($tenant, $employees);
 
-        $this->command?->info('Presentation demo seeded: '.count($employees).' employees with avatars, logo, moods & attendance.');
+        $this->command?->info('Presentation demo seeded: '.count($employees).' employees (all with ESS login) + avatars, logo, moods & attendance.');
+    }
+
+    /**
+     * Ensure each branch has an active geofenced work location so any employee
+     * can clock in during the demo.
+     *
+     * @return array<string, int> branch name => work_location_id
+     */
+    private function seedWorkLocations(Tenant $tenant, mixed $branches): array
+    {
+        $coords = [
+            'Jakarta Pusat' => [-6.2146, 106.8451],
+            'Bandung' => [-6.9147, 107.6098],
+            'Surabaya' => [-7.2575, 112.7521],
+        ];
+
+        $map = [];
+        foreach ($branches as $name => $branch) {
+            [$lat, $lng] = $coords[$name] ?? [-6.2146, 106.8451];
+            $wl = WorkLocation::firstOrCreate(
+                ['tenant_id' => $tenant->id, 'branch_id' => $branch->id, 'name' => 'Kantor '.$name],
+                ['latitude' => $lat, 'longitude' => $lng, 'radius_meter' => 200, 'status' => 'active'],
+            );
+            $map[$name] = $wl->id;
+        }
+
+        return $map;
+    }
+
+    /**
+     * Give every employee a mobile (ESS) login so any of them can sign in to
+     * the Flutter app. Password is "password". Employees that already have a
+     * linked user (e.g. the karyawan@ demo account) are left untouched.
+     *
+     * @param  array<int, Employee>  $employees
+     */
+    private function seedEmployeeLogins(Tenant $tenant, array $employees): void
+    {
+        $role = Role::where('tenant_id', $tenant->id)->where('code', 'employee')->first();
+        $created = 0;
+
+        foreach ($employees as $employee) {
+            if ($employee->user_id !== null || $employee->email === null) {
+                continue;
+            }
+
+            $user = User::firstOrCreate(
+                ['email' => $employee->email],
+                [
+                    'name' => $employee->full_name,
+                    'tenant_id' => $tenant->id,
+                    'password' => Hash::make('password'),
+                    'status' => 'active',
+                    'email_verified_at' => now(),
+                ],
+            );
+
+            if ($role !== null) {
+                $user->roles()->syncWithoutDetaching([$role->id]);
+            }
+
+            $employee->forceFill(['user_id' => $user->id])->save();
+            $created++;
+        }
+
+        $this->command?->info("ESS logins created: {$created} (password: 'password').");
     }
 
     private function seedLogo(Tenant $tenant): void
@@ -101,7 +174,7 @@ class PresentationDemoSeeder extends Seeder
     /**
      * @return array<int, Employee>
      */
-    private function seedEmployees(Tenant $tenant, mixed $branches, mixed $departments, ?JobLevel $jobLevel): array
+    private function seedEmployees(Tenant $tenant, mixed $branches, mixed $departments, ?JobLevel $jobLevel, array $workLocations): array
     {
         $branchNames = $branches->keys()->all();
         $deptNames = array_keys(self::POSITIONS);
@@ -133,7 +206,7 @@ class PresentationDemoSeeder extends Seeder
                 ['tenant_id' => $tenant->id, 'employee_number' => $number],
                 [
                     'branch_id' => $branch->id,
-                    'work_location_id' => null,
+                    'work_location_id' => $workLocations[$branch->name] ?? null,
                     'department_id' => $dept->id,
                     'position_id' => $position->id,
                     'job_level_id' => $jobLevel?->id,
