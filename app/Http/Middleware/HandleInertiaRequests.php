@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\WebsiteSetting;
 use App\Support\AvanaNav;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -47,6 +48,7 @@ class HandleInertiaRequests extends Middleware
             'website' => fn (): array => WebsiteSetting::cached()->toBrandingArray(),
             'auth' => [
                 'user' => $user,
+                'avatar' => fn () => $this->resolveAvatarUrl($user),
                 'roles' => fn () => $user?->roles()->pluck('code')->all() ?? [],
                 'isSuperAdmin' => fn () => (bool) $user?->roles()->where('code', 'super_admin')->exists(),
                 'tenant' => fn () => $user?->tenant?->only('id', 'name', 'company_name'),
@@ -59,6 +61,21 @@ class HandleInertiaRequests extends Middleware
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
+    }
+
+    /**
+     * Resolve the header avatar URL. A user's own uploaded avatar wins;
+     * otherwise fall back to the linked employee's photo (mobile ESS logins).
+     */
+    private function resolveAvatarUrl(?User $user): ?string
+    {
+        if ($user === null) {
+            return null;
+        }
+
+        $path = $user->avatar_path ?? $user->employee?->photo_path;
+
+        return $path !== null ? Storage::disk('public')->url($path) : null;
     }
 
     /**

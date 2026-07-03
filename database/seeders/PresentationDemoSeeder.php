@@ -71,6 +71,7 @@ class PresentationDemoSeeder extends Seeder
         $employees = $this->seedEmployees($tenant, $branches, $departments, $jobLevel, $workLocations);
         $this->seedEmployeeLogins($tenant, $employees);
         $this->seedAvatars($employees);
+        $this->seedStaffAvatars();
         $this->seedMoods($tenant, $employees);
         $this->seedAttendance($tenant, $employees);
 
@@ -258,6 +259,41 @@ class PresentationDemoSeeder extends Seeder
         }
 
         $this->command?->info("Avatars saved: {$saved}.");
+    }
+
+    /**
+     * Give the admin-side accounts (super admin, tenant admin, manager) a
+     * cartoon avatar too. These users are not linked to an employee, so the
+     * header would otherwise fall back to their initials.
+     */
+    private function seedStaffAvatars(): void
+    {
+        $staff = User::query()
+            ->whereNull('avatar_path')
+            ->whereDoesntHave('employee')
+            ->get();
+
+        $saved = 0;
+        foreach ($staff as $user) {
+            $path = 'avatars/user-'.$user->id.'.png';
+            if (! Storage::disk('public')->exists($path)) {
+                $url = 'https://api.dicebear.com/9.x/avataaars/png?'.http_build_query([
+                    'seed' => $user->name,
+                    'size' => 200,
+                    'radius' => 50,
+                ]);
+                $bytes = $this->download($url);
+                if ($bytes === null) {
+                    continue;
+                }
+                Storage::disk('public')->put($path, $bytes);
+            }
+
+            $user->forceFill(['avatar_path' => $path])->save();
+            $saved++;
+        }
+
+        $this->command?->info("Staff avatars saved: {$saved}.");
     }
 
     /**

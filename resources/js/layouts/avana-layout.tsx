@@ -16,6 +16,88 @@ import { edit as editProfile } from '@/routes/profile';
 
 type AuthUser = { name?: string; email?: string };
 
+/** A single contact row in the sidebar "Butuh Bantuan?" card. */
+function HelpRow({
+    href,
+    icon,
+    label,
+    value,
+    external = false,
+}: {
+    href: string;
+    icon: string;
+    label: string;
+    value: string;
+    external?: boolean;
+}) {
+    return (
+        <a
+            href={href}
+            {...(external ? { target: '_blank', rel: 'noreferrer' } : {})}
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '6px 6px',
+                borderRadius: 8,
+                textDecoration: 'none',
+                color: C.text,
+            }}
+            onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#fff';
+            }}
+            onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+            }}
+        >
+            <span
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 28,
+                    height: 28,
+                    borderRadius: 8,
+                    background: 'rgba(47,84,201,.08)',
+                    flex: 'none',
+                }}
+            >
+                <AIcon name={icon} size={14} color={C.primary} />
+            </span>
+            <span
+                style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minWidth: 0,
+                    lineHeight: 1.3,
+                }}
+            >
+                <span
+                    style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: C.faint,
+                        letterSpacing: '.03em',
+                        textTransform: 'uppercase',
+                    }}
+                >
+                    {label}
+                </span>
+                <span
+                    style={{
+                        fontSize: 12.5,
+                        fontWeight: 500,
+                        color: C.text,
+                        overflowWrap: 'anywhere',
+                    }}
+                >
+                    {value}
+                </span>
+            </span>
+        </a>
+    );
+}
+
 function AvanaFonts() {
     return (
         <Head>
@@ -35,7 +117,7 @@ function AvanaFonts() {
 
 export default function AvanaLayout({ children }: PropsWithChildren) {
     const page = usePage<{
-        auth?: { user?: AuthUser; tenant?: { id: number; name: string } };
+        auth?: { user?: AuthUser; avatar?: string | null; tenant?: { id: number; name: string } };
         nav?: NavGroup[];
         superAdminView?: {
             is_super: boolean;
@@ -45,8 +127,19 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
     }>();
     const url = page.url;
     const user = page.props.auth?.user;
+    const avatar = page.props.auth?.avatar;
     const navGroups = page.props.nav?.length ? page.props.nav : NAV;
     const sav = page.props.superAdminView;
+
+    // Support contact: DB-driven (website settings) with sensible fallbacks.
+    const contact = page.props.website?.contact;
+    const helpEmail = contact?.email || 'support@avanahr.co.id';
+    const helpPhone = contact?.phone || '(021) 5099-9000';
+    const helpWhatsapp = contact?.whatsapp || null;
+    const telHref = `tel:${helpPhone.replace(/[^\d+]/g, '')}`;
+    const waHref = helpWhatsapp
+        ? `https://wa.me/${helpWhatsapp.replace(/[^\d]/g, '')}`
+        : null;
 
     const switchTenant = (id: string) =>
         router.post(
@@ -326,7 +419,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                 >
                     {collapsed ? (
                         <a
-                            href="mailto:support@avanahr.co.id"
+                            href={`mailto:${helpEmail}`}
                             title="Hubungi support"
                             style={{
                                 width: '100%',
@@ -346,61 +439,77 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                         <div
                             style={{
                                 background: C.surface,
-                                borderRadius: 10,
-                                padding: '13px 14px',
+                                border: `1px solid ${C.border}`,
+                                borderRadius: 12,
+                                padding: 12,
                             }}
                         >
                             <div
                                 style={{
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    color: C.faint,
-                                    letterSpacing: '.04em',
-                                    textTransform: 'uppercase',
-                                    marginBottom: 9,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    marginBottom: 10,
                                 }}
                             >
-                                Butuh Bantuan?
+                                <span
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        width: 26,
+                                        height: 26,
+                                        borderRadius: 8,
+                                        background: 'rgba(47,84,201,.10)',
+                                        flex: 'none',
+                                    }}
+                                >
+                                    <AIcon
+                                        name="life-buoy"
+                                        size={15}
+                                        color={C.primary}
+                                    />
+                                </span>
+                                <span
+                                    style={{
+                                        fontSize: 12.5,
+                                        fontWeight: 700,
+                                        color: C.text,
+                                        letterSpacing: '.01em',
+                                    }}
+                                >
+                                    Butuh Bantuan?
+                                </span>
                             </div>
-                            <a
-                                href="mailto:support@avanahr.co.id"
+                            <div
                                 style={{
                                     display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 9,
-                                    textDecoration: 'none',
-                                    color: C.text,
-                                    marginBottom: 8,
+                                    flexDirection: 'column',
+                                    gap: 2,
                                 }}
                             >
-                                <AIcon
-                                    name="mail"
-                                    size={15}
-                                    color={C.primary}
+                                <HelpRow
+                                    href={`mailto:${helpEmail}`}
+                                    icon="mail"
+                                    label="Email"
+                                    value={helpEmail}
                                 />
-                                <span style={{ fontSize: 12.5 }}>
-                                    support@avanahr.co.id
-                                </span>
-                            </a>
-                            <a
-                                href="tel:+622150999000"
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 9,
-                                    textDecoration: 'none',
-                                    color: C.text,
-                                }}
-                            >
-                                <AIcon
-                                    name="phone"
-                                    size={15}
-                                    color={C.primary}
+                                <HelpRow
+                                    href={telHref}
+                                    icon="phone"
+                                    label="Telepon"
+                                    value={helpPhone}
                                 />
-                                <span style={{ fontSize: 12.5 }}>
-                                    (021) 5099-9000
-                                </span>
-                            </a>
+                                {waHref && (
+                                    <HelpRow
+                                        href={waHref}
+                                        icon="message-circle"
+                                        label="WhatsApp"
+                                        value={helpWhatsapp!}
+                                        external
+                                    />
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -578,23 +687,37 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                                     background: 'none',
                                 }}
                             >
-                                <div
-                                    style={{
-                                        width: 36,
-                                        height: 36,
-                                        borderRadius: 9,
-                                        background:
-                                            'linear-gradient(135deg,#2F54C9,#6E9BE6)',
-                                        color: '#fff',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        fontWeight: 600,
-                                        fontSize: 14,
-                                    }}
-                                >
-                                    {userInitials}
-                                </div>
+                                {avatar ? (
+                                    <img
+                                        src={avatar}
+                                        alt={userName}
+                                        style={{
+                                            width: 36,
+                                            height: 36,
+                                            borderRadius: 9,
+                                            objectFit: 'cover',
+                                            flex: 'none',
+                                        }}
+                                    />
+                                ) : (
+                                    <div
+                                        style={{
+                                            width: 36,
+                                            height: 36,
+                                            borderRadius: 9,
+                                            background:
+                                                'linear-gradient(135deg,#2F54C9,#6E9BE6)',
+                                            color: '#fff',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            fontWeight: 600,
+                                            fontSize: 14,
+                                        }}
+                                    >
+                                        {userInitials}
+                                    </div>
+                                )}
                                 <div
                                     className="avn-usermeta"
                                     style={{
