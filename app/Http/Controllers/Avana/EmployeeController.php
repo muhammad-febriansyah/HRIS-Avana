@@ -38,7 +38,7 @@ class EmployeeController extends Controller
     private const LIST_COLUMNS = [
         'id', 'tenant_id', 'user_id', 'branch_id', 'department_id', 'position_id',
         'job_level_id', 'manager_id', 'employee_number', 'full_name', 'email',
-        'phone', 'nik', 'gender', 'employment_status', 'join_date', 'status', 'created_at',
+        'phone', 'nik', 'gender', 'employment_status', 'join_date', 'status', 'photo_path', 'created_at',
     ];
 
     /**
@@ -218,17 +218,24 @@ class EmployeeController extends Controller
 
         $employees = Employee::forTenant($tenantId)
             ->where('status', 'active')
-            ->with(['position:id,name', 'department:id,name'])
+            ->with(['position:id,name', 'department:id,name', 'branch:id,name'])
             ->orderBy('full_name')
-            ->get(['id', 'full_name', 'position_id', 'department_id', 'manager_id']);
+            ->get(['id', 'full_name', 'employee_number', 'email', 'position_id', 'department_id', 'branch_id', 'manager_id', 'join_date']);
+
+        $names = $employees->pluck('full_name', 'id');
 
         return Inertia::render('avana/employees/org-chart', [
             'nodes' => $employees->map(fn (Employee $employee): array => [
                 'id' => $employee->id,
                 'name' => $employee->full_name,
+                'employee_number' => $employee->employee_number,
+                'email' => $employee->email,
                 'position' => $employee->position?->name,
                 'department' => $employee->department?->name,
+                'branch' => $employee->branch?->name,
+                'join_date' => $employee->join_date?->locale('id')->translatedFormat('d M Y'),
                 'manager_id' => $employee->manager_id,
+                'manager_name' => $employee->manager_id !== null ? $names->get($employee->manager_id) : null,
             ])->values(),
         ]);
     }

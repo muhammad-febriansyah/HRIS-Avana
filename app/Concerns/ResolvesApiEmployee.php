@@ -4,6 +4,7 @@ namespace App\Concerns;
 
 use App\Models\Employee;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Resolves the employee record behind the authenticated mobile (API) user, so
@@ -38,7 +39,9 @@ trait ResolvesApiEmployee
             'address' => $employee->address,
             'status' => $employee->status,
             'join_date' => $employee->join_date?->toDateString(),
-            'photo_url' => null,
+            'photo_url' => $employee->photo_path !== null
+                ? Storage::disk('public')->url($employee->photo_path)
+                : null,
             'employment' => [
                 'company' => $employee->tenant?->company_name ?? $employee->tenant?->name,
                 'branch' => $employee->branch?->name,

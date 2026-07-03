@@ -40,6 +40,7 @@ export type Employee = {
     has_login?: boolean;
     initials: string;
     avatar_color: string;
+    photo_url: string | null;
     branch?: NamedRef | null;
     department?: NamedRef | null;
     position?: NamedRef | null;

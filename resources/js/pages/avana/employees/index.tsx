@@ -545,26 +545,43 @@ export default function EmployeesIndex({
                                                         gap: 11,
                                                     }}
                                                 >
-                                                    <div
-                                                        style={{
-                                                            width: 36,
-                                                            height: 36,
-                                                            borderRadius: '50%',
-                                                            flex: 'none',
-                                                            background:
-                                                                e.avatar_color,
-                                                            color: '#fff',
-                                                            display: 'flex',
-                                                            alignItems:
-                                                                'center',
-                                                            justifyContent:
-                                                                'center',
-                                                            fontSize: 12.5,
-                                                            fontWeight: 600,
-                                                        }}
-                                                    >
-                                                        {e.initials}
-                                                    </div>
+                                                    {e.photo_url ? (
+                                                        <img
+                                                            src={e.photo_url}
+                                                            alt={e.full_name}
+                                                            style={{
+                                                                width: 36,
+                                                                height: 36,
+                                                                borderRadius:
+                                                                    '50%',
+                                                                objectFit:
+                                                                    'cover',
+                                                                flex: 'none',
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <div
+                                                            style={{
+                                                                width: 36,
+                                                                height: 36,
+                                                                borderRadius:
+                                                                    '50%',
+                                                                flex: 'none',
+                                                                background:
+                                                                    e.avatar_color,
+                                                                color: '#fff',
+                                                                display: 'flex',
+                                                                alignItems:
+                                                                    'center',
+                                                                justifyContent:
+                                                                    'center',
+                                                                fontSize: 12.5,
+                                                                fontWeight: 600,
+                                                            }}
+                                                        >
+                                                            {e.initials}
+                                                        </div>
+                                                    )}
                                                     <div
                                                         style={{ minWidth: 0 }}
                                                     >

@@ -20,5 +20,15 @@ it('renders the org chart with hierarchy nodes', function (): void {
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->component('avana/employees/org-chart')
-            ->has('nodes'));
+            ->has('nodes.0', fn (AssertableInertia $node) => $node
+                ->has('id')
+                ->has('name')
+                ->has('employee_number')
+                ->has('email')
+                ->has('position')
+                ->has('department')
+                ->has('branch')
+                ->has('join_date')
+                ->has('manager_id')
+                ->has('manager_name')));
 });

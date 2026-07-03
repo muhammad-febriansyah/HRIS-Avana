@@ -5,6 +5,7 @@ namespace App\Http\Resources\Avana;
 use App\Models\Employee;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * @mixin Employee
@@ -72,6 +73,7 @@ final class EmployeeResource extends JsonResource
             'custom_data' => $this->custom_data ?? [],
             'initials' => $this->initials(),
             'avatar_color' => $this->avatarColor(),
+            'photo_url' => $this->photo_path !== null ? Storage::disk('public')->url($this->photo_path) : null,
             'branch_id' => $this->branch_id,
             'work_location_id' => $this->work_location_id,
             'has_login' => $this->user_id !== null,

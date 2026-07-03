@@ -134,24 +134,39 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                             marginTop: -38,
                         }}
                     >
-                        <div
-                            style={{
-                                width: 84,
-                                height: 84,
-                                borderRadius: 20,
-                                background: emp.avatar_color,
-                                color: '#fff',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: 30,
-                                fontWeight: 600,
-                                border: '4px solid #fff',
-                                flex: 'none',
-                            }}
-                        >
-                            {emp.initials}
-                        </div>
+                        {emp.photo_url ? (
+                            <img
+                                src={emp.photo_url}
+                                alt={emp.full_name}
+                                style={{
+                                    width: 84,
+                                    height: 84,
+                                    borderRadius: 20,
+                                    objectFit: 'cover',
+                                    border: '4px solid #fff',
+                                    flex: 'none',
+                                }}
+                            />
+                        ) : (
+                            <div
+                                style={{
+                                    width: 84,
+                                    height: 84,
+                                    borderRadius: 20,
+                                    background: emp.avatar_color,
+                                    color: '#fff',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: 30,
+                                    fontWeight: 600,
+                                    border: '4px solid #fff',
+                                    flex: 'none',
+                                }}
+                            >
+                                {emp.initials}
+                            </div>
+                        )}
                         <div
                             style={{ flex: 1, minWidth: 200, paddingBottom: 2 }}
                         >
