@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\UserDevice;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -161,15 +162,19 @@ class AuthController extends Controller
      */
     private function userPayload(User $user): array
     {
-        $user->loadMissing('roles:id,code');
+        $user->loadMissing('roles:id,code', 'employee');
+
+        $employee = $user->employee;
 
         return [
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
             'roles' => $user->roles->pluck('code')->all(),
-            'avatar_url' => null,
-            'employee' => $user->employee !== null ? $this->employeeProfile($user->employee) : null,
+            'avatar_url' => $user->avatar_path !== null
+                ? Storage::disk('public')->url($user->avatar_path)
+                : ($employee?->photo_path !== null ? Storage::disk('public')->url($employee->photo_path) : null),
+            'employee' => $employee !== null ? $this->employeeProfile($employee) : null,
         ];
     }
 }
