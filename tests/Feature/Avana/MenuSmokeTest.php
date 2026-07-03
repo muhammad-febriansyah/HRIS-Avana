@@ -9,8 +9,8 @@ use function Pest\Laravel\actingAs;
 beforeEach(function (): void {
     $this->withoutVite();
     $this->seed(AvanaDemoSeeder::class);
-    $this->superadmin = User::where('email', 'superadmin@avanahr.co.id')->firstOrFail();
-    $this->admin = User::where('email', 'admin@avanahr.co.id')->firstOrFail();
+    $this->superadmin = User::where('email', 'superadmin@avanahr.id')->firstOrFail();
+    $this->admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
 });
 
 /** Every parameterless GET page under /avana that renders a screen (not a download). */

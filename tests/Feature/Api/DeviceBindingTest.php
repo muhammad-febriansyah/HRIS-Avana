@@ -6,7 +6,7 @@ use Database\Seeders\AvanaDemoSeeder;
 
 beforeEach(function (): void {
     $this->seed(AvanaDemoSeeder::class);
-    $this->employee = User::where('email', 'karyawan@avanahr.co.id')->firstOrFail();
+    $this->employee = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail();
 });
 
 /** Fresh login request; flushes the cached jwt guard so each call re-auths. */
@@ -15,7 +15,7 @@ function login(array $extra = [])
     app('auth')->forgetGuards();
 
     return test()->postJson('/api/v1/auth/login', array_merge([
-        'email' => 'karyawan@avanahr.co.id',
+        'email' => 'bagus.p@nusantara.co.id',
         'password' => 'password',
     ], $extra));
 }

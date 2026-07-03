@@ -13,8 +13,8 @@ beforeEach(function (): void {
     $this->withoutVite();
     $this->seed(AvanaDemoSeeder::class);
     $this->tenant = Tenant::where('code', '!=', '')->firstOrFail();
-    $this->admin = User::where('email', 'admin@avanahr.co.id')->firstOrFail();
-    $this->superAdmin = User::where('email', 'superadmin@avanahr.co.id')->firstOrFail();
+    $this->admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
+    $this->superAdmin = User::where('email', 'superadmin@avanahr.id')->firstOrFail();
 });
 
 it('seeds the tenant menu from the AvanaNav defaults', function (): void {
@@ -112,7 +112,7 @@ it('blocks page access when its menu is hidden', function (): void {
 });
 
 it('lets a super admin manage another tenant menu and seeds it on demand', function (): void {
-    $superadmin = User::where('email', 'superadmin@avanahr.co.id')->firstOrFail();
+    $superadmin = User::where('email', 'superadmin@avanahr.id')->firstOrFail();
     $other = Tenant::create(['name' => 'PT Lain', 'company_name' => 'PT Lain', 'slug' => 'lain', 'status' => 'active']);
 
     expect(MenuItem::forTenant($other->id)->count())->toBe(0);

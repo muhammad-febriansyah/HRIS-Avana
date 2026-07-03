@@ -56,7 +56,7 @@ it('shows the menu once the role is granted the module permission', function ():
 });
 
 it('always shows every menu to an HR admin and hides platform items', function (): void {
-    $admin = User::where('email', 'admin@avanahr.co.id')->firstOrFail();
+    $admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
     $ids = navLeafIds($admin);
 
     // HR admin holds all non-tenant modules → sees enterprise menus…
@@ -69,7 +69,7 @@ it('always shows every menu to an HR admin and hides platform items', function (
 });
 
 it('shows platform menus to a super admin', function (): void {
-    $superadmin = User::where('email', 'superadmin@avanahr.co.id')->firstOrFail();
+    $superadmin = User::where('email', 'superadmin@avanahr.id')->firstOrFail();
     $ids = navLeafIds($superadmin);
 
     expect($ids)->toContain('klien');

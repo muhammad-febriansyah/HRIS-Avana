@@ -11,8 +11,8 @@ beforeEach(function (): void {
     $this->withoutVite();
     $this->seed(AvanaDemoSeeder::class);
 
-    $this->superadmin = User::where('email', 'superadmin@avanahr.co.id')->firstOrFail();
-    $this->admin = User::where('email', 'admin@avanahr.co.id')->firstOrFail();
+    $this->superadmin = User::where('email', 'superadmin@avanahr.id')->firstOrFail();
+    $this->admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
     $this->ownTenantId = $this->superadmin->tenant_id;
     $this->other = Tenant::create(['name' => 'PT Tenant Lain', 'company_name' => 'PT Tenant Lain', 'slug' => 'lain', 'status' => 'active']);
 });

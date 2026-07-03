@@ -26,7 +26,7 @@ test('the admin dashboard lists only employees whose birthday is today', functio
     $this->withoutVite();
     $this->seed(AvanaDemoSeeder::class);
 
-    $admin = User::where('email', 'admin@avanahr.co.id')->firstOrFail();
+    $admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
     $tenant = Tenant::findOrFail($admin->tenant_id);
 
     // Clear the demo birthdays so this test controls exactly who celebrates today.

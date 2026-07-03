@@ -12,7 +12,7 @@ beforeEach(function (): void {
     $this->withoutVite();
     $this->seed(AvanaDemoSeeder::class);
 
-    $this->admin = User::where('email', 'admin@avanahr.co.id')->firstOrFail();
+    $this->admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
 });
 
 it('renders the mood page for HR with a breakdown and employee rows', function (): void {
@@ -37,7 +37,7 @@ it('renders the mood page for HR with a breakdown and employee rows', function (
 });
 
 it('forbids a non-HR employee from the mood page', function (): void {
-    $karyawan = User::where('email', 'karyawan@avanahr.co.id')->firstOrFail();
+    $karyawan = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail();
 
     actingAs($karyawan)->get('/avana/mood')->assertForbidden();
 });

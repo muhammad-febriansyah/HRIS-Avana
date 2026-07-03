@@ -13,8 +13,8 @@ beforeEach(function (): void {
     $this->withoutVite();
     $this->seed(AvanaDemoSeeder::class);
 
-    $this->superAdmin = User::where('email', 'superadmin@avanahr.co.id')->firstOrFail();
-    $this->admin = User::where('email', 'admin@avanahr.co.id')->firstOrFail();
+    $this->superAdmin = User::where('email', 'superadmin@avanahr.id')->firstOrFail();
+    $this->admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
 });
 
 it('renders the onboarding slides screen for a super admin', function (): void {

@@ -18,7 +18,7 @@ beforeEach(function (): void {
     $this->withoutVite();
     $this->seed(AvanaDemoSeeder::class);
 
-    $this->admin = User::where('email', 'admin@avanahr.co.id')->firstOrFail();
+    $this->admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
     $this->tenant = Tenant::findOrFail($this->admin->tenant_id);
 });
 

@@ -14,7 +14,7 @@ beforeEach(function (): void {
     Storage::fake('public');
 
     $this->token = $this->postJson('/api/v1/auth/login', [
-        'email' => 'karyawan@avanahr.co.id',
+        'email' => 'bagus.p@nusantara.co.id',
         'password' => 'password',
     ])->json('access_token');
 
@@ -140,7 +140,7 @@ it('lists payslips and notifications with the expected envelope', function (): v
 });
 
 it('forbids a non-employee user (admin) from ESS endpoints', function (): void {
-    $token = $this->postJson('/api/v1/auth/login', ['email' => 'admin@avanahr.co.id', 'password' => 'password'])->json('access_token');
+    $token = $this->postJson('/api/v1/auth/login', ['email' => 'rina.a@nusantara.co.id', 'password' => 'password'])->json('access_token');
     $this->app['auth']->forgetGuards();
 
     $this->withHeader('Authorization', 'Bearer '.$token)
@@ -191,7 +191,7 @@ it('requests and lists a shift swap with a colleague', function (): void {
 });
 
 it('rejects a shift swap with yourself', function (): void {
-    $me = User::where('email', 'karyawan@avanahr.co.id')->firstOrFail()->employee;
+    $me = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail()->employee;
 
     ($this->auth)()->postJson('/api/v1/me/shift-swaps', [
         'target_id' => $me->id,

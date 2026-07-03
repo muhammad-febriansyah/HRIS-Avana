@@ -14,7 +14,7 @@ it('exposes public app config without auth', function (): void {
 
 it('logs an employee in and returns access_token + user', function (): void {
     $response = $this->postJson('/api/v1/auth/login', [
-        'email' => 'karyawan@avanahr.co.id',
+        'email' => 'bagus.p@nusantara.co.id',
         'password' => 'password',
     ]);
 
@@ -31,17 +31,17 @@ it('logs an employee in and returns access_token + user', function (): void {
 });
 
 it('rejects a wrong password', function (): void {
-    $this->postJson('/api/v1/auth/login', ['email' => 'karyawan@avanahr.co.id', 'password' => 'salah'])
+    $this->postJson('/api/v1/auth/login', ['email' => 'bagus.p@nusantara.co.id', 'password' => 'salah'])
         ->assertStatus(422);
 });
 
 it('returns the profile (enveloped) for a valid token', function (): void {
-    $token = $this->postJson('/api/v1/auth/login', ['email' => 'karyawan@avanahr.co.id', 'password' => 'password'])->json('access_token');
+    $token = $this->postJson('/api/v1/auth/login', ['email' => 'bagus.p@nusantara.co.id', 'password' => 'password'])->json('access_token');
 
     $this->withHeader('Authorization', 'Bearer '.$token)
         ->getJson('/api/v1/auth/me')
         ->assertOk()
-        ->assertJsonPath('data.email', 'karyawan@avanahr.co.id');
+        ->assertJsonPath('data.email', 'bagus.p@nusantara.co.id');
 });
 
 it('blocks /auth/me without a token', function (): void {

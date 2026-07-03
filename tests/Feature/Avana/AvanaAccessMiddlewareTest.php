@@ -12,8 +12,8 @@ beforeEach(function (): void {
     $this->seed(AvanaDemoSeeder::class);
     $this->tenant = Tenant::where('code', '!=', '')->firstOrFail();
 
-    $this->superadmin = User::where('email', 'superadmin@avanahr.co.id')->firstOrFail();
-    $this->admin = User::where('email', 'admin@avanahr.co.id')->firstOrFail();
+    $this->superadmin = User::where('email', 'superadmin@avanahr.id')->firstOrFail();
+    $this->admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
 
     $this->manager = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->manager->roles()->sync([

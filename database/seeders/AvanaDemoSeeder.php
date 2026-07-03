@@ -316,7 +316,7 @@ final class AvanaDemoSeeder extends Seeder
     private function seedAdminUser(Tenant $tenant): User
     {
         $user = User::firstOrCreate(
-            ['email' => 'admin@avanahr.co.id'],
+            ['email' => 'rina.a@nusantara.co.id'],
             [
                 'name' => 'Rina Anggraeni',
                 'tenant_id' => $tenant->id,
@@ -353,7 +353,7 @@ final class AvanaDemoSeeder extends Seeder
         }
 
         $user = User::firstOrCreate(
-            ['email' => 'karyawan@avanahr.co.id'],
+            ['email' => $employee->email ?? 'karyawan@nusantara.co.id'],
             [
                 'name' => $employee->full_name,
                 'tenant_id' => $tenant->id,
@@ -384,7 +384,7 @@ final class AvanaDemoSeeder extends Seeder
     private function seedManager(Tenant $tenant): void
     {
         $manager = User::firstOrCreate(
-            ['email' => 'manager@avanahr.co.id'],
+            ['email' => 'budi.s@nusantara.co.id'],
             [
                 'name' => 'Budi Santoso',
                 'tenant_id' => $tenant->id,
@@ -405,7 +405,7 @@ final class AvanaDemoSeeder extends Seeder
     private function seedSuperAdmin(Tenant $tenant): void
     {
         $superAdmin = User::firstOrCreate(
-            ['email' => 'superadmin@avanahr.co.id'],
+            ['email' => 'superadmin@avanahr.id'],
             [
                 'name' => 'Super Admin',
                 'tenant_id' => $tenant->id,
