@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AnnouncementController;
 use App\Http\Controllers\Api\AppConfigController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\FaceController;
 use App\Http\Controllers\Api\FieldVisitController;
@@ -45,8 +46,11 @@ Route::prefix('v1')->group(function (): void {
             Route::get('profile', [ProfileController::class, 'show']);
             Route::put('profile', [ProfileController::class, 'update']);
 
+            Route::get('dashboard', [DashboardController::class, 'summary']);
+
             Route::get('attendance/today', [AttendanceController::class, 'today']);
             Route::get('attendance', [AttendanceController::class, 'history']);
+            Route::get('work-locations', [AttendanceController::class, 'workLocations']);
             Route::post('attendance/clock', [AttendanceController::class, 'clock']);
 
             Route::get('leave/balances', [LeaveController::class, 'balances']);

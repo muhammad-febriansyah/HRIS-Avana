@@ -31,6 +31,27 @@ class AttendanceController extends Controller
         return response()->json(['data' => $this->todayShape($record)]);
     }
 
+    /**
+     * The employee's allowed work locations (with geofence radius) so the app
+     * can auto-detect whether the user is inside an office area.
+     */
+    public function workLocations(Request $request): JsonResponse
+    {
+        $employee = $this->currentEmployee($request);
+
+        $data = $this->allowedWorkLocations($employee)
+            ->map(fn (WorkLocation $w): array => [
+                'id' => $w->id,
+                'name' => $w->name,
+                'latitude' => $w->latitude !== null ? (float) $w->latitude : null,
+                'longitude' => $w->longitude !== null ? (float) $w->longitude : null,
+                'radius' => (int) ($w->radius_meter ?? 0),
+            ])
+            ->values();
+
+        return response()->json(['data' => $data]);
+    }
+
     public function history(Request $request): JsonResponse
     {
         $employee = $this->currentEmployee($request);

@@ -321,3 +321,15 @@ it('includes a freshly submitted request in the activity feed', function (): voi
 
     expect($types)->toContain('overtime');
 });
+
+it('returns the employee work locations for geofence auto-detect', function (): void {
+    ($this->auth)()->getJson('/api/v1/me/work-locations')
+        ->assertOk()
+        ->assertJsonStructure(['data' => [['id', 'name', 'latitude', 'longitude', 'radius']]]);
+});
+
+it('returns a dashboard summary', function (): void {
+    ($this->auth)()->getJson('/api/v1/me/dashboard')
+        ->assertOk()
+        ->assertJsonStructure(['data' => ['leave_available', 'work_minutes_month', 'work_hours_month', 'pending_count']]);
+});
