@@ -83,6 +83,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::delete('custom-fields/{field}', [CustomFieldController::class, 'destroy'])->name('custom-fields.destroy');
     Route::get('employees/bulk', [EmployeeController::class, 'bulkCreate'])->name('employees.bulk');
     Route::post('employees/bulk', [EmployeeController::class, 'bulkStore'])->name('employees.bulk.store');
+    Route::delete('employees/bulk-destroy', [EmployeeController::class, 'bulkDestroy'])->name('employees.bulk-destroy');
     Route::resource('employees', EmployeeController::class);
 
     Route::get('absensi', [AttendanceController::class, 'index'])->name('absensi');
@@ -254,6 +255,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     // Tenant / client management (super admin)
     Route::get('klien', [TenantController::class, 'index'])->name('klien');
     Route::get('klien/create', [TenantController::class, 'create'])->name('klien.create');
+    Route::get('klien/{tenant}', [TenantController::class, 'show'])->name('klien.show');
     Route::get('klien/{tenant}/edit', [TenantController::class, 'edit'])->name('klien.edit');
     Route::post('klien', [TenantController::class, 'store'])->name('klien.store');
     Route::put('klien/{tenant}', [TenantController::class, 'update'])->name('klien.update');

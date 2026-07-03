@@ -93,8 +93,60 @@ export default function EmployeesIndex({
 
     const [openMenu, setOpenMenu] = useState<number | null>(null);
     const [confirm, setConfirm] = useState<Employee | null>(null);
+    const [selected, setSelected] = useState<Set<number>>(new Set());
+    const [bulkConfirm, setBulkConfirm] = useState(false);
     const [search, setSearch] = useState(filters.search ?? '');
     const isFirstSearch = useRef(true);
+    const headerCheckbox = useRef<HTMLInputElement>(null);
+
+    const pageIds = employees.data.map((row) => row.id);
+    const allPageSelected =
+        pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+    const somePageSelected = pageIds.some((id) => selected.has(id));
+
+    useEffect(() => {
+        if (headerCheckbox.current) {
+            headerCheckbox.current.indeterminate =
+                somePageSelected && !allPageSelected;
+        }
+    }, [somePageSelected, allPageSelected]);
+
+    const toggleAllPage = () => {
+        setSelected((prev) => {
+            const next = new Set(prev);
+            if (allPageSelected) {
+                pageIds.forEach((id) => next.delete(id));
+            } else {
+                pageIds.forEach((id) => next.add(id));
+            }
+
+            return next;
+        });
+    };
+
+    const toggleOne = (id: number) => {
+        setSelected((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+
+            return next;
+        });
+    };
+
+    const bulkDelete = () => {
+        router.delete(EmployeeController.bulkDestroy().url, {
+            data: { ids: Array.from(selected) },
+            preserveScroll: true,
+            onSuccess: () => {
+                setSelected(new Set());
+                setBulkConfirm(false);
+            },
+        });
+    };
 
     useEffect(() => {
         if (flash?.success) {
@@ -427,11 +479,16 @@ export default function EmployeesIndex({
                                         }}
                                     >
                                         <input
+                                            ref={headerCheckbox}
                                             type="checkbox"
+                                            checked={allPageSelected}
+                                            onChange={toggleAllPage}
+                                            aria-label="Pilih semua"
                                             style={{
                                                 width: 15,
                                                 height: 15,
                                                 accentColor: C.primary,
+                                                cursor: 'pointer',
                                             }}
                                         />
                                     </th>
@@ -528,10 +585,16 @@ export default function EmployeesIndex({
                                             >
                                                 <input
                                                     type="checkbox"
+                                                    checked={selected.has(e.id)}
+                                                    onChange={() =>
+                                                        toggleOne(e.id)
+                                                    }
+                                                    aria-label={`Pilih ${e.full_name}`}
                                                     style={{
                                                         width: 15,
                                                         height: 15,
                                                         accentColor: C.primary,
+                                                        cursor: 'pointer',
                                                     }}
                                                 />
                                             </td>
@@ -953,6 +1016,187 @@ export default function EmployeesIndex({
             </div>
 
             {/* Confirm delete modal */}
+            {selected.size > 0 && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        left: '50%',
+                        bottom: 26,
+                        transform: 'translateX(-50%)',
+                        zIndex: 70,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 14,
+                        padding: '10px 12px 10px 18px',
+                        background: C.navy,
+                        color: '#fff',
+                        borderRadius: 12,
+                        boxShadow: '0 16px 40px rgba(15,23,42,.35)',
+                        animation: 'toastIn .2s ease',
+                    }}
+                >
+                    <span style={{ fontSize: 13.5, fontWeight: 600 }}>
+                        {selected.size} dipilih
+                    </span>
+                    <button
+                        onClick={() => setSelected(new Set())}
+                        style={{
+                            height: 34,
+                            padding: '0 12px',
+                            background: 'transparent',
+                            color: 'rgba(255,255,255,.85)',
+                            border: '1px solid rgba(255,255,255,.25)',
+                            borderRadius: 8,
+                            fontSize: 13,
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        Batal
+                    </button>
+                    <button
+                        onClick={() => setBulkConfirm(true)}
+                        style={{
+                            height: 34,
+                            padding: '0 14px',
+                            background: C.red,
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: 8,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 7,
+                        }}
+                    >
+                        <AIcon name="trash-2" size={15} color="#fff" />
+                        Hapus
+                    </button>
+                </div>
+            )}
+            {bulkConfirm && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: 80,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 20,
+                    }}
+                >
+                    <div
+                        onClick={() => setBulkConfirm(false)}
+                        style={{
+                            position: 'absolute',
+                            inset: 0,
+                            background: 'rgba(14,26,58,.45)',
+                        }}
+                    />
+                    <div
+                        style={{
+                            position: 'relative',
+                            width: '100%',
+                            maxWidth: 400,
+                            background: '#fff',
+                            borderRadius: 14,
+                            boxShadow: '0 20px 50px rgba(15,23,42,.25)',
+                            padding: 26,
+                            animation: 'toastIn .2s ease',
+                        }}
+                    >
+                        <div
+                            style={{
+                                width: 48,
+                                height: 48,
+                                borderRadius: 12,
+                                background: 'rgba(220,38,38,.1)',
+                                color: C.red,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                marginBottom: 16,
+                            }}
+                        >
+                            <AIcon name="trash-2" size={22} color={C.red} />
+                        </div>
+                        <div
+                            style={{
+                                fontSize: 18,
+                                fontWeight: 600,
+                                color: C.navy,
+                            }}
+                        >
+                            Hapus {selected.size} karyawan?
+                        </div>
+                        <div
+                            style={{
+                                fontSize: 13.5,
+                                color: C.muted,
+                                marginTop: 8,
+                                lineHeight: 1.55,
+                            }}
+                        >
+                            <strong style={{ color: C.text }}>
+                                {selected.size} karyawan
+                            </strong>{' '}
+                            terpilih akan dihapus beserta seluruh riwayatnya.
+                            Tindakan ini tidak dapat dibatalkan.
+                        </div>
+                        <div
+                            style={{ display: 'flex', gap: 10, marginTop: 22 }}
+                        >
+                            <button
+                                onClick={() => setBulkConfirm(false)}
+                                style={{
+                                    flex: 1,
+                                    height: 44,
+                                    background: '#fff',
+                                    color: C.text,
+                                    border: `1px solid ${C.border}`,
+                                    borderRadius: 9,
+                                    fontSize: 14,
+                                    fontWeight: 500,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 8,
+                                    transition: '.15s',
+                                }}
+                            >
+                                <AIcon name="x" size={16} />
+                                Batal
+                            </button>
+                            <button
+                                onClick={bulkDelete}
+                                style={{
+                                    flex: 1,
+                                    height: 44,
+                                    background: C.red,
+                                    color: '#fff',
+                                    border: 'none',
+                                    borderRadius: 9,
+                                    fontSize: 14,
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 8,
+                                    transition: '.15s',
+                                }}
+                            >
+                                <AIcon name="trash-2" size={16} />
+                                Hapus
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {confirm && (
                 <div
                     style={{

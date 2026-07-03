@@ -169,6 +169,39 @@ it('soft deletes an employee on destroy', function (): void {
     expect(Employee::withTrashed()->find($employee->id)->trashed())->toBeTrue();
 });
 
+it('soft deletes several employees on bulk destroy', function (): void {
+    $ids = Employee::forTenant($this->tenant->id)->take(3)->pluck('id')->all();
+
+    actingAs($this->admin)
+        ->delete(route('avana.employees.bulk-destroy'), ['ids' => $ids])
+        ->assertSessionHas('success');
+
+    expect(Employee::onlyTrashed()->whereIn('id', $ids)->count())->toBe(count($ids));
+});
+
+it('does not bulk delete employees from another tenant', function (): void {
+    $otherTenant = Tenant::create(['name' => 'PT Lain', 'slug' => 'pt-lain']);
+    $foreign = Employee::create([
+        'tenant_id' => $otherTenant->id,
+        'employee_number' => 'EMP-9999',
+        'full_name' => 'Orang Luar',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+    ]);
+
+    actingAs($this->admin)
+        ->delete(route('avana.employees.bulk-destroy'), ['ids' => [$foreign->id]])
+        ->assertSessionHas('success');
+
+    expect(Employee::withTrashed()->find($foreign->id)->trashed())->toBeFalse();
+});
+
+it('validates that bulk destroy requires at least one id', function (): void {
+    actingAs($this->admin)
+        ->delete(route('avana.employees.bulk-destroy'), ['ids' => []])
+        ->assertSessionHasErrors('ids');
+});
+
 it('returns 404 when accessing an employee from another tenant', function (): void {
     $otherTenant = Tenant::create(['name' => 'PT Asing', 'slug' => 'pt-asing']);
     $foreign = Employee::create([

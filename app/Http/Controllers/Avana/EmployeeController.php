@@ -394,6 +394,31 @@ class EmployeeController extends Controller
     }
 
     /**
+     * Delete several employees at once from the list's selection checkboxes.
+     * Only rows the caller may delete within their own tenant are removed.
+     */
+    public function bulkDestroy(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+        ]);
+
+        $employees = Employee::forTenant($request->user()->tenant_id)
+            ->whereIn('id', $data['ids'])
+            ->get();
+
+        $deleted = 0;
+        foreach ($employees as $employee) {
+            $this->authorize('delete', $employee);
+            $employee->delete();
+            $deleted++;
+        }
+
+        return back()->with('success', "{$deleted} karyawan dihapus");
+    }
+
+    /**
      * Build the option lists shared by the create and edit forms.
      *
      * @return array<string, mixed>
