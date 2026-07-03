@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { useMemo } from 'react';
 import ReactFlow, { Background, Controls, Position } from 'reactflow';
 import type { Edge, Node } from 'reactflow';
@@ -176,6 +176,7 @@ function layout(nodes: OrgNode[]): { nodes: Node[]; edges: Edge[] } {
                 background: '#fff',
                 padding: 8,
                 width: NODE_WIDTH,
+                cursor: 'pointer',
             },
             sourcePosition: Position.Bottom,
             targetPosition: Position.Top,
@@ -239,7 +240,8 @@ export default function OrgChart({ nodes }: OrgChartProps) {
                         marginBottom: 16,
                     }}
                 >
-                    Bagan hierarki pelaporan karyawan aktif.
+                    Bagan hierarki pelaporan karyawan aktif. Klik kartu untuk
+                    lihat detail karyawan.
                 </div>
                 <div
                     style={{
@@ -270,6 +272,9 @@ export default function OrgChart({ nodes }: OrgChartProps) {
                             fitView
                             nodesDraggable={false}
                             nodesConnectable={false}
+                            onNodeClick={(_, node) =>
+                                router.visit(`/avana/employees/${node.id}`)
+                            }
                         >
                             <Background />
                             <Controls showInteractive={false} />
