@@ -36,6 +36,7 @@ use App\Http\Controllers\Avana\LeaveTypeController;
 use App\Http\Controllers\Avana\LetterTemplateController;
 use App\Http\Controllers\Avana\LoanController;
 use App\Http\Controllers\Avana\MenuBuilderController;
+use App\Http\Controllers\Avana\MoodController;
 use App\Http\Controllers\Avana\MovementController;
 use App\Http\Controllers\Avana\OffboardingController;
 use App\Http\Controllers\Avana\OkrController;
@@ -163,6 +164,9 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
 
     // Audit trail
     Route::get('audit', [AuditController::class, 'index'])->name('audit');
+
+    // Mood karyawan (HR view of daily mood check-ins)
+    Route::get('mood', [MoodController::class, 'index'])->name('mood');
 
     // Kontrak kerja (employee contracts)
     Route::get('kontrak', [ContractController::class, 'index'])->name('kontrak');

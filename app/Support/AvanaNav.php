@@ -58,6 +58,7 @@ final class AvanaNav
                     self::leaf('timesheet', 'Timesheet', 'clock', '/avana/timesheet', 'timesheet', ['timesheet']),
                     self::leaf('sanksi', 'Sanksi Absensi', 'octagon-alert', '/avana/sanksi', 'attendance', ['attendance']),
                     self::leaf('visiting', 'Visiting Pekerjaan', 'map-pin', '/avana/visiting', 'attendance', ['attendance']),
+                    self::leaf('mood', 'Mood Karyawan', 'smile', '/avana/mood', null, ['employee']),
                 ]),
                 self::leaf('cuti', 'Cuti & Lembur', 'palmtree', '/avana/cuti', 'leave', ['leave', 'overtime', 'wfh']),
                 self::leaf('dinas', 'Perjalanan Dinas', 'plane', '/avana/dinas', 'hr_core', ['employee']),
