@@ -1,13 +1,7 @@
 import { Head } from '@inertiajs/react';
 import { useMemo } from 'react';
-import ReactFlow, {
-    Background,
-    Controls,
-    
-    
-    Position
-} from 'reactflow';
-import type {Edge, Node} from 'reactflow';
+import ReactFlow, { Background, Controls, Position } from 'reactflow';
+import type { Edge, Node } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { AIcon, C } from '@/lib/avana';
 
@@ -23,12 +17,119 @@ interface OrgChartProps {
     nodes: OrgNode[];
 }
 
-const COL_WIDTH = 240;
-const ROW_HEIGHT = 130;
+const COL_WIDTH = 220;
+const ROW_HEIGHT = 132;
+const NODE_WIDTH = 200;
+
+/** Deterministic color-per-department palette. */
+const DEPT_PALETTE = [
+    '#2F54C9',
+    '#6E9BE6',
+    '#0E1A3A',
+    '#D97706',
+    '#16A34A',
+    '#7C3AED',
+    '#0891B2',
+];
+
+/** Up to two uppercase initials from a full name. */
+function initials(name: string): string {
+    const parts = name
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2);
+
+    return parts.map((word) => word.charAt(0).toUpperCase()).join('') || '?';
+}
+
+/** Pick a stable palette color from a string key (e.g. department name). */
+function hashColor(key: string): string {
+    let hash = 0;
+    for (let i = 0; i < key.length; i++) {
+        hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+    }
+
+    return DEPT_PALETTE[hash % DEPT_PALETTE.length];
+}
+
+/** The card body shown inside each org-chart node. */
+function nodeLabel(node: OrgNode) {
+    const color = hashColor(node.department ?? node.name);
+
+    return (
+        <div
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 9,
+                textAlign: 'left',
+            }}
+        >
+            <div
+                style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: '50%',
+                    flex: 'none',
+                    background: color,
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 12,
+                    fontWeight: 600,
+                }}
+            >
+                {initials(node.name)}
+            </div>
+            <div style={{ minWidth: 0, lineHeight: 1.35 }}>
+                <div
+                    style={{
+                        fontWeight: 600,
+                        fontSize: 12.5,
+                        color: C.navy,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                    }}
+                >
+                    {node.name}
+                </div>
+                <div
+                    style={{
+                        fontSize: 11,
+                        color: C.muted,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                    }}
+                >
+                    {node.position ?? '—'}
+                </div>
+                {node.department && (
+                    <div
+                        style={{
+                            fontSize: 10.5,
+                            color,
+                            fontWeight: 500,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                        }}
+                    >
+                        {node.department}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
 
 /**
- * Assign each node an (x, y) using a simple layered layout: depth by distance
- * from a root (no/absent manager), ordered left-to-right within each level.
+ * Tidy-tree layout: leaves are packed left-to-right, and every parent is
+ * centred above the span of its own children — so sibling subtrees stay
+ * grouped and edges don't cross. Depth maps to the vertical row.
  */
 function layout(nodes: OrgNode[]): { nodes: Node[]; edges: Edge[] } {
     const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -46,33 +147,35 @@ function layout(nodes: OrgNode[]): { nodes: Node[]; edges: Edge[] } {
 
     const flowNodes: Node[] = [];
     const edges: Edge[] = [];
-    const rowCursor: number[] = [];
+    const visited = new Set<number>();
+    let nextLeafX = 0;
 
-    const place = (node: OrgNode, depth: number) => {
-        const col = rowCursor[depth] ?? 0;
-        rowCursor[depth] = col + 1;
+    /** Place a node (post-order) and return its horizontal centre in pixels. */
+    const place = (node: OrgNode, depth: number): number => {
+        visited.add(node.id);
+        const children = (childrenOf.get(node.id) ?? []).filter(
+            (child) => !visited.has(child.id),
+        );
+
+        let x: number;
+        if (children.length === 0) {
+            x = nextLeafX * COL_WIDTH;
+            nextLeafX += 1;
+        } else {
+            const childXs = children.map((child) => place(child, depth + 1));
+            x = (childXs[0] + childXs[childXs.length - 1]) / 2;
+        }
 
         flowNodes.push({
             id: String(node.id),
-            position: { x: col * COL_WIDTH, y: depth * ROW_HEIGHT },
-            data: {
-                label: (
-                    <div style={{ textAlign: 'center', lineHeight: 1.35 }}>
-                        <div style={{ fontWeight: 600, fontSize: 12.5 }}>
-                            {node.name}
-                        </div>
-                        <div style={{ fontSize: 11, color: C.faint }}>
-                            {node.position ?? '—'}
-                        </div>
-                    </div>
-                ),
-            },
+            position: { x, y: depth * ROW_HEIGHT },
+            data: { label: nodeLabel(node) },
             style: {
                 border: `1px solid ${C.border}`,
                 borderRadius: 10,
                 background: '#fff',
                 padding: 8,
-                width: 200,
+                width: NODE_WIDTH,
             },
             sourcePosition: Position.Bottom,
             targetPosition: Position.Top,
@@ -86,9 +189,7 @@ function layout(nodes: OrgNode[]): { nodes: Node[]; edges: Edge[] } {
             });
         }
 
-        for (const child of childrenOf.get(node.id) ?? []) {
-            place(child, depth + 1);
-        }
+        return x;
     };
 
     for (const root of childrenOf.get(null) ?? []) {

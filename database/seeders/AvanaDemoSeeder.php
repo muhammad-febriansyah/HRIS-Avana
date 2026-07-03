@@ -512,10 +512,22 @@ final class AvanaDemoSeeder extends Seeder
             ]);
         }
 
-        // Set managers: HR Manager (no.1) leads the rest.
-        foreach ($employees as $no => $employee) {
-            if ($no !== 1 && $employee->manager_id === null) {
-                $employee->update(['manager_id' => $employees[1]->id]);
+        // Reporting lines form a real multi-level org chart: HR Manager (1) at
+        // the top, department leads beneath, and their members one level deeper.
+        $managerMap = [
+            2 => 1,   // Bagus (Engineering lead) -> Putri
+            3 => 1,   // Siti (Finance lead) -> Putri
+            5 => 1,   // Dewi (Marketing) -> Putri
+            6 => 1,   // Andi (Operations) -> Putri
+            10 => 1,  // Yoga (Sales lead) -> Putri
+            7 => 2,   // Maya (QA) -> Bagus
+            8 => 3,   // Fajar (Accountant) -> Siti
+            4 => 10,  // Rizki (Sales Exec) -> Yoga
+            9 => 1,   // Intan (resigned) -> Putri
+        ];
+        foreach ($managerMap as $no => $managerNo) {
+            if (isset($employees[$no], $employees[$managerNo])) {
+                $employees[$no]->update(['manager_id' => $employees[$managerNo]->id]);
             }
         }
 
