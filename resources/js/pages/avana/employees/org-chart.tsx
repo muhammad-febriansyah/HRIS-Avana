@@ -1,5 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, { Background, Controls, Position } from 'reactflow';
 import type { Edge, Node } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -236,6 +236,25 @@ function DetailRow({ label, value }: { label: string; value: string | null }) {
 export default function OrgChart({ nodes }: OrgChartProps) {
     const { nodes: flowNodes, edges } = useMemo(() => layout(nodes), [nodes]);
     const [selected, setSelected] = useState<OrgNode | null>(null);
+    const chartRef = useRef<HTMLDivElement>(null);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+
+    useEffect(() => {
+        const onChange = () =>
+            setIsFullscreen(document.fullscreenElement === chartRef.current);
+        document.addEventListener('fullscreenchange', onChange);
+
+        return () =>
+            document.removeEventListener('fullscreenchange', onChange);
+    }, []);
+
+    const toggleFullscreen = () => {
+        if (document.fullscreenElement) {
+            void document.exitFullscreen();
+        } else {
+            void chartRef.current?.requestFullscreen();
+        }
+    };
 
     return (
         <>
@@ -278,13 +297,47 @@ export default function OrgChart({ nodes }: OrgChartProps) {
                     lihat detail karyawan.
                 </div>
                 <div
+                    ref={chartRef}
                     style={{
-                        height: '70vh',
+                        position: 'relative',
+                        height: isFullscreen ? '100vh' : '70vh',
                         border: `1px solid ${C.border}`,
-                        borderRadius: 12,
+                        borderRadius: isFullscreen ? 0 : 12,
                         background: '#F8FAFC',
                     }}
                 >
+                    <button
+                        type="button"
+                        onClick={toggleFullscreen}
+                        aria-label={
+                            isFullscreen ? 'Keluar layar penuh' : 'Layar penuh'
+                        }
+                        title={
+                            isFullscreen ? 'Keluar layar penuh' : 'Layar penuh'
+                        }
+                        style={{
+                            position: 'absolute',
+                            top: 12,
+                            right: 12,
+                            zIndex: 4,
+                            width: 34,
+                            height: 34,
+                            borderRadius: 8,
+                            border: `1px solid ${C.border}`,
+                            background: '#fff',
+                            color: C.muted,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 1px 3px rgba(15,26,58,.08)',
+                        }}
+                    >
+                        <AIcon
+                            name={isFullscreen ? 'minimize' : 'maximize'}
+                            size={17}
+                        />
+                    </button>
                     {flowNodes.length === 0 ? (
                         <div
                             style={{
