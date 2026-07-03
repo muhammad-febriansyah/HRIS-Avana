@@ -357,6 +357,9 @@ export default function OrgChart({ nodes }: OrgChartProps) {
                             nodes={flowNodes}
                             edges={edges}
                             fitView
+                            minZoom={0.1}
+                            maxZoom={1.5}
+                            fitViewOptions={{ padding: 0.15 }}
                             nodesDraggable={false}
                             nodesConnectable={false}
                             onNodeClick={(_, node) =>
