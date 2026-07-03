@@ -27,12 +27,21 @@ type Approval = {
     name: string;
     type: string;
 };
+type Birthday = {
+    id: number;
+    ini: string;
+    avBg: string;
+    name: string;
+    role: string;
+    age: number | null;
+};
 type Series = { labels: string[]; values: number[] };
 
 type DashboardProps = {
     kpis: Kpi[];
     activities: Activity[];
     approvals: Approval[];
+    birthdays: Birthday[];
     headcount: Series;
     attendanceWeek: Series;
     userName: string;
@@ -167,6 +176,7 @@ export default function Dashboard() {
         kpis,
         activities,
         approvals,
+        birthdays,
         headcount,
         attendanceWeek,
         userName,
@@ -686,6 +696,133 @@ export default function Dashboard() {
                                 </div>
                             ))}
                         </div>
+                    </div>
+                </div>
+
+                <div
+                    style={{
+                        marginTop: 20,
+                        background: '#fff',
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 14,
+                    }}
+                >
+                    <div
+                        style={{
+                            padding: '18px 20px',
+                            borderBottom: `1px solid ${C.border}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                        }}
+                    >
+                        <div
+                            style={{
+                                fontSize: 15,
+                                fontWeight: 600,
+                                color: C.navy,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                            }}
+                        >
+                            <span aria-hidden>🎂</span> Ulang Tahun Hari Ini
+                        </div>
+                        <span
+                            style={{
+                                background: 'rgba(217,119,6,.1)',
+                                color: C.amber,
+                                fontSize: 11.5,
+                                fontWeight: 600,
+                                padding: '3px 9px',
+                                borderRadius: 100,
+                            }}
+                        >
+                            {birthdays.length} orang
+                        </span>
+                    </div>
+                    <div style={{ padding: '10px 20px 18px' }}>
+                        {birthdays.length === 0 && (
+                            <div
+                                style={{
+                                    padding: '14px 0',
+                                    fontSize: 13,
+                                    color: C.faint,
+                                }}
+                            >
+                                Tidak ada yang berulang tahun hari ini.
+                            </div>
+                        )}
+                        {birthdays.length > 0 && (
+                            <div
+                                style={{
+                                    display: 'grid',
+                                    gridTemplateColumns:
+                                        'repeat(auto-fill, minmax(240px, 1fr))',
+                                    gap: 12,
+                                }}
+                            >
+                                {birthdays.map((b) => (
+                                    <div
+                                        key={b.id}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 12,
+                                            padding: '10px 12px',
+                                            border: `1px solid ${C.line}`,
+                                            borderRadius: 10,
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                width: 38,
+                                                height: 38,
+                                                borderRadius: '50%',
+                                                flex: 'none',
+                                                background: b.avBg,
+                                                color: '#fff',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                fontSize: 13,
+                                                fontWeight: 600,
+                                            }}
+                                        >
+                                            {b.ini}
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div
+                                                style={{
+                                                    fontSize: 13,
+                                                    fontWeight: 500,
+                                                    color: C.text,
+                                                    whiteSpace: 'nowrap',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                }}
+                                            >
+                                                {b.name}
+                                            </div>
+                                            <div
+                                                style={{
+                                                    fontSize: 12,
+                                                    color: C.faint,
+                                                    whiteSpace: 'nowrap',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                }}
+                                            >
+                                                {b.role}
+                                                {b.age !== null
+                                                    ? ` · ${b.age} th`
+                                                    : ''}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

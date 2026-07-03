@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Employee;
+use App\Models\Invoice;
 use App\Models\LeaveRequest;
 use App\Models\PayrollPeriod;
+use App\Models\Subscription;
+use App\Models\Tenant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -57,6 +60,15 @@ class DashboardController extends Controller
      */
     public function index(Request $request): Response
     {
+        $user = $request->user();
+        $user->loadMissing('roles');
+
+        // Super admins operate across every tenant, so they get a platform
+        // (SaaS) dashboard instead of the tenant-scoped HR one.
+        if ($user->roles->pluck('code')->contains('super_admin')) {
+            return $this->superAdminDashboard($request);
+        }
+
         $tenantId = $request->user()->tenant_id ?? 0;
         $today = Carbon::today();
 
@@ -79,11 +91,225 @@ class DashboardController extends Controller
             'kpis' => $this->kpis($tenantId, $activeEmployees, $presentToday, $attendanceRate, $pendingLeave, $newHiresThisMonth),
             'activities' => $this->activities($tenantId),
             'approvals' => $this->approvals($tenantId),
+            'birthdays' => $this->birthdaysToday($tenantId, $today),
             'headcount' => $this->headcount($activeEmployees, $today),
             'attendanceWeek' => $this->attendanceWeek($tenantId, $activeEmployees, $attendanceRate, $today),
             'userName' => explode(' ', trim((string) $request->user()->name))[0],
             'today' => $today->copy()->locale('id')->translatedFormat('l, d M Y'),
         ]);
+    }
+
+    /**
+     * Render the platform (SaaS) dashboard for super admins: figures that span
+     * every tenant — clients, recurring revenue, subscriptions, and invoicing.
+     */
+    private function superAdminDashboard(Request $request): Response
+    {
+        $today = Carbon::today();
+
+        $totalTenants = Tenant::query()->count();
+        $activeTenants = Tenant::query()->where('status', 'active')->count();
+        $newTenantsThisMonth = Tenant::query()
+            ->whereYear('created_at', $today->year)
+            ->whereMonth('created_at', $today->month)
+            ->count();
+        $activeSubscriptions = Subscription::query()->where('status', 'active')->count();
+        $mrr = $this->monthlyRecurringRevenue();
+
+        $outstanding = (float) Invoice::query()
+            ->whereIn('status', ['unpaid', 'overdue'])
+            ->sum('total');
+        $overdueCount = Invoice::query()
+            ->where(function ($query): void {
+                $query->where('status', 'overdue')
+                    ->orWhere(fn ($sub) => $sub->where('status', 'unpaid')->whereDate('due_date', '<', Carbon::today()));
+            })
+            ->count();
+
+        return Inertia::render('dashboard-admin', [
+            'kpis' => [
+                [
+                    'label' => 'Total Klien',
+                    'value' => $this->formatNumber($activeTenants),
+                    'icon' => 'building-2',
+                    'iconBg' => 'rgba(47,84,201,.1)',
+                    'iconColor' => '#2F54C9',
+                    'delta' => $newTenantsThisMonth > 0 ? '+'.$newTenantsThisMonth.' bln ini' : '',
+                    'deltaIcon' => 'trending-up',
+                    'deltaColor' => '#16A34A',
+                ],
+                [
+                    'label' => 'MRR',
+                    'value' => $this->formatRupiahCompact($mrr),
+                    'icon' => 'wallet',
+                    'iconBg' => 'rgba(22,163,74,.1)',
+                    'iconColor' => '#16A34A',
+                    'delta' => $activeSubscriptions.' langganan',
+                    'deltaIcon' => 'circle-dot',
+                    'deltaColor' => '#6B7280',
+                ],
+                [
+                    'label' => 'Langganan Aktif',
+                    'value' => $this->formatNumber($activeSubscriptions),
+                    'icon' => 'refresh-cw',
+                    'iconBg' => 'rgba(110,155,230,.16)',
+                    'iconColor' => '#2F54C9',
+                    'delta' => $totalTenants.' klien',
+                    'deltaIcon' => 'users',
+                    'deltaColor' => '#6B7280',
+                ],
+                [
+                    'label' => 'Invoice Outstanding',
+                    'value' => $this->formatRupiahCompact($outstanding),
+                    'icon' => 'file-warning',
+                    'iconBg' => 'rgba(217,119,6,.1)',
+                    'iconColor' => '#D97706',
+                    'delta' => $overdueCount.' jatuh tempo',
+                    'deltaIcon' => 'arrow-up-right',
+                    'deltaColor' => '#D97706',
+                ],
+            ],
+            'tenantGrowth' => $this->tenantGrowth($today),
+            'revenueTrend' => $this->revenueTrend($today),
+            'recentTenants' => $this->recentTenants(),
+            'overdueInvoices' => $this->overdueInvoices($today),
+            'quotaAlerts' => $this->quotaAlerts(),
+            'userName' => explode(' ', trim((string) $request->user()->name))[0],
+            'today' => $today->copy()->locale('id')->translatedFormat('l, d M Y'),
+        ]);
+    }
+
+    /**
+     * Sum active subscriptions normalised to a monthly figure (yearly / 12).
+     */
+    private function monthlyRecurringRevenue(): float
+    {
+        return (float) Subscription::query()
+            ->where('status', 'active')
+            ->get(['price', 'billing_cycle'])
+            ->sum(fn (Subscription $subscription): float => $subscription->billing_cycle === 'yearly'
+                ? (float) $subscription->price / 12
+                : (float) $subscription->price);
+    }
+
+    /**
+     * Cumulative tenant count at the end of each of the last 6 months.
+     *
+     * @return array{labels: array<int, string>, values: array<int, int>}
+     */
+    private function tenantGrowth(Carbon $today): array
+    {
+        $labels = [];
+        $values = [];
+
+        for ($offset = 5; $offset >= 0; $offset--) {
+            $monthEnd = $today->copy()->subMonths($offset)->endOfMonth();
+            $labels[] = self::SHORT_MONTHS[$monthEnd->month];
+            $values[] = Tenant::query()->where('created_at', '<=', $monthEnd)->count();
+        }
+
+        return ['labels' => $labels, 'values' => $values];
+    }
+
+    /**
+     * Paid-invoice revenue (in millions of rupiah) for each of the last 6 months.
+     *
+     * @return array{labels: array<int, string>, values: array<int, int>}
+     */
+    private function revenueTrend(Carbon $today): array
+    {
+        $labels = [];
+        $values = [];
+
+        for ($offset = 5; $offset >= 0; $offset--) {
+            $month = $today->copy()->subMonths($offset);
+            $labels[] = self::SHORT_MONTHS[$month->month];
+
+            $total = (float) Invoice::query()
+                ->where('status', 'paid')
+                ->whereNotNull('paid_at')
+                ->whereYear('paid_at', $month->year)
+                ->whereMonth('paid_at', $month->month)
+                ->sum('total');
+
+            $values[] = (int) round($total / 1_000_000);
+        }
+
+        return ['labels' => $labels, 'values' => $values];
+    }
+
+    /**
+     * The 5 newest tenants for the activity list.
+     *
+     * @return array<int, array{id: int, ini: string, avBg: string, name: string, type: string}>
+     */
+    private function recentTenants(): array
+    {
+        return Tenant::query()
+            ->with('package:id,name')
+            ->latest()
+            ->take(5)
+            ->get()
+            ->map(fn (Tenant $tenant): array => [
+                'id' => $tenant->id,
+                'ini' => $this->initials($tenant->name),
+                'avBg' => $this->avatarColor($tenant->name),
+                'name' => $tenant->name,
+                'type' => ($tenant->package->name ?? 'Tanpa paket').' · '.ucfirst((string) $tenant->status),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Up to 5 unpaid/overdue invoices, most overdue first.
+     *
+     * @return array<int, array{id: int, number: string, tenant: string, amount: string, due: string}>
+     */
+    private function overdueInvoices(Carbon $today): array
+    {
+        return Invoice::query()
+            ->whereIn('status', ['unpaid', 'overdue'])
+            ->with('tenant:id,name')
+            ->orderBy('due_date')
+            ->take(5)
+            ->get()
+            ->map(fn (Invoice $invoice): array => [
+                'id' => $invoice->id,
+                'number' => (string) $invoice->invoice_number,
+                'tenant' => $invoice->tenant->name ?? 'Klien',
+                'amount' => $this->formatRupiahCompact((float) $invoice->total),
+                'due' => $invoice->due_date
+                    ? $invoice->due_date->locale('id')->translatedFormat('d M Y')
+                    : '—',
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Tenants whose employee count has reached 80%+ of their allotted quota.
+     *
+     * @return array<int, array{id: int, name: string, usage: string, pct: int}>
+     */
+    private function quotaAlerts(): array
+    {
+        return Tenant::query()
+            ->whereNotNull('max_employees')
+            ->where('max_employees', '>', 0)
+            ->withCount('employees')
+            ->get()
+            ->filter(fn (Tenant $tenant): bool => $tenant->employees_count >= (int) $tenant->max_employees * 0.8)
+            ->sortByDesc(fn (Tenant $tenant): float => $tenant->employees_count / (int) $tenant->max_employees)
+            ->take(5)
+            ->map(fn (Tenant $tenant): array => [
+                'id' => $tenant->id,
+                'name' => $tenant->name,
+                'usage' => $tenant->employees_count.' / '.(int) $tenant->max_employees,
+                'pct' => (int) min(100, round($tenant->employees_count / (int) $tenant->max_employees * 100)),
+            ])
+            ->values()
+            ->all();
     }
 
     /**
@@ -222,6 +448,33 @@ class DashboardController extends Controller
                 'avBg' => $this->avatarColor($leave->employee->full_name ?? ''),
                 'name' => $leave->employee->full_name ?? 'Karyawan',
                 'type' => ($leave->leaveType->name ?? 'Cuti').' · '.(int) $leave->total_days.' hari',
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * List active employees whose birthday falls on today, tenant-scoped.
+     *
+     * @return array<int, array{id: int, ini: string, avBg: string, name: string, role: string, age: int|null}>
+     */
+    private function birthdaysToday(int|string $tenantId, Carbon $today): array
+    {
+        return Employee::forTenant($tenantId)
+            ->where('status', 'active')
+            ->whereNotNull('birth_date')
+            ->whereMonth('birth_date', $today->month)
+            ->whereDay('birth_date', $today->day)
+            ->with(['position:id,name', 'department:id,name'])
+            ->orderBy('full_name')
+            ->get()
+            ->map(fn (Employee $employee): array => [
+                'id' => $employee->id,
+                'ini' => $this->initials($employee->full_name),
+                'avBg' => $this->avatarColor($employee->full_name),
+                'name' => $employee->full_name,
+                'role' => $employee->position->name ?? ($employee->department->name ?? 'Karyawan'),
+                'age' => $employee->birth_date?->age,
             ])
             ->values()
             ->all();

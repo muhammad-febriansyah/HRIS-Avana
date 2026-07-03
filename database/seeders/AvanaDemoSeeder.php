@@ -466,16 +466,16 @@ final class AvanaDemoSeeder extends Seeder
     private function seedEmployees(Tenant $tenant, array $branches, array $departments, JobLevel $jobLevel, User $admin): array
     {
         $raw = [
-            ['no' => 1, 'nama' => 'Putri Anjani', 'email' => 'putri.anjani@nusantara.co.id', 'dept' => 'Human Resources', 'jab' => 'HR Manager', 'cabang' => 'Jakarta Pusat', 'status' => 'Tetap', 'masuk' => '12 Jan 2021'],
-            ['no' => 2, 'nama' => 'Bagus Pratama', 'email' => 'bagus.p@nusantara.co.id', 'dept' => 'Engineering', 'jab' => 'Software Engineer', 'cabang' => 'Bandung', 'status' => 'Kontrak', 'masuk' => '03 Mar 2024'],
-            ['no' => 3, 'nama' => 'Siti Nurhaliza', 'email' => 'siti.n@nusantara.co.id', 'dept' => 'Finance', 'jab' => 'Finance Analyst', 'cabang' => 'Jakarta Pusat', 'status' => 'Tetap', 'masuk' => '19 Jul 2022'],
-            ['no' => 4, 'nama' => 'Rizki Maulana', 'email' => 'rizki.m@nusantara.co.id', 'dept' => 'Sales', 'jab' => 'Sales Executive', 'cabang' => 'Surabaya', 'status' => 'Probation', 'masuk' => '02 Jun 2026'],
-            ['no' => 5, 'nama' => 'Dewi Lestari', 'email' => 'dewi.l@nusantara.co.id', 'dept' => 'Marketing', 'jab' => 'Content Lead', 'cabang' => 'Jakarta Pusat', 'status' => 'Tetap', 'masuk' => '28 Sep 2021'],
-            ['no' => 6, 'nama' => 'Andi Wijaya', 'email' => 'andi.w@nusantara.co.id', 'dept' => 'Operations', 'jab' => 'Ops Supervisor', 'cabang' => 'Bandung', 'status' => 'Tetap', 'masuk' => '14 Feb 2020'],
-            ['no' => 7, 'nama' => 'Maya Saraswati', 'email' => 'maya.s@nusantara.co.id', 'dept' => 'Engineering', 'jab' => 'QA Engineer', 'cabang' => 'Bandung', 'status' => 'Kontrak', 'masuk' => '11 Nov 2023'],
-            ['no' => 8, 'nama' => 'Fajar Nugroho', 'email' => 'fajar.n@nusantara.co.id', 'dept' => 'Finance', 'jab' => 'Accountant', 'cabang' => 'Surabaya', 'status' => 'Tetap', 'masuk' => '07 Agu 2022'],
-            ['no' => 9, 'nama' => 'Intan Permata', 'email' => 'intan.p@nusantara.co.id', 'dept' => 'Human Resources', 'jab' => 'Recruiter', 'cabang' => 'Jakarta Pusat', 'status' => 'Resign', 'masuk' => '22 Apr 2023'],
-            ['no' => 10, 'nama' => 'Yoga Saputra', 'email' => 'yoga.s@nusantara.co.id', 'dept' => 'Sales', 'jab' => 'Account Manager', 'cabang' => 'Surabaya', 'status' => 'Tetap', 'masuk' => '30 Jan 2021'],
+            ['no' => 1, 'nama' => 'Putri Anjani', 'email' => 'putri.anjani@nusantara.co.id', 'dept' => 'Human Resources', 'jab' => 'HR Manager', 'cabang' => 'Jakarta Pusat', 'status' => 'Tetap', 'masuk' => '12 Jan 2021', 'lahir' => '05 Mei 1990'],
+            ['no' => 2, 'nama' => 'Bagus Pratama', 'email' => 'bagus.p@nusantara.co.id', 'dept' => 'Engineering', 'jab' => 'Software Engineer', 'cabang' => 'Bandung', 'status' => 'Kontrak', 'masuk' => '03 Mar 2024', 'lahir' => '18 Agu 1995'],
+            ['no' => 3, 'nama' => 'Siti Nurhaliza', 'email' => 'siti.n@nusantara.co.id', 'dept' => 'Finance', 'jab' => 'Finance Analyst', 'cabang' => 'Jakarta Pusat', 'status' => 'Tetap', 'masuk' => '19 Jul 2022', 'lahir' => '27 Feb 1993'],
+            ['no' => 4, 'nama' => 'Rizki Maulana', 'email' => 'rizki.m@nusantara.co.id', 'dept' => 'Sales', 'jab' => 'Sales Executive', 'cabang' => 'Surabaya', 'status' => 'Probation', 'masuk' => '02 Jun 2026', 'lahir' => '09 Nov 1998'],
+            ['no' => 5, 'nama' => 'Dewi Lestari', 'email' => 'dewi.l@nusantara.co.id', 'dept' => 'Marketing', 'jab' => 'Content Lead', 'cabang' => 'Jakarta Pusat', 'status' => 'Tetap', 'masuk' => '28 Sep 2021', 'lahir' => '14 Apr 1991'],
+            ['no' => 6, 'nama' => 'Andi Wijaya', 'email' => 'andi.w@nusantara.co.id', 'dept' => 'Operations', 'jab' => 'Ops Supervisor', 'cabang' => 'Bandung', 'status' => 'Tetap', 'masuk' => '14 Feb 2020', 'lahir' => '03 Jun 1987'],
+            ['no' => 7, 'nama' => 'Maya Saraswati', 'email' => 'maya.s@nusantara.co.id', 'dept' => 'Engineering', 'jab' => 'QA Engineer', 'cabang' => 'Bandung', 'status' => 'Kontrak', 'masuk' => '11 Nov 2023', 'lahir' => '21 Des 1996'],
+            ['no' => 8, 'nama' => 'Fajar Nugroho', 'email' => 'fajar.n@nusantara.co.id', 'dept' => 'Finance', 'jab' => 'Accountant', 'cabang' => 'Surabaya', 'status' => 'Tetap', 'masuk' => '07 Agu 2022', 'lahir' => '30 Jul 1992'],
+            ['no' => 9, 'nama' => 'Intan Permata', 'email' => 'intan.p@nusantara.co.id', 'dept' => 'Human Resources', 'jab' => 'Recruiter', 'cabang' => 'Jakarta Pusat', 'status' => 'Resign', 'masuk' => '22 Apr 2023', 'lahir' => '16 Okt 1994'],
+            ['no' => 10, 'nama' => 'Yoga Saputra', 'email' => 'yoga.s@nusantara.co.id', 'dept' => 'Sales', 'jab' => 'Account Manager', 'cabang' => 'Surabaya', 'status' => 'Tetap', 'masuk' => '30 Jan 2021', 'lahir' => '08 Sep 1989'],
         ];
         $employmentMap = ['Tetap' => 'permanent', 'Kontrak' => 'contract', 'Probation' => 'probation', 'Resign' => 'resigned'];
 
@@ -496,11 +496,20 @@ final class AvanaDemoSeeder extends Seeder
                     'full_name' => $row['nama'],
                     'email' => $row['email'],
                     'gender' => 'unspecified',
+                    'birth_date' => $this->parseIndoDate($row['lahir']),
                     'employment_status' => $employmentMap[$row['status']],
                     'join_date' => $this->parseIndoDate($row['masuk']),
                     'status' => $row['status'] === 'Resign' ? 'inactive' : 'active',
                 ],
             );
+        }
+
+        // Two teammates share today's birthday so the dashboard "Ulang Tahun
+        // Hari Ini" widget always has demo data, whatever day it is seeded.
+        foreach ([1, 5] as $no) {
+            $employees[$no]->update([
+                'birth_date' => now()->subYears(28 + $no)->format('Y-m-d'),
+            ]);
         }
 
         // Set managers: HR Manager (no.1) leads the rest.
