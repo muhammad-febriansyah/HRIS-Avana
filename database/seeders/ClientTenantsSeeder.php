@@ -82,7 +82,7 @@ class ClientTenantsSeeder extends Seeder
                 'name' => $row['name'],
                 'legal_name' => $row['legal'],
                 'npwp' => $this->npwp(),
-                'email' => 'info@'.Str::of($row['brand'])->lower()->replace(' ', '').'.co.id',
+                'email' => 'info@'.$row['domain'],
                 'phone' => '021-'.mt_rand(3000, 8999).'-'.mt_rand(1000, 9999),
                 'address' => 'Jl. '.$row['brand'].' No. '.mt_rand(1, 120).', '.$row['city'],
                 'status' => 'active',
@@ -102,16 +102,25 @@ class ClientTenantsSeeder extends Seeder
         $path = 'branding/tenant-'.$company->tenant_id.'-logo.png';
 
         if (! Storage::disk('public')->exists($path)) {
-            $url = 'https://ui-avatars.com/api/?'.http_build_query([
-                'name' => $row['brand'],
-                'background' => $row['color'],
-                'color' => 'ffffff',
-                'bold' => 'true',
-                'size' => 200,
-                'length' => 2,
-                'format' => 'png',
-            ]);
-            $bytes = $this->download($url);
+            // Real brand mark: the company's own favicon, resolved by domain.
+            $bytes = $this->download('https://www.google.com/s2/favicons?'.http_build_query([
+                'sz' => 256,
+                'domain' => $row['domain'],
+            ]));
+
+            // Fallback to a coloured monogram if the favicon can't be fetched.
+            if ($bytes === null) {
+                $bytes = $this->download('https://ui-avatars.com/api/?'.http_build_query([
+                    'name' => $row['brand'],
+                    'background' => $row['color'],
+                    'color' => 'ffffff',
+                    'bold' => 'true',
+                    'size' => 200,
+                    'length' => 2,
+                    'format' => 'png',
+                ]));
+            }
+
             if ($bytes === null) {
                 return;
             }
@@ -311,31 +320,34 @@ class ClientTenantsSeeder extends Seeder
     }
 
     /**
-     * @return array<int, array{name: string, legal: string, brand: string, color: string, industry: string, city: string}>
+     * Real, well-known Indonesian companies so the client list uses genuine
+     * brand logos (fetched from each company's domain).
+     *
+     * @return array<int, array{name: string, legal: string, brand: string, domain: string, color: string, industry: string, city: string}>
      */
     private function companies(): array
     {
         return [
-            ['name' => 'PT Sinar Mas Digital', 'legal' => 'PT Sinar Mas Digital Tbk', 'brand' => 'Sinar Mas', 'color' => '1E40AF', 'industry' => 'Teknologi', 'city' => 'Jakarta'],
-            ['name' => 'PT Boga Nusantara', 'legal' => 'PT Boga Nusantara Pangan', 'brand' => 'Boga Nusantara', 'color' => 'DC2626', 'industry' => 'Makanan & Minuman', 'city' => 'Bekasi'],
-            ['name' => 'PT Mitra Logistik Prima', 'legal' => 'PT Mitra Logistik Prima', 'brand' => 'Mitra Logistik', 'color' => '059669', 'industry' => 'Logistik', 'city' => 'Tangerang'],
-            ['name' => 'PT Cahaya Tekstil Indonesia', 'legal' => 'PT Cahaya Tekstil Indonesia', 'brand' => 'Cahaya Tekstil', 'color' => '7C3AED', 'industry' => 'Tekstil', 'city' => 'Bandung'],
-            ['name' => 'PT Bumi Energi Lestari', 'legal' => 'PT Bumi Energi Lestari Tbk', 'brand' => 'Bumi Energi', 'color' => 'EA580C', 'industry' => 'Energi', 'city' => 'Balikpapan'],
-            ['name' => 'PT Griya Properti Sejahtera', 'legal' => 'PT Griya Properti Sejahtera', 'brand' => 'Griya Properti', 'color' => '0891B2', 'industry' => 'Properti', 'city' => 'Jakarta'],
-            ['name' => 'PT Sehat Farma Utama', 'legal' => 'PT Sehat Farma Utama', 'brand' => 'Sehat Farma', 'color' => '16A34A', 'industry' => 'Farmasi', 'city' => 'Surabaya'],
-            ['name' => 'PT Trans Media Kreasi', 'legal' => 'PT Trans Media Kreasi', 'brand' => 'Trans Media', 'color' => 'DB2777', 'industry' => 'Media', 'city' => 'Jakarta'],
-            ['name' => 'PT Karya Baja Konstruksi', 'legal' => 'PT Karya Baja Konstruksi', 'brand' => 'Karya Baja', 'color' => '78716C', 'industry' => 'Konstruksi', 'city' => 'Semarang'],
-            ['name' => 'PT Adi Wangsa Finansial', 'legal' => 'PT Adi Wangsa Finansial', 'brand' => 'Adi Wangsa', 'color' => '1D4ED8', 'industry' => 'Keuangan', 'city' => 'Jakarta'],
-            ['name' => 'PT Samudra Perikanan Jaya', 'legal' => 'PT Samudra Perikanan Jaya', 'brand' => 'Samudra Perikanan', 'color' => '0E7490', 'industry' => 'Perikanan', 'city' => 'Makassar'],
-            ['name' => 'PT Hijau Agro Nusantara', 'legal' => 'PT Hijau Agro Nusantara', 'brand' => 'Hijau Agro', 'color' => '15803D', 'industry' => 'Agrikultur', 'city' => 'Medan'],
-            ['name' => 'PT Cipta Otomotif Mandiri', 'legal' => 'PT Cipta Otomotif Mandiri', 'brand' => 'Cipta Otomotif', 'color' => 'B91C1C', 'industry' => 'Otomotif', 'city' => 'Karawang'],
-            ['name' => 'PT Global Edukasi Cerdas', 'legal' => 'PT Global Edukasi Cerdas', 'brand' => 'Global Edukasi', 'color' => '9333EA', 'industry' => 'Pendidikan', 'city' => 'Yogyakarta'],
-            ['name' => 'PT Prima Retail Indonesia', 'legal' => 'PT Prima Retail Indonesia Tbk', 'brand' => 'Prima Retail', 'color' => 'C2410C', 'industry' => 'Retail', 'city' => 'Jakarta'],
-            ['name' => 'PT Nirwana Hospitality Group', 'legal' => 'PT Nirwana Hospitality Group', 'brand' => 'Nirwana Hospitality', 'color' => '0F766E', 'industry' => 'Perhotelan', 'city' => 'Denpasar'],
-            ['name' => 'PT Damai Asuransi Sentosa', 'legal' => 'PT Damai Asuransi Sentosa', 'brand' => 'Damai Asuransi', 'color' => '2563EB', 'industry' => 'Asuransi', 'city' => 'Jakarta'],
-            ['name' => 'PT Elektronusa Teknik', 'legal' => 'PT Elektronusa Teknik', 'brand' => 'Elektronusa', 'color' => '4338CA', 'industry' => 'Elektronik', 'city' => 'Batam'],
-            ['name' => 'PT Sentosa Manufaktur Indonesia', 'legal' => 'PT Sentosa Manufaktur Indonesia', 'brand' => 'Sentosa Manufaktur', 'color' => '6D28D9', 'industry' => 'Manufaktur', 'city' => 'Cikarang'],
-            ['name' => 'PT Angkasa Telekomunikasi', 'legal' => 'PT Angkasa Telekomunikasi Tbk', 'brand' => 'Angkasa Telkom', 'color' => '0369A1', 'industry' => 'Telekomunikasi', 'city' => 'Jakarta'],
+            ['name' => 'Gojek', 'legal' => 'PT Aplikasi Karya Anak Bangsa', 'brand' => 'Gojek', 'domain' => 'gojek.com', 'color' => '00AA13', 'industry' => 'Teknologi', 'city' => 'Jakarta'],
+            ['name' => 'Tokopedia', 'legal' => 'PT Tokopedia', 'brand' => 'Tokopedia', 'domain' => 'tokopedia.com', 'color' => '42B549', 'industry' => 'E-commerce', 'city' => 'Jakarta'],
+            ['name' => 'Traveloka', 'legal' => 'PT Trinusa Travelindo', 'brand' => 'Traveloka', 'domain' => 'traveloka.com', 'color' => '1B9DF0', 'industry' => 'Travel', 'city' => 'Jakarta'],
+            ['name' => 'Bukalapak', 'legal' => 'PT Bukalapak.com Tbk', 'brand' => 'Bukalapak', 'domain' => 'bukalapak.com', 'color' => 'E31E52', 'industry' => 'E-commerce', 'city' => 'Jakarta'],
+            ['name' => 'Bank Central Asia', 'legal' => 'PT Bank Central Asia Tbk', 'brand' => 'BCA', 'domain' => 'bca.co.id', 'color' => '0060AF', 'industry' => 'Perbankan', 'city' => 'Jakarta'],
+            ['name' => 'Bank Mandiri', 'legal' => 'PT Bank Mandiri (Persero) Tbk', 'brand' => 'Mandiri', 'domain' => 'bankmandiri.co.id', 'color' => '003D79', 'industry' => 'Perbankan', 'city' => 'Jakarta'],
+            ['name' => 'Telkom Indonesia', 'legal' => 'PT Telkom Indonesia (Persero) Tbk', 'brand' => 'Telkom', 'domain' => 'telkom.co.id', 'color' => 'ED1C24', 'industry' => 'Telekomunikasi', 'city' => 'Bandung'],
+            ['name' => 'Pertamina', 'legal' => 'PT Pertamina (Persero)', 'brand' => 'Pertamina', 'domain' => 'pertamina.com', 'color' => '009A44', 'industry' => 'Energi', 'city' => 'Jakarta'],
+            ['name' => 'Indofood', 'legal' => 'PT Indofood Sukses Makmur Tbk', 'brand' => 'Indofood', 'domain' => 'indofood.com', 'color' => 'E30613', 'industry' => 'Makanan', 'city' => 'Jakarta'],
+            ['name' => 'Unilever Indonesia', 'legal' => 'PT Unilever Indonesia Tbk', 'brand' => 'Unilever', 'domain' => 'unilever.co.id', 'color' => '1F36C7', 'industry' => 'Konsumer', 'city' => 'Tangerang'],
+            ['name' => 'Astra International', 'legal' => 'PT Astra International Tbk', 'brand' => 'Astra', 'domain' => 'astra.co.id', 'color' => '0033A0', 'industry' => 'Otomotif', 'city' => 'Jakarta'],
+            ['name' => 'Garuda Indonesia', 'legal' => 'PT Garuda Indonesia (Persero) Tbk', 'brand' => 'Garuda', 'domain' => 'garuda-indonesia.com', 'color' => '006BB6', 'industry' => 'Penerbangan', 'city' => 'Tangerang'],
+            ['name' => 'Kalbe Farma', 'legal' => 'PT Kalbe Farma Tbk', 'brand' => 'Kalbe', 'domain' => 'kalbe.co.id', 'color' => '00A651', 'industry' => 'Farmasi', 'city' => 'Jakarta'],
+            ['name' => 'Mayora', 'legal' => 'PT Mayora Indah Tbk', 'brand' => 'Mayora', 'domain' => 'mayora.co.id', 'color' => '004A93', 'industry' => 'Makanan', 'city' => 'Tangerang'],
+            ['name' => 'Ruangguru', 'legal' => 'PT Ruang Raya Indonesia', 'brand' => 'Ruangguru', 'domain' => 'ruangguru.com', 'color' => '2D2CE5', 'industry' => 'Edukasi', 'city' => 'Jakarta'],
+            ['name' => 'Blibli', 'legal' => 'PT Global Digital Niaga Tbk', 'brand' => 'Blibli', 'domain' => 'blibli.com', 'color' => '0095DA', 'industry' => 'E-commerce', 'city' => 'Jakarta'],
+            ['name' => 'Bank Rakyat Indonesia', 'legal' => 'PT Bank Rakyat Indonesia (Persero) Tbk', 'brand' => 'BRI', 'domain' => 'bri.co.id', 'color' => '00529C', 'industry' => 'Perbankan', 'city' => 'Jakarta'],
+            ['name' => 'Sinar Mas', 'legal' => 'Sinar Mas Group', 'brand' => 'Sinar Mas', 'domain' => 'sinarmas.com', 'color' => 'E2231A', 'industry' => 'Konglomerat', 'city' => 'Jakarta'],
+            ['name' => 'Kompas Gramedia', 'legal' => 'PT Kompas Media Nusantara', 'brand' => 'Kompas', 'domain' => 'kompasgramedia.com', 'color' => '1477C6', 'industry' => 'Media', 'city' => 'Jakarta'],
+            ['name' => 'Djarum', 'legal' => 'PT Djarum', 'brand' => 'Djarum', 'domain' => 'djarum.com', 'color' => 'D2232A', 'industry' => 'Consumer Goods', 'city' => 'Kudus'],
         ];
     }
 }
