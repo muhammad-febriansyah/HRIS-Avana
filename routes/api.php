@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\FaceController;
 use App\Http\Controllers\Api\FieldVisitController;
 use App\Http\Controllers\Api\LeaveController;
+use App\Http\Controllers\Api\MoodController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OnboardingSlideController;
 use App\Http\Controllers\Api\OvertimeController;
@@ -47,6 +48,9 @@ Route::prefix('v1')->group(function (): void {
             Route::put('profile', [ProfileController::class, 'update']);
 
             Route::get('dashboard', [DashboardController::class, 'summary']);
+
+            Route::get('mood', [MoodController::class, 'today']);
+            Route::post('mood', [MoodController::class, 'store']);
 
             Route::get('attendance/today', [AttendanceController::class, 'today']);
             Route::get('attendance', [AttendanceController::class, 'history']);

@@ -333,3 +333,19 @@ it('returns a dashboard summary', function (): void {
         ->assertOk()
         ->assertJsonStructure(['data' => ['leave_available', 'work_minutes_month', 'work_hours_month', 'pending_count']]);
 });
+
+it('records and reports a daily mood check-in', function (): void {
+    ($this->auth)()->getJson('/api/v1/me/mood')->assertOk()->assertJsonPath('data.checked_in', false);
+
+    ($this->auth)()->postJson('/api/v1/me/mood', ['mood' => 'baik'])
+        ->assertOk()->assertJsonPath('data.mood', 'baik');
+
+    ($this->auth)()->getJson('/api/v1/me/mood')->assertOk()
+        ->assertJsonPath('data.checked_in', true)
+        ->assertJsonPath('data.mood', 'baik');
+});
+
+it('rejects an invalid mood value', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/mood', ['mood' => 'senang_banget'])
+        ->assertStatus(422)->assertJsonValidationErrors('mood');
+});
