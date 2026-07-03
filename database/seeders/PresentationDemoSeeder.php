@@ -262,38 +262,39 @@ class PresentationDemoSeeder extends Seeder
     }
 
     /**
-     * Give the admin-side accounts (super admin, tenant admin, manager) a
-     * cartoon avatar too. These users are not linked to an employee, so the
-     * header would otherwise fall back to their initials.
+     * Ensure every user row has its own avatar_path. Employee logins copy their
+     * employee photo; admin-side accounts (super admin, tenant admin, manager)
+     * that are not linked to an employee get a generated cartoon avatar.
      */
     private function seedStaffAvatars(): void
     {
-        $staff = User::query()
-            ->whereNull('avatar_path')
-            ->whereDoesntHave('employee')
-            ->get();
-
         $saved = 0;
-        foreach ($staff as $user) {
-            $path = 'avatars/user-'.$user->id.'.png';
-            if (! Storage::disk('public')->exists($path)) {
-                $url = 'https://api.dicebear.com/9.x/avataaars/png?'.http_build_query([
-                    'seed' => $user->name,
-                    'size' => 200,
-                    'radius' => 50,
-                ]);
-                $bytes = $this->download($url);
-                if ($bytes === null) {
-                    continue;
+        foreach (User::query()->with('employee:id,user_id,photo_path')->get() as $user) {
+            $path = $user->employee?->photo_path;
+
+            if ($path === null) {
+                $path = 'avatars/user-'.$user->id.'.png';
+                if (! Storage::disk('public')->exists($path)) {
+                    $url = 'https://api.dicebear.com/9.x/avataaars/png?'.http_build_query([
+                        'seed' => $user->name,
+                        'size' => 200,
+                        'radius' => 50,
+                    ]);
+                    $bytes = $this->download($url);
+                    if ($bytes === null) {
+                        continue;
+                    }
+                    Storage::disk('public')->put($path, $bytes);
                 }
-                Storage::disk('public')->put($path, $bytes);
             }
 
-            $user->forceFill(['avatar_path' => $path])->save();
+            if ($user->avatar_path !== $path) {
+                $user->forceFill(['avatar_path' => $path])->save();
+            }
             $saved++;
         }
 
-        $this->command?->info("Staff avatars saved: {$saved}.");
+        $this->command?->info("User avatars saved: {$saved}.");
     }
 
     /**
