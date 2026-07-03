@@ -16,5 +16,6 @@ class DatabaseSeeder extends Seeder
     {
         $this->call(AvanaDemoSeeder::class);
         $this->call(OnboardingSlideSeeder::class);
+        $this->call(WebsiteSettingSeeder::class);
     }
 }
