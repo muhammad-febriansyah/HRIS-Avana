@@ -330,7 +330,7 @@ export default function OrgChart({ nodes }: OrgChartProps) {
                 }}
             >
                 <SheetContent
-                    side="left"
+                    side="right"
                     className="w-[340px] gap-0 sm:max-w-[340px]"
                 >
                     {selected && (
