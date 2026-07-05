@@ -7,10 +7,13 @@ use App\Models\Applicant;
 use App\Models\ApplicantBackgroundCheck;
 use App\Models\ApplicantMedicalCheck;
 use App\Models\Department;
+use App\Models\HeadcountRequest;
 use App\Models\JobPosting;
+use App\Models\TalentPool;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -37,7 +40,7 @@ class RecruitmentController extends Controller
      *
      * @var array<int, string>
      */
-    private const STAGES = ['applied', 'screening', 'interview', 'offer', 'hired', 'rejected'];
+    private const STAGES = ['applied', 'screening', 'shortlisted', 'interview', 'offer', 'hired', 'rejected'];
 
     /**
      * Allowed medical checkup status values.
@@ -61,13 +64,72 @@ class RecruitmentController extends Controller
     private const BACKGROUND_STATUSES = ['requested', 'clear', 'flagged'];
 
     /**
-     * Display job postings together with the applicant pipeline.
+     * Recruitment dashboard: hiring funnel, headline KPIs, and today's tasks.
      */
-    public function index(Request $request): Response
+    public function dashboard(Request $request): Response
     {
         $this->ensureCanManage($request);
 
-        $tenantId = $request->user()->tenant_id;
+        $tenantId = (int) $request->user()->tenant_id;
+        $today = Carbon::today();
+
+        $applicants = Applicant::forTenant($tenantId)->get();
+        $labels = self::stageLabels();
+
+        $funnel = collect(['applied', 'screening', 'shortlisted', 'interview'])
+            ->map(fn (string $stage): array => [
+                'label' => $labels[$stage],
+                'value' => $applicants->where('stage', $stage)->count(),
+            ])
+            ->push([
+                'label' => 'Keputusan',
+                'value' => $applicants->whereIn('stage', ['offer', 'hired'])->count(),
+            ])
+            ->all();
+
+        $hired = $applicants->where('stage', 'hired');
+        $timeToHire = $hired
+            ->filter(fn (Applicant $a): bool => $a->applied_date !== null)
+            ->map(fn (Applicant $a): int => (int) $a->applied_date->diffInDays($a->updated_at ?? $today))
+            ->avg();
+
+        $tasks = Applicant::forTenant($tenantId)
+            ->whereNotNull('interview_at')
+            ->whereDate('interview_at', '>=', $today)
+            ->with('jobPosting:id,title')
+            ->orderBy('interview_at')
+            ->limit(6)
+            ->get()
+            ->map(fn (Applicant $a): array => [
+                'id' => $a->id,
+                'title' => 'Wawancara '.$a->name,
+                'subtitle' => $a->jobPosting?->title ?? '—',
+                'at' => $a->interview_at?->toDateTimeString(),
+            ])
+            ->all();
+
+        return Inertia::render('avana/rekrutmen/dashboard', [
+            'kpis' => [
+                'incoming' => $applicants->where('stage', 'applied')->count(),
+                'interviews_today' => $applicants->filter(
+                    fn (Applicant $a): bool => $a->interview_at !== null && $a->interview_at->isSameDay($today)
+                )->count(),
+                'active_offers' => $applicants->whereIn('offer_status', ['sent', 'approved'])->count(),
+                'time_to_hire' => $timeToHire !== null ? (int) round($timeToHire) : 0,
+            ],
+            'funnel' => $funnel,
+            'tasks' => $tasks,
+        ]);
+    }
+
+    /**
+     * Job requisitions (vacancy cards) with applicant counts.
+     */
+    public function jobs(Request $request): Response
+    {
+        $this->ensureCanManage($request);
+
+        $tenantId = (int) $request->user()->tenant_id;
 
         $postings = JobPosting::forTenant($tenantId)
             ->with('department:id,name')
@@ -76,30 +138,345 @@ class RecruitmentController extends Controller
             ->get()
             ->map(fn (JobPosting $posting): array => $this->transformPosting($posting));
 
+        return Inertia::render('avana/rekrutmen/jobs', [
+            'postings' => $postings,
+            'departments' => $this->departmentOptions($tenantId),
+            'kpis' => [
+                'open_postings' => $postings->where('status', 'open')->count(),
+                'total_postings' => $postings->count(),
+                'total_quota' => $postings->sum('quota'),
+            ],
+        ]);
+    }
+
+    /**
+     * Drag-and-drop applicant pipeline grouped by stage.
+     */
+    public function pipeline(Request $request): Response
+    {
+        $this->ensureCanManage($request);
+
+        $tenantId = (int) $request->user()->tenant_id;
+
         $applicants = Applicant::forTenant($tenantId)
             ->with('jobPosting:id,title')
             ->latest('id')
             ->get()
             ->map(fn (Applicant $applicant): array => $this->transformApplicant($applicant));
 
-        $pipeline = collect(self::STAGES)
+        $columns = ['applied', 'screening', 'shortlisted', 'interview'];
+
+        $pipeline = collect($columns)
             ->mapWithKeys(fn (string $stage): array => [
                 $stage => $applicants->where('stage', $stage)->values()->all(),
             ])
             ->all();
 
-        return Inertia::render('avana/rekrutmen/index', [
-            'postings' => $postings,
+        return Inertia::render('avana/rekrutmen/pipeline', [
             'pipeline' => $pipeline,
-            'departments' => $this->departmentOptions($tenantId),
-            'stages' => $this->stageOptions(),
-            'kpis' => [
-                'open_postings' => $postings->where('status', 'open')->count(),
-                'total_applicants' => $applicants->count(),
-                'hired' => $applicants->where('stage', 'hired')->count(),
-                'in_process' => $applicants->whereNotIn('stage', ['hired', 'rejected'])->count(),
-            ],
+            'stages' => collect($columns)->map(fn (string $s): array => [
+                'value' => $s,
+                'label' => self::stageLabels()[$s],
+            ])->all(),
+            'total' => $applicants->whereIn('stage', $columns)->count(),
         ]);
+    }
+
+    /**
+     * Centralised candidate database (table + add-candidate modal).
+     */
+    public function candidates(Request $request): Response
+    {
+        $this->ensureCanManage($request);
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $applicants = Applicant::forTenant($tenantId)
+            ->with(['jobPosting:id,title', 'talentPool:id,name'])
+            ->latest('id')
+            ->get()
+            ->map(fn (Applicant $a): array => $this->transformCandidateRow($a));
+
+        return Inertia::render('avana/rekrutmen/candidates', [
+            'candidates' => $applicants,
+            'jobs' => JobPosting::forTenant($tenantId)
+                ->orderBy('title')
+                ->get(['id', 'title'])
+                ->map(fn (JobPosting $j): array => ['id' => $j->id, 'title' => $j->title])
+                ->all(),
+            'stages' => $this->stageOptions(),
+        ]);
+    }
+
+    /**
+     * AI Intelligence hub. AI matching is not enabled yet, so this renders the
+     * empty state while the surrounding recruitment data is already in place.
+     */
+    public function aiIntelligence(Request $request): Response
+    {
+        $this->ensureCanManage($request);
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        return Inertia::render('avana/rekrutmen/ai', [
+            'recommendations' => Applicant::forTenant($tenantId)
+                ->whereNotNull('ai_recommendation')
+                ->with('jobPosting:id,title')
+                ->latest('id')
+                ->get()
+                ->map(fn (Applicant $a): array => [
+                    'id' => $a->id,
+                    'name' => $a->name,
+                    'job_title' => $a->jobPosting?->title,
+                    'confidence' => $a->ai_confidence,
+                    'recommendation' => $a->ai_recommendation,
+                ])
+                ->all(),
+        ]);
+    }
+
+    /**
+     * Talent pools with member counts.
+     */
+    public function pools(Request $request): Response
+    {
+        $this->ensureCanManage($request);
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $pools = TalentPool::forTenant($tenantId)
+            ->withCount('applicants')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (TalentPool $pool): array => [
+                'id' => $pool->id,
+                'name' => $pool->name,
+                'description' => $pool->description,
+                'is_auto' => (bool) $pool->is_auto,
+                'members_count' => $pool->applicants_count,
+            ]);
+
+        return Inertia::render('avana/rekrutmen/pools', [
+            'pools' => $pools,
+        ]);
+    }
+
+    /**
+     * Interview schedule with type, status, and location.
+     */
+    public function interviews(Request $request): Response
+    {
+        $this->ensureCanManage($request);
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $rows = Applicant::forTenant($tenantId)
+            ->whereNotNull('interview_at')
+            ->with('jobPosting:id,title')
+            ->orderByDesc('interview_at')
+            ->get()
+            ->map(fn (Applicant $a): array => [
+                'id' => $a->id,
+                'name' => $a->name,
+                'job_title' => $a->jobPosting?->title,
+                'type' => $a->interview_type,
+                'status' => $a->interview_status ?? 'scheduled',
+                'location' => $a->interview_location,
+                'interview_at' => $a->interview_at?->toDateTimeString(),
+            ]);
+
+        return Inertia::render('avana/rekrutmen/interviews', [
+            'interviews' => $rows,
+        ]);
+    }
+
+    /**
+     * Offer management with governance-style approval status.
+     */
+    public function offers(Request $request): Response
+    {
+        $this->ensureCanManage($request);
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $rows = Applicant::forTenant($tenantId)
+            ->where(fn ($q) => $q->whereNotNull('offered_at')->orWhereNotNull('offer_status'))
+            ->with('jobPosting:id,title')
+            ->latest('offered_at')
+            ->get()
+            ->map(fn (Applicant $a): array => [
+                'id' => $a->id,
+                'name' => $a->name,
+                'job_title' => $a->jobPosting?->title,
+                'salary' => $a->offer_salary !== null ? (float) $a->offer_salary : null,
+                'start_date' => $a->offer_start_date?->toDateString(),
+                'status' => $a->offer_status ?? 'draft',
+                'note' => $a->offer_note,
+            ]);
+
+        return Inertia::render('avana/rekrutmen/offers', [
+            'offers' => $rows,
+        ]);
+    }
+
+    /**
+     * Recruitment analytics: funnel, source mix, and conversion metrics.
+     */
+    public function analytics(Request $request): Response
+    {
+        $this->ensureCanManage($request);
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $applicants = Applicant::forTenant($tenantId)->get();
+        $labels = self::stageLabels();
+        $total = $applicants->count();
+        $hired = $applicants->where('stage', 'hired')->count();
+
+        $bySource = $applicants
+            ->groupBy(fn (Applicant $a): string => $a->source ?: 'Lainnya')
+            ->map(fn ($group, $source): array => ['label' => (string) $source, 'value' => $group->count()])
+            ->values()
+            ->all();
+
+        $byStage = collect(self::STAGES)
+            ->map(fn (string $stage): array => [
+                'label' => $labels[$stage],
+                'value' => $applicants->where('stage', $stage)->count(),
+            ])
+            ->all();
+
+        return Inertia::render('avana/rekrutmen/analytics', [
+            'kpis' => [
+                'total_candidates' => $total,
+                'hired' => $hired,
+                'conversion_rate' => $total > 0 ? round(($hired / $total) * 100, 1) : 0.0,
+                'open_postings' => JobPosting::forTenant($tenantId)->where('status', 'open')->count(),
+            ],
+            'bySource' => $bySource,
+            'byStage' => $byStage,
+        ]);
+    }
+
+    /**
+     * Headcount approval queue for HR to review manager requests.
+     */
+    public function headcount(Request $request): Response
+    {
+        $this->ensureCanManage($request);
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $rows = HeadcountRequest::forTenant($tenantId)
+            ->with(['requester:id,name', 'department:id,name', 'decider:id,name'])
+            ->latest('id')
+            ->get()
+            ->map(fn (HeadcountRequest $r): array => [
+                'id' => $r->id,
+                'requester' => $r->requester?->name ?? '—',
+                'position' => $r->position_title,
+                'unit' => $r->department?->name ?? '—',
+                'count' => $r->count,
+                'reason' => $r->reason,
+                'status' => $r->status,
+                'decided_by' => $r->decider?->name,
+                'decided_at' => $r->decided_at?->toDateString(),
+            ]);
+
+        return Inertia::render('avana/rekrutmen/headcount', [
+            'requests' => $rows,
+            'departments' => $this->departmentOptions($tenantId),
+        ]);
+    }
+
+    /**
+     * Submit a new headcount request.
+     */
+    public function storeHeadcount(Request $request): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $data = $request->validate([
+            'position_title' => ['required', 'string', 'max:255'],
+            'department_id' => ['nullable', 'integer', Rule::exists('departments', 'id')->where('tenant_id', $tenantId)],
+            'count' => ['required', 'integer', 'min:1'],
+            'reason' => ['nullable', 'string'],
+        ]);
+
+        HeadcountRequest::create([
+            ...$data,
+            'tenant_id' => $tenantId,
+            'requester_id' => $request->user()->id,
+            'status' => 'pending',
+        ]);
+
+        return back()->with('success', 'Permintaan headcount diajukan');
+    }
+
+    /**
+     * Approve or reject a headcount request.
+     */
+    public function decideHeadcount(Request $request, HeadcountRequest $headcountRequest): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        abort_if((int) $headcountRequest->tenant_id !== (int) $request->user()->tenant_id, 404);
+
+        $data = $request->validate([
+            'status' => ['required', Rule::in(['approved', 'rejected'])],
+        ]);
+
+        $headcountRequest->update([
+            'status' => $data['status'],
+            'decided_by' => $request->user()->id,
+            'decided_at' => now(),
+        ]);
+
+        return back()->with('success', 'Permintaan headcount diperbarui');
+    }
+
+    /**
+     * Create a talent pool.
+     */
+    public function storePool(Request $request): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255', Rule::unique('talent_pools', 'name')->where('tenant_id', $tenantId)],
+            'description' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        TalentPool::create([
+            ...$data,
+            'tenant_id' => $tenantId,
+            'is_auto' => false,
+        ]);
+
+        return back()->with('success', 'Talent pool dibuat');
+    }
+
+    /**
+     * Approve or reject a candidate offer.
+     */
+    public function decideOffer(Request $request, Applicant $applicant): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureTenantOwnership($request, $applicant);
+
+        $data = $request->validate([
+            'offer_status' => ['required', Rule::in(['approved', 'accepted', 'rejected'])],
+        ]);
+
+        $applicant->update([
+            'offer_status' => $data['offer_status'],
+            'stage' => $data['offer_status'] === 'accepted' ? 'hired' : $applicant->stage,
+        ]);
+
+        return back()->with('success', 'Status penawaran diperbarui');
     }
 
     /**
@@ -210,6 +587,8 @@ class RecruitmentController extends Controller
             'stage' => ['required', Rule::in(self::STAGES)],
             'applied_date' => ['required', 'date'],
             'notes' => ['nullable', 'string'],
+            'linkedin_url' => ['nullable', 'url', 'max:255'],
+            'portfolio_url' => ['nullable', 'url', 'max:255'],
         ]);
 
         Applicant::create([
@@ -217,8 +596,7 @@ class RecruitmentController extends Controller
             'tenant_id' => $tenantId,
         ]);
 
-        return redirect()->route('avana.rekrutmen')
-            ->with('success', 'Pelamar berhasil ditambahkan');
+        return back()->with('success', 'Pelamar berhasil ditambahkan');
     }
 
     /**
@@ -335,10 +713,15 @@ class RecruitmentController extends Controller
 
         $data = $request->validate([
             'interview_at' => ['required', 'date'],
+            'interview_type' => ['nullable', Rule::in(['hr', 'technical', 'user', 'final'])],
+            'interview_location' => ['nullable', 'string', 'max:255'],
         ]);
 
         $applicant->update([
             'interview_at' => $data['interview_at'],
+            'interview_type' => $data['interview_type'] ?? 'hr',
+            'interview_location' => $data['interview_location'] ?? null,
+            'interview_status' => 'scheduled',
             'stage' => 'interview',
         ]);
 
@@ -355,10 +738,15 @@ class RecruitmentController extends Controller
 
         $data = $request->validate([
             'offer_note' => ['nullable', 'string'],
+            'offer_salary' => ['nullable', 'numeric', 'min:0'],
+            'offer_start_date' => ['nullable', 'date'],
         ]);
 
         $applicant->update([
             'offer_note' => $data['offer_note'] ?? null,
+            'offer_salary' => $data['offer_salary'] ?? null,
+            'offer_start_date' => $data['offer_start_date'] ?? null,
+            'offer_status' => 'sent',
             'offered_at' => now(),
             'stage' => 'offer',
         ]);
@@ -546,6 +934,45 @@ class RecruitmentController extends Controller
     }
 
     /**
+     * Indonesian labels for the applicant pipeline stages.
+     *
+     * @return array<string, string>
+     */
+    private static function stageLabels(): array
+    {
+        return [
+            'applied' => 'Melamar',
+            'screening' => 'Seleksi',
+            'shortlisted' => 'Shortlist',
+            'interview' => 'Wawancara',
+            'offer' => 'Penawaran',
+            'hired' => 'Diterima',
+            'rejected' => 'Ditolak',
+        ];
+    }
+
+    /**
+     * Build the row shape consumed by the candidates table.
+     *
+     * @return array<string, mixed>
+     */
+    private function transformCandidateRow(Applicant $applicant): array
+    {
+        return [
+            'id' => $applicant->id,
+            'name' => $applicant->name,
+            'email' => $applicant->email,
+            'phone' => $applicant->phone,
+            'stage' => $applicant->stage,
+            'applied_date' => $applicant->applied_date?->toDateString(),
+            'job_title' => $applicant->jobPosting?->title,
+            'pool' => $applicant->talentPool?->name,
+            'ai_confidence' => $applicant->ai_confidence,
+            'ai_recommendation' => $applicant->ai_recommendation,
+        ];
+    }
+
+    /**
      * Build the tenant's selectable department options.
      *
      * @return array<int, array<string, mixed>>
@@ -569,14 +996,7 @@ class RecruitmentController extends Controller
      */
     private function stageOptions(): array
     {
-        $labels = [
-            'applied' => 'Melamar',
-            'screening' => 'Seleksi',
-            'interview' => 'Wawancara',
-            'offer' => 'Penawaran',
-            'hired' => 'Diterima',
-            'rejected' => 'Ditolak',
-        ];
+        $labels = self::stageLabels();
 
         return collect(self::STAGES)
             ->map(fn (string $stage): array => [

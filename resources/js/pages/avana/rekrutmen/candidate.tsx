@@ -214,7 +214,7 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                     }}
                 >
                     <Link
-                        href={RecruitmentController.index()}
+                        href={RecruitmentController.jobs()}
                         style={{ color: C.faint, textDecoration: 'none' }}
                     >
                         Rekrutmen

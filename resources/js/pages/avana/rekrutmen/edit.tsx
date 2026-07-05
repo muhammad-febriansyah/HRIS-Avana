@@ -63,7 +63,7 @@ export default function RekrutmenEdit({
                     }}
                 >
                     <Link
-                        href={RecruitmentController.index()}
+                        href={RecruitmentController.jobs()}
                         style={{
                             color: C.faint,
                             textDecoration: 'none',
@@ -92,7 +92,7 @@ export default function RekrutmenEdit({
                     departments={departments}
                     submitLabel="Simpan Perubahan"
                     submitIcon="check"
-                    cancelHref={RecruitmentController.index().url}
+                    cancelHref={RecruitmentController.jobs().url}
                     onSubmit={handleSubmit}
                 />
             </div>

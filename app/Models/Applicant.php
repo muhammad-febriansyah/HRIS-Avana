@@ -20,6 +20,9 @@ final class Applicant extends Model
             'applied_date' => 'date',
             'interview_at' => 'datetime',
             'offered_at' => 'datetime',
+            'offer_start_date' => 'date',
+            'offer_salary' => 'decimal:2',
+            'ai_confidence' => 'integer',
             'blacklisted' => 'boolean',
         ];
     }
@@ -37,6 +40,11 @@ final class Applicant extends Model
     public function jobPosting(): BelongsTo
     {
         return $this->belongsTo(JobPosting::class);
+    }
+
+    public function talentPool(): BelongsTo
+    {
+        return $this->belongsTo(TalentPool::class);
     }
 
     public function medicalChecks(): HasMany

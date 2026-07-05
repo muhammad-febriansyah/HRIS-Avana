@@ -43,7 +43,7 @@ export default function RekrutmenCreate({ departments }: RekrutmenCreateProps) {
                     }}
                 >
                     <Link
-                        href={RecruitmentController.index()}
+                        href={RecruitmentController.jobs()}
                         style={{
                             color: C.faint,
                             textDecoration: 'none',
@@ -72,7 +72,7 @@ export default function RekrutmenCreate({ departments }: RekrutmenCreateProps) {
                     departments={departments}
                     submitLabel="Simpan Lowongan"
                     submitIcon="plus"
-                    cancelHref={RecruitmentController.index().url}
+                    cancelHref={RecruitmentController.jobs().url}
                     onSubmit={handleSubmit}
                 />
             </div>

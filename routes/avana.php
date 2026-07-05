@@ -145,9 +145,10 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('payroll/konfigurasi/bpjs', [PayrollConfigController::class, 'storeBpjsProgram'])->name('payroll.konfigurasi.bpjs.store');
     Route::put('payroll/konfigurasi/bpjs/{program}', [PayrollConfigController::class, 'updateBpjsProgram'])->name('payroll.konfigurasi.bpjs.update');
     Route::delete('payroll/konfigurasi/bpjs/{program}', [PayrollConfigController::class, 'destroyBpjsProgram'])->name('payroll.konfigurasi.bpjs.destroy');
-    Route::post('payroll/konfigurasi/pph21', [PayrollConfigController::class, 'storeTerRate'])->name('payroll.konfigurasi.pph21.store');
-    Route::put('payroll/konfigurasi/pph21/{rate}', [PayrollConfigController::class, 'updateTerRate'])->name('payroll.konfigurasi.pph21.update');
-    Route::delete('payroll/konfigurasi/pph21/{rate}', [PayrollConfigController::class, 'destroyTerRate'])->name('payroll.konfigurasi.pph21.destroy');
+    Route::post('payroll/konfigurasi/ptkp', [PayrollConfigController::class, 'storePtkpRate'])->name('payroll.konfigurasi.ptkp.store');
+    Route::delete('payroll/konfigurasi/ptkp/{rate}', [PayrollConfigController::class, 'destroyPtkpRate'])->name('payroll.konfigurasi.ptkp.destroy');
+    Route::post('payroll/konfigurasi/pkp', [PayrollConfigController::class, 'storePkpRate'])->name('payroll.konfigurasi.pkp.store');
+    Route::delete('payroll/konfigurasi/pkp/{rate}', [PayrollConfigController::class, 'destroyPkpRate'])->name('payroll.konfigurasi.pkp.destroy');
 
     Route::get('hak-akses', [AccessController::class, 'index'])->name('hak-akses');
     Route::post('hak-akses/permission/toggle', [AccessController::class, 'togglePermission'])->name('hak-akses.permission.toggle');
@@ -205,8 +206,21 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('benefit/assign', [BenefitController::class, 'assign'])->name('benefit.assign');
     Route::delete('benefit/assign/{employeeBenefit}', [BenefitController::class, 'unassign'])->name('benefit.unassign');
 
-    // Rekrutmen (ATS)
-    Route::get('rekrutmen', [RecruitmentController::class, 'index'])->name('rekrutmen');
+    // Rekrutmen (ATS) — HumanCore-style multi-page module
+    Route::get('rekrutmen', [RecruitmentController::class, 'dashboard'])->name('rekrutmen');
+    Route::get('rekrutmen/headcount', [RecruitmentController::class, 'headcount'])->name('rekrutmen.headcount');
+    Route::post('rekrutmen/headcount', [RecruitmentController::class, 'storeHeadcount'])->name('rekrutmen.headcount.store');
+    Route::post('rekrutmen/headcount/{headcountRequest}/decide', [RecruitmentController::class, 'decideHeadcount'])->name('rekrutmen.headcount.decide');
+    Route::get('rekrutmen/jobs', [RecruitmentController::class, 'jobs'])->name('rekrutmen.jobs');
+    Route::get('rekrutmen/pipeline', [RecruitmentController::class, 'pipeline'])->name('rekrutmen.pipeline');
+    Route::get('rekrutmen/candidates', [RecruitmentController::class, 'candidates'])->name('rekrutmen.candidates');
+    Route::get('rekrutmen/ai', [RecruitmentController::class, 'aiIntelligence'])->name('rekrutmen.ai');
+    Route::get('rekrutmen/pools', [RecruitmentController::class, 'pools'])->name('rekrutmen.pools');
+    Route::post('rekrutmen/pools', [RecruitmentController::class, 'storePool'])->name('rekrutmen.pools.store');
+    Route::get('rekrutmen/interviews', [RecruitmentController::class, 'interviews'])->name('rekrutmen.interviews');
+    Route::get('rekrutmen/offers', [RecruitmentController::class, 'offers'])->name('rekrutmen.offers');
+    Route::post('rekrutmen/offers/{applicant}/decide', [RecruitmentController::class, 'decideOffer'])->name('rekrutmen.offers.decide');
+    Route::get('rekrutmen/analytics', [RecruitmentController::class, 'analytics'])->name('rekrutmen.analytics');
     Route::get('rekrutmen/create', [RecruitmentController::class, 'create'])->name('rekrutmen.create');
     Route::get('rekrutmen/{jobPosting}/edit', [RecruitmentController::class, 'edit'])->name('rekrutmen.edit');
     Route::post('rekrutmen', [RecruitmentController::class, 'store'])->name('rekrutmen.store');

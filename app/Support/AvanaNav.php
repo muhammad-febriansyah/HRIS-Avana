@@ -86,7 +86,16 @@ final class AvanaNav
             ]],
             ['title' => 'TALENTA', 'items' => [
                 self::parent('rekrutmen', 'Rekrutmen', 'user-plus', [
-                    self::leaf('rekrutmen', 'Lowongan & Pelamar', 'user-plus', '/avana/rekrutmen', 'recruitment', ['recruitment']),
+                    self::leaf('rekrutmen', 'Dashboard', 'layout-dashboard', '/avana/rekrutmen', 'recruitment', ['recruitment']),
+                    self::leaf('rekrutmen-headcount', 'Headcount Approval', 'user-check', '/avana/rekrutmen/headcount', 'recruitment', ['recruitment']),
+                    self::leaf('rekrutmen-jobs', 'Lowongan', 'briefcase', '/avana/rekrutmen/jobs', 'recruitment', ['recruitment']),
+                    self::leaf('rekrutmen-pipeline', 'Pipeline', 'git-branch', '/avana/rekrutmen/pipeline', 'recruitment', ['recruitment']),
+                    self::leaf('rekrutmen-candidates', 'Kandidat', 'users', '/avana/rekrutmen/candidates', 'recruitment', ['recruitment']),
+                    self::leaf('rekrutmen-ai', 'AI Intelligence', 'sparkles', '/avana/rekrutmen/ai', 'recruitment', ['recruitment']),
+                    self::leaf('rekrutmen-pools', 'Talent Pool', 'layers', '/avana/rekrutmen/pools', 'recruitment', ['recruitment']),
+                    self::leaf('rekrutmen-interviews', 'Interview', 'calendar-days', '/avana/rekrutmen/interviews', 'recruitment', ['recruitment']),
+                    self::leaf('rekrutmen-offers', 'Penawaran', 'file-check', '/avana/rekrutmen/offers', 'recruitment', ['recruitment']),
+                    self::leaf('rekrutmen-analytics', 'Analitik', 'trending-up', '/avana/rekrutmen/analytics', 'recruitment', ['recruitment']),
                     self::leaf('onboarding', 'Onboarding', 'clipboard-check', '/avana/onboarding', 'onboarding', ['onboarding']),
                 ]),
                 self::parent('kinerja', 'Kinerja', 'target', [

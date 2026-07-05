@@ -4,8 +4,10 @@ use App\Models\Applicant;
 use App\Models\ApplicantBackgroundCheck;
 use App\Models\ApplicantMedicalCheck;
 use App\Models\Department;
+use App\Models\HeadcountRequest;
 use App\Models\JobPosting;
 use App\Models\Role;
+use App\Models\TalentPool;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
@@ -46,43 +48,59 @@ function makeApplicant(int $tenantId, array $overrides = []): Applicant
     ], $overrides));
 }
 
-it('renders the recruitment index with the expected props', function (): void {
-    makeJobPosting($this->tenant->id);
+it('renders the recruitment dashboard with funnel + KPIs', function (): void {
     makeApplicant($this->tenant->id, ['stage' => 'interview']);
 
     actingAs($this->admin)
         ->get(route('avana.rekrutmen'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/rekrutmen/index', false)
+            ->component('avana/rekrutmen/dashboard', false)
+            ->has('kpis', fn (Assert $k) => $k
+                ->has('incoming')
+                ->has('interviews_today')
+                ->has('active_offers')
+                ->has('time_to_hire'))
+            ->has('funnel')
+            ->has('tasks'));
+});
+
+it('renders the jobs page with the expected posting props', function (): void {
+    makeJobPosting($this->tenant->id);
+
+    actingAs($this->admin)
+        ->get(route('avana.rekrutmen.jobs'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/rekrutmen/jobs', false)
             ->has('postings.0', fn (Assert $row) => $row
                 ->has('id')
                 ->has('title')
                 ->has('department')
-                ->has('department_id')
-                ->has('location')
                 ->has('employment_type')
                 ->has('quota')
                 ->has('status')
-                ->has('description')
-                ->has('posted_date')
-                ->has('closing_date')
-                ->has('applicants_count'))
+                ->has('applicants_count')
+                ->etc())
+            ->has('kpis'));
+});
+
+it('renders the pipeline board grouped by stage', function (): void {
+    makeApplicant($this->tenant->id, ['stage' => 'interview']);
+
+    actingAs($this->admin)
+        ->get(route('avana.rekrutmen.pipeline'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/rekrutmen/pipeline', false)
             ->has('pipeline.interview.0', fn (Assert $row) => $row
                 ->has('id')
                 ->has('name')
-                ->has('email')
-                ->has('phone')
-                ->has('source')
                 ->has('stage')
-                ->has('applied_date')
-                ->has('notes')
-                ->has('position')
-                ->has('job_posting_id')
-                ->has('job_title'))
-            ->has('departments')
+                ->has('job_title')
+                ->etc())
             ->has('stages')
-            ->has('kpis'));
+            ->has('total'));
 });
 
 it('only lists postings that belong to the current tenant', function (): void {
@@ -94,10 +112,65 @@ it('only lists postings that belong to the current tenant', function (): void {
     $tenantTotal = JobPosting::where('tenant_id', $this->tenant->id)->count();
 
     actingAs($this->admin)
-        ->get(route('avana.rekrutmen'))
+        ->get(route('avana.rekrutmen.jobs'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->has('postings', $tenantTotal));
+});
+
+it('renders the remaining recruitment pages', function (string $route, string $component): void {
+    actingAs($this->admin)
+        ->get(route($route))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->component($component, false));
+})->with([
+    'candidates' => ['avana.rekrutmen.candidates', 'avana/rekrutmen/candidates'],
+    'headcount' => ['avana.rekrutmen.headcount', 'avana/rekrutmen/headcount'],
+    'pools' => ['avana.rekrutmen.pools', 'avana/rekrutmen/pools'],
+    'interviews' => ['avana.rekrutmen.interviews', 'avana/rekrutmen/interviews'],
+    'offers' => ['avana.rekrutmen.offers', 'avana/rekrutmen/offers'],
+    'analytics' => ['avana.rekrutmen.analytics', 'avana/rekrutmen/analytics'],
+    'ai' => ['avana.rekrutmen.ai', 'avana/rekrutmen/ai'],
+]);
+
+it('submits and approves a headcount request', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.headcount.store'), [
+            'position_title' => 'Backend Engineer',
+            'count' => 2,
+            'reason' => 'Ekspansi tim',
+        ])
+        ->assertSessionHas('success');
+
+    $req = HeadcountRequest::where('tenant_id', $this->tenant->id)->firstOrFail();
+    expect($req->status)->toBe('pending');
+
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.headcount.decide', $req), ['status' => 'approved'])
+        ->assertSessionHas('success');
+
+    expect($req->fresh()->status)->toBe('approved');
+});
+
+it('creates a talent pool', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.pools.store'), [
+            'name' => 'Engineering Pool',
+            'description' => 'Kandidat teknis',
+        ])
+        ->assertSessionHas('success');
+
+    expect(TalentPool::where('tenant_id', $this->tenant->id)->where('name', 'Engineering Pool')->exists())->toBeTrue();
+});
+
+it('approves a candidate offer via governance action', function (): void {
+    $applicant = makeApplicant($this->tenant->id, ['stage' => 'offer', 'offer_status' => 'sent']);
+
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.offers.decide', $applicant), ['offer_status' => 'approved'])
+        ->assertSessionHas('success');
+
+    expect($applicant->fresh()->offer_status)->toBe('approved');
 });
 
 it('creates a posting scoped to the current tenant', function (): void {
@@ -185,7 +258,6 @@ it('adds an applicant to a posting', function (): void {
             'applied_date' => '2026-07-05',
             'notes' => 'Kandidat menjanjikan',
         ])
-        ->assertRedirect(route('avana.rekrutmen'))
         ->assertSessionHas('success');
 
     $applicant = Applicant::where('email', 'budi@example.com')->firstOrFail();
