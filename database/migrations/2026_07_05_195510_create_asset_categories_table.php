@@ -6,23 +6,26 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Run the migrations.
+     */
     public function up(): void
     {
-        Schema::create('cost_centers', function (Blueprint $table) {
+        Schema::create('asset_categories', function (Blueprint $table) {
             $table->id();
             $table->foreignId('tenant_id')->constrained()->cascadeOnDelete();
-            $table->string('code');
             $table->string('name');
-            $table->string('status')->default('active')->index();
             $table->timestamps();
-            $table->softDeletes();
-            $table->unique(['tenant_id', 'code']);
-            $table->index(['tenant_id', 'created_at']);
+
+            $table->unique(['tenant_id', 'name']);
         });
     }
 
+    /**
+     * Reverse the migrations.
+     */
     public function down(): void
     {
-        Schema::dropIfExists('cost_centers');
+        Schema::dropIfExists('asset_categories');
     }
 };

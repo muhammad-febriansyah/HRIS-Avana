@@ -8,6 +8,7 @@ use App\Http\Resources\Avana\AttendanceResource;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
 use App\Models\Branch;
+use App\Models\Employee;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -124,6 +125,80 @@ class AttendanceController extends Controller
             'branches' => Branch::forTenant($tenantId)
                 ->orderBy('name')
                 ->get(['id', 'name']),
+        ]);
+    }
+
+    /**
+     * Live attendance monitor: a map of today's clock-in GPS points across
+     * branches, presence KPIs, and a recent-activity feed.
+     */
+    public function monitor(Request $request): Response
+    {
+        $this->authorize('viewAny', Attendance::class);
+
+        $tenantId = $request->user()->tenant_id;
+        $date = $this->resolveDate($request->query('date'));
+        $dateString = $date->format('Y-m-d');
+
+        $query = Attendance::query()
+            ->forTenant($tenantId)
+            ->whereDate('date', $dateString)
+            ->with([
+                'employee:id,full_name,employee_number,branch_id',
+                'employee.branch:id,name',
+                'workLocation:id,name',
+            ]);
+
+        $this->applyBranchScope($query, $request->user());
+
+        $records = $query->orderByDesc('clock_in_at')->get();
+
+        $points = $records
+            ->filter(fn (Attendance $a): bool => $a->clock_in_lat !== null && $a->clock_in_lng !== null)
+            ->map(fn (Attendance $a): array => [
+                'lat' => (float) $a->clock_in_lat,
+                'lng' => (float) $a->clock_in_lng,
+                'label' => trim(($a->employee?->full_name ?? 'Karyawan').' · '.($a->employee?->branch?->name ?? 'Tanpa Cabang')),
+                'status' => (string) $a->status,
+            ])
+            ->values()
+            ->all();
+
+        $activity = $records
+            ->take(15)
+            ->map(fn (Attendance $a): array => [
+                'id' => $a->id,
+                'name' => (string) ($a->employee?->full_name ?? 'Karyawan'),
+                'location' => (string) ($a->workLocation?->name ?? $a->employee?->branch?->name ?? '—'),
+                'time' => $a->clock_in_at?->format('H:i'),
+                'status' => (string) $a->status,
+                'status_label' => self::STATUS_LABELS[$a->status] ?? ucfirst((string) $a->status),
+            ])
+            ->values()
+            ->all();
+
+        $statusCounts = $records->groupBy('status')->map->count();
+        $onTime = (int) ($statusCounts['present'] ?? 0);
+        $late = (int) ($statusCounts['late'] ?? 0);
+        $leave = (int) ($statusCounts['leave'] ?? 0);
+
+        $totalPersonnel = Employee::forTenant($tenantId)->where('status', 'active')->count();
+        $checkedIn = $onTime + $late;
+        $noShow = max($totalPersonnel - $checkedIn - $leave, 0);
+
+        return Inertia::render('avana/absensi/monitor', [
+            'date' => [
+                'value' => $dateString,
+                'display' => $date->format('d M Y'),
+            ],
+            'kpis' => [
+                'total_personnel' => $totalPersonnel,
+                'on_time' => $onTime,
+                'late' => $late,
+                'no_show' => $noShow,
+            ],
+            'points' => $points,
+            'activity' => $activity,
         ]);
     }
 

@@ -4,7 +4,14 @@ import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { useEffect, useMemo, useState } from 'react';
-import { Circle, MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
+import {
+    Circle,
+    MapContainer,
+    Marker,
+    Popup,
+    TileLayer,
+    useMap,
+} from 'react-leaflet';
 
 // Dropping `_getIconUrl` stops Leaflet from auto-prefixing its imagePath onto
 // these already-resolved Vite asset URLs (which 404s the marker images).
@@ -28,13 +35,41 @@ interface LocationMapProps {
     /** Optional geofence circle center + radius (meters). */
     area?: { lat: number; lng: number; radius: number } | null;
     height?: number;
+    /** Initial zoom level (ignored when `fit` fits to bounds). */
+    zoom?: number;
+    /** Auto-fit the viewport to every point (for multi-location monitors). */
+    fit?: boolean;
+}
+
+/** Fits the map viewport to every provided point once, on mount/update. */
+function FitBounds({ points }: { points: MapPoint[] }) {
+    const map = useMap();
+
+    useEffect(() => {
+        if (points.length === 0) {
+            return;
+        }
+
+        const bounds = L.latLngBounds(
+            points.map((p) => [p.lat, p.lng] as [number, number]),
+        );
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+    }, [map, points]);
+
+    return null;
 }
 
 /**
  * Read-only Leaflet map used to visualize attendance points against a work
  * location's geofence. Auto-fits to show every point plus the area circle.
  */
-export function LocationMap({ points, area, height = 300 }: LocationMapProps) {
+export function LocationMap({
+    points,
+    area,
+    height = 300,
+    zoom = 16,
+    fit = false,
+}: LocationMapProps) {
     const [mounted, setMounted] = useState(false);
 
     // Leaflet touches `window`, so defer the map to the client after hydration.
@@ -82,10 +117,11 @@ export function LocationMap({ points, area, height = 300 }: LocationMapProps) {
         <div style={frame}>
             <MapContainer
                 center={center}
-                zoom={16}
+                zoom={zoom}
                 style={{ height: '100%', width: '100%' }}
                 scrollWheelZoom
             >
+                {fit && <FitBounds points={points} />}
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

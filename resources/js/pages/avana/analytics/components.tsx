@@ -174,6 +174,71 @@ export function BarList({ data }: { data: Series[] }) {
     );
 }
 
+/** Vertical column trend chart for a time-ordered `{ label, value }` series. */
+export function TrendChart({ data }: { data: Series[] }) {
+    const total = data.reduce((sum, d) => sum + d.value, 0);
+
+    if (total === 0) {
+        return <EmptyState label="Belum ada data attrition" />;
+    }
+
+    const max = Math.max(...data.map((d) => d.value), 1);
+
+    return (
+        <div
+            style={{
+                display: 'flex',
+                alignItems: 'flex-end',
+                gap: 6,
+                height: 150,
+            }}
+        >
+            {data.map((row) => {
+                const pct = Math.round((row.value / max) * 100);
+
+                return (
+                    <div
+                        key={row.label}
+                        style={{
+                            flex: 1,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 6,
+                            height: '100%',
+                            justifyContent: 'flex-end',
+                        }}
+                    >
+                        <span
+                            style={{
+                                fontSize: 11,
+                                fontWeight: 600,
+                                color: C.navy,
+                                fontVariantNumeric: 'tabular-nums',
+                            }}
+                        >
+                            {row.value > 0 ? row.value : ''}
+                        </span>
+                        <div
+                            style={{
+                                width: '100%',
+                                maxWidth: 26,
+                                height: `${Math.max(pct, 3)}%`,
+                                borderRadius: '5px 5px 0 0',
+                                background: row.value > 0 ? C.red : C.line,
+                                transition: 'height .3s',
+                            }}
+                        />
+                        <span style={{ fontSize: 10.5, color: C.faint }}>
+                            {row.label}
+                        </span>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
 /** Donut chart (CSS conic-gradient) with a labelled legend. */
 export function DonutChart({ data }: { data: Series[] }) {
     const total = data.reduce((sum, d) => sum + d.value, 0);

@@ -33,8 +33,24 @@ it('renders the analytics index with the expected props for an admin', function 
             ->has('byDepartment')
             ->has('byEmploymentStatus')
             ->has('byGender')
+            ->has('byAgeGroup')
+            ->has('bySalarySlab')
+            ->has('attrition', fn (Assert $attrition) => $attrition
+                ->has('count')
+                ->has('rate')
+                ->has('trend'))
             ->has('attendance')
             ->has('payroll'));
+});
+
+it('reports trailing-12-month attrition with a monthly trend', function (): void {
+    actingAs($this->admin)
+        ->get(route('avana.analytics'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('attrition.count', fn (int $count): bool => $count >= 0)
+            ->has('attrition.trend', 12)
+            ->has('byAgeGroup', 5));
 });
 
 it('aggregates active vs inactive headcount from tenant employees', function (): void {

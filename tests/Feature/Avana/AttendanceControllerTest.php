@@ -279,3 +279,46 @@ it('returns 404 for an attendance detail from another tenant', function (): void
         ->get(route('avana.absensi.show', $attendance))
         ->assertNotFound();
 });
+
+it('renders the live monitor with map points, KPIs, and recent activity', function (): void {
+    makeAttendance($this->tenant->id, $this->shift->id, [
+        'clock_in_lat' => -6.2000,
+        'clock_in_lng' => 106.8166,
+        'status' => 'present',
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.absensi.monitor', ['date' => TEST_DATE]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/absensi/monitor', false)
+            ->has('kpis', fn (Assert $kpis) => $kpis
+                ->has('total_personnel')
+                ->has('on_time')
+                ->has('late')
+                ->has('no_show'))
+            ->has('points.0', fn (Assert $point) => $point
+                ->where('lat', -6.2)
+                ->where('lng', 106.8166)
+                ->has('label')
+                ->has('status'))
+            ->has('activity.0', fn (Assert $row) => $row
+                ->has('id')
+                ->has('name')
+                ->has('location')
+                ->has('time')
+                ->has('status')
+                ->has('status_label')));
+});
+
+it('excludes attendance without GPS coordinates from monitor map points', function (): void {
+    makeAttendance($this->tenant->id, $this->shift->id, [
+        'clock_in_lat' => null,
+        'clock_in_lng' => null,
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.absensi.monitor', ['date' => TEST_DATE]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->has('points', 0));
+});

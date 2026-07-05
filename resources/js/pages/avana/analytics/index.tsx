@@ -6,6 +6,7 @@ import {
     DonutChart,
     KpiCard,
     PayrollSummary,
+    TrendChart,
 } from './components';
 import type { AnalyticsProps } from './types';
 
@@ -16,6 +17,9 @@ export default function AnalyticsIndex({
     byDepartment,
     byEmploymentStatus,
     byGender,
+    byAgeGroup,
+    bySalarySlab,
+    attrition,
     attendance,
     payroll,
 }: AnalyticsProps) {
@@ -81,10 +85,25 @@ export default function AnalyticsIndex({
                     }}
                 >
                     <ChartCard
+                        title="Tren Attrition (12 Bulan)"
+                        icon="trending-down"
+                    >
+                        <TrendChart data={attrition.trend} />
+                    </ChartCard>
+
+                    <ChartCard
                         title="Karyawan per Departemen"
                         icon="building-2"
                     >
                         <BarList data={byDepartment} />
+                    </ChartCard>
+
+                    <ChartCard title="Distribusi Usia" icon="cake">
+                        <BarList data={byAgeGroup} />
+                    </ChartCard>
+
+                    <ChartCard title="Distribusi Gaji (Slab)" icon="wallet">
+                        <BarList data={bySalarySlab} />
                     </ChartCard>
 
                     <ChartCard title="Status Kepegawaian" icon="briefcase">

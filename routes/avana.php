@@ -87,6 +87,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::resource('employees', EmployeeController::class);
 
     Route::get('absensi', [AttendanceController::class, 'index'])->name('absensi');
+    Route::get('absensi/monitor', [AttendanceController::class, 'monitor'])->name('absensi.monitor');
     Route::get('absensi/{attendance}', [AttendanceController::class, 'show'])->name('absensi.show');
     Route::post('absensi/corrections/{correction}/approve', [AttendanceController::class, 'approveCorrection'])->name('absensi.corrections.approve');
     Route::post('absensi/corrections/{correction}/reject', [AttendanceController::class, 'rejectCorrection'])->name('absensi.corrections.reject');

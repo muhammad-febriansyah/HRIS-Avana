@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\EmployeeSalaryComponent;
+use App\Models\OffboardingCase;
 use App\Models\PayrollRun;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -55,6 +57,8 @@ class AnalyticsController extends Controller
             ->count();
 
         $payroll = $this->payrollCost($tenantId);
+        $demographics = $this->demographics($tenantId, $today);
+        $attrition = $this->attrition($tenantId, $today, $activeHeadcount);
 
         return Inertia::render('avana/analytics/index', [
             'period' => $today->copy()->locale('id')->translatedFormat('F Y'),
@@ -70,6 +74,30 @@ class AnalyticsController extends Controller
                     'value' => $this->formatNumber($activeHeadcount),
                     'icon' => 'user-check',
                     'color' => '#16A34A',
+                ],
+                [
+                    'label' => 'Attrition (1 Thn)',
+                    'value' => $this->formatNumber($attrition['count']),
+                    'icon' => 'user-minus',
+                    'color' => '#DC2626',
+                ],
+                [
+                    'label' => 'Attrition Rate',
+                    'value' => $attrition['rate'].'%',
+                    'icon' => 'trending-down',
+                    'color' => '#EA580C',
+                ],
+                [
+                    'label' => 'Rata-rata Usia',
+                    'value' => $demographics['avg_age'] > 0 ? $demographics['avg_age'].' th' : '—',
+                    'icon' => 'cake',
+                    'color' => '#7C3AED',
+                ],
+                [
+                    'label' => 'Rata-rata Masa Kerja',
+                    'value' => $demographics['avg_experience'] > 0 ? $demographics['avg_experience'].' th' : '—',
+                    'icon' => 'briefcase',
+                    'color' => '#0891B2',
                 ],
                 [
                     'label' => 'Karyawan Baru Bulan Ini',
@@ -91,9 +119,162 @@ class AnalyticsController extends Controller
             'byDepartment' => $this->byDepartment($tenantId),
             'byEmploymentStatus' => $this->byEmploymentStatus($tenantId),
             'byGender' => $this->byGender($tenantId),
+            'byAgeGroup' => $demographics['byAgeGroup'],
+            'bySalarySlab' => $this->bySalarySlab($tenantId, $today),
+            'attrition' => $attrition,
             'attendance' => $this->attendanceSummary($tenantId, $today),
             'payroll' => $payroll,
         ]);
+    }
+
+    /**
+     * Average age, average tenure (years of service), and age-group buckets for
+     * active employees, computed in PHP for cross-driver portability.
+     *
+     * @return array{avg_age: float, avg_experience: float, byAgeGroup: array<int, array{label: string, value: int}>}
+     */
+    private function demographics(int $tenantId, Carbon $today): array
+    {
+        $rows = Employee::forTenant($tenantId)
+            ->where('status', 'active')
+            ->get(['birth_date', 'join_date']);
+
+        $ages = [];
+        $tenures = [];
+        $buckets = ['18-25' => 0, '26-35' => 0, '36-45' => 0, '46-55' => 0, '55+' => 0];
+
+        foreach ($rows as $row) {
+            if ($row->birth_date !== null) {
+                $age = $row->birth_date->diffInYears($today);
+                $ages[] = $age;
+
+                $bucket = match (true) {
+                    $age <= 25 => '18-25',
+                    $age <= 35 => '26-35',
+                    $age <= 45 => '36-45',
+                    $age <= 55 => '46-55',
+                    default => '55+',
+                };
+                $buckets[$bucket]++;
+            }
+
+            if ($row->join_date !== null) {
+                $tenures[] = $row->join_date->diffInYears($today);
+            }
+        }
+
+        $byAgeGroup = [];
+        foreach ($buckets as $label => $value) {
+            $byAgeGroup[] = ['label' => $label, 'value' => $value];
+        }
+
+        return [
+            'avg_age' => $ages === [] ? 0.0 : round(array_sum($ages) / count($ages), 1),
+            'avg_experience' => $tenures === [] ? 0.0 : round(array_sum($tenures) / count($tenures), 1),
+            'byAgeGroup' => $byAgeGroup,
+        ];
+    }
+
+    /**
+     * Attrition over the trailing 12 months: leaver count, rate, and a
+     * month-by-month trend from completed offboarding cases.
+     *
+     * @return array{count: int, rate: float, trend: array<int, array{label: string, value: int}>}
+     */
+    private function attrition(int $tenantId, Carbon $today, int $activeHeadcount): array
+    {
+        $windowStart = $today->copy()->subMonthsNoOverflow(11)->startOfMonth();
+
+        // Exit dates come from formal offboarding cases and, as a fallback, the
+        // employee's own resign_date — so a resignation recorded either way counts.
+        $exitDates = OffboardingCase::forTenant($tenantId)
+            ->whereNotNull('last_day')
+            ->where('last_day', '>=', $windowStart)
+            ->pluck('last_day');
+
+        $resignDates = Employee::forTenant($tenantId)
+            ->whereNotNull('resign_date')
+            ->where('resign_date', '>=', $windowStart)
+            ->pluck('resign_date');
+
+        $leavers = $exitDates->concat($resignDates);
+
+        $count = $leavers->count();
+
+        // Annualised rate against the average of start and current headcount.
+        $avgHeadcount = ($activeHeadcount + $count) > 0 ? ($activeHeadcount + $count) : 1;
+        $rate = round(($count / $avgHeadcount) * 100, 1);
+
+        $monthly = [];
+        for ($i = 11; $i >= 0; $i--) {
+            $month = $today->copy()->subMonthsNoOverflow($i);
+            $monthly[$month->format('Y-m')] = [
+                'label' => $month->locale('id')->translatedFormat('M y'),
+                'value' => 0,
+            ];
+        }
+
+        foreach ($leavers as $leaver) {
+            $key = $leaver->format('Y-m');
+            if (isset($monthly[$key])) {
+                $monthly[$key]['value']++;
+            }
+        }
+
+        return [
+            'count' => $count,
+            'rate' => $rate,
+            'trend' => array_values($monthly),
+        ];
+    }
+
+    /**
+     * Active-employee headcount bucketed by monthly salary band (sum of active
+     * salary components per employee).
+     *
+     * @return array<int, array{label: string, value: int}>
+     */
+    private function bySalarySlab(int $tenantId, Carbon $today): array
+    {
+        $today = $today->toDateString();
+
+        $perEmployee = EmployeeSalaryComponent::forTenant($tenantId)
+            ->where('effective_start_date', '<=', $today)
+            ->where(function ($query) use ($today): void {
+                $query->whereNull('effective_end_date')->orWhere('effective_end_date', '>=', $today);
+            })
+            ->selectRaw('employee_id, SUM(amount) as total')
+            ->groupBy('employee_id')
+            ->pluck('total');
+
+        $buckets = [
+            '< 5 Jt' => 0,
+            '5–10 Jt' => 0,
+            '10–20 Jt' => 0,
+            '20–50 Jt' => 0,
+            '> 50 Jt' => 0,
+        ];
+
+        foreach ($perEmployee as $total) {
+            $total = (float) $total;
+            $bucket = match (true) {
+                $total < 5_000_000 => '< 5 Jt',
+                $total < 10_000_000 => '5–10 Jt',
+                $total < 20_000_000 => '10–20 Jt',
+                $total < 50_000_000 => '20–50 Jt',
+                default => '> 50 Jt',
+            };
+            $buckets[$bucket]++;
+        }
+
+        $series = [];
+        foreach ($buckets as $label => $value) {
+            if ($value > 0) {
+                $series[] = ['label' => $label, 'value' => $value];
+            }
+        }
+
+        return $series;
     }
 
     /**

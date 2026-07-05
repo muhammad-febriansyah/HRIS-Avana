@@ -35,7 +35,6 @@ use App\Models\OvertimeRequest;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
-use App\Models\Payslip;
 use App\Models\PerformanceCycle;
 use App\Models\PerformanceReview;
 use App\Models\Permission;
@@ -647,25 +646,6 @@ class ClientModuleDataSeeder extends Seeder
                         'net' => $net,
                     ],
                     'status' => 'calculated',
-                ]);
-
-                Payslip::create([
-                    'tenant_id' => $tenant->id,
-                    'payroll_run_id' => $run->id,
-                    'employee_id' => $employee->id,
-                    'period_label' => $period->name,
-                    'gross' => $gross,
-                    'deduction' => $deduction,
-                    'net' => $net,
-                    'detail' => [
-                        'earnings' => $earnings,
-                        'deductions' => $deductions,
-                        'gross' => $gross,
-                        'deduction' => $deduction,
-                        'net' => $net,
-                    ],
-                    'is_published' => ! $isLatest,
-                    'published_at' => $isLatest ? null : $payDate,
                 ]);
 
                 $totalGross += $gross;

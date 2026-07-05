@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use App\Models\AssetAssignment;
+use App\Models\AssetCategory;
 use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -37,11 +38,11 @@ class AssetController extends Controller
     private const STATUSES = ['available', 'assigned', 'maintenance', 'retired'];
 
     /**
-     * Selectable asset category suggestions.
+     * Seed defaults applied to a tenant that has no categories yet.
      *
      * @var array<int, string>
      */
-    private const CATEGORIES = ['Elektronik', 'Furnitur', 'Kendaraan', 'Perangkat Lunak', 'Peralatan Kantor', 'Lainnya'];
+    private const DEFAULT_CATEGORIES = ['Elektronik', 'Furnitur', 'Kendaraan', 'Perangkat Lunak', 'Peralatan Kantor', 'Lainnya'];
 
     /**
      * Display the asset register together with active assignments and KPIs.
@@ -81,7 +82,7 @@ class AssetController extends Controller
             'assets' => $assets,
             'assignments' => $assignments,
             'employees' => $this->employeeOptions($tenantId),
-            'categories' => self::CATEGORIES,
+            'categories' => $this->categoryOptions($tenantId),
             'conditions' => $this->conditionOptions(),
             'statuses' => $this->statusOptions(),
             'kpis' => [
@@ -102,7 +103,7 @@ class AssetController extends Controller
         $this->ensureCanManage($request);
 
         return Inertia::render('avana/aset/create', [
-            'categories' => self::CATEGORIES,
+            'categories' => $this->categoryOptions($request->user()->tenant_id),
             'conditions' => $this->conditionOptions(),
             'statuses' => $this->statusOptions(),
         ]);
@@ -130,7 +131,7 @@ class AssetController extends Controller
                 'notes' => $asset->notes,
                 'book_value' => $this->bookValue($asset),
             ],
-            'categories' => self::CATEGORIES,
+            'categories' => $this->categoryOptions($request->user()->tenant_id),
             'conditions' => $this->conditionOptions(),
             'statuses' => $this->statusOptions(),
         ]);
@@ -343,6 +344,26 @@ class AssetController extends Controller
      *
      * @return array<int, array<string, string>>
      */
+    /**
+     * Tenant-managed asset category names, seeded with defaults on first use.
+     *
+     * @return array<int, string>
+     */
+    private function categoryOptions(int|string $tenantId): array
+    {
+        $names = AssetCategory::forTenant($tenantId)->orderBy('name')->pluck('name');
+
+        if ($names->isEmpty()) {
+            foreach (self::DEFAULT_CATEGORIES as $name) {
+                AssetCategory::create(['tenant_id' => $tenantId, 'name' => $name]);
+            }
+
+            $names = AssetCategory::forTenant($tenantId)->orderBy('name')->pluck('name');
+        }
+
+        return $names->all();
+    }
+
     private function conditionOptions(): array
     {
         $labels = [

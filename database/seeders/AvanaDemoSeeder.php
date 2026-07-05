@@ -500,6 +500,7 @@ final class AvanaDemoSeeder extends Seeder
                     'employment_status' => $employmentMap[$row['status']],
                     'join_date' => $this->parseIndoDate($row['masuk']),
                     'status' => $row['status'] === 'Resign' ? 'inactive' : 'active',
+                    'resign_date' => $row['status'] === 'Resign' ? now()->subMonthsNoOverflow(2)->format('Y-m-d') : null,
                 ],
             );
         }

@@ -20,6 +20,13 @@ export interface Kpi {
     color: string;
 }
 
+/** Trailing-12-month attrition: leaver count, rate, and monthly trend. */
+export interface Attrition {
+    count: number;
+    rate: number;
+    trend: Series[];
+}
+
 /** Latest payroll-run cost summary, or null when no run exists yet. */
 export interface PayrollCost {
     period: string;
@@ -38,6 +45,9 @@ export interface AnalyticsProps {
     byDepartment: Series[];
     byEmploymentStatus: Series[];
     byGender: Series[];
+    byAgeGroup: Series[];
+    bySalarySlab: Series[];
+    attrition: Attrition;
     attendance: Series[] | null;
     payroll: PayrollCost | null;
 }
