@@ -34,15 +34,20 @@ export interface BpjsProgram {
     rates: BpjsRate[];
 }
 
-export interface TerRate {
+export interface PtkpRate {
     id: number;
-    category: string;
-    income_min: Numeric;
-    income_max: Numeric;
-    rate: Numeric;
-    effective_start_date: string | null;
-    effective_end_date: string | null;
-    is_active: boolean;
+    ptkp_status: string;
+    year: number;
+    amount: number;
+    note: string | null;
+}
+
+export interface PkpRate {
+    id: number;
+    year: number;
+    up_to: number | null;
+    rate: number;
+    sort_order: number;
 }
 
 export interface ProfileStats {
@@ -52,7 +57,8 @@ export interface ProfileStats {
 
 export interface PayrollConfigProps {
     programs: BpjsProgram[];
-    terRates: TerRate[];
+    ptkpRates: PtkpRate[];
+    pkpRates: PkpRate[];
     profileStats: ProfileStats;
 }
 
@@ -211,12 +217,12 @@ export const SECTIONS: SectionDef[] = [
     },
     {
         key: 'pph21',
-        label: 'Tarif PPh 21 (TER)',
-        title: 'Tarif PPh 21 (TER)',
+        label: 'PTKP & PKP',
+        title: 'Tarif PTKP & PKP',
         icon: 'percent',
-        emptyText: 'Belum ada tarif PPh 21.',
+        emptyText: 'Belum ada tarif.',
         addLabel: 'Tambah Tarif',
-        entityLabel: 'Tarif PPh 21',
+        entityLabel: 'Tarif',
         columns: [
             { header: 'Kategori', key: 'category' },
             {
@@ -321,19 +327,6 @@ export function flattenProgram(program: BpjsProgram): FlatRecord {
         max_wage: rate?.max_wage ?? null,
         risk_level: rate?.risk_level ?? null,
         effective_start_date: rate?.effective_start_date ?? null,
-    };
-}
-
-/** Flatten a PPh 21 TER rate into a single record. */
-export function flattenTerRate(rate: TerRate): FlatRecord {
-    return {
-        id: rate.id,
-        category: rate.category,
-        income_min: rate.income_min,
-        income_max: rate.income_max,
-        rate: rate.rate,
-        effective_start_date: rate.effective_start_date,
-        is_active: rate.is_active,
     };
 }
 

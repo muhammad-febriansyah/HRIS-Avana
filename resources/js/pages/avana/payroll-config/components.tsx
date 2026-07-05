@@ -451,11 +451,11 @@ export function ConfigModal({ section, record, onClose }: ConfigModalProps) {
             }
         } else if (record) {
             form.submit(
-                PayrollConfigController.updateTerRate(record.id),
+                PayrollConfigController.updateBpjsProgram(record.id),
                 options,
             );
         } else {
-            form.submit(PayrollConfigController.storeTerRate(), options);
+            form.submit(PayrollConfigController.storeBpjsProgram(), options);
         }
     };
 

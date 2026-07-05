@@ -1,96 +1,381 @@
-import { router } from '@inertiajs/react';
+import { router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import PayrollConfigController from '@/actions/App/Http/Controllers/Avana/PayrollConfigController';
-import { C } from '@/lib/avana';
-import { ConfigModal, ConfirmModal, SectionTable } from './components';
-import { flattenTerRate, SECTIONS } from './types';
-import type { FlatRecord, TerRate } from './types';
+import { AIcon, C, card, rp } from '@/lib/avana';
+import type { PkpRate, PtkpRate } from './types';
 
-const SECTION = SECTIONS.find((item) => item.key === 'pph21') ?? SECTIONS[1];
+/**
+ * Tenant-scoped PPh 21 configuration (BPR-manual method): the Tarif PTKP table
+ * (annual allowance per marital status) and the progressive Tarif PKP brackets.
+ */
+export default function Pph21Tab({
+    ptkpRates,
+    pkpRates,
+}: {
+    ptkpRates: PtkpRate[];
+    pkpRates: PkpRate[];
+}) {
+    const year = new Date().getFullYear();
 
-/** Tarif PPh 21 (TER) tab — table + create/edit modal + delete confirm. */
-export default function Pph21Tab({ terRates }: { terRates: TerRate[] }) {
-    const [openMenu, setOpenMenu] = useState<number | null>(null);
-    const [editing, setEditing] = useState<FlatRecord | null>(null);
-    const [modalOpen, setModalOpen] = useState(false);
-    const [confirm, setConfirm] = useState<FlatRecord | null>(null);
+    const ptkpForm = useForm({
+        ptkp_status: '',
+        year,
+        amount: '',
+        note: '',
+    });
 
-    const rows: FlatRecord[] = terRates.map(flattenTerRate);
+    const pkpForm = useForm({
+        year,
+        up_to: '',
+        rate: '',
+        sort_order: pkpRates.length,
+    });
 
-    const openCreate = () => {
-        setEditing(null);
-        setModalOpen(true);
-    };
+    const [tab, setTab] = useState<'ptkp' | 'pkp'>('ptkp');
 
-    const openEdit = (row: FlatRecord) => {
-        setEditing(row);
-        setModalOpen(true);
-        setOpenMenu(null);
-    };
-
-    const closeModal = () => {
-        setModalOpen(false);
-        setEditing(null);
-    };
-
-    const requestDelete = (row: FlatRecord) => {
-        setConfirm(row);
-        setOpenMenu(null);
-    };
-
-    const deleteRecord = () => {
-        if (!confirm) {
-            return;
-        }
-
-        router.delete(PayrollConfigController.destroyTerRate(confirm.id).url, {
+    const submitPtkp = () => {
+        ptkpForm.post(PayrollConfigController.storePtkpRate().url, {
             preserveScroll: true,
-            onSuccess: () => setConfirm(null),
+            onSuccess: () => {
+                toast.success('Tarif PTKP disimpan');
+                ptkpForm.reset('ptkp_status', 'amount', 'note');
+            },
+            onError: () => toast.error('Periksa isian PTKP'),
         });
     };
 
+    const submitPkp = () => {
+        pkpForm.post(PayrollConfigController.storePkpRate().url, {
+            preserveScroll: true,
+            onSuccess: () => {
+                toast.success('Tarif PKP disimpan');
+                pkpForm.reset('up_to', 'rate');
+            },
+            onError: () => toast.error('Periksa isian PKP'),
+        });
+    };
+
+    const del = (url: string) =>
+        router.delete(url, {
+            preserveScroll: true,
+            onSuccess: () => toast.success('Tarif dihapus'),
+        });
+
+    const input: React.CSSProperties = {
+        padding: '9px 11px',
+        borderRadius: 8,
+        border: `1px solid ${C.line}`,
+        fontSize: 13.5,
+        outline: 'none',
+        color: C.text,
+        width: '100%',
+    };
+    const th: React.CSSProperties = {
+        textAlign: 'left',
+        fontSize: 12,
+        fontWeight: 600,
+        color: C.muted,
+        padding: '0 14px 11px',
+        borderBottom: `1px solid ${C.line}`,
+    };
+    const td: React.CSSProperties = {
+        fontSize: 13.5,
+        color: C.text,
+        padding: '12px 14px',
+        borderBottom: `1px solid ${C.line}`,
+    };
+
     return (
-        <>
-            <SectionTable
-                section={SECTION}
-                rows={rows}
-                openMenu={openMenu}
-                setOpenMenu={setOpenMenu}
-                onCreate={openCreate}
-                onEdit={openEdit}
-                onDelete={requestDelete}
-            />
+        <div>
+            {/* Sub-tabs */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                {(
+                    [
+                        ['ptkp', 'Tarif PTKP'],
+                        ['pkp', 'Tarif PKP (progresif)'],
+                    ] as const
+                ).map(([key, label]) => (
+                    <button
+                        key={key}
+                        onClick={() => setTab(key)}
+                        style={{
+                            padding: '8px 14px',
+                            borderRadius: 8,
+                            border: `1px solid ${tab === key ? C.primary : C.line}`,
+                            background: tab === key ? C.primary + '10' : '#fff',
+                            color: tab === key ? C.primary : C.muted,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        {label}
+                    </button>
+                ))}
+            </div>
 
-            {modalOpen && (
-                <ConfigModal
-                    key={`${SECTION.key}-${editing?.id ?? 'new'}`}
-                    section={SECTION}
-                    record={editing}
-                    onClose={closeModal}
-                />
-            )}
+            {tab === 'ptkp' ? (
+                <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
+                    {/* Add PTKP */}
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 100px 1.3fr 1.3fr auto',
+                            gap: 10,
+                            padding: 16,
+                            alignItems: 'end',
+                            borderBottom: `1px solid ${C.line}`,
+                            background: C.surface,
+                        }}
+                    >
+                        <Field label="Status PTKP">
+                            <input
+                                style={input}
+                                placeholder="TK/0, K/2 …"
+                                value={ptkpForm.data.ptkp_status}
+                                onChange={(e) =>
+                                    ptkpForm.setData('ptkp_status', e.target.value)
+                                }
+                            />
+                        </Field>
+                        <Field label="Tahun">
+                            <input
+                                type="number"
+                                style={input}
+                                value={ptkpForm.data.year}
+                                onChange={(e) =>
+                                    ptkpForm.setData('year', Number(e.target.value))
+                                }
+                            />
+                        </Field>
+                        <Field label="Nilai Setahun (Rp)">
+                            <input
+                                type="number"
+                                style={input}
+                                value={ptkpForm.data.amount}
+                                onChange={(e) =>
+                                    ptkpForm.setData('amount', e.target.value)
+                                }
+                            />
+                        </Field>
+                        <Field label="Keterangan">
+                            <input
+                                style={input}
+                                value={ptkpForm.data.note}
+                                onChange={(e) =>
+                                    ptkpForm.setData('note', e.target.value)
+                                }
+                            />
+                        </Field>
+                        <button
+                            onClick={submitPtkp}
+                            disabled={ptkpForm.processing}
+                            style={{
+                                padding: '9px 16px',
+                                borderRadius: 8,
+                                border: 'none',
+                                background: C.primary,
+                                color: '#fff',
+                                fontSize: 13,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                height: 38,
+                            }}
+                        >
+                            Tambah
+                        </button>
+                    </div>
 
-            {confirm && (
-                <ConfirmModal
-                    title="Hapus data?"
-                    body={
-                        <>
-                            Data{' '}
-                            <strong style={{ color: C.text }}>
-                                {String(
-                                    confirm.name ??
-                                        confirm.category ??
-                                        confirm.code ??
-                                        '',
-                                )}
-                            </strong>{' '}
-                            akan dihapus. Tindakan ini tidak dapat dibatalkan.
-                        </>
-                    }
-                    onCancel={() => setConfirm(null)}
-                    onConfirm={deleteRecord}
-                />
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                            <tr>
+                                <th style={{ ...th, paddingTop: 16 }}>Status</th>
+                                <th style={{ ...th, paddingTop: 16 }}>Tahun</th>
+                                <th style={{ ...th, paddingTop: 16 }}>Nilai Setahun</th>
+                                <th style={{ ...th, paddingTop: 16 }}>Keterangan</th>
+                                <th style={{ ...th, paddingTop: 16 }} />
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {ptkpRates.length === 0 ? (
+                                <tr>
+                                    <td colSpan={5} style={{ ...td, textAlign: 'center', color: C.faint }}>
+                                        Belum ada tarif PTKP.
+                                    </td>
+                                </tr>
+                            ) : (
+                                ptkpRates.map((r) => (
+                                    <tr key={r.id}>
+                                        <td style={{ ...td, fontWeight: 600, color: C.navy }}>{r.ptkp_status}</td>
+                                        <td style={td}>{r.year}</td>
+                                        <td style={td}>{rp(r.amount)}</td>
+                                        <td style={{ ...td, color: C.muted }}>{r.note ?? '—'}</td>
+                                        <td style={{ ...td, textAlign: 'right' }}>
+                                            <button
+                                                onClick={() =>
+                                                    del(PayrollConfigController.destroyPtkpRate(r.id).url)
+                                                }
+                                                style={delBtn}
+                                            >
+                                                <AIcon name="trash-2" size={15} color={C.red} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            ) : (
+                <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: '100px 1.5fr 1fr 90px auto',
+                            gap: 10,
+                            padding: 16,
+                            alignItems: 'end',
+                            borderBottom: `1px solid ${C.line}`,
+                            background: C.surface,
+                        }}
+                    >
+                        <Field label="Tahun">
+                            <input
+                                type="number"
+                                style={input}
+                                value={pkpForm.data.year}
+                                onChange={(e) =>
+                                    pkpForm.setData('year', Number(e.target.value))
+                                }
+                            />
+                        </Field>
+                        <Field label="Sampai (Rp, kosong = tak hingga)">
+                            <input
+                                type="number"
+                                style={input}
+                                placeholder="60000000"
+                                value={pkpForm.data.up_to}
+                                onChange={(e) =>
+                                    pkpForm.setData('up_to', e.target.value)
+                                }
+                            />
+                        </Field>
+                        <Field label="Tarif (0.05 = 5%)">
+                            <input
+                                type="number"
+                                step="0.01"
+                                style={input}
+                                value={pkpForm.data.rate}
+                                onChange={(e) =>
+                                    pkpForm.setData('rate', e.target.value)
+                                }
+                            />
+                        </Field>
+                        <Field label="Urutan">
+                            <input
+                                type="number"
+                                style={input}
+                                value={pkpForm.data.sort_order}
+                                onChange={(e) =>
+                                    pkpForm.setData('sort_order', Number(e.target.value))
+                                }
+                            />
+                        </Field>
+                        <button
+                            onClick={submitPkp}
+                            disabled={pkpForm.processing}
+                            style={{
+                                padding: '9px 16px',
+                                borderRadius: 8,
+                                border: 'none',
+                                background: C.primary,
+                                color: '#fff',
+                                fontSize: 13,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                height: 38,
+                            }}
+                        >
+                            Tambah
+                        </button>
+                    </div>
+
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                            <tr>
+                                <th style={{ ...th, paddingTop: 16 }}>Urutan</th>
+                                <th style={{ ...th, paddingTop: 16 }}>Tahun</th>
+                                <th style={{ ...th, paddingTop: 16 }}>Sampai</th>
+                                <th style={{ ...th, paddingTop: 16 }}>Tarif</th>
+                                <th style={{ ...th, paddingTop: 16 }} />
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {pkpRates.length === 0 ? (
+                                <tr>
+                                    <td colSpan={5} style={{ ...td, textAlign: 'center', color: C.faint }}>
+                                        Belum ada bracket PKP.
+                                    </td>
+                                </tr>
+                            ) : (
+                                pkpRates.map((r) => (
+                                    <tr key={r.id}>
+                                        <td style={td}>{r.sort_order}</td>
+                                        <td style={td}>{r.year}</td>
+                                        <td style={td}>{r.up_to !== null ? rp(r.up_to) : 'tak hingga'}</td>
+                                        <td style={{ ...td, fontWeight: 600, color: C.navy }}>
+                                            {(r.rate * 100).toFixed(2)}%
+                                        </td>
+                                        <td style={{ ...td, textAlign: 'right' }}>
+                                            <button
+                                                onClick={() =>
+                                                    del(PayrollConfigController.destroyPkpRate(r.id).url)
+                                                }
+                                                style={delBtn}
+                                            >
+                                                <AIcon name="trash-2" size={15} color={C.red} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             )}
-        </>
+        </div>
+    );
+}
+
+const delBtn: React.CSSProperties = {
+    border: 'none',
+    background: 'transparent',
+    cursor: 'pointer',
+    padding: 4,
+};
+
+function Field({
+    label,
+    children,
+}: {
+    label: string;
+    children: React.ReactNode;
+}) {
+    return (
+        <label style={{ display: 'block' }}>
+            <span
+                style={{
+                    display: 'block',
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    color: C.muted,
+                    marginBottom: 5,
+                }}
+            >
+                {label}
+            </span>
+            {children}
+        </label>
     );
 }

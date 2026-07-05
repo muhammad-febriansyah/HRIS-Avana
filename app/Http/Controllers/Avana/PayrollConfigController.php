@@ -6,7 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\BpjsProgram;
 use App\Models\BpjsRate;
 use App\Models\EmployeeBpjsProfile;
-use App\Models\Pph21TerRate;
+use App\Models\PkpRate;
+use App\Models\PtkpRate;
 use App\Models\TaxProfile;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -73,24 +74,35 @@ class PayrollConfigController extends Controller
                 ])->all(),
             ]);
 
-        $terRates = Pph21TerRate::query()
-            ->orderBy('category')
-            ->orderBy('income_min')
+        $ptkpRates = PtkpRate::forTenant($tenantId)
+            ->orderByDesc('year')
+            ->orderBy('ptkp_status')
             ->get()
-            ->map(fn (Pph21TerRate $rate): array => [
+            ->map(fn (PtkpRate $rate): array => [
                 'id' => $rate->id,
-                'category' => $rate->category,
-                'income_min' => $rate->income_min,
-                'income_max' => $rate->income_max,
-                'rate' => $rate->rate,
-                'effective_start_date' => $rate->effective_start_date?->toDateString(),
-                'effective_end_date' => $rate->effective_end_date?->toDateString(),
-                'is_active' => $rate->is_active,
+                'ptkp_status' => $rate->ptkp_status,
+                'year' => $rate->year,
+                'amount' => (float) $rate->amount,
+                'note' => $rate->note,
+            ]);
+
+        $pkpRates = PkpRate::forTenant($tenantId)
+            ->orderByDesc('year')
+            ->orderBy('sort_order')
+            ->orderBy('up_to')
+            ->get()
+            ->map(fn (PkpRate $rate): array => [
+                'id' => $rate->id,
+                'year' => $rate->year,
+                'up_to' => $rate->up_to !== null ? (float) $rate->up_to : null,
+                'rate' => (float) $rate->rate,
+                'sort_order' => $rate->sort_order,
             ]);
 
         return Inertia::render('avana/payroll-config/index', [
             'programs' => $programs,
-            'terRates' => $terRates,
+            'ptkpRates' => $ptkpRates,
+            'pkpRates' => $pkpRates,
             'profileStats' => [
                 'bpjs_profiles' => EmployeeBpjsProfile::where('tenant_id', $tenantId)->count(),
                 'tax_profiles' => TaxProfile::where('tenant_id', $tenantId)->count(),
@@ -172,65 +184,80 @@ class PayrollConfigController extends Controller
     }
 
     /**
-     * Validate and create a new PPh 21 TER tax bracket.
+     * Create a Tarif PTKP entry (annual allowance per marital status/year).
      */
-    public function storeTerRate(Request $request): RedirectResponse
+    public function storePtkpRate(Request $request): RedirectResponse
     {
-        $this->ensureSuperAdmin($request);
+        $this->ensureCanManage($request);
 
-        $validated = $request->validate(
-            $this->terRateRules(),
-            $this->messages(),
-        );
+        $tenantId = (int) $request->user()->tenant_id;
 
-        Pph21TerRate::create([
-            'category' => $validated['category'],
-            'income_min' => $validated['income_min'],
-            'income_max' => $validated['income_max'] ?? null,
-            'rate' => $validated['rate'],
-            'effective_start_date' => $validated['effective_start_date'],
-            'effective_end_date' => $validated['effective_end_date'] ?? null,
-            'is_active' => $request->boolean('is_active'),
+        $validated = $request->validate([
+            'ptkp_status' => ['required', 'string', 'max:20'],
+            'year' => ['required', 'integer', 'min:2000', 'max:2100'],
+            'amount' => ['required', 'numeric', 'min:0'],
+            'note' => ['nullable', 'string', 'max:255'],
         ]);
 
-        return back()->with('success', 'Tarif PPh 21 disimpan');
+        PtkpRate::updateOrCreate(
+            ['tenant_id' => $tenantId, 'ptkp_status' => strtoupper($validated['ptkp_status']), 'year' => $validated['year']],
+            ['amount' => $validated['amount'], 'note' => $validated['note'] ?? null],
+        );
+
+        return back()->with('success', 'Tarif PTKP disimpan');
     }
 
     /**
-     * Validate and update an existing PPh 21 TER tax bracket.
+     * Delete a Tarif PTKP entry.
      */
-    public function updateTerRate(Request $request, Pph21TerRate $rate): RedirectResponse
+    public function destroyPtkpRate(Request $request, PtkpRate $rate): RedirectResponse
     {
-        $this->ensureSuperAdmin($request);
-
-        $validated = $request->validate(
-            $this->terRateRules(),
-            $this->messages(),
-        );
-
-        $rate->update([
-            'category' => $validated['category'],
-            'income_min' => $validated['income_min'],
-            'income_max' => $validated['income_max'] ?? null,
-            'rate' => $validated['rate'],
-            'effective_start_date' => $validated['effective_start_date'],
-            'effective_end_date' => $validated['effective_end_date'] ?? null,
-            'is_active' => $request->boolean('is_active'),
-        ]);
-
-        return back()->with('success', 'Tarif PPh 21 diperbarui');
-    }
-
-    /**
-     * Delete a PPh 21 TER tax bracket.
-     */
-    public function destroyTerRate(Request $request, Pph21TerRate $rate): RedirectResponse
-    {
-        $this->ensureSuperAdmin($request);
+        $this->ensureCanManage($request);
+        abort_if((int) $rate->tenant_id !== (int) $request->user()->tenant_id, 404);
 
         $rate->delete();
 
-        return back()->with('success', 'Tarif PPh 21 dihapus');
+        return back()->with('success', 'Tarif PTKP dihapus');
+    }
+
+    /**
+     * Create a Tarif PKP progressive bracket (cumulative upper bound + rate).
+     */
+    public function storePkpRate(Request $request): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $validated = $request->validate([
+            'year' => ['required', 'integer', 'min:2000', 'max:2100'],
+            'up_to' => ['nullable', 'numeric', 'min:0'],
+            'rate' => ['required', 'numeric', 'min:0', 'max:1'],
+            'sort_order' => ['nullable', 'integer', 'min:0'],
+        ]);
+
+        PkpRate::create([
+            'tenant_id' => $tenantId,
+            'year' => $validated['year'],
+            'up_to' => $validated['up_to'] ?? null,
+            'rate' => $validated['rate'],
+            'sort_order' => $validated['sort_order'] ?? 0,
+        ]);
+
+        return back()->with('success', 'Tarif PKP disimpan');
+    }
+
+    /**
+     * Delete a Tarif PKP bracket.
+     */
+    public function destroyPkpRate(Request $request, PkpRate $rate): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        abort_if((int) $rate->tenant_id !== (int) $request->user()->tenant_id, 404);
+
+        $rate->delete();
+
+        return back()->with('success', 'Tarif PKP dihapus');
     }
 
     /**
@@ -259,24 +286,6 @@ class PayrollConfigController extends Controller
             'risk_level' => ['nullable', 'string', 'max:255'],
             'effective_start_date' => ['required', 'date'],
             'effective_end_date' => ['nullable', 'date', 'after_or_equal:effective_start_date'],
-        ];
-    }
-
-    /**
-     * Validation rules for a PPh 21 TER tax bracket.
-     *
-     * @return array<string, array<int, mixed>>
-     */
-    private function terRateRules(): array
-    {
-        return [
-            'category' => ['required', 'string', 'max:255'],
-            'income_min' => ['required', 'numeric', 'min:0'],
-            'income_max' => ['nullable', 'numeric', 'min:0'],
-            'rate' => ['required', 'numeric', 'min:0'],
-            'effective_start_date' => ['required', 'date'],
-            'effective_end_date' => ['nullable', 'date', 'after_or_equal:effective_start_date'],
-            'is_active' => ['boolean'],
         ];
     }
 

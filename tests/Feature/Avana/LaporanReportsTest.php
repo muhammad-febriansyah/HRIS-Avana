@@ -66,7 +66,7 @@ function seedLaporanRunItem(Tenant $tenant): array
         'pph21_total' => 80_000,
         'net_salary' => 7_600_000,
         'calculation_snapshot' => [
-            'tax' => ['ter_category' => 'A', 'tax_rate' => 0.01, 'pph21_amount' => 80_000],
+            'tax' => ['ptkp_status' => 'TK/0', 'pkp' => 19_200_000, 'pph21_amount' => 80_000],
         ],
         'status' => 'calculated',
     ]);
@@ -112,7 +112,7 @@ it('streams the pph21 CSV from the latest payroll run', function (): void {
 
     $body = $response->streamedContent();
 
-    expect($body)->toContain('Nama', 'Employee Number', 'Penghasilan Bruto', 'Kategori TER', 'Tarif', 'PPh 21');
+    expect($body)->toContain('Nama', 'Employee Number', 'Penghasilan Bruto', 'Status PTKP', 'PKP Setahun', 'PPh 21');
     expect($body)->toContain($seeded['employee']->full_name);
     expect($body)->toContain('8000000', '80000');
 });

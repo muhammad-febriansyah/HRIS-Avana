@@ -16,8 +16,9 @@ use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
+use App\Models\PkpRate;
 use App\Models\PositionPayrollComponent;
-use App\Models\Pph21TerRate;
+use App\Models\PtkpRate;
 use App\Models\TaxProfile;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -552,9 +553,9 @@ class PayrollController extends Controller
         $withheld = (float) $items->sum('pph21_total');
         $biayaJabatan = min($annualGross * 0.05, 6_000_000);
         $ptkpStatus = $employee->taxProfile?->ptkp_status;
-        $ptkp = $this->ptkpFor($ptkpStatus);
+        $ptkp = $this->ptkpFor($ptkpStatus, (int) $employee->tenant_id, $year);
         $pkp = max(0.0, floor(($annualGross - $biayaJabatan - $ptkp) / 1000) * 1000);
-        $annualTax = $this->progressiveTax($pkp);
+        $annualTax = $this->progressiveTax($pkp, (int) $employee->tenant_id, $year);
 
         $pdf = Pdf::loadView('pdf.bukti-potong-1721', [
             'company' => $employee->tenant?->company_name ?? $employee->tenant?->name ?? 'AvanaHR',
@@ -1216,32 +1217,34 @@ class PayrollController extends Controller
      */
     private function computePph21(Employee $employee, int $tenantId, float $gross): array
     {
+        // BPR Manual method: monthly PPh 21 = annualised progressive Pasal 17.
+        // Monthly gross is annualised (x12), reduced by biaya jabatan and the
+        // configurable PTKP, taxed with the progressive PKP brackets, then /12.
         $profile = TaxProfile::where('tenant_id', $tenantId)
             ->where('employee_id', $employee->id)
             ->first();
 
-        $category = $profile?->tax_category ?: 'A';
+        $year = (int) now()->year;
+        $annualGross = $gross * 12;
+        $biayaJabatan = min($annualGross * 0.05, 6_000_000);
+        $ptkp = $this->ptkpFor($profile?->ptkp_status, $tenantId, $year);
 
-        $rate = Pph21TerRate::where('is_active', true)
-            ->where('category', $category)
-            ->where('income_min', '<=', $gross)
-            ->where(function ($query) use ($gross): void {
-                $query->where('income_max', '>=', $gross)
-                    ->orWhereNull('income_max')
-                    ->orWhere('income_max', 0);
-            })
-            ->orderByDesc('income_min')
-            ->first();
+        $pkp = max(0.0, $annualGross - $biayaJabatan - $ptkp);
+        $pkp = floor($pkp / 1000) * 1000;
 
-        $taxRate = $rate !== null ? (float) $rate->rate : 0.0;
-        $amount = round($taxRate * $gross);
+        $annualTax = $this->progressiveTax($pkp, $tenantId, $year);
+        $amount = round($annualTax / 12);
 
         return [
             'amount' => $amount,
             'snapshot' => [
+                'method' => 'monthly_progressive',
                 'ptkp_status' => $profile?->ptkp_status,
-                'ter_category' => $category,
-                'tax_rate' => $taxRate,
+                'annual_gross' => round($annualGross),
+                'biaya_jabatan' => round($biayaJabatan),
+                'ptkp' => $ptkp,
+                'pkp' => $pkp,
+                'annual_tax' => $annualTax,
                 'pph21_amount' => $amount,
             ],
         ];
@@ -1293,12 +1296,12 @@ class PayrollController extends Controller
 
         $annualGross = $ytdGross + $currentGross;
         $biayaJabatan = min($annualGross * 0.05, 6_000_000);
-        $ptkp = $this->ptkpFor($profile?->ptkp_status);
+        $ptkp = $this->ptkpFor($profile?->ptkp_status, $tenantId, $year);
 
         $pkp = max(0.0, $annualGross - $biayaJabatan - $ptkp);
         $pkp = floor($pkp / 1000) * 1000; // taxable income is floored to thousands
 
-        $annualTax = $this->progressiveTax($pkp);
+        $annualTax = $this->progressiveTax($pkp, $tenantId, $year);
         $amount = max(0.0, round($annualTax - $ytdWithheld));
 
         return [
@@ -1318,18 +1321,24 @@ class PayrollController extends Controller
     }
 
     /**
-     * Resolve the annual PTKP allowance from a status code such as TK/0 or K/3
-     * (base 54jt, +4,5jt married, +4,5jt per dependant capped at three).
+     * Resolve the annual PTKP allowance for a status code (TK/0, K/3, ...).
+     * Reads the tenant's configurable Tarif PTKP table, falling back to the
+     * statutory computation (base 54jt, +4,5jt married, +4,5jt per dependant).
      */
-    private function ptkpFor(?string $status): float
+    private function ptkpFor(?string $status, int $tenantId, int $year): float
     {
-        $base = 54_000_000.0;
+        $status = $status !== null && $status !== '' ? strtoupper(trim($status)) : 'TK/0';
 
-        if ($status === null || $status === '') {
-            return $base;
+        $configured = PtkpRate::forTenant($tenantId)
+            ->where('ptkp_status', $status)
+            ->where('year', $year)
+            ->value('amount');
+
+        if ($configured !== null) {
+            return (float) $configured;
         }
 
-        $status = strtoupper(trim($status));
+        $base = 54_000_000.0;
         $married = str_starts_with($status, 'K');
         $dependents = preg_match('/(\d+)/', $status, $matches) ? min((int) $matches[1], 3) : 0;
 
@@ -1337,31 +1346,48 @@ class PayrollController extends Controller
     }
 
     /**
-     * Progressive annual income tax on taxable income (PKP) using the UU HPP
-     * Pasal 17 brackets: 5/15/25/30/35% across the statutory thresholds.
+     * Progressive annual income tax on taxable income (PKP). Reads the tenant's
+     * configurable Tarif PKP brackets, falling back to the UU HPP Pasal 17
+     * brackets (5/15/25/30/35%).
      */
-    private function progressiveTax(float $pkp): float
+    private function progressiveTax(float $pkp, int $tenantId, int $year): float
     {
-        // [bracket width, rate] — 0-60jt, 60-250jt, 250-500jt, 500jt-5M, >5M.
-        $brackets = [
-            [60_000_000, 0.05],
-            [190_000_000, 0.15],
-            [250_000_000, 0.25],
-            [4_500_000_000, 0.30],
-            [PHP_INT_MAX, 0.35],
-        ];
+        $configured = PkpRate::forTenant($tenantId)
+            ->where('year', $year)
+            ->orderBy('sort_order')
+            ->orderBy('up_to')
+            ->get(['up_to', 'rate']);
+
+        // [cumulative upper bound (null = infinity), rate].
+        $brackets = $configured->isNotEmpty()
+            ? $configured->map(fn (PkpRate $r): array => [
+                $r->up_to !== null ? (float) $r->up_to : null,
+                (float) $r->rate,
+            ])->all()
+            : [
+                [60_000_000.0, 0.05],
+                [250_000_000.0, 0.15],
+                [500_000_000.0, 0.25],
+                [5_000_000_000.0, 0.30],
+                [null, 0.35],
+            ];
 
         $tax = 0.0;
-        $remaining = $pkp;
+        $lower = 0.0;
 
-        foreach ($brackets as [$width, $rate]) {
-            if ($remaining <= 0) {
+        foreach ($brackets as [$upper, $rate]) {
+            if ($pkp <= $lower) {
                 break;
             }
 
-            $slice = min($remaining, (float) $width);
-            $tax += $slice * $rate;
-            $remaining -= $slice;
+            $ceiling = $upper ?? $pkp;
+            $slice = min($pkp, $ceiling) - $lower;
+
+            if ($slice > 0) {
+                $tax += $slice * $rate;
+            }
+
+            $lower = $ceiling;
         }
 
         return round($tax);

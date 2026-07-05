@@ -291,7 +291,7 @@ class LaporanController extends Controller
         $latestRunId = $this->latestRunId($tenantId);
 
         if ($latestRunId !== null) {
-            $header = ['Nama', 'Employee Number', 'Penghasilan Bruto', 'Kategori TER', 'Tarif', 'PPh 21'];
+            $header = ['Nama', 'Employee Number', 'Penghasilan Bruto', 'Status PTKP', 'PKP Setahun', 'PPh 21'];
 
             $query = PayrollRunItem::query()
                 ->forTenant($tenantId)
@@ -306,8 +306,8 @@ class LaporanController extends Controller
                     $item->employee?->full_name,
                     $item->employee?->employee_number,
                     (int) $item->gross_salary,
-                    $tax['ter_category'] ?? null,
-                    $this->taxRateLabel($tax['tax_rate'] ?? null),
+                    $tax['ptkp_status'] ?? null,
+                    (int) ($tax['pkp'] ?? 0),
                     (int) $item->pph21_total,
                 ];
             };

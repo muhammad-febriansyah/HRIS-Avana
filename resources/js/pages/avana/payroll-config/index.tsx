@@ -9,7 +9,8 @@ import type { FlashProps, PayrollConfigProps } from './types';
 
 export default function PayrollConfig({
     programs,
-    terRates,
+    ptkpRates,
+    pkpRates,
     profileStats,
 }: PayrollConfigProps) {
     const { flash } = usePage<FlashProps>().props;
@@ -54,8 +55,8 @@ export default function PayrollConfig({
                         Konfigurasi BPJS &amp; Pajak
                     </h1>
                     <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
-                        Kelola program iuran BPJS dan tarif efektif rata-rata
-                        (TER) PPh 21.
+                        Kelola program iuran BPJS serta Tarif PTKP &amp; PKP
+                        progresif (PPh 21 Pasal 17).
                     </div>
                 </div>
 
@@ -75,8 +76,8 @@ export default function PayrollConfig({
                             icon: 'shield-plus',
                         },
                         {
-                            label: 'Tarif PPh 21',
-                            value: terRates.length,
+                            label: 'Tarif PTKP / PKP',
+                            value: ptkpRates.length + pkpRates.length,
                             icon: 'percent',
                         },
                         {
@@ -185,7 +186,7 @@ export default function PayrollConfig({
                 {activeKey === 'bpjs' ? (
                     <BpjsTab programs={programs} />
                 ) : (
-                    <Pph21Tab terRates={terRates} />
+                    <Pph21Tab ptkpRates={ptkpRates} pkpRates={pkpRates} />
                 )}
             </div>
         </>

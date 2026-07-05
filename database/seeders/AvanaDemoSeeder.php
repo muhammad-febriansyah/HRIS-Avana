@@ -18,8 +18,9 @@ use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\Permission;
+use App\Models\PkpRate;
 use App\Models\Position;
-use App\Models\Pph21TerRate;
+use App\Models\PtkpRate;
 use App\Models\Role;
 use App\Models\Shift;
 use App\Models\Tenant;
@@ -608,15 +609,36 @@ final class AvanaDemoSeeder extends Seeder
             );
         }
 
-        $ter = [
-            ['category' => 'A', 'min' => 0, 'max' => 5400000, 'rate' => 0.0],
-            ['category' => 'A', 'min' => 5400000, 'max' => 5650000, 'rate' => 0.0025],
-            ['category' => 'A', 'min' => 5650000, 'max' => 5950000, 'rate' => 0.005],
+        foreach (Tenant::pluck('id') as $tenantId) {
+            $this->seedTaxRates((int) $tenantId);
+        }
+    }
+
+    /**
+     * Seed the tenant's configurable Tarif PTKP + Tarif PKP (progressive Pasal 17)
+     * used by the BPR-manual monthly PPh 21 calculation.
+     */
+    private function seedTaxRates(int $tenantId, int $year = 2026): void
+    {
+        $ptkp = [
+            'TK/0' => 54_000_000, 'TK/1' => 58_500_000, 'TK/2' => 63_000_000, 'TK/3' => 67_500_000,
+            'K/0' => 58_500_000, 'K/1' => 63_000_000, 'K/2' => 67_500_000, 'K/3' => 72_000_000,
         ];
-        foreach ($ter as $t) {
-            Pph21TerRate::firstOrCreate(
-                ['category' => $t['category'], 'income_min' => $t['min'], 'effective_start_date' => '2026-01-01'],
-                ['income_max' => $t['max'], 'rate' => $t['rate'], 'is_active' => true],
+        foreach ($ptkp as $status => $amount) {
+            PtkpRate::updateOrCreate(
+                ['tenant_id' => $tenantId, 'ptkp_status' => $status, 'year' => $year],
+                ['amount' => $amount],
+            );
+        }
+
+        $pkp = [
+            [60_000_000, 0.05], [250_000_000, 0.15], [500_000_000, 0.25],
+            [5_000_000_000, 0.30], [null, 0.35],
+        ];
+        foreach ($pkp as $i => [$upTo, $rate]) {
+            PkpRate::updateOrCreate(
+                ['tenant_id' => $tenantId, 'year' => $year, 'sort_order' => $i],
+                ['up_to' => $upTo, 'rate' => $rate],
             );
         }
     }

@@ -2,7 +2,8 @@
 
 use App\Http\Controllers\Avana\PayrollConfigController;
 use App\Models\BpjsProgram;
-use App\Models\Pph21TerRate;
+use App\Models\PkpRate;
+use App\Models\PtkpRate;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -28,9 +29,10 @@ beforeEach(function (): void {
         Route::post('spec-payroll-config/bpjs', [PayrollConfigController::class, 'storeBpjsProgram']);
         Route::put('spec-payroll-config/bpjs/{program}', [PayrollConfigController::class, 'updateBpjsProgram']);
         Route::delete('spec-payroll-config/bpjs/{program}', [PayrollConfigController::class, 'destroyBpjsProgram']);
-        Route::post('spec-payroll-config/pph21', [PayrollConfigController::class, 'storeTerRate']);
-        Route::put('spec-payroll-config/pph21/{rate}', [PayrollConfigController::class, 'updateTerRate']);
-        Route::delete('spec-payroll-config/pph21/{rate}', [PayrollConfigController::class, 'destroyTerRate']);
+        Route::post('spec-payroll-config/ptkp', [PayrollConfigController::class, 'storePtkpRate']);
+        Route::delete('spec-payroll-config/ptkp/{rate}', [PayrollConfigController::class, 'destroyPtkpRate']);
+        Route::post('spec-payroll-config/pkp', [PayrollConfigController::class, 'storePkpRate']);
+        Route::delete('spec-payroll-config/pkp/{rate}', [PayrollConfigController::class, 'destroyPkpRate']);
     });
 });
 
@@ -42,7 +44,8 @@ it('renders the payroll config screen with the expected props', function (): voi
             ->component('avana/payroll-config/index', false)
             ->has('programs', 3)
             ->has('programs.0.rates')
-            ->has('terRates', 3)
+            ->has('ptkpRates')
+            ->has('pkpRates')
             ->has('profileStats.bpjs_profiles')
             ->has('profileStats.tax_profiles'));
 });
@@ -136,63 +139,54 @@ it('soft deletes a BPJS program', function (): void {
     expect(BpjsProgram::withTrashed()->where('id', $program->id)->exists())->toBeTrue();
 });
 
-it('creates a PPh 21 TER rate', function (): void {
-    actingAs($this->superadmin)
-        ->post('spec-payroll-config/pph21', [
-            'category' => 'B',
-            'income_min' => 6200000,
-            'income_max' => 6500000,
-            'rate' => 0.0075,
-            'effective_start_date' => '2026-01-01',
-            'is_active' => true,
+it('creates a Tarif PTKP entry', function (): void {
+    actingAs($this->admin)
+        ->post('spec-payroll-config/ptkp', [
+            'ptkp_status' => 'K/2',
+            'year' => 2026,
+            'amount' => 67500000,
         ])
         ->assertRedirect()
         ->assertSessionHas('success');
 
-    $rate = Pph21TerRate::where('category', 'B')->where('income_min', 6200000)->firstOrFail();
-    expect((float) $rate->rate)->toBe(0.0075);
-    expect($rate->is_active)->toBeTrue();
+    $rate = PtkpRate::where('tenant_id', $this->tenant->id)->where('ptkp_status', 'K/2')->where('year', 2026)->firstOrFail();
+    expect((float) $rate->amount)->toBe(67500000.0);
 });
 
-it('validates required fields on PPh 21 store', function (): void {
-    actingAs($this->superadmin)
-        ->post('spec-payroll-config/pph21', [
-            'category' => '',
-            'income_min' => '',
-            'rate' => '',
+it('validates required fields on Tarif PTKP store', function (): void {
+    actingAs($this->admin)
+        ->post('spec-payroll-config/ptkp', [
+            'ptkp_status' => '',
+            'year' => '',
+            'amount' => '',
         ])
-        ->assertSessionHasErrors(['category', 'income_min', 'rate', 'effective_start_date']);
+        ->assertSessionHasErrors(['ptkp_status', 'year', 'amount']);
 });
 
-it('updates a PPh 21 TER rate', function (): void {
-    $rate = Pph21TerRate::where('category', 'A')->orderBy('income_min')->firstOrFail();
-
-    actingAs($this->superadmin)
-        ->put('spec-payroll-config/pph21/'.$rate->id, [
-            'category' => 'A',
-            'income_min' => 0,
-            'income_max' => 5600000,
-            'rate' => 0.001,
-            'effective_start_date' => '2026-01-01',
-            'is_active' => false,
+it('creates a Tarif PKP progressive bracket', function (): void {
+    actingAs($this->admin)
+        ->post('spec-payroll-config/pkp', [
+            'year' => 2026,
+            'up_to' => 60000000,
+            'rate' => 0.05,
+            'sort_order' => 0,
         ])
         ->assertRedirect()
         ->assertSessionHas('success');
 
-    $rate->refresh();
-    expect((float) $rate->rate)->toBe(0.001);
-    expect($rate->is_active)->toBeFalse();
+    $rate = PkpRate::where('tenant_id', $this->tenant->id)->where('year', 2026)->where('up_to', 60000000)->firstOrFail();
+    expect((float) $rate->rate)->toBe(0.05);
 });
 
-it('deletes a PPh 21 TER rate', function (): void {
-    $rate = Pph21TerRate::query()->firstOrFail();
+it('deletes a Tarif PTKP entry', function (): void {
+    $rate = PtkpRate::where('tenant_id', $this->tenant->id)->firstOrFail();
 
-    actingAs($this->superadmin)
-        ->delete('spec-payroll-config/pph21/'.$rate->id)
+    actingAs($this->admin)
+        ->delete('spec-payroll-config/ptkp/'.$rate->id)
         ->assertRedirect()
         ->assertSessionHas('success');
 
-    expect(Pph21TerRate::where('id', $rate->id)->exists())->toBeFalse();
+    expect(PtkpRate::where('id', $rate->id)->exists())->toBeFalse();
 });
 
 it('forbids a plain employee from viewing the configuration', function (): void {
@@ -236,14 +230,14 @@ it('lets an HR admin view but not edit the global statutory config', function ()
         ])
         ->assertForbidden();
 
+    // Tarif PTKP/PKP are tenant-scoped config: a tenant HR admin MAY manage them.
     actingAs($this->admin)
-        ->post('spec-payroll-config/pph21', [
-            'category' => 'C',
-            'income_min' => 1000000,
-            'rate' => 0.01,
-            'effective_start_date' => '2026-01-01',
+        ->post('spec-payroll-config/ptkp', [
+            'ptkp_status' => 'TK/0',
+            'year' => 2026,
+            'amount' => 54000000,
         ])
-        ->assertForbidden();
+        ->assertRedirect();
 
     expect(BpjsProgram::where('code', 'JKM')->exists())->toBeFalse();
 });

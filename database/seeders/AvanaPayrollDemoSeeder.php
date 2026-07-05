@@ -7,9 +7,10 @@ use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
 use App\Models\OvertimeRequest;
 use App\Models\PayrollComponent;
+use App\Models\PkpRate;
 use App\Models\Position;
 use App\Models\PositionPayrollComponent;
-use App\Models\Pph21TerRate;
+use App\Models\PtkpRate;
 use App\Models\TaxProfile;
 use App\Models\Tenant;
 use Illuminate\Database\Seeder;
@@ -35,15 +36,21 @@ final class AvanaPayrollDemoSeeder extends Seeder
         }
 
         // Higher TER brackets so above-PTKP earners owe internal PPh 21.
-        $ter = [
-            ['category' => 'A', 'min' => 5950000, 'max' => 6300000, 'rate' => 0.0075],
-            ['category' => 'A', 'min' => 6300000, 'max' => 9000000, 'rate' => 0.01],
-            ['category' => 'A', 'min' => 9000000, 'max' => 0, 'rate' => 0.02],
+        // Configurable Tarif PTKP + progressive Tarif PKP (BPR-manual PPh 21).
+        $ptkp = [
+            'TK/0' => 54_000_000, 'TK/1' => 58_500_000, 'TK/2' => 63_000_000, 'TK/3' => 67_500_000,
+            'K/0' => 58_500_000, 'K/1' => 63_000_000, 'K/2' => 67_500_000, 'K/3' => 72_000_000,
         ];
-        foreach ($ter as $row) {
-            Pph21TerRate::firstOrCreate(
-                ['category' => $row['category'], 'income_min' => $row['min'], 'effective_start_date' => '2026-01-01'],
-                ['income_max' => $row['max'], 'rate' => $row['rate'], 'is_active' => true],
+        foreach ($ptkp as $status => $amount) {
+            PtkpRate::updateOrCreate(
+                ['tenant_id' => $tenant->id, 'ptkp_status' => $status, 'year' => 2026],
+                ['amount' => $amount],
+            );
+        }
+        foreach ([[60_000_000, 0.05], [250_000_000, 0.15], [500_000_000, 0.25], [5_000_000_000, 0.30], [null, 0.35]] as $i => [$upTo, $rate]) {
+            PkpRate::updateOrCreate(
+                ['tenant_id' => $tenant->id, 'year' => 2026, 'sort_order' => $i],
+                ['up_to' => $upTo, 'rate' => $rate],
             );
         }
 
