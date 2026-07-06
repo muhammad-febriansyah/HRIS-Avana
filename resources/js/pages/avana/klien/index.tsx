@@ -3,8 +3,8 @@ import type { CSSProperties } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import TenantController from '@/actions/App/Http/Controllers/Avana/TenantController';
-import { AIcon, btnP, C, card, thCell } from '@/lib/avana';
-import { ConfirmModal, iconBtn, StatusBadge, Usage } from './components';
+import { AIcon, ActionBtn, btnP, C, card, thCell } from '@/lib/avana';
+import { ConfirmModal, StatusBadge, Usage } from './components';
 import { STATUS_OPTIONS } from './types';
 import type { FlashProps, KlienFilters, TenantRow } from './types';
 import type { FeatureOption, PackageOption, PaginationMeta } from './types';
@@ -307,21 +307,77 @@ export default function KlienIndex({
                                         <td style={{ padding: '13px 16px' }}>
                                             <div
                                                 style={{
-                                                    fontSize: 13.5,
-                                                    fontWeight: 600,
-                                                    color: C.navy,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 11,
                                                 }}
                                             >
-                                                {tenant.name}
-                                            </div>
-                                            <div
-                                                style={{
-                                                    fontSize: 12,
-                                                    color: C.faint,
-                                                }}
-                                            >
-                                                {tenant.company_name ?? '—'} ·{' '}
-                                                {tenant.slug}
+                                                {tenant.logo ? (
+                                                    <img
+                                                        src={tenant.logo}
+                                                        alt={tenant.name}
+                                                        style={{
+                                                            width: 38,
+                                                            height: 38,
+                                                            borderRadius: 9,
+                                                            objectFit: 'cover',
+                                                            flex: 'none',
+                                                            border: `1px solid ${C.line}`,
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <div
+                                                        style={{
+                                                            width: 38,
+                                                            height: 38,
+                                                            borderRadius: 9,
+                                                            flex: 'none',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent:
+                                                                'center',
+                                                            background:
+                                                                'rgba(30,58,138,.08)',
+                                                            color: C.primary,
+                                                            fontSize: 13,
+                                                            fontWeight: 700,
+                                                        }}
+                                                    >
+                                                        {tenant.name
+                                                            .replace(
+                                                                /^PT\s+/i,
+                                                                '',
+                                                            )
+                                                            .slice(0, 2)
+                                                            .toUpperCase()}
+                                                    </div>
+                                                )}
+                                                <div>
+                                                    <Link
+                                                        href={TenantController.show(
+                                                            tenant.id,
+                                                        )}
+                                                        style={{
+                                                            fontSize: 13.5,
+                                                            fontWeight: 600,
+                                                            color: C.navy,
+                                                            textDecoration:
+                                                                'none',
+                                                        }}
+                                                    >
+                                                        {tenant.name}
+                                                    </Link>
+                                                    <div
+                                                        style={{
+                                                            fontSize: 12,
+                                                            color: C.faint,
+                                                        }}
+                                                    >
+                                                        {tenant.company_name ??
+                                                            '—'}{' '}
+                                                        · {tenant.slug}
+                                                    </div>
+                                                </div>
                                             </div>
                                         </td>
                                         <td
@@ -366,63 +422,56 @@ export default function KlienIndex({
                                                 style={{
                                                     display: 'inline-flex',
                                                     gap: 6,
+                                                    flexWrap: 'wrap',
+                                                    justifyContent: 'flex-end',
                                                 }}
                                             >
-                                                <button
+                                                <ActionBtn
+                                                    icon="eye"
+                                                    label="Lihat"
+                                                    variant="primary"
+                                                    title="Lihat detail"
+                                                    onClick={() =>
+                                                        router.visit(
+                                                            TenantController.show(
+                                                                tenant.id,
+                                                            ),
+                                                        )
+                                                    }
+                                                />
+                                                <ActionBtn
+                                                    icon="layout-grid"
+                                                    label="Fitur"
+                                                    variant="neutral"
+                                                    title="Kelola fitur"
                                                     onClick={() =>
                                                         setFeatureTenantId(
                                                             tenant.id,
                                                         )
                                                     }
-                                                    title="Kelola fitur"
-                                                    style={{
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        gap: 6,
-                                                        height: 32,
-                                                        padding: '0 11px',
-                                                        border: `1px solid ${C.border}`,
-                                                        background: '#fff',
-                                                        borderRadius: 8,
-                                                        fontSize: 12.5,
-                                                        fontWeight: 500,
-                                                        color: C.text,
-                                                        cursor: 'pointer',
-                                                    }}
-                                                >
-                                                    <AIcon
-                                                        name="layout-grid"
-                                                        size={15}
-                                                        color={C.primary}
-                                                    />
-                                                    Fitur
-                                                </button>
-                                                <Link
-                                                    href={TenantController.edit(
-                                                        tenant.id,
-                                                    )}
+                                                />
+                                                <ActionBtn
+                                                    icon="pencil"
+                                                    label="Ubah"
+                                                    variant="success"
                                                     title="Edit klien"
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="pencil"
-                                                        size={15}
-                                                        color={C.muted}
-                                                    />
-                                                </Link>
-                                                <button
+                                                    onClick={() =>
+                                                        router.visit(
+                                                            TenantController.edit(
+                                                                tenant.id,
+                                                            ),
+                                                        )
+                                                    }
+                                                />
+                                                <ActionBtn
+                                                    icon="trash-2"
+                                                    label="Hapus"
+                                                    variant="danger"
+                                                    title="Hapus klien"
                                                     onClick={() =>
                                                         setConfirm(tenant)
                                                     }
-                                                    title="Hapus klien"
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={15}
-                                                        color={C.red}
-                                                    />
-                                                </button>
+                                                />
                                             </div>
                                         </td>
                                     </tr>

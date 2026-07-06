@@ -305,7 +305,7 @@ export default function ShiftSwapIndex({
                                                             <ActionBtn
                                                                 icon="x"
                                                                 label="Tolak"
-                                                                variant="warning"
+                                                                variant="danger"
                                                                 onClick={() =>
                                                                     reject(swap)
                                                                 }

@@ -11,6 +11,7 @@ export interface TenantRow {
     name: string;
     slug: string;
     company_name: string | null;
+    logo: string | null;
     status: string;
     billing_status: string | null;
     package: { id: number; name: string } | null;

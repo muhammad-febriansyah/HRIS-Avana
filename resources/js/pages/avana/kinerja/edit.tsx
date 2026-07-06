@@ -4,12 +4,11 @@ import { useEffect } from 'react';
 import { toast } from 'sonner';
 import PerformanceController from '@/actions/App/Http/Controllers/Avana/PerformanceController';
 import { SearchableSelect } from '@/components/searchable-select';
-import { AIcon, btnP, C, card } from '@/lib/avana';
+import { ActionBtn, AIcon, btnP, C, card } from '@/lib/avana';
 import {
     FeedbackTypeBadge,
     FieldError,
     fieldLabelStyle,
-    iconBtn,
     inputStyle,
     selectStyle,
     textareaStyle,
@@ -410,18 +409,13 @@ export default function KinerjaEdit({
                                             </span>
                                         )}
                                     </div>
-                                    <button
-                                        type="button"
+                                    <ActionBtn
+                                        icon="trash-2"
+                                        label="Hapus"
+                                        variant="danger"
                                         title="Hapus umpan balik"
                                         onClick={() => deleteFeedback(feedback)}
-                                        style={iconBtn}
-                                    >
-                                        <AIcon
-                                            name="trash-2"
-                                            size={15}
-                                            color={C.red}
-                                        />
-                                    </button>
+                                    />
                                 </div>
                                 {feedback.comment && (
                                     <div

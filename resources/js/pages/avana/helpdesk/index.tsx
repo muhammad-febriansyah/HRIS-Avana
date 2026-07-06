@@ -4,11 +4,10 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import HelpdeskController from '@/actions/App/Http/Controllers/Avana/HelpdeskController';
 import { SearchableSelect } from '@/components/searchable-select';
-import { AIcon, btnP, C, card, thCell } from '@/lib/avana';
+import { ActionBtn, AIcon, btnP, C, card, thCell } from '@/lib/avana';
 import {
     ConfirmModal,
     fieldLabelStyle,
-    iconBtn,
     PriorityBadge,
     selectStyle,
     StatusBadge,
@@ -460,45 +459,37 @@ export default function HelpdeskIndex({
                                                         </option>
                                                     ))}
                                                 </select>
-                                                <button
+                                                <ActionBtn
+                                                    icon="user-plus"
+                                                    label="Tugaskan"
+                                                    variant="primary"
                                                     title="Tugaskan"
                                                     onClick={() =>
                                                         openAssign(ticket)
                                                     }
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="user-plus"
-                                                        size={15}
-                                                        color={C.muted}
-                                                    />
-                                                </button>
-                                                <Link
+                                                />
+                                                <ActionBtn
+                                                    icon="pencil"
+                                                    label="Ubah"
+                                                    variant="success"
                                                     title="Ubah"
-                                                    href={HelpdeskController.edit(
-                                                        ticket.id,
-                                                    )}
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="pencil"
-                                                        size={15}
-                                                        color={C.muted}
-                                                    />
-                                                </Link>
-                                                <button
+                                                    onClick={() =>
+                                                        router.visit(
+                                                            HelpdeskController.edit(
+                                                                ticket.id,
+                                                            ).url,
+                                                        )
+                                                    }
+                                                />
+                                                <ActionBtn
+                                                    icon="trash-2"
+                                                    label="Hapus"
+                                                    variant="danger"
                                                     title="Hapus"
                                                     onClick={() =>
                                                         setConfirm(ticket)
                                                     }
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={15}
-                                                        color={C.red}
-                                                    />
-                                                </button>
+                                                />
                                             </div>
                                         </td>
                                     </tr>

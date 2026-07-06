@@ -578,9 +578,15 @@ final class AvanaDemoSeeder extends Seeder
             ['code' => 'POT-KOP', 'name' => 'Potongan Koperasi', 'type' => 'deduction'],
         ];
         foreach ($components as $c) {
-            PayrollComponent::firstOrCreate(
+            PayrollComponent::updateOrCreate(
                 ['tenant_id' => $tenant->id, 'code' => $c['code']],
-                ['name' => $c['name'], 'type' => $c['type'], 'is_taxable' => $c['is_taxable'] ?? true, 'status' => 'active'],
+                [
+                    'name' => $c['name'],
+                    'type' => $c['type'],
+                    'component_group' => $c['type'] === 'deduction' ? 'potongan' : 'penerimaan',
+                    'is_taxable' => $c['is_taxable'] ?? true,
+                    'status' => 'active',
+                ],
             );
         }
 

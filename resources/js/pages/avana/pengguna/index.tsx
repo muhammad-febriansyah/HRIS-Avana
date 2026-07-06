@@ -366,25 +366,39 @@ export default function PenggunaIndex({
                                                     gap: 11,
                                                 }}
                                             >
-                                                <div
-                                                    style={{
-                                                        width: 36,
-                                                        height: 36,
-                                                        borderRadius: '50%',
-                                                        flex: 'none',
-                                                        background:
-                                                            user.avatar_color,
-                                                        color: '#fff',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent:
-                                                            'center',
-                                                        fontSize: 12.5,
-                                                        fontWeight: 600,
-                                                    }}
-                                                >
-                                                    {user.initials}
-                                                </div>
+                                                {user.avatar_url ? (
+                                                    <img
+                                                        src={user.avatar_url}
+                                                        alt={user.name}
+                                                        style={{
+                                                            width: 36,
+                                                            height: 36,
+                                                            borderRadius: '50%',
+                                                            flex: 'none',
+                                                            objectFit: 'cover',
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <div
+                                                        style={{
+                                                            width: 36,
+                                                            height: 36,
+                                                            borderRadius: '50%',
+                                                            flex: 'none',
+                                                            background:
+                                                                user.avatar_color,
+                                                            color: '#fff',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent:
+                                                                'center',
+                                                            fontSize: 12.5,
+                                                            fontWeight: 600,
+                                                        }}
+                                                    >
+                                                        {user.initials}
+                                                    </div>
+                                                )}
                                                 <div style={{ minWidth: 0 }}>
                                                     <div
                                                         style={{

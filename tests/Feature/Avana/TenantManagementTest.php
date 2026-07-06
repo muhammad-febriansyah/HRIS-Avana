@@ -175,3 +175,32 @@ it('soft deletes a tenant', function (): void {
     expect(Tenant::find($tenant->id))->toBeNull();
     expect(Tenant::withTrashed()->find($tenant->id))->not->toBeNull();
 });
+
+it('renders the tenant detail page for a super admin with the full profile payload', function (): void {
+    actingAs($this->superAdmin)
+        ->get(route('avana.klien.show', $this->tenant))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/klien/show', false)
+            ->where('tenant.id', $this->tenant->id)
+            ->has('tenant.users_count')
+            ->has('tenant.employees_count')
+            ->has('tenant.branches_count')
+            ->has('tenant.max_employees')
+            ->has('subscription.total')
+            ->has('billing.paid_total')
+            ->has('billing.outstanding')
+            ->has('billing.recent')
+            ->has('features')
+            ->has('branches')
+            ->has('departments')
+            ->has('employees.active')
+            ->has('employees.employment.permanent')
+            ->has('employees.recent'));
+});
+
+it('forbids an admin_tenant_hr from viewing the tenant detail page', function (): void {
+    actingAs($this->admin)
+        ->get(route('avana.klien.show', $this->tenant))
+        ->assertForbidden();
+});

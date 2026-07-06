@@ -31,6 +31,7 @@ export interface UserRow {
     roles: RoleOption[];
     initials: string;
     avatar_color: string;
+    avatar_url: string | null;
     data_scope: string;
     branch_ids: number[];
     device: {

@@ -10,7 +10,6 @@ import {
     ConfirmModal,
     FieldError,
     fieldLabelStyle,
-    iconBtn,
     inputStyle,
     selectStyle,
     withError,
@@ -302,34 +301,30 @@ export default function SuratIndex({
                                                     gap: 6,
                                                 }}
                                             >
-                                                <Link
+                                                <ActionBtn
+                                                    icon="pencil"
+                                                    label="Ubah"
+                                                    variant="success"
                                                     title="Ubah"
-                                                    href={LetterTemplateController.edit(
-                                                        template.id,
-                                                    )}
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="pencil"
-                                                        size={15}
-                                                        color={C.muted}
-                                                    />
-                                                </Link>
-                                                <button
+                                                    onClick={() =>
+                                                        router.visit(
+                                                            LetterTemplateController.edit(
+                                                                template.id,
+                                                            ).url,
+                                                        )
+                                                    }
+                                                />
+                                                <ActionBtn
+                                                    icon="trash-2"
+                                                    label="Hapus"
+                                                    variant="danger"
                                                     title="Hapus"
                                                     onClick={() =>
                                                         setConfirmTemplate(
                                                             template,
                                                         )
                                                     }
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={15}
-                                                        color={C.red}
-                                                    />
-                                                </button>
+                                                />
                                             </div>
                                         </td>
                                     </tr>

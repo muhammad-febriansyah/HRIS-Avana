@@ -2,13 +2,8 @@ import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import BillingController from '@/actions/App/Http/Controllers/Avana/BillingController';
-import { AIcon, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
-import {
-    fieldLabelStyle,
-    iconBtn,
-    inputStyle,
-    selectStyle,
-} from './components';
+import { AIcon, ActionBtn, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
+import { fieldLabelStyle, inputStyle, selectStyle } from './components';
 import { formatRupiah } from './types';
 import type { FlashProps, TenantOption } from './types';
 
@@ -283,7 +278,10 @@ export default function InvoiceCreate({
                                             )
                                         }
                                     />
-                                    <button
+                                    <ActionBtn
+                                        icon="x"
+                                        label="Hapus"
+                                        variant="danger"
                                         type="button"
                                         title="Hapus item"
                                         onClick={() =>
@@ -295,14 +293,7 @@ export default function InvoiceCreate({
                                             )
                                         }
                                         disabled={data.items.length === 1}
-                                        style={iconBtn}
-                                    >
-                                        <AIcon
-                                            name="x"
-                                            size={15}
-                                            color={C.red}
-                                        />
-                                    </button>
+                                    />
                                 </div>
                             ))}
                             {errors.items ? (

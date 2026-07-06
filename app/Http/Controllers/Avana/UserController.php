@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Exists;
 use Inertia\Inertia;
@@ -59,6 +60,7 @@ class UserController extends Controller
                 'branchAccesses:id,user_id,branch_id',
                 'dataScopes:id,user_id,scope_type,scope_value',
                 'activeDevice',
+                'employee:id,user_id,photo_path',
             ])
             ->when($request->query('search'), function ($query, $search): void {
                 $query->where(function ($q) use ($search): void {
@@ -277,6 +279,7 @@ class UserController extends Controller
             ])->values()->all(),
             'initials' => $this->initials($user->name),
             'avatar_color' => $this->avatarColor($user->name),
+            'avatar_url' => $this->resolveAvatarUrl($user),
             'data_scope' => $user->dataScopes->first()?->scope_type ?? 'company',
             'branch_ids' => $user->branchAccesses
                 ->pluck('branch_id')
@@ -422,6 +425,17 @@ class UserController extends Controller
         $index = crc32((string) $name) % count(self::AVATAR_PALETTE);
 
         return self::AVATAR_PALETTE[$index];
+    }
+
+    /**
+     * Resolve the user's photo URL: prefer the uploaded avatar, otherwise fall
+     * back to the linked employee's photo. Returns null when neither exists.
+     */
+    private function resolveAvatarUrl(User $user): ?string
+    {
+        $path = $user->avatar_path ?? $user->employee?->photo_path;
+
+        return $path !== null ? Storage::disk('public')->url($path) : null;
     }
 
     /**

@@ -4,12 +4,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import DokumenController from '@/actions/App/Http/Controllers/Avana/DokumenController';
 import { SearchableSelect } from '@/components/searchable-select';
-import { AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
+import { ActionBtn, AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
 import {
     ConfirmModal,
     FieldError,
     fieldLabelStyle,
-    iconBtn,
     inputStyle,
     selectStyle,
     TypeBadge,
@@ -404,35 +403,25 @@ export default function DokumenIndex({
                                                 }}
                                             >
                                                 {document.download_url && (
-                                                    <a
+                                                    <ActionBtn
+                                                        icon="download"
+                                                        label="Unduh"
+                                                        variant="neutral"
                                                         title="Unduh"
                                                         href={
                                                             document.download_url
                                                         }
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        style={iconBtn}
-                                                    >
-                                                        <AIcon
-                                                            name="download"
-                                                            size={15}
-                                                            color={C.muted}
-                                                        />
-                                                    </a>
+                                                    />
                                                 )}
-                                                <button
+                                                <ActionBtn
+                                                    icon="trash-2"
+                                                    label="Hapus"
+                                                    variant="danger"
                                                     title="Hapus"
                                                     onClick={() =>
                                                         setConfirm(document)
                                                     }
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={15}
-                                                        color={C.red}
-                                                    />
-                                                </button>
+                                                />
                                             </div>
                                         </td>
                                     </tr>

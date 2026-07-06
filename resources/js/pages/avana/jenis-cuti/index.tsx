@@ -2,8 +2,8 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import LeaveTypeController from '@/actions/App/Http/Controllers/Avana/LeaveTypeController';
-import { AIcon, btnP, C, card, thCell } from '@/lib/avana';
-import { ConfirmModal, iconBtn, StatusPill, YesNoPill } from './components';
+import { AIcon, ActionBtn, btnP, C, card, thCell } from '@/lib/avana';
+import { ConfirmModal, StatusPill, YesNoPill } from './components';
 import type { FlashProps, JenisCutiIndexProps, LeaveTypeRow } from './types';
 
 export default function JenisCutiIndex({ leaveTypes }: JenisCutiIndexProps) {
@@ -247,32 +247,28 @@ export default function JenisCutiIndex({ leaveTypes }: JenisCutiIndexProps) {
                                                     gap: 6,
                                                 }}
                                             >
-                                                <Link
+                                                <ActionBtn
+                                                    icon="pencil"
+                                                    label="Ubah"
+                                                    variant="success"
                                                     title="Ubah"
-                                                    href={LeaveTypeController.edit(
-                                                        row.id,
-                                                    )}
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="pencil"
-                                                        size={15}
-                                                        color={C.muted}
-                                                    />
-                                                </Link>
-                                                <button
+                                                    onClick={() =>
+                                                        router.visit(
+                                                            LeaveTypeController.edit(
+                                                                row.id,
+                                                            ).url,
+                                                        )
+                                                    }
+                                                />
+                                                <ActionBtn
+                                                    icon="trash-2"
+                                                    label="Hapus"
+                                                    variant="danger"
                                                     title="Hapus"
                                                     onClick={() =>
                                                         setConfirm(row)
                                                     }
-                                                    style={iconBtn}
-                                                >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={15}
-                                                        color={C.red}
-                                                    />
-                                                </button>
+                                                />
                                             </div>
                                         </td>
                                     </tr>

@@ -3,13 +3,19 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
+use App\Models\Department;
+use App\Models\Employee;
 use App\Models\Feature;
+use App\Models\Invoice;
 use App\Models\Package;
+use App\Models\Subscription;
 use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -41,6 +47,7 @@ class TenantController extends Controller
             ->withCount(['users', 'employees', 'branches'])
             ->with([
                 'package:id,name',
+                'company:id,tenant_id,logo_path',
                 'features' => fn ($query) => $query->where('is_enabled', true)->with('feature:id,code'),
             ])
             ->when($request->query('search'), function ($query, $search): void {
@@ -62,6 +69,9 @@ class TenantController extends Controller
             'name' => $tenant->name,
             'slug' => $tenant->slug,
             'company_name' => $tenant->company_name,
+            'logo' => $tenant->company?->logo_path
+                ? Storage::disk('public')->url($tenant->company->logo_path)
+                : null,
             'status' => $tenant->status,
             'billing_status' => $tenant->billing_status,
             'package' => $tenant->package
@@ -138,6 +148,139 @@ class TenantController extends Controller
                 'end_date' => $tenant->end_date?->toDateString(),
             ],
             'packages' => $this->packageOptions(),
+        ]);
+    }
+
+    /**
+     * Show a rich, read-only profile for a single client tenant: usage against
+     * quota, subscription & billing health, enabled modules, and org breakdown.
+     */
+    public function show(Request $request, Tenant $tenant): Response
+    {
+        $this->authorize('view', $tenant);
+
+        $tenant->loadCount(['users', 'employees', 'branches']);
+        $tenant->load('package:id,name,code,price,billing_cycle', 'company:id,tenant_id,logo_path');
+
+        $tenantId = $tenant->id;
+
+        $subscriptions = Subscription::forTenant($tenantId)
+            ->with('package:id,name')
+            ->orderByDesc('start_date')
+            ->get();
+        $activeSubscription = $subscriptions->firstWhere('status', 'active');
+
+        $invoices = Invoice::forTenant($tenantId)
+            ->orderByDesc('issue_date')
+            ->get(['id', 'invoice_number', 'total', 'status', 'issue_date', 'due_date', 'paid_at']);
+
+        $branches = Branch::forTenant($tenantId)
+            ->withCount('employees')
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $departments = Department::forTenant($tenantId)
+            ->withCount('employees')
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $employmentBreakdown = Employee::forTenant($tenantId)
+            ->where('status', 'active')
+            ->selectRaw('employment_status, COUNT(*) as total')
+            ->groupBy('employment_status')
+            ->pluck('total', 'employment_status');
+
+        $recentHires = Employee::forTenant($tenantId)
+            ->where('status', 'active')
+            ->whereNotNull('join_date')
+            ->with('position:id,name')
+            ->orderByDesc('join_date')
+            ->take(6)
+            ->get(['id', 'full_name', 'position_id', 'join_date']);
+
+        return Inertia::render('avana/klien/show', [
+            'tenant' => [
+                'id' => $tenant->id,
+                'name' => $tenant->name,
+                'company_name' => $tenant->company_name,
+                'slug' => $tenant->slug,
+                'logo' => $tenant->company?->logo_path
+                    ? Storage::disk('public')->url($tenant->company->logo_path)
+                    : null,
+                'status' => $tenant->status,
+                'billing_status' => $tenant->billing_status,
+                'package' => $tenant->package ? [
+                    'name' => $tenant->package->name,
+                    'code' => $tenant->package->code,
+                    'price' => (float) $tenant->package->price,
+                    'billing_cycle' => $tenant->package->billing_cycle,
+                ] : null,
+                'max_users' => (int) $tenant->max_users,
+                'max_employees' => (int) $tenant->max_employees,
+                'max_branches' => (int) $tenant->max_branches,
+                'users_count' => $tenant->users_count,
+                'employees_count' => $tenant->employees_count,
+                'branches_count' => $tenant->branches_count,
+                'start_date' => $tenant->start_date?->toDateString(),
+                'end_date' => $tenant->end_date?->toDateString(),
+                'created_at' => $tenant->created_at?->toIso8601String(),
+            ],
+            'subscription' => [
+                'active' => $activeSubscription ? [
+                    'package' => $activeSubscription->package?->name,
+                    'price' => (float) $activeSubscription->price,
+                    'billing_cycle' => $activeSubscription->billing_cycle,
+                    'status' => $activeSubscription->status,
+                    'start_date' => $activeSubscription->start_date?->toDateString(),
+                    'end_date' => $activeSubscription->end_date?->toDateString(),
+                ] : null,
+                'total' => $subscriptions->count(),
+            ],
+            'billing' => [
+                'paid_total' => (float) $invoices->where('status', 'paid')->sum('total'),
+                'outstanding' => (float) $invoices->whereIn('status', ['unpaid', 'overdue'])->sum('total'),
+                'overdue_count' => $invoices->where('status', 'overdue')->count(),
+                'invoice_count' => $invoices->count(),
+                'recent' => $invoices->take(6)->map(fn (Invoice $invoice): array => [
+                    'id' => $invoice->id,
+                    'number' => $invoice->invoice_number,
+                    'total' => (float) $invoice->total,
+                    'status' => $invoice->status,
+                    'issue_date' => $invoice->issue_date?->toDateString(),
+                    'due_date' => $invoice->due_date?->toDateString(),
+                ])->values()->all(),
+            ],
+            'features' => $tenant->features()
+                ->where('is_enabled', true)
+                ->with('feature:id,code,name')
+                ->get()
+                ->map(fn ($tenantFeature): ?string => $tenantFeature->feature?->name)
+                ->filter()
+                ->sort()
+                ->values()
+                ->all(),
+            'branches' => $branches->map(fn (Branch $branch): array => [
+                'name' => $branch->name,
+                'employees_count' => $branch->employees_count,
+            ])->all(),
+            'departments' => $departments->map(fn (Department $department): array => [
+                'name' => $department->name,
+                'employees_count' => $department->employees_count,
+            ])->all(),
+            'employees' => [
+                'active' => (int) $employmentBreakdown->sum(),
+                'employment' => [
+                    'permanent' => (int) ($employmentBreakdown['permanent'] ?? 0),
+                    'contract' => (int) ($employmentBreakdown['contract'] ?? 0),
+                    'probation' => (int) ($employmentBreakdown['probation'] ?? 0),
+                    'resigned' => (int) ($employmentBreakdown['resigned'] ?? 0),
+                ],
+                'recent' => $recentHires->map(fn (Employee $employee): array => [
+                    'name' => $employee->full_name,
+                    'position' => $employee->position?->name,
+                    'join_date' => $employee->join_date?->toDateString(),
+                ])->all(),
+            ],
         ]);
     }
 

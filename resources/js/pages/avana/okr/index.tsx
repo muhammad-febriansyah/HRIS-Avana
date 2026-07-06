@@ -3,12 +3,11 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import OkrController from '@/actions/App/Http/Controllers/Avana/OkrController';
-import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import { ActionBtn, AIcon, btnOut, btnP, C, card } from '@/lib/avana';
 import {
     ConfirmModal,
     FieldError,
     fieldLabelStyle,
-    iconBtn,
     inputStyle,
     LevelBadge,
     ProgressBar,
@@ -127,27 +126,21 @@ function KeyResultItem({ keyResult }: { keyResult: KeyResultRow }) {
                     placeholder="Nilai"
                     style={miniInputStyle}
                 />
-                <button
-                    type="button"
+                <ActionBtn
+                    icon="check"
+                    label="Simpan"
+                    variant="success"
                     title="Simpan progres"
                     onClick={saveProgress}
                     disabled={saving}
-                    style={{
-                        ...iconBtn,
-                        opacity: saving ? 0.6 : 1,
-                        cursor: saving ? 'not-allowed' : 'pointer',
-                    }}
-                >
-                    <AIcon name="check" size={15} color={C.green} />
-                </button>
-                <button
-                    type="button"
+                />
+                <ActionBtn
+                    icon="trash-2"
+                    label="Hapus"
+                    variant="danger"
                     title="Hapus key result"
                     onClick={deleteKr}
-                    style={iconBtn}
-                >
-                    <AIcon name="trash-2" size={15} color={C.red} />
-                </button>
+                />
             </div>
         </div>
     );
@@ -256,20 +249,22 @@ function ObjectiveCard({
                     </div>
                 </div>
                 <div style={{ display: 'inline-flex', gap: 6 }}>
-                    <Link
+                    <ActionBtn
+                        icon="pencil"
+                        label="Ubah"
+                        variant="success"
                         title="Ubah"
-                        href={OkrController.edit(objective.id)}
-                        style={iconBtn}
-                    >
-                        <AIcon name="pencil" size={15} color={C.muted} />
-                    </Link>
-                    <button
+                        onClick={() =>
+                            router.visit(OkrController.edit(objective.id).url)
+                        }
+                    />
+                    <ActionBtn
+                        icon="trash-2"
+                        label="Hapus"
+                        variant="danger"
                         title="Hapus"
                         onClick={() => onDelete(objective)}
-                        style={iconBtn}
-                    >
-                        <AIcon name="trash-2" size={15} color={C.red} />
-                    </button>
+                    />
                 </div>
             </div>
 
