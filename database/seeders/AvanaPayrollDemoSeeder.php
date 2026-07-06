@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Attendance;
+use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
 use App\Models\OvertimeRequest;
@@ -16,6 +17,7 @@ use App\Models\PtkpRate;
 use App\Models\SalaryMaster;
 use App\Models\TaxProfile;
 use App\Models\Tenant;
+use App\Models\UmrRate;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -223,5 +225,24 @@ final class AvanaPayrollDemoSeeder extends Seeder
         Employee::where('tenant_id', $tenant->id)
             ->whereIn('id', $sample->pluck('id'))
             ->update(['salary_master_id' => $master->id]);
+
+        // UMR per branch + a tenant-wide default (2026 DKI-ish figures).
+        $year = 2026;
+        UmrRate::updateOrCreate(
+            ['tenant_id' => $tenant->id, 'branch_id' => null, 'year' => $year],
+            ['region' => 'Default', 'amount' => 4_900_000, 'note' => 'UMR default tenant'],
+        );
+        foreach (Branch::where('tenant_id', $tenant->id)->get() as $branch) {
+            $amount = match (true) {
+                str_contains(strtolower($branch->name), 'jakarta') => 5_396_761,
+                str_contains(strtolower($branch->name), 'bandung') => 4_209_309,
+                str_contains(strtolower($branch->name), 'surabaya') => 4_725_479,
+                default => 4_900_000,
+            };
+            UmrRate::updateOrCreate(
+                ['tenant_id' => $tenant->id, 'branch_id' => $branch->id, 'year' => $year],
+                ['region' => $branch->name, 'amount' => $amount],
+            );
+        }
     }
 }

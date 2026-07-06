@@ -23,6 +23,7 @@ use App\Models\PtkpRate;
 use App\Models\SalaryMaster;
 use App\Models\SalaryMasterComponent;
 use App\Models\TaxProfile;
+use App\Models\UmrRate;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
@@ -1423,7 +1424,7 @@ class PayrollController extends Controller
 
         foreach ($formula->items as $item) {
             $operand = $item->tipe === 'umr'
-                ? $this->monthlyBaseWage($employee, $tenantId)
+                ? $this->resolveUmr($employee, $tenantId)
                 : $this->componentOperandValue($item->component, $employee, $tenantId);
 
             $total += $operand * (float) $item->nilai;
@@ -1478,6 +1479,24 @@ class PayrollController extends Controller
         }
 
         return $component->basis_type === 'fixed' ? (float) $component->basis_value : 0.0;
+    }
+
+    /**
+     * Resolve the UMR (regional minimum wage) for an employee: the newest rate
+     * up to the current year for the employee's branch, then the tenant-wide
+     * default (null branch). Falls back to the full monthly wage when no UMR is
+     * configured, so a `umr` formula item still yields a value.
+     */
+    private function resolveUmr(Employee $employee, int $tenantId): float
+    {
+        $rate = UmrRate::forTenant($tenantId)
+            ->where('year', '<=', (int) now()->year)
+            ->where(fn ($q) => $q->where('branch_id', $employee->branch_id)->orWhereNull('branch_id'))
+            ->orderByRaw('branch_id IS NULL') // branch-specific rate wins over the default
+            ->orderByDesc('year')
+            ->value('amount');
+
+        return $rate !== null ? (float) $rate : $this->monthlyBaseWage($employee, $tenantId);
     }
 
     /**

@@ -46,6 +46,7 @@ use App\Http\Controllers\Avana\OvertimeController;
 use App\Http\Controllers\Avana\PayrollConfigController;
 use App\Http\Controllers\Avana\PayrollController;
 use App\Http\Controllers\Avana\PayrollKomponenController;
+use App\Http\Controllers\Avana\PayrollUmrController;
 use App\Http\Controllers\Avana\PerformanceController;
 use App\Http\Controllers\Avana\PermissionRequestController;
 use App\Http\Controllers\Avana\PositionComponentController;
@@ -172,6 +173,11 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::delete('payroll/master-gaji/{master}', [SalaryMasterController::class, 'destroy'])->name('payroll.master-gaji.destroy');
     Route::post('payroll/master-gaji/{master}/component', [SalaryMasterController::class, 'setComponent'])->name('payroll.master-gaji.component');
     Route::post('payroll/master-gaji/{master}/assign', [SalaryMasterController::class, 'assign'])->name('payroll.master-gaji.assign');
+
+    // UMR (regional minimum wage)
+    Route::get('payroll/umr', [PayrollUmrController::class, 'index'])->name('payroll.umr');
+    Route::post('payroll/umr', [PayrollUmrController::class, 'store'])->name('payroll.umr.store');
+    Route::delete('payroll/umr/{umr}', [PayrollUmrController::class, 'destroy'])->name('payroll.umr.destroy');
 
     Route::get('hak-akses', [AccessController::class, 'index'])->name('hak-akses');
     Route::post('hak-akses/permission/toggle', [AccessController::class, 'togglePermission'])->name('hak-akses.permission.toggle');
