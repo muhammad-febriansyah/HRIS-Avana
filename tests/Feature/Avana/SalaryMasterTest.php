@@ -4,6 +4,7 @@ use App\Http\Controllers\Avana\PayrollController;
 use App\Http\Controllers\Avana\SalaryMasterController;
 use App\Models\Attendance;
 use App\Models\Employee;
+use App\Models\OvertimeRequest;
 use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
@@ -227,6 +228,51 @@ it('prorates a master component by the Jumlah Hari divisor', function (): void {
 
     $earnings = mgEarnings($this);
     expect((float) $earnings->firstWhere('name', 'MG-PRO')['amount'])->toBe(500_000.0);
+});
+
+/** Give the employee a fixed BASIC + a flat per-hour overtime component + OT hours. */
+function seedOvertimeSetup(object $ctx): void
+{
+    $basic = PayrollComponent::forTenant($ctx->tenant->id)->where('code', 'BASIC')->firstOrFail();
+    $basic->update(['calc_basis' => 'fixed', 'basis_type' => null]);
+    PositionPayrollComponent::updateOrCreate(
+        ['position_id' => $ctx->employee->position_id, 'payroll_component_id' => $basic->id],
+        ['tenant_id' => $ctx->tenant->id, 'amount' => 6_000_000],
+    );
+
+    $lembur = PayrollComponent::updateOrCreate(
+        ['tenant_id' => $ctx->tenant->id, 'code' => 'LEMBUR'],
+        ['name' => 'Uang Lembur', 'type' => 'earning', 'component_group' => 'penerimaan', 'is_taxable' => true, 'status' => 'active', 'calc_basis' => 'per_overtime_hour', 'basis_type' => null],
+    );
+    PositionPayrollComponent::updateOrCreate(
+        ['position_id' => $ctx->employee->position_id, 'payroll_component_id' => $lembur->id],
+        ['tenant_id' => $ctx->tenant->id, 'amount' => 30_000],
+    );
+
+    OvertimeRequest::create([
+        'tenant_id' => $ctx->tenant->id, 'employee_id' => $ctx->employee->id, 'branch_id' => $ctx->employee->branch_id,
+        'date' => $ctx->period->start_date->copy()->addDay()->toDateString(), 'hours' => 5, 'status' => 'approved',
+    ]);
+}
+
+it('pays statutory overtime and suppresses the flat component when the master is Reguler', function (): void {
+    seedOvertimeSetup($this);
+    $master = SalaryMaster::create(['tenant_id' => $this->tenant->id, 'code' => 'MG-REG', 'category' => 'Organik', 'overtime_calc_method' => 'reguler']);
+    $this->employee->update(['salary_master_id' => $master->id]);
+
+    $earnings = mgEarnings($this);
+    expect($earnings->firstWhere('name', 'Lembur'))->not->toBeNull();     // statutory line present
+    expect($earnings->firstWhere('name', 'Uang Lembur'))->toBeNull();     // flat component suppressed
+});
+
+it('keeps the flat overtime component and no statutory line when the master is Flat', function (): void {
+    seedOvertimeSetup($this);
+    $master = SalaryMaster::create(['tenant_id' => $this->tenant->id, 'code' => 'MG-FLAT', 'category' => 'Organik', 'overtime_calc_method' => 'flat']);
+    $this->employee->update(['salary_master_id' => $master->id]);
+
+    $earnings = mgEarnings($this);
+    expect((float) $earnings->firstWhere('name', 'Uang Lembur')['amount'])->toBe(150_000.0); // 30k x 5h flat
+    expect($earnings->firstWhere('name', 'Lembur'))->toBeNull();          // no statutory double
 });
 
 it('does not mark a component included when only a section flag is toggled', function (): void {

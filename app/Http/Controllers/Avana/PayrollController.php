@@ -851,6 +851,11 @@ class PayrollController extends Controller
         // Hari method — applied to that master's prorate-flagged components.
         $masterProrateFactor = $this->masterProrationFactor($master, $presentDays, $attendanceRange);
 
+        // Perhitungan Overtime: "Reguler" pays statutory (Kepmenaker) overtime, so
+        // flat per-hour overtime components are suppressed to avoid double pay;
+        // "Flat" (or no master) keeps the per-hour component as the overtime line.
+        $suppressFlatOvertime = $master?->overtime_calc_method === 'reguler';
+
         /** @var list<array{name: string, amount: float, proratable: bool}> $earnings */
         $earnings = [];
         /** @var list<array{name: string, amount: float}> $deductions */
@@ -897,6 +902,10 @@ class PayrollController extends Controller
                     continue;
                 }
 
+                if ($suppressFlatOvertime && $component->calc_basis === 'per_overtime_hour') {
+                    continue;
+                }
+
                 $handledComponentIds[$component->id] = true;
 
                 if ($component->calc_basis === 'per_overtime_hour') {
@@ -930,6 +939,10 @@ class PayrollController extends Controller
                 $component = $masterComponent->component;
 
                 if ($component === null || isset($handledComponentIds[$component->id])) {
+                    continue;
+                }
+
+                if ($suppressFlatOvertime && $component->calc_basis === 'per_overtime_hour') {
                     continue;
                 }
 
