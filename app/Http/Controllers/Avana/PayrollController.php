@@ -14,6 +14,7 @@ use App\Models\Loan;
 use App\Models\OvertimeRequest;
 use App\Models\PayrollComponent;
 use App\Models\PayrollComponentValue;
+use App\Models\PayrollCorrection;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
@@ -968,6 +969,27 @@ class PayrollController extends Controller
                 }
 
                 $this->collectComponent($component, $amount, false, $earnings, $deductions, $basic);
+            }
+        }
+
+        // Approved manual pay corrections (Koreksi Gaji) dated in this period —
+        // added as flat, non-prorated earning/deduction lines.
+        if ($period->start_date !== null && $period->end_date !== null) {
+            $corrections = PayrollCorrection::forTenant($tenantId)
+                ->where('employee_id', $employee->id)
+                ->where('status', 'approved')
+                ->whereBetween('correction_date', [$period->start_date->toDateString(), $period->end_date->toDateString()])
+                ->get();
+
+            foreach ($corrections as $correction) {
+                $name = 'Koreksi: '.$correction->reason;
+                $amount = (float) $correction->amount;
+
+                if ($correction->type === 'deduction') {
+                    $deductions[] = ['name' => $name, 'amount' => $amount];
+                } else {
+                    $earnings[] = ['name' => $name, 'amount' => $amount, 'proratable' => false, 'taxable' => false];
+                }
             }
         }
 

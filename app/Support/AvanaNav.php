@@ -76,6 +76,7 @@ final class AvanaNav
                     self::leaf('payroll-master-gaji', 'Master Gaji', 'file-cog', '/avana/payroll/master-gaji', 'payroll', ['payroll']),
                     self::leaf('payroll-components', 'Nilai Komponen', 'sliders-horizontal', '/avana/payroll/components', 'payroll', ['payroll']),
                     self::leaf('payroll-umr', 'UMR', 'map-pin', '/avana/payroll/umr', 'payroll', ['payroll']),
+                    self::leaf('payroll-koreksi', 'Koreksi Gaji', 'pencil', '/avana/payroll/koreksi', 'payroll', ['payroll']),
                     self::leaf('struktur-upah', 'Struktur & Skala Upah', 'ruler', '/avana/struktur-upah', 'salary_structure', ['salary_structure']),
                     self::leaf('jurnal', 'Jurnal Akuntansi', 'book-open', '/avana/jurnal', 'journal', ['journal']),
                     self::leaf('anggaran', 'Anggaran (Budget)', 'piggy-bank', '/avana/anggaran', 'budget', ['budget']),

@@ -45,6 +45,7 @@ use App\Http\Controllers\Avana\OnboardingSlideController;
 use App\Http\Controllers\Avana\OvertimeController;
 use App\Http\Controllers\Avana\PayrollConfigController;
 use App\Http\Controllers\Avana\PayrollController;
+use App\Http\Controllers\Avana\PayrollCorrectionController;
 use App\Http\Controllers\Avana\PayrollKomponenController;
 use App\Http\Controllers\Avana\PayrollUmrController;
 use App\Http\Controllers\Avana\PerformanceController;
@@ -178,6 +179,12 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::get('payroll/umr', [PayrollUmrController::class, 'index'])->name('payroll.umr');
     Route::post('payroll/umr', [PayrollUmrController::class, 'store'])->name('payroll.umr.store');
     Route::delete('payroll/umr/{umr}', [PayrollUmrController::class, 'destroy'])->name('payroll.umr.destroy');
+
+    // Koreksi Gaji (payroll corrections)
+    Route::get('payroll/koreksi', [PayrollCorrectionController::class, 'index'])->name('payroll.koreksi');
+    Route::post('payroll/koreksi', [PayrollCorrectionController::class, 'store'])->name('payroll.koreksi.store');
+    Route::post('payroll/koreksi/{correction}/approve', [PayrollCorrectionController::class, 'approve'])->name('payroll.koreksi.approve');
+    Route::delete('payroll/koreksi/{correction}', [PayrollCorrectionController::class, 'destroy'])->name('payroll.koreksi.destroy');
 
     Route::get('hak-akses', [AccessController::class, 'index'])->name('hak-akses');
     Route::post('hak-akses/permission/toggle', [AccessController::class, 'togglePermission'])->name('hak-akses.permission.toggle');
