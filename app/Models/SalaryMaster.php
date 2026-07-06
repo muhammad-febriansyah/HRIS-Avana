@@ -16,8 +16,15 @@ final class SalaryMaster extends Model
         return [
             'is_active' => 'boolean',
             'period_day' => 'integer',
+            'period_start_day' => 'integer',
+            'period_end_day' => 'integer',
             'cut_off_day' => 'integer',
             'day_divisor' => 'integer',
+            'overtime_start_day' => 'integer',
+            'overtime_end_day' => 'integer',
+            'attendance_start_day' => 'integer',
+            'attendance_end_day' => 'integer',
+            'probation_months' => 'integer',
         ];
     }
 

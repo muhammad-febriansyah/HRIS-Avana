@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Avana\PayrollController;
 use App\Http\Controllers\Avana\SalaryMasterController;
+use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
@@ -29,9 +30,45 @@ beforeEach(function (): void {
     Route::middleware('web')->prefix('spec-mg')->group(function (): void {
         Route::post('payroll/run', [PayrollController::class, 'run']);
         Route::post('master-gaji', [SalaryMasterController::class, 'store']);
+        Route::get('master-gaji/{master}/setting', [SalaryMasterController::class, 'setting'])->name('spec.mg.setting');
+        Route::put('master-gaji/{master}', [SalaryMasterController::class, 'update'])->name('spec.mg.update');
         Route::post('master-gaji/{master}/component', [SalaryMasterController::class, 'setComponent']);
         Route::post('master-gaji/{master}/assign', [SalaryMasterController::class, 'assign']);
     });
+});
+
+it('renders the setting page and saves the perhitungan fields', function (): void {
+    $master = SalaryMaster::create(['tenant_id' => $this->tenant->id, 'code' => 'MG-SET', 'category' => 'Organik']);
+
+    actingAs($this->admin)
+        ->get('spec-mg/master-gaji/'.$master->id.'/setting')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('avana/payroll-master-gaji/setting', false)
+            ->has('master')
+            ->has('components')
+            ->has('employeeOptions'));
+
+    actingAs($this->admin)
+        ->put('spec-mg/master-gaji/'.$master->id, [
+            'code' => 'MG-SET',
+            'category' => 'Organik HO',
+            'day_divisor' => 21,
+            'day_calc_method' => 'hari_kerja',
+            'overtime_calc_method' => 'reguler',
+            'attendance_start_day' => 25,
+            'attendance_end_day' => 24,
+            'attendance_period' => 'bulan_lalu',
+            'probation_months' => 3,
+        ])
+        ->assertSessionHas('success');
+
+    $master->refresh();
+    expect($master->category)->toBe('Organik HO');
+    expect($master->day_divisor)->toBe(21);
+    expect($master->day_calc_method)->toBe('hari_kerja');
+    expect($master->attendance_period)->toBe('bulan_lalu');
+    expect($master->probation_months)->toBe(3);
 });
 
 function fixedComponent(object $ctx, string $code, float $value): PayrollComponent
@@ -103,16 +140,26 @@ it('creates a master, checks a component, and assigns an employee via the contro
 
     $component = PayrollComponent::forTenant($this->tenant->id)->firstOrFail();
 
+    // Check the Penerimaan/Potongan membership flag, then the prorate flag.
     actingAs($this->admin)
         ->post('spec-mg/master-gaji/'.$master->id.'/component', [
             'payroll_component_id' => $component->id,
+            'flag' => 'included',
             'checked' => true,
-            'is_prorate' => true,
+        ])
+        ->assertSessionHas('success');
+    actingAs($this->admin)
+        ->post('spec-mg/master-gaji/'.$master->id.'/component', [
+            'payroll_component_id' => $component->id,
+            'flag' => 'is_prorate',
+            'checked' => true,
         ])
         ->assertSessionHas('success');
 
     expect($master->components()->count())->toBe(1);
-    expect((bool) $master->components()->first()->is_prorate)->toBeTrue();
+    $row = $master->components()->first();
+    expect((bool) $row->included)->toBeTrue();
+    expect((bool) $row->is_prorate)->toBeTrue();
 
     actingAs($this->admin)
         ->post('spec-mg/master-gaji/'.$master->id.'/assign', ['employee_ids' => [$this->employee->id]])
@@ -120,15 +167,83 @@ it('creates a master, checks a component, and assigns an employee via the contro
 
     expect($this->employee->fresh()->salary_master_id)->toBe($master->id);
 
-    // Unchecking removes it from the checklist.
+    // Clearing every flag removes the row from the checklist entirely.
+    foreach (['included', 'is_prorate'] as $flag) {
+        actingAs($this->admin)
+            ->post('spec-mg/master-gaji/'.$master->id.'/component', [
+                'payroll_component_id' => $component->id,
+                'flag' => $flag,
+                'checked' => false,
+            ])
+            ->assertSessionHas('success');
+    }
+
+    expect($master->components()->count())->toBe(0);
+});
+
+it('counts attendance from the master periode window (bulan lalu)', function (): void {
+    // Juni 2026 period; attendance window 25 s.d 24, shifted "bulan lalu" =>
+    // 25 Apr .. 24 May. Present days inside that window are the ones counted.
+    $master = SalaryMaster::create([
+        'tenant_id' => $this->tenant->id, 'code' => 'MG-WIN', 'category' => 'Organik', 'is_active' => true,
+        'attendance_start_day' => 25, 'attendance_end_day' => 24, 'attendance_period' => 'bulan_lalu',
+    ]);
+    $this->employee->update(['salary_master_id' => $master->id]);
+
+    Attendance::where('employee_id', $this->employee->id)->delete();
+    foreach (['2026-05-05', '2026-05-06', '2026-05-07', '2026-06-10', '2026-06-11'] as $date) {
+        Attendance::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'branch_id' => $this->employee->branch_id, 'date' => $date, 'status' => 'present',
+        ]);
+    }
+
+    actingAs($this->admin)->post('spec-mg/payroll/run')->assertSessionHas('success');
+    $run = PayrollRun::forTenant($this->tenant->id)->where('payroll_period_id', $this->period->id)->latest('id')->firstOrFail();
+    $item = PayrollRunItem::where('payroll_run_id', $run->id)->where('employee_id', $this->employee->id)->firstOrFail();
+
+    // Only the 3 May days fall inside 25 Apr .. 24 May.
+    expect((int) $item->calculation_snapshot['present_days'])->toBe(3);
+});
+
+it('prorates a master component by the Jumlah Hari divisor', function (): void {
+    $component = fixedComponent($this, 'MG-PRO', 1_000_000);
+
+    $master = SalaryMaster::create([
+        'tenant_id' => $this->tenant->id, 'code' => 'MG-DIV', 'category' => 'Organik', 'is_active' => true,
+        'day_divisor' => 20, 'day_calc_method' => 'absen',
+    ]);
+    $master->components()->create(['payroll_component_id' => $component->id, 'included' => true, 'is_prorate' => true]);
+    $this->employee->update(['salary_master_id' => $master->id]);
+
+    // 10 present days in the Juni period window, divisor 20 => factor 0.5.
+    Attendance::where('employee_id', $this->employee->id)->delete();
+    for ($d = 1; $d <= 10; $d++) {
+        Attendance::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'branch_id' => $this->employee->branch_id, 'date' => sprintf('2026-06-%02d', $d + 1), 'status' => 'present',
+        ]);
+    }
+
+    $earnings = mgEarnings($this);
+    expect((float) $earnings->firstWhere('name', 'MG-PRO')['amount'])->toBe(500_000.0);
+});
+
+it('does not mark a component included when only a section flag is toggled', function (): void {
+    $master = SalaryMaster::create(['tenant_id' => $this->tenant->id, 'code' => 'MG-FLAG', 'category' => 'Organik']);
+    $component = PayrollComponent::forTenant($this->tenant->id)->firstOrFail();
+
     actingAs($this->admin)
         ->post('spec-mg/master-gaji/'.$master->id.'/component', [
             'payroll_component_id' => $component->id,
-            'checked' => false,
+            'flag' => 'is_prorate',
+            'checked' => true,
         ])
         ->assertSessionHas('success');
 
-    expect($master->components()->count())->toBe(0);
+    $row = $master->components()->where('payroll_component_id', $component->id)->firstOrFail();
+    expect((bool) $row->is_prorate)->toBeTrue();
+    expect((bool) $row->included)->toBeFalse();
 });
 
 it('scopes a salary master to its tenant on the checklist endpoint', function (): void {

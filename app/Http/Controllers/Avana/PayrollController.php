@@ -20,6 +20,7 @@ use App\Models\PayrollRunItem;
 use App\Models\PkpRate;
 use App\Models\PositionPayrollComponent;
 use App\Models\PtkpRate;
+use App\Models\SalaryMaster;
 use App\Models\SalaryMasterComponent;
 use App\Models\TaxProfile;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -812,26 +813,43 @@ class PayrollController extends Controller
      */
     private function computeEmployeePay(Employee $employee, PayrollPeriod $period, int $tenantId): array
     {
+        // Master Gaji (BPR reference) settings drive the attendance/overtime
+        // windows, the day divisor and the overtime method for its employees.
+        $master = $employee->salary_master_id !== null
+            ? SalaryMaster::forTenant($tenantId)->find($employee->salary_master_id)
+            : null;
+
         $presentDays = 0;
         $overtimeRecords = collect();
+        $attendanceRange = null;
 
         if ($period->start_date !== null && $period->end_date !== null) {
-            $range = [$period->start_date->toDateString(), $period->end_date->toDateString()];
+            $attendanceRange = $master?->attendance_start_day !== null && $master?->attendance_end_day !== null
+                ? $this->masterDateRange($period, $master->attendance_start_day, $master->attendance_end_day, $master->attendance_period)
+                : [$period->start_date->toDateString(), $period->end_date->toDateString()];
+
+            $overtimeRange = $master?->overtime_start_day !== null && $master?->overtime_end_day !== null
+                ? $this->masterDateRange($period, $master->overtime_start_day, $master->overtime_end_day, $master->overtime_period)
+                : $attendanceRange;
 
             $presentDays = Attendance::forTenant($tenantId)
                 ->where('employee_id', $employee->id)
-                ->whereBetween('date', $range)
+                ->whereBetween('date', $attendanceRange)
                 ->where('status', 'present')
                 ->count();
 
             $overtimeRecords = OvertimeRequest::forTenant($tenantId)
                 ->where('employee_id', $employee->id)
                 ->where('status', 'approved')
-                ->whereBetween('date', $range)
+                ->whereBetween('date', $overtimeRange)
                 ->get(['date', 'hours']);
         }
 
         $overtimeHours = (float) $overtimeRecords->sum('hours');
+
+        // Proration factor from the master's Jumlah Hari divisor + Perhitungan
+        // Hari method — applied to that master's prorate-flagged components.
+        $masterProrateFactor = $this->masterProrationFactor($master, $presentDays, $attendanceRange);
 
         /** @var list<array{name: string, amount: float, proratable: bool}> $earnings */
         $earnings = [];
@@ -901,9 +919,10 @@ class PayrollController extends Controller
         // already sourced. Each component's amount comes from its dasar
         // perhitungan (or Nilai Komponen mapping); the template's prorate flag
         // governs mid-period scaling.
-        if ($employee->salary_master_id !== null) {
+        if ($master !== null) {
             $masterComponents = SalaryMasterComponent::query()
-                ->where('salary_master_id', $employee->salary_master_id)
+                ->where('salary_master_id', $master->id)
+                ->where('included', true)
                 ->with('component')
                 ->get();
 
@@ -927,7 +946,14 @@ class PayrollController extends Controller
                     $amount = $this->amountForBasis($base, $component->calc_basis, $presentDays, $overtimeHours);
                 }
 
-                $this->collectComponent($component, $amount, $masterComponent->is_prorate, $earnings, $deductions, $basic);
+                // A prorate-flagged component is scaled now by the master's
+                // Jumlah Hari / Perhitungan Hari factor, so it is not prorated
+                // again by the mid-period (join/resign) factor below.
+                if ($masterComponent->is_prorate && $masterProrateFactor !== null) {
+                    $amount = round($amount * $masterProrateFactor);
+                }
+
+                $this->collectComponent($component, $amount, false, $earnings, $deductions, $basic);
             }
         }
 
@@ -1204,6 +1230,76 @@ class PayrollController extends Controller
             'per_overtime_hour' => $amount * $overtimeHours,
             default => $amount,
         };
+    }
+
+    /**
+     * Resolve a Master Gaji periode range (e.g. "25 s.d 24") into concrete
+     * dates for the payroll month. The end day sits in the payroll month; a
+     * start day greater than the end day opens the window in the previous
+     * month. "Bulan Lalu" shifts the whole window back one month.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function masterDateRange(PayrollPeriod $period, int $startDay, int $endDay, ?string $mode): array
+    {
+        $anchor = ($period->end_date ?? $period->start_date ?? Carbon::now())->copy();
+
+        $end = $anchor->copy()->day(min($endDay, $anchor->daysInMonth));
+
+        if ($startDay > $endDay) {
+            $prev = $anchor->copy()->subMonthNoOverflow();
+            $start = $prev->day(min($startDay, $prev->daysInMonth));
+        } else {
+            $start = $anchor->copy()->day(min($startDay, $anchor->daysInMonth));
+        }
+
+        if ($mode === 'bulan_lalu') {
+            // Reassign — the app's date casts are immutable, so bare mutators no-op.
+            $start = $start->subMonthNoOverflow();
+            $end = $end->subMonthNoOverflow();
+        }
+
+        return [$start->toDateString(), $end->toDateString()];
+    }
+
+    /**
+     * Proration factor from a Master Gaji's Jumlah Hari divisor and Perhitungan
+     * Hari method: worked days (present count, working days or calendar days in
+     * the window) over the divisor, capped at 1. Null when no master/divisor.
+     */
+    private function masterProrationFactor(?SalaryMaster $master, int $presentDays, ?array $range): ?float
+    {
+        if ($master === null || ! $master->day_divisor) {
+            return null;
+        }
+
+        $worked = match ($master->day_calc_method) {
+            'hari_kalender' => $range !== null ? Carbon::parse($range[0])->diffInDays(Carbon::parse($range[1])) + 1 : $presentDays,
+            'hari_kerja' => $range !== null ? $this->weekdaysBetween($range[0], $range[1]) : $presentDays,
+            default => $presentDays, // 'absen', 'formula' or unset
+        };
+
+        return min(1.0, $worked / $master->day_divisor);
+    }
+
+    /**
+     * Count Mon–Fri days in an inclusive date range.
+     */
+    private function weekdaysBetween(string $start, string $end): int
+    {
+        $cursor = Carbon::parse($start);
+        $last = Carbon::parse($end);
+        $count = 0;
+
+        while ($cursor->lte($last)) {
+            if (! $cursor->isWeekend()) {
+                $count++;
+            }
+
+            $cursor = $cursor->addDay();
+        }
+
+        return $count;
     }
 
     /**

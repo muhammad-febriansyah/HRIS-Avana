@@ -12,8 +12,10 @@ final class SalaryMasterComponent extends Model
     protected function casts(): array
     {
         return [
+            'included' => 'boolean',
             'is_prorate' => 'boolean',
             'is_overtime_base' => 'boolean',
+            'is_kompensasi' => 'boolean',
         ];
     }
 

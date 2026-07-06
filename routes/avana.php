@@ -166,6 +166,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
 
     // Master Gaji (BPR-manual salary template)
     Route::get('payroll/master-gaji', [SalaryMasterController::class, 'index'])->name('payroll.master-gaji');
+    Route::get('payroll/master-gaji/{master}/setting', [SalaryMasterController::class, 'setting'])->name('payroll.master-gaji.setting');
     Route::post('payroll/master-gaji', [SalaryMasterController::class, 'store'])->name('payroll.master-gaji.store');
     Route::put('payroll/master-gaji/{master}', [SalaryMasterController::class, 'update'])->name('payroll.master-gaji.update');
     Route::delete('payroll/master-gaji/{master}', [SalaryMasterController::class, 'destroy'])->name('payroll.master-gaji.destroy');

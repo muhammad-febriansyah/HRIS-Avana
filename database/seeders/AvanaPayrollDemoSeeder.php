@@ -200,7 +200,14 @@ final class AvanaPayrollDemoSeeder extends Seeder
         // manual-basis ones, attached to the sample employees.
         $master = SalaryMaster::updateOrCreate(
             ['tenant_id' => $tenant->id, 'code' => 'MG-ORG'],
-            ['category' => 'Organik', 'note' => 'Template gaji pegawai organik', 'is_active' => true, 'day_divisor' => 22],
+            [
+                'category' => 'Organik', 'note' => 'Template gaji pegawai organik', 'is_active' => true,
+                'process_type' => 'normal', 'period_start_day' => 25, 'period_end_day' => 24,
+                'cut_off_day' => 15, 'day_divisor' => 22, 'day_calc_method' => 'hari_kerja',
+                'overtime_calc_method' => 'reguler',
+                // Left without an absensi/overtime range so the demo run keeps
+                // using the payroll period window (present days stay intact).
+            ],
         );
 
         $checklist = PayrollComponent::where('tenant_id', $tenant->id)
