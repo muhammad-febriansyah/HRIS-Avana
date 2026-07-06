@@ -1,0 +1,379 @@
+<?php
+
+namespace App\Http\Controllers\Avana;
+
+use App\Http\Controllers\Controller;
+use App\Models\Branch;
+use App\Models\Employee;
+use App\Models\JobLevel;
+use App\Models\PayrollComponent;
+use App\Models\PayrollComponentValue;
+use App\Models\PayrollFormula;
+use App\Models\PayrollFormulaItem;
+use App\Models\Position;
+use App\Models\User;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Inertia\Inertia;
+use Inertia\Response;
+
+/**
+ * "Komponen" submodule of the BPR-manual payroll: Master Komponen (earnings /
+ * deductions with the tax + slip + calc settings) and Master Formula (named
+ * component combinations used as calculation bases).
+ */
+class PayrollKomponenController extends Controller
+{
+    /**
+     * @var array<int, string>
+     */
+    private const PRIVILEGED_ROLES = ['super_admin', 'admin_tenant_hr'];
+
+    /**
+     * @var array<int, string>
+     */
+    private const GROUPS = ['penerimaan', 'potongan'];
+
+    /**
+     * @var array<int, string>
+     */
+    private const CALC_BASES = ['fixed', 'percentage', 'per_present_day', 'per_overtime_hour'];
+
+    /**
+     * @var array<int, string>
+     */
+    private const FORMULA_TIPES = ['penerimaan', 'potongan', 'umr'];
+
+    /**
+     * Dasar perhitungan (BPR manual 1.2.2). Null = legacy attendance/attachment.
+     *
+     * @var array<int, string>
+     */
+    private const BASIS_TYPES = ['fixed', 'tabel', 'formula'];
+
+    public function index(Request $request): Response
+    {
+        $this->ensureCanManage($request);
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $values = PayrollComponentValue::forTenant($tenantId)
+            ->with(['position:id,name', 'jobLevel:id,name', 'branch:id,name'])
+            ->orderByDesc('id')
+            ->get()
+            ->groupBy('payroll_component_id');
+
+        $components = PayrollComponent::forTenant($tenantId)
+            ->with('formula:id,name')
+            ->orderBy('component_group')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (PayrollComponent $c): array => [
+                'id' => $c->id,
+                'code' => $c->code,
+                'name' => $c->name,
+                'group' => $c->component_group ?? ($c->type === 'deduction' ? 'potongan' : 'penerimaan'),
+                'is_taxable' => (bool) $c->is_taxable,
+                'show_on_slip' => $c->show_on_slip ?? true,
+                'calc_basis' => $c->calc_basis ?? 'fixed',
+                'period_basis' => $c->period_basis,
+                'formula' => $c->formula?->name,
+                'basis_type' => $c->basis_type,
+                'basis_value' => $c->basis_value !== null ? (float) $c->basis_value : null,
+                'basis_min' => $c->basis_min !== null ? (float) $c->basis_min : null,
+                'basis_max' => $c->basis_max !== null ? (float) $c->basis_max : null,
+                'basis_cut_off_day' => $c->basis_cut_off_day,
+                'payroll_formula_id' => $c->payroll_formula_id,
+                'status' => $c->status,
+                'values' => ($values->get($c->id) ?? collect())->map(fn (PayrollComponentValue $v): array => [
+                    'id' => $v->id,
+                    'kategori' => $v->kategori,
+                    'employment_status' => $v->employment_status,
+                    'position' => $v->position?->name,
+                    'job_level' => $v->jobLevel?->name,
+                    'branch' => $v->branch?->name,
+                    'value' => (float) $v->value,
+                    'note' => $v->note,
+                ])->values()->all(),
+            ]);
+
+        $formulas = PayrollFormula::forTenant($tenantId)
+            ->with(['items.component:id,name'])
+            ->orderBy('name')
+            ->get()
+            ->map(fn (PayrollFormula $f): array => [
+                'id' => $f->id,
+                'name' => $f->name,
+                'note' => $f->note,
+                'is_active' => (bool) $f->is_active,
+                'items' => $f->items->map(fn (PayrollFormulaItem $i): array => [
+                    'id' => $i->id,
+                    'tipe' => $i->tipe,
+                    'component' => $i->component?->name,
+                    'component_id' => $i->payroll_component_id,
+                    'operator' => $i->operator,
+                    'nilai' => (float) $i->nilai,
+                    'prorate' => (bool) $i->prorate,
+                ])->all(),
+            ]);
+
+        return Inertia::render('avana/payroll-komponen/index', [
+            'components' => $components,
+            'formulas' => $formulas,
+            'componentOptions' => PayrollComponent::forTenant($tenantId)
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->map(fn (PayrollComponent $c): array => ['id' => $c->id, 'name' => $c->name])
+                ->all(),
+            'formulaOptions' => $formulas->map(fn (array $f): array => ['id' => $f['id'], 'name' => $f['name']])->all(),
+            'mappingOptions' => [
+                'positions' => Position::forTenant($tenantId)->orderBy('name')->get(['id', 'name'])
+                    ->map(fn (Position $p): array => ['id' => $p->id, 'name' => $p->name])->all(),
+                'jobLevels' => JobLevel::forTenant($tenantId)->orderBy('name')->get(['id', 'name'])
+                    ->map(fn (JobLevel $j): array => ['id' => $j->id, 'name' => $j->name])->all(),
+                'branches' => Branch::forTenant($tenantId)->orderBy('name')->get(['id', 'name'])
+                    ->map(fn (Branch $b): array => ['id' => $b->id, 'name' => $b->name])->all(),
+                'kategori' => Employee::forTenant($tenantId)->whereNotNull('kategori')->distinct()->orderBy('kategori')->pluck('kategori')->all(),
+                'statuses' => Employee::forTenant($tenantId)->whereNotNull('employment_status')->distinct()->orderBy('employment_status')->pluck('employment_status')->all(),
+            ],
+        ]);
+    }
+
+    public function storeComponent(Request $request): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $data = $this->validateComponent($request);
+
+        PayrollComponent::create([
+            'tenant_id' => $tenantId,
+            'code' => $data['code'] ?? null,
+            'name' => $data['name'],
+            'type' => $data['group'] === 'potongan' ? 'deduction' : 'earning',
+            'component_group' => $data['group'],
+            'is_taxable' => $request->boolean('is_taxable'),
+            'show_on_slip' => $request->boolean('show_on_slip'),
+            'calc_basis' => $data['calc_basis'],
+            'period_basis' => $data['period_basis'] ?? null,
+            'status' => 'active',
+            ...$this->basisAttributes($data),
+        ]);
+
+        return back()->with('success', 'Komponen disimpan');
+    }
+
+    public function updateComponent(Request $request, PayrollComponent $component): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureOwnership($request, $component->tenant_id);
+
+        $data = $this->validateComponent($request);
+
+        $component->update([
+            'code' => $data['code'] ?? null,
+            'name' => $data['name'],
+            'type' => $data['group'] === 'potongan' ? 'deduction' : 'earning',
+            'component_group' => $data['group'],
+            'is_taxable' => $request->boolean('is_taxable'),
+            'show_on_slip' => $request->boolean('show_on_slip'),
+            'calc_basis' => $data['calc_basis'],
+            'period_basis' => $data['period_basis'] ?? null,
+            ...$this->basisAttributes($data),
+        ]);
+
+        return back()->with('success', 'Komponen diperbarui');
+    }
+
+    public function destroyComponent(Request $request, PayrollComponent $component): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureOwnership($request, $component->tenant_id);
+
+        $component->delete();
+
+        return back()->with('success', 'Komponen dihapus');
+    }
+
+    /**
+     * Add a "Nilai Komponen" mapping row for a component (BPR manual 1.2.4):
+     * a value scoped by any combination of kategori / status / posisi / pangkat
+     * / cabang. Blank dimensions apply to any employee.
+     */
+    public function storeComponentValue(Request $request, PayrollComponent $component): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureOwnership($request, $component->tenant_id);
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $data = $request->validate([
+            'kategori' => ['nullable', 'string', 'max:255'],
+            'employment_status' => ['nullable', 'string', 'max:255'],
+            'position_id' => ['nullable', 'integer', Rule::exists('positions', 'id')->where('tenant_id', $tenantId)],
+            'job_level_id' => ['nullable', 'integer', Rule::exists('job_levels', 'id')->where('tenant_id', $tenantId)],
+            'branch_id' => ['nullable', 'integer', Rule::exists('branches', 'id')->where('tenant_id', $tenantId)],
+            'value' => ['required', 'numeric', 'min:0'],
+            'note' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $component->componentValues()->create([
+            'tenant_id' => $tenantId,
+            'kategori' => $data['kategori'] ?? null,
+            'employment_status' => $data['employment_status'] ?? null,
+            'position_id' => $data['position_id'] ?? null,
+            'job_level_id' => $data['job_level_id'] ?? null,
+            'branch_id' => $data['branch_id'] ?? null,
+            'value' => $data['value'],
+            'note' => $data['note'] ?? null,
+        ]);
+
+        return back()->with('success', 'Nilai komponen disimpan');
+    }
+
+    public function destroyComponentValue(Request $request, PayrollComponentValue $value): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureOwnership($request, $value->tenant_id);
+
+        $value->delete();
+
+        return back()->with('success', 'Nilai komponen dihapus');
+    }
+
+    public function storeFormula(Request $request): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255', Rule::unique('payroll_formulas', 'name')->where('tenant_id', $tenantId)],
+            'note' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        PayrollFormula::create([
+            'tenant_id' => $tenantId,
+            'name' => $data['name'],
+            'note' => $data['note'] ?? null,
+            'is_active' => true,
+        ]);
+
+        return back()->with('success', 'Master Formula dibuat');
+    }
+
+    public function destroyFormula(Request $request, PayrollFormula $formula): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureOwnership($request, $formula->tenant_id);
+
+        $formula->delete();
+
+        return back()->with('success', 'Master Formula dihapus');
+    }
+
+    public function storeFormulaItem(Request $request, PayrollFormula $formula): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureOwnership($request, $formula->tenant_id);
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $data = $request->validate([
+            'tipe' => ['required', Rule::in(self::FORMULA_TIPES)],
+            'payroll_component_id' => ['nullable', 'integer', Rule::exists('payroll_components', 'id')->where('tenant_id', $tenantId)],
+            'operator' => ['required', Rule::in(['*', '+'])],
+            'nilai' => ['required', 'numeric'],
+            'prorate' => ['boolean'],
+        ]);
+
+        $formula->items()->create([
+            'tipe' => $data['tipe'],
+            'payroll_component_id' => $data['payroll_component_id'] ?? null,
+            'operator' => $data['operator'],
+            'nilai' => $data['nilai'],
+            'prorate' => $request->boolean('prorate'),
+            'sort_order' => (int) $formula->items()->max('sort_order') + 1,
+        ]);
+
+        return back()->with('success', 'Item formula ditambahkan');
+    }
+
+    public function destroyFormulaItem(Request $request, PayrollFormulaItem $item): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $item->loadMissing('formula');
+        $this->ensureOwnership($request, $item->formula?->tenant_id);
+
+        $item->delete();
+
+        return back()->with('success', 'Item formula dihapus');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function validateComponent(Request $request): array
+    {
+        $tenantId = (int) $request->user()->tenant_id;
+
+        return $request->validate([
+            'code' => ['nullable', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:255'],
+            'group' => ['required', Rule::in(self::GROUPS)],
+            'calc_basis' => ['required', Rule::in(self::CALC_BASES)],
+            'period_basis' => ['nullable', Rule::in(['berjalan', 'bulan_lalu'])],
+            'is_taxable' => ['boolean'],
+            'show_on_slip' => ['boolean'],
+            'basis_type' => ['nullable', Rule::in(self::BASIS_TYPES)],
+            'basis_value' => ['nullable', 'numeric', 'min:0'],
+            'basis_min' => ['nullable', 'numeric', 'min:0'],
+            'basis_max' => ['nullable', 'numeric', 'min:0'],
+            'basis_cut_off_day' => ['nullable', 'integer', 'min:1', 'max:31'],
+            'payroll_formula_id' => ['nullable', 'integer', Rule::exists('payroll_formulas', 'id')->where('tenant_id', $tenantId)],
+        ]);
+    }
+
+    /**
+     * Map validated component input onto the model's basis (dasar perhitungan)
+     * attributes, keeping only the fields relevant to the chosen basis type.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function basisAttributes(array $data): array
+    {
+        $type = $data['basis_type'] ?? null;
+
+        return [
+            'basis_type' => $type,
+            'basis_value' => $type === 'fixed' ? ($data['basis_value'] ?? null) : null,
+            'basis_min' => $type === 'formula' ? ($data['basis_min'] ?? null) : null,
+            'basis_max' => $type === 'formula' ? ($data['basis_max'] ?? null) : null,
+            'basis_cut_off_day' => $data['basis_cut_off_day'] ?? null,
+            'payroll_formula_id' => $type === 'formula' ? ($data['payroll_formula_id'] ?? null) : null,
+        ];
+    }
+
+    private function ensureOwnership(Request $request, int|string|null $tenantId): void
+    {
+        abort_if((int) $tenantId !== (int) $request->user()->tenant_id, 404);
+    }
+
+    private function ensureCanManage(Request $request): void
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $user->loadMissing('roles.permissions');
+
+        $isPrivileged = $user->roles->whereIn('code', self::PRIVILEGED_ROLES)->isNotEmpty();
+
+        $hasPermission = $user->roles
+            ->pluck('permissions')
+            ->flatten()
+            ->pluck('code')
+            ->contains(fn (string $code): bool => str_starts_with($code, 'payroll.'));
+
+        abort_unless($isPrivileged || $hasPermission, 403);
+    }
+}

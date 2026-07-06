@@ -72,7 +72,9 @@ final class AvanaNav
                 self::parent('payroll', 'Payroll', 'wallet', [
                     self::leaf('payroll', 'Payroll', 'wallet', '/avana/payroll', 'payroll', ['payroll']),
                     self::leaf('payroll-config', 'BPJS & Pajak', 'shield-check', '/avana/payroll/konfigurasi', 'payroll', ['bpjs', 'pph21', 'payroll']),
-                    self::leaf('payroll-components', 'Komponen Gaji', 'sliders-horizontal', '/avana/payroll/components', 'payroll', ['payroll']),
+                    self::leaf('payroll-komponen', 'Master Komponen', 'layers', '/avana/payroll/komponen', 'payroll', ['payroll']),
+                    self::leaf('payroll-master-gaji', 'Master Gaji', 'file-cog', '/avana/payroll/master-gaji', 'payroll', ['payroll']),
+                    self::leaf('payroll-components', 'Nilai Komponen', 'sliders-horizontal', '/avana/payroll/components', 'payroll', ['payroll']),
                     self::leaf('struktur-upah', 'Struktur & Skala Upah', 'ruler', '/avana/struktur-upah', 'salary_structure', ['salary_structure']),
                     self::leaf('jurnal', 'Jurnal Akuntansi', 'book-open', '/avana/jurnal', 'journal', ['journal']),
                     self::leaf('anggaran', 'Anggaran (Budget)', 'piggy-bank', '/avana/anggaran', 'budget', ['budget']),

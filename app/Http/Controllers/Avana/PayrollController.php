@@ -13,12 +13,14 @@ use App\Models\EmployeeSalaryComponent;
 use App\Models\Loan;
 use App\Models\OvertimeRequest;
 use App\Models\PayrollComponent;
+use App\Models\PayrollComponentValue;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
 use App\Models\PkpRate;
 use App\Models\PositionPayrollComponent;
 use App\Models\PtkpRate;
+use App\Models\SalaryMasterComponent;
 use App\Models\TaxProfile;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -843,6 +845,10 @@ class PayrollController extends Controller
             ->with('component')
             ->get();
 
+        // Component ids already paid, so a Master Gaji checklist does not
+        // double-count a component already sourced from salary/position rows.
+        $handledComponentIds = [];
+
         foreach ($salaryComponents as $salaryComponent) {
             $component = $salaryComponent->component;
 
@@ -850,7 +856,14 @@ class PayrollController extends Controller
                 continue;
             }
 
-            $this->collectComponent($component, (float) $salaryComponent->amount, true, $earnings, $deductions, $basic);
+            $handledComponentIds[$component->id] = true;
+
+            if ($component->basis_type !== null) {
+                [$amount, $proratable] = $this->derivedComponentAmount($component, $employee, (float) $salaryComponent->amount, $presentDays, $overtimeHours, $tenantId);
+                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic);
+            } else {
+                $this->collectComponent($component, (float) $salaryComponent->amount, true, $earnings, $deductions, $basic);
+            }
         }
 
         if ($employee->position_id !== null) {
@@ -866,13 +879,55 @@ class PayrollController extends Controller
                     continue;
                 }
 
+                $handledComponentIds[$component->id] = true;
+
                 if ($component->calc_basis === 'per_overtime_hour') {
                     $hasCustomOvertime = true;
                 }
 
-                $amount = $this->amountForBasis((float) $positionComponent->amount, $component->calc_basis, $presentDays, $overtimeHours);
-                $proratable = ! in_array($component->calc_basis, ['per_present_day', 'per_overtime_hour'], true);
+                if ($component->basis_type !== null) {
+                    [$amount, $proratable] = $this->derivedComponentAmount($component, $employee, (float) $positionComponent->amount, $presentDays, $overtimeHours, $tenantId);
+                } else {
+                    $amount = $this->amountForBasis((float) $positionComponent->amount, $component->calc_basis, $presentDays, $overtimeHours);
+                    $proratable = ! in_array($component->calc_basis, ['per_present_day', 'per_overtime_hour'], true);
+                }
+
                 $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic);
+            }
+        }
+
+        // Master Gaji (BPR manual 1.2.1): pay every component checked into the
+        // employee's assigned salary template that a salary/position row has not
+        // already sourced. Each component's amount comes from its dasar
+        // perhitungan (or Nilai Komponen mapping); the template's prorate flag
+        // governs mid-period scaling.
+        if ($employee->salary_master_id !== null) {
+            $masterComponents = SalaryMasterComponent::query()
+                ->where('salary_master_id', $employee->salary_master_id)
+                ->with('component')
+                ->get();
+
+            foreach ($masterComponents as $masterComponent) {
+                $component = $masterComponent->component;
+
+                if ($component === null || isset($handledComponentIds[$component->id])) {
+                    continue;
+                }
+
+                $handledComponentIds[$component->id] = true;
+
+                if ($component->calc_basis === 'per_overtime_hour') {
+                    $hasCustomOvertime = true;
+                }
+
+                if ($component->basis_type !== null) {
+                    [$amount] = $this->derivedComponentAmount($component, $employee, 0.0, $presentDays, $overtimeHours, $tenantId);
+                } else {
+                    $base = $this->resolveComponentValue($component, $employee, $tenantId) ?? 0.0;
+                    $amount = $this->amountForBasis($base, $component->calc_basis, $presentDays, $overtimeHours);
+                }
+
+                $this->collectComponent($component, $amount, $masterComponent->is_prorate, $earnings, $deductions, $basic);
             }
         }
 
@@ -900,11 +955,17 @@ class PayrollController extends Controller
             $overtimePay = $this->computeOvertimePay($fullBasic, $overtimeRecords);
 
             if ($overtimePay > 0) {
-                $earnings[] = ['name' => 'Lembur', 'amount' => $overtimePay, 'proratable' => false];
+                $earnings[] = ['name' => 'Lembur', 'amount' => $overtimePay, 'proratable' => false, 'taxable' => true];
             }
         }
 
         $gross = (float) array_sum(array_column($earnings, 'amount'));
+
+        // Taxable base = only earnings flagged taxable (manual "Perhitungan Pajak").
+        $taxableGross = (float) array_sum(array_map(
+            static fn (array $row): float => ($row['taxable'] ?? true) ? (float) $row['amount'] : 0.0,
+            $earnings,
+        ));
 
         // Recurring loan & cash-advance installments deducted from take-home pay.
         [$recurring, $loanIds, $advanceIds] = $this->recurringDeductions($employee, $tenantId);
@@ -916,12 +977,12 @@ class PayrollController extends Controller
         // Statutory deductions computed from internal config (no external API).
         $bpjs = $this->computeBpjs($employee, $tenantId, $basic > 0 ? $basic : $gross);
 
-        // December (or the employee's final tax month) reconciles the year's
-        // withholding against the progressive Pasal 17 tariff; other months use
-        // the monthly TER bracket.
+        // December (or the employee's final tax month) reconciles the year against
+        // the progressive Pasal 17 tariff; other months use the monthly progressive
+        // method. Both work on the taxable base, not the full gross.
         $pph21 = $this->isFinalTaxMonth($employee, $period)
-            ? $this->computeAnnualPph21($employee, $tenantId, $period, $gross)
-            : $this->computePph21($employee, $tenantId, $gross);
+            ? $this->computeAnnualPph21($employee, $tenantId, $period, $taxableGross)
+            : $this->computePph21($employee, $tenantId, $taxableGross);
 
         if ($bpjs['employee'] > 0) {
             $deductions[] = ['name' => 'BPJS (Karyawan)', 'amount' => $bpjs['employee']];
@@ -1143,6 +1204,171 @@ class PayrollController extends Controller
             'per_overtime_hour' => $amount * $overtimeHours,
             default => $amount,
         };
+    }
+
+    /**
+     * Resolve a component amount from its "Dasar Perhitungan" (BPR manual 1.2.2)
+     * when a basis_type is configured. Returns [amount, proratable].
+     *
+     *   - fixed   : basis_value as the per-unit amount x attendance calc_basis
+     *   - tabel   : the Nilai Komponen mapping value (fallback to the attachment
+     *               amount) x attendance calc_basis
+     *   - formula : the evaluated Master Formula (already a full value; not
+     *               re-multiplied by the attendance basis, not outer-prorated)
+     *
+     * @return array{0: float, 1: bool}
+     */
+    private function derivedComponentAmount(PayrollComponent $component, Employee $employee, float $attachmentAmount, int $presentDays, float $overtimeHours, int $tenantId): array
+    {
+        $attendanceBasis = ['per_present_day', 'per_overtime_hour'];
+
+        switch ($component->basis_type) {
+            case 'fixed':
+                $amount = $this->amountForBasis((float) $component->basis_value, $component->calc_basis, $presentDays, $overtimeHours);
+
+                return [$amount, ! in_array($component->calc_basis, $attendanceBasis, true)];
+
+            case 'tabel':
+                $base = $this->resolveComponentValue($component, $employee, $tenantId) ?? $attachmentAmount;
+                $amount = $this->amountForBasis($base, $component->calc_basis, $presentDays, $overtimeHours);
+
+                return [$amount, ! in_array($component->calc_basis, $attendanceBasis, true)];
+
+            case 'formula':
+                return [$this->evaluateComponentFormula($component, $employee, $tenantId), false];
+
+            default:
+                $amount = $this->amountForBasis($attachmentAmount, $component->calc_basis, $presentDays, $overtimeHours);
+
+                return [$amount, ! in_array($component->calc_basis, $attendanceBasis, true)];
+        }
+    }
+
+    /**
+     * Resolve the "Nilai Komponen" mapping value (BPR manual 1.2.4) for an
+     * employee: the most-specific row whose set dimensions all match. A row that
+     * sets a dimension the employee does not match is excluded; among the rest,
+     * the row constraining the most dimensions wins (newest breaks ties).
+     */
+    private function resolveComponentValue(PayrollComponent $component, Employee $employee, int $tenantId): ?float
+    {
+        $rows = PayrollComponentValue::forTenant($tenantId)
+            ->where('payroll_component_id', $component->id)
+            ->get();
+
+        $best = null;
+        $bestScore = -1;
+
+        foreach ($rows as $row) {
+            $dimensions = [
+                [$row->kategori, $employee->kategori],
+                [$row->employment_status, $employee->employment_status],
+                [$row->position_id, $employee->position_id],
+                [$row->job_level_id, $employee->job_level_id],
+                [$row->branch_id, $employee->branch_id],
+            ];
+
+            $score = 0;
+            $matches = true;
+
+            foreach ($dimensions as [$constraint, $actual]) {
+                if ($constraint === null || $constraint === '') {
+                    continue;
+                }
+
+                if ((string) $constraint !== (string) $actual) {
+                    $matches = false;
+
+                    break;
+                }
+
+                $score++;
+            }
+
+            if ($matches && ($score > $bestScore || ($score === $bestScore && $best !== null && $row->id > $best->id))) {
+                $best = $row;
+                $bestScore = $score;
+            }
+        }
+
+        return $best !== null ? (float) $best->value : null;
+    }
+
+    /**
+     * Evaluate a component's Master Formula (BPR manual kombinasi komponen): each
+     * item contributes operand x nilai, summed, then clamped to the component's
+     * min/max. The operand is the referenced component's mapped/attachment value,
+     * or the employee's monthly base wage for a UMR item.
+     */
+    private function evaluateComponentFormula(PayrollComponent $component, Employee $employee, int $tenantId): float
+    {
+        $formula = $component->relationLoaded('formula') && $component->formula !== null
+            ? $component->formula->loadMissing('items.component')
+            : $component->formula()->with('items.component')->first();
+
+        if ($formula === null) {
+            return 0.0;
+        }
+
+        $total = 0.0;
+
+        foreach ($formula->items as $item) {
+            $operand = $item->tipe === 'umr'
+                ? $this->monthlyBaseWage($employee, $tenantId)
+                : $this->componentOperandValue($item->component, $employee, $tenantId);
+
+            $total += $operand * (float) $item->nilai;
+        }
+
+        if ($component->basis_min !== null) {
+            $total = max((float) $component->basis_min, $total);
+        }
+
+        if ($component->basis_max !== null) {
+            $total = min((float) $component->basis_max, $total);
+        }
+
+        return round($total);
+    }
+
+    /**
+     * Resolve a formula operand component's value for an employee without
+     * recursing into its own basis: its Nilai Komponen mapping, then its
+     * position/salary attachment amount, then a fixed basis value.
+     */
+    private function componentOperandValue(?PayrollComponent $component, Employee $employee, int $tenantId): float
+    {
+        if ($component === null) {
+            return 0.0;
+        }
+
+        $mapped = $this->resolveComponentValue($component, $employee, $tenantId);
+
+        if ($mapped !== null) {
+            return $mapped;
+        }
+
+        $salaryAmount = EmployeeSalaryComponent::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->where('payroll_component_id', $component->id)
+            ->value('amount');
+
+        if ($salaryAmount !== null) {
+            return (float) $salaryAmount;
+        }
+
+        if ($employee->position_id !== null) {
+            $positionAmount = PositionPayrollComponent::forTenant($tenantId)
+                ->where('position_id', $employee->position_id)
+                ->where('payroll_component_id', $component->id)
+                ->value('amount');
+
+            if ($positionAmount !== null) {
+                return (float) $positionAmount;
+            }
+        }
+
+        return $component->basis_type === 'fixed' ? (float) $component->basis_value : 0.0;
     }
 
     /**
@@ -1402,13 +1628,22 @@ class PayrollController extends Controller
      */
     private function collectComponent(PayrollComponent $component, float $amount, bool $proratable, array &$earnings, array &$deductions, float &$basic): void
     {
-        if ($component->type === 'deduction') {
+        $isDeduction = $component->type === 'deduction' || $component->component_group === 'potongan';
+
+        if ($isDeduction) {
             $deductions[] = ['name' => (string) $component->name, 'amount' => $amount];
 
             return;
         }
 
-        $earnings[] = ['name' => (string) $component->name, 'amount' => $amount, 'proratable' => $proratable];
+        // The `is_taxable` flag mirrors the manual's "Perhitungan Pajak Ya/Tidak":
+        // only taxable earnings enter the PPh 21 base.
+        $earnings[] = [
+            'name' => (string) $component->name,
+            'amount' => $amount,
+            'proratable' => $proratable,
+            'taxable' => (bool) $component->is_taxable,
+        ];
 
         if ($component->code === 'BASIC') {
             $basic += $amount;

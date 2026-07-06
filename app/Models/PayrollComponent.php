@@ -19,6 +19,11 @@ final class PayrollComponent extends Model
         return [
             'is_taxable' => 'boolean',
             'is_fixed' => 'boolean',
+            'show_on_slip' => 'boolean',
+            'basis_value' => 'decimal:2',
+            'basis_min' => 'decimal:2',
+            'basis_max' => 'decimal:2',
+            'basis_cut_off_day' => 'integer',
         ];
     }
 
@@ -40,5 +45,15 @@ final class PayrollComponent extends Model
     public function positionComponents(): HasMany
     {
         return $this->hasMany(PositionPayrollComponent::class);
+    }
+
+    public function formula(): BelongsTo
+    {
+        return $this->belongsTo(PayrollFormula::class, 'payroll_formula_id');
+    }
+
+    public function componentValues(): HasMany
+    {
+        return $this->hasMany(PayrollComponentValue::class);
     }
 }

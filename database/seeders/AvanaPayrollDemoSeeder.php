@@ -7,14 +7,18 @@ use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
 use App\Models\OvertimeRequest;
 use App\Models\PayrollComponent;
+use App\Models\PayrollComponentValue;
+use App\Models\PayrollFormula;
 use App\Models\PkpRate;
 use App\Models\Position;
 use App\Models\PositionPayrollComponent;
 use App\Models\PtkpRate;
+use App\Models\SalaryMaster;
 use App\Models\TaxProfile;
 use App\Models\Tenant;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 /**
  * Demo data that exercises the attendance-linked, by-job payroll engine:
@@ -57,7 +61,7 @@ final class AvanaPayrollDemoSeeder extends Seeder
         // Overtime-per-hour earning component.
         PayrollComponent::firstOrCreate(
             ['tenant_id' => $tenant->id, 'code' => 'LEMBUR'],
-            ['name' => 'Uang Lembur', 'type' => 'earning', 'is_taxable' => true, 'status' => 'active'],
+            ['name' => 'Uang Lembur', 'type' => 'earning', 'component_group' => 'penerimaan', 'is_taxable' => true, 'status' => 'active'],
         );
 
         // Attendance calculation basis per component.
@@ -136,5 +140,81 @@ final class AvanaPayrollDemoSeeder extends Seeder
                 ['ptkp_status' => 'TK/0', 'tax_method' => 'gross', 'tax_category' => 'A', 'effective_start_date' => '2026-01-01'],
             );
         }
+
+        $this->seedManualKomponen($tenant, $positions, $sample);
+    }
+
+    /**
+     * BPR-manual "Komponen" demo: a Tabel-based component with Nilai Komponen
+     * mapping, a Formula-based component, and a Master Gaji template assigned to
+     * the sample employees — so the ported dasar-perhitungan engine has data.
+     *
+     * @param  Collection<int, Position>  $positions
+     * @param  Collection<int, Employee>  $sample
+     */
+    private function seedManualKomponen(Tenant $tenant, $positions, $sample): void
+    {
+        // Tabel: nominal resolved from the Nilai Komponen mapping.
+        $kesehatan = PayrollComponent::updateOrCreate(
+            ['tenant_id' => $tenant->id, 'code' => 'TJ-KES'],
+            [
+                'name' => 'Tunjangan Kesehatan', 'type' => 'earning', 'component_group' => 'penerimaan',
+                'is_taxable' => true, 'status' => 'active', 'calc_basis' => 'fixed', 'basis_type' => 'tabel',
+            ],
+        );
+
+        // Generic value for anyone, plus a richer value for the first position.
+        PayrollComponentValue::updateOrCreate(
+            ['tenant_id' => $tenant->id, 'payroll_component_id' => $kesehatan->id, 'position_id' => null],
+            ['value' => 200_000, 'note' => 'Default semua pegawai'],
+        );
+        if ($positions->isNotEmpty()) {
+            PayrollComponentValue::updateOrCreate(
+                ['tenant_id' => $tenant->id, 'payroll_component_id' => $kesehatan->id, 'position_id' => $positions->first()->id],
+                ['value' => 350_000, 'note' => 'Posisi tertentu'],
+            );
+        }
+
+        // Formula: Tunjangan Kinerja = 10% x Gaji Pokok (BASIC).
+        $basic = PayrollComponent::where('tenant_id', $tenant->id)->where('code', 'BASIC')->first();
+        $formula = PayrollFormula::updateOrCreate(
+            ['tenant_id' => $tenant->id, 'name' => 'Kinerja 10% Gaji Pokok'],
+            ['note' => '10% dari Gaji Pokok', 'is_active' => true],
+        );
+        if ($basic !== null && $formula->items()->count() === 0) {
+            $formula->items()->create([
+                'tipe' => 'penerimaan', 'payroll_component_id' => $basic->id,
+                'operator' => '*', 'nilai' => 0.10, 'prorate' => false, 'sort_order' => 1,
+            ]);
+        }
+        $kinerja = PayrollComponent::updateOrCreate(
+            ['tenant_id' => $tenant->id, 'code' => 'TJ-KIN'],
+            [
+                'name' => 'Tunjangan Kinerja', 'type' => 'earning', 'component_group' => 'penerimaan',
+                'is_taxable' => true, 'status' => 'active', 'calc_basis' => 'fixed',
+                'basis_type' => 'formula', 'payroll_formula_id' => $formula->id,
+            ],
+        );
+
+        // Master Gaji "Organik": checklist of the standard components + the two
+        // manual-basis ones, attached to the sample employees.
+        $master = SalaryMaster::updateOrCreate(
+            ['tenant_id' => $tenant->id, 'code' => 'MG-ORG'],
+            ['category' => 'Organik', 'note' => 'Template gaji pegawai organik', 'is_active' => true, 'day_divisor' => 22],
+        );
+
+        $checklist = PayrollComponent::where('tenant_id', $tenant->id)
+            ->whereIn('code', ['TJ-KES', 'TJ-KIN'])
+            ->get();
+        foreach ($checklist as $component) {
+            $master->components()->updateOrCreate(
+                ['payroll_component_id' => $component->id],
+                ['is_prorate' => false, 'is_overtime_base' => false],
+            );
+        }
+
+        Employee::where('tenant_id', $tenant->id)
+            ->whereIn('id', $sample->pluck('id'))
+            ->update(['salary_master_id' => $master->id]);
     }
 }

@@ -341,6 +341,10 @@ it('scopes present-day pay to the weekly period window', function (): void {
         'end_date' => '2026-07-12',
     ])->assertSessionHas('success');
 
+    // Clear any seeded attendance (the demo seeder posts a "today" row that can
+    // land inside the window) so the count reflects only this test's fixtures.
+    Attendance::where('employee_id', $employee->id)->delete();
+
     // 2 present days inside the window, 1 the following week (out of window).
     foreach (['2026-07-06', '2026-07-08', '2026-07-15'] as $date) {
         Attendance::create([

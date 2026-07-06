@@ -45,11 +45,13 @@ use App\Http\Controllers\Avana\OnboardingSlideController;
 use App\Http\Controllers\Avana\OvertimeController;
 use App\Http\Controllers\Avana\PayrollConfigController;
 use App\Http\Controllers\Avana\PayrollController;
+use App\Http\Controllers\Avana\PayrollKomponenController;
 use App\Http\Controllers\Avana\PerformanceController;
 use App\Http\Controllers\Avana\PermissionRequestController;
 use App\Http\Controllers\Avana\PositionComponentController;
 use App\Http\Controllers\Avana\RecruitmentController;
 use App\Http\Controllers\Avana\RosterController;
+use App\Http\Controllers\Avana\SalaryMasterController;
 use App\Http\Controllers\Avana\SalaryStructureController;
 use App\Http\Controllers\Avana\ShiftSwapController;
 use App\Http\Controllers\Avana\SurveyController;
@@ -149,6 +151,26 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::delete('payroll/konfigurasi/ptkp/{rate}', [PayrollConfigController::class, 'destroyPtkpRate'])->name('payroll.konfigurasi.ptkp.destroy');
     Route::post('payroll/konfigurasi/pkp', [PayrollConfigController::class, 'storePkpRate'])->name('payroll.konfigurasi.pkp.store');
     Route::delete('payroll/konfigurasi/pkp/{rate}', [PayrollConfigController::class, 'destroyPkpRate'])->name('payroll.konfigurasi.pkp.destroy');
+
+    // Master Komponen & Master Formula (BPR-manual payroll config)
+    Route::get('payroll/komponen', [PayrollKomponenController::class, 'index'])->name('payroll.komponen');
+    Route::post('payroll/komponen/component', [PayrollKomponenController::class, 'storeComponent'])->name('payroll.komponen.component.store');
+    Route::put('payroll/komponen/component/{component}', [PayrollKomponenController::class, 'updateComponent'])->name('payroll.komponen.component.update');
+    Route::delete('payroll/komponen/component/{component}', [PayrollKomponenController::class, 'destroyComponent'])->name('payroll.komponen.component.destroy');
+    Route::post('payroll/komponen/component/{component}/nilai', [PayrollKomponenController::class, 'storeComponentValue'])->name('payroll.komponen.nilai.store');
+    Route::delete('payroll/komponen/nilai/{value}', [PayrollKomponenController::class, 'destroyComponentValue'])->name('payroll.komponen.nilai.destroy');
+    Route::post('payroll/komponen/formula', [PayrollKomponenController::class, 'storeFormula'])->name('payroll.komponen.formula.store');
+    Route::delete('payroll/komponen/formula/{formula}', [PayrollKomponenController::class, 'destroyFormula'])->name('payroll.komponen.formula.destroy');
+    Route::post('payroll/komponen/formula/{formula}/item', [PayrollKomponenController::class, 'storeFormulaItem'])->name('payroll.komponen.formula.item.store');
+    Route::delete('payroll/komponen/formula-item/{item}', [PayrollKomponenController::class, 'destroyFormulaItem'])->name('payroll.komponen.formula.item.destroy');
+
+    // Master Gaji (BPR-manual salary template)
+    Route::get('payroll/master-gaji', [SalaryMasterController::class, 'index'])->name('payroll.master-gaji');
+    Route::post('payroll/master-gaji', [SalaryMasterController::class, 'store'])->name('payroll.master-gaji.store');
+    Route::put('payroll/master-gaji/{master}', [SalaryMasterController::class, 'update'])->name('payroll.master-gaji.update');
+    Route::delete('payroll/master-gaji/{master}', [SalaryMasterController::class, 'destroy'])->name('payroll.master-gaji.destroy');
+    Route::post('payroll/master-gaji/{master}/component', [SalaryMasterController::class, 'setComponent'])->name('payroll.master-gaji.component');
+    Route::post('payroll/master-gaji/{master}/assign', [SalaryMasterController::class, 'assign'])->name('payroll.master-gaji.assign');
 
     Route::get('hak-akses', [AccessController::class, 'index'])->name('hak-akses');
     Route::post('hak-akses/permission/toggle', [AccessController::class, 'togglePermission'])->name('hak-akses.permission.toggle');
