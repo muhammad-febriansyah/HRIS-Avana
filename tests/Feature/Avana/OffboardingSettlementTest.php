@@ -4,6 +4,7 @@ use App\Models\Employee;
 use App\Models\OffboardingCase;
 use App\Models\PayrollComponent;
 use App\Models\PositionPayrollComponent;
+use App\Models\SalaryMaster;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
@@ -51,6 +52,33 @@ it('computes and persists a termination settlement on the case', function (): vo
     expect((float) $case->settlement_amount)->toBe(56_000_000.0); // 40jt + 15jt + 1jt
     expect($case->settlement_breakdown['up_months'])->toBe(8);
     expect($case->settlement_breakdown['upmk_months'])->toBe(3);
+});
+
+it('uses only the Komponen Kompensasi flagged components as the severance base', function (): void {
+    // Full wage = BASIC 5jt + Tunjangan Tetap 2jt = 7jt, but the master flags
+    // only BASIC as Komponen Kompensasi, so the base must be 5jt.
+    $tetap = PayrollComponent::create([
+        'tenant_id' => $this->tenant->id, 'code' => 'TJ-TTP', 'name' => 'Tunjangan Tetap',
+        'type' => 'earning', 'component_group' => 'penerimaan', 'is_taxable' => true, 'status' => 'active', 'calc_basis' => 'fixed',
+    ]);
+    PositionPayrollComponent::updateOrCreate(
+        ['position_id' => $this->employee->position_id, 'payroll_component_id' => $tetap->id],
+        ['tenant_id' => $this->tenant->id, 'amount' => 2_000_000],
+    );
+
+    $basic = PayrollComponent::forTenant($this->tenant->id)->where('code', 'BASIC')->firstOrFail();
+    $master = SalaryMaster::create(['tenant_id' => $this->tenant->id, 'code' => 'MG-KOMP', 'category' => 'Organik']);
+    $master->components()->create(['payroll_component_id' => $basic->id, 'included' => true, 'is_kompensasi' => true]);
+    $this->employee->update(['salary_master_id' => $master->id]);
+
+    actingAs($this->admin)
+        ->post(route('avana.offboarding.settlement', $this->case), ['reason' => 'phk_biasa'])
+        ->assertSessionHas('success');
+
+    $case = $this->case->fresh();
+    // 7 yr → UP 8 + UPMK 3 = 11 months x 5jt (base = flagged BASIC only).
+    expect((float) $case->settlement_breakdown['monthly_wage'])->toBe(5_000_000.0);
+    expect((float) $case->settlement_amount)->toBe(55_000_000.0);
 });
 
 it('rejects an unknown termination reason', function (): void {

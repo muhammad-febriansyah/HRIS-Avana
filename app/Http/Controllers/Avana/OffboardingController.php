@@ -7,7 +7,10 @@ use App\Models\ClearanceItem;
 use App\Models\Employee;
 use App\Models\EmployeeSalaryComponent;
 use App\Models\OffboardingCase;
+use App\Models\PayrollComponent;
+use App\Models\PayrollComponentValue;
 use App\Models\PositionPayrollComponent;
+use App\Models\SalaryMasterComponent;
 use App\Models\User;
 use App\Services\SeveranceCalculator;
 use Illuminate\Http\RedirectResponse;
@@ -149,7 +152,13 @@ class OffboardingController extends Controller
             ? max(0.0, $employee->join_date->diffInDays($endDate) / 365.25)
             : 0.0;
 
-        $wage = $this->monthlyBaseWage($employee, (int) $request->user()->tenant_id);
+        $tenantId = (int) $request->user()->tenant_id;
+
+        // If the employee's Master Gaji flags "Komponen Kompensasi", the
+        // severance base is the sum of just those components; otherwise fall back
+        // to the full monthly wage.
+        $wage = $this->compensationBaseWage($employee, $tenantId)
+            ?? $this->monthlyBaseWage($employee, $tenantId);
 
         $breakdown = $calculator->calculate(
             $wage,
@@ -204,6 +213,82 @@ class OffboardingController extends Controller
         }
 
         return $total;
+    }
+
+    /**
+     * The compensation base defined by the employee's Master Gaji "Komponen
+     * Kompensasi" checklist: the summed monthly value of just the flagged
+     * earning components. Null when no master or no component is flagged.
+     */
+    private function compensationBaseWage(Employee $employee, int $tenantId): ?float
+    {
+        if ($employee->salary_master_id === null) {
+            return null;
+        }
+
+        $flagged = SalaryMasterComponent::query()
+            ->where('salary_master_id', $employee->salary_master_id)
+            ->where('is_kompensasi', true)
+            ->with('component')
+            ->get();
+
+        if ($flagged->isEmpty()) {
+            return null;
+        }
+
+        $total = 0.0;
+
+        foreach ($flagged as $row) {
+            $component = $row->component;
+
+            if ($component === null || $component->type === 'deduction') {
+                continue;
+            }
+
+            $total += $this->resolveMonthlyAmount($component, $employee, $tenantId);
+        }
+
+        return $total;
+    }
+
+    /**
+     * Resolve a component's monthly nominal for an employee: the per-employee
+     * salary row, then the position row, then the Nilai Komponen mapping, then a
+     * fixed dasar-perhitungan value.
+     */
+    private function resolveMonthlyAmount(PayrollComponent $component, Employee $employee, int $tenantId): float
+    {
+        $salaryAmount = EmployeeSalaryComponent::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->where('payroll_component_id', $component->id)
+            ->value('amount');
+
+        if ($salaryAmount !== null) {
+            return (float) $salaryAmount;
+        }
+
+        if ($employee->position_id !== null) {
+            $positionAmount = PositionPayrollComponent::forTenant($tenantId)
+                ->where('position_id', $employee->position_id)
+                ->where('payroll_component_id', $component->id)
+                ->value('amount');
+
+            if ($positionAmount !== null) {
+                return (float) $positionAmount;
+            }
+        }
+
+        $mapped = PayrollComponentValue::forTenant($tenantId)
+            ->where('payroll_component_id', $component->id)
+            ->where(fn ($q) => $q->whereNull('position_id')->orWhere('position_id', $employee->position_id))
+            ->orderByRaw('position_id IS NULL')
+            ->value('value');
+
+        if ($mapped !== null) {
+            return (float) $mapped;
+        }
+
+        return $component->basis_type === 'fixed' ? (float) $component->basis_value : 0.0;
     }
 
     /**
