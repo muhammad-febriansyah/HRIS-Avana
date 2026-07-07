@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Attendance;
 use App\Models\Branch;
+use App\Models\DayCalcMethod;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
 use App\Models\OvertimeRequest;
@@ -198,6 +199,29 @@ final class AvanaPayrollDemoSeeder extends Seeder
             ],
         );
 
+        // Named day-calculation methods the tenant can pick per Master Gaji.
+        $hariKerja = DayCalcMethod::updateOrCreate(
+            ['tenant_id' => $tenant->id, 'code' => 'HK-22'],
+            [
+                'name' => 'Hari Kerja 22', 'basis' => 'hari_kerja', 'divisor' => 22,
+                'description' => 'Prorata berdasar 22 hari kerja', 'is_active' => true,
+            ],
+        );
+        DayCalcMethod::updateOrCreate(
+            ['tenant_id' => $tenant->id, 'code' => 'HK-25'],
+            [
+                'name' => 'Hari Kalender 25', 'basis' => 'hari_kalender', 'divisor' => 25,
+                'description' => 'Prorata berdasar 25 hari kalender', 'is_active' => true,
+            ],
+        );
+        DayCalcMethod::updateOrCreate(
+            ['tenant_id' => $tenant->id, 'code' => 'ABSEN'],
+            [
+                'name' => 'Berdasar Absen', 'basis' => 'absen', 'divisor' => null,
+                'description' => 'Prorata mengikuti jumlah hari hadir', 'is_active' => true,
+            ],
+        );
+
         // Master Gaji "Organik": checklist of the standard components + the two
         // manual-basis ones, attached to the sample employees.
         $master = SalaryMaster::updateOrCreate(
@@ -206,6 +230,7 @@ final class AvanaPayrollDemoSeeder extends Seeder
                 'category' => 'Organik', 'note' => 'Template gaji pegawai organik', 'is_active' => true,
                 'process_type' => 'normal', 'period_start_day' => 25, 'period_end_day' => 24,
                 'cut_off_day' => 15, 'day_divisor' => 22, 'day_calc_method' => 'hari_kerja',
+                'day_calc_method_id' => $hariKerja->id,
                 'overtime_calc_method' => 'reguler',
                 // Left without an absensi/overtime range so the demo run keeps
                 // using the payroll period window (present days stay intact).

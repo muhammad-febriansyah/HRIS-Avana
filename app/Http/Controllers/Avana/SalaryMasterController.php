@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
+use App\Models\DayCalcMethod;
 use App\Models\Employee;
 use App\Models\PayrollComponent;
 use App\Models\SalaryMaster;
@@ -92,6 +93,7 @@ class SalaryMasterController extends Controller
                 'cut_off_day' => $master->cut_off_day,
                 'day_divisor' => $master->day_divisor,
                 'day_calc_method' => $master->day_calc_method,
+                'day_calc_method_id' => $master->day_calc_method_id,
                 'overtime_calc_method' => $master->overtime_calc_method,
                 'overtime_start_day' => $master->overtime_start_day,
                 'overtime_end_day' => $master->overtime_end_day,
@@ -104,6 +106,16 @@ class SalaryMasterController extends Controller
                 'employees_count' => $master->employees()->count(),
             ],
             'components' => $components,
+            'dayCalcMethods' => DayCalcMethod::forTenant($tenantId)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'basis', 'divisor'])
+                ->map(fn (DayCalcMethod $m): array => [
+                    'id' => $m->id,
+                    'name' => $m->name,
+                    'basis' => $m->basis,
+                    'divisor' => $m->divisor,
+                ])->all(),
             'employeeOptions' => Employee::forTenant($tenantId)
                 ->where('status', 'active')
                 ->orderBy('full_name')
@@ -249,6 +261,7 @@ class SalaryMasterController extends Controller
             'cut_off_day' => $day,
             'day_divisor' => ['nullable', 'integer', 'min:1', 'max:31'],
             'day_calc_method' => ['nullable', Rule::in(['absen', 'hari_kerja', 'hari_kalender', 'formula'])],
+            'day_calc_method_id' => ['nullable', 'integer', Rule::exists('day_calc_methods', 'id')->where('tenant_id', $tenantId)],
             'overtime_calc_method' => ['nullable', Rule::in(['reguler', 'flat'])],
             'overtime_start_day' => $day,
             'overtime_end_day' => $day,
@@ -278,6 +291,7 @@ class SalaryMasterController extends Controller
             'cut_off_day' => $data['cut_off_day'] ?? null,
             'day_divisor' => $data['day_divisor'] ?? null,
             'day_calc_method' => $data['day_calc_method'] ?? null,
+            'day_calc_method_id' => $data['day_calc_method_id'] ?? null,
             'overtime_calc_method' => $data['overtime_calc_method'] ?? null,
             'overtime_start_day' => $data['overtime_start_day'] ?? null,
             'overtime_end_day' => $data['overtime_end_day'] ?? null,

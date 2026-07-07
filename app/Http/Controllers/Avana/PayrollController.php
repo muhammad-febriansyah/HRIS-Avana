@@ -7,6 +7,7 @@ use App\Http\Resources\Avana\PayrollPeriodResource;
 use App\Models\Attendance;
 use App\Models\BpjsProgram;
 use App\Models\CashAdvance;
+use App\Models\DayCalcMethod;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
 use App\Models\EmployeeSalaryComponent;
@@ -1552,17 +1553,30 @@ class PayrollController extends Controller
      */
     private function masterProrationFactor(?SalaryMaster $master, int $presentDays, ?array $range): ?float
     {
-        if ($master === null || ! $master->day_divisor) {
+        if ($master === null) {
             return null;
         }
 
-        $worked = match ($master->day_calc_method) {
+        // A referenced "Perhitungan Hari" method (Setting Komponen master) wins
+        // over the master's inline day_calc_method/day_divisor when assigned.
+        $method = $master->day_calc_method_id !== null
+            ? DayCalcMethod::forTenant($master->tenant_id)->find($master->day_calc_method_id)
+            : null;
+
+        $basis = $method->basis ?? $master->day_calc_method;
+        $divisor = $method?->divisor ?? $master->day_divisor;
+
+        if (! $divisor) {
+            return null;
+        }
+
+        $worked = match ($basis) {
             'hari_kalender' => $range !== null ? Carbon::parse($range[0])->diffInDays(Carbon::parse($range[1])) + 1 : $presentDays,
             'hari_kerja' => $range !== null ? $this->weekdaysBetween($range[0], $range[1]) : $presentDays,
             default => $presentDays, // 'absen', 'formula' or unset
         };
 
-        return min(1.0, $worked / $master->day_divisor);
+        return min(1.0, $worked / $divisor);
     }
 
     /**

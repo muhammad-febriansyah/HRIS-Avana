@@ -32,6 +32,7 @@ interface Master {
     cut_off_day: number | null;
     day_divisor: number | null;
     day_calc_method: string | null;
+    day_calc_method_id: number | null;
     overtime_calc_method: string | null;
     overtime_start_day: number | null;
     overtime_end_day: number | null;
@@ -50,9 +51,17 @@ interface EmployeeOption {
     salary_master_id: number | null;
 }
 
+interface DayCalcMethodOption {
+    id: number;
+    name: string;
+    basis: string;
+    divisor: number | null;
+}
+
 interface Props {
     master: Master;
     components: Component[];
+    dayCalcMethods: DayCalcMethodOption[];
     employeeOptions: EmployeeOption[];
 }
 
@@ -199,6 +208,7 @@ function ChecklistSection({
 export default function MasterGajiSetting({
     master,
     components,
+    dayCalcMethods,
     employeeOptions,
 }: Props) {
     const [assignOpen, setAssignOpen] = useState(false);
@@ -214,6 +224,7 @@ export default function MasterGajiSetting({
         cut_off_day: master.cut_off_day ?? '',
         day_divisor: master.day_divisor ?? '',
         day_calc_method: master.day_calc_method ?? 'hari_kerja',
+        day_calc_method_id: master.day_calc_method_id ?? '',
         overtime_calc_method: master.overtime_calc_method ?? 'reguler',
         overtime_start_day: master.overtime_start_day ?? '',
         overtime_end_day: master.overtime_end_day ?? '',
@@ -534,7 +545,52 @@ export default function MasterGajiSetting({
                                 alignItems: 'center',
                             }}
                         >
-                            <div style={label}>Perhitungan Hari</div>
+                            <div style={label}>Metode Perhitungan Hari</div>
+                            <div>
+                                <select
+                                    style={{ ...input, minWidth: 280 }}
+                                    value={form.data.day_calc_method_id}
+                                    onChange={(e) =>
+                                        form.setData(
+                                            'day_calc_method_id',
+                                            e.target.value,
+                                        )
+                                    }
+                                >
+                                    <option value="">
+                                        — Manual (pakai basis di bawah) —
+                                    </option>
+                                    {dayCalcMethods.map((m) => (
+                                        <option key={m.id} value={m.id}>
+                                            {m.name}
+                                            {m.divisor
+                                                ? ` (÷${m.divisor})`
+                                                : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                                <span
+                                    style={{
+                                        fontSize: 12.5,
+                                        color: C.faint,
+                                        marginLeft: 12,
+                                    }}
+                                >
+                                    Pilih metode dari Setting Komponen, atau
+                                    biarkan manual.
+                                </span>
+                            </div>
+                        </div>
+
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: '200px 1fr',
+                                gap: 16,
+                                alignItems: 'center',
+                            }}
+                        >
+                            <div style={label}>Perhitungan Hari (Manual)</div>
                             <div style={{ display: 'flex', gap: 20 }}>
                                 {[
                                     ['absen', 'Absen'],

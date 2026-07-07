@@ -21,6 +21,7 @@ use App\Http\Controllers\Avana\CompetencyController;
 use App\Http\Controllers\Avana\ContractController;
 use App\Http\Controllers\Avana\CrmController;
 use App\Http\Controllers\Avana\CustomFieldController;
+use App\Http\Controllers\Avana\DayCalcMethodController;
 use App\Http\Controllers\Avana\DokumenController;
 use App\Http\Controllers\Avana\DutyTravelController;
 use App\Http\Controllers\Avana\DynamicReportController;
@@ -132,6 +133,10 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::get('payroll', [PayrollController::class, 'index'])->name('payroll');
     Route::get('payroll/periods/create', [PayrollController::class, 'createPeriod'])->name('payroll.periods.create');
     Route::post('payroll/periods', [PayrollController::class, 'storePeriod'])->name('payroll.periods.store');
+    Route::get('payroll/perhitungan-hari', [DayCalcMethodController::class, 'index'])->name('payroll.perhitungan-hari');
+    Route::post('payroll/perhitungan-hari', [DayCalcMethodController::class, 'store'])->name('payroll.perhitungan-hari.store');
+    Route::put('payroll/perhitungan-hari/{perhitunganHari}', [DayCalcMethodController::class, 'update'])->name('payroll.perhitungan-hari.update');
+    Route::delete('payroll/perhitungan-hari/{perhitunganHari}', [DayCalcMethodController::class, 'destroy'])->name('payroll.perhitungan-hari.destroy');
     Route::get('payroll/absensi', [PayrollController::class, 'attendanceUpload'])->name('payroll.absensi');
     Route::get('payroll/absensi/template', [PayrollController::class, 'attendanceTemplate'])->name('payroll.absensi.template');
     Route::post('payroll/absensi', [PayrollController::class, 'importAttendance'])->name('payroll.absensi.import');
