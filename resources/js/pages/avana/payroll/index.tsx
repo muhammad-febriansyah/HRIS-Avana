@@ -171,6 +171,13 @@ export default function AvanaPayroll({
                             <AIcon name="calendar-plus" size={16} />
                             Buat Periode
                         </Link>
+                        <Link
+                            href={PayrollController.attendanceUpload().url}
+                            style={{ ...btnOut, textDecoration: 'none' }}
+                        >
+                            <AIcon name="upload-cloud" size={16} />
+                            Upload Absensi
+                        </Link>
                         <button
                             onClick={approvePayroll}
                             disabled={isLocked || isApproved}

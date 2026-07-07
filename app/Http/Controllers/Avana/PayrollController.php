@@ -26,6 +26,7 @@ use App\Models\SalaryMasterComponent;
 use App\Models\TaxProfile;
 use App\Models\UmrRate;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\CarbonInterface;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -216,6 +217,252 @@ class PayrollController extends Controller
         ]);
 
         return back()->with('success', 'Periode payroll dibuat');
+    }
+
+    /**
+     * Marker written to imported attendance rows / overtime so a re-upload
+     * replaces only its own data and never clobbers real device clock-ins.
+     */
+    private const IMPORT_MARK = 'import';
+
+    /**
+     * Render the "Upload Absensi" page: pick a period, download a CSV template
+     * and import per-employee present days + overtime for weekly/biweekly runs.
+     */
+    public function attendanceUpload(Request $request): Response
+    {
+        $this->authorize('run', PayrollPeriod::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $periods = PayrollPeriod::forTenant($tenantId)
+            ->orderByDesc('start_date')
+            ->get(['id', 'name', 'code', 'cycle', 'start_date', 'end_date'])
+            ->map(fn (PayrollPeriod $period): array => [
+                'id' => $period->id,
+                'name' => $period->name,
+                'code' => $period->code,
+                'cycle_label' => PayrollPeriodResource::CYCLE_LABELS[$period->cycle] ?? ($period->cycle ?? '—'),
+                'range' => $period->start_date !== null && $period->end_date !== null
+                    ? $period->start_date->format('d M Y').' – '.$period->end_date->format('d M Y')
+                    : '—',
+            ])
+            ->all();
+
+        return Inertia::render('avana/payroll/absensi', [
+            'periods' => $periods,
+        ]);
+    }
+
+    /**
+     * Stream a CSV attendance template with one prefilled row per employee.
+     */
+    public function attendanceTemplate(Request $request): StreamedResponse
+    {
+        $this->authorize('run', PayrollPeriod::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $employees = Employee::forTenant($tenantId)
+            ->orderBy('full_name')
+            ->get(['employee_number', 'full_name']);
+
+        return response()->streamDownload(function () use ($employees): void {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['employee_number', 'nama', 'hari_hadir', 'jam_lembur']);
+
+            foreach ($employees as $employee) {
+                fputcsv($out, [$employee->employee_number, $employee->full_name, '', '']);
+            }
+
+            fclose($out);
+        }, 'template-absensi.csv', ['Content-Type' => 'text/csv']);
+    }
+
+    /**
+     * Import a filled attendance CSV: materialise each employee's present-day
+     * count and overtime hours into the selected period's window so the payroll
+     * engine (which counts present attendances) picks them up on the next run.
+     */
+    public function importAttendance(Request $request): RedirectResponse
+    {
+        $this->authorize('run', PayrollPeriod::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $data = $request->validate([
+            'period_id' => ['required', 'integer'],
+            'file' => ['required', 'file', 'mimes:csv,txt', 'max:2048'],
+        ]);
+
+        $period = PayrollPeriod::forTenant($tenantId)->findOrFail($data['period_id']);
+
+        if ($period->status === 'locked') {
+            return back()->withErrors(['file' => 'Periode terkunci, absensi tidak bisa diubah.']);
+        }
+
+        if ($period->start_date === null || $period->end_date === null) {
+            return back()->withErrors(['file' => 'Periode tidak punya rentang tanggal.']);
+        }
+
+        $windowDates = $this->attendanceWindowDates($period->start_date, $period->end_date);
+        $maxDays = count($windowDates);
+
+        $rows = $this->readAttendanceCsv($request->file('file')->getRealPath());
+
+        $imported = 0;
+        $skipped = [];
+
+        foreach ($rows as $row) {
+            $number = trim((string) ($row[0] ?? ''));
+
+            if ($number === '') {
+                continue;
+            }
+
+            $employee = Employee::forTenant($tenantId)
+                ->where('employee_number', $number)
+                ->first();
+
+            if ($employee === null) {
+                $skipped[] = $number;
+
+                continue;
+            }
+
+            $presentDays = min($maxDays, max(0, (int) round((float) ($row[2] ?? 0))));
+            $overtimeHours = max(0.0, (float) str_replace(',', '.', (string) ($row[3] ?? 0)));
+
+            $this->materializeAttendance($employee, $period, $windowDates, $presentDays, $overtimeHours, $tenantId);
+            $imported++;
+        }
+
+        $message = "Absensi diimpor untuk {$imported} karyawan";
+
+        if ($skipped !== []) {
+            $message .= '. NIP tak dikenal: '.implode(', ', array_slice($skipped, 0, 10));
+        }
+
+        return back()->with('success', $message);
+    }
+
+    /**
+     * Ordered Y-m-d dates in the period window, weekdays first so an imported
+     * present-day count fills working days before spilling onto weekends.
+     *
+     * @return list<string>
+     */
+    private function attendanceWindowDates(CarbonInterface $start, CarbonInterface $end): array
+    {
+        $weekdays = [];
+        $weekends = [];
+
+        $cursor = $start->copy()->startOfDay();
+        $last = $end->copy()->startOfDay();
+
+        while ($cursor->lte($last)) {
+            if ($cursor->isWeekend()) {
+                $weekends[] = $cursor->toDateString();
+            } else {
+                $weekdays[] = $cursor->toDateString();
+            }
+
+            // Date casts are CarbonImmutable — addDay() returns a new value.
+            $cursor = $cursor->addDay();
+        }
+
+        return array_merge($weekdays, $weekends);
+    }
+
+    /**
+     * Parse an uploaded attendance CSV, dropping the header row.
+     *
+     * @return list<array<int, string>>
+     */
+    private function readAttendanceCsv(string $path): array
+    {
+        $handle = fopen($path, 'r');
+
+        if ($handle === false) {
+            return [];
+        }
+
+        $rows = [];
+        $first = true;
+
+        while (($cells = fgetcsv($handle)) !== false) {
+            if ($first) {
+                $first = false;
+                $head = strtolower(trim((string) ($cells[0] ?? '')));
+
+                if ($head === 'employee_number' || $head === 'nip') {
+                    continue;
+                }
+            }
+
+            $rows[] = $cells;
+        }
+
+        fclose($handle);
+
+        return $rows;
+    }
+
+    /**
+     * Replace an employee's imported present-days + overtime in the period
+     * window with the given figures. Only rows tagged with IMPORT_MARK are
+     * cleared first, so real device clock-ins are preserved.
+     *
+     * @param  list<string>  $windowDates
+     */
+    private function materializeAttendance(Employee $employee, PayrollPeriod $period, array $windowDates, int $presentDays, float $overtimeHours, int $tenantId): void
+    {
+        $start = $period->start_date->toDateString();
+        $end = $period->end_date->toDateString();
+
+        Attendance::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->whereBetween('date', [$start, $end])
+            ->where('location_status', self::IMPORT_MARK)
+            ->delete();
+
+        $now = now();
+        $insert = [];
+
+        foreach (array_slice($windowDates, 0, $presentDays) as $date) {
+            $insert[] = [
+                'tenant_id' => $tenantId,
+                'employee_id' => $employee->id,
+                'branch_id' => $employee->branch_id,
+                'date' => $date,
+                'status' => 'present',
+                'location_status' => self::IMPORT_MARK,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        if ($insert !== []) {
+            Attendance::insert($insert);
+        }
+
+        OvertimeRequest::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->whereBetween('date', [$start, $end])
+            ->where('reason', self::IMPORT_MARK)
+            ->delete();
+
+        if ($overtimeHours > 0) {
+            OvertimeRequest::create([
+                'tenant_id' => $tenantId,
+                'employee_id' => $employee->id,
+                'branch_id' => $employee->branch_id,
+                'date' => $start,
+                'hours' => $overtimeHours,
+                'reason' => self::IMPORT_MARK,
+                'status' => 'approved',
+            ]);
+        }
     }
 
     /**
