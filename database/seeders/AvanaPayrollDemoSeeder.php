@@ -8,6 +8,7 @@ use App\Models\DayCalcMethod;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
 use App\Models\OvertimeRequest;
+use App\Models\Payday;
 use App\Models\PayrollComponent;
 use App\Models\PayrollComponentValue;
 use App\Models\PayrollFormula;
@@ -15,6 +16,8 @@ use App\Models\PkpRate;
 use App\Models\Position;
 use App\Models\PositionPayrollComponent;
 use App\Models\PtkpRate;
+use App\Models\SalaryGrade;
+use App\Models\SalaryGradeStep;
 use App\Models\SalaryMaster;
 use App\Models\TaxProfile;
 use App\Models\Tenant;
@@ -269,5 +272,56 @@ final class AvanaPayrollDemoSeeder extends Seeder
                 ['region' => $branch->name, 'amount' => $amount],
             );
         }
+
+        $this->seedWageScaleAndPaydays($tenant, $sample);
+    }
+
+    /**
+     * Salary grades + their per-masa-kerja wage nominals ("Nilai Upah") and a
+     * couple of payday schedules with the sample employees mapped to one.
+     *
+     * @param  Collection<int, Employee>  $sample
+     */
+    private function seedWageScaleAndPaydays(Tenant $tenant, $sample): void
+    {
+        // Grade bands (Struktur & Skala Upah) + exact nominal per step (Nilai Upah).
+        $grades = [
+            ['grade_code' => 'G1', 'grade_name' => 'Golongan I', 'level' => 1, 'min' => 4_500_000, 'max' => 6_000_000, 'base' => 4_500_000],
+            ['grade_code' => 'G2', 'grade_name' => 'Golongan II', 'level' => 2, 'min' => 6_000_000, 'max' => 9_000_000, 'base' => 6_000_000],
+            ['grade_code' => 'G3', 'grade_name' => 'Golongan III', 'level' => 3, 'min' => 9_000_000, 'max' => 14_000_000, 'base' => 9_000_000],
+        ];
+
+        foreach ($grades as $g) {
+            $grade = SalaryGrade::updateOrCreate(
+                ['tenant_id' => $tenant->id, 'grade_code' => $g['grade_code']],
+                [
+                    'grade_name' => $g['grade_name'], 'level' => $g['level'],
+                    'min_salary' => $g['min'], 'mid_salary' => ($g['min'] + $g['max']) / 2, 'max_salary' => $g['max'],
+                ],
+            );
+
+            // Steps at 0/2/4/6 years, +5% compounding per step from the grade base.
+            foreach ([0, 2, 4, 6] as $step) {
+                $amount = (int) round($g['base'] * (1.05 ** ($step / 2)));
+                SalaryGradeStep::updateOrCreate(
+                    ['tenant_id' => $tenant->id, 'salary_grade_id' => $grade->id, 'masa_kerja' => $step],
+                    ['amount' => $amount, 'note' => $step === 0 ? 'Awal masuk' : "Masa kerja {$step} thn"],
+                );
+            }
+        }
+
+        // Payday schedules: staff paid on the 25th, daily/harian on the 1st.
+        $staff = Payday::updateOrCreate(
+            ['tenant_id' => $tenant->id, 'code' => 'PD-STAFF'],
+            ['name' => 'Staff Bulanan', 'pay_day' => 25, 'cut_off_day' => 20, 'description' => 'Gaji staf tetap', 'is_active' => true],
+        );
+        Payday::updateOrCreate(
+            ['tenant_id' => $tenant->id, 'code' => 'PD-HARIAN'],
+            ['name' => 'Harian Tgl 1', 'pay_day' => 1, 'cut_off_day' => 25, 'description' => 'Pekerja harian', 'is_active' => true],
+        );
+
+        Employee::where('tenant_id', $tenant->id)
+            ->whereIn('id', $sample->pluck('id'))
+            ->update(['payday_id' => $staff->id]);
     }
 }

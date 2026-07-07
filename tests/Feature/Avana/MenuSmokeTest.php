@@ -24,6 +24,7 @@ function avanaPageUris(): array
         ->reject(fn (string $uri) => str_contains($uri, 'export')
             || str_contains($uri, 'transfer')
             || str_contains($uri, 'bpjs-export')
+            || str_contains($uri, 'absensi/template')
             || str_contains($uri, 'cetak'))
         ->unique()
         ->values()
