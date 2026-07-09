@@ -180,7 +180,7 @@ final class AvanaNav
      *
      * @return array<int, array<string, mixed>>
      */
-    public static function forUser(?User $user): array
+    public static function forUser(?User $user, bool $platform = false): array
     {
         if ($user === null) {
             return self::stripMeta(self::groups());
@@ -218,8 +218,14 @@ final class AvanaNav
             return true;
         };
 
+        // Super admin (not impersonating a tenant) gets the platform-only menu;
+        // impersonating or a tenant admin gets that tenant's operational menu.
+        $sourceGroups = $platform
+            ? self::platformTenantGroups()
+            : self::tenantGroups($user->tenant_id);
+
         $groups = [];
-        foreach (self::tenantGroups($user->tenant_id) as $group) {
+        foreach ($sourceGroups as $group) {
             $items = [];
             foreach ($group['items'] as $item) {
                 if (isset($item['children'])) {
@@ -490,6 +496,83 @@ final class AvanaNav
                         ],
                     );
                 }
+            }
+        }
+    }
+
+    /**
+     * The default platform (super-admin) navigation: only platform-management &
+     * reporting screens, no tenant-operational modules. Editable via the Menu
+     * Builder once seeded into the null-tenant menu rows.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function platformGroups(): array
+    {
+        return [
+            ['title' => 'PLATFORM', 'items' => [
+                self::leaf('klien', 'Klien / Tenant', 'building-2', '/avana/klien', null, [], false, true),
+                self::leaf('billing', 'Billing & Invoice', 'receipt-text', '/avana/billing', null, [], false, true),
+                self::leaf('dynamic-report', 'Laporan Platform', 'table', '/avana/dynamic-report', null, [], false, true),
+            ]],
+            ['title' => 'PENGATURAN PLATFORM', 'items' => [
+                self::leaf('pengguna', 'Pengguna', 'user-cog', '/avana/pengguna', null, [], false, true),
+                self::leaf('hak-akses', 'Hak Akses', 'shield-check', '/avana/hak-akses', null, [], false, true),
+                self::leaf('fitur', 'Menu & Fitur', 'toggle-right', '/avana/fitur', null, [], false, true),
+                self::leaf('menu-builder', 'Menu Builder', 'list-tree', '/avana/menu-builder', null, [], false, true),
+                self::leaf('website-settings', 'Pengaturan Website', 'globe', '/avana/website-settings', null, [], false, true),
+                self::leaf('ai-settings', 'Pengaturan AI', 'sparkles', '/avana/ai-settings', null, [], false, true),
+                self::leaf('email-settings', 'Pengaturan Email', 'mail', '/avana/email-settings', null, [], false, true),
+                self::leaf('onboarding-slides', 'Onboarding App', 'smartphone', '/avana/onboarding-slides', null, [], false, true),
+                self::leaf('audit', 'Audit Trail', 'history', '/avana/audit', null, [], false, true),
+            ]],
+        ];
+    }
+
+    /**
+     * The platform menu groups from the null-tenant DB rows (Menu Builder), or
+     * the built-in defaults when none have been seeded yet.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function platformTenantGroups(): array
+    {
+        $rows = MenuItem::forTenant(null)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        return $rows->isEmpty() ? self::platformGroups() : self::buildGroups($rows);
+    }
+
+    /**
+     * Populate the platform (null-tenant) menu rows from {@see platformGroups()}.
+     * Idempotent — existing customised rows are left untouched.
+     */
+    public static function seedPlatformDefaults(): void
+    {
+        $order = 0;
+
+        foreach (self::platformGroups() as $group) {
+            foreach ($group['items'] as $item) {
+                $order++;
+
+                MenuItem::firstOrCreate(
+                    ['tenant_id' => null, 'key' => $item['id'], 'parent_id' => null],
+                    [
+                        'section' => $group['title'],
+                        'label' => $item['label'],
+                        'icon' => $item['icon'] ?? null,
+                        'href' => $item['href'] ?? null,
+                        'feature' => null,
+                        'modules' => [],
+                        'admin_only' => false,
+                        'super_admin_only' => true,
+                        'is_system' => true,
+                        'sort_order' => $order,
+                    ],
+                );
             }
         }
     }

@@ -25,6 +25,7 @@ it('seeds the tenant menu from the AvanaNav defaults', function (): void {
 it('adds a custom menu item that appears in the nav', function (): void {
     actingAs($this->superAdmin)
         ->post(route('avana.menu-builder.store'), [
+            'tenant_id' => $this->tenant->id,
             'label' => 'Portal Vendor',
             'href' => '/avana/crm',
             'icon' => 'briefcase',
@@ -71,7 +72,10 @@ it('reorders siblings from an explicit drag order', function (): void {
     $c = MenuItem::create(['tenant_id' => $this->tenant->id, 'key' => 'dc', 'label' => 'C', 'section' => 'DND', 'sort_order' => 2]);
 
     actingAs($this->superAdmin)
-        ->post(route('avana.menu-builder.reorder'), ['ids' => [$c->id, $a->id, $b->id]])
+        ->post(route('avana.menu-builder.reorder'), [
+            'tenant_id' => $this->tenant->id,
+            'ids' => [$c->id, $a->id, $b->id],
+        ])
         ->assertSessionHas('success');
 
     expect($c->fresh()->sort_order)->toBe(0);

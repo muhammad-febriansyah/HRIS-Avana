@@ -26,9 +26,12 @@ final class MenuItem extends Model
         ];
     }
 
-    public function scopeForTenant(Builder $query, int|string $tenantId): Builder
+    public function scopeForTenant(Builder $query, int|string|null $tenantId): Builder
     {
-        return $query->where('tenant_id', $tenantId);
+        // A null scope is the platform (super-admin) menu.
+        return $tenantId === null || $tenantId === 0 || $tenantId === '0'
+            ? $query->whereNull('tenant_id')
+            : $query->where('tenant_id', $tenantId);
     }
 
     public function parent(): BelongsTo

@@ -34,9 +34,11 @@ class MenuBuilderController extends Controller
 
         $tenantId = $this->resolveTenantId($request);
 
-        // A tenant that has never been seeded gets the default menu to edit.
+        // A scope that has never been seeded gets the default menu to edit.
         if (MenuItem::forTenant($tenantId)->doesntExist()) {
-            AvanaNav::seedDefaultsFor($tenantId);
+            $tenantId === null
+                ? AvanaNav::seedPlatformDefaults()
+                : AvanaNav::seedDefaultsFor($tenantId);
         }
 
         $isSuperAdmin = $this->isSuperAdmin($request);
@@ -274,7 +276,7 @@ class MenuBuilderController extends Controller
     /**
      * Generate a tenant-unique slug key from a label.
      */
-    private function uniqueKey(int $tenantId, string $label): string
+    private function uniqueKey(?int $tenantId, string $label): string
     {
         $base = Str::slug($label) ?: 'menu';
         $key = $base;
@@ -291,21 +293,28 @@ class MenuBuilderController extends Controller
      * The tenant whose menu is being edited: a super admin may target any tenant
      * (via ?tenant= or a tenant_id field); everyone else edits their own.
      */
-    private function resolveTenantId(Request $request): int
+    private function resolveTenantId(Request $request): ?int
     {
-        $own = (int) $request->user()->tenant_id;
-
         if (! $this->isSuperAdmin($request)) {
-            return $own;
+            return (int) $request->user()->tenant_id;
         }
 
+        // Explicit target: edit a specific tenant's menu.
         $requested = (int) ($request->input('tenant_id') ?? $request->query('tenant') ?? 0);
 
         if ($requested > 0 && Tenant::whereKey($requested)->exists()) {
             return $requested;
         }
 
-        return $own > 0 ? $own : (int) (Tenant::orderBy('id')->value('id') ?? 0);
+        // Impersonating a tenant: edit that tenant's menu.
+        $view = (int) ($request->session()->get('view_tenant_id') ?? 0);
+
+        if ($view > 0 && Tenant::whereKey($view)->exists()) {
+            return $view;
+        }
+
+        // Default for a super admin: the platform (null-tenant) menu.
+        return null;
     }
 
     private function isSuperAdmin(Request $request): bool

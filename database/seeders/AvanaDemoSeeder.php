@@ -312,6 +312,8 @@ final class AvanaDemoSeeder extends Seeder
     private function seedMenuItems(Tenant $tenant): void
     {
         AvanaNav::seedDefaultsFor($tenant->id);
+        // Platform (super-admin) menu — single null-tenant set, idempotent.
+        AvanaNav::seedPlatformDefaults();
     }
 
     private function seedAdminUser(Tenant $tenant): User

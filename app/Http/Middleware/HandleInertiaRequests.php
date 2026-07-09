@@ -53,7 +53,7 @@ class HandleInertiaRequests extends Middleware
                 'isSuperAdmin' => fn () => (bool) $user?->roles()->where('code', 'super_admin')->exists(),
                 'tenant' => fn () => $user?->tenant?->only('id', 'name', 'company_name'),
             ],
-            'nav' => fn () => AvanaNav::forUser($user),
+            'nav' => fn () => AvanaNav::forUser($user, $this->isPlatformScope($request, $user)),
             'superAdminView' => fn (): array => $this->superAdminView($request, $user),
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
@@ -76,6 +76,19 @@ class HandleInertiaRequests extends Middleware
         $path = $user->avatar_path ?? $user->employee?->photo_path;
 
         return $path !== null ? Storage::disk('public')->url($path) : null;
+    }
+
+    /**
+     * Whether the nav should show the platform (super-admin) menu: a super admin
+     * who is not currently impersonating a tenant via the topbar switcher.
+     */
+    private function isPlatformScope(Request $request, ?User $user): bool
+    {
+        if ($user === null || ! $user->roles()->where('code', 'super_admin')->exists()) {
+            return false;
+        }
+
+        return (int) ($request->session()->get('view_tenant_id') ?? 0) === 0;
     }
 
     /**
