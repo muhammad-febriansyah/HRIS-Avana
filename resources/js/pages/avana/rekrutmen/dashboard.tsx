@@ -7,6 +7,9 @@ interface FunnelRow {
     value: number;
 }
 
+/** Ordinal blue ramp (dataviz steps 250→650) — funnel stages darken downward. */
+const FUNNEL_RAMP = ['#86b6ef', '#5598e7', '#2a78d6', '#1c5cab', '#104281'];
+
 interface TaskRow {
     id: number;
     title: string;
@@ -111,8 +114,11 @@ export default function RecruitmentDashboard({
                                 gap: 16,
                             }}
                         >
-                            {funnel.map((row) => (
-                                <div key={row.label}>
+                            {funnel.map((row, i) => (
+                                <div
+                                    key={row.label}
+                                    title={`${row.label}: ${row.value}`}
+                                >
                                     <div
                                         style={{
                                             display: 'flex',
@@ -126,7 +132,7 @@ export default function RecruitmentDashboard({
                                         </span>
                                         <span
                                             style={{
-                                                fontWeight: 600,
+                                                fontWeight: 700,
                                                 color: C.navy,
                                                 fontVariantNumeric:
                                                     'tabular-nums',
@@ -137,8 +143,8 @@ export default function RecruitmentDashboard({
                                     </div>
                                     <div
                                         style={{
-                                            height: 10,
-                                            borderRadius: 100,
+                                            height: 12,
+                                            borderRadius: 6,
                                             background: C.line,
                                             overflow: 'hidden',
                                         }}
@@ -146,9 +152,14 @@ export default function RecruitmentDashboard({
                                         <div
                                             style={{
                                                 width: `${Math.round((row.value / maxFunnel) * 100)}%`,
+                                                minWidth: row.value > 0 ? 6 : 0,
                                                 height: '100%',
-                                                borderRadius: 100,
-                                                background: C.primary,
+                                                borderRadius: 6,
+                                                background:
+                                                    FUNNEL_RAMP[i] ??
+                                                    FUNNEL_RAMP[
+                                                        FUNNEL_RAMP.length - 1
+                                                    ],
                                                 transition: 'width .3s',
                                             }}
                                         />
