@@ -290,7 +290,7 @@ class DashboardController extends Controller
     /**
      * Tenants whose employee count has reached 80%+ of their allotted quota.
      *
-     * @return array<int, array{id: int, name: string, usage: string, pct: int}>
+     * @return array<int, array{id: int, name: string, usage: string, used: int, max: int, pct: int}>
      */
     private function quotaAlerts(): array
     {
@@ -306,7 +306,9 @@ class DashboardController extends Controller
                 'id' => $tenant->id,
                 'name' => $tenant->name,
                 'usage' => $tenant->employees_count.' / '.(int) $tenant->max_employees,
-                'pct' => (int) min(100, round($tenant->employees_count / (int) $tenant->max_employees * 100)),
+                'used' => (int) $tenant->employees_count,
+                'max' => (int) $tenant->max_employees,
+                'pct' => (int) round($tenant->employees_count / (int) $tenant->max_employees * 100),
             ])
             ->values()
             ->all();

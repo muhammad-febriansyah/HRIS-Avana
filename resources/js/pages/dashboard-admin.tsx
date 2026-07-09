@@ -26,7 +26,14 @@ type OverdueInvoice = {
     amount: string;
     due: string;
 };
-type QuotaAlert = { id: number; name: string; usage: string; pct: number };
+type QuotaAlert = {
+    id: number;
+    name: string;
+    usage: string;
+    used: number;
+    max: number;
+    pct: number;
+};
 
 type SuperDashboardProps = {
     kpis: Kpi[];
@@ -158,6 +165,109 @@ function RevenueChart({ data }: { data: Series }) {
                     </div>
                 </div>
             ))}
+        </div>
+    );
+}
+
+function QuotaChart({ data }: { data: QuotaAlert[] }) {
+    // Scale bars to the worst offender so over-quota clients are distinguishable
+    // (all clamped-at-100% bars looked identical before). Keep the 100% quota
+    // line inside the axis so "how far over" is readable at a glance.
+    const axisMax = Math.max(120, ...data.map((q) => q.pct));
+    const quotaLine = (100 / axisMax) * 100;
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {data.map((q) => {
+                const over = q.pct >= 100;
+                const color = over ? C.red : C.amber;
+
+                return (
+                    <div key={q.id}>
+                        <div
+                            style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'baseline',
+                                marginBottom: 6,
+                            }}
+                        >
+                            <span
+                                style={{
+                                    fontSize: 13,
+                                    fontWeight: 500,
+                                    color: C.text,
+                                }}
+                            >
+                                {q.name}
+                            </span>
+                            <span style={{ fontSize: 12, color: C.muted }}>
+                                {q.usage} karyawan{' '}
+                                <span style={{ fontWeight: 600, color }}>
+                                    ({q.pct}%)
+                                </span>
+                            </span>
+                        </div>
+                        <div
+                            style={{
+                                position: 'relative',
+                                height: 12,
+                                borderRadius: 6,
+                                background: C.line,
+                                overflow: 'hidden',
+                            }}
+                        >
+                            <div
+                                style={{
+                                    width: `${(q.pct / axisMax) * 100}%`,
+                                    height: '100%',
+                                    borderRadius: 6,
+                                    background: color,
+                                }}
+                            />
+                            {/* 100% quota reference — bar past it = over quota */}
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    bottom: 0,
+                                    left: `${quotaLine}%`,
+                                    width: 2,
+                                    background: '#fff',
+                                    boxShadow: `0 0 0 1px ${C.navy}`,
+                                    opacity: 0.5,
+                                }}
+                            />
+                        </div>
+                    </div>
+                );
+            })}
+            {/* shared axis footer: 0 — 100% quota line — axis max */}
+            <div
+                style={{
+                    position: 'relative',
+                    height: 16,
+                    marginTop: -4,
+                    fontSize: 10.5,
+                    color: C.faint,
+                }}
+            >
+                <span style={{ position: 'absolute', left: 0 }}>0</span>
+                <span
+                    style={{
+                        position: 'absolute',
+                        left: `${quotaLine}%`,
+                        transform: 'translateX(-50%)',
+                        color: C.muted,
+                        fontWeight: 600,
+                    }}
+                >
+                    kuota 100%
+                </span>
+                <span style={{ position: 'absolute', right: 0 }}>
+                    {axisMax}%
+                </span>
+            </div>
         </div>
     );
 }
