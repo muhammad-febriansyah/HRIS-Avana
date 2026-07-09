@@ -1,6 +1,13 @@
 import { Head } from '@inertiajs/react';
 import { C } from '@/lib/avana';
-import { Empty, Kpi, KpiRow, RecruitmentHeader, Section } from './shell';
+import {
+    Empty,
+    Funnel,
+    Kpi,
+    KpiRow,
+    RecruitmentHeader,
+    Section,
+} from './shell';
 
 interface Series {
     label: string;
@@ -43,68 +50,6 @@ const SOURCE_COLORS = [
     '#eb6834',
     '#008300',
 ];
-
-/** Horizontal bar chart for ordered funnel stages (magnitude by length). */
-function StageBars({ data }: { data: Series[] }) {
-    if (data.length === 0) {
-        return <Empty icon="bar-chart-3" title="Belum ada data" />;
-    }
-
-    const max = Math.max(...data.map((d) => d.value), 1);
-
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {data.map((row, i) => {
-                const pct = Math.round((row.value / max) * 100);
-                const color =
-                    STAGE_RAMP[i] ?? STAGE_RAMP[STAGE_RAMP.length - 1];
-
-                return (
-                    <div key={row.label} title={`${row.label}: ${row.value}`}>
-                        <div
-                            style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                fontSize: 13,
-                                marginBottom: 6,
-                            }}
-                        >
-                            <span style={{ color: C.text }}>{row.label}</span>
-                            <span
-                                style={{
-                                    fontWeight: 700,
-                                    color: C.navy,
-                                    fontVariantNumeric: 'tabular-nums',
-                                }}
-                            >
-                                {row.value}
-                            </span>
-                        </div>
-                        <div
-                            style={{
-                                height: 12,
-                                borderRadius: 6,
-                                background: C.line,
-                                overflow: 'hidden',
-                            }}
-                        >
-                            <div
-                                style={{
-                                    width: `${pct}%`,
-                                    minWidth: row.value > 0 ? 6 : 0,
-                                    height: '100%',
-                                    borderRadius: 6,
-                                    background: color,
-                                    transition: 'width .3s ease',
-                                }}
-                            />
-                        </div>
-                    </div>
-                );
-            })}
-        </div>
-    );
-}
 
 /** Donut chart for the part-to-whole source composition. */
 function SourceDonut({ data }: { data: Series[] }) {
@@ -321,8 +266,8 @@ export default function RecruitmentAnalytics({
                         alignItems: 'start',
                     }}
                 >
-                    <Section title="Kandidat per Tahap" icon="bar-chart-3">
-                        <StageBars data={byStage} />
+                    <Section title="Kandidat per Tahap" icon="filter">
+                        <Funnel data={byStage} colors={STAGE_RAMP} />
                     </Section>
                     <Section title="Sumber Pelamar" icon="globe">
                         <SourceDonut data={bySource} />

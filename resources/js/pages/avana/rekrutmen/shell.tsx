@@ -183,7 +183,9 @@ export function Section({
                     {icon !== undefined && (
                         <AIcon name={icon} size={18} color={C.primary} />
                     )}
-                    <div style={{ fontSize: 15, fontWeight: 600, color: C.navy }}>
+                    <div
+                        style={{ fontSize: 15, fontWeight: 600, color: C.navy }}
+                    >
                         {title}
                     </div>
                 </div>
@@ -224,6 +226,75 @@ export function Empty({
                     {hint}
                 </div>
             )}
+        </div>
+    );
+}
+
+/**
+ * Funnel chart: centered bands whose width scales with the value, so the ordered
+ * pipeline stages taper into a funnel silhouette. Stage label + value sit inside
+ * each band; zero-value stages render as a slim neutral rail.
+ */
+export function Funnel({
+    data,
+    colors,
+}: {
+    data: { label: string; value: number }[];
+    colors: string[];
+}) {
+    if (data.length === 0) {
+        return <Empty icon="filter" title="Belum ada data" />;
+    }
+
+    const max = Math.max(...data.map((d) => d.value), 1);
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {data.map((row, i) => {
+                const pct = (row.value / max) * 100;
+                const filled = row.value > 0;
+                const color = colors[i] ?? colors[colors.length - 1];
+
+                return (
+                    <div
+                        key={row.label}
+                        title={`${row.label}: ${row.value}`}
+                        style={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            height: 40,
+                        }}
+                    >
+                        <div
+                            style={{
+                                width: `max(150px, ${pct}%)`,
+                                height: '100%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '0 16px',
+                                borderRadius: 9,
+                                background: filled ? color : C.line,
+                                color: filled ? '#fff' : C.muted,
+                                transition: 'width .3s ease',
+                            }}
+                        >
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>
+                                {row.label}
+                            </span>
+                            <span
+                                style={{
+                                    fontSize: 15,
+                                    fontWeight: 700,
+                                    fontVariantNumeric: 'tabular-nums',
+                                }}
+                            >
+                                {row.value}
+                            </span>
+                        </div>
+                    </div>
+                );
+            })}
         </div>
     );
 }
