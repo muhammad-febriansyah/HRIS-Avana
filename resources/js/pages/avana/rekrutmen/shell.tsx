@@ -299,6 +299,111 @@ export function Funnel({
     );
 }
 
+/**
+ * Vertical column (bar) chart for comparing counts across ordered categories.
+ * Value sits above each column; columns share a baseline so heights are easy to
+ * compare. Zero-value categories keep a slim stub so their label stays visible.
+ */
+export function ColumnChart({
+    data,
+    colors,
+    height = 170,
+}: {
+    data: { label: string; value: number }[];
+    colors: string[];
+    height?: number;
+}) {
+    if (data.length === 0) {
+        return <Empty icon="bar-chart-3" title="Belum ada data" />;
+    }
+
+    const max = Math.max(...data.map((d) => d.value), 1);
+
+    return (
+        <div
+            style={{
+                display: 'flex',
+                alignItems: 'flex-end',
+                gap: 8,
+                height,
+                borderBottom: `2px solid ${C.border}`,
+                paddingTop: 22,
+            }}
+        >
+            {data.map((row, i) => {
+                const barH = Math.max((row.value / max) * (height - 22), 3);
+                const color = colors[i] ?? colors[colors.length - 1];
+
+                return (
+                    <div
+                        key={row.label}
+                        title={`${row.label}: ${row.value}`}
+                        style={{
+                            flex: 1,
+                            height: '100%',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'flex-end',
+                            minWidth: 0,
+                        }}
+                    >
+                        <span
+                            style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: C.navy,
+                                marginBottom: 5,
+                                fontVariantNumeric: 'tabular-nums',
+                            }}
+                        >
+                            {row.value}
+                        </span>
+                        <div
+                            style={{
+                                width: '100%',
+                                maxWidth: 44,
+                                height: barH,
+                                background: row.value > 0 ? color : C.line,
+                                borderRadius: '6px 6px 0 0',
+                                transition: 'height .3s ease',
+                            }}
+                        />
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+/** Category labels aligned under a {@see ColumnChart}. */
+export function ColumnLabels({
+    data,
+}: {
+    data: { label: string; value: number }[];
+}) {
+    return (
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            {data.map((row) => (
+                <div
+                    key={row.label}
+                    style={{
+                        flex: 1,
+                        minWidth: 0,
+                        textAlign: 'center',
+                        fontSize: 10.5,
+                        lineHeight: 1.2,
+                        color: C.muted,
+                        wordBreak: 'break-word',
+                    }}
+                >
+                    {row.label}
+                </div>
+            ))}
+        </div>
+    );
+}
+
 /** Shared table header-cell style. */
 export const th: CSSProperties = {
     textAlign: 'left',

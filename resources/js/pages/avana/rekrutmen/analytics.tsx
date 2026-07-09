@@ -1,8 +1,9 @@
 import { Head } from '@inertiajs/react';
 import { C } from '@/lib/avana';
 import {
+    ColumnChart,
+    ColumnLabels,
     Empty,
-    Funnel,
     Kpi,
     KpiRow,
     RecruitmentHeader,
@@ -266,8 +267,9 @@ export default function RecruitmentAnalytics({
                         alignItems: 'start',
                     }}
                 >
-                    <Section title="Kandidat per Tahap" icon="filter">
-                        <Funnel data={byStage} colors={STAGE_RAMP} />
+                    <Section title="Kandidat per Tahap" icon="bar-chart-3">
+                        <ColumnChart data={byStage} colors={STAGE_RAMP} />
+                        <ColumnLabels data={byStage} />
                     </Section>
                     <Section title="Sumber Pelamar" icon="globe">
                         <SourceDonut data={bySource} />
