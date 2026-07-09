@@ -107,7 +107,33 @@ class PayrollConfigController extends Controller
                 'bpjs_profiles' => EmployeeBpjsProfile::where('tenant_id', $tenantId)->count(),
                 'tax_profiles' => TaxProfile::where('tenant_id', $tenantId)->count(),
             ],
+            'settings' => [
+                'enforce_payroll_segregation' => (bool) $request->user()->tenant?->enforce_payroll_segregation,
+            ],
         ]);
+    }
+
+    /**
+     * Toggle tenant-level payroll controls (currently segregation of duties).
+     */
+    public function updateSettings(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $user->loadMissing('roles');
+        abort_unless($user->roles->whereIn('code', self::MANAGER_ROLES)->isNotEmpty(), 403);
+
+        $validated = $request->validate([
+            'enforce_payroll_segregation' => ['required', 'boolean'],
+        ]);
+
+        $tenant = $user->tenant;
+        abort_if($tenant === null, 404);
+
+        $tenant->update([
+            'enforce_payroll_segregation' => $validated['enforce_payroll_segregation'],
+        ]);
+
+        return back()->with('success', 'Pengaturan payroll disimpan');
     }
 
     /**

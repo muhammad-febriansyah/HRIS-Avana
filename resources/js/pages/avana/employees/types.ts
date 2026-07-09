@@ -136,4 +136,5 @@ export type FlashProps = {
     flash?: {
         success?: string;
     };
+    errors?: Record<string, string>;
 };

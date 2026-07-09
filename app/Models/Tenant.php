@@ -20,6 +20,7 @@ final class Tenant extends Model
         return [
             'start_date' => 'date',
             'end_date' => 'date',
+            'enforce_payroll_segregation' => 'boolean',
         ];
     }
 

@@ -168,6 +168,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
 
     // Payroll config: BPJS programs/rates + PPh21 TER
     Route::get('payroll/konfigurasi', [PayrollConfigController::class, 'index'])->name('payroll.konfigurasi');
+    Route::put('payroll/konfigurasi/settings', [PayrollConfigController::class, 'updateSettings'])->name('payroll.konfigurasi.settings');
     Route::post('payroll/konfigurasi/bpjs', [PayrollConfigController::class, 'storeBpjsProgram'])->name('payroll.konfigurasi.bpjs.store');
     Route::put('payroll/konfigurasi/bpjs/{program}', [PayrollConfigController::class, 'updateBpjsProgram'])->name('payroll.konfigurasi.bpjs.update');
     Route::delete('payroll/konfigurasi/bpjs/{program}', [PayrollConfigController::class, 'destroyBpjsProgram'])->name('payroll.konfigurasi.bpjs.destroy');

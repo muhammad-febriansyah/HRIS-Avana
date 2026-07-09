@@ -60,6 +60,9 @@ export interface PayrollConfigProps {
     ptkpRates: PtkpRate[];
     pkpRates: PkpRate[];
     profileStats: ProfileStats;
+    settings: {
+        enforce_payroll_segregation: boolean;
+    };
 }
 
 /** A flat record indexed by field/column key — feeds the table and modal. */

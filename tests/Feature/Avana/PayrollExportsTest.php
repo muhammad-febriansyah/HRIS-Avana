@@ -40,6 +40,8 @@ beforeEach(function (): void {
 
     actingAs($this->admin)->post('spec-export/payroll/run')->assertSessionHas('success');
     $this->run = PayrollRun::forTenant($this->tenant->id)->where('payroll_period_id', $this->period->id)->latest('id')->firstOrFail();
+    // Bank/BPJS export requires a finalized (locked) run.
+    $this->run->update(['status' => 'locked']);
 });
 
 it('streams a password-protected payslip PDF', function (): void {

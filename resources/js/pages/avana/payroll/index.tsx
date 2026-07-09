@@ -110,7 +110,7 @@ export default function AvanaPayroll({
     slip,
     filters,
 }: PayrollProps) {
-    const { flash } = usePage<FlashProps>().props;
+    const { flash, errors } = usePage<FlashProps>().props;
     const meta = periods.meta;
     const isLocked = summary.status === 'locked';
     const isApproved = summary.status === 'approved';
@@ -123,6 +123,12 @@ export default function AvanaPayroll({
             toast.success(flash.success, { id: flash.success });
         }
     }, [flash?.success]);
+
+    useEffect(() => {
+        if (errors?.payroll) {
+            toast.error(errors.payroll, { id: errors.payroll });
+        }
+    }, [errors?.payroll]);
 
     const runPayroll = () => {
         if (isLocked) {
@@ -294,20 +300,41 @@ export default function AvanaPayroll({
                                             />
                                             Laporan Payroll (Excel)
                                         </button>
-                                        <a
-                                            href={
-                                                PayrollController.bpjsFile().url
-                                            }
-                                            onClick={() => setExportOpen(false)}
-                                            style={exportItem}
-                                        >
-                                            <AIcon
-                                                name="shield-check"
-                                                size={16}
-                                                color={C.muted}
-                                            />
-                                            Export BPJS
-                                        </a>
+                                        {isLocked ? (
+                                            <a
+                                                href={
+                                                    PayrollController.bpjsFile()
+                                                        .url
+                                                }
+                                                onClick={() =>
+                                                    setExportOpen(false)
+                                                }
+                                                style={exportItem}
+                                            >
+                                                <AIcon
+                                                    name="shield-check"
+                                                    size={16}
+                                                    color={C.muted}
+                                                />
+                                                Export BPJS
+                                            </a>
+                                        ) : (
+                                            <div
+                                                title="Kunci periode dulu"
+                                                style={{
+                                                    ...exportItem,
+                                                    opacity: 0.5,
+                                                    cursor: 'not-allowed',
+                                                }}
+                                            >
+                                                <AIcon
+                                                    name="shield-check"
+                                                    size={16}
+                                                    color={C.faint}
+                                                />
+                                                Export BPJS
+                                            </div>
+                                        )}
                                         <div
                                             style={{
                                                 borderTop: `1px solid ${C.line}`,
@@ -322,6 +349,20 @@ export default function AvanaPayroll({
                                             }}
                                         >
                                             File Transfer Bank
+                                            {!isLocked && (
+                                                <span
+                                                    style={{
+                                                        display: 'block',
+                                                        textTransform: 'none',
+                                                        fontWeight: 500,
+                                                        letterSpacing: 0,
+                                                        color: C.amber,
+                                                        marginTop: 2,
+                                                    }}
+                                                >
+                                                    Kunci periode dulu
+                                                </span>
+                                            )}
                                         </div>
                                         <div
                                             style={{
@@ -355,24 +396,43 @@ export default function AvanaPayroll({
                                                 <option value="bni">BNI</option>
                                                 <option value="bri">BRI</option>
                                             </select>
-                                            <a
-                                                href={`${PayrollController.transferFile().url}?bank=${bank}`}
-                                                onClick={() =>
-                                                    setExportOpen(false)
-                                                }
-                                                style={{
-                                                    ...btnP,
-                                                    height: 36,
-                                                    textDecoration: 'none',
-                                                }}
-                                            >
-                                                <AIcon
-                                                    name="banknote"
-                                                    size={15}
-                                                    color="#fff"
-                                                />
-                                                Unduh
-                                            </a>
+                                            {isLocked ? (
+                                                <a
+                                                    href={`${PayrollController.transferFile().url}?bank=${bank}`}
+                                                    onClick={() =>
+                                                        setExportOpen(false)
+                                                    }
+                                                    style={{
+                                                        ...btnP,
+                                                        height: 36,
+                                                        textDecoration: 'none',
+                                                    }}
+                                                >
+                                                    <AIcon
+                                                        name="banknote"
+                                                        size={15}
+                                                        color="#fff"
+                                                    />
+                                                    Unduh
+                                                </a>
+                                            ) : (
+                                                <span
+                                                    title="Kunci periode dulu"
+                                                    style={{
+                                                        ...btnP,
+                                                        height: 36,
+                                                        opacity: 0.5,
+                                                        cursor: 'not-allowed',
+                                                    }}
+                                                >
+                                                    <AIcon
+                                                        name="banknote"
+                                                        size={15}
+                                                        color="#fff"
+                                                    />
+                                                    Unduh
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 </>
@@ -435,6 +495,26 @@ export default function AvanaPayroll({
                         disabled={!isApproved || isLocked}
                         onClick={lockPayroll}
                     />
+
+                    {/* Optional correction step — available after a run, before approval */}
+                    {hasRun && !isApproved && !isLocked && (
+                        <Link
+                            href="/avana/payroll/koreksi"
+                            style={{
+                                marginLeft: 'auto',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 7,
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: C.primary,
+                                textDecoration: 'none',
+                            }}
+                        >
+                            <AIcon name="pencil" size={15} color={C.primary} />
+                            Perlu koreksi?
+                        </Link>
+                    )}
                 </div>
 
                 {isLocked && <LockedAlert />}

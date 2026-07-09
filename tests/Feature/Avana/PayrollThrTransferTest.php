@@ -130,6 +130,13 @@ it('streams a bank transfer CSV for the latest regular run', function (): void {
 
     actingAs($this->admin)->post('spec-avana/payroll/run')->assertSessionHas('success');
 
+    // Bank transfer requires a finalized (locked) run.
+    PayrollRun::forTenant($tenantId)
+        ->whereHas('period', fn ($query) => $query->where('code', 'not like', 'THR-%'))
+        ->latest('id')
+        ->firstOrFail()
+        ->update(['status' => 'locked']);
+
     $response = actingAs($this->admin)->get('spec-avana/payroll/transfer');
 
     $response->assertOk();

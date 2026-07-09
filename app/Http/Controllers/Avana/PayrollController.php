@@ -116,6 +116,11 @@ class PayrollController extends Controller
             'branch_id' => null,
         ]);
         $run->status = 'calculated';
+        // Record the runner so approval can enforce segregation of duties. A
+        // recompute resets approval, so the latest runner is the accountable one.
+        $run->run_by = $request->user()->id;
+        $run->approved_by = null;
+        $run->approved_at = null;
         $run->save();
 
         $employees = $this->payableEmployees($tenantId, $period);
@@ -616,7 +621,7 @@ class PayrollController extends Controller
      * Export the bank transfer file (net pay per employee) for the latest run,
      * in a selectable per-bank column layout (?bank=bca|mandiri|bni|bri).
      */
-    public function transferFile(Request $request): StreamedResponse
+    public function transferFile(Request $request): StreamedResponse|RedirectResponse
     {
         $this->authorize('viewAny', PayrollPeriod::class);
 
@@ -633,6 +638,11 @@ class PayrollController extends Controller
             ->first();
 
         abort_if($run === null, 404);
+
+        // Disbursement is only allowed on finalized (locked) figures.
+        if ($run->status !== 'locked') {
+            return back()->withErrors(['payroll' => 'Kunci periode terlebih dahulu sebelum membuat file transfer bank.']);
+        }
 
         $periodCode = $run->period?->code ?? 'run-'.$run->id;
         $note = 'Gaji '.($run->period?->name ?? $periodCode);
@@ -674,7 +684,7 @@ class PayrollController extends Controller
      * Export the BPJS contribution report (employee/company split per program)
      * for the latest run — the data needed to file via SIPP/EDABU (BR-12.3).
      */
-    public function bpjsFile(Request $request): StreamedResponse
+    public function bpjsFile(Request $request): StreamedResponse|RedirectResponse
     {
         $this->authorize('viewAny', PayrollPeriod::class);
 
@@ -687,6 +697,11 @@ class PayrollController extends Controller
             ->first();
 
         abort_if($run === null, 404);
+
+        // BPJS reporting is filed from finalized (locked) figures.
+        if ($run->status !== 'locked') {
+            return back()->withErrors(['payroll' => 'Kunci periode terlebih dahulu sebelum ekspor BPJS.']);
+        }
 
         $periodCode = $run->period?->code ?? 'run-'.$run->id;
         $filename = 'bpjs-'.$periodCode.'-'.now()->format('Y-m-d').'.csv';
@@ -911,6 +926,16 @@ class PayrollController extends Controller
 
         if ($run->status !== 'calculated' && $run->status !== 'approved') {
             return back()->withErrors(['payroll' => 'Hitung payroll terlebih dahulu.']);
+        }
+
+        // Segregation of duties: when the tenant requires it, the person who ran
+        // the payroll may not approve their own run.
+        if (
+            $request->user()->tenant?->enforce_payroll_segregation
+            && $run->run_by !== null
+            && (int) $run->run_by === (int) $request->user()->id
+        ) {
+            return back()->withErrors(['payroll' => 'Pemroses payroll tidak boleh menyetujui hasilnya sendiri (segregation of duties). Minta pengguna lain untuk menyetujui.']);
         }
 
         $run->update([

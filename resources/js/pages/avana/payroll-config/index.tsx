@@ -1,4 +1,4 @@
-import { Head, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { AIcon, C, card } from '@/lib/avana';
@@ -12,10 +12,19 @@ export default function PayrollConfig({
     ptkpRates,
     pkpRates,
     profileStats,
+    settings,
 }: PayrollConfigProps) {
     const { flash } = usePage<FlashProps>().props;
 
     const [activeKey, setActiveKey] = useState<'bpjs' | 'pph21'>('bpjs');
+
+    const toggleSegregation = (value: boolean) => {
+        router.put(
+            '/avana/payroll/konfigurasi/settings',
+            { enforce_payroll_segregation: value },
+            { preserveScroll: true },
+        );
+    };
 
     useEffect(() => {
         if (flash?.success) {
@@ -58,6 +67,81 @@ export default function PayrollConfig({
                         Kelola program iuran BPJS serta Tarif PTKP &amp; PKP
                         progresif (PPh 21 Pasal 17).
                     </div>
+                </div>
+
+                {/* Kontrol payroll — segregation of duties */}
+                <div
+                    style={{
+                        ...card,
+                        padding: '16px 20px',
+                        marginBottom: 20,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 16,
+                        flexWrap: 'wrap',
+                    }}
+                >
+                    <div
+                        style={{
+                            display: 'flex',
+                            gap: 12,
+                            alignItems: 'flex-start',
+                        }}
+                    >
+                        <AIcon
+                            name="shield-check"
+                            size={20}
+                            color={C.primary}
+                        />
+                        <div>
+                            <div
+                                style={{
+                                    fontSize: 14.5,
+                                    fontWeight: 600,
+                                    color: C.navy,
+                                }}
+                            >
+                                Segregation of Duties
+                            </div>
+                            <div
+                                style={{
+                                    fontSize: 13,
+                                    color: C.muted,
+                                    marginTop: 2,
+                                    maxWidth: 560,
+                                }}
+                            >
+                                Jika aktif, pengguna yang menjalankan payroll
+                                tidak boleh menyetujui hasilnya sendiri —
+                                approval harus dari pengguna lain.
+                            </div>
+                        </div>
+                    </div>
+                    <label
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            cursor: 'pointer',
+                            fontSize: 13.5,
+                            fontWeight: 600,
+                            color: settings.enforce_payroll_segregation
+                                ? C.green
+                                : C.muted,
+                        }}
+                    >
+                        <input
+                            type="checkbox"
+                            checked={settings.enforce_payroll_segregation}
+                            onChange={(e) =>
+                                toggleSegregation(e.target.checked)
+                            }
+                        />
+                        {settings.enforce_payroll_segregation
+                            ? 'Aktif'
+                            : 'Nonaktif'}
+                    </label>
                 </div>
 
                 {/* Stat strip */}
