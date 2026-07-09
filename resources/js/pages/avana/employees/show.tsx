@@ -89,7 +89,7 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
     return (
         <>
             <Head title={emp.full_name} />
-            <div style={{ padding: '28px 32px', maxWidth: 1000 }}>
+            <div style={{ padding: '28px 32px' }}>
                 {/* Breadcrumb */}
                 <div
                     style={{

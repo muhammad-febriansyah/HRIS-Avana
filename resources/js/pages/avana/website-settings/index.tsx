@@ -106,10 +106,7 @@ export default function WebsiteSettings({ settings }: PageProps) {
     return (
         <>
             <Head title="Pengaturan Website" />
-            <form
-                onSubmit={submit}
-                style={{ padding: '28px 32px', maxWidth: 980 }}
-            >
+            <form onSubmit={submit} style={{ padding: '28px 32px' }}>
                 {/* Header */}
                 <div style={{ marginBottom: 22 }}>
                     <div

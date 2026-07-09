@@ -28,8 +28,16 @@ interface AttendanceDetail {
         position: string | null;
     } | null;
     branch: string | null;
-    shift: { name: string; start_time: string | null; end_time: string | null } | null;
-    clock_in: { time: string | null; coords: LatLng | null; photo_url: string | null };
+    shift: {
+        name: string;
+        start_time: string | null;
+        end_time: string | null;
+    } | null;
+    clock_in: {
+        time: string | null;
+        coords: LatLng | null;
+        photo_url: string | null;
+    };
     clock_out: { time: string | null; coords: LatLng | null };
     work_location: {
         name: string;
@@ -38,7 +46,11 @@ interface AttendanceDetail {
         longitude: number | null;
         radius_meter: number;
     } | null;
-    selfies: { url: string; captured_at: string | null; coords: LatLng | null }[];
+    selfies: {
+        url: string;
+        captured_at: string | null;
+        coords: LatLng | null;
+    }[];
 }
 
 const sectionHead: CSSProperties = {
@@ -52,8 +64,16 @@ const sectionHead: CSSProperties = {
     gap: 8,
 };
 
-const metaLabel: CSSProperties = { fontSize: 12, color: C.faint, marginBottom: 3 };
-const metaValue: CSSProperties = { fontSize: 13.5, color: C.text, fontWeight: 500 };
+const metaLabel: CSSProperties = {
+    fontSize: 12,
+    color: C.faint,
+    marginBottom: 3,
+};
+const metaValue: CSSProperties = {
+    fontSize: 13.5,
+    color: C.text,
+    fontWeight: 500,
+};
 
 function ClockCard({
     title,
@@ -137,11 +157,17 @@ export default function AbsensiShow({
     const points: MapPoint[] = [];
 
     if (attendance.clock_in.coords) {
-        points.push({ ...attendance.clock_in.coords, label: `Clock-in ${attendance.clock_in.time ?? ''}` });
+        points.push({
+            ...attendance.clock_in.coords,
+            label: `Clock-in ${attendance.clock_in.time ?? ''}`,
+        });
     }
 
     if (attendance.clock_out.coords) {
-        points.push({ ...attendance.clock_out.coords, label: `Clock-out ${attendance.clock_out.time ?? ''}` });
+        points.push({
+            ...attendance.clock_out.coords,
+            label: `Clock-out ${attendance.clock_out.time ?? ''}`,
+        });
     }
 
     const wl = attendance.work_location;
@@ -150,14 +176,15 @@ export default function AbsensiShow({
             ? { lat: wl.latitude, lng: wl.longitude, radius: wl.radius_meter }
             : null;
 
-    const workHours = attendance.work_minutes > 0
-        ? `${Math.floor(attendance.work_minutes / 60)}j ${attendance.work_minutes % 60}m`
-        : '—';
+    const workHours =
+        attendance.work_minutes > 0
+            ? `${Math.floor(attendance.work_minutes / 60)}j ${attendance.work_minutes % 60}m`
+            : '—';
 
     return (
         <>
             <Head title={`Absensi · ${attendance.employee?.name ?? ''}`} />
-            <div style={{ padding: '28px 32px', maxWidth: 960 }}>
+            <div style={{ padding: '28px 32px' }}>
                 <div
                     style={{
                         display: 'flex',
@@ -198,7 +225,8 @@ export default function AbsensiShow({
                                 borderRadius: '50%',
                                 flex: 'none',
                                 background:
-                                    attendance.employee?.avatar_color ?? C.faint,
+                                    attendance.employee?.avatar_color ??
+                                    C.faint,
                                 color: '#fff',
                                 display: 'flex',
                                 alignItems: 'center',
@@ -219,7 +247,13 @@ export default function AbsensiShow({
                             >
                                 {attendance.employee?.name ?? '—'}
                             </div>
-                            <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>
+                            <div
+                                style={{
+                                    fontSize: 13,
+                                    color: C.muted,
+                                    marginTop: 2,
+                                }}
+                            >
                                 {attendance.employee?.employee_number}
                                 {attendance.employee?.position
                                     ? ` · ${attendance.employee.position}`
@@ -247,21 +281,28 @@ export default function AbsensiShow({
                             borderTop: `1px solid ${C.line}`,
                             padding: '14px 20px',
                             display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+                            gridTemplateColumns:
+                                'repeat(auto-fit, minmax(120px, 1fr))',
                             gap: 16,
                         }}
                     >
                         <div>
                             <div style={metaLabel}>Tanggal</div>
-                            <div style={metaValue}>{attendance.date ?? '—'}</div>
+                            <div style={metaValue}>
+                                {attendance.date ?? '—'}
+                            </div>
                         </div>
                         <div>
                             <div style={metaLabel}>Cabang</div>
-                            <div style={metaValue}>{attendance.branch ?? '—'}</div>
+                            <div style={metaValue}>
+                                {attendance.branch ?? '—'}
+                            </div>
                         </div>
                         <div>
                             <div style={metaLabel}>Shift</div>
-                            <div style={metaValue}>{attendance.shift?.name ?? '—'}</div>
+                            <div style={metaValue}>
+                                {attendance.shift?.name ?? '—'}
+                            </div>
                         </div>
                         <div>
                             <div style={metaLabel}>Telat</div>
@@ -310,7 +351,11 @@ export default function AbsensiShow({
                     </div>
                     <div style={{ padding: 16 }}>
                         {points.length > 0 ? (
-                            <LocationMap points={points} area={area} height={340} />
+                            <LocationMap
+                                points={points}
+                                area={area}
+                                height={340}
+                            />
                         ) : (
                             <div
                                 style={{
@@ -337,7 +382,13 @@ export default function AbsensiShow({
                                 <div style={metaLabel}>Lokasi Kerja</div>
                                 <div style={metaValue}>{wl?.name ?? '—'}</div>
                                 {wl?.address ? (
-                                    <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+                                    <div
+                                        style={{
+                                            fontSize: 12,
+                                            color: C.muted,
+                                            marginTop: 2,
+                                        }}
+                                    >
                                         {wl.address}
                                     </div>
                                 ) : null}

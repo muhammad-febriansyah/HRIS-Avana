@@ -201,7 +201,7 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
     return (
         <>
             <Head title={`Kandidat — ${applicant.name}`} />
-            <div style={{ padding: '28px 32px', maxWidth: 1200 }}>
+            <div style={{ padding: '28px 32px' }}>
                 {/* breadcrumb */}
                 <div
                     style={{

@@ -72,7 +72,7 @@ export default function EmployeesEdit({
     return (
         <>
             <Head title="Ubah Karyawan" />
-            <div style={{ padding: '28px 32px', maxWidth: 880 }}>
+            <div style={{ padding: '28px 32px' }}>
                 <div
                     style={{
                         display: 'flex',

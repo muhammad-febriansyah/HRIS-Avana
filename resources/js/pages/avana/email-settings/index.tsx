@@ -186,13 +186,7 @@ export default function EmailSettings({
         <>
             <Head title="Pengaturan Email" />
 
-            <div
-                style={{
-                    maxWidth: 820,
-                    margin: '0 auto',
-                    padding: '24px 20px',
-                }}
-            >
+            <div style={{ padding: '28px 32px' }}>
                 <div
                     style={{
                         display: 'flex',

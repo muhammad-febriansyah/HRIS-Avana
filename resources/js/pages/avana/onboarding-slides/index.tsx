@@ -131,7 +131,7 @@ export default function OnboardingSlides({ slides }: OnboardingSlidesProps) {
     return (
         <>
             <Head title="Onboarding App" />
-            <div style={{ padding: '28px 32px', maxWidth: 900 }}>
+            <div style={{ padding: '28px 32px' }}>
                 <div
                     style={{
                         display: 'flex',

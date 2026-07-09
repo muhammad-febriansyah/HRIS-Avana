@@ -24,7 +24,7 @@ export default function AvanaFitur({ features, tenantName }: FiturIndexProps) {
     return (
         <>
             <Head title="Menu & Fitur" />
-            <div style={{ padding: '28px 32px', maxWidth: 880 }}>
+            <div style={{ padding: '28px 32px' }}>
                 <div
                     style={{
                         display: 'flex',

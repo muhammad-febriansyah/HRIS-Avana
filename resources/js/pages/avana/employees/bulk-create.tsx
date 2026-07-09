@@ -92,7 +92,11 @@ export default function EmployeesBulkCreate({
         setCommon((prev) => ({ ...prev, [key]: value }));
 
     const setBranch = (value: string) =>
-        setCommon((prev) => ({ ...prev, branch_id: value, work_location_id: '' }));
+        setCommon((prev) => ({
+            ...prev,
+            branch_id: value,
+            work_location_id: '',
+        }));
 
     const addRow = () => setData('employees', [...rows, emptyRow()]);
 
@@ -125,12 +129,13 @@ export default function EmployeesBulkCreate({
             String(location.branch_id ?? '') === common.branch_id,
     );
 
-    const filledCount = rows.filter((row) => !isBlank(row)).length || rows.length;
+    const filledCount =
+        rows.filter((row) => !isBlank(row)).length || rows.length;
 
     return (
         <>
             <Head title="Tambah Karyawan Massal" />
-            <div style={{ padding: '28px 32px', maxWidth: 880 }}>
+            <div style={{ padding: '28px 32px' }}>
                 <div
                     style={{
                         display: 'flex',
@@ -197,7 +202,8 @@ export default function EmployeesBulkCreate({
                         style={{
                             padding: '18px 20px',
                             display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                            gridTemplateColumns:
+                                'repeat(auto-fit, minmax(150px, 1fr))',
                             gap: 14,
                         }}
                     >
@@ -205,12 +211,17 @@ export default function EmployeesBulkCreate({
                             <label style={label}>Cabang</label>
                             <select
                                 value={common.branch_id}
-                                onChange={(event) => setBranch(event.target.value)}
+                                onChange={(event) =>
+                                    setBranch(event.target.value)
+                                }
                                 style={{ ...cell, cursor: 'pointer' }}
                             >
                                 <option value="">— Pilih —</option>
                                 {options.branches.map((branch) => (
-                                    <option key={branch.id} value={String(branch.id)}>
+                                    <option
+                                        key={branch.id}
+                                        value={String(branch.id)}
+                                    >
                                         {branch.name}
                                     </option>
                                 ))}
@@ -221,13 +232,19 @@ export default function EmployeesBulkCreate({
                             <select
                                 value={common.work_location_id}
                                 onChange={(event) =>
-                                    setCommonField('work_location_id', event.target.value)
+                                    setCommonField(
+                                        'work_location_id',
+                                        event.target.value,
+                                    )
                                 }
                                 style={{ ...cell, cursor: 'pointer' }}
                             >
                                 <option value="">Otomatis (ikut cabang)</option>
                                 {availableLocations.map((location) => (
-                                    <option key={location.id} value={String(location.id)}>
+                                    <option
+                                        key={location.id}
+                                        value={String(location.id)}
+                                    >
                                         {location.name}
                                     </option>
                                 ))}
@@ -238,13 +255,19 @@ export default function EmployeesBulkCreate({
                             <select
                                 value={common.department_id}
                                 onChange={(event) =>
-                                    setCommonField('department_id', event.target.value)
+                                    setCommonField(
+                                        'department_id',
+                                        event.target.value,
+                                    )
                                 }
                                 style={{ ...cell, cursor: 'pointer' }}
                             >
                                 <option value="">— Pilih —</option>
                                 {options.departments.map((department) => (
-                                    <option key={department.id} value={String(department.id)}>
+                                    <option
+                                        key={department.id}
+                                        value={String(department.id)}
+                                    >
                                         {department.name}
                                     </option>
                                 ))}
@@ -255,13 +278,19 @@ export default function EmployeesBulkCreate({
                             <select
                                 value={common.position_id}
                                 onChange={(event) =>
-                                    setCommonField('position_id', event.target.value)
+                                    setCommonField(
+                                        'position_id',
+                                        event.target.value,
+                                    )
                                 }
                                 style={{ ...cell, cursor: 'pointer' }}
                             >
                                 <option value="">— Pilih —</option>
                                 {options.positions.map((position) => (
-                                    <option key={position.id} value={String(position.id)}>
+                                    <option
+                                        key={position.id}
+                                        value={String(position.id)}
+                                    >
                                         {position.name}
                                     </option>
                                 ))}
@@ -272,12 +301,18 @@ export default function EmployeesBulkCreate({
                             <select
                                 value={common.employment_status}
                                 onChange={(event) =>
-                                    setCommonField('employment_status', event.target.value)
+                                    setCommonField(
+                                        'employment_status',
+                                        event.target.value,
+                                    )
                                 }
                                 style={{ ...cell, cursor: 'pointer' }}
                             >
                                 {options.employmentStatuses.map((option) => (
-                                    <option key={option.value} value={option.value}>
+                                    <option
+                                        key={option.value}
+                                        value={option.value}
+                                    >
                                         {option.label}
                                     </option>
                                 ))}
@@ -288,7 +323,9 @@ export default function EmployeesBulkCreate({
 
                 {/* Per-employee rows */}
                 <div style={{ ...card, overflow: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <table
+                        style={{ width: '100%', borderCollapse: 'collapse' }}
+                    >
                         <thead>
                             <tr style={{ background: '#FAFBFD' }}>
                                 <th style={{ ...th, width: 34 }}>#</th>
@@ -318,12 +355,19 @@ export default function EmployeesBulkCreate({
                                         <input
                                             value={row.full_name}
                                             onChange={(event) =>
-                                                updateRow(index, 'full_name', event.target.value)
+                                                updateRow(
+                                                    index,
+                                                    'full_name',
+                                                    event.target.value,
+                                                )
                                             }
                                             placeholder="Nama karyawan"
                                             style={
                                                 err(index, 'full_name')
-                                                    ? { ...cell, borderColor: C.red }
+                                                    ? {
+                                                          ...cell,
+                                                          borderColor: C.red,
+                                                      }
                                                     : cell
                                             }
                                         />
@@ -333,12 +377,19 @@ export default function EmployeesBulkCreate({
                                             type="email"
                                             value={row.email}
                                             onChange={(event) =>
-                                                updateRow(index, 'email', event.target.value)
+                                                updateRow(
+                                                    index,
+                                                    'email',
+                                                    event.target.value,
+                                                )
                                             }
                                             placeholder="email@perusahaan.co.id"
                                             style={
                                                 err(index, 'email')
-                                                    ? { ...cell, borderColor: C.red }
+                                                    ? {
+                                                          ...cell,
+                                                          borderColor: C.red,
+                                                      }
                                                     : cell
                                             }
                                         />
@@ -349,12 +400,19 @@ export default function EmployeesBulkCreate({
                                             autoComplete="new-password"
                                             value={row.password}
                                             onChange={(event) =>
-                                                updateRow(index, 'password', event.target.value)
+                                                updateRow(
+                                                    index,
+                                                    'password',
+                                                    event.target.value,
+                                                )
                                             }
                                             placeholder="opsional · buat login"
                                             style={
                                                 err(index, 'password')
-                                                    ? { ...cell, borderColor: C.red }
+                                                    ? {
+                                                          ...cell,
+                                                          borderColor: C.red,
+                                                      }
                                                     : cell
                                             }
                                         />

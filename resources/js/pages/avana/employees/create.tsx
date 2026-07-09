@@ -61,7 +61,7 @@ export default function EmployeesCreate({
     return (
         <>
             <Head title="Tambah Karyawan" />
-            <div style={{ padding: '28px 32px', maxWidth: 880 }}>
+            <div style={{ padding: '28px 32px' }}>
                 <div
                     style={{
                         display: 'flex',
