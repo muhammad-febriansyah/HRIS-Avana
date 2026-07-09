@@ -90,75 +90,85 @@ export default function AiSettings({
         <>
             <Head title="Pengaturan AI" />
 
-            <div
-                style={{
-                    maxWidth: 680,
-                    margin: '0 auto',
-                    padding: '24px 20px',
-                }}
-            >
+            <div style={{ padding: '28px 32px' }}>
                 <div
                     style={{
                         display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                        marginBottom: 4,
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: 16,
+                        marginBottom: 22,
                     }}
                 >
-                    <div
-                        style={{
-                            width: 44,
-                            height: 44,
-                            borderRadius: 12,
-                            background: '#EEF2FE',
-                            display: 'grid',
-                            placeItems: 'center',
-                        }}
-                    >
-                        <AIcon name="sparkles" size={22} color={C.primary} />
-                    </div>
                     <div>
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 7,
+                                fontSize: 12.5,
+                                color: C.faint,
+                                marginBottom: 7,
+                            }}
+                        >
+                            <span>Beranda</span>
+                            <AIcon name="chevron-right" size={13} />
+                            <span style={{ color: C.muted }}>
+                                Pengaturan AI
+                            </span>
+                        </div>
                         <h1
                             style={{
-                                fontSize: 20,
-                                fontWeight: 700,
+                                fontSize: 24,
+                                fontWeight: 600,
                                 color: C.navy,
                                 margin: 0,
+                                letterSpacing: '-.01em',
                             }}
                         >
                             Pengaturan AI
                         </h1>
-                        <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>
+                        <div
+                            style={{
+                                fontSize: 14,
+                                color: C.muted,
+                                marginTop: 4,
+                            }}
+                        >
                             Pilih penyedia AI, API key, dan model untuk AI
                             Assistant.
-                        </p>
+                        </div>
                     </div>
-                </div>
 
-                <div
-                    style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '4px 10px',
-                        borderRadius: 999,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        margin: '10px 0 18px 56px',
-                        color: settings.is_ready ? C.green : C.amber,
-                        background: settings.is_ready ? '#EAF7EF' : '#FDF4E7',
-                    }}
-                >
-                    <AIcon
-                        name={
-                            settings.is_ready ? 'circle-check' : 'circle-alert'
-                        }
-                        size={14}
-                        color={settings.is_ready ? C.green : C.amber}
-                    />
-                    {settings.is_ready
-                        ? 'Siap digunakan'
-                        : 'Belum dikonfigurasi'}
+                    <div
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '4px 10px',
+                            borderRadius: 999,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: settings.is_ready ? C.green : C.amber,
+                            background: settings.is_ready
+                                ? '#EAF7EF'
+                                : '#FDF4E7',
+                        }}
+                    >
+                        <AIcon
+                            name={
+                                settings.is_ready
+                                    ? 'circle-check'
+                                    : 'circle-alert'
+                            }
+                            size={14}
+                            color={settings.is_ready ? C.green : C.amber}
+                        />
+                        {settings.is_ready
+                            ? 'Siap digunakan'
+                            : 'Belum dikonfigurasi'}
+                    </div>
                 </div>
 
                 <form onSubmit={submit} style={{ ...card, padding: 22 }}>
