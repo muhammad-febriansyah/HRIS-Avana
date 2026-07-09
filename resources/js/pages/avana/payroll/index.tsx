@@ -232,13 +232,6 @@ export default function AvanaPayroll({
                             <AIcon name="sliders-horizontal" size={16} />
                             Komponen per Jabatan
                         </Link>
-                        <Link
-                            href={PayrollController.attendanceUpload().url}
-                            style={{ ...btnOut, textDecoration: 'none' }}
-                        >
-                            <AIcon name="upload-cloud" size={16} />
-                            Upload Absensi
-                        </Link>
                         <button onClick={generateThr} style={btnOut}>
                             <AIcon name="gift" size={16} />
                             Generate THR

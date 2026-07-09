@@ -151,9 +151,6 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::put('payroll/payday/{payday}', [PaydayController::class, 'update'])->name('payroll.payday.update');
     Route::delete('payroll/payday/{payday}', [PaydayController::class, 'destroy'])->name('payroll.payday.destroy');
     Route::post('payroll/payday/{payday}/assign', [PaydayController::class, 'assign'])->name('payroll.payday.assign');
-    Route::get('payroll/absensi', [PayrollController::class, 'attendanceUpload'])->name('payroll.absensi');
-    Route::get('payroll/absensi/template', [PayrollController::class, 'attendanceTemplate'])->name('payroll.absensi.template');
-    Route::post('payroll/absensi', [PayrollController::class, 'importAttendance'])->name('payroll.absensi.import');
     Route::post('payroll/run', [PayrollController::class, 'run'])->name('payroll.run');
     Route::post('payroll/approve', [PayrollController::class, 'approve'])->name('payroll.approve');
     Route::post('payroll/lock', [PayrollController::class, 'lock'])->name('payroll.lock');
