@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\AiConversation;
 use App\Models\AiMessage;
+use App\Models\AiSetting;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -71,7 +72,7 @@ class AiAssistantController extends Controller
             'conversations' => $conversations,
             'activeId' => $active?->id,
             'messages' => $messages,
-            'ready' => (string) config('prism.providers.openai.api_key') !== '',
+            'ready' => AiSetting::current()->isReady(),
         ]);
     }
 
@@ -117,11 +118,20 @@ class AiAssistantController extends Controller
                 : new UserMessage($message->content))
             ->all();
 
-        $apiKey = (string) config('prism.providers.openai.api_key');
-        $model = (string) env('AI_MODEL', 'gpt-4o-mini');
+        // Provider, model & key come from the super-admin AI settings (falling
+        // back to the Prism/env config for the selected provider).
+        $ai = AiSetting::current()->resolved();
+        $provider = $ai['provider'];
+        $apiKey = $ai['api_key'];
+        $model = $ai['model'];
         $conversationId = $conversation->id;
 
-        return response()->stream(function () use ($history, $user, $apiKey, $model, $conversationId): void {
+        // Feed the stored key into the Prism provider config for this request.
+        if ($apiKey !== '') {
+            config(["prism.providers.{$provider}.api_key" => $apiKey]);
+        }
+
+        return response()->stream(function () use ($history, $user, $provider, $apiKey, $model, $conversationId): void {
             $emit = static function (string $text): void {
                 echo $text;
                 if (ob_get_level() > 0) {
@@ -134,13 +144,13 @@ class AiAssistantController extends Controller
             $promptTokens = null;
             $completionTokens = null;
 
-            if ($apiKey === '') {
-                $full = 'Kunci OpenAI belum dikonfigurasi. Tambahkan `OPENAI` (atau `OPENAI_API_KEY`) di file `.env`, lalu jalankan ulang.';
+            if ($apiKey === '' && $provider !== 'ollama') {
+                $full = 'Kunci API AI belum dikonfigurasi. Super Admin dapat mengaturnya di menu Pengaturan AI (provider, API key, dan model).';
                 $emit($full);
             } else {
                 try {
                     $stream = Prism::text()
-                        ->using('openai', $model)
+                        ->using($provider, $model)
                         ->withSystemPrompt(self::SYSTEM_PROMPT)
                         ->withMessages($history)
                         ->asStream();
@@ -171,7 +181,7 @@ class AiAssistantController extends Controller
                 'user_id' => $user->id,
                 'role' => 'assistant',
                 'content' => $full !== '' ? $full : '(tidak ada respons)',
-                'model' => $apiKey === '' ? null : $model,
+                'model' => ($apiKey === '' && $provider !== 'ollama') ? null : $model,
                 'prompt_tokens' => $promptTokens,
                 'completion_tokens' => $completionTokens,
                 'total_tokens' => $totalTokens,

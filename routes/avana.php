@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Avana\AccessController;
 use App\Http\Controllers\Avana\AiAssistantController;
+use App\Http\Controllers\Avana\AiSettingController;
 use App\Http\Controllers\Avana\AnalyticsController;
 use App\Http\Controllers\Avana\AnnouncementController;
 use App\Http\Controllers\Avana\ApprovalController;
@@ -347,6 +348,10 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     // Pengaturan website (super admin) — edit-only, single settings row
     Route::get('website-settings', [WebsiteSettingController::class, 'edit'])->name('website-settings');
     Route::post('website-settings', [WebsiteSettingController::class, 'update'])->name('website-settings.update');
+
+    // Pengaturan AI (super admin) — provider, API key & model for the assistant
+    Route::get('ai-settings', [AiSettingController::class, 'edit'])->name('ai-settings');
+    Route::post('ai-settings', [AiSettingController::class, 'update'])->name('ai-settings.update');
 
     // Onboarding slides — mobile app intro carousel (super admin)
     Route::get('onboarding-slides', [OnboardingSlideController::class, 'index'])->name('onboarding-slides');
