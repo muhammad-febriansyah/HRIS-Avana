@@ -510,6 +510,9 @@ final class AvanaNav
     public static function platformGroups(): array
     {
         return [
+            ['title' => null, 'items' => [
+                self::leaf('dashboard', 'Dashboard', 'layout-dashboard', '/dashboard', null, [], false, true),
+            ]],
             ['title' => 'PLATFORM', 'items' => [
                 self::leaf('klien', 'Klien / Tenant', 'building-2', '/avana/klien', null, [], false, true),
                 self::leaf('billing', 'Billing & Invoice', 'receipt-text', '/avana/billing', null, [], false, true),

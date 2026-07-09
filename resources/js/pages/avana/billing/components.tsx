@@ -116,7 +116,14 @@ export function KpiCard({
     accent?: string;
 }) {
     return (
-        <div style={{ ...card, padding: 18, flex: 1, minWidth: 0 }}>
+        <div
+            style={{
+                ...card,
+                padding: 18,
+                flex: '1 1 190px',
+                minWidth: 190,
+            }}
+        >
             <div
                 style={{
                     display: 'flex',
