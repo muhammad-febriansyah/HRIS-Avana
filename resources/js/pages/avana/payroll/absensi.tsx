@@ -123,7 +123,7 @@ export default function AttendanceUpload({ periods }: AbsensiProps) {
                     satu periode (mingguan / dua-mingguan / bulanan).
                 </div>
 
-                <form onSubmit={submit} style={{ ...card, maxWidth: 620 }}>
+                <form onSubmit={submit} style={{ ...card }}>
                     <div style={{ padding: '22px 24px' }}>
                         <div style={{ marginBottom: 16 }}>
                             <label style={fieldLabel}>Periode</label>

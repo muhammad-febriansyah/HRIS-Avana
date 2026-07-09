@@ -33,7 +33,7 @@ export function KlienForm({
     const { data, setData, errors, processing } = form;
 
     return (
-        <form onSubmit={onSubmit} style={{ ...card, maxWidth: 620 }}>
+        <form onSubmit={onSubmit} style={{ ...card }}>
             <div style={{ padding: '22px 24px' }}>
                 <div
                     style={{

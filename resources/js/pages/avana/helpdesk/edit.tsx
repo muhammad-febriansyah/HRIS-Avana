@@ -119,7 +119,7 @@ export default function HelpdeskEdit({
                 />
 
                 {/* Reply thread */}
-                <div style={{ ...card, maxWidth: 640, marginTop: 22 }}>
+                <div style={{ ...card, marginTop: 22 }}>
                     <div
                         style={{
                             padding: '18px 24px',

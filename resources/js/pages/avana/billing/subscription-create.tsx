@@ -94,7 +94,7 @@ export default function SubscriptionCreate({
                         event.preventDefault();
                         form.post(BillingController.storeSubscription().url);
                     }}
-                    style={{ ...card, maxWidth: 640 }}
+                    style={{ ...card }}
                 >
                     <div
                         style={{

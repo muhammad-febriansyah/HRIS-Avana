@@ -37,7 +37,7 @@ export function HelpdeskForm({
     const { data, setData, errors, processing } = form;
 
     return (
-        <form onSubmit={onSubmit} style={{ ...card, maxWidth: 640 }}>
+        <form onSubmit={onSubmit} style={{ ...card }}>
             <div
                 style={{
                     padding: '22px 24px',

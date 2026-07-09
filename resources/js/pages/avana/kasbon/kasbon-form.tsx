@@ -53,7 +53,7 @@ export function KasbonForm({
     const previewDeduction = monthlyDeduction(data.amount, data.installments);
 
     return (
-        <form onSubmit={onSubmit} style={{ ...card, maxWidth: 560 }}>
+        <form onSubmit={onSubmit} style={{ ...card }}>
             <div
                 style={{
                     padding: '22px 24px',

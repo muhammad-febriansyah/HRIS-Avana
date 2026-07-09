@@ -124,7 +124,7 @@ export default function PeriodCreate() {
                         event.preventDefault();
                         form.post(PayrollController.storePeriod().url);
                     }}
-                    style={{ ...card, maxWidth: 560 }}
+                    style={{ ...card }}
                 >
                     <div
                         style={{

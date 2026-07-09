@@ -173,7 +173,7 @@ export default function KinerjaEdit({
                 />
 
                 {/* Kalibrasi & finalisasi (BR-19) */}
-                <div style={{ ...card, maxWidth: 640, marginTop: 24 }}>
+                <div style={{ ...card, marginTop: 24 }}>
                     <div
                         style={{
                             padding: '20px 24px',
@@ -320,7 +320,7 @@ export default function KinerjaEdit({
                 </div>
 
                 {/* 360 feedback */}
-                <div style={{ ...card, maxWidth: 640, marginTop: 24 }}>
+                <div style={{ ...card, marginTop: 24 }}>
                     <div
                         style={{
                             padding: '20px 24px',

@@ -34,7 +34,7 @@ export function DinasForm({
     const { data, setData, errors, processing } = form;
 
     return (
-        <form onSubmit={onSubmit} style={{ ...card, maxWidth: 560 }}>
+        <form onSubmit={onSubmit} style={{ ...card }}>
             <div
                 style={{
                     padding: '22px 24px',
