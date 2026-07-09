@@ -39,7 +39,7 @@ export function SuratForm({
     const editorRef = useRef<RichEditorHandle>(null);
 
     return (
-        <form onSubmit={onSubmit} style={{ ...card, maxWidth: 720 }}>
+        <form onSubmit={onSubmit} style={{ ...card }}>
             <div
                 style={{
                     padding: '22px 24px',

@@ -2,7 +2,15 @@ import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import BillingController from '@/actions/App/Http/Controllers/Avana/BillingController';
-import { AIcon, ActionBtn, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
+import {
+    AIcon,
+    ActionBtn,
+    btnOut,
+    btnP,
+    C,
+    card,
+    RupiahInput,
+} from '@/lib/avana';
 import { fieldLabelStyle, inputStyle, selectStyle } from './components';
 import { formatRupiah } from './types';
 import type { FlashProps, TenantOption } from './types';
@@ -114,7 +122,7 @@ export default function InvoiceCreate({
                         event.preventDefault();
                         form.post(BillingController.storeInvoice().url);
                     }}
-                    style={{ ...card, maxWidth: 760 }}
+                    style={{ ...card }}
                 >
                     <div
                         style={{
