@@ -26,6 +26,7 @@ use App\Http\Controllers\Avana\DayCalcMethodController;
 use App\Http\Controllers\Avana\DokumenController;
 use App\Http\Controllers\Avana\DutyTravelController;
 use App\Http\Controllers\Avana\DynamicReportController;
+use App\Http\Controllers\Avana\EmailSettingController;
 use App\Http\Controllers\Avana\EmployeeController;
 use App\Http\Controllers\Avana\FeatureController;
 use App\Http\Controllers\Avana\FieldVisitController;
@@ -352,6 +353,11 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     // Pengaturan AI (super admin) — provider, API key & model for the assistant
     Route::get('ai-settings', [AiSettingController::class, 'edit'])->name('ai-settings');
     Route::post('ai-settings', [AiSettingController::class, 'update'])->name('ai-settings.update');
+
+    // Pengaturan Email (super admin = platform default, admin tenant = override)
+    Route::get('email-settings', [EmailSettingController::class, 'edit'])->name('email-settings');
+    Route::post('email-settings', [EmailSettingController::class, 'update'])->name('email-settings.update');
+    Route::post('email-settings/test', [EmailSettingController::class, 'test'])->name('email-settings.test');
 
     // Onboarding slides — mobile app intro carousel (super admin)
     Route::get('onboarding-slides', [OnboardingSlideController::class, 'index'])->name('onboarding-slides');

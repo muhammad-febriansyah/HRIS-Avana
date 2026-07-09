@@ -134,6 +134,7 @@ final class AvanaNav
                 self::leaf('menu-builder', 'Menu Builder', 'list-tree', '/avana/menu-builder', null, self::MANAGE_MODULES, true, true),
                 self::leaf('hak-akses', 'Hak Akses', 'shield-check', '/avana/hak-akses', null, self::MANAGE_MODULES, true, true),
                 self::leaf('fitur', 'Menu & Fitur', 'toggle-right', '/avana/fitur', null, self::MANAGE_MODULES, true),
+                self::leaf('email-settings', 'Pengaturan Email', 'mail', '/avana/email-settings', null, self::MANAGE_MODULES, true),
                 self::leaf('audit', 'Audit Trail', 'history', '/avana/audit', null, ['audit']),
             ]],
             ['title' => 'PLATFORM', 'items' => [
