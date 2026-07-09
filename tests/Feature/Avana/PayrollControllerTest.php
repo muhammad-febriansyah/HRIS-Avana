@@ -142,13 +142,13 @@ it('computes a payroll run with items for every active employee', function (): v
 
     expect((float) $item->gross_salary)->toBe(7_000_000.0);
     expect((float) $item->total_allowance)->toBe(5_000_000.0);
-    // BPR-manual monthly progressive PPh 21: gross 7jt annualised (84jt), less
-    // 5% biaya jabatan (4,2jt) and TK/0 PTKP (54jt) → PKP 25,8jt × 5% ÷ 12 =
-    // 107.500 tax, on top of the 500rb koperasi deduction.
-    expect((float) $item->total_deduction)->toBe(607_500.0);
-    expect((float) $item->net_salary)->toBe(6_392_500.0);
+    // TER monthly PPh 21 (PMK 168/2023): gross 7jt, TK/0 → Kategori A, which
+    // puts 7.000.000 in the 6.750.001–7.500.000 bracket = 1,25% → 87.500 tax,
+    // on top of the 500rb koperasi deduction.
+    expect((float) $item->total_deduction)->toBe(587_500.0);
+    expect((float) $item->net_salary)->toBe(6_412_500.0);
     expect($item->calculation_snapshot)->toHaveKey('earnings');
-    expect($item->calculation_snapshot['tax']['method'] ?? null)->toBe('monthly_progressive');
+    expect($item->calculation_snapshot['tax']['method'] ?? null)->toBe('ter');
 });
 
 it('refreshes the existing run without duplicating items on re-run', function (): void {

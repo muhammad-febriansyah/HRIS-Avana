@@ -139,17 +139,18 @@ it('deducts internal BPJS computed from the registered wage', function (): void 
     expect(collect($item->calculation_snapshot['deductions'])->firstWhere('name', 'BPJS (Karyawan)'))->not->toBeNull();
 });
 
-it('computes internal PPh 21 with the monthly progressive (PTKP+PKP) method', function (): void {
-    // Gross 5.800.000 → annualised 69,6jt − 5% biaya jabatan (3,48jt) − TK/0
-    // PTKP (54jt) = PKP 12,12jt × 5% = 606.000/th ÷ 12 = 50.500/bln.
+it('computes internal PPh 21 with the monthly TER scheme (PMK 168/2023)', function (): void {
+    // Gross 5.800.000, TK/0 → TER Kategori A. 5.800.000 falls in the
+    // 5.650.001–5.950.000 bracket = 0,5% → 29.000/bln.
     configureComponent($this->tenant->id, $this->employee->position_id, 'BASIC', 'fixed', 5_800_000);
 
     $item = runAndItem($this);
 
     expect((float) $item->gross_salary)->toBe(5_800_000.0);
-    expect((float) $item->pph21_total)->toBe(50_500.0);
-    expect($item->calculation_snapshot['tax']['method'])->toBe('monthly_progressive');
-    expect((float) $item->calculation_snapshot['tax']['pkp'])->toBe(12_120_000.0);
+    expect((float) $item->pph21_total)->toBe(29_000.0);
+    expect($item->calculation_snapshot['tax']['method'])->toBe('ter');
+    expect($item->calculation_snapshot['tax']['ter_category'])->toBe('A');
+    expect((float) $item->calculation_snapshot['tax']['ter_rate'])->toBe(0.005);
 });
 
 it('accumulates total tax on the run', function (): void {

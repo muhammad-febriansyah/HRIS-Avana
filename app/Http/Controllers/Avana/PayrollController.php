@@ -26,6 +26,7 @@ use App\Models\SalaryMaster;
 use App\Models\SalaryMasterComponent;
 use App\Models\TaxProfile;
 use App\Models\UmrRate;
+use App\Support\Pph21Ter;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\CarbonInterface;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -1848,40 +1849,33 @@ class PayrollController extends Controller
     }
 
     /**
-     * Compute internal PPh 21 using the TER bracket matching the gross income.
+     * Compute the monthly PPh 21 withholding using the TER scheme (PP 58/2023 &
+     * PMK 168/2023): a flat effective rate — looked up by the employee's TER
+     * category (from PTKP status) and monthly taxable gross — applied to that
+     * gross. December / final-month reconciliation against the progressive
+     * Pasal 17 tariff is handled separately by computeAnnualPph21().
      *
      * @return array{amount: float, snapshot: array<string, mixed>}
      */
     private function computePph21(Employee $employee, int $tenantId, float $gross): array
     {
-        // BPR Manual method: monthly PPh 21 = annualised progressive Pasal 17.
-        // Monthly gross is annualised (x12), reduced by biaya jabatan and the
-        // configurable PTKP, taxed with the progressive PKP brackets, then /12.
         $profile = TaxProfile::where('tenant_id', $tenantId)
             ->where('employee_id', $employee->id)
             ->first();
 
-        $year = (int) now()->year;
-        $annualGross = $gross * 12;
-        $biayaJabatan = min($annualGross * 0.05, 6_000_000);
-        $ptkp = $this->ptkpFor($profile?->ptkp_status, $tenantId, $year);
-
-        $pkp = max(0.0, $annualGross - $biayaJabatan - $ptkp);
-        $pkp = floor($pkp / 1000) * 1000;
-
-        $annualTax = $this->progressiveTax($pkp, $tenantId, $year);
-        $amount = round($annualTax / 12);
+        $status = $profile?->ptkp_status;
+        $category = Pph21Ter::category($status);
+        $rate = Pph21Ter::monthlyRate($category, $gross);
+        $amount = round($gross * $rate);
 
         return [
             'amount' => $amount,
             'snapshot' => [
-                'method' => 'monthly_progressive',
-                'ptkp_status' => $profile?->ptkp_status,
-                'annual_gross' => round($annualGross),
-                'biaya_jabatan' => round($biayaJabatan),
-                'ptkp' => $ptkp,
-                'pkp' => $pkp,
-                'annual_tax' => $annualTax,
+                'method' => 'ter',
+                'ptkp_status' => $status,
+                'ter_category' => $category,
+                'ter_rate' => $rate,
+                'gross' => round($gross),
                 'pph21_amount' => $amount,
             ],
         ];
