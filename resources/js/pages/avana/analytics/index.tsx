@@ -1,7 +1,6 @@
 import { Head } from '@inertiajs/react';
 import { AIcon, C } from '@/lib/avana';
 import {
-    BarList,
     ChartCard,
     ColumnChart,
     DonutChart,
@@ -104,7 +103,7 @@ export default function AnalyticsIndex({
                     </ChartCard>
 
                     <ChartCard title="Distribusi Gaji (Slab)" icon="wallet">
-                        <BarList data={bySalarySlab} />
+                        <ColumnChart data={bySalarySlab} />
                     </ChartCard>
 
                     <ChartCard title="Status Kepegawaian" icon="briefcase">
@@ -124,7 +123,7 @@ export default function AnalyticsIndex({
                             title="Ringkasan Absensi Bulan Ini"
                             icon="fingerprint"
                         >
-                            <BarList data={attendance} />
+                            <DonutChart data={attendance} />
                         </ChartCard>
                     )}
 
