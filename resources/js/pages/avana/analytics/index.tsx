@@ -96,7 +96,7 @@ export default function AnalyticsIndex({
                         title="Karyawan per Departemen"
                         icon="building-2"
                     >
-                        <BarList data={byDepartment} />
+                        <ColumnChart data={byDepartment} />
                     </ChartCard>
 
                     <ChartCard title="Distribusi Usia" icon="cake">
