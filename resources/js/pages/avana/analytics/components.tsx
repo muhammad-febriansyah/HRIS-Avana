@@ -114,7 +114,13 @@ export function EmptyState({ label }: { label: string }) {
 }
 
 /** Horizontal bar list driven by a `{ label, value }` series. */
-export function BarList({ data }: { data: Series[] }) {
+export function BarList({
+    data,
+    color = C.primary,
+}: {
+    data: Series[];
+    color?: string;
+}) {
     if (data.length === 0) {
         return <EmptyState label="Belum ada data" />;
     }
@@ -123,12 +129,11 @@ export function BarList({ data }: { data: Series[] }) {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {data.map((row, index) => {
-                const color = CHART_PALETTE[index % CHART_PALETTE.length];
+            {data.map((row) => {
                 const pct = Math.round((row.value / max) * 100);
 
                 return (
-                    <div key={row.label}>
+                    <div key={row.label} title={`${row.label}: ${row.value}`}>
                         <div
                             style={{
                                 display: 'flex',
@@ -141,7 +146,7 @@ export function BarList({ data }: { data: Series[] }) {
                             <span style={{ color: C.text }}>{row.label}</span>
                             <span
                                 style={{
-                                    fontWeight: 600,
+                                    fontWeight: 700,
                                     color: C.navy,
                                     fontVariantNumeric: 'tabular-nums',
                                 }}
@@ -151,8 +156,8 @@ export function BarList({ data }: { data: Series[] }) {
                         </div>
                         <div
                             style={{
-                                height: 9,
-                                borderRadius: 100,
+                                height: 11,
+                                borderRadius: 6,
                                 background: C.line,
                                 overflow: 'hidden',
                             }}
@@ -160,8 +165,9 @@ export function BarList({ data }: { data: Series[] }) {
                             <div
                                 style={{
                                     width: `${pct}%`,
+                                    minWidth: row.value > 0 ? 6 : 0,
                                     height: '100%',
-                                    borderRadius: 100,
+                                    borderRadius: 6,
                                     background: color,
                                     transition: 'width .3s',
                                 }}
@@ -170,6 +176,98 @@ export function BarList({ data }: { data: Series[] }) {
                     </div>
                 );
             })}
+        </div>
+    );
+}
+
+/** Ordinal blue ramp for ordered distribution bins (light → dark). */
+const COLUMN_RAMP = ['#86b6ef', '#5598e7', '#2a78d6', '#1c5cab', '#104281'];
+
+/**
+ * Vertical column (histogram) chart for an ordered distribution — bins share a
+ * baseline so heights compare directly; value above each column, labels beneath.
+ */
+export function ColumnChart({ data }: { data: Series[] }) {
+    if (data.length === 0) {
+        return <EmptyState label="Belum ada data" />;
+    }
+
+    const max = Math.max(...data.map((d) => d.value), 1);
+    const height = 170;
+
+    return (
+        <div>
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    gap: 10,
+                    height,
+                    borderBottom: `2px solid ${C.border}`,
+                    paddingTop: 22,
+                }}
+            >
+                {data.map((row, i) => {
+                    const barH = Math.max((row.value / max) * (height - 22), 3);
+                    const color = COLUMN_RAMP[i % COLUMN_RAMP.length];
+
+                    return (
+                        <div
+                            key={row.label}
+                            title={`${row.label}: ${row.value}`}
+                            style={{
+                                flex: 1,
+                                height: '100%',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'flex-end',
+                                minWidth: 0,
+                            }}
+                        >
+                            <span
+                                style={{
+                                    fontSize: 13,
+                                    fontWeight: 700,
+                                    color: C.navy,
+                                    marginBottom: 5,
+                                    fontVariantNumeric: 'tabular-nums',
+                                }}
+                            >
+                                {row.value.toLocaleString('id-ID')}
+                            </span>
+                            <div
+                                style={{
+                                    width: '100%',
+                                    maxWidth: 48,
+                                    height: barH,
+                                    background: row.value > 0 ? color : C.line,
+                                    borderRadius: '6px 6px 0 0',
+                                    transition: 'height .3s ease',
+                                }}
+                            />
+                        </div>
+                    );
+                })}
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                {data.map((row) => (
+                    <div
+                        key={row.label}
+                        style={{
+                            flex: 1,
+                            minWidth: 0,
+                            textAlign: 'center',
+                            fontSize: 11,
+                            lineHeight: 1.2,
+                            color: C.muted,
+                            wordBreak: 'break-word',
+                        }}
+                    >
+                        {row.label}
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }

@@ -3,6 +3,7 @@ import { AIcon, C } from '@/lib/avana';
 import {
     BarList,
     ChartCard,
+    ColumnChart,
     DonutChart,
     KpiCard,
     PayrollSummary,
@@ -99,7 +100,7 @@ export default function AnalyticsIndex({
                     </ChartCard>
 
                     <ChartCard title="Distribusi Usia" icon="cake">
-                        <BarList data={byAgeGroup} />
+                        <ColumnChart data={byAgeGroup} />
                     </ChartCard>
 
                     <ChartCard title="Distribusi Gaji (Slab)" icon="wallet">
