@@ -1,6 +1,7 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import type { PropsWithChildren } from 'react';
+import { GlobalSearch } from '@/components/avana-ui/global-search';
 import { SearchableSelect } from '@/components/searchable-select';
 import {
     DropdownMenu,
@@ -117,7 +118,11 @@ function AvanaFonts() {
 
 export default function AvanaLayout({ children }: PropsWithChildren) {
     const page = usePage<{
-        auth?: { user?: AuthUser; avatar?: string | null; tenant?: { id: number; name: string } };
+        auth?: {
+            user?: AuthUser;
+            avatar?: string | null;
+            tenant?: { id: number; name: string };
+        };
         nav?: NavGroup[];
         superAdminView?: {
             is_super: boolean;
@@ -569,36 +574,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                     >
                         <AIcon name="panel-left" size={18} />
                     </button>
-                    <div
-                        style={{ position: 'relative', flex: 1, maxWidth: 420 }}
-                        className="avn-search"
-                    >
-                        <span
-                            style={{
-                                position: 'absolute',
-                                left: 13,
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                color: C.faint,
-                                display: 'flex',
-                            }}
-                        >
-                            <AIcon name="search" size={17} />
-                        </span>
-                        <input
-                            placeholder="Cari karyawan, dokumen, menu…"
-                            style={{
-                                width: '100%',
-                                height: 40,
-                                padding: '0 14px 0 40px',
-                                background: C.surface,
-                                border: '1px solid transparent',
-                                borderRadius: 8,
-                                fontSize: 13.5,
-                                outline: 'none',
-                            }}
-                        />
-                    </div>
+                    <GlobalSearch nav={navGroups} />
                     <div style={{ flex: 1 }} />
                     {sav?.is_super && sav.tenants.length > 0 && (
                         <div

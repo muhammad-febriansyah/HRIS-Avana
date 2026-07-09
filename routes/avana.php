@@ -60,6 +60,7 @@ use App\Http\Controllers\Avana\RosterController;
 use App\Http\Controllers\Avana\SalaryGradeStepController;
 use App\Http\Controllers\Avana\SalaryMasterController;
 use App\Http\Controllers\Avana\SalaryStructureController;
+use App\Http\Controllers\Avana\SearchController;
 use App\Http\Controllers\Avana\ShiftSwapController;
 use App\Http\Controllers\Avana\SurveyController;
 use App\Http\Controllers\Avana\TalentController;
@@ -78,6 +79,7 @@ use Illuminate\Support\Facades\Route;
  */
 Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana')->name('avana.')->group(function () {
     Route::post('view-tenant', [ViewTenantController::class, 'store'])->name('view-tenant');
+    Route::get('search', [SearchController::class, 'index'])->name('search');
     Route::get('organisasi', [EmployeeController::class, 'orgChart'])->name('organisasi');
     Route::get('menu-builder', [MenuBuilderController::class, 'index'])->name('menu-builder');
     Route::post('menu-builder', [MenuBuilderController::class, 'store'])->name('menu-builder.store');
