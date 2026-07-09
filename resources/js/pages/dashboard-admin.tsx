@@ -144,7 +144,11 @@ function RevenueChart({ data }: { data: Series }) {
                     }}
                 >
                     <div
-                        style={{ fontSize: 11.5, fontWeight: 600, color: C.navy }}
+                        style={{
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            color: C.navy,
+                        }}
                     >
                         {v}
                     </div>
@@ -170,103 +174,106 @@ function RevenueChart({ data }: { data: Series }) {
 }
 
 function QuotaChart({ data }: { data: QuotaAlert[] }) {
-    // Scale bars to the worst offender so over-quota clients are distinguishable
-    // (all clamped-at-100% bars looked identical before). Keep the 100% quota
-    // line inside the axis so "how far over" is readable at a glance.
+    // Vertical column chart. Scale to the worst offender so over-quota clients
+    // are distinguishable, and draw a 100% quota line across so "how far over"
+    // reads at a glance.
+    const plotH = 170;
     const axisMax = Math.max(120, ...data.map((q) => q.pct));
-    const quotaLine = (100 / axisMax) * 100;
+    const quotaY = plotH - (100 / axisMax) * plotH;
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {data.map((q) => {
-                const over = q.pct >= 100;
-                const color = over ? C.red : C.amber;
-
-                return (
-                    <div key={q.id}>
-                        <div
-                            style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'baseline',
-                                marginBottom: 6,
-                            }}
-                        >
-                            <span
-                                style={{
-                                    fontSize: 13,
-                                    fontWeight: 500,
-                                    color: C.text,
-                                }}
-                            >
-                                {q.name}
-                            </span>
-                            <span style={{ fontSize: 12, color: C.muted }}>
-                                {q.usage} karyawan{' '}
-                                <span style={{ fontWeight: 600, color }}>
-                                    ({q.pct}%)
-                                </span>
-                            </span>
-                        </div>
-                        <div
-                            style={{
-                                position: 'relative',
-                                height: 12,
-                                borderRadius: 6,
-                                background: C.line,
-                                overflow: 'hidden',
-                            }}
-                        >
-                            <div
-                                style={{
-                                    width: `${(q.pct / axisMax) * 100}%`,
-                                    height: '100%',
-                                    borderRadius: 6,
-                                    background: color,
-                                }}
-                            />
-                            {/* 100% quota reference — bar past it = over quota */}
-                            <div
-                                style={{
-                                    position: 'absolute',
-                                    top: 0,
-                                    bottom: 0,
-                                    left: `${quotaLine}%`,
-                                    width: 2,
-                                    background: '#fff',
-                                    boxShadow: `0 0 0 1px ${C.navy}`,
-                                    opacity: 0.5,
-                                }}
-                            />
-                        </div>
-                    </div>
-                );
-            })}
-            {/* shared axis footer: 0 — 100% quota line — axis max */}
+        <div style={{ position: 'relative', paddingTop: 8 }}>
+            {/* 100% quota reference line across the plot */}
             <div
                 style={{
-                    position: 'relative',
-                    height: 16,
-                    marginTop: -4,
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    top: 8 + quotaY,
+                    borderTop: `1px dashed ${C.navy}`,
+                    opacity: 0.35,
+                }}
+            />
+            <span
+                style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 8 + quotaY - 15,
                     fontSize: 10.5,
-                    color: C.faint,
+                    fontWeight: 600,
+                    color: C.muted,
                 }}
             >
-                <span style={{ position: 'absolute', left: 0 }}>0</span>
-                <span
-                    style={{
-                        position: 'absolute',
-                        left: `${quotaLine}%`,
-                        transform: 'translateX(-50%)',
-                        color: C.muted,
-                        fontWeight: 600,
-                    }}
-                >
-                    kuota 100%
-                </span>
-                <span style={{ position: 'absolute', right: 0 }}>
-                    {axisMax}%
-                </span>
+                kuota 100%
+            </span>
+            <div
+                style={{
+                    display: 'flex',
+                    gap: 14,
+                    alignItems: 'flex-end',
+                    height: plotH,
+                }}
+            >
+                {data.map((q) => {
+                    const color = q.pct >= 100 ? C.red : C.amber;
+
+                    return (
+                        <div
+                            key={q.id}
+                            style={{
+                                flex: 1,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: 8,
+                                height: '100%',
+                                justifyContent: 'flex-end',
+                            }}
+                        >
+                            <div
+                                style={{
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    color,
+                                }}
+                            >
+                                {q.pct}%
+                            </div>
+                            <div
+                                style={{
+                                    width: '100%',
+                                    maxWidth: 46,
+                                    height: Math.max(
+                                        4,
+                                        (q.pct / axisMax) * plotH,
+                                    ),
+                                    background: color,
+                                    borderRadius: '7px 7px 0 0',
+                                }}
+                            />
+                        </div>
+                    );
+                })}
+            </div>
+            {/* labels: client name + usage */}
+            <div style={{ display: 'flex', gap: 14, marginTop: 8 }}>
+                {data.map((q) => (
+                    <div
+                        key={q.id}
+                        style={{
+                            flex: 1,
+                            textAlign: 'center',
+                            fontSize: 11.5,
+                        }}
+                    >
+                        <div style={{ fontWeight: 500, color: C.text }}>
+                            {q.name}
+                        </div>
+                        <div style={{ color: C.faint, marginTop: 1 }}>
+                            {q.usage}
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     );
@@ -332,7 +339,11 @@ export default function DashboardAdmin() {
                             Halo, {userName} 👋
                         </h1>
                         <div
-                            style={{ fontSize: 14, color: C.muted, marginTop: 4 }}
+                            style={{
+                                fontSize: 14,
+                                color: C.muted,
+                                marginTop: 4,
+                            }}
                         >
                             Ringkasan platform — {today}
                         </div>
@@ -666,8 +677,8 @@ export default function DashboardAdmin() {
                             Karyawan terpakai ≥ 80% dari kuota paket
                         </div>
                     </div>
-                    <div style={{ padding: '10px 20px 18px' }}>
-                        {quotaAlerts.length === 0 && (
+                    <div style={{ padding: '16px 20px 18px' }}>
+                        {quotaAlerts.length === 0 ? (
                             <div
                                 style={{
                                     padding: '14px 0',
@@ -677,61 +688,9 @@ export default function DashboardAdmin() {
                             >
                                 Semua klien masih dalam batas kuota.
                             </div>
+                        ) : (
+                            <QuotaChart data={quotaAlerts} />
                         )}
-                        {quotaAlerts.map((q) => (
-                            <div
-                                key={q.id}
-                                style={{
-                                    padding: '11px 0',
-                                    borderBottom: `1px solid ${C.line}`,
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        marginBottom: 7,
-                                    }}
-                                >
-                                    <span
-                                        style={{
-                                            fontSize: 13,
-                                            fontWeight: 500,
-                                            color: C.text,
-                                        }}
-                                    >
-                                        {q.name}
-                                    </span>
-                                    <span
-                                        style={{
-                                            fontSize: 12.5,
-                                            fontWeight: 600,
-                                            color: q.pct >= 100 ? C.red : C.amber,
-                                        }}
-                                    >
-                                        {q.usage} ({q.pct}%)
-                                    </span>
-                                </div>
-                                <div
-                                    style={{
-                                        height: 7,
-                                        borderRadius: 100,
-                                        background: C.line,
-                                        overflow: 'hidden',
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            width: `${q.pct}%`,
-                                            height: '100%',
-                                            borderRadius: 100,
-                                            background:
-                                                q.pct >= 100 ? C.red : C.amber,
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                        ))}
                     </div>
                 </div>
             </div>
