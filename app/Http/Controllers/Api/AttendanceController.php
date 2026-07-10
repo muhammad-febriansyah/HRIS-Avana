@@ -86,8 +86,10 @@ class AttendanceController extends Controller
             'face_confidence' => ['nullable', 'numeric'],
             'is_mock_location' => ['nullable', 'boolean'],
             'is_rooted' => ['nullable', 'boolean'],
-            // Original clock time for entries queued offline and synced later.
-            'clocked_at' => ['nullable', 'date', 'after_or_equal:'.now()->subDays(7)->toDateTimeString()],
+            // Original clock time for entries queued offline and synced later,
+            // bounded to the same day. Past-day fixes go through the attendance
+            // correction flow (manager-approved) so they leave an audit trail.
+            'clocked_at' => ['nullable', 'date', 'after_or_equal:'.now()->startOfDay()->toDateTimeString()],
             'face_embedding' => ['nullable', 'array', 'min:64', 'max:1024'],
             'face_embedding.*' => ['numeric'],
             'selfie' => ['nullable', 'image', 'max:4096'],

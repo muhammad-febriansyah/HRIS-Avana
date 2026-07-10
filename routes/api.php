@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\AnnouncementController;
 use App\Http\Controllers\Api\AppConfigController;
 use App\Http\Controllers\Api\AttendanceController;
+use App\Http\Controllers\Api\AttendanceCorrectionController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DocumentController;
@@ -57,6 +58,8 @@ Route::prefix('v1')->group(function (): void {
             Route::get('attendance', [AttendanceController::class, 'history']);
             Route::get('work-locations', [AttendanceController::class, 'workLocations']);
             Route::post('attendance/clock', [AttendanceController::class, 'clock']);
+            Route::get('attendance/corrections', [AttendanceCorrectionController::class, 'index']);
+            Route::post('attendance/corrections', [AttendanceCorrectionController::class, 'store']);
 
             Route::get('leave/balances', [LeaveController::class, 'balances']);
             Route::get('leave-types', [LeaveController::class, 'types']);

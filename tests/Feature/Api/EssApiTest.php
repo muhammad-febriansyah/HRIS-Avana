@@ -287,22 +287,32 @@ it('rejects a non-matching face at clock-in', function (): void {
     ])->assertStatus(422)->assertJsonPath('message', fn (string $m): bool => str_contains($m, 'tidak cocok'));
 });
 
-it('syncs an offline clock with a matching face and back-dated time', function (): void {
+it('syncs a same-day offline clock with a matching face', function (): void {
     Attendance::query()->update(['clock_in_at' => null, 'clock_out_at' => null]);
     ($this->auth)()->postJson('/api/v1/me/face/enroll', ['embedding' => faceVec()]);
 
-    $yesterday = now()->subDay();
+    $earlier = now()->startOfDay()->addHours(8);
 
     ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
         'type' => 'in',
         'latitude' => -6.2146, 'longitude' => 106.8451,
         'face_embedding' => faceVec(),
-        'clocked_at' => $yesterday->toDateTimeString(),
+        'clocked_at' => $earlier->toDateTimeString(),
     ])->assertOk();
 
     $att = Attendance::whereNotNull('clock_in_at')->latest('id')->firstOrFail();
-    expect($att->date->toDateString())->toBe($yesterday->toDateString());
+    expect($att->date->toDateString())->toBe(now()->toDateString());
     expect((float) $att->face_confidence)->toBeGreaterThan(0.9);
+});
+
+it('rejects a previous-day clocked_at so past-day fixes go through corrections', function (): void {
+    Attendance::query()->update(['clock_in_at' => null, 'clock_out_at' => null]);
+
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+        'type' => 'in',
+        'latitude' => -6.2146, 'longitude' => 106.8451,
+        'clocked_at' => now()->subDay()->toDateTimeString(),
+    ])->assertStatus(422)->assertJsonValidationErrors(['clocked_at']);
 });
 
 it('returns a merged activity feed newest-first', function (): void {

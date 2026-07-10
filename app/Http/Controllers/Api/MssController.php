@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
+use App\Models\Attendance;
+use App\Models\AttendanceCorrection;
 use App\Models\Employee;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
@@ -35,6 +37,7 @@ class MssController extends Controller
         'lembur' => OvertimeRequest::class,
         'izin' => PermissionRequest::class,
         'wfh' => WfhRequest::class,
+        'koreksi' => AttendanceCorrection::class,
     ];
 
     /**
@@ -45,6 +48,7 @@ class MssController extends Controller
         'lembur' => 'Lembur',
         'izin' => 'Izin',
         'wfh' => 'WFH',
+        'koreksi' => 'Koreksi Absen',
     ];
 
     /**
@@ -80,7 +84,7 @@ class MssController extends Controller
         $manager = $this->currentEmployee($request);
         $model = $this->resolveForManager($key, $manager);
 
-        $this->applyDecision($model, $data['action']);
+        $this->applyDecision($model, $data['action'], $manager);
 
         return response()->json([
             'message' => $data['action'] === 'approve' ? 'Permintaan disetujui.' : 'Permintaan ditolak.',
@@ -105,7 +109,7 @@ class MssController extends Controller
             if ($model === null) {
                 continue;
             }
-            $this->applyDecision($model, $data['action']);
+            $this->applyDecision($model, $data['action'], $manager);
             $done++;
         }
 
@@ -190,13 +194,63 @@ class MssController extends Controller
         return $model;
     }
 
-    private function applyDecision(Model $model, string $action): void
+    private function applyDecision(Model $model, string $action, Employee $manager): void
     {
-        $model->update(['status' => $action === 'approve' ? 'approved' : 'rejected']);
+        $approved = $action === 'approve';
+        $model->update(['status' => $approved ? 'approved' : 'rejected']);
 
-        if ($action === 'approve' && $model instanceof LeaveRequest) {
+        if ($model instanceof AttendanceCorrection) {
+            $model->update(['approver_id' => $manager->user_id]);
+
+            if ($approved) {
+                $this->applyCorrection($model);
+            }
+
+            return;
+        }
+
+        if ($approved && $model instanceof LeaveRequest) {
             $this->decrementLeaveBalance($model);
         }
+    }
+
+    /**
+     * Write an approved correction to the attendance record: set the requested
+     * clock-in / clock-out on that day, recompute worked minutes when both are
+     * present, and link the record back to the request for the audit trail. The
+     * attendance row is created when the employee had no record for that day
+     * (the "forgot to clock in entirely" case).
+     */
+    private function applyCorrection(AttendanceCorrection $correction): void
+    {
+        $date = $correction->date;
+
+        $attendance = $correction->attendance ?? Attendance::firstOrNew([
+            'tenant_id' => $correction->tenant_id,
+            'employee_id' => $correction->employee_id,
+            'date' => $date->toDateString(),
+        ]);
+
+        if ($correction->requested_clock_in !== null) {
+            $attendance->clock_in_at = $date->copy()->setTimeFromTimeString($correction->requested_clock_in);
+        }
+
+        if ($correction->requested_clock_out !== null) {
+            $attendance->clock_out_at = $date->copy()->setTimeFromTimeString($correction->requested_clock_out);
+        }
+
+        if ($attendance->branch_id === null) {
+            $attendance->branch_id = $correction->employee?->branch_id;
+        }
+        $attendance->status = 'present';
+
+        if ($attendance->clock_in_at !== null && $attendance->clock_out_at !== null) {
+            $attendance->work_minutes = (int) $attendance->clock_in_at->diffInMinutes($attendance->clock_out_at);
+        }
+
+        $attendance->save();
+
+        $correction->update(['attendance_id' => $attendance->id]);
     }
 
     private function decrementLeaveBalance(LeaveRequest $leave): void
@@ -239,6 +293,7 @@ class MssController extends Controller
             'lembur' => 'Lembur '.(float) $model->hours.' jam',
             'izin' => $model->type === 'keluar_kantor' ? 'Keluar Kantor' : 'Izin Jam',
             'wfh' => 'Work From Home',
+            'koreksi' => 'Koreksi Absen',
             default => ucfirst($type),
         };
     }
@@ -249,8 +304,26 @@ class MssController extends Controller
             'leave', 'wfh' => $this->dateRange($model),
             'lembur' => $model->date?->format('d M Y') ?? '—',
             'izin' => $this->izinDetail($model),
+            'koreksi' => $this->koreksiDetail($model),
             default => '—',
         };
+    }
+
+    private function koreksiDetail(Model $model): string
+    {
+        $date = $model->date?->format('d M Y') ?? '—';
+        $in = $this->shortTime($model->requested_clock_in);
+        $out = $this->shortTime($model->requested_clock_out);
+
+        $parts = [];
+        if ($in !== null) {
+            $parts[] = "Masuk $in";
+        }
+        if ($out !== null) {
+            $parts[] = "Pulang $out";
+        }
+
+        return $parts === [] ? $date : "$date · ".implode(', ', $parts);
     }
 
     private function dateRange(Model $model): string
