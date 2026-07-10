@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\FaceController;
 use App\Http\Controllers\Api\FieldVisitController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\MoodController;
+use App\Http\Controllers\Api\MssController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OnboardingSlideController;
 use App\Http\Controllers\Api\OvertimeController;
@@ -93,6 +94,14 @@ Route::prefix('v1')->group(function (): void {
 
             Route::get('face', [FaceController::class, 'status']);
             Route::post('face/enroll', [FaceController::class, 'enroll']);
+        });
+
+        // Manager Self-Service: requests routed to the caller + their team.
+        Route::prefix('mss')->group(function (): void {
+            Route::get('approvals', [MssController::class, 'approvals']);
+            Route::post('approvals/bulk', [MssController::class, 'bulk']);
+            Route::post('approvals/{key}/act', [MssController::class, 'act']);
+            Route::get('team', [MssController::class, 'team']);
         });
     });
 });

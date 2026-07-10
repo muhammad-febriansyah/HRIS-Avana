@@ -50,6 +50,10 @@ trait ResolvesApiEmployee
                 'job_grade' => $employee->jobLevel?->name,
                 'employment_type' => $employee->employment_status,
             ],
+            // Drives the Manager Self-Service entry in the mobile app.
+            'is_manager' => Employee::where('tenant_id', $employee->tenant_id)
+                ->where('manager_id', $employee->id)
+                ->exists(),
         ];
     }
 }
