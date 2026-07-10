@@ -148,6 +148,28 @@ it('lists the manager team', function (): void {
         ->assertJsonFragment(['id' => $this->sub->id, 'name' => $this->sub->full_name]);
 });
 
+it('returns a team member detail with recap and pending', function (): void {
+    $res = ($this->auth)()
+        ->getJson('/api/v1/mss/team/'.$this->sub->id)
+        ->assertOk()
+        ->assertJsonPath('data.member.id', $this->sub->id)
+        ->assertJsonStructure(['data' => [
+            'member' => ['id', 'name', 'initials', 'avatar_color'],
+            'attendance' => ['month', 'present', 'late', 'absent', 'work_hours'],
+            'pending' => [['id', 'type', 'title', 'detail']],
+        ]]);
+
+    expect(collect($res->json('data.pending'))->pluck('id'))->toContain('leave-'.$this->leave->id);
+});
+
+it('rejects a member detail for a non-subordinate', function (): void {
+    $other = Employee::forTenant($this->manager->tenant_id)
+        ->whereNotIn('id', [$this->manager->id, $this->sub->id])
+        ->firstOrFail();
+
+    ($this->auth)()->getJson('/api/v1/mss/team/'.$other->id)->assertNotFound();
+});
+
 it('reports is_manager on the profile', function (): void {
     ($this->auth)()
         ->getJson('/api/v1/me/profile')

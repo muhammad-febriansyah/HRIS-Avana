@@ -12,6 +12,7 @@ use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
+use App\Models\ShiftSchedule;
 use App\Models\WfhRequest;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
@@ -156,6 +157,117 @@ class MssController extends Controller
             ]);
 
         return response()->json(['data' => $team]);
+    }
+
+    /**
+     * A single direct report with the context a manager needs before deciding:
+     * this month's attendance recap, today's shift, and their pending requests.
+     */
+    public function member(Request $request, int $employee): JsonResponse
+    {
+        $manager = $this->currentEmployee($request);
+
+        $member = Employee::forTenant($manager->tenant_id)
+            ->where('manager_id', $manager->id)
+            ->with(['position:id,name', 'department:id,name'])
+            ->find($employee);
+
+        abort_if($member === null, 404, 'Anggota tim tidak ditemukan atau bukan bawahan Anda.');
+
+        return response()->json(['data' => [
+            'member' => [
+                'id' => $member->id,
+                'name' => $member->full_name,
+                'employee_number' => $member->employee_number,
+                'position' => $member->position?->name,
+                'department' => $member->department?->name,
+                'status' => $member->status,
+                'initials' => $this->initials($member->full_name),
+                'avatar_color' => $this->avatarColor($member->full_name),
+            ],
+            'attendance' => $this->attendanceRecap($member),
+            'today_shift' => $this->memberTodayShift($member),
+            'pending' => $this->memberPending($member),
+        ]]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function attendanceRecap(Employee $member): array
+    {
+        $rows = Attendance::forTenant($member->tenant_id)
+            ->where('employee_id', $member->id)
+            ->whereYear('date', now()->year)
+            ->whereMonth('date', now()->month)
+            ->get(['status', 'work_minutes']);
+
+        return [
+            'month' => now()->format('M Y'),
+            'present' => $rows->where('status', 'present')->count(),
+            'late' => $rows->where('status', 'late')->count(),
+            'absent' => $rows->where('status', 'absent')->count(),
+            'work_hours' => round((int) $rows->sum('work_minutes') / 60, 1),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function memberTodayShift(Employee $member): ?array
+    {
+        $schedule = ShiftSchedule::forTenant($member->tenant_id)
+            ->where('employee_id', $member->id)
+            ->whereDate('date', now()->toDateString())
+            ->with('shift:id,name,start_time,end_time')
+            ->first();
+
+        if ($schedule === null) {
+            return null;
+        }
+
+        $shift = $schedule->shift;
+
+        return [
+            'is_off' => $shift === null,
+            'shift_name' => $shift?->name,
+            'start' => $shift !== null ? $this->shortTime($shift->start_time) : null,
+            'end' => $shift !== null ? $this->shortTime($shift->end_time) : null,
+        ];
+    }
+
+    /**
+     * The member's own pending requests across every type (not scoped to the
+     * manager as approver — this is context, not an approval queue).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function memberPending(Employee $member): array
+    {
+        $out = [];
+
+        foreach (self::TYPE_MODELS as $type => $modelClass) {
+            $query = $modelClass::query()
+                ->where('tenant_id', $member->tenant_id)
+                ->where('employee_id', $member->id)
+                ->where('status', 'pending');
+
+            if ($type === 'leave') {
+                $query->with('leaveType:id,name');
+            }
+
+            foreach ($query->get() as $m) {
+                $out[] = [
+                    'id' => "$type-{$m->id}",
+                    'type' => $type,
+                    'type_label' => self::TYPE_LABELS[$type] ?? $type,
+                    'title' => $this->titleFor($m, $type),
+                    'detail' => $this->detailFor($m, $type),
+                ];
+            }
+        }
+
+        return $out;
     }
 
     /**
