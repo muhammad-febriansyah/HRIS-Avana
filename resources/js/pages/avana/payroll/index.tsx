@@ -263,14 +263,13 @@ export default function AvanaPayroll({
         );
     };
 
-    // Fetch the transfer CSV as a blob so the browser reliably saves it to
-    // Downloads, and surface a clear error instead of a silent page reload when
-    // the period is not locked (the endpoint redirects back in that case).
+    // Pre-check the response so a not-locked period shows a clear error instead
+    // of a silent page reload, then let the server stream the file: an anchor to
+    // the same URL downloads it under the server's own Content-Disposition
+    // filename (a blob URL would otherwise save as an extension-less UUID).
     const downloadTransfer = async (url: string) => {
         try {
-            const res = await fetch(url, {
-                headers: { Accept: 'text/csv' },
-            });
+            const res = await fetch(url, { headers: { Accept: 'text/csv' } });
             const contentType = res.headers.get('Content-Type') ?? '';
 
             if (!res.ok || !contentType.includes('csv')) {
@@ -280,21 +279,25 @@ export default function AvanaPayroll({
                 return;
             }
 
-            const blob = await res.blob();
             const disposition = res.headers.get('Content-Disposition') ?? '';
             const filename =
                 disposition.match(/filename=([^;]+)/)?.[1]?.trim() ??
                 'transfer.csv';
 
+            const blob = await res.blob();
             const objectUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = objectUrl;
-            link.download = filename;
+            // A non-empty download attribute is what names the saved file.
+            link.setAttribute('download', filename);
+            link.style.display = 'none';
             document.body.appendChild(link);
             link.click();
-            link.remove();
-            URL.revokeObjectURL(objectUrl);
-            toast.success('File transfer terunduh.');
+            window.setTimeout(() => {
+                link.remove();
+                URL.revokeObjectURL(objectUrl);
+            }, 0);
+            toast.success(`Terunduh: ${filename}`);
         } catch {
             toast.error('Gagal mengunduh file transfer.');
         }
