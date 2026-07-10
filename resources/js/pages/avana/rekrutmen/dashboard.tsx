@@ -1,8 +1,9 @@
 import { Head, Link } from '@inertiajs/react';
 import { AIcon, btnP, C } from '@/lib/avana';
 import {
+    ColumnChart,
+    ColumnLabels,
     Empty,
-    Funnel,
     Kpi,
     KpiRow,
     RecruitmentHeader,
@@ -14,8 +15,8 @@ interface FunnelRow {
     value: number;
 }
 
-/** Ordinal blue ramp (dataviz steps 250→650) — funnel stages darken downward. */
-const FUNNEL_RAMP = ['#86b6ef', '#5598e7', '#2a78d6', '#1c5cab', '#104281'];
+/** Ordinal blue ramp (dataviz steps 250→650) — pipeline stages darken downward. */
+const STAGE_RAMP = ['#86b6ef', '#5598e7', '#2a78d6', '#1c5cab', '#104281'];
 
 interface TaskRow {
     id: number;
@@ -96,8 +97,8 @@ export default function RecruitmentDashboard({
                     }}
                 >
                     <Section
-                        title="Funnel Rekrutmen"
-                        icon="filter"
+                        title="Tahap Rekrutmen"
+                        icon="bar-chart-3"
                         action={
                             <Link
                                 href="/avana/rekrutmen/pipeline"
@@ -112,7 +113,12 @@ export default function RecruitmentDashboard({
                             </Link>
                         }
                     >
-                        <Funnel data={funnel} colors={FUNNEL_RAMP} />
+                        <ColumnChart
+                            data={funnel}
+                            colors={STAGE_RAMP}
+                            height={200}
+                        />
+                        <ColumnLabels data={funnel} />
                     </Section>
 
                     <Section title="Tugas Hari Ini" icon="check-check">
