@@ -119,6 +119,28 @@ it('bulk-approves several requests', function (): void {
     expect($this->wfh->fresh()->status)->toBe('approved');
 });
 
+it('lists decided requests in the manager history', function (): void {
+    ($this->auth)()->postJson('/api/v1/mss/approvals/leave-'.$this->leave->id.'/act', ['action' => 'approve'])->assertOk();
+    ($this->auth)()->postJson('/api/v1/mss/approvals/wfh-'.$this->wfh->id.'/act', ['action' => 'reject'])->assertOk();
+
+    $res = ($this->auth)()
+        ->getJson('/api/v1/mss/history')
+        ->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonStructure(['data' => [['id', 'type', 'status', 'decided_at']]]);
+
+    $ids = collect($res->json('data'))->pluck('id');
+    expect($ids)->toContain('leave-'.$this->leave->id);
+    expect($ids)->toContain('wfh-'.$this->wfh->id);
+    expect($ids)->not->toContain('izin-'.$this->izin->id);
+});
+
+it('keeps decided requests out of the pending approvals list', function (): void {
+    ($this->auth)()->postJson('/api/v1/mss/approvals/leave-'.$this->leave->id.'/act', ['action' => 'approve'])->assertOk();
+
+    ($this->auth)()->getJson('/api/v1/mss/approvals')->assertOk()->assertJsonCount(3, 'data');
+});
+
 it('lists the manager team', function (): void {
     ($this->auth)()
         ->getJson('/api/v1/mss/team')

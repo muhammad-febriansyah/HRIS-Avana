@@ -104,6 +104,7 @@ Route::prefix('v1')->group(function (): void {
         // Manager Self-Service: requests routed to the caller + their team.
         Route::prefix('mss')->group(function (): void {
             Route::get('approvals', [MssController::class, 'approvals']);
+            Route::get('history', [MssController::class, 'history']);
             Route::post('approvals/bulk', [MssController::class, 'bulk']);
             Route::post('approvals/{key}/act', [MssController::class, 'act']);
             Route::get('team', [MssController::class, 'team']);

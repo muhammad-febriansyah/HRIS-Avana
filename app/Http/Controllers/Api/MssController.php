@@ -65,10 +65,22 @@ class MssController extends Controller
     /** Pending requests routed to the current manager, newest first. */
     public function approvals(Request $request): JsonResponse
     {
-        $manager = $this->currentEmployee($request);
+        return $this->listByStatus($this->currentEmployee($request), ['pending'], byDecidedAt: false);
+    }
 
+    /** Requests this manager has already approved or rejected, newest decision first. */
+    public function history(Request $request): JsonResponse
+    {
+        return $this->listByStatus($this->currentEmployee($request), ['approved', 'rejected'], byDecidedAt: true);
+    }
+
+    /**
+     * @param  array<int, string>  $statuses
+     */
+    private function listByStatus(Employee $manager, array $statuses, bool $byDecidedAt): JsonResponse
+    {
         $items = collect(self::TYPE_MODELS)
-            ->flatMap(fn (string $modelClass, string $type) => $this->itemsForType($type, $modelClass, $manager))
+            ->flatMap(fn (string $modelClass, string $type) => $this->itemsForType($type, $modelClass, $manager, $statuses, $byDecidedAt))
             ->sortByDesc('sort_ts')
             ->map(fn (array $item) => collect($item)->except('sort_ts')->all())
             ->values();
@@ -148,21 +160,24 @@ class MssController extends Controller
 
     /**
      * @param  class-string<Model>  $modelClass
+     * @param  array<int, string>  $statuses
      * @return Collection<int, array<string, mixed>>
      */
-    private function itemsForType(string $type, string $modelClass, Employee $manager)
+    private function itemsForType(string $type, string $modelClass, Employee $manager, array $statuses, bool $byDecidedAt)
     {
         $query = $modelClass::query()
             ->where('tenant_id', $manager->tenant_id)
             ->where('current_approver_id', $manager->id)
-            ->where('status', 'pending')
+            ->whereIn('status', $statuses)
             ->with('employee:id,full_name,employee_number');
 
         if ($type === 'leave') {
             $query->with('leaveType:id,name');
         }
 
-        return $query->latest('created_at')->get()->map(fn (Model $m): array => [
+        $sortColumn = $byDecidedAt ? 'updated_at' : 'created_at';
+
+        return $query->latest($sortColumn)->get()->map(fn (Model $m): array => [
             'id' => "$type-{$m->id}",
             'type' => $type,
             'type_label' => self::TYPE_LABELS[$type] ?? $type,
@@ -170,8 +185,10 @@ class MssController extends Controller
             'title' => $this->titleFor($m, $type),
             'detail' => $this->detailFor($m, $type),
             'reason' => $m->reason ?? $m->description ?? null,
+            'status' => $m->status,
             'requested_at' => $m->created_at?->format('d M Y H:i'),
-            'sort_ts' => $m->created_at?->getTimestamp() ?? 0,
+            'decided_at' => $byDecidedAt ? $m->updated_at?->format('d M Y H:i') : null,
+            'sort_ts' => ($byDecidedAt ? $m->updated_at : $m->created_at)?->getTimestamp() ?? 0,
         ]);
     }
 
