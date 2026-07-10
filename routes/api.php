@@ -79,6 +79,7 @@ Route::prefix('v1')->group(function (): void {
 
             Route::get('payslips', [PayslipController::class, 'index']);
             Route::get('payslips/{item}', [PayslipController::class, 'show']);
+            Route::get('payslips/{item}/pdf', [PayslipController::class, 'pdf']);
 
             Route::post('reimbursements', [ReimbursementController::class, 'store']);
             Route::get('reimbursements', [ReimbursementController::class, 'index']);
