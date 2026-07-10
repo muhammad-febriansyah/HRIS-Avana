@@ -76,6 +76,7 @@ final class AvanaNav
                     self::leaf('payroll-master-gaji', 'Master Gaji', 'file-cog', '/avana/payroll/master-gaji', 'payroll', ['payroll']),
                     self::leaf('payroll-umr', 'UMR', 'map-pin', '/avana/payroll/umr', 'payroll', ['payroll']),
                     self::leaf('payroll-koreksi', 'Koreksi Gaji', 'pencil', '/avana/payroll/koreksi', 'payroll', ['payroll']),
+                    self::leaf('payroll-rapel', 'Rapel Gaji', 'history', '/avana/payroll/rapel', 'payroll', ['payroll']),
                     self::leaf('payroll-perhitungan-hari', 'Perhitungan Hari', 'calendar-days', '/avana/payroll/perhitungan-hari', 'payroll', ['payroll']),
                     self::leaf('payroll-nilai-upah', 'Nilai Upah', 'coins', '/avana/payroll/nilai-upah', 'payroll', ['payroll']),
                     self::leaf('payroll-payday', 'Mapping Payday', 'calendar-clock', '/avana/payroll/payday', 'payroll', ['payroll']),

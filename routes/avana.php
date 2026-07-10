@@ -58,6 +58,7 @@ use App\Http\Controllers\Avana\RecruitmentController;
 use App\Http\Controllers\Avana\RosterController;
 use App\Http\Controllers\Avana\SalaryGradeStepController;
 use App\Http\Controllers\Avana\SalaryMasterController;
+use App\Http\Controllers\Avana\SalaryRapelController;
 use App\Http\Controllers\Avana\SalaryStructureController;
 use App\Http\Controllers\Avana\SearchController;
 use App\Http\Controllers\Avana\ShiftSwapController;
@@ -203,6 +204,11 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('payroll/koreksi', [PayrollCorrectionController::class, 'store'])->name('payroll.koreksi.store');
     Route::post('payroll/koreksi/{correction}/approve', [PayrollCorrectionController::class, 'approve'])->name('payroll.koreksi.approve');
     Route::delete('payroll/koreksi/{correction}', [PayrollCorrectionController::class, 'destroy'])->name('payroll.koreksi.destroy');
+
+    Route::get('payroll/rapel', [SalaryRapelController::class, 'index'])->name('payroll.rapel');
+    Route::post('payroll/rapel', [SalaryRapelController::class, 'store'])->name('payroll.rapel.store');
+    Route::post('payroll/rapel/{rapel}/approve', [SalaryRapelController::class, 'approve'])->name('payroll.rapel.approve');
+    Route::delete('payroll/rapel/{rapel}', [SalaryRapelController::class, 'destroy'])->name('payroll.rapel.destroy');
 
     Route::get('hak-akses', [AccessController::class, 'index'])->name('hak-akses');
     Route::post('hak-akses/permission/toggle', [AccessController::class, 'togglePermission'])->name('hak-akses.permission.toggle');

@@ -24,6 +24,7 @@ use App\Models\PkpRate;
 use App\Models\PtkpRate;
 use App\Models\SalaryMaster;
 use App\Models\SalaryMasterComponent;
+use App\Models\SalaryRapel;
 use App\Models\TaxProfile;
 use App\Models\UmrRate;
 use App\Support\Pph21Ter;
@@ -1110,6 +1111,48 @@ class PayrollController extends Controller
                     $deductions[] = ['name' => $name, 'amount' => $amount];
                 } else {
                     $earnings[] = ['name' => $name, 'amount' => $amount, 'proratable' => false, 'taxable' => false];
+                }
+            }
+        }
+
+        // Rapel (retroactive salary adjustment): the monthly (new − old) nominal
+        // difference back-paid for every whole month elapsed since it took effect
+        // (UAT: selisih gaji masa lalu = komponen adjustment periode berjalan).
+        // Posted once, in the period whose window contains its posting date, and
+        // taxable as salary; a negative difference lands as a deduction.
+        if ($period->start_date !== null && $period->end_date !== null) {
+            $rapels = SalaryRapel::forTenant($tenantId)
+                ->where('employee_id', $employee->id)
+                ->where('status', 'approved')
+                ->whereBetween('posting_date', [$period->start_date->toDateString(), $period->end_date->toDateString()])
+                ->with('component:id,name')
+                ->get();
+
+            foreach ($rapels as $rapel) {
+                $effectiveStart = $rapel->effective_from?->copy()->startOfMonth();
+                $periodStart = $period->start_date->copy()->startOfMonth();
+
+                // Whole months of back-pay owed before the current period.
+                $months = $effectiveStart !== null && $effectiveStart->lt($periodStart)
+                    ? $effectiveStart->diffInMonths($periodStart)
+                    : 0;
+
+                if ($months <= 0) {
+                    continue;
+                }
+
+                $total = round(((float) $rapel->new_amount - (float) $rapel->old_amount) * $months);
+
+                if ($total === 0.0) {
+                    continue;
+                }
+
+                $label = 'Rapel: '.($rapel->component?->name ?? $rapel->label ?? 'Gaji');
+
+                if ($total < 0) {
+                    $deductions[] = ['name' => $label, 'amount' => abs($total)];
+                } else {
+                    $earnings[] = ['name' => $label, 'amount' => $total, 'proratable' => false, 'taxable' => true];
                 }
             }
         }
