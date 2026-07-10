@@ -6,6 +6,7 @@ use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
+use App\Models\Claim;
 use App\Models\Employee;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
@@ -38,6 +39,7 @@ class MssController extends Controller
         'izin' => PermissionRequest::class,
         'wfh' => WfhRequest::class,
         'koreksi' => AttendanceCorrection::class,
+        'reimburse' => Claim::class,
     ];
 
     /**
@@ -49,6 +51,7 @@ class MssController extends Controller
         'izin' => 'Izin',
         'wfh' => 'WFH',
         'koreksi' => 'Koreksi Absen',
+        'reimburse' => 'Reimbursement',
     ];
 
     /**
@@ -166,7 +169,7 @@ class MssController extends Controller
             'employee' => $this->shapeEmployee($m),
             'title' => $this->titleFor($m, $type),
             'detail' => $this->detailFor($m, $type),
-            'reason' => $m->reason,
+            'reason' => $m->reason ?? $m->description ?? null,
             'requested_at' => $m->created_at?->format('d M Y H:i'),
             'sort_ts' => $m->created_at?->getTimestamp() ?? 0,
         ]);
@@ -205,6 +208,15 @@ class MssController extends Controller
             if ($approved) {
                 $this->applyCorrection($model);
             }
+
+            return;
+        }
+
+        if ($model instanceof Claim) {
+            $model->update([
+                'approver_id' => $manager->user_id,
+                'approved_at' => $approved ? now() : null,
+            ]);
 
             return;
         }
@@ -294,6 +306,7 @@ class MssController extends Controller
             'izin' => $model->type === 'keluar_kantor' ? 'Keluar Kantor' : 'Izin Jam',
             'wfh' => 'Work From Home',
             'koreksi' => 'Koreksi Absen',
+            'reimburse' => $model->title ?: 'Reimbursement',
             default => ucfirst($type),
         };
     }
@@ -305,6 +318,7 @@ class MssController extends Controller
             'lembur' => $model->date?->format('d M Y') ?? '—',
             'izin' => $this->izinDetail($model),
             'koreksi' => $this->koreksiDetail($model),
+            'reimburse' => 'Rp '.number_format((float) $model->amount, 0, ',', '.'),
             default => '—',
         };
     }

@@ -54,6 +54,7 @@ class ReimbursementController extends Controller
             'claim_date' => now()->toDateString(),
             'description' => $data['description'] ?? null,
             'receipt_path' => $request->hasFile('receipt') ? $request->file('receipt')->store('claims', 'public') : null,
+            'current_approver_id' => $employee->manager_id,
             'status' => 'pending',
         ]);
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Claim;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
@@ -130,4 +131,53 @@ it('reports is_manager on the profile', function (): void {
         ->getJson('/api/v1/me/profile')
         ->assertOk()
         ->assertJsonPath('data.is_manager', true);
+});
+
+function mssPendingClaim(object $test): Claim
+{
+    return Claim::create([
+        'tenant_id' => $test->manager->tenant_id,
+        'employee_id' => $test->sub->id,
+        'claim_type' => 'transport',
+        'title' => 'Transport klien',
+        'amount' => 250000,
+        'claim_date' => '2026-07-08',
+        'description' => 'Taksi ke kantor klien',
+        'current_approver_id' => $test->manager->id,
+        'status' => 'pending',
+    ]);
+}
+
+it('lists a reimbursement in the manager approvals as a reimburse item', function (): void {
+    $claim = mssPendingClaim($this);
+
+    ($this->auth)()
+        ->getJson('/api/v1/mss/approvals')
+        ->assertOk()
+        ->assertJsonFragment(['id' => 'reimburse-'.$claim->id])
+        ->assertJsonFragment(['type_label' => 'Reimbursement'])
+        ->assertJsonFragment(['detail' => 'Rp 250.000']);
+});
+
+it('approves a reimbursement', function (): void {
+    $claim = mssPendingClaim($this);
+
+    ($this->auth)()
+        ->postJson('/api/v1/mss/approvals/reimburse-'.$claim->id.'/act', ['action' => 'approve'])
+        ->assertOk();
+
+    $fresh = $claim->fresh();
+    expect($fresh->status)->toBe('approved');
+    expect($fresh->approver_id)->toBe($this->manager->user_id);
+    expect($fresh->approved_at)->not->toBeNull();
+});
+
+it('rejects a reimbursement', function (): void {
+    $claim = mssPendingClaim($this);
+
+    ($this->auth)()
+        ->postJson('/api/v1/mss/approvals/reimburse-'.$claim->id.'/act', ['action' => 'reject'])
+        ->assertOk();
+
+    expect($claim->fresh()->status)->toBe('rejected');
 });
