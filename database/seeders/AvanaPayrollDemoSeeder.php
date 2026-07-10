@@ -7,6 +7,7 @@ use App\Models\Branch;
 use App\Models\DayCalcMethod;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
+use App\Models\LeaveType;
 use App\Models\OvertimeRequest;
 use App\Models\Payday;
 use App\Models\PayrollComponent;
@@ -18,6 +19,8 @@ use App\Models\PtkpRate;
 use App\Models\SalaryGrade;
 use App\Models\SalaryGradeStep;
 use App\Models\SalaryMaster;
+use App\Models\SalesOrder;
+use App\Models\Shift;
 use App\Models\TaxProfile;
 use App\Models\Tenant;
 use App\Models\UmrRate;
@@ -144,6 +147,43 @@ final class AvanaPayrollDemoSeeder extends Seeder
         }
 
         $this->seedWageScaleAndPaydays($tenant, $sample);
+        $this->seedSalesOrders($tenant);
+    }
+
+    /**
+     * A few demo Sales Orders (BPR manual 1.4) — three unmapped "new" orders plus
+     * one already mapped to the MG-ORG master, a shift and a leave type.
+     */
+    private function seedSalesOrders(Tenant $tenant): void
+    {
+        $master = SalaryMaster::forTenant($tenant->id)->where('code', 'MG-ORG')->first();
+        $shift = Shift::forTenant($tenant->id)->first();
+        $leave = LeaveType::forTenant($tenant->id)->first();
+
+        $orders = [
+            ['SO-2026-001', 'PT Bank Central Niaga', 'Teller', 5, 'new'],
+            ['SO-2026-002', 'PT Astra Finance', 'Customer Service', 3, 'new'],
+            ['SO-2026-003', 'PT Telkom Akses', 'Teknisi Lapangan', 10, 'new'],
+            ['SO-2026-004', 'PT Pegadaian', 'Security', 8, 'mapped'],
+        ];
+
+        foreach ($orders as [$code, $client, $position, $headcount, $status]) {
+            SalesOrder::updateOrCreate(
+                ['tenant_id' => $tenant->id, 'code' => $code],
+                [
+                    'client_name' => $client,
+                    'position_name' => $position,
+                    'headcount' => $headcount,
+                    'status' => $status,
+                    'contract_start' => '2026-08-01',
+                    'contract_end' => '2027-07-31',
+                    'salary_master_id' => $status === 'mapped' ? $master?->id : null,
+                    'shift_id' => $status === 'mapped' ? $shift?->id : null,
+                    'leave_type_id' => $status === 'mapped' ? $leave?->id : null,
+                    'mapped_at' => $status === 'mapped' ? now() : null,
+                ],
+            );
+        }
     }
 
     /**

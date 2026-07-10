@@ -60,6 +60,7 @@ use App\Http\Controllers\Avana\SalaryGradeStepController;
 use App\Http\Controllers\Avana\SalaryMasterController;
 use App\Http\Controllers\Avana\SalaryRapelController;
 use App\Http\Controllers\Avana\SalaryStructureController;
+use App\Http\Controllers\Avana\SalesOrderController;
 use App\Http\Controllers\Avana\SearchController;
 use App\Http\Controllers\Avana\ShiftSwapController;
 use App\Http\Controllers\Avana\SurveyController;
@@ -205,6 +206,9 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('payroll/koreksi', [PayrollCorrectionController::class, 'store'])->name('payroll.koreksi.store');
     Route::post('payroll/koreksi/{correction}/approve', [PayrollCorrectionController::class, 'approve'])->name('payroll.koreksi.approve');
     Route::delete('payroll/koreksi/{correction}', [PayrollCorrectionController::class, 'destroy'])->name('payroll.koreksi.destroy');
+
+    Route::get('payroll/sales-order', [SalesOrderController::class, 'index'])->name('payroll.sales-order');
+    Route::post('payroll/sales-order/{salesOrder}/map', [SalesOrderController::class, 'map'])->name('payroll.sales-order.map');
 
     Route::get('payroll/rapel', [SalaryRapelController::class, 'index'])->name('payroll.rapel');
     Route::post('payroll/rapel', [SalaryRapelController::class, 'store'])->name('payroll.rapel.store');
