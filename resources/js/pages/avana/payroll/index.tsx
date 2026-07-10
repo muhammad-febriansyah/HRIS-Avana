@@ -117,6 +117,9 @@ export default function AvanaPayroll({
     const hasRun = summary.status === 'calculated' || isApproved || isLocked;
     const [bank, setBank] = useState('generic');
     const [exportOpen, setExportOpen] = useState(false);
+    const [runOpen, setRunOpen] = useState(false);
+    const [payDate, setPayDate] = useState('');
+    const [processing, setProcessing] = useState(false);
 
     useEffect(() => {
         if (flash?.success) {
@@ -130,12 +133,26 @@ export default function AvanaPayroll({
         }
     }, [errors?.payroll]);
 
-    const runPayroll = () => {
+    const openRun = () => {
         if (isLocked) {
             return;
         }
 
-        router.post(PayrollController.run().url, {}, { preserveScroll: true });
+        setPayDate(summary.pay_date ?? new Date().toISOString().slice(0, 10));
+        setRunOpen(true);
+    };
+
+    const confirmRun = () => {
+        router.post(
+            PayrollController.run().url,
+            { pay_date: payDate },
+            {
+                preserveScroll: true,
+                onStart: () => setProcessing(true),
+                onFinish: () => setProcessing(false),
+                onSuccess: () => setRunOpen(false),
+            },
+        );
     };
 
     const approvePayroll = () => {
@@ -493,7 +510,7 @@ export default function AvanaPayroll({
                         primary
                         done={hasRun}
                         disabled={isLocked}
-                        onClick={runPayroll}
+                        onClick={openRun}
                     />
                     <StepArrow />
                     <ProcessStep
@@ -584,6 +601,196 @@ export default function AvanaPayroll({
                     <SlipDetail slip={slip} period={summary.period} />
                 </div>
             </div>
+
+            {runOpen && (
+                <RunConfirmModal
+                    summary={summary}
+                    payDate={payDate}
+                    setPayDate={setPayDate}
+                    processing={processing}
+                    onCancel={() => setRunOpen(false)}
+                    onConfirm={confirmRun}
+                />
+            )}
         </>
+    );
+}
+
+/**
+ * Pre-run confirmation (BPR manual 1.3.1): show the period being processed and
+ * let HR verify/adjust the pay date — it drives the bank disbursement — before
+ * executing.
+ */
+function RunConfirmModal({
+    summary,
+    payDate,
+    setPayDate,
+    processing,
+    onCancel,
+    onConfirm,
+}: {
+    summary: PayrollProps['summary'];
+    payDate: string;
+    setPayDate: (v: string) => void;
+    processing: boolean;
+    onCancel: () => void;
+    onConfirm: () => void;
+}) {
+    const row = (label: string, value: string) => (
+        <div
+            style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 16,
+                padding: '9px 0',
+                borderBottom: `1px solid ${C.line}`,
+                fontSize: 13.5,
+            }}
+        >
+            <span style={{ color: C.muted }}>{label}</span>
+            <span style={{ color: C.text, fontWeight: 600 }}>{value}</span>
+        </div>
+    );
+
+    return (
+        <div
+            onClick={onCancel}
+            style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(15,23,42,.45)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 80,
+                padding: 20,
+            }}
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                    width: 440,
+                    maxWidth: '100%',
+                    background: '#fff',
+                    borderRadius: 14,
+                    padding: 24,
+                    boxShadow: '0 24px 60px rgba(15,23,42,.24)',
+                }}
+            >
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        marginBottom: 6,
+                    }}
+                >
+                    <div
+                        style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 10,
+                            background: '#EAF2FF',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
+                    >
+                        <AIcon name="calculator" size={20} color={C.primary} />
+                    </div>
+                    <div>
+                        <div
+                            style={{
+                                fontSize: 16,
+                                fontWeight: 700,
+                                color: C.navy,
+                            }}
+                        >
+                            Proses Perhitungan Gaji
+                        </div>
+                        <div style={{ fontSize: 12.5, color: C.muted }}>
+                            Periksa detail sebelum mengeksekusi.
+                        </div>
+                    </div>
+                </div>
+
+                <div style={{ margin: '14px 0 4px' }}>
+                    {row('Periode', summary.period ?? '—')}
+                    {row(
+                        'Rentang',
+                        summary.start_date && summary.end_date
+                            ? `${summary.start_date} – ${summary.end_date}`
+                            : '—',
+                    )}
+                    {row('Karyawan', String(summary.employee_count))}
+                </div>
+
+                <div style={{ margin: '14px 0 4px' }}>
+                    <label
+                        style={{
+                            display: 'block',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: C.navy,
+                            marginBottom: 6,
+                        }}
+                    >
+                        Tanggal Bayar
+                    </label>
+                    <input
+                        type="date"
+                        value={payDate}
+                        onChange={(e) => setPayDate(e.target.value)}
+                        style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: 8,
+                            border: `1px solid ${C.line}`,
+                            fontSize: 13.5,
+                            color: C.text,
+                            outline: 'none',
+                        }}
+                    />
+                    <div
+                        style={{
+                            fontSize: 12,
+                            color: C.faint,
+                            marginTop: 6,
+                        }}
+                    >
+                        Pastikan tanggal bayar sudah sesuai — menentukan
+                        pengiriman uang ke rekening pegawai.
+                    </div>
+                </div>
+
+                <div
+                    style={{
+                        display: 'flex',
+                        justifyContent: 'flex-end',
+                        gap: 10,
+                        marginTop: 20,
+                    }}
+                >
+                    <button
+                        onClick={onCancel}
+                        disabled={processing}
+                        style={{ ...btnOut, textDecoration: 'none' }}
+                    >
+                        Batal
+                    </button>
+                    <button
+                        onClick={onConfirm}
+                        disabled={processing || !payDate}
+                        style={{
+                            ...btnP,
+                            opacity: processing || !payDate ? 0.6 : 1,
+                        }}
+                    >
+                        <AIcon name="play" size={15} color="#fff" />
+                        {processing ? 'Memproses…' : 'Proses Gaji'}
+                    </button>
+                </div>
+            </div>
+        </div>
     );
 }

@@ -81,6 +81,9 @@ class PayrollController extends Controller
             'summary' => [
                 'period' => $latestPeriod?->name,
                 'period_id' => $latestPeriod?->id,
+                'pay_date' => $latestPeriod?->pay_date?->toDateString(),
+                'start_date' => $latestPeriod?->start_date?->toDateString(),
+                'end_date' => $latestPeriod?->end_date?->toDateString(),
                 'status' => $latestRun?->status ?? $latestPeriod?->status,
                 'status_label' => PayrollPeriodResource::statusLabel($latestRun?->status ?? $latestPeriod?->status),
                 'total_gross' => $this->rupiah($latestRun?->total_gross ?? 0),
@@ -104,12 +107,22 @@ class PayrollController extends Controller
 
         $tenantId = $request->user()->tenant_id;
 
+        // The run-confirmation popup lets HR verify/adjust the pay date before
+        // executing, since it drives the bank disbursement (BPR manual 1.3.1).
+        $data = $request->validate([
+            'pay_date' => ['nullable', 'date'],
+        ]);
+
         $period = $this->resolveTargetPeriod($tenantId);
 
         abort_if($period === null, 404);
 
         if ($period->status === 'locked') {
             return back()->withErrors(['payroll' => 'Periode terkunci, tidak bisa dihitung ulang.']);
+        }
+
+        if (! empty($data['pay_date']) && $data['pay_date'] !== $period->pay_date?->toDateString()) {
+            $period->update(['pay_date' => $data['pay_date']]);
         }
 
         $run = PayrollRun::firstOrNew([

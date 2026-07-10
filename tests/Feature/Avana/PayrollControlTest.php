@@ -27,6 +27,16 @@ it('records who ran the payroll', function (): void {
     expect($this->run->status)->toBe('calculated');
 });
 
+it('updates the period pay date supplied from the run confirmation', function (): void {
+    $period = PayrollPeriod::find($this->run->payroll_period_id);
+
+    actingAs($this->hrAdmin)
+        ->post(route('avana.payroll.run'), ['pay_date' => '2026-06-27'])
+        ->assertSessionHas('success');
+
+    expect($period->fresh()->pay_date->toDateString())->toBe('2026-06-27');
+});
+
 it('blocks bank transfer & BPJS export until the period is locked', function (): void {
     actingAs($this->hrAdmin)
         ->get(route('avana.payroll.transfer'))

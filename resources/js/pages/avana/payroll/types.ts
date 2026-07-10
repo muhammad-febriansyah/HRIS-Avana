@@ -25,6 +25,9 @@ export interface Period {
 export interface PayrollSummary {
     period: string | null;
     period_id: number | null;
+    pay_date: string | null;
+    start_date: string | null;
+    end_date: string | null;
     status: string | null;
     status_label: string;
     total_gross: string;
