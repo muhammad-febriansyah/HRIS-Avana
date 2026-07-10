@@ -120,6 +120,8 @@ export default function AvanaPayroll({
     const [runOpen, setRunOpen] = useState(false);
     const [payDate, setPayDate] = useState('');
     const [processing, setProcessing] = useState(false);
+    const [approvalOpen, setApprovalOpen] = useState(false);
+    const [approvalNote, setApprovalNote] = useState('');
 
     useEffect(() => {
         if (flash?.success) {
@@ -155,15 +157,43 @@ export default function AvanaPayroll({
         );
     };
 
-    const approvePayroll = () => {
-        if (isLocked) {
+    const openApproval = () => {
+        if (isLocked || !hasRun || isApproved) {
+            return;
+        }
+
+        setApprovalNote('');
+        setApprovalOpen(true);
+    };
+
+    const confirmApprove = () => {
+        router.post(
+            PayrollController.approve().url,
+            { note: approvalNote },
+            {
+                preserveScroll: true,
+                onStart: () => setProcessing(true),
+                onFinish: () => setProcessing(false),
+                onSuccess: () => setApprovalOpen(false),
+            },
+        );
+    };
+
+    const confirmReject = () => {
+        if (approvalNote.trim().length < 3) {
+            toast.error('Alasan penolakan minimal 3 karakter.');
             return;
         }
 
         router.post(
-            PayrollController.approve().url,
-            {},
-            { preserveScroll: true },
+            PayrollController.reject().url,
+            { note: approvalNote.trim() },
+            {
+                preserveScroll: true,
+                onStart: () => setProcessing(true),
+                onFinish: () => setProcessing(false),
+                onSuccess: () => setApprovalOpen(false),
+            },
         );
     };
 
@@ -206,6 +236,35 @@ export default function AvanaPayroll({
 
     const generateThr = () => {
         router.post(PayrollController.thr().url, {}, { preserveScroll: true });
+    };
+
+    // Per-row lifecycle actions — target a specific period id, so THR and older
+    // periods can be advanced/disbursed directly from their row.
+    const rowApprove = (id: number) =>
+        router.post(
+            PayrollController.approve().url,
+            { payroll_period_id: id },
+            { preserveScroll: true },
+        );
+
+    const rowLock = (id: number) => {
+        if (
+            !window.confirm(
+                'Kunci periode ini? Cicilan pinjaman/kasbon akan dipotong.',
+            )
+        ) {
+            return;
+        }
+
+        router.post(
+            PayrollController.lock().url,
+            { payroll_period_id: id },
+            { preserveScroll: true },
+        );
+    };
+
+    const rowTransfer = (id: number) => {
+        window.location.href = `/avana/payroll/transfer?bank=generic&payroll_period_id=${id}`;
     };
 
     const goToPage = (page: number) => {
@@ -519,7 +578,7 @@ export default function AvanaPayroll({
                         icon="check-check"
                         done={isApproved || isLocked}
                         disabled={!hasRun || isLocked || isApproved}
-                        onClick={approvePayroll}
+                        onClick={openApproval}
                     />
                     <StepArrow />
                     <ProcessStep
@@ -578,6 +637,43 @@ export default function AvanaPayroll({
 
                 {isLocked && <LockedAlert />}
 
+                {!isLocked && summary.rejection_note && (
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 10,
+                            padding: '12px 16px',
+                            borderRadius: 10,
+                            background: '#FEF2F2',
+                            border: `1px solid #FECACA`,
+                            marginBottom: 16,
+                        }}
+                    >
+                        <AIcon name="x-circle" size={18} color={C.red} />
+                        <div style={{ fontSize: 13, color: '#991B1B' }}>
+                            <strong>Payroll ditolak.</strong>{' '}
+                            {summary.rejection_note} — perbaiki lalu jalankan &
+                            ajukan ulang.
+                        </div>
+                    </div>
+                )}
+
+                {isApproved && summary.approval_note && (
+                    <div
+                        style={{
+                            fontSize: 13,
+                            color: C.muted,
+                            marginBottom: 16,
+                        }}
+                    >
+                        <strong style={{ color: C.navy }}>
+                            Catatan persetujuan:
+                        </strong>{' '}
+                        {summary.approval_note}
+                    </div>
+                )}
+
                 {/* Run summary */}
                 <SummaryCard summary={summary} />
 
@@ -595,6 +691,9 @@ export default function AvanaPayroll({
                         periods={periods.data}
                         meta={meta}
                         onGoToPage={goToPage}
+                        onApprove={rowApprove}
+                        onLock={rowLock}
+                        onTransfer={rowTransfer}
                     />
 
                     {/* Slip gaji detail */}
@@ -612,7 +711,166 @@ export default function AvanaPayroll({
                     onConfirm={confirmRun}
                 />
             )}
+
+            {approvalOpen && (
+                <ApprovalModal
+                    note={approvalNote}
+                    setNote={setApprovalNote}
+                    processing={processing}
+                    onCancel={() => setApprovalOpen(false)}
+                    onApprove={confirmApprove}
+                    onReject={confirmReject}
+                />
+            )}
         </>
+    );
+}
+
+/**
+ * Approval decision (BPR manual 1.3.1): approve with an optional keterangan, or
+ * reject with a mandatory reason that sends the run back to the processor.
+ */
+function ApprovalModal({
+    note,
+    setNote,
+    processing,
+    onCancel,
+    onApprove,
+    onReject,
+}: {
+    note: string;
+    setNote: (v: string) => void;
+    processing: boolean;
+    onCancel: () => void;
+    onApprove: () => void;
+    onReject: () => void;
+}) {
+    return (
+        <div
+            onClick={onCancel}
+            style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(15,23,42,.45)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 80,
+                padding: 20,
+            }}
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                    width: 440,
+                    maxWidth: '100%',
+                    background: '#fff',
+                    borderRadius: 14,
+                    padding: 24,
+                    boxShadow: '0 24px 60px rgba(15,23,42,.24)',
+                }}
+            >
+                <div
+                    style={{
+                        fontSize: 16,
+                        fontWeight: 700,
+                        color: C.navy,
+                        marginBottom: 4,
+                    }}
+                >
+                    Persetujuan Proses Gaji
+                </div>
+                <div
+                    style={{
+                        fontSize: 12.5,
+                        color: C.muted,
+                        marginBottom: 14,
+                    }}
+                >
+                    Setujui untuk lanjut ke penguncian, atau tolak dengan alasan
+                    untuk dikembalikan ke pemroses.
+                </div>
+
+                <label
+                    style={{
+                        display: 'block',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: C.navy,
+                        marginBottom: 6,
+                    }}
+                >
+                    Keterangan{' '}
+                    <span style={{ color: C.faint, fontWeight: 400 }}>
+                        (wajib bila menolak)
+                    </span>
+                </label>
+                <textarea
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    rows={3}
+                    placeholder="Catatan persetujuan / alasan penolakan…"
+                    style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        border: `1px solid ${C.line}`,
+                        fontSize: 13.5,
+                        color: C.text,
+                        outline: 'none',
+                        resize: 'vertical',
+                        fontFamily: 'inherit',
+                    }}
+                />
+
+                <div
+                    style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: 10,
+                        marginTop: 20,
+                    }}
+                >
+                    <button
+                        onClick={onReject}
+                        disabled={processing}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 7,
+                            padding: '9px 16px',
+                            borderRadius: 8,
+                            border: `1px solid ${C.red}`,
+                            background: 'transparent',
+                            color: C.red,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <AIcon name="x" size={15} color={C.red} />
+                        Tolak
+                    </button>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                        <button
+                            onClick={onCancel}
+                            disabled={processing}
+                            style={{ ...btnOut, textDecoration: 'none' }}
+                        >
+                            Batal
+                        </button>
+                        <button
+                            onClick={onApprove}
+                            disabled={processing}
+                            style={{ ...btnP, opacity: processing ? 0.6 : 1 }}
+                        >
+                            <AIcon name="check-check" size={15} color="#fff" />
+                            {processing ? 'Memproses…' : 'Setujui'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     );
 }
 

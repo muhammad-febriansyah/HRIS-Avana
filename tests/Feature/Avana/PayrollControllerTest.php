@@ -68,6 +68,8 @@ it('renders the payroll index with the expected props', function (): void {
                 ->has('end_date')
                 ->has('status')
                 ->has('status_label')
+                ->has('approval_note')
+                ->has('rejection_note')
                 ->has('total_gross')
                 ->has('total_deduction')
                 ->has('total_tax')

@@ -86,6 +86,8 @@ class PayrollController extends Controller
                 'end_date' => $latestPeriod?->end_date?->toDateString(),
                 'status' => $latestRun?->status ?? $latestPeriod?->status,
                 'status_label' => PayrollPeriodResource::statusLabel($latestRun?->status ?? $latestPeriod?->status),
+                'approval_note' => $latestRun?->approval_note,
+                'rejection_note' => $latestRun?->rejection_note,
                 'total_gross' => $this->rupiah($latestRun?->total_gross ?? 0),
                 'total_deduction' => $this->rupiah($latestRun?->total_deduction ?? 0),
                 'total_tax' => $this->rupiah($latestRun?->total_tax ?? 0),
@@ -132,10 +134,15 @@ class PayrollController extends Controller
         ]);
         $run->status = 'calculated';
         // Record the runner so approval can enforce segregation of duties. A
-        // recompute resets approval, so the latest runner is the accountable one.
+        // recompute resets approval (and clears any prior rejection), so the
+        // latest runner is the accountable one.
         $run->run_by = $request->user()->id;
         $run->approved_by = null;
         $run->approved_at = null;
+        $run->approval_note = null;
+        $run->rejected_by = null;
+        $run->rejected_at = null;
+        $run->rejection_note = null;
         $run->save();
 
         $employees = $this->payableEmployees($tenantId, $period);
@@ -298,6 +305,11 @@ class PayrollController extends Controller
             'branch_id' => null,
         ]);
         $run->status = 'calculated';
+        // Record the runner so approval segregation applies to the THR run too,
+        // and reset any prior approval when THR is regenerated.
+        $run->run_by = $request->user()->id;
+        $run->approved_by = null;
+        $run->approved_at = null;
         $run->save();
 
         $employees = Employee::forTenant($tenantId)
@@ -400,8 +412,17 @@ class PayrollController extends Controller
         $format = isset(self::BANK_FORMATS[$format]) ? $format : 'generic';
         $header = self::BANK_FORMATS[$format]['header'];
 
+        // An explicit period id disburses that run (e.g. a THR period, which the
+        // default latest-regular resolver excludes); otherwise the latest regular
+        // run is used.
+        $periodId = $request->query('payroll_period_id');
+
         $run = PayrollRun::forTenant($tenantId)
-            ->whereHas('period', fn ($query) => $query->where('code', 'not like', 'THR-%'))
+            ->when(
+                $periodId !== null && $periodId !== '',
+                fn ($query) => $query->where('payroll_period_id', (int) $periodId),
+                fn ($query) => $query->whereHas('period', fn ($q) => $q->where('code', 'not like', 'THR-%')),
+            )
             ->orderByDesc('id')
             ->with(['period', 'items.employee.bankAccounts'])
             ->first();
@@ -414,7 +435,7 @@ class PayrollController extends Controller
         }
 
         $periodCode = $run->period?->code ?? 'run-'.$run->id;
-        $note = 'Gaji '.($run->period?->name ?? $periodCode);
+        $note = (str_starts_with($periodCode, 'THR-') ? 'THR ' : 'Gaji ').($run->period?->name ?? $periodCode);
         $filename = 'transfer-'.$format.'-'.$periodCode.'-'.now()->format('Y-m-d').'.csv';
 
         return response()->streamDownload(function () use ($run, $format, $header, $note): void {
@@ -640,7 +661,11 @@ class PayrollController extends Controller
 
         $tenantId = $request->user()->tenant_id;
 
-        $period = $this->resolveTargetPeriod($tenantId);
+        $request->validate([
+            'payroll_period_id' => ['nullable', 'integer', Rule::exists('payroll_periods', 'id')->where('tenant_id', $tenantId)],
+        ]);
+
+        $period = $this->targetPeriodFor($request, $tenantId);
 
         abort_if($period === null, 404);
 
@@ -742,7 +767,12 @@ class PayrollController extends Controller
 
         $tenantId = $request->user()->tenant_id;
 
-        $period = $this->resolveTargetPeriod($tenantId);
+        $data = $request->validate([
+            'note' => ['nullable', 'string', 'max:255'],
+            'payroll_period_id' => ['nullable', 'integer', Rule::exists('payroll_periods', 'id')->where('tenant_id', $tenantId)],
+        ]);
+
+        $period = $this->targetPeriodFor($request, $tenantId);
 
         abort_if($period === null, 404);
 
@@ -775,9 +805,63 @@ class PayrollController extends Controller
             'status' => 'approved',
             'approved_by' => $request->user()->id,
             'approved_at' => now(),
+            'approval_note' => $data['note'] ?? null,
+            // Approving clears any prior rejection.
+            'rejected_by' => null,
+            'rejected_at' => null,
+            'rejection_note' => null,
         ]);
 
         return back()->with('success', 'Payroll disetujui');
+    }
+
+    /**
+     * Reject a calculated/approved run back to "calculated" with a mandatory
+     * reason (BPR manual 1.3.1 approval: status can be rejected). The run must be
+     * recomputed/re-approved before it can be locked; the reason is surfaced to
+     * the processor.
+     */
+    public function reject(Request $request): RedirectResponse
+    {
+        $this->authorize('run', PayrollPeriod::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $data = $request->validate([
+            'note' => ['required', 'string', 'min:3', 'max:255'],
+            'payroll_period_id' => ['nullable', 'integer', Rule::exists('payroll_periods', 'id')->where('tenant_id', $tenantId)],
+        ]);
+
+        $period = $this->targetPeriodFor($request, $tenantId);
+
+        abort_if($period === null, 404);
+
+        $run = PayrollRun::forTenant($tenantId)
+            ->where('payroll_period_id', $period->id)
+            ->orderByDesc('id')
+            ->first();
+
+        abort_if($run === null, 404);
+
+        if ($run->status === 'locked') {
+            return back()->withErrors(['payroll' => 'Payroll sudah dikunci, tidak bisa ditolak.']);
+        }
+
+        if ($run->status !== 'calculated' && $run->status !== 'approved') {
+            return back()->withErrors(['payroll' => 'Hitung payroll terlebih dahulu.']);
+        }
+
+        $run->update([
+            'status' => 'calculated',
+            'approved_by' => null,
+            'approved_at' => null,
+            'approval_note' => null,
+            'rejected_by' => $request->user()->id,
+            'rejected_at' => now(),
+            'rejection_note' => $data['note'],
+        ]);
+
+        return back()->with('success', 'Payroll ditolak, dikembalikan untuk diperbaiki');
     }
 
     /**
@@ -893,6 +977,22 @@ class PayrollController extends Controller
                 ->where('code', 'not like', 'THR-%')
                 ->orderByDesc('start_date')
                 ->first();
+    }
+
+    /**
+     * The period an action targets: an explicit `payroll_period_id` when given
+     * (e.g. a per-row action, or a THR period which the implicit resolver
+     * excludes), otherwise the default regular target period.
+     */
+    private function targetPeriodFor(Request $request, int $tenantId): ?PayrollPeriod
+    {
+        $periodId = $request->input('payroll_period_id');
+
+        if ($periodId !== null && $periodId !== '') {
+            return PayrollPeriod::forTenant($tenantId)->find((int) $periodId);
+        }
+
+        return $this->resolveTargetPeriod($tenantId);
     }
 
     /**

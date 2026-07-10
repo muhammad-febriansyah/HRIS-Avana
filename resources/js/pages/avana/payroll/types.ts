@@ -19,6 +19,7 @@ export interface Period {
     grossR: string;
     status: string;
     status_label: string;
+    run_status: string | null;
 }
 
 /** Latest-run summary block backing the run-summary card. */
@@ -30,6 +31,8 @@ export interface PayrollSummary {
     end_date: string | null;
     status: string | null;
     status_label: string;
+    approval_note: string | null;
+    rejection_note: string | null;
     total_gross: string;
     total_deduction: string;
     total_tax: string;

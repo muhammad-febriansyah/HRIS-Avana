@@ -60,6 +60,9 @@ final class PayrollPeriodResource extends JsonResource
             'grossR' => self::rupiah($latestRun?->total_gross ?? 0),
             'status' => $this->status,
             'status_label' => self::statusLabel($this->status),
+            // The run lifecycle state (calculated/approved/locked) drives the
+            // per-row action; null when the period has no run yet.
+            'run_status' => $latestRun?->status,
         ];
     }
 

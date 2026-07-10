@@ -22,6 +22,8 @@ final class PayrollRun extends Model
             'total_tax' => 'decimal:2',
             'total_net' => 'decimal:2',
             'employee_count' => 'integer',
+            'approved_at' => 'datetime',
+            'rejected_at' => 'datetime',
         ];
     }
 

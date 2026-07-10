@@ -64,6 +64,55 @@ it('lets the runner self-approve when segregation is off (default)', function ()
     expect($this->run->fresh()->status)->toBe('approved');
 });
 
+it('stores the approval keterangan on the run', function (): void {
+    actingAs($this->hrAdmin)
+        ->post(route('avana.payroll.approve'), ['note' => 'Sudah dicek, sesuai'])
+        ->assertSessionHas('success');
+
+    expect($this->run->fresh()->approval_note)->toBe('Sudah dicek, sesuai');
+});
+
+it('rejects a run back to calculated with a reason', function (): void {
+    actingAs($this->hrAdmin)
+        ->post(route('avana.payroll.reject'), ['note' => 'Ada komponen keliru'])
+        ->assertSessionHas('success');
+
+    $run = $this->run->fresh();
+    expect($run->status)->toBe('calculated');
+    expect($run->rejection_note)->toBe('Ada komponen keliru');
+    expect((int) $run->rejected_by)->toBe($this->hrAdmin->id);
+    expect($run->approved_by)->toBeNull();
+});
+
+it('requires a reason to reject', function (): void {
+    actingAs($this->hrAdmin)
+        ->post(route('avana.payroll.reject'))
+        ->assertSessionHasErrors('note');
+});
+
+it('clears a rejection when the run is recomputed', function (): void {
+    actingAs($this->hrAdmin)
+        ->post(route('avana.payroll.reject'), ['note' => 'Perbaiki dulu'])
+        ->assertSessionHas('success');
+    expect($this->run->fresh()->rejection_note)->toBe('Perbaiki dulu');
+
+    actingAs($this->hrAdmin)->post(route('avana.payroll.run'))->assertSessionHas('success');
+
+    expect($this->run->fresh()->rejection_note)->toBeNull();
+});
+
+it('blocks locking a rejected run until it is re-approved', function (): void {
+    actingAs($this->hrAdmin)
+        ->post(route('avana.payroll.reject'), ['note' => 'Belum benar'])
+        ->assertSessionHas('success');
+
+    actingAs($this->hrAdmin)
+        ->post(route('avana.payroll.lock'))
+        ->assertSessionHasErrors('payroll');
+
+    expect($this->run->fresh()->status)->toBe('calculated');
+});
+
 it('blocks the runner from approving their own run when segregation is on', function (): void {
     $this->hrAdmin->tenant->update(['enforce_payroll_segregation' => true]);
 
@@ -132,6 +181,41 @@ it('records the unlock on the audit trail', function (): void {
     expect($log)->not->toBeNull();
     expect($log->new_values['reason'] ?? null)->toBe('Salah tanggal bayar');
     expect((int) $log->user_id)->toBe($this->hrAdmin->id);
+});
+
+it('disburses a THR period through approve, lock and transfer by period id', function (): void {
+    actingAs($this->hrAdmin)->post(route('avana.payroll.thr'))->assertSessionHas('success');
+
+    $thr = PayrollPeriod::forTenant($this->tenantId)->where('code', 'like', 'THR-%')->firstOrFail();
+    $thrRun = PayrollRun::forTenant($this->tenantId)->where('payroll_period_id', $thr->id)->firstOrFail();
+
+    expect($thrRun->status)->toBe('calculated');
+    expect((int) $thrRun->run_by)->toBe($this->hrAdmin->id);
+
+    actingAs($this->hrAdmin)
+        ->post(route('avana.payroll.approve'), ['payroll_period_id' => $thr->id])
+        ->assertSessionHas('success');
+    expect($thrRun->fresh()->status)->toBe('approved');
+
+    actingAs($this->hrAdmin)
+        ->post(route('avana.payroll.lock'), ['payroll_period_id' => $thr->id])
+        ->assertSessionHas('success');
+    expect($thrRun->fresh()->status)->toBe('locked');
+
+    $response = actingAs($this->hrAdmin)
+        ->get(route('avana.payroll.transfer', ['payroll_period_id' => $thr->id]));
+
+    $response->assertOk();
+    expect($response->headers->get('Content-Type'))->toContain('text/csv');
+});
+
+it('still targets the regular period when no period id is given', function (): void {
+    // A THR period exists but the default approve targets the regular run.
+    actingAs($this->hrAdmin)->post(route('avana.payroll.thr'))->assertSessionHas('success');
+
+    actingAs($this->hrAdmin)->post(route('avana.payroll.approve'))->assertSessionHas('success');
+
+    expect($this->run->fresh()->status)->toBe('approved');
 });
 
 it('reverses a loan installment advance when unlocking', function (): void {

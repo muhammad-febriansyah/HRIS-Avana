@@ -5,10 +5,32 @@ interface PeriodTableProps {
     periods: Period[];
     meta: PaginationMeta;
     onGoToPage: (page: number) => void;
+    onApprove: (periodId: number) => void;
+    onLock: (periodId: number) => void;
+    onTransfer: (periodId: number) => void;
 }
 
+const rowAction: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '5px 11px',
+    borderRadius: 7,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+};
+
 /** Payroll period history table with a pagination footer. */
-export function PeriodTable({ periods, meta, onGoToPage }: PeriodTableProps) {
+export function PeriodTable({
+    periods,
+    meta,
+    onGoToPage,
+    onApprove,
+    onLock,
+    onTransfer,
+}: PeriodTableProps) {
     return (
         <div style={{ ...card, overflow: 'hidden' }}>
             <div
@@ -207,25 +229,66 @@ export function PeriodTable({ periods, meta, onGoToPage }: PeriodTableProps) {
                                             textAlign: 'right',
                                         }}
                                     >
-                                        <button
-                                            style={{
-                                                width: 30,
-                                                height: 30,
-                                                border: `1px solid ${C.border}`,
-                                                background: '#fff',
-                                                borderRadius: 7,
-                                                cursor: 'pointer',
-                                                color: C.muted,
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                            }}
-                                        >
-                                            <AIcon
-                                                name="chevron-right"
-                                                size={16}
-                                            />
-                                        </button>
+                                        {period.run_status === 'calculated' && (
+                                            <button
+                                                onClick={() =>
+                                                    onApprove(period.id)
+                                                }
+                                                style={{
+                                                    ...rowAction,
+                                                    border: `1px solid ${C.primary}`,
+                                                    background: '#fff',
+                                                    color: C.primary,
+                                                }}
+                                            >
+                                                <AIcon
+                                                    name="check-check"
+                                                    size={13}
+                                                    color={C.primary}
+                                                />
+                                                Setujui
+                                            </button>
+                                        )}
+                                        {period.run_status === 'approved' && (
+                                            <button
+                                                onClick={() =>
+                                                    onLock(period.id)
+                                                }
+                                                style={{
+                                                    ...rowAction,
+                                                    border: 'none',
+                                                    background: C.primary,
+                                                    color: '#fff',
+                                                }}
+                                            >
+                                                <AIcon
+                                                    name="lock"
+                                                    size={13}
+                                                    color="#fff"
+                                                />
+                                                Kunci
+                                            </button>
+                                        )}
+                                        {period.run_status === 'locked' && (
+                                            <button
+                                                onClick={() =>
+                                                    onTransfer(period.id)
+                                                }
+                                                style={{
+                                                    ...rowAction,
+                                                    border: `1px solid ${C.border}`,
+                                                    background: '#fff',
+                                                    color: C.text,
+                                                }}
+                                            >
+                                                <AIcon
+                                                    name="download"
+                                                    size={13}
+                                                    color={C.muted}
+                                                />
+                                                Transfer
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             );
