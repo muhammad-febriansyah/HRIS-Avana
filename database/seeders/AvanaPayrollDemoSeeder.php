@@ -163,11 +163,13 @@ final class AvanaPayrollDemoSeeder extends Seeder
         $orders = [
             ['SO-2026-001', 'PT Bank Central Niaga', 'Teller', 5, 'new'],
             ['SO-2026-002', 'PT Astra Finance', 'Customer Service', 3, 'new'],
-            ['SO-2026-003', 'PT Telkom Akses', 'Teknisi Lapangan', 10, 'new'],
-            ['SO-2026-004', 'PT Pegadaian', 'Security', 8, 'mapped'],
+            ['SO-2026-003', 'PT Telkom Akses', 'Teknisi Lapangan', 10, 'mapped'],
+            ['SO-2026-004', 'PT Pegadaian', 'Security', 8, 'forwarded'],
         ];
 
         foreach ($orders as [$code, $client, $position, $headcount, $status]) {
+            $withBenefit = in_array($status, ['mapped', 'forwarded', 'approved'], true);
+
             SalesOrder::updateOrCreate(
                 ['tenant_id' => $tenant->id, 'code' => $code],
                 [
@@ -177,10 +179,11 @@ final class AvanaPayrollDemoSeeder extends Seeder
                     'status' => $status,
                     'contract_start' => '2026-08-01',
                     'contract_end' => '2027-07-31',
-                    'salary_master_id' => $status === 'mapped' ? $master?->id : null,
-                    'shift_id' => $status === 'mapped' ? $shift?->id : null,
-                    'leave_type_id' => $status === 'mapped' ? $leave?->id : null,
-                    'mapped_at' => $status === 'mapped' ? now() : null,
+                    'salary_master_id' => $withBenefit ? $master?->id : null,
+                    'shift_id' => $withBenefit ? $shift?->id : null,
+                    'leave_type_id' => $withBenefit ? $leave?->id : null,
+                    'mapped_at' => $withBenefit ? now() : null,
+                    'forwarded_at' => $status === 'forwarded' ? now() : null,
                 ],
             );
         }

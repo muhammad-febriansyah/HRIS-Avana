@@ -209,6 +209,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
 
     Route::get('payroll/sales-order', [SalesOrderController::class, 'index'])->name('payroll.sales-order');
     Route::post('payroll/sales-order/{salesOrder}/map', [SalesOrderController::class, 'map'])->name('payroll.sales-order.map');
+    Route::post('payroll/sales-order/{salesOrder}/forward', [SalesOrderController::class, 'forward'])->name('payroll.sales-order.forward');
 
     Route::get('payroll/rapel', [SalaryRapelController::class, 'index'])->name('payroll.rapel');
     Route::post('payroll/rapel', [SalaryRapelController::class, 'store'])->name('payroll.rapel.store');
@@ -276,6 +277,8 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::get('rekrutmen/headcount', [RecruitmentController::class, 'headcount'])->name('rekrutmen.headcount');
     Route::post('rekrutmen/headcount', [RecruitmentController::class, 'storeHeadcount'])->name('rekrutmen.headcount.store');
     Route::post('rekrutmen/headcount/{headcountRequest}/decide', [RecruitmentController::class, 'decideHeadcount'])->name('rekrutmen.headcount.decide');
+    Route::get('rekrutmen/sales-order', [RecruitmentController::class, 'salesOrders'])->name('rekrutmen.sales-order');
+    Route::post('rekrutmen/sales-order/{salesOrder}/decide', [RecruitmentController::class, 'decideSalesOrder'])->name('rekrutmen.sales-order.decide');
     Route::get('rekrutmen/jobs', [RecruitmentController::class, 'jobs'])->name('rekrutmen.jobs');
     Route::get('rekrutmen/pipeline', [RecruitmentController::class, 'pipeline'])->name('rekrutmen.pipeline');
     Route::get('rekrutmen/candidates', [RecruitmentController::class, 'candidates'])->name('rekrutmen.candidates');

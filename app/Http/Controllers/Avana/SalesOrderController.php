@@ -59,6 +59,7 @@ class SalesOrderController extends Controller
                 'salary_master_id' => $o->salary_master_id,
                 'shift_id' => $o->shift_id,
                 'leave_type_id' => $o->leave_type_id,
+                'benefit_note' => $o->benefit_note,
             ]);
 
         return Inertia::render('avana/payroll-sales-order/index', [
@@ -109,6 +110,29 @@ class SalesOrderController extends Controller
         ]);
 
         return back()->with('success', 'Sales Order berhasil di-mapping');
+    }
+
+    /**
+     * Forward a mapped Sales Order to Recruitment for benefit approval
+     * (BPR manual 1.4: "diteruskan ke menu rekrutmen untuk approval benefit").
+     */
+    public function forward(Request $request, SalesOrder $salesOrder): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        abort_if((int) $salesOrder->tenant_id !== (int) $request->user()->tenant_id, 404);
+
+        if ($salesOrder->status !== 'mapped') {
+            return back()->withErrors(['sales_order' => 'Mapping benefit dulu sebelum diteruskan ke rekrutmen.']);
+        }
+
+        $salesOrder->update([
+            'status' => 'forwarded',
+            'forwarded_by' => $request->user()->id,
+            'forwarded_at' => now(),
+            'benefit_note' => null,
+        ]);
+
+        return back()->with('success', 'Sales Order diteruskan ke rekrutmen');
     }
 
     private function ensureCanManage(Request $request): void

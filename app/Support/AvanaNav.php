@@ -96,6 +96,7 @@ final class AvanaNav
                 self::parent('rekrutmen', 'Rekrutmen', 'user-plus', [
                     self::leaf('rekrutmen', 'Dashboard', 'layout-dashboard', '/avana/rekrutmen', 'recruitment', ['recruitment']),
                     self::leaf('rekrutmen-headcount', 'Headcount Approval', 'user-check', '/avana/rekrutmen/headcount', 'recruitment', ['recruitment']),
+                    self::leaf('rekrutmen-sales-order', 'Approval Benefit SO', 'clipboard-check', '/avana/rekrutmen/sales-order', 'recruitment', ['recruitment']),
                     self::leaf('rekrutmen-jobs', 'Lowongan', 'briefcase', '/avana/rekrutmen/jobs', 'recruitment', ['recruitment']),
                     self::leaf('rekrutmen-pipeline', 'Pipeline', 'git-branch', '/avana/rekrutmen/pipeline', 'recruitment', ['recruitment']),
                     self::leaf('rekrutmen-candidates', 'Kandidat', 'users', '/avana/rekrutmen/candidates', 'recruitment', ['recruitment']),

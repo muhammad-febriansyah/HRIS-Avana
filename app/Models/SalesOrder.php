@@ -17,6 +17,8 @@ final class SalesOrder extends Model
             'contract_start' => 'date',
             'contract_end' => 'date',
             'mapped_at' => 'datetime',
+            'forwarded_at' => 'datetime',
+            'benefit_decided_at' => 'datetime',
         ];
     }
 
@@ -43,5 +45,15 @@ final class SalesOrder extends Model
     public function leaveType(): BelongsTo
     {
         return $this->belongsTo(LeaveType::class);
+    }
+
+    public function forwarder(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'forwarded_by');
+    }
+
+    public function benefitDecider(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'benefit_decided_by');
     }
 }

@@ -80,6 +80,72 @@ it('rejects mapping a master gaji from another tenant', function (): void {
         ->assertSessionHasErrors('salary_master_id');
 });
 
+it('forwards a mapped sales order to recruitment', function (): void {
+    $this->order->update(['status' => 'mapped', 'salary_master_id' => $this->master->id]);
+
+    actingAs($this->admin)
+        ->post(route('avana.payroll.sales-order.forward', $this->order))
+        ->assertSessionHas('success');
+
+    $order = $this->order->fresh();
+    expect($order->status)->toBe('forwarded');
+    expect((int) $order->forwarded_by)->toBe($this->admin->id);
+});
+
+it('refuses to forward a sales order that is not mapped', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.payroll.sales-order.forward', $this->order))
+        ->assertSessionHasErrors('sales_order');
+
+    expect($this->order->fresh()->status)->toBe('new');
+});
+
+it('lists forwarded sales orders in recruitment', function (): void {
+    $this->order->update(['status' => 'forwarded', 'salary_master_id' => $this->master->id]);
+
+    actingAs($this->admin)
+        ->get(route('avana.rekrutmen.sales-order'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/rekrutmen/sales-order', false)
+            ->has('orders', 1));
+});
+
+it('approves the benefit on a forwarded sales order', function (): void {
+    $this->order->update(['status' => 'forwarded', 'salary_master_id' => $this->master->id]);
+
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.sales-order.decide', $this->order), ['decision' => 'approve'])
+        ->assertSessionHas('success');
+
+    $order = $this->order->fresh();
+    expect($order->status)->toBe('approved');
+    expect((int) $order->benefit_decided_by)->toBe($this->admin->id);
+});
+
+it('rejects the benefit and returns the order to payroll with a note', function (): void {
+    $this->order->update(['status' => 'forwarded', 'salary_master_id' => $this->master->id]);
+
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.sales-order.decide', $this->order), [
+            'decision' => 'reject',
+            'note' => 'Master gaji tidak sesuai kontrak',
+        ])
+        ->assertSessionHas('success');
+
+    $order = $this->order->fresh();
+    expect($order->status)->toBe('mapped');
+    expect($order->benefit_note)->toBe('Master gaji tidak sesuai kontrak');
+});
+
+it('requires a note when rejecting the benefit', function (): void {
+    $this->order->update(['status' => 'forwarded', 'salary_master_id' => $this->master->id]);
+
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.sales-order.decide', $this->order), ['decision' => 'reject'])
+        ->assertSessionHasErrors('note');
+});
+
 it('filters sales orders by status', function (): void {
     SalesOrder::create([
         'tenant_id' => $this->tenant->id, 'code' => 'SO-MAPPED', 'client_name' => 'PT Sudah',

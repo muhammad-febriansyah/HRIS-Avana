@@ -20,7 +20,33 @@ interface Order {
     salary_master_id: number | null;
     shift_id: number | null;
     leave_type_id: number | null;
+    benefit_note: string | null;
 }
+
+const STATUS_META: Record<
+    string,
+    { label: string; color: string; bg: string; dot: string }
+> = {
+    new: { label: 'Baru', color: '#64748B', bg: '#F1F5F9', dot: '#94A3B8' },
+    mapped: {
+        label: 'Mapped',
+        color: '#1D4ED8',
+        bg: '#DBEAFE',
+        dot: '#2563EB',
+    },
+    forwarded: {
+        label: 'Di Rekrutmen',
+        color: '#B45309',
+        bg: '#FEF3C7',
+        dot: '#D97706',
+    },
+    approved: {
+        label: 'Benefit OK',
+        color: '#15803D',
+        bg: '#DCFCE7',
+        dot: '#16A34A',
+    },
+};
 
 interface Option {
     id: number;
@@ -82,6 +108,16 @@ export default function PayrollSalesOrder({
     const [search, setSearch] = useState(filters.search ?? '');
     const [status, setStatus] = useState(filters.status ?? '');
     const [mapping, setMapping] = useState<Order | null>(null);
+
+    const forward = (o: Order) =>
+        router.post(
+            SalesOrderController.forward(o.id).url,
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => toast.success('Diteruskan ke rekrutmen'),
+            },
+        );
 
     const applyFilter = (next: { search?: string; status?: string }) =>
         router.get(
@@ -155,6 +191,8 @@ export default function PayrollSalesOrder({
                         <option value="">Semua status</option>
                         <option value="new">Baru (belum di-mapping)</option>
                         <option value="mapped">Sudah di-mapping</option>
+                        <option value="forwarded">Di rekrutmen</option>
+                        <option value="approved">Benefit disetujui</option>
                     </select>
                 </div>
 
@@ -233,9 +271,21 @@ export default function PayrollSalesOrder({
                                                     fontSize: 12.5,
                                                 }}
                                             >
-                                                {o.status === 'mapped'
-                                                    ? `${o.salary_master ?? '—'} · ${o.shift ?? '—'} · ${o.leave_type ?? '—'}`
-                                                    : '—'}
+                                                {o.status === 'new'
+                                                    ? '—'
+                                                    : `${o.salary_master ?? '—'} · ${o.shift ?? '—'} · ${o.leave_type ?? '—'}`}
+                                                {o.benefit_note && (
+                                                    <div
+                                                        style={{
+                                                            color: C.red,
+                                                            fontSize: 11.5,
+                                                            marginTop: 3,
+                                                        }}
+                                                    >
+                                                        Ditolak rekrutmen:{' '}
+                                                        {o.benefit_note}
+                                                    </div>
+                                                )}
                                             </td>
                                             <td style={td}>
                                                 <span
@@ -247,16 +297,16 @@ export default function PayrollSalesOrder({
                                                         fontWeight: 700,
                                                         padding: '3px 9px',
                                                         borderRadius: 6,
-                                                        color:
-                                                            o.status ===
-                                                            'mapped'
-                                                                ? '#15803D'
-                                                                : '#64748B',
-                                                        background:
-                                                            o.status ===
-                                                            'mapped'
-                                                                ? '#DCFCE7'
-                                                                : '#F1F5F9',
+                                                        color: (
+                                                            STATUS_META[
+                                                                o.status
+                                                            ] ?? STATUS_META.new
+                                                        ).color,
+                                                        background: (
+                                                            STATUS_META[
+                                                                o.status
+                                                            ] ?? STATUS_META.new
+                                                        ).bg,
                                                     }}
                                                 >
                                                     <span
@@ -264,16 +314,21 @@ export default function PayrollSalesOrder({
                                                             width: 7,
                                                             height: 7,
                                                             borderRadius: 999,
-                                                            background:
-                                                                o.status ===
-                                                                'mapped'
-                                                                    ? '#16A34A'
-                                                                    : '#94A3B8',
+                                                            background: (
+                                                                STATUS_META[
+                                                                    o.status
+                                                                ] ??
+                                                                STATUS_META.new
+                                                            ).dot,
                                                         }}
                                                     />
-                                                    {o.status === 'mapped'
-                                                        ? 'Mapped'
-                                                        : 'Baru'}
+                                                    {
+                                                        (
+                                                            STATUS_META[
+                                                                o.status
+                                                            ] ?? STATUS_META.new
+                                                        ).label
+                                                    }
                                                 </span>
                                             </td>
                                             <td
@@ -283,50 +338,107 @@ export default function PayrollSalesOrder({
                                                     whiteSpace: 'nowrap',
                                                 }}
                                             >
-                                                <button
-                                                    onClick={() =>
-                                                        setMapping(o)
-                                                    }
-                                                    style={{
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        gap: 6,
-                                                        padding: '6px 12px',
-                                                        borderRadius: 7,
-                                                        fontSize: 12,
-                                                        fontWeight: 600,
-                                                        cursor: 'pointer',
-                                                        border:
-                                                            o.status ===
-                                                            'mapped'
-                                                                ? `1px solid ${C.border}`
-                                                                : 'none',
-                                                        background:
-                                                            o.status ===
-                                                            'mapped'
-                                                                ? '#fff'
-                                                                : C.primary,
-                                                        color:
-                                                            o.status ===
-                                                            'mapped'
-                                                                ? C.text
-                                                                : '#fff',
-                                                    }}
-                                                >
-                                                    <AIcon
-                                                        name="link"
-                                                        size={13}
-                                                        color={
-                                                            o.status ===
-                                                            'mapped'
-                                                                ? C.muted
-                                                                : '#fff'
+                                                {(o.status === 'new' ||
+                                                    o.status === 'mapped') && (
+                                                    <button
+                                                        onClick={() =>
+                                                            setMapping(o)
                                                         }
-                                                    />
-                                                    {o.status === 'mapped'
-                                                        ? 'Ubah'
-                                                        : 'Mapping'}
-                                                </button>
+                                                        style={{
+                                                            display:
+                                                                'inline-flex',
+                                                            alignItems:
+                                                                'center',
+                                                            gap: 6,
+                                                            padding: '6px 12px',
+                                                            borderRadius: 7,
+                                                            fontSize: 12,
+                                                            fontWeight: 600,
+                                                            cursor: 'pointer',
+                                                            marginRight: 8,
+                                                            border:
+                                                                o.status ===
+                                                                'mapped'
+                                                                    ? `1px solid ${C.border}`
+                                                                    : 'none',
+                                                            background:
+                                                                o.status ===
+                                                                'mapped'
+                                                                    ? '#fff'
+                                                                    : C.primary,
+                                                            color:
+                                                                o.status ===
+                                                                'mapped'
+                                                                    ? C.text
+                                                                    : '#fff',
+                                                        }}
+                                                    >
+                                                        <AIcon
+                                                            name="link"
+                                                            size={13}
+                                                            color={
+                                                                o.status ===
+                                                                'mapped'
+                                                                    ? C.muted
+                                                                    : '#fff'
+                                                            }
+                                                        />
+                                                        {o.status === 'mapped'
+                                                            ? 'Ubah'
+                                                            : 'Mapping'}
+                                                    </button>
+                                                )}
+                                                {o.status === 'mapped' && (
+                                                    <button
+                                                        onClick={() =>
+                                                            forward(o)
+                                                        }
+                                                        style={{
+                                                            display:
+                                                                'inline-flex',
+                                                            alignItems:
+                                                                'center',
+                                                            gap: 6,
+                                                            padding: '6px 12px',
+                                                            borderRadius: 7,
+                                                            fontSize: 12,
+                                                            fontWeight: 600,
+                                                            cursor: 'pointer',
+                                                            border: 'none',
+                                                            background:
+                                                                C.primary,
+                                                            color: '#fff',
+                                                        }}
+                                                    >
+                                                        <AIcon
+                                                            name="send"
+                                                            size={13}
+                                                            color="#fff"
+                                                        />
+                                                        Teruskan
+                                                    </button>
+                                                )}
+                                                {o.status === 'forwarded' && (
+                                                    <span
+                                                        style={{
+                                                            fontSize: 12,
+                                                            color: C.faint,
+                                                        }}
+                                                    >
+                                                        Menunggu rekrutmen
+                                                    </span>
+                                                )}
+                                                {o.status === 'approved' && (
+                                                    <span
+                                                        style={{
+                                                            fontSize: 12,
+                                                            color: '#15803D',
+                                                            fontWeight: 600,
+                                                        }}
+                                                    >
+                                                        ✓ Benefit disetujui
+                                                    </span>
+                                                )}
                                             </td>
                                         </tr>
                                     ))

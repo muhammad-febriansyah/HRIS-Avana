@@ -9,6 +9,7 @@ use App\Models\ApplicantMedicalCheck;
 use App\Models\Department;
 use App\Models\HeadcountRequest;
 use App\Models\JobPosting;
+use App\Models\SalesOrder;
 use App\Models\TalentPool;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -434,6 +435,71 @@ class RecruitmentController extends Controller
         ]);
 
         return back()->with('success', 'Permintaan headcount diperbarui');
+    }
+
+    /**
+     * Sales Orders forwarded from Payroll awaiting benefit approval (BPR manual
+     * 1.4). Recruitment reviews the mapped Master Gaji / shift / leave benefit.
+     */
+    public function salesOrders(Request $request): Response
+    {
+        $this->ensureCanManage($request);
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $rows = SalesOrder::forTenant($tenantId)
+            ->whereIn('status', ['forwarded', 'approved'])
+            ->with(['salaryMaster:id,code,category', 'shift:id,name', 'leaveType:id,name', 'forwarder:id,name', 'benefitDecider:id,name'])
+            ->latest('id')
+            ->get()
+            ->map(fn (SalesOrder $o): array => [
+                'id' => $o->id,
+                'code' => $o->code,
+                'client_name' => $o->client_name,
+                'position_name' => $o->position_name,
+                'headcount' => $o->headcount,
+                'salary_master' => $o->salaryMaster?->code.' — '.$o->salaryMaster?->category,
+                'shift' => $o->shift?->name,
+                'leave_type' => $o->leaveType?->name,
+                'status' => $o->status,
+                'forwarded_by' => $o->forwarder?->name,
+                'benefit_decided_by' => $o->benefitDecider?->name,
+                'benefit_decided_at' => $o->benefit_decided_at?->toDateString(),
+            ]);
+
+        return Inertia::render('avana/rekrutmen/sales-order', [
+            'orders' => $rows,
+        ]);
+    }
+
+    /**
+     * Approve or reject the payroll benefit on a forwarded Sales Order. Approving
+     * finalizes it; rejecting returns it to Payroll (status "mapped") with a note.
+     */
+    public function decideSalesOrder(Request $request, SalesOrder $salesOrder): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        abort_if((int) $salesOrder->tenant_id !== (int) $request->user()->tenant_id, 404);
+
+        $data = $request->validate([
+            'decision' => ['required', Rule::in(['approve', 'reject'])],
+            'note' => ['nullable', 'string', 'max:255', Rule::requiredIf($request->input('decision') === 'reject')],
+        ]);
+
+        if ($salesOrder->status !== 'forwarded') {
+            return back()->withErrors(['sales_order' => 'Sales Order ini tidak menunggu approval benefit.']);
+        }
+
+        $salesOrder->update([
+            'status' => $data['decision'] === 'approve' ? 'approved' : 'mapped',
+            'benefit_decided_by' => $request->user()->id,
+            'benefit_decided_at' => now(),
+            'benefit_note' => $data['note'] ?? null,
+        ]);
+
+        return back()->with('success', $data['decision'] === 'approve'
+            ? 'Benefit Sales Order disetujui'
+            : 'Benefit Sales Order ditolak, dikembalikan ke payroll');
     }
 
     /**
