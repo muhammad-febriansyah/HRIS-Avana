@@ -1,6 +1,7 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { toast } from 'sonner';
 import PayrollCorrectionController from '@/actions/App/Http/Controllers/Avana/PayrollCorrectionController';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, C, card } from '@/lib/avana';
 
 interface Correction {
@@ -58,7 +59,10 @@ const primaryBtn: React.CSSProperties = {
 
 const rupiah = (n: number) => 'Rp ' + n.toLocaleString('id-ID');
 
-export default function PayrollKoreksi({ corrections, employeeOptions }: Props) {
+export default function PayrollKoreksi({
+    corrections,
+    employeeOptions,
+}: Props) {
     const form = useForm({
         employee_id: '',
         correction_date: new Date().toISOString().slice(0, 10),
@@ -151,21 +155,16 @@ export default function PayrollKoreksi({ corrections, employeeOptions }: Props) 
                             marginBottom: 12,
                         }}
                     >
-                        <select
-                            style={input}
+                        <SearchableSelect
                             value={form.data.employee_id}
-                            onChange={(e) =>
-                                form.setData('employee_id', e.target.value)
-                            }
-                        >
-                            <option value="">Pilih pegawai (NIK / nama)…</option>
-                            {employeeOptions.map((e) => (
-                                <option key={e.id} value={e.id}>
-                                    {e.nik ? e.nik + ' · ' : ''}
-                                    {e.name}
-                                </option>
-                            ))}
-                        </select>
+                            onChange={(v) => form.setData('employee_id', v)}
+                            placeholder="Pilih pegawai (NIK / nama)…"
+                            searchPlaceholder="Cari NIK / nama…"
+                            options={employeeOptions.map((e) => ({
+                                value: String(e.id),
+                                label: (e.nik ? e.nik + ' · ' : '') + e.name,
+                            }))}
+                        />
                         <input
                             style={input}
                             type="date"
@@ -241,7 +240,10 @@ export default function PayrollKoreksi({ corrections, employeeOptions }: Props) 
                 <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
                     <div style={{ overflowX: 'auto' }}>
                         <table
-                            style={{ width: '100%', borderCollapse: 'collapse' }}
+                            style={{
+                                width: '100%',
+                                borderCollapse: 'collapse',
+                            }}
                         >
                             <thead>
                                 <tr>

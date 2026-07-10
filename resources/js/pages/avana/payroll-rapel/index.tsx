@@ -1,6 +1,7 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { toast } from 'sonner';
 import SalaryRapelController from '@/actions/App/Http/Controllers/Avana/SalaryRapelController';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, C, card } from '@/lib/avana';
 
 interface Rapel {
@@ -163,40 +164,29 @@ export default function PayrollRapel({
                             marginBottom: 12,
                         }}
                     >
-                        <select
-                            style={input}
+                        <SearchableSelect
                             value={form.data.employee_id}
-                            onChange={(e) =>
-                                form.setData('employee_id', e.target.value)
-                            }
-                        >
-                            <option value="">
-                                Pilih pegawai (NIK / nama)…
-                            </option>
-                            {employeeOptions.map((e) => (
-                                <option key={e.id} value={e.id}>
-                                    {e.nik ? e.nik + ' · ' : ''}
-                                    {e.name}
-                                </option>
-                            ))}
-                        </select>
-                        <select
-                            style={input}
+                            onChange={(v) => form.setData('employee_id', v)}
+                            placeholder="Pilih pegawai (NIK / nama)…"
+                            searchPlaceholder="Cari NIK / nama…"
+                            options={employeeOptions.map((e) => ({
+                                value: String(e.id),
+                                label: (e.nik ? e.nik + ' · ' : '') + e.name,
+                            }))}
+                        />
+                        <SearchableSelect
                             value={form.data.payroll_component_id}
-                            onChange={(e) =>
-                                form.setData(
-                                    'payroll_component_id',
-                                    e.target.value,
-                                )
+                            onChange={(v) =>
+                                form.setData('payroll_component_id', v)
                             }
-                        >
-                            <option value="">Komponen (opsional)…</option>
-                            {componentOptions.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                    {c.name}
-                                </option>
-                            ))}
-                        </select>
+                            placeholder="Komponen (opsional)…"
+                            searchPlaceholder="Cari komponen…"
+                            allowClear
+                            options={componentOptions.map((c) => ({
+                                value: String(c.id),
+                                label: c.name,
+                            }))}
+                        />
                         <input
                             style={input}
                             type="number"
