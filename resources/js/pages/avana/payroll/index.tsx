@@ -263,8 +263,47 @@ export default function AvanaPayroll({
         );
     };
 
+    // Fetch the transfer CSV as a blob so the browser reliably saves it to
+    // Downloads, and surface a clear error instead of a silent page reload when
+    // the period is not locked (the endpoint redirects back in that case).
+    const downloadTransfer = async (url: string) => {
+        try {
+            const res = await fetch(url, {
+                headers: { Accept: 'text/csv' },
+            });
+            const contentType = res.headers.get('Content-Type') ?? '';
+
+            if (!res.ok || !contentType.includes('csv')) {
+                toast.error(
+                    'Kunci periode dulu sebelum unduh file transfer bank.',
+                );
+                return;
+            }
+
+            const blob = await res.blob();
+            const disposition = res.headers.get('Content-Disposition') ?? '';
+            const filename =
+                disposition.match(/filename=([^;]+)/)?.[1]?.trim() ??
+                'transfer.csv';
+
+            const objectUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = objectUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(objectUrl);
+            toast.success('File transfer terunduh.');
+        } catch {
+            toast.error('Gagal mengunduh file transfer.');
+        }
+    };
+
     const rowTransfer = (id: number) => {
-        window.location.href = `/avana/payroll/transfer?bank=generic&payroll_period_id=${id}`;
+        downloadTransfer(
+            `/avana/payroll/transfer?bank=generic&payroll_period_id=${id}`,
+        );
     };
 
     const goToPage = (page: number) => {
@@ -491,11 +530,13 @@ export default function AvanaPayroll({
                                                 <option value="bri">BRI</option>
                                             </select>
                                             {isLocked ? (
-                                                <a
-                                                    href={`${PayrollController.transferFile().url}?bank=${bank}`}
-                                                    onClick={() =>
-                                                        setExportOpen(false)
-                                                    }
+                                                <button
+                                                    onClick={() => {
+                                                        setExportOpen(false);
+                                                        downloadTransfer(
+                                                            `${PayrollController.transferFile().url}?bank=${bank}`,
+                                                        );
+                                                    }}
                                                     style={{
                                                         ...btnP,
                                                         height: 36,
@@ -508,7 +549,7 @@ export default function AvanaPayroll({
                                                         color="#fff"
                                                     />
                                                     Unduh
-                                                </a>
+                                                </button>
                                             ) : (
                                                 <span
                                                     title="Kunci periode dulu"
