@@ -12,6 +12,7 @@ use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
+use App\Models\Shift;
 use App\Models\ShiftSchedule;
 use App\Models\WfhRequest;
 use Illuminate\Database\Eloquent\Model;
@@ -157,6 +158,80 @@ class MssController extends Controller
             ]);
 
         return response()->json(['data' => $team]);
+    }
+
+    /** The tenant's active shifts, for the manager to assign from. */
+    public function shifts(Request $request): JsonResponse
+    {
+        $manager = $this->currentEmployee($request);
+
+        $shifts = Shift::forTenant($manager->tenant_id)
+            ->where('status', 'active')
+            ->orderBy('start_time')
+            ->get(['id', 'code', 'name', 'start_time', 'end_time'])
+            ->map(fn (Shift $s): array => [
+                'id' => $s->id,
+                'code' => $s->code,
+                'name' => $s->name,
+                'start' => $this->shortTime($s->start_time),
+                'end' => $this->shortTime($s->end_time),
+            ]);
+
+        return response()->json(['data' => $shifts]);
+    }
+
+    /**
+     * Assign a shift (or an explicit day off when shift_id is null) to a direct
+     * report on a date. Idempotent per employee+date — re-assigning replaces.
+     */
+    public function assignShift(Request $request): JsonResponse
+    {
+        $manager = $this->currentEmployee($request);
+
+        $data = $request->validate([
+            'employee_id' => ['required', 'integer'],
+            'date' => ['required', 'date'],
+            'shift_id' => ['nullable', 'integer'],
+        ]);
+
+        $member = Employee::forTenant($manager->tenant_id)
+            ->where('manager_id', $manager->id)
+            ->find($data['employee_id']);
+
+        abort_if($member === null, 404, 'Anggota tim tidak ditemukan atau bukan bawahan Anda.');
+
+        $shift = null;
+        if ($data['shift_id'] !== null) {
+            $shift = Shift::forTenant($manager->tenant_id)
+                ->where('status', 'active')
+                ->find($data['shift_id']);
+
+            abort_if($shift === null, 422, 'Shift tidak valid.');
+        }
+
+        $schedule = ShiftSchedule::forTenant($manager->tenant_id)
+            ->where('employee_id', $member->id)
+            ->whereDate('date', $data['date'])
+            ->first()
+            ?? new ShiftSchedule([
+                'tenant_id' => $manager->tenant_id,
+                'employee_id' => $member->id,
+                'date' => $data['date'],
+            ]);
+
+        $schedule->shift_id = $shift?->id;
+        $schedule->save();
+
+        return response()->json([
+            'message' => $shift !== null ? 'Shift diatur: '.$shift->name : 'Ditandai libur',
+            'data' => [
+                'date' => $data['date'],
+                'is_off' => $shift === null,
+                'shift_name' => $shift?->name,
+                'start' => $shift !== null ? $this->shortTime($shift->start_time) : null,
+                'end' => $shift !== null ? $this->shortTime($shift->end_time) : null,
+            ],
+        ]);
     }
 
     /**

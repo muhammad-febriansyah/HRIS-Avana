@@ -6,6 +6,8 @@ use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
+use App\Models\Shift;
+use App\Models\ShiftSchedule;
 use App\Models\User;
 use App\Models\WfhRequest;
 use Database\Seeders\AvanaDemoSeeder;
@@ -168,6 +170,87 @@ it('rejects a member detail for a non-subordinate', function (): void {
         ->firstOrFail();
 
     ($this->auth)()->getJson('/api/v1/mss/team/'.$other->id)->assertNotFound();
+});
+
+function mssMakeShift(object $test, string $name, string $start = '08:00:00', string $end = '17:00:00'): Shift
+{
+    return Shift::create([
+        'tenant_id' => $test->manager->tenant_id,
+        'code' => strtoupper(substr($name, 0, 2)),
+        'name' => $name,
+        'start_time' => $start,
+        'end_time' => $end,
+        'late_tolerance_minutes' => 5,
+        'status' => 'active',
+    ]);
+}
+
+it('lists tenant active shifts', function (): void {
+    $shift = mssMakeShift($this, 'Pagi');
+
+    ($this->auth)()
+        ->getJson('/api/v1/mss/shifts')
+        ->assertOk()
+        ->assertJsonFragment(['id' => $shift->id, 'name' => 'Pagi', 'start' => '08:00', 'end' => '17:00']);
+});
+
+it('assigns a shift to a subordinate', function (): void {
+    $shift = mssMakeShift($this, 'Pagi');
+
+    ($this->auth)()
+        ->postJson('/api/v1/mss/schedule', [
+            'employee_id' => $this->sub->id, 'date' => '2026-07-20', 'shift_id' => $shift->id,
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.shift_name', 'Pagi');
+
+    $rows = ShiftSchedule::where('employee_id', $this->sub->id)->whereDate('date', '2026-07-20')->get();
+    expect($rows)->toHaveCount(1);
+    expect($rows->first()->shift_id)->toBe($shift->id);
+});
+
+it('marks a subordinate day off', function (): void {
+    ($this->auth)()
+        ->postJson('/api/v1/mss/schedule', [
+            'employee_id' => $this->sub->id, 'date' => '2026-07-21', 'shift_id' => null,
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.is_off', true);
+
+    $row = ShiftSchedule::where('employee_id', $this->sub->id)->whereDate('date', '2026-07-21')->firstOrFail();
+    expect($row->shift_id)->toBeNull();
+});
+
+it('replaces an existing day assignment', function (): void {
+    $pagi = mssMakeShift($this, 'Pagi');
+    $malam = mssMakeShift($this, 'Malam', '22:00:00', '06:00:00');
+
+    ($this->auth)()->postJson('/api/v1/mss/schedule', [
+        'employee_id' => $this->sub->id, 'date' => '2026-07-22', 'shift_id' => $pagi->id,
+    ])->assertOk();
+    ($this->auth)()->postJson('/api/v1/mss/schedule', [
+        'employee_id' => $this->sub->id, 'date' => '2026-07-22', 'shift_id' => $malam->id,
+    ])->assertOk();
+
+    $rows = ShiftSchedule::where('employee_id', $this->sub->id)->whereDate('date', '2026-07-22')->get();
+    expect($rows)->toHaveCount(1);
+    expect($rows->first()->shift_id)->toBe($malam->id);
+});
+
+it('rejects assigning a shift to a non-subordinate', function (): void {
+    $other = Employee::forTenant($this->manager->tenant_id)
+        ->whereNotIn('id', [$this->manager->id, $this->sub->id])
+        ->firstOrFail();
+
+    ($this->auth)()->postJson('/api/v1/mss/schedule', [
+        'employee_id' => $other->id, 'date' => '2026-07-23', 'shift_id' => null,
+    ])->assertNotFound();
+});
+
+it('rejects an invalid shift', function (): void {
+    ($this->auth)()->postJson('/api/v1/mss/schedule', [
+        'employee_id' => $this->sub->id, 'date' => '2026-07-24', 'shift_id' => 999999,
+    ])->assertStatus(422);
 });
 
 it('reports is_manager on the profile', function (): void {

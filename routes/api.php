@@ -109,6 +109,8 @@ Route::prefix('v1')->group(function (): void {
             Route::post('approvals/{key}/act', [MssController::class, 'act']);
             Route::get('team', [MssController::class, 'team']);
             Route::get('team/{employee}', [MssController::class, 'member']);
+            Route::get('shifts', [MssController::class, 'shifts']);
+            Route::post('schedule', [MssController::class, 'assignShift']);
         });
     });
 });
