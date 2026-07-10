@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\PayslipController;
 use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ReimbursementController;
+use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\ShiftSwapController;
 use App\Http\Controllers\Api\WfhController;
 use Illuminate\Support\Facades\Route;
@@ -60,6 +61,7 @@ Route::prefix('v1')->group(function (): void {
             Route::post('attendance/clock', [AttendanceController::class, 'clock']);
             Route::get('attendance/corrections', [AttendanceCorrectionController::class, 'index']);
             Route::post('attendance/corrections', [AttendanceCorrectionController::class, 'store']);
+            Route::get('schedule', [ScheduleController::class, 'index']);
 
             Route::get('leave/balances', [LeaveController::class, 'balances']);
             Route::get('leave-types', [LeaveController::class, 'types']);

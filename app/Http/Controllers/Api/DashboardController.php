@@ -10,6 +10,7 @@ use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
+use App\Models\ShiftSchedule;
 use App\Models\WfhRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -52,6 +53,35 @@ class DashboardController extends Controller
             'work_minutes_month' => $workMinutes,
             'work_hours_month' => round($workMinutes / 60, 1),
             'pending_count' => $pending,
+            'today_shift' => $this->todayShift($tenantId, $employeeId),
         ]]);
+    }
+
+    /**
+     * Today's shift for the home card: a scheduled shift, an explicit day off,
+     * or null when the day has not been scheduled.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function todayShift(int $tenantId, int $employeeId): ?array
+    {
+        $schedule = ShiftSchedule::forTenant($tenantId)
+            ->where('employee_id', $employeeId)
+            ->whereDate('date', now()->toDateString())
+            ->with('shift:id,name,start_time,end_time')
+            ->first();
+
+        if ($schedule === null) {
+            return null;
+        }
+
+        $shift = $schedule->shift;
+
+        return [
+            'is_off' => $shift === null,
+            'shift_name' => $shift?->name,
+            'start' => $shift !== null ? substr((string) $shift->start_time, 0, 5) : null,
+            'end' => $shift !== null ? substr((string) $shift->end_time, 0, 5) : null,
+        ];
     }
 }

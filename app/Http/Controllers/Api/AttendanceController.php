@@ -8,8 +8,10 @@ use App\Models\Attendance;
 use App\Models\AttendanceSelfie;
 use App\Models\Employee;
 use App\Models\EmployeeFaceEmbedding;
+use App\Models\ShiftSchedule;
 use App\Models\WorkLocation;
 use App\Support\FaceMatcher;
+use Carbon\CarbonInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -166,13 +168,17 @@ class AttendanceController extends Controller
             return $geofence;
         }
 
+        ['status' => $status, 'late_minutes' => $lateMinutes, 'shift_id' => $shiftId] = $this->lateAgainstShift($employee, $clockedAt);
+
         $attendance->fill([
             'branch_id' => $employee->branch_id,
             'work_location_id' => $geofence->id,
+            'shift_id' => $shiftId,
             'clock_in_at' => $clockedAt,
             'clock_in_lat' => $data['latitude'] ?? null,
             'clock_in_lng' => $data['longitude'] ?? null,
-            'status' => 'present',
+            'status' => $status,
+            'late_minutes' => $lateMinutes,
             'location_status' => 'inside',
             'face_confidence' => $data['face_confidence'] ?? null,
         ]);
@@ -229,6 +235,41 @@ class AttendanceController extends Controller
         $attendance->save();
 
         return response()->json(['message' => 'Clock-out berhasil', 'data' => $this->todayShape($attendance)]);
+    }
+
+    /**
+     * Resolve clock-in status against the day's assigned shift: 'late' when the
+     * clock time exceeds the shift start plus its tolerance, otherwise 'present'.
+     * Returns 'present' with no shift when the day is unscheduled.
+     *
+     * @return array{status: string, late_minutes: int, shift_id: int|null}
+     */
+    private function lateAgainstShift(Employee $employee, CarbonInterface $clockedAt): array
+    {
+        $schedule = ShiftSchedule::forTenant($employee->tenant_id)
+            ->where('employee_id', $employee->id)
+            ->whereDate('date', $clockedAt->toDateString())
+            ->with('shift')
+            ->first();
+
+        $shift = $schedule?->shift;
+
+        if ($shift === null || $shift->start_time === null) {
+            return ['status' => 'present', 'late_minutes' => 0, 'shift_id' => $shift?->id];
+        }
+
+        $shiftStart = $clockedAt->copy()->setTimeFromTimeString((string) $shift->start_time);
+        $allowed = $shiftStart->copy()->addMinutes((int) $shift->late_tolerance_minutes);
+
+        if ($clockedAt->lessThanOrEqualTo($allowed)) {
+            return ['status' => 'present', 'late_minutes' => 0, 'shift_id' => $shift->id];
+        }
+
+        return [
+            'status' => 'late',
+            'late_minutes' => (int) $shiftStart->diffInMinutes($clockedAt),
+            'shift_id' => $shift->id,
+        ];
     }
 
     /**
