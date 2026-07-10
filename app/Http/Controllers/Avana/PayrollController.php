@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Avana\PayrollPeriodResource;
 use App\Models\Attendance;
+use App\Models\AuditLog;
 use App\Models\BpjsProgram;
 use App\Models\CashAdvance;
 use App\Models\DayCalcMethod;
@@ -32,6 +33,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -77,6 +79,7 @@ class PayrollController extends Controller
             'periods' => PayrollPeriodResource::collection($periods),
             'summary' => [
                 'period' => $latestPeriod?->name,
+                'period_id' => $latestPeriod?->id,
                 'status' => $latestRun?->status ?? $latestPeriod?->status,
                 'status_label' => PayrollPeriodResource::statusLabel($latestRun?->status ?? $latestPeriod?->status),
                 'total_gross' => $this->rupiah($latestRun?->total_gross ?? 0),
@@ -639,15 +642,79 @@ class PayrollController extends Controller
             return back()->withErrors(['payroll' => 'Payroll harus direview & disetujui sebelum dikunci.']);
         }
 
-        // Finalizing advances loan/cash-advance installments exactly once.
-        if ($run->status !== 'locked') {
-            $this->advanceInstallments($run, $tenantId);
-            $run->update(['status' => 'locked']);
-        }
+        // Advancing installments + flipping status must be atomic so a mid-way
+        // failure cannot leave installments bumped without the run being locked.
+        DB::transaction(function () use ($run, $period, $tenantId): void {
+            // Finalizing advances loan/cash-advance installments exactly once.
+            if ($run->status !== 'locked') {
+                $this->advanceInstallments($run, $tenantId);
+                $run->update(['status' => 'locked']);
+            }
 
-        $period->update(['status' => 'locked']);
+            $period->update(['status' => 'locked']);
+        });
 
         return back()->with('success', 'Payroll dikunci');
+    }
+
+    /**
+     * Authorized unlock of a finalized period (UAT: "data payroll tidak berubah
+     * tanpa proses unlock/adjustment berotorisasi"). Reverses the installment
+     * advances made at lock time, reopens the period for recompute/re-lock, and
+     * records the actor + reason to the audit trail. Requires an explicit period
+     * id because a locked period is never the implicit "target" period.
+     */
+    public function unlock(Request $request): RedirectResponse
+    {
+        $this->authorize('run', PayrollPeriod::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $data = $request->validate([
+            'payroll_period_id' => [
+                'required', 'integer',
+                Rule::exists('payroll_periods', 'id')->where('tenant_id', $tenantId),
+            ],
+            'reason' => ['required', 'string', 'min:5', 'max:500'],
+        ]);
+
+        $period = PayrollPeriod::forTenant($tenantId)->findOrFail($data['payroll_period_id']);
+
+        if ($period->status !== 'locked') {
+            return back()->withErrors(['payroll' => 'Periode belum terkunci, tidak perlu dibuka.']);
+        }
+
+        $run = PayrollRun::forTenant($tenantId)
+            ->where('payroll_period_id', $period->id)
+            ->orderByDesc('id')
+            ->first();
+
+        abort_if($run === null, 404);
+
+        DB::transaction(function () use ($run, $period, $tenantId, $request, $data): void {
+            // Reverse the installment advances made when the period was locked so
+            // reopening does not leave loans/advances over-counted.
+            if ($run->status === 'locked') {
+                $this->reverseInstallments($run, $tenantId);
+                $run->update(['status' => 'approved']);
+            }
+
+            // Reopen the period so it can be recomputed or re-locked.
+            $period->update(['status' => 'draft']);
+
+            AuditLog::create([
+                'tenant_id' => $tenantId,
+                'user_id' => $request->user()->id,
+                'auditable_type' => $run->getMorphClass(),
+                'auditable_id' => $run->getKey(),
+                'action' => 'payroll_unlocked',
+                'old_values' => ['status' => 'locked'],
+                'new_values' => ['status' => 'draft', 'period_code' => $period->code, 'reason' => $data['reason']],
+                'ip_address' => $request->ip(),
+            ]);
+        });
+
+        return back()->with('success', 'Periode dibuka kembali');
     }
 
     /**
@@ -741,6 +808,56 @@ class PayrollController extends Controller
 
             if ($paid >= (int) $advance->installments) {
                 $advance->status = 'paid';
+            }
+
+            $advance->save();
+        }
+    }
+
+    /**
+     * Reverse {@see advanceInstallments} when a period is unlocked: step each
+     * loan/cash-advance deducted in this run back by one installment and reopen
+     * it if the reversal drops it below fully-paid.
+     */
+    private function reverseInstallments(PayrollRun $run, int $tenantId): void
+    {
+        $items = PayrollRunItem::forTenant($tenantId)
+            ->where('payroll_run_id', $run->id)
+            ->get(['calculation_snapshot']);
+
+        $loanIds = [];
+        $advanceIds = [];
+
+        foreach ($items as $item) {
+            $snapshot = $item->calculation_snapshot ?? [];
+
+            foreach ((array) ($snapshot['loan_ids'] ?? []) as $id) {
+                $loanIds[] = (int) $id;
+            }
+
+            foreach ((array) ($snapshot['advance_ids'] ?? []) as $id) {
+                $advanceIds[] = (int) $id;
+            }
+        }
+
+        foreach (Loan::forTenant($tenantId)->whereIn('id', array_unique($loanIds))->get() as $loan) {
+            $paid = max(0, (int) $loan->paid_installments - 1);
+            $loan->paid_installments = $paid;
+
+            // A loan settled by this run reverts to the approved (still-deducting) state.
+            if ($paid < (int) $loan->tenor_months && $loan->status === 'paid') {
+                $loan->status = 'approved';
+            }
+
+            $loan->save();
+        }
+
+        foreach (CashAdvance::forTenant($tenantId)->whereIn('id', array_unique($advanceIds))->get() as $advance) {
+            $paid = max(0, (int) $advance->paid_installments - 1);
+            $advance->paid_installments = $paid;
+
+            if ($paid < (int) $advance->installments && $advance->status === 'paid') {
+                $advance->status = 'approved';
             }
 
             $advance->save();

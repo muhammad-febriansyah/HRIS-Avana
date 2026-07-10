@@ -1,5 +1,9 @@
 <?php
 
+use App\Models\AuditLog;
+use App\Models\Employee;
+use App\Models\Loan;
+use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
@@ -73,4 +77,79 @@ it('allows approval by a user who did not run it when segregation is on', functi
         ->assertSessionHas('success');
 
     expect($this->run->fresh()->status)->toBe('approved');
+});
+
+it('reopens a locked period back to draft with an authorized reason', function (): void {
+    actingAs($this->hrAdmin)->post(route('avana.payroll.approve'))->assertSessionHas('success');
+    actingAs($this->hrAdmin)->post(route('avana.payroll.lock'))->assertSessionHas('success');
+
+    $periodId = $this->run->fresh()->payroll_period_id;
+    expect(PayrollPeriod::find($periodId)->status)->toBe('locked');
+
+    actingAs($this->hrAdmin)
+        ->post(route('avana.payroll.unlock'), ['payroll_period_id' => $periodId, 'reason' => 'Koreksi komponen keliru'])
+        ->assertSessionHas('success');
+
+    expect(PayrollPeriod::find($periodId)->status)->toBe('draft');
+    expect($this->run->fresh()->status)->toBe('approved');
+});
+
+it('requires a reason to unlock', function (): void {
+    actingAs($this->hrAdmin)->post(route('avana.payroll.approve'))->assertSessionHas('success');
+    actingAs($this->hrAdmin)->post(route('avana.payroll.lock'))->assertSessionHas('success');
+
+    actingAs($this->hrAdmin)
+        ->post(route('avana.payroll.unlock'), ['payroll_period_id' => $this->run->fresh()->payroll_period_id])
+        ->assertSessionHasErrors('reason');
+});
+
+it('refuses to unlock a period that is not locked', function (): void {
+    actingAs($this->hrAdmin)
+        ->post(route('avana.payroll.unlock'), ['payroll_period_id' => $this->run->payroll_period_id, 'reason' => 'Belum dikunci'])
+        ->assertSessionHasErrors('payroll');
+});
+
+it('records the unlock on the audit trail', function (): void {
+    actingAs($this->hrAdmin)->post(route('avana.payroll.approve'))->assertSessionHas('success');
+    actingAs($this->hrAdmin)->post(route('avana.payroll.lock'))->assertSessionHas('success');
+
+    actingAs($this->hrAdmin)
+        ->post(route('avana.payroll.unlock'), ['payroll_period_id' => $this->run->fresh()->payroll_period_id, 'reason' => 'Salah tanggal bayar'])
+        ->assertSessionHas('success');
+
+    $log = AuditLog::where('tenant_id', $this->tenantId)->where('action', 'payroll_unlocked')->latest('id')->first();
+
+    expect($log)->not->toBeNull();
+    expect($log->new_values['reason'] ?? null)->toBe('Salah tanggal bayar');
+    expect((int) $log->user_id)->toBe($this->hrAdmin->id);
+});
+
+it('reverses a loan installment advance when unlocking', function (): void {
+    $employee = Employee::forTenant($this->tenantId)->where('status', 'active')->orderBy('id')->firstOrFail();
+
+    $loan = Loan::create([
+        'tenant_id' => $this->tenantId,
+        'employee_id' => $employee->id,
+        'amount' => 3_000_000,
+        'tenor_months' => 6,
+        'interest_rate' => 0,
+        'monthly_installment' => 500_000,
+        'paid_installments' => 0,
+        'purpose' => 'Uji unlock',
+        'status' => 'approved',
+    ]);
+
+    // Recompute so the new loan is picked up into the run snapshot, then finalize.
+    actingAs($this->hrAdmin)->post(route('avana.payroll.run'))->assertSessionHas('success');
+    actingAs($this->hrAdmin)->post(route('avana.payroll.approve'))->assertSessionHas('success');
+    actingAs($this->hrAdmin)->post(route('avana.payroll.lock'))->assertSessionHas('success');
+
+    expect((int) $loan->fresh()->paid_installments)->toBe(1);
+
+    actingAs($this->hrAdmin)
+        ->post(route('avana.payroll.unlock'), ['payroll_period_id' => $this->run->fresh()->payroll_period_id, 'reason' => 'Reversal cicilan'])
+        ->assertSessionHas('success');
+
+    expect((int) $loan->fresh()->paid_installments)->toBe(0);
+    expect($loan->fresh()->status)->toBe('approved');
 });

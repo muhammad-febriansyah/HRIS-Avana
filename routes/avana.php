@@ -153,6 +153,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('payroll/run', [PayrollController::class, 'run'])->name('payroll.run');
     Route::post('payroll/approve', [PayrollController::class, 'approve'])->name('payroll.approve');
     Route::post('payroll/lock', [PayrollController::class, 'lock'])->name('payroll.lock');
+    Route::post('payroll/unlock', [PayrollController::class, 'unlock'])->name('payroll.unlock');
     Route::post('payroll/thr', [PayrollController::class, 'thr'])->name('payroll.thr');
     Route::get('payroll/transfer', [PayrollController::class, 'transferFile'])->name('payroll.transfer');
     Route::get('payroll/payslip/{item}/pdf', [PayrollController::class, 'payslipPdf'])->name('payroll.payslip.pdf');

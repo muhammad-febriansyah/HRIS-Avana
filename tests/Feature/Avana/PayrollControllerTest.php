@@ -62,6 +62,7 @@ it('renders the payroll index with the expected props', function (): void {
                 ->etc())
             ->has('summary', fn (Assert $summary) => $summary
                 ->has('period')
+                ->has('period_id')
                 ->has('status')
                 ->has('status_label')
                 ->has('total_gross')

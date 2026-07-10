@@ -158,6 +158,31 @@ export default function AvanaPayroll({
         router.post(PayrollController.lock().url, {}, { preserveScroll: true });
     };
 
+    const unlockPayroll = () => {
+        if (!isLocked || summary.period_id == null) {
+            return;
+        }
+
+        const reason = window.prompt(
+            'Alasan membuka kembali periode terkunci (min. 5 karakter). Tindakan ini dicatat di Audit Trail dan membatalkan pemotongan cicilan periode ini.',
+        );
+
+        if (reason == null) {
+            return;
+        }
+
+        if (reason.trim().length < 5) {
+            toast.error('Alasan minimal 5 karakter.');
+            return;
+        }
+
+        router.post(
+            PayrollController.unlock().url,
+            { payroll_period_id: summary.period_id, reason: reason.trim() },
+            { preserveScroll: true },
+        );
+    };
+
     const exportPayroll = () => {
         window.location.href = '/avana/laporan/export/payroll';
     };
@@ -507,6 +532,30 @@ export default function AvanaPayroll({
                             <AIcon name="pencil" size={15} color={C.primary} />
                             Perlu koreksi?
                         </Link>
+                    )}
+
+                    {/* Authorized unlock — reopens a finalized period for adjustment */}
+                    {isLocked && (
+                        <button
+                            onClick={unlockPayroll}
+                            style={{
+                                marginLeft: 'auto',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 7,
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: C.red,
+                                background: 'transparent',
+                                border: `1px solid ${C.red}`,
+                                borderRadius: 8,
+                                padding: '7px 14px',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            <AIcon name="lock-open" size={15} color={C.red} />
+                            Buka Kembali
+                        </button>
                     )}
                 </div>
 

@@ -24,6 +24,7 @@ export interface Period {
 /** Latest-run summary block backing the run-summary card. */
 export interface PayrollSummary {
     period: string | null;
+    period_id: number | null;
     status: string | null;
     status_label: string;
     total_gross: string;
