@@ -13,6 +13,7 @@ final class SalaryMasterComponent extends Model
     {
         return [
             'included' => 'boolean',
+            'amount' => 'decimal:2',
             'is_prorate' => 'boolean',
             'is_overtime_base' => 'boolean',
             'is_kompensasi' => 'boolean',

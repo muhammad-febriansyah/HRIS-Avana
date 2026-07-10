@@ -20,7 +20,6 @@ use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
 use App\Models\PkpRate;
-use App\Models\PositionPayrollComponent;
 use App\Models\PtkpRate;
 use App\Models\SalaryMaster;
 use App\Models\SalaryMasterComponent;
@@ -918,45 +917,11 @@ class PayrollController extends Controller
             }
         }
 
-        if ($employee->position_id !== null) {
-            $positionComponents = PositionPayrollComponent::forTenant($tenantId)
-                ->where('position_id', $employee->position_id)
-                ->with('component')
-                ->get();
-
-            foreach ($positionComponents as $positionComponent) {
-                $component = $positionComponent->component;
-
-                if ($component === null) {
-                    continue;
-                }
-
-                if ($suppressFlatOvertime && $component->calc_basis === 'per_overtime_hour') {
-                    continue;
-                }
-
-                $handledComponentIds[$component->id] = true;
-
-                if ($component->calc_basis === 'per_overtime_hour') {
-                    $hasCustomOvertime = true;
-                }
-
-                if ($component->basis_type !== null) {
-                    [$amount, $proratable] = $this->derivedComponentAmount($component, $employee, (float) $positionComponent->amount, $presentDays, $overtimeHours, $tenantId);
-                } else {
-                    $amount = $this->amountForBasis((float) $positionComponent->amount, $component->calc_basis, $presentDays, $overtimeHours);
-                    $proratable = ! in_array($component->calc_basis, ['per_present_day', 'per_overtime_hour'], true);
-                }
-
-                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic);
-            }
-        }
-
         // Master Gaji (BPR manual 1.2.1): pay every component checked into the
-        // employee's assigned salary template that a salary/position row has not
-        // already sourced. Each component's amount comes from its dasar
-        // perhitungan (or Nilai Komponen mapping); the template's prorate flag
-        // governs mid-period scaling.
+        // employee's assigned salary template that a per-employee salary row has
+        // not already overridden. Each component's amount is the template's own
+        // nominal (falling back to its dasar perhitungan / Nilai Komponen
+        // mapping); the template's prorate flag governs mid-period scaling.
         if ($master !== null) {
             $masterComponents = SalaryMasterComponent::query()
                 ->where('salary_master_id', $master->id)
@@ -982,20 +947,32 @@ class PayrollController extends Controller
                 }
 
                 if ($component->basis_type !== null) {
-                    [$amount] = $this->derivedComponentAmount($component, $employee, 0.0, $presentDays, $overtimeHours, $tenantId);
+                    [$amount] = $this->derivedComponentAmount($component, $employee, (float) $masterComponent->amount, $presentDays, $overtimeHours, $tenantId);
                 } else {
-                    $base = $this->resolveComponentValue($component, $employee, $tenantId) ?? 0.0;
+                    // The template's own nominal is the primary source; fall back
+                    // to the dimension-mapped Nilai Komponen when it is unset.
+                    $base = (float) $masterComponent->amount;
+
+                    if ($base <= 0.0) {
+                        $base = $this->resolveComponentValue($component, $employee, $tenantId) ?? 0.0;
+                    }
+
                     $amount = $this->amountForBasis($base, $component->calc_basis, $presentDays, $overtimeHours);
                 }
 
-                // A prorate-flagged component is scaled now by the master's
-                // Jumlah Hari / Perhitungan Hari factor, so it is not prorated
-                // again by the mid-period (join/resign) factor below.
+                // is_prorate scales the amount now by the master's Jumlah Hari /
+                // Perhitungan Hari factor; otherwise a fixed monthly component is
+                // still prorated by the mid-period (join/resign) factor below, and
+                // per-day/per-hour components are already scaled by their count.
+                $proratable = ! $masterComponent->is_prorate
+                    && ! in_array($component->calc_basis, ['per_present_day', 'per_overtime_hour'], true);
+
                 if ($masterComponent->is_prorate && $masterProrateFactor !== null) {
                     $amount = round($amount * $masterProrateFactor);
+                    $proratable = false;
                 }
 
-                $this->collectComponent($component, $amount, false, $earnings, $deductions, $basic);
+                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic);
             }
         }
 
@@ -1249,6 +1226,7 @@ class PayrollController extends Controller
     private function monthlyBaseWage(Employee $employee, int $tenantId): float
     {
         $total = 0.0;
+        $handledComponentIds = [];
 
         $salaryComponents = EmployeeSalaryComponent::forTenant($tenantId)
             ->where('employee_id', $employee->id)
@@ -1259,23 +1237,26 @@ class PayrollController extends Controller
             $component = $salaryComponent->component;
 
             if ($component !== null && $component->type !== 'deduction') {
+                $handledComponentIds[$component->id] = true;
                 $total += (float) $salaryComponent->amount;
             }
         }
 
-        if ($employee->position_id !== null) {
-            $positionComponents = PositionPayrollComponent::forTenant($tenantId)
-                ->where('position_id', $employee->position_id)
+        if ($employee->salary_master_id !== null) {
+            $masterComponents = SalaryMasterComponent::query()
+                ->where('salary_master_id', $employee->salary_master_id)
+                ->where('included', true)
                 ->with('component')
                 ->get();
 
-            foreach ($positionComponents as $positionComponent) {
-                $component = $positionComponent->component;
+            foreach ($masterComponents as $masterComponent) {
+                $component = $masterComponent->component;
 
                 if ($component !== null
+                    && ! isset($handledComponentIds[$component->id])
                     && $component->type !== 'deduction'
                     && ! in_array($component->calc_basis, ['per_present_day', 'per_overtime_hour'], true)) {
-                    $total += (float) $positionComponent->amount;
+                    $total += (float) $masterComponent->amount;
                 }
             }
         }
@@ -1529,14 +1510,15 @@ class PayrollController extends Controller
             return (float) $salaryAmount;
         }
 
-        if ($employee->position_id !== null) {
-            $positionAmount = PositionPayrollComponent::forTenant($tenantId)
-                ->where('position_id', $employee->position_id)
+        if ($employee->salary_master_id !== null) {
+            $masterAmount = SalaryMasterComponent::query()
+                ->where('salary_master_id', $employee->salary_master_id)
                 ->where('payroll_component_id', $component->id)
+                ->where('included', true)
                 ->value('amount');
 
-            if ($positionAmount !== null) {
-                return (float) $positionAmount;
+            if ($masterAmount !== null && (float) $masterAmount > 0.0) {
+                return (float) $masterAmount;
             }
         }
 

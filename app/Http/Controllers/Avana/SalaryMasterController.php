@@ -75,6 +75,7 @@ class SalaryMasterController extends Controller
                 'name' => $c->name,
                 'group' => $c->component_group ?? 'penerimaan',
                 'included' => (bool) ($flags[$c->id]->included ?? false),
+                'amount' => (float) ($flags[$c->id]->amount ?? 0),
                 'is_prorate' => (bool) ($flags[$c->id]->is_prorate ?? false),
                 'is_overtime_base' => (bool) ($flags[$c->id]->is_overtime_base ?? false),
                 'is_kompensasi' => (bool) ($flags[$c->id]->is_kompensasi ?? false),
@@ -211,6 +212,39 @@ class SalaryMasterController extends Controller
         }
 
         return back()->with('success', 'Komponen master diperbarui');
+    }
+
+    /**
+     * Set the monthly nominal for a component on this Master Gaji. Master Gaji is
+     * the single place nominals live; a per-employee salary row still overrides
+     * it. The component is marked included so the amount is actually paid.
+     */
+    public function setComponentAmount(Request $request, SalaryMaster $master): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureOwnership($request, $master->tenant_id);
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $data = $request->validate([
+            'payroll_component_id' => ['required', 'integer', Rule::exists('payroll_components', 'id')->where('tenant_id', $tenantId)],
+            'amount' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $row = $master->components()->firstOrNew(['payroll_component_id' => $data['payroll_component_id']]);
+
+        // Setting a nominal implies membership, so a fresh row is paid.
+        if (! $row->exists) {
+            $row->included = true;
+            $row->is_prorate = false;
+            $row->is_overtime_base = false;
+            $row->is_kompensasi = false;
+        }
+
+        $row->amount = $data['amount'];
+        $row->save();
+
+        return back()->with('success', 'Nominal komponen master disimpan');
     }
 
     /**

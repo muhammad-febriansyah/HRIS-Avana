@@ -3,7 +3,6 @@
 use App\Models\Employee;
 use App\Models\OffboardingCase;
 use App\Models\PayrollComponent;
-use App\Models\PositionPayrollComponent;
 use App\Models\SalaryMaster;
 use App\Models\Tenant;
 use App\Models\User;
@@ -21,10 +20,7 @@ beforeEach(function (): void {
 
     $basic = PayrollComponent::forTenant($this->tenant->id)->where('code', 'BASIC')->firstOrFail();
     $basic->update(['calc_basis' => 'fixed']);
-    PositionPayrollComponent::updateOrCreate(
-        ['position_id' => $this->employee->position_id, 'payroll_component_id' => $basic->id],
-        ['tenant_id' => $this->tenant->id, 'amount' => 5_000_000],
-    );
+    giveMasterComponent($this->employee, $basic, 5_000_000);
 
     $this->employee->update(['join_date' => '2019-01-01']);
 
@@ -61,14 +57,13 @@ it('uses only the Komponen Kompensasi flagged components as the severance base',
         'tenant_id' => $this->tenant->id, 'code' => 'TJ-TTP', 'name' => 'Tunjangan Tetap',
         'type' => 'earning', 'component_group' => 'penerimaan', 'is_taxable' => true, 'status' => 'active', 'calc_basis' => 'fixed',
     ]);
-    PositionPayrollComponent::updateOrCreate(
-        ['position_id' => $this->employee->position_id, 'payroll_component_id' => $tetap->id],
-        ['tenant_id' => $this->tenant->id, 'amount' => 2_000_000],
-    );
 
     $basic = PayrollComponent::forTenant($this->tenant->id)->where('code', 'BASIC')->firstOrFail();
     $master = SalaryMaster::create(['tenant_id' => $this->tenant->id, 'code' => 'MG-KOMP', 'category' => 'Organik']);
-    $master->components()->create(['payroll_component_id' => $basic->id, 'included' => true, 'is_kompensasi' => true]);
+    // BASIC is the only Komponen Kompensasi flagged line; Tetap is included but
+    // not flagged, so it is excluded from the severance base.
+    $master->components()->create(['payroll_component_id' => $basic->id, 'included' => true, 'amount' => 5_000_000, 'is_kompensasi' => true]);
+    $master->components()->create(['payroll_component_id' => $tetap->id, 'included' => true, 'amount' => 2_000_000]);
     $this->employee->update(['salary_master_id' => $master->id]);
 
     actingAs($this->admin)

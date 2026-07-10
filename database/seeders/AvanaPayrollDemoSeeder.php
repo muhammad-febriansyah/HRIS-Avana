@@ -14,7 +14,6 @@ use App\Models\PayrollComponentValue;
 use App\Models\PayrollFormula;
 use App\Models\PkpRate;
 use App\Models\Position;
-use App\Models\PositionPayrollComponent;
 use App\Models\PtkpRate;
 use App\Models\SalaryGrade;
 use App\Models\SalaryGradeStep;
@@ -27,10 +26,10 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
- * Demo data that exercises the attendance-linked, by-job payroll engine:
- * per-position component nominals, per-present-day & per-overtime-hour bases,
- * an overtime component, BPJS/tax profiles, plus June attendance and approved
- * overtime so a payroll run produces real gross/BPJS/PPh21/net figures.
+ * Demo data that exercises the attendance-linked, Master-Gaji payroll engine:
+ * one Master Gaji template per position carrying its component nominals (fixed,
+ * per-present-day & per-overtime-hour), BPJS/tax profiles, plus June attendance
+ * and approved overtime so a payroll run produces real gross/BPJS/PPh21/net.
  *
  * Kept out of {@see AvanaDemoSeeder} so the core test fixtures stay on a clean
  * payroll slate; run explicitly: `php artisan db:seed --class=AvanaPayrollDemoSeeder`.
@@ -83,27 +82,24 @@ final class AvanaPayrollDemoSeeder extends Seeder
             }
         }
 
-        // Per-job (position) nominals: daily/hourly rates for attendance-linked
-        // components, flat monthly for fixed ones.
         $positions = Position::where('tenant_id', $tenant->id)->orderBy('id')->get();
+
+        // The manual-basis components (Tabel + Formula) and the named day-calc
+        // methods a Master Gaji can pick — created before the templates so they
+        // can be added to each master's checklist.
+        $hariKerja = $this->seedManualKomponen($tenant, $positions);
+
+        // Re-read components now that the Tabel/Formula ones (TJ-KES, TJ-KIN) exist.
+        $components = PayrollComponent::where('tenant_id', $tenant->id)->get()->keyBy('code');
+
+        // One Master Gaji per position, carrying that position's component
+        // nominals, then attached to every employee holding the position.
         foreach ($positions->values() as $index => $position) {
-            $amounts = [
-                'BASIC' => 6_000_000 + ($index * 500_000),
-                'TJ-JAB' => 1_500_000,
-                'TJ-TRP' => 20_000,   // per hari hadir
-                'TJ-MKN' => 25_000,   // per hari hadir
-                'LEMBUR' => 30_000,   // per jam lembur
-                'POT-KOP' => 50_000,
-            ];
-            foreach ($amounts as $code => $amount) {
-                if (! isset($components[$code])) {
-                    continue;
-                }
-                PositionPayrollComponent::updateOrCreate(
-                    ['position_id' => $position->id, 'payroll_component_id' => $components[$code]->id],
-                    ['tenant_id' => $tenant->id, 'amount' => $amount],
-                );
-            }
+            $master = $this->buildPositionMaster($tenant, $position, $index, $components, $hariKerja);
+
+            Employee::where('tenant_id', $tenant->id)
+                ->where('position_id', $position->id)
+                ->update(['salary_master_id' => $master->id]);
         }
 
         // June present days + an approved overtime + BPJS/tax profiles for the
@@ -147,18 +143,78 @@ final class AvanaPayrollDemoSeeder extends Seeder
             );
         }
 
-        $this->seedManualKomponen($tenant, $positions, $sample);
+        $this->seedWageScaleAndPaydays($tenant, $sample);
     }
 
     /**
-     * BPR-manual "Komponen" demo: a Tabel-based component with Nilai Komponen
-     * mapping, a Formula-based component, and a Master Gaji template assigned to
-     * the sample employees — so the ported dasar-perhitungan engine has data.
+     * Create/update a Master Gaji for one position and populate its component
+     * checklist with monthly nominals. The first position keeps the well-known
+     * "MG-ORG" code so existing fixtures resolve; the rest are per-position.
+     *
+     * @param  Collection<string, PayrollComponent>  $components
+     */
+    private function buildPositionMaster(Tenant $tenant, Position $position, int $index, Collection $components, DayCalcMethod $hariKerja): SalaryMaster
+    {
+        $code = $index === 0 ? 'MG-ORG' : 'MG-'.strtoupper((string) ($position->code ?? $position->id));
+        $category = $index === 0 ? 'Organik' : $position->name;
+
+        $master = SalaryMaster::updateOrCreate(
+            ['tenant_id' => $tenant->id, 'code' => $code],
+            [
+                'category' => $category,
+                'note' => 'Template gaji '.$position->name,
+                'is_active' => true,
+                'process_type' => 'normal',
+                'period_start_day' => 25, 'period_end_day' => 24,
+                'cut_off_day' => 15, 'day_divisor' => 22,
+                'day_calc_method' => 'hari_kerja', 'day_calc_method_id' => $hariKerja->id,
+                'overtime_calc_method' => 'reguler',
+            ],
+        );
+
+        // Monthly nominals per component (fixed monthly, per-hadir, per-jam).
+        // is_prorate stays off so fixed lines are prorated only by mid-period
+        // join/resign, matching the previous per-position behaviour.
+        $lines = [
+            'BASIC' => ['amount' => 6_000_000 + ($index * 500_000)],
+            'TJ-JAB' => ['amount' => 1_500_000],
+            'TJ-TRP' => ['amount' => 20_000],
+            'TJ-MKN' => ['amount' => 25_000],
+            'LEMBUR' => ['amount' => 30_000, 'is_overtime_base' => true],
+            'POT-KOP' => ['amount' => 50_000],
+            // Manual-basis lines resolve their own nominal (Tabel / Formula).
+            'TJ-KES' => ['amount' => 0],
+            'TJ-KIN' => ['amount' => 0],
+        ];
+
+        foreach ($lines as $componentCode => $line) {
+            if (! isset($components[$componentCode])) {
+                continue;
+            }
+
+            $master->components()->updateOrCreate(
+                ['payroll_component_id' => $components[$componentCode]->id],
+                [
+                    'included' => true,
+                    'amount' => $line['amount'],
+                    'is_prorate' => false,
+                    'is_overtime_base' => $line['is_overtime_base'] ?? false,
+                    'is_kompensasi' => false,
+                ],
+            );
+        }
+
+        return $master;
+    }
+
+    /**
+     * BPR-manual "Komponen" demo: a Tabel-based component with a Nilai Komponen
+     * mapping, a Formula-based component, and the named day-calc methods. Returns
+     * the default Hari Kerja method so each Master Gaji can reference it.
      *
      * @param  Collection<int, Position>  $positions
-     * @param  Collection<int, Employee>  $sample
      */
-    private function seedManualKomponen(Tenant $tenant, $positions, $sample): void
+    private function seedManualKomponen(Tenant $tenant, Collection $positions): DayCalcMethod
     {
         // Tabel: nominal resolved from the Nilai Komponen mapping.
         $kesehatan = PayrollComponent::updateOrCreate(
@@ -193,7 +249,7 @@ final class AvanaPayrollDemoSeeder extends Seeder
                 'operator' => '*', 'nilai' => 0.10, 'prorate' => false, 'sort_order' => 1,
             ]);
         }
-        $kinerja = PayrollComponent::updateOrCreate(
+        PayrollComponent::updateOrCreate(
             ['tenant_id' => $tenant->id, 'code' => 'TJ-KIN'],
             [
                 'name' => 'Tunjangan Kinerja', 'type' => 'earning', 'component_group' => 'penerimaan',
@@ -225,35 +281,6 @@ final class AvanaPayrollDemoSeeder extends Seeder
             ],
         );
 
-        // Master Gaji "Organik": checklist of the standard components + the two
-        // manual-basis ones, attached to the sample employees.
-        $master = SalaryMaster::updateOrCreate(
-            ['tenant_id' => $tenant->id, 'code' => 'MG-ORG'],
-            [
-                'category' => 'Organik', 'note' => 'Template gaji pegawai organik', 'is_active' => true,
-                'process_type' => 'normal', 'period_start_day' => 25, 'period_end_day' => 24,
-                'cut_off_day' => 15, 'day_divisor' => 22, 'day_calc_method' => 'hari_kerja',
-                'day_calc_method_id' => $hariKerja->id,
-                'overtime_calc_method' => 'reguler',
-                // Left without an absensi/overtime range so the demo run keeps
-                // using the payroll period window (present days stay intact).
-            ],
-        );
-
-        $checklist = PayrollComponent::where('tenant_id', $tenant->id)
-            ->whereIn('code', ['TJ-KES', 'TJ-KIN'])
-            ->get();
-        foreach ($checklist as $component) {
-            $master->components()->updateOrCreate(
-                ['payroll_component_id' => $component->id],
-                ['is_prorate' => false, 'is_overtime_base' => false],
-            );
-        }
-
-        Employee::where('tenant_id', $tenant->id)
-            ->whereIn('id', $sample->pluck('id'))
-            ->update(['salary_master_id' => $master->id]);
-
         // UMR per branch + a tenant-wide default (2026 DKI-ish figures).
         $year = 2026;
         UmrRate::updateOrCreate(
@@ -273,7 +300,7 @@ final class AvanaPayrollDemoSeeder extends Seeder
             );
         }
 
-        $this->seedWageScaleAndPaydays($tenant, $sample);
+        return $hariKerja;
     }
 
     /**
@@ -282,7 +309,7 @@ final class AvanaPayrollDemoSeeder extends Seeder
      *
      * @param  Collection<int, Employee>  $sample
      */
-    private function seedWageScaleAndPaydays(Tenant $tenant, $sample): void
+    private function seedWageScaleAndPaydays(Tenant $tenant, Collection $sample): void
     {
         // Grade bands (Struktur & Skala Upah) + exact nominal per step (Nilai Upah).
         $grades = [

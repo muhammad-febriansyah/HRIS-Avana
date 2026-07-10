@@ -1,5 +1,8 @@
 <?php
 
+use App\Models\Employee;
+use App\Models\PayrollComponent;
+use App\Models\SalaryMaster;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -47,4 +50,45 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/**
+ * Give an employee a Master Gaji nominal for a component — the primary way
+ * payroll now sources amounts. Creates a spec master and assigns it the first
+ * time, then upserts the component line (with optional flag overrides).
+ *
+ * @param  array<string, mixed>  $flags
+ */
+function giveMasterComponent(
+    Employee $employee,
+    PayrollComponent $component,
+    float $amount,
+    array $flags = [],
+): SalaryMaster {
+    $master = $employee->salary_master_id !== null
+        ? SalaryMaster::findOrFail($employee->salary_master_id)
+        : SalaryMaster::create([
+            'tenant_id' => $employee->tenant_id,
+            'code' => 'MG-SPEC-'.$employee->id,
+            'category' => 'Spec',
+            'is_active' => true,
+        ]);
+
+    if ((int) $employee->salary_master_id !== (int) $master->id) {
+        $employee->update(['salary_master_id' => $master->id]);
+        $employee->refresh();
+    }
+
+    $master->components()->updateOrCreate(
+        ['payroll_component_id' => $component->id],
+        array_merge([
+            'included' => true,
+            'amount' => $amount,
+            'is_prorate' => false,
+            'is_overtime_base' => false,
+            'is_kompensasi' => false,
+        ], $flags),
+    );
+
+    return $master;
 }

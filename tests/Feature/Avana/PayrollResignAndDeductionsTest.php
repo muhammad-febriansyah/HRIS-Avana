@@ -9,7 +9,6 @@ use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
-use App\Models\PositionPayrollComponent;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
@@ -33,16 +32,13 @@ beforeEach(function (): void {
     });
 });
 
-/** Set BASIC as a fixed component on the employee's position. */
+/** Set BASIC as a fixed component on the employee's Master Gaji. */
 function setBasic(object $ctx, float $amount): void
 {
     $component = PayrollComponent::forTenant($ctx->tenant->id)->where('code', 'BASIC')->firstOrFail();
     $component->update(['calc_basis' => 'fixed']);
 
-    PositionPayrollComponent::updateOrCreate(
-        ['position_id' => $ctx->employee->position_id, 'payroll_component_id' => $component->id],
-        ['tenant_id' => $ctx->tenant->id, 'amount' => $amount],
-    );
+    giveMasterComponent($ctx->employee, $component, $amount);
 }
 
 function runResign(object $ctx): PayrollRunItem

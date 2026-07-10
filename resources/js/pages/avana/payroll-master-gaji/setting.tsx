@@ -4,20 +4,94 @@ import { toast } from 'sonner';
 import SalaryMasterController from '@/actions/App/Http/Controllers/Avana/SalaryMasterController';
 import { AIcon, C, card } from '@/lib/avana';
 
-type FlagKey =
-    | 'included'
-    | 'is_prorate'
-    | 'is_overtime_base'
-    | 'is_kompensasi';
+type FlagKey = 'included' | 'is_prorate' | 'is_overtime_base' | 'is_kompensasi';
 
 interface Component {
     id: number;
     name: string;
     group: string;
     included: boolean;
+    amount: number;
     is_prorate: boolean;
     is_overtime_base: boolean;
     is_kompensasi: boolean;
+}
+
+const rupiah = (n: number) =>
+    n ? new Intl.NumberFormat('id-ID').format(n) : '';
+
+/** One membership row: the included checkbox plus its monthly nominal input. */
+function MembershipRow({
+    c,
+    masterId,
+    onToggle,
+}: {
+    c: Component;
+    masterId: number;
+    onToggle: (checked: boolean) => void;
+}) {
+    const [amount, setAmount] = useState<string>(rupiah(c.amount));
+
+    const saveAmount = () => {
+        const value = Number(amount.replace(/[^\d]/g, '')) || 0;
+        if (value === c.amount) {
+            return;
+        }
+        router.post(
+            SalaryMasterController.setComponentAmount(masterId).url,
+            { payroll_component_id: c.id, amount: value },
+            { preserveScroll: true, preserveState: false },
+        );
+    };
+
+    return (
+        <div
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 9,
+                fontSize: 13,
+                color: C.text,
+                padding: '8px 6px',
+                borderBottom: `1px solid ${C.line}`,
+            }}
+        >
+            <input
+                type="checkbox"
+                checked={c.included}
+                onChange={(e) => onToggle(e.target.checked)}
+                style={{ cursor: 'pointer' }}
+            />
+            <span style={{ flex: 1 }}>{c.name}</span>
+            {c.included && (
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                    }}
+                >
+                    <span style={{ fontSize: 11.5, color: C.faint }}>Rp</span>
+                    <input
+                        style={{ ...input, width: 120, textAlign: 'right' }}
+                        inputMode="numeric"
+                        value={amount}
+                        placeholder="0"
+                        onChange={(e) =>
+                            setAmount(
+                                rupiah(
+                                    Number(
+                                        e.target.value.replace(/[^\d]/g, ''),
+                                    ) || 0,
+                                ),
+                            )
+                        }
+                        onBlur={saveAmount}
+                    />
+                </div>
+            )}
+        </div>
+    );
 }
 
 interface Master {
@@ -134,11 +208,13 @@ function ChecklistSection({
     components,
     flag,
     masterId,
+    withAmount = false,
 }: {
     title: string;
     components: Component[];
     flag: FlagKey;
     masterId: number;
+    withAmount?: boolean;
 }) {
     const toggle = (c: Component, checked: boolean) =>
         router.post(
@@ -163,28 +239,37 @@ function ChecklistSection({
             </div>
             {components
                 .filter((c) => (c.group ?? 'penerimaan') === group)
-                .map((c) => (
-                    <label
-                        key={c.id}
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 9,
-                            fontSize: 13,
-                            color: C.text,
-                            padding: '8px 6px',
-                            borderBottom: `1px solid ${C.line}`,
-                            cursor: 'pointer',
-                        }}
-                    >
-                        <input
-                            type="checkbox"
-                            checked={c[flag]}
-                            onChange={(e) => toggle(c, e.target.checked)}
+                .map((c) =>
+                    withAmount ? (
+                        <MembershipRow
+                            key={c.id}
+                            c={c}
+                            masterId={masterId}
+                            onToggle={(checked) => toggle(c, checked)}
                         />
-                        {c.name}
-                    </label>
-                ))}
+                    ) : (
+                        <label
+                            key={c.id}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 9,
+                                fontSize: 13,
+                                color: C.text,
+                                padding: '8px 6px',
+                                borderBottom: `1px solid ${C.line}`,
+                                cursor: 'pointer',
+                            }}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={c[flag]}
+                                onChange={(e) => toggle(c, e.target.checked)}
+                            />
+                            {c.name}
+                        </label>
+                    ),
+                )}
         </div>
     );
 
@@ -247,9 +332,7 @@ export default function MasterGajiSetting({
     const rangeRow = (
         title: string,
         startKey:
-            | 'period_start_day'
-            | 'overtime_start_day'
-            | 'attendance_start_day',
+            'period_start_day' | 'overtime_start_day' | 'attendance_start_day',
         endKey: 'period_end_day' | 'overtime_end_day' | 'attendance_end_day',
         periodKey?: 'overtime_period' | 'attendance_period',
     ) => (
@@ -262,9 +345,7 @@ export default function MasterGajiSetting({
             }}
         >
             <div style={label}>{title}</div>
-            <div
-                style={{ display: 'flex', alignItems: 'center', gap: 10 }}
-            >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <input
                     style={{ ...input, width: 72 }}
                     type="number"
@@ -333,7 +414,9 @@ export default function MasterGajiSetting({
                             <AIcon name="chevron-right" size={13} />
                             <span>Master Gaji</span>
                             <AIcon name="chevron-right" size={13} />
-                            <span style={{ color: C.muted }}>{master.code}</span>
+                            <span style={{ color: C.muted }}>
+                                {master.code}
+                            </span>
                         </div>
                         <h1
                             style={{
@@ -399,7 +482,9 @@ export default function MasterGajiSetting({
                         <input
                             style={input}
                             value={form.data.code}
-                            onChange={(e) => form.setData('code', e.target.value)}
+                            onChange={(e) =>
+                                form.setData('code', e.target.value)
+                            }
                         />
                         <div style={label}>Kategori Gaji</div>
                         <input
@@ -413,17 +498,20 @@ export default function MasterGajiSetting({
                         <input
                             style={input}
                             value={form.data.note}
-                            onChange={(e) => form.setData('note', e.target.value)}
+                            onChange={(e) =>
+                                form.setData('note', e.target.value)
+                            }
                         />
                     </div>
                 </div>
 
                 {/* PENERIMAAN | POTONGAN membership */}
                 <ChecklistSection
-                    title="PENERIMAAN | POTONGAN"
+                    title="PENERIMAAN | POTONGAN — centang & isi nominal"
                     components={components}
                     flag="included"
                     masterId={master.id}
+                    withAmount
                 />
 
                 {/* SETTING */}
@@ -494,7 +582,10 @@ export default function MasterGajiSetting({
                                     type="number"
                                     value={form.data.cut_off_day}
                                     onChange={(e) =>
-                                        form.setData('cut_off_day', e.target.value)
+                                        form.setData(
+                                            'cut_off_day',
+                                            e.target.value,
+                                        )
                                     }
                                 />
                                 <span
@@ -526,7 +617,10 @@ export default function MasterGajiSetting({
                                     type="number"
                                     value={form.data.day_divisor}
                                     onChange={(e) =>
-                                        form.setData('day_divisor', e.target.value)
+                                        form.setData(
+                                            'day_divisor',
+                                            e.target.value,
+                                        )
                                     }
                                 />
                                 <span

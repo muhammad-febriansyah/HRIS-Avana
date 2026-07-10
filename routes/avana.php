@@ -54,7 +54,6 @@ use App\Http\Controllers\Avana\PayrollKomponenController;
 use App\Http\Controllers\Avana\PayrollUmrController;
 use App\Http\Controllers\Avana\PerformanceController;
 use App\Http\Controllers\Avana\PermissionRequestController;
-use App\Http\Controllers\Avana\PositionComponentController;
 use App\Http\Controllers\Avana\RecruitmentController;
 use App\Http\Controllers\Avana\RosterController;
 use App\Http\Controllers\Avana\SalaryGradeStepController;
@@ -159,9 +158,6 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::get('payroll/payslip/{item}/pdf', [PayrollController::class, 'payslipPdf'])->name('payroll.payslip.pdf');
     Route::get('payroll/bpjs-export', [PayrollController::class, 'bpjsFile'])->name('payroll.bpjs.export');
     Route::get('payroll/1721/{employee}', [PayrollController::class, 'taxForm1721'])->name('payroll.tax1721');
-    Route::get('payroll/components', [PositionComponentController::class, 'index'])->name('payroll.components');
-    Route::put('payroll/components', [PositionComponentController::class, 'update'])->name('payroll.components.update');
-    Route::put('payroll/components/basis', [PositionComponentController::class, 'updateBasis'])->name('payroll.components.basis');
 
     // Payroll config: BPJS programs/rates + PPh21 TER
     Route::get('payroll/konfigurasi', [PayrollConfigController::class, 'index'])->name('payroll.konfigurasi');
@@ -193,6 +189,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::put('payroll/master-gaji/{master}', [SalaryMasterController::class, 'update'])->name('payroll.master-gaji.update');
     Route::delete('payroll/master-gaji/{master}', [SalaryMasterController::class, 'destroy'])->name('payroll.master-gaji.destroy');
     Route::post('payroll/master-gaji/{master}/component', [SalaryMasterController::class, 'setComponent'])->name('payroll.master-gaji.component');
+    Route::post('payroll/master-gaji/{master}/component-amount', [SalaryMasterController::class, 'setComponentAmount'])->name('payroll.master-gaji.component-amount');
     Route::post('payroll/master-gaji/{master}/assign', [SalaryMasterController::class, 'assign'])->name('payroll.master-gaji.assign');
 
     // UMR (regional minimum wage)

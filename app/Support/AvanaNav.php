@@ -74,7 +74,6 @@ final class AvanaNav
                     self::leaf('payroll-config', 'BPJS & Pajak', 'shield-check', '/avana/payroll/konfigurasi', 'payroll', ['bpjs', 'pph21', 'payroll']),
                     self::leaf('payroll-komponen', 'Master Komponen', 'layers', '/avana/payroll/komponen', 'payroll', ['payroll']),
                     self::leaf('payroll-master-gaji', 'Master Gaji', 'file-cog', '/avana/payroll/master-gaji', 'payroll', ['payroll']),
-                    self::leaf('payroll-components', 'Nilai Komponen', 'sliders-horizontal', '/avana/payroll/components', 'payroll', ['payroll']),
                     self::leaf('payroll-umr', 'UMR', 'map-pin', '/avana/payroll/umr', 'payroll', ['payroll']),
                     self::leaf('payroll-koreksi', 'Koreksi Gaji', 'pencil', '/avana/payroll/koreksi', 'payroll', ['payroll']),
                     self::leaf('payroll-perhitungan-hari', 'Perhitungan Hari', 'calendar-days', '/avana/payroll/perhitungan-hari', 'payroll', ['payroll']),

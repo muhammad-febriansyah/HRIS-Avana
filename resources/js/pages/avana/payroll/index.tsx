@@ -2,7 +2,7 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import PayrollController from '@/actions/App/Http/Controllers/Avana/PayrollController';
-import PositionComponentController from '@/actions/App/Http/Controllers/Avana/PositionComponentController';
+import SalaryMasterController from '@/actions/App/Http/Controllers/Avana/SalaryMasterController';
 import { AIcon, btnOut, btnP, C } from '@/lib/avana';
 import { LockedAlert } from './components';
 import { PeriodTable } from './period-table';
@@ -226,11 +226,11 @@ export default function AvanaPayroll({
                     </div>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                         <Link
-                            href={PositionComponentController.index().url}
+                            href={SalaryMasterController.index().url}
                             style={{ ...btnOut, textDecoration: 'none' }}
                         >
-                            <AIcon name="sliders-horizontal" size={16} />
-                            Komponen per Jabatan
+                            <AIcon name="file-cog" size={16} />
+                            Master Gaji
                         </Link>
                         <button onClick={generateThr} style={btnOut}>
                             <AIcon name="gift" size={16} />

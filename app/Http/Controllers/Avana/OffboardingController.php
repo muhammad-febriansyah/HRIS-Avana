@@ -9,7 +9,6 @@ use App\Models\EmployeeSalaryComponent;
 use App\Models\OffboardingCase;
 use App\Models\PayrollComponent;
 use App\Models\PayrollComponentValue;
-use App\Models\PositionPayrollComponent;
 use App\Models\SalaryMasterComponent;
 use App\Models\User;
 use App\Services\SeveranceCalculator;
@@ -184,6 +183,8 @@ class OffboardingController extends Controller
     {
         $total = 0.0;
 
+        $handledComponentIds = [];
+
         $salaryComponents = EmployeeSalaryComponent::forTenant($tenantId)
             ->where('employee_id', $employee->id)
             ->with('component')
@@ -191,23 +192,26 @@ class OffboardingController extends Controller
 
         foreach ($salaryComponents as $salaryComponent) {
             if ($salaryComponent->component !== null && $salaryComponent->component->type !== 'deduction') {
+                $handledComponentIds[$salaryComponent->component->id] = true;
                 $total += (float) $salaryComponent->amount;
             }
         }
 
-        if ($employee->position_id !== null) {
-            $positionComponents = PositionPayrollComponent::forTenant($tenantId)
-                ->where('position_id', $employee->position_id)
+        if ($employee->salary_master_id !== null) {
+            $masterComponents = SalaryMasterComponent::query()
+                ->where('salary_master_id', $employee->salary_master_id)
+                ->where('included', true)
                 ->with('component')
                 ->get();
 
-            foreach ($positionComponents as $positionComponent) {
-                $component = $positionComponent->component;
+            foreach ($masterComponents as $masterComponent) {
+                $component = $masterComponent->component;
 
                 if ($component !== null
+                    && ! isset($handledComponentIds[$component->id])
                     && $component->type !== 'deduction'
                     && ! in_array($component->calc_basis, ['per_present_day', 'per_overtime_hour'], true)) {
-                    $total += (float) $positionComponent->amount;
+                    $total += (float) $masterComponent->amount;
                 }
             }
         }
@@ -253,8 +257,8 @@ class OffboardingController extends Controller
 
     /**
      * Resolve a component's monthly nominal for an employee: the per-employee
-     * salary row, then the position row, then the Nilai Komponen mapping, then a
-     * fixed dasar-perhitungan value.
+     * salary row, then the Master Gaji template nominal, then the Nilai Komponen
+     * mapping, then a fixed dasar-perhitungan value.
      */
     private function resolveMonthlyAmount(PayrollComponent $component, Employee $employee, int $tenantId): float
     {
@@ -267,14 +271,15 @@ class OffboardingController extends Controller
             return (float) $salaryAmount;
         }
 
-        if ($employee->position_id !== null) {
-            $positionAmount = PositionPayrollComponent::forTenant($tenantId)
-                ->where('position_id', $employee->position_id)
+        if ($employee->salary_master_id !== null) {
+            $masterAmount = SalaryMasterComponent::query()
+                ->where('salary_master_id', $employee->salary_master_id)
                 ->where('payroll_component_id', $component->id)
+                ->where('included', true)
                 ->value('amount');
 
-            if ($positionAmount !== null) {
-                return (float) $positionAmount;
+            if ($masterAmount !== null && (float) $masterAmount > 0.0) {
+                return (float) $masterAmount;
             }
         }
 

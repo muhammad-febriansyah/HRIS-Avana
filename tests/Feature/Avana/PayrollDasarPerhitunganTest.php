@@ -9,7 +9,6 @@ use App\Models\PayrollFormula;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
-use App\Models\PositionPayrollComponent;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
@@ -48,10 +47,7 @@ function basisComponent(object $ctx, string $code, array $attributes, float $pos
         'calc_basis' => 'fixed',
     ], $attributes));
 
-    PositionPayrollComponent::updateOrCreate(
-        ['position_id' => $ctx->employee->position_id, 'payroll_component_id' => $component->id],
-        ['tenant_id' => $ctx->tenant->id, 'amount' => $positionAmount],
-    );
+    giveMasterComponent($ctx->employee, $component, $positionAmount);
 
     return $component;
 }

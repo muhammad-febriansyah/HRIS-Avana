@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Avana\PayrollController;
-use App\Http\Controllers\Avana\PositionComponentController;
 use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
@@ -10,8 +9,6 @@ use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
-use App\Models\PositionPayrollComponent;
-use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
@@ -30,20 +27,16 @@ beforeEach(function (): void {
 
     Route::middleware('web')->prefix('spec-calc')->group(function (): void {
         Route::post('payroll/run', [PayrollController::class, 'run']);
-        Route::put('payroll/components/basis', [PositionComponentController::class, 'updateBasis']);
     });
 });
 
-/** Set a component's calculation basis and the employee position's nominal. */
-function configureComponent(int $tenantId, int $positionId, string $code, string $basis, float $amount): PayrollComponent
+/** Set a component's calculation basis and the employee's Master Gaji nominal. */
+function configureComponent(Employee $employee, string $code, string $basis, float $amount): PayrollComponent
 {
-    $component = PayrollComponent::forTenant($tenantId)->where('code', $code)->firstOrFail();
+    $component = PayrollComponent::forTenant($employee->tenant_id)->where('code', $code)->firstOrFail();
     $component->update(['calc_basis' => $basis]);
 
-    PositionPayrollComponent::updateOrCreate(
-        ['position_id' => $positionId, 'payroll_component_id' => $component->id],
-        ['tenant_id' => $tenantId, 'amount' => $amount],
-    );
+    giveMasterComponent($employee, $component, $amount);
 
     return $component;
 }
@@ -72,7 +65,7 @@ function runAndItem(object $ctx): PayrollRunItem
 }
 
 it('scales a per_present_day component by the present day count', function (): void {
-    configureComponent($this->tenant->id, $this->employee->position_id, 'TJ-MKN', 'per_present_day', 25_000);
+    configureComponent($this->employee, 'TJ-MKN', 'per_present_day', 25_000);
     seedPresentDays($this->tenant->id, $this->employee, $this->period, 10);
 
     $item = runAndItem($this);
@@ -84,7 +77,7 @@ it('scales a per_present_day component by the present day count', function (): v
 });
 
 it('scales a per_overtime_hour component by approved overtime hours', function (): void {
-    configureComponent($this->tenant->id, $this->employee->position_id, 'TJ-TRP', 'per_overtime_hour', 30_000);
+    configureComponent($this->employee, 'TJ-TRP', 'per_overtime_hour', 30_000);
 
     OvertimeRequest::create([
         'tenant_id' => $this->tenant->id,
@@ -103,7 +96,7 @@ it('scales a per_overtime_hour component by approved overtime hours', function (
 });
 
 it('ignores unapproved overtime in the per_overtime_hour calculation', function (): void {
-    configureComponent($this->tenant->id, $this->employee->position_id, 'TJ-TRP', 'per_overtime_hour', 30_000);
+    configureComponent($this->employee, 'TJ-TRP', 'per_overtime_hour', 30_000);
 
     OvertimeRequest::create([
         'tenant_id' => $this->tenant->id,
@@ -120,7 +113,7 @@ it('ignores unapproved overtime in the per_overtime_hour calculation', function 
 });
 
 it('deducts internal BPJS computed from the registered wage', function (): void {
-    configureComponent($this->tenant->id, $this->employee->position_id, 'BASIC', 'fixed', 5_000_000);
+    configureComponent($this->employee, 'BASIC', 'fixed', 5_000_000);
 
     EmployeeBpjsProfile::create([
         'tenant_id' => $this->tenant->id,
@@ -142,7 +135,7 @@ it('deducts internal BPJS computed from the registered wage', function (): void 
 it('computes internal PPh 21 with the monthly TER scheme (PMK 168/2023)', function (): void {
     // Gross 5.800.000, TK/0 → TER Kategori A. 5.800.000 falls in the
     // 5.650.001–5.950.000 bracket = 0,5% → 29.000/bln.
-    configureComponent($this->tenant->id, $this->employee->position_id, 'BASIC', 'fixed', 5_800_000);
+    configureComponent($this->employee, 'BASIC', 'fixed', 5_800_000);
 
     $item = runAndItem($this);
 
@@ -154,50 +147,11 @@ it('computes internal PPh 21 with the monthly TER scheme (PMK 168/2023)', functi
 });
 
 it('accumulates total tax on the run', function (): void {
-    configureComponent($this->tenant->id, $this->employee->position_id, 'BASIC', 'fixed', 5_800_000);
+    configureComponent($this->employee, 'BASIC', 'fixed', 5_800_000);
 
     actingAs($this->admin)->post('spec-calc/payroll/run')->assertSessionHas('success');
 
     $run = PayrollRun::forTenant($this->tenant->id)->where('payroll_period_id', $this->period->id)->latest('id')->firstOrFail();
 
     expect((float) $run->total_tax)->toBeGreaterThan(0.0);
-});
-
-it('updates a payroll component calculation basis', function (): void {
-    $component = PayrollComponent::forTenant($this->tenant->id)->where('code', 'TJ-MKN')->firstOrFail();
-
-    actingAs($this->admin)
-        ->put('spec-calc/payroll/components/basis', [
-            'payroll_component_id' => $component->id,
-            'calc_basis' => 'per_present_day',
-        ])
-        ->assertSessionHas('success');
-
-    expect($component->fresh()->calc_basis)->toBe('per_present_day');
-});
-
-it('rejects an invalid calculation basis', function (): void {
-    $component = PayrollComponent::forTenant($this->tenant->id)->where('code', 'TJ-MKN')->firstOrFail();
-
-    actingAs($this->admin)
-        ->put('spec-calc/payroll/components/basis', [
-            'payroll_component_id' => $component->id,
-            'calc_basis' => 'per_lunar_eclipse',
-        ])
-        ->assertSessionHasErrors('calc_basis');
-});
-
-it('forbids a plain employee from changing a component basis', function (): void {
-    $employeeRole = Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->firstOrFail();
-    $staff = User::factory()->create(['tenant_id' => $this->tenant->id]);
-    $staff->roles()->sync([$employeeRole->id]);
-
-    $component = PayrollComponent::forTenant($this->tenant->id)->where('code', 'TJ-MKN')->firstOrFail();
-
-    actingAs($staff)
-        ->put('spec-calc/payroll/components/basis', [
-            'payroll_component_id' => $component->id,
-            'calc_basis' => 'per_present_day',
-        ])
-        ->assertForbidden();
 });

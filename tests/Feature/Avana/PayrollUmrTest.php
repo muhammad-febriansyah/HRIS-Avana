@@ -7,7 +7,6 @@ use App\Models\PayrollFormula;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
-use App\Models\PositionPayrollComponent;
 use App\Models\Tenant;
 use App\Models\UmrRate;
 use App\Models\User;
@@ -62,10 +61,7 @@ it('resolves a formula UMR item to the branch UMR, preferring it over the defaul
         'type' => 'earning', 'component_group' => 'penerimaan', 'is_taxable' => true, 'status' => 'active',
         'calc_basis' => 'fixed', 'basis_type' => 'formula', 'payroll_formula_id' => $formula->id,
     ]);
-    PositionPayrollComponent::create([
-        'tenant_id' => $this->tenant->id, 'position_id' => $this->employee->position_id,
-        'payroll_component_id' => $component->id, 'amount' => 0,
-    ]);
+    giveMasterComponent($this->employee, $component, 0);
 
     actingAs($this->admin)->post('spec-umr/run')->assertSessionHas('success');
     $run = PayrollRun::forTenant($this->tenant->id)->where('payroll_period_id', $this->period->id)->latest('id')->firstOrFail();

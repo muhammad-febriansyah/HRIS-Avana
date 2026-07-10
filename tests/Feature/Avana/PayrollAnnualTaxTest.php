@@ -6,7 +6,6 @@ use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
-use App\Models\PositionPayrollComponent;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
@@ -53,10 +52,7 @@ it('reconciles PPh 21 with the progressive tariff in December', function (): voi
 
     $basic = PayrollComponent::forTenant($this->tenant->id)->where('code', 'BASIC')->firstOrFail();
     $basic->update(['calc_basis' => 'fixed']);
-    PositionPayrollComponent::updateOrCreate(
-        ['position_id' => $this->employee->position_id, 'payroll_component_id' => $basic->id],
-        ['tenant_id' => $this->tenant->id, 'amount' => 20_000_000],
-    );
+    giveMasterComponent($this->employee, $basic, 20_000_000);
 
     actingAs($this->admin)->post('spec-tax/payroll/run')->assertSessionHas('success');
 

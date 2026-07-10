@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Avana\PayrollController;
-use App\Http\Controllers\Avana\PositionComponentController;
 use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\EmployeeSalaryComponent;
@@ -9,8 +8,6 @@ use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
-use App\Models\Position;
-use App\Models\PositionPayrollComponent;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -35,8 +32,6 @@ beforeEach(function (): void {
         Route::get('payroll/periods/create', [PayrollController::class, 'createPeriod'])->name('payroll.periods.create');
         Route::post('payroll/periods', [PayrollController::class, 'storePeriod'])->name('payroll.periods.store');
         Route::post('payroll/run', [PayrollController::class, 'run'])->name('payroll.run');
-        Route::get('payroll/components', [PositionComponentController::class, 'index'])->name('payroll.components');
-        Route::put('payroll/components', [PositionComponentController::class, 'update'])->name('payroll.components.update');
     });
 });
 
@@ -106,12 +101,7 @@ it('computes a payroll run with items for every active employee', function (): v
     $tenantId = $this->tenant->id;
     $employee = Employee::forTenant($tenantId)->where('status', 'active')->orderBy('id')->firstOrFail();
 
-    PositionPayrollComponent::create([
-        'tenant_id' => $tenantId,
-        'position_id' => $employee->position_id,
-        'payroll_component_id' => payrollComponent($tenantId, 'TJ-JAB')->id,
-        'amount' => 5_000_000,
-    ]);
+    giveMasterComponent($employee, payrollComponent($tenantId, 'TJ-JAB'), 5_000_000);
     EmployeeSalaryComponent::create([
         'tenant_id' => $tenantId,
         'employee_id' => $employee->id,
@@ -163,103 +153,6 @@ it('refreshes the existing run without duplicating items on re-run', function ()
 
     expect($runs)->toHaveCount(1);
     expect(PayrollRunItem::where('payroll_run_id', $runs->first()->id)->count())->toBe($activeCount);
-});
-
-it('renders the position component matrix props', function (): void {
-    $tenantId = $this->tenant->id;
-    $position = Position::forTenant($tenantId)->orderBy('id')->firstOrFail();
-
-    PositionPayrollComponent::create([
-        'tenant_id' => $tenantId,
-        'position_id' => $position->id,
-        'payroll_component_id' => payrollComponent($tenantId, 'TJ-JAB')->id,
-        'amount' => 1_250_000,
-    ]);
-
-    actingAs($this->admin)
-        ->get('spec-avana/payroll/components')
-        ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page
-            ->component('avana/payroll-components/index', false)
-            ->has('positions')
-            ->has('components.0', fn (Assert $component) => $component
-                ->has('id')
-                ->has('name')
-                ->has('type')
-                ->has('calc_basis')
-                ->etc())
-            ->has('matrix.0', fn (Assert $row) => $row
-                ->where('position_id', $position->id)
-                ->has('payroll_component_id')
-                ->has('amount')));
-});
-
-it('persists per-position component nominals on update', function (): void {
-    $tenantId = $this->tenant->id;
-    $position = Position::forTenant($tenantId)->orderBy('id')->firstOrFail();
-    $component = payrollComponent($tenantId, 'TJ-JAB');
-
-    actingAs($this->admin)
-        ->put('spec-avana/payroll/components', [
-            'items' => [
-                ['position_id' => $position->id, 'payroll_component_id' => $component->id, 'amount' => 750_000],
-            ],
-        ])
-        ->assertSessionHas('success');
-
-    $row = PositionPayrollComponent::forTenant($tenantId)
-        ->where('position_id', $position->id)
-        ->where('payroll_component_id', $component->id)
-        ->firstOrFail();
-
-    expect((float) $row->amount)->toBe(750_000.0);
-});
-
-it('updates the nominal when the position component already exists', function (): void {
-    $tenantId = $this->tenant->id;
-    $position = Position::forTenant($tenantId)->orderBy('id')->firstOrFail();
-    $component = payrollComponent($tenantId, 'TJ-JAB');
-
-    PositionPayrollComponent::create([
-        'tenant_id' => $tenantId,
-        'position_id' => $position->id,
-        'payroll_component_id' => $component->id,
-        'amount' => 100_000,
-    ]);
-
-    actingAs($this->admin)
-        ->put('spec-avana/payroll/components', [
-            'items' => [
-                ['position_id' => $position->id, 'payroll_component_id' => $component->id, 'amount' => 900_000],
-            ],
-        ])
-        ->assertSessionHas('success');
-
-    expect(PositionPayrollComponent::forTenant($tenantId)->count())->toBe(1);
-    expect((float) PositionPayrollComponent::forTenant($tenantId)->firstOrFail()->amount)->toBe(900_000.0);
-});
-
-it('rejects per-position nominals that reference another tenant', function (): void {
-    $tenantId = $this->tenant->id;
-    $component = payrollComponent($tenantId, 'TJ-JAB');
-
-    $otherTenant = Tenant::create(['name' => 'PT Asing', 'slug' => 'pt-asing']);
-    $foreignPosition = Position::create([
-        'tenant_id' => $otherTenant->id,
-        'code' => 'FOREIGN',
-        'name' => 'Foreign Role',
-        'status' => 'active',
-    ]);
-
-    actingAs($this->admin)
-        ->put('spec-avana/payroll/components', [
-            'items' => [
-                ['position_id' => $foreignPosition->id, 'payroll_component_id' => $component->id, 'amount' => 500_000],
-            ],
-        ])
-        ->assertSessionHasErrors('items.0.position_id');
-
-    expect(PositionPayrollComponent::where('position_id', $foreignPosition->id)->count())->toBe(0);
 });
 
 it('forbids users without payroll permissions from viewing payroll', function (): void {
@@ -329,10 +222,7 @@ it('scopes present-day pay to the weekly period window', function (): void {
         ?? PayrollComponent::forTenant($this->tenant->id)->firstOrFail();
     $component->update(['calc_basis' => 'per_present_day', 'type' => 'earning']);
 
-    PositionPayrollComponent::updateOrCreate(
-        ['position_id' => $employee->position_id, 'payroll_component_id' => $component->id],
-        ['tenant_id' => $this->tenant->id, 'amount' => 25000],
-    );
+    giveMasterComponent($employee, $component, 25000);
 
     actingAs($this->admin)->post('spec-avana/payroll/periods', [
         'name' => 'Minggu Uji',
