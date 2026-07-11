@@ -75,6 +75,29 @@ final class Notifier
         ]]);
     }
 
+    /** Notify the employee that their reimbursement claim has been paid out. */
+    public static function reimbursementPaid(Claim $claim): void
+    {
+        $userId = self::userIdFor($claim->employee_id);
+
+        if ($userId === null) {
+            return;
+        }
+
+        self::insertMany([[
+            'tenant_id' => $claim->tenant_id,
+            'user_id' => $userId,
+            'type' => 'reimburse',
+            'title' => 'Reimbursement dibayar',
+            'body' => 'Reimbursement '.($claim->title ?: 'Anda').' sebesar Rp '
+                .number_format((float) $claim->amount, 0, ',', '.').' telah dibayar.',
+            'data' => [
+                'link' => ['type' => 'reimburse', 'id' => $claim->id],
+                'status' => 'paid',
+            ],
+        ]]);
+    }
+
     /**
      * Notify every active employee in the tenant that an announcement went live.
      */

@@ -224,7 +224,11 @@ class ClaimController extends Controller
         $this->ensureCanManage($request);
         $this->ensureTenantOwnership($request, $claim);
 
-        $claim->update(['status' => 'paid']);
+        $claim->update([
+            'status' => 'paid',
+            'paid_at' => now(),
+            'paid_by' => $request->user()->id,
+        ]);
 
         return back()->with('success', 'Klaim ditandai dibayar');
     }

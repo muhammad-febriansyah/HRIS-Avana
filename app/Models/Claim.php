@@ -22,6 +22,7 @@ final class Claim extends Model
             'amount' => 'decimal:2',
             'claim_date' => 'date',
             'approved_at' => 'datetime',
+            'paid_at' => 'datetime',
         ];
     }
 
@@ -43,5 +44,10 @@ final class Claim extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approver_id');
+    }
+
+    public function paidBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'paid_by');
     }
 }

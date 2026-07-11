@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\DirectoryController;
 use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\FaceController;
 use App\Http\Controllers\Api\FieldVisitController;
+use App\Http\Controllers\Api\FinanceController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\MoodController;
 use App\Http\Controllers\Api\MssController;
@@ -118,6 +119,12 @@ Route::prefix('v1')->group(function (): void {
 
             Route::get('face', [FaceController::class, 'status']);
             Route::post('face/enroll', [FaceController::class, 'enroll']);
+        });
+
+        // Finance/payroll: reimbursement disbursement (role-gated in-controller).
+        Route::prefix('finance')->group(function (): void {
+            Route::get('reimbursements', [FinanceController::class, 'reimbursements']);
+            Route::post('reimbursements/{claim}/pay', [FinanceController::class, 'payReimbursement']);
         });
 
         // Manager Self-Service: requests routed to the caller + their team.

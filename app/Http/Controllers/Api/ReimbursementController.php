@@ -21,7 +21,7 @@ class ReimbursementController extends Controller
         $data = Claim::forTenant($employee->tenant_id)
             ->where('employee_id', $employee->id)
             ->orderByDesc('claim_date')
-            ->get(['id', 'claim_type', 'title', 'amount', 'claim_date', 'status'])
+            ->get(['id', 'claim_type', 'title', 'amount', 'claim_date', 'status', 'approved_at', 'paid_at'])
             ->map(fn (Claim $c): array => [
                 'id' => $c->id,
                 'category' => $c->claim_type,
@@ -29,6 +29,8 @@ class ReimbursementController extends Controller
                 'amount' => (int) round((float) $c->amount),
                 'date' => $c->claim_date instanceof Carbon ? $c->claim_date->toDateString() : $c->claim_date,
                 'status' => $c->status,
+                'approved_at' => $c->approved_at?->toIso8601String(),
+                'paid_at' => $c->paid_at?->toIso8601String(),
             ]);
 
         return response()->json(['data' => $data]);

@@ -2,6 +2,7 @@
 
 namespace App\Observers;
 
+use App\Models\Claim;
 use App\Support\Notifier;
 use Illuminate\Database\Eloquent\Model;
 
@@ -24,10 +25,15 @@ class RequestDecisionObserver
             return;
         }
 
-        if (! in_array($request->status, self::DECIDED, true)) {
+        if (in_array($request->status, self::DECIDED, true)) {
+            Notifier::requestDecided($request, $request->status);
+
             return;
         }
 
-        Notifier::requestDecided($request, $request->status);
+        // A reimbursement moving on to paid closes the loop for the employee.
+        if ($request instanceof Claim && $request->status === 'paid') {
+            Notifier::reimbursementPaid($request);
+        }
     }
 }
