@@ -15,11 +15,14 @@ use App\Models\PermissionRequest;
 use App\Models\Shift;
 use App\Models\ShiftSchedule;
 use App\Models\WfhRequest;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Manager Self-Service (MSS): the mobile counterpart of the web approval centre.
@@ -62,6 +65,20 @@ class MssController extends Controller
     private const AVATAR_PALETTE = [
         '#0ea5e9', '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e',
         '#f97316', '#f59e0b', '#10b981', '#14b8a6', '#3b82f6',
+    ];
+
+    /**
+     * Attendance statuses tallied in the team recap → Indonesian label.
+     *
+     * @var array<string, string>
+     */
+    private const ATTENDANCE_STATUSES = [
+        'present' => 'Hadir',
+        'late' => 'Terlambat',
+        'absent' => 'Alpa',
+        'leave' => 'Cuti',
+        'wfh' => 'WFH',
+        'holiday' => 'Libur',
     ];
 
     /** Pending requests routed to the current manager, newest first. */
@@ -232,6 +249,129 @@ class MssController extends Controller
                 'end' => $shift !== null ? $this->shortTime($shift->end_time) : null,
             ],
         ]);
+    }
+
+    /**
+     * Team attendance recap over a period: per-member hadir/telat/alpa/cuti/WFH
+     * counts, worked hours, and late minutes, plus a team summary. Defaults to
+     * the current month to date; override with ?start=&end= (Y-m-d).
+     */
+    public function teamAttendance(Request $request): JsonResponse
+    {
+        $manager = $this->currentEmployee($request);
+        [$start, $end] = $this->recapRange($request);
+
+        $members = $this->buildTeamAttendance($manager, $start, $end);
+
+        $summary = ['members' => $members->count()];
+        foreach (array_keys(self::ATTENDANCE_STATUSES) as $status) {
+            $summary[$status] = (int) $members->sum($status);
+        }
+        $summary['work_hours'] = round((float) $members->sum('work_hours'), 1);
+        $summary['late_minutes'] = (int) $members->sum('late_minutes');
+
+        return response()->json([
+            'data' => $members->values(),
+            'meta' => [
+                'start' => $start->toDateString(),
+                'end' => $end->toDateString(),
+                'summary' => $summary,
+            ],
+        ]);
+    }
+
+    /** The same team recap as {@see self::teamAttendance()} streamed as a CSV. */
+    public function teamAttendanceExport(Request $request): StreamedResponse
+    {
+        $manager = $this->currentEmployee($request);
+        [$start, $end] = $this->recapRange($request);
+
+        $members = $this->buildTeamAttendance($manager, $start, $end);
+
+        $header = array_merge(
+            ['Nama', 'No. Karyawan'],
+            array_values(self::ATTENDANCE_STATUSES),
+            ['Jam Kerja', 'Menit Telat'],
+        );
+
+        $filename = 'rekap-absensi-tim-'.$start->toDateString().'-'.$end->toDateString().'.csv';
+
+        return response()->streamDownload(function () use ($members, $header): void {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, $header);
+
+            foreach ($members as $member) {
+                $row = [$member['name'], $member['employee_number']];
+                foreach (array_keys(self::ATTENDANCE_STATUSES) as $status) {
+                    $row[] = $member[$status];
+                }
+                $row[] = $member['work_hours'];
+                $row[] = $member['late_minutes'];
+
+                fputcsv($out, $row);
+            }
+
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
+    /**
+     * Resolve the recap period from ?start=&end= (Y-m-d), defaulting to the
+     * first of the current month through today.
+     *
+     * @return array{0: CarbonInterface, 1: CarbonInterface}
+     */
+    private function recapRange(Request $request): array
+    {
+        $data = $request->validate([
+            'start' => ['nullable', 'date'],
+            'end' => ['nullable', 'date', 'after_or_equal:start'],
+        ]);
+
+        $start = isset($data['start']) ? Carbon::parse($data['start'])->startOfDay() : now()->startOfMonth();
+        $end = isset($data['end']) ? Carbon::parse($data['end'])->endOfDay() : now()->endOfDay();
+
+        return [$start, $end];
+    }
+
+    /**
+     * Per-member attendance tallies for the manager's direct reports in a range.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function buildTeamAttendance(Employee $manager, CarbonInterface $start, CarbonInterface $end): Collection
+    {
+        $members = Employee::forTenant($manager->tenant_id)
+            ->where('manager_id', $manager->id)
+            ->orderBy('full_name')
+            ->get(['id', 'full_name', 'employee_number']);
+
+        $records = Attendance::forTenant($manager->tenant_id)
+            ->whereIn('employee_id', $members->pluck('id'))
+            ->whereDate('date', '>=', $start->toDateString())
+            ->whereDate('date', '<=', $end->toDateString())
+            ->get(['employee_id', 'status', 'work_minutes', 'late_minutes'])
+            ->groupBy('employee_id');
+
+        return $members->map(function (Employee $employee) use ($records): array {
+            $rows = $records->get($employee->id, collect());
+
+            $counts = [];
+            foreach (array_keys(self::ATTENDANCE_STATUSES) as $status) {
+                $counts[$status] = $rows->where('status', $status)->count();
+            }
+
+            return array_merge([
+                'id' => $employee->id,
+                'name' => $employee->full_name,
+                'employee_number' => $employee->employee_number,
+                'initials' => $this->initials($employee->full_name),
+                'avatar_color' => $this->avatarColor($employee->full_name),
+            ], $counts, [
+                'work_hours' => round((int) $rows->sum('work_minutes') / 60, 1),
+                'late_minutes' => (int) $rows->sum('late_minutes'),
+            ]);
+        });
     }
 
     /**

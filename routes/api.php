@@ -118,6 +118,8 @@ Route::prefix('v1')->group(function (): void {
             Route::post('approvals/bulk', [MssController::class, 'bulk']);
             Route::post('approvals/{key}/act', [MssController::class, 'act']);
             Route::get('team', [MssController::class, 'team']);
+            Route::get('attendance/recap', [MssController::class, 'teamAttendance']);
+            Route::get('attendance/recap/export', [MssController::class, 'teamAttendanceExport']);
             Route::get('team/{employee}', [MssController::class, 'member']);
             Route::get('shifts', [MssController::class, 'shifts']);
             Route::post('schedule', [MssController::class, 'assignShift']);
