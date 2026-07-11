@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ReimbursementController;
 use App\Http\Controllers\Api\ScheduleController;
+use App\Http\Controllers\Api\SecurityController;
 use App\Http\Controllers\Api\ShiftSwapController;
 use App\Http\Controllers\Api\TaxController;
 use App\Http\Controllers\Api\WfhController;
@@ -38,14 +39,14 @@ Route::prefix('v1')->group(function (): void {
     Route::prefix('auth')->group(function (): void {
         Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
-        Route::middleware('auth:api')->group(function (): void {
+        Route::middleware(['auth:api', 'token.fresh'])->group(function (): void {
             Route::get('me', [AuthController::class, 'me']);
             Route::post('refresh', [AuthController::class, 'refresh']);
             Route::post('logout', [AuthController::class, 'logout']);
         });
     });
 
-    Route::middleware('auth:api')->group(function (): void {
+    Route::middleware(['auth:api', 'token.fresh'])->group(function (): void {
         // Employee self-service
         Route::prefix('me')->group(function (): void {
             Route::get('profile', [ProfileController::class, 'show']);
@@ -87,6 +88,10 @@ Route::prefix('v1')->group(function (): void {
 
             Route::post('reimbursements', [ReimbursementController::class, 'store']);
             Route::get('reimbursements', [ReimbursementController::class, 'index']);
+
+            Route::get('security/devices', [SecurityController::class, 'devices']);
+            Route::post('security/password', [SecurityController::class, 'changePassword']);
+            Route::post('security/logout-all', [SecurityController::class, 'logoutAll']);
 
             Route::get('notifications', [NotificationController::class, 'index']);
             Route::post('notifications/read-all', [NotificationController::class, 'markAllRead']);

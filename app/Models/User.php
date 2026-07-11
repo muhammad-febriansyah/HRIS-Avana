@@ -49,6 +49,7 @@ class User extends Authenticatable implements JWTSubject, PasskeyUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'token_version' => 'integer',
         ];
     }
 
@@ -67,7 +68,10 @@ class User extends Authenticatable implements JWTSubject, PasskeyUser
      */
     public function getJWTCustomClaims(): array
     {
-        return ['tenant_id' => $this->tenant_id];
+        return [
+            'tenant_id' => $this->tenant_id,
+            'tv' => (int) ($this->token_version ?? 0),
+        ];
     }
 
     public function tenant(): BelongsTo
