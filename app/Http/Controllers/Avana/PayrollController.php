@@ -28,6 +28,7 @@ use App\Models\SalaryRapel;
 use App\Models\TaxProfile;
 use App\Models\UmrRate;
 use App\Support\Pph21Ter;
+use App\Support\TaxForm1721;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
@@ -601,41 +602,8 @@ class PayrollController extends Controller
 
         $year = (int) $request->query('year', (string) now()->year);
 
-        $items = PayrollRunItem::forTenant($tenantId)
-            ->where('employee_id', $employee->id)
-            ->whereHas('period', fn ($query) => $query->whereYear('start_date', $year))
-            ->get(['gross_salary', 'pph21_total', 'bpjs_employee_total']);
-
-        $employee->loadMissing(['position', 'tenant', 'taxProfile']);
-
-        $annualGross = (float) $items->sum('gross_salary');
-        $withheld = (float) $items->sum('pph21_total');
-        $biayaJabatan = min($annualGross * 0.05, 6_000_000);
-        $ptkpStatus = $employee->taxProfile?->ptkp_status;
-        $ptkp = $this->ptkpFor($ptkpStatus, (int) $employee->tenant_id, $year);
-        $pkp = max(0.0, floor(($annualGross - $biayaJabatan - $ptkp) / 1000) * 1000);
-        $annualTax = $this->progressiveTax($pkp, (int) $employee->tenant_id, $year);
-
-        $pdf = Pdf::loadView('pdf.bukti-potong-1721', [
-            'company' => $employee->tenant?->company_name ?? $employee->tenant?->name ?? 'AvanaHR',
-            'year' => $year,
-            'employee' => [
-                'name' => $employee->full_name,
-                'nik' => $employee->nik ?: '-',
-                'number' => $employee->employee_number,
-                'position' => $employee->position?->name ?? '-',
-                'ptkp' => $ptkpStatus ?? 'TK/0',
-            ],
-            'rows' => [
-                ['Penghasilan Bruto Setahun', $this->rupiah($annualGross)],
-                ['Pengurangan — Biaya Jabatan', $this->rupiah($biayaJabatan)],
-                ['Penghasilan Neto', $this->rupiah($annualGross - $biayaJabatan)],
-                ['PTKP ('.($ptkpStatus ?? 'TK/0').')', $this->rupiah($ptkp)],
-                ['Penghasilan Kena Pajak (PKP)', $this->rupiah($pkp)],
-                ['PPh 21 Terutang Setahun', $this->rupiah($annualTax)],
-                ['PPh 21 Telah Dipotong', $this->rupiah($withheld)],
-            ],
-        ])->setPaper('a4');
+        $pdf = Pdf::loadView('pdf.bukti-potong-1721', TaxForm1721::viewData($employee, $year))
+            ->setPaper('a4');
 
         return $pdf->download('1721-A1-'.$employee->employee_number.'-'.$year.'.pdf');
     }

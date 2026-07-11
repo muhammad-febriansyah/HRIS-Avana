@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ReimbursementController;
 use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\ShiftSwapController;
+use App\Http\Controllers\Api\TaxController;
 use App\Http\Controllers\Api\WfhController;
 use Illuminate\Support\Facades\Route;
 
@@ -80,6 +81,9 @@ Route::prefix('v1')->group(function (): void {
             Route::get('payslips', [PayslipController::class, 'index']);
             Route::get('payslips/{item}', [PayslipController::class, 'show']);
             Route::get('payslips/{item}/pdf', [PayslipController::class, 'pdf']);
+
+            Route::get('tax-forms', [TaxController::class, 'index']);
+            Route::get('tax-forms/{year}/pdf', [TaxController::class, 'pdf'])->whereNumber('year');
 
             Route::post('reimbursements', [ReimbursementController::class, 'store']);
             Route::get('reimbursements', [ReimbursementController::class, 'index']);
