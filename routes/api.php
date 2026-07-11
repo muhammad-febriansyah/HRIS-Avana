@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AttendanceCorrectionController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DirectoryController;
 use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\FaceController;
 use App\Http\Controllers\Api\FieldVisitController;
@@ -78,6 +79,9 @@ Route::prefix('v1')->group(function (): void {
             Route::post('wfh', [WfhController::class, 'store']);
             Route::get('announcements', [AnnouncementController::class, 'index']);
             Route::get('activities', [ActivityController::class, 'index']);
+
+            Route::get('directory', [DirectoryController::class, 'index']);
+            Route::get('directory/{employee}', [DirectoryController::class, 'show'])->whereNumber('employee');
 
             Route::get('payslips', [PayslipController::class, 'index']);
             Route::get('payslips/{item}', [PayslipController::class, 'show']);
