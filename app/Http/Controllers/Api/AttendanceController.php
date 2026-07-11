@@ -5,17 +5,21 @@ namespace App\Http\Controllers\Api;
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
+use App\Models\AttendanceChallenge;
+use App\Models\AttendancePolicy;
 use App\Models\AttendanceSelfie;
 use App\Models\Employee;
 use App\Models\EmployeeFaceEmbedding;
 use App\Models\ShiftSchedule;
 use App\Models\WorkLocation;
+use App\Support\DeviceIntegrity;
 use App\Support\FaceMatcher;
 use Carbon\CarbonInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 /**
  * Employee self-service attendance: today status, monthly history, and a single
@@ -29,8 +33,45 @@ class AttendanceController extends Controller
     {
         $employee = $this->currentEmployee($request);
         $record = $this->todayRecord($employee->tenant_id, $employee->id);
+        $policy = AttendancePolicy::resolve($employee->tenant_id);
 
-        return response()->json(['data' => $this->todayShape($record)]);
+        return response()->json([
+            'data' => $this->todayShape($record),
+            // Lets the app decide up front whether to force face enrollment or
+            // fetch a liveness challenge before showing the clock button.
+            'requirements' => [
+                'require_face_enrollment' => (bool) $policy->require_face_enrollment,
+                'require_liveness_challenge' => (bool) $policy->require_liveness_challenge,
+                'face_enrolled' => EmployeeFaceEmbedding::where('employee_id', $employee->id)->exists(),
+            ],
+        ]);
+    }
+
+    /**
+     * Issue a single-use, short-lived liveness challenge. The client must echo
+     * the returned nonce with its next clock action, so a captured payload
+     * cannot be replayed.
+     */
+    public function challenge(Request $request): JsonResponse
+    {
+        $employee = $this->currentEmployee($request);
+
+        AttendanceChallenge::where('employee_id', $employee->id)
+            ->where('expires_at', '<', now())
+            ->delete();
+
+        $challenge = AttendanceChallenge::create([
+            'tenant_id' => $employee->tenant_id,
+            'employee_id' => $employee->id,
+            'nonce' => (string) Str::uuid().Str::random(12),
+            'purpose' => 'clock',
+            'expires_at' => now()->addMinutes(2),
+        ]);
+
+        return response()->json(['data' => [
+            'nonce' => $challenge->nonce,
+            'expires_at' => $challenge->expires_at->toIso8601String(),
+        ]]);
     }
 
     /**
@@ -88,6 +129,11 @@ class AttendanceController extends Controller
             'face_confidence' => ['nullable', 'numeric'],
             'is_mock_location' => ['nullable', 'boolean'],
             'is_rooted' => ['nullable', 'boolean'],
+            'is_emulator' => ['nullable', 'boolean'],
+            'is_dev_mode' => ['nullable', 'boolean'],
+            'integrity_token' => ['nullable', 'string', 'max:8192'],
+            'device_id' => ['nullable', 'string', 'max:191'],
+            'nonce' => ['nullable', 'string', 'max:64'],
             // Original clock time for entries queued offline and synced later,
             // bounded to the same day. Past-day fixes go through the attendance
             // correction flow (manager-approved) so they leave an audit trail.
@@ -104,45 +150,104 @@ class AttendanceController extends Controller
         }
         $data['clocked_at'] = $clockedAt;
 
-        if ($request->boolean('is_mock_location')) {
-            return response()->json([
-                'message' => 'Terdeteksi lokasi palsu (Fake GPS). Nonaktifkan mock location lalu coba lagi.',
-            ], 422);
+        $policy = AttendancePolicy::resolve($employee->tenant_id);
+
+        // 1) Device integrity — client signals now; platform attestation once
+        //    provider credentials are configured. Blocks per tenant policy.
+        $integrity = DeviceIntegrity::evaluate([
+            'is_rooted' => $request->boolean('is_rooted'),
+            'is_mock_location' => $request->boolean('is_mock_location'),
+            'is_emulator' => $request->boolean('is_emulator'),
+            'is_dev_mode' => $request->boolean('is_dev_mode'),
+            'integrity_token' => $data['integrity_token'] ?? null,
+        ], $policy);
+
+        if ($integrity['blocked']) {
+            return response()->json(['message' => $integrity['reason']], 422);
         }
 
-        if ($request->boolean('is_rooted')) {
-            return response()->json([
-                'message' => 'Perangkat terdeteksi di-root/jailbreak. Absen tidak diizinkan dari perangkat ini.',
-            ], 422);
+        // 2) Anti-replay — consume a single-use liveness challenge when required.
+        if ($policy->require_liveness_challenge) {
+            $challengeError = $this->consumeChallenge($employee, $data['nonce'] ?? null);
+
+            if ($challengeError instanceof JsonResponse) {
+                return $challengeError;
+            }
         }
 
-        // Face verification — only enforced once the employee has enrolled a face.
+        // 3) Face verification.
         $data['face_confidence'] = null;
+        $faceFlags = [];
         $enrolled = EmployeeFaceEmbedding::where('employee_id', $employee->id)->first();
+
+        if ($enrolled === null && $policy->require_face_enrollment) {
+            return response()->json([
+                'message' => 'Anda wajib mendaftarkan wajah terlebih dahulu sebelum absen. Buka menu Daftar Wajah.',
+            ], 422);
+        }
 
         if ($enrolled !== null) {
             $submitted = $data['face_embedding'] ?? null;
 
             if (! is_array($submitted) || $submitted === []) {
-                return response()->json([
-                    'message' => 'Verifikasi wajah diperlukan. Aktifkan kamera lalu coba lagi.',
-                ], 422);
+                if ($policy->blocksFace()) {
+                    return response()->json([
+                        'message' => 'Verifikasi wajah diperlukan. Aktifkan kamera lalu coba lagi.',
+                    ], 422);
+                }
+
+                $faceFlags[] = 'face_missing';
+            } else {
+                $score = FaceMatcher::cosine($enrolled->embedding, $submitted);
+
+                if ($score < FaceMatcher::THRESHOLD) {
+                    if ($policy->blocksFace()) {
+                        return response()->json([
+                            'message' => 'Wajah tidak cocok dengan data terdaftar. Coba lagi.',
+                        ], 422);
+                    }
+
+                    $faceFlags[] = 'face_mismatch';
+                }
+
+                $data['face_confidence'] = round($score, 4);
             }
-
-            $score = FaceMatcher::cosine($enrolled->embedding, $submitted);
-
-            if ($score < FaceMatcher::THRESHOLD) {
-                return response()->json([
-                    'message' => 'Wajah tidak cocok dengan data terdaftar. Coba lagi.',
-                ], 422);
-            }
-
-            $data['face_confidence'] = round($score, 4);
         }
+
+        $data['integrity_verdict'] = $integrity['verdict'];
+        $data['risk_flags'] = array_values(array_unique([...$integrity['flags'], ...$faceFlags]));
 
         return $data['type'] === 'in'
             ? $this->clockIn($request, $employee, $data)
             : $this->clockOut($employee, $data);
+    }
+
+    /**
+     * Validate and consume a liveness challenge nonce. Returns a 422 JsonResponse
+     * when the nonce is missing, expired, unknown, or already used; null on success.
+     */
+    private function consumeChallenge(Employee $employee, ?string $nonce): ?JsonResponse
+    {
+        if ($nonce === null || $nonce === '') {
+            return response()->json([
+                'message' => 'Sesi verifikasi tidak ditemukan. Muat ulang lalu coba lagi.',
+            ], 422);
+        }
+
+        $challenge = AttendanceChallenge::where('employee_id', $employee->id)
+            ->where('nonce', $nonce)
+            ->first();
+
+        if ($challenge === null || ! $challenge->isUsable()) {
+            return response()->json([
+                'message' => 'Sesi verifikasi kedaluwarsa atau sudah dipakai. Muat ulang lalu coba lagi.',
+            ], 422);
+        }
+
+        $challenge->used_at = now();
+        $challenge->save();
+
+        return null;
     }
 
     /**
@@ -181,6 +286,9 @@ class AttendanceController extends Controller
             'late_minutes' => $lateMinutes,
             'location_status' => 'inside',
             'face_confidence' => $data['face_confidence'] ?? null,
+            'device_id' => $data['device_id'] ?? null,
+            'integrity_verdict' => $data['integrity_verdict'] ?? null,
+            'risk_flags' => ($data['risk_flags'] ?? []) === [] ? null : $data['risk_flags'],
         ]);
         $attendance->save();
 
@@ -231,6 +339,13 @@ class AttendanceController extends Controller
         $attendance->work_minutes = (int) $attendance->clock_in_at->diffInMinutes($clockedAt);
         if (($data['face_confidence'] ?? null) !== null) {
             $attendance->face_confidence = $data['face_confidence'];
+        }
+        if (($data['device_id'] ?? null) !== null) {
+            $attendance->device_id = $data['device_id'];
+        }
+        $attendance->integrity_verdict = $data['integrity_verdict'] ?? $attendance->integrity_verdict;
+        if (($data['risk_flags'] ?? []) !== []) {
+            $attendance->risk_flags = $data['risk_flags'];
         }
         $attendance->save();
 

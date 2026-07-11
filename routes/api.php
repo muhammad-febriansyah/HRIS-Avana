@@ -63,6 +63,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('attendance/today', [AttendanceController::class, 'today']);
             Route::get('attendance', [AttendanceController::class, 'history']);
             Route::get('work-locations', [AttendanceController::class, 'workLocations']);
+            Route::post('attendance/challenge', [AttendanceController::class, 'challenge']);
             Route::post('attendance/clock', [AttendanceController::class, 'clock']);
             Route::get('attendance/corrections', [AttendanceCorrectionController::class, 'index']);
             Route::post('attendance/corrections', [AttendanceCorrectionController::class, 'store']);

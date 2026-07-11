@@ -23,6 +23,7 @@ final class Attendance extends Model
             'clock_out_lng' => 'decimal:7',
             'late_minutes' => 'integer',
             'work_minutes' => 'integer',
+            'risk_flags' => 'array',
         ];
     }
 
