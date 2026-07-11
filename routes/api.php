@@ -82,6 +82,10 @@ Route::prefix('v1')->group(function (): void {
             Route::get('wfh', [WfhController::class, 'index']);
             Route::post('wfh', [WfhController::class, 'store']);
             Route::get('announcements', [AnnouncementController::class, 'index']);
+            Route::get('announcements/{announcement}', [AnnouncementController::class, 'show'])->whereNumber('announcement');
+            Route::post('announcements/{announcement}/read', [AnnouncementController::class, 'markRead'])->whereNumber('announcement');
+            Route::get('announcements/{announcement}/comments', [AnnouncementController::class, 'comments'])->whereNumber('announcement');
+            Route::post('announcements/{announcement}/comments', [AnnouncementController::class, 'storeComment'])->whereNumber('announcement');
             Route::get('activities', [ActivityController::class, 'index']);
 
             Route::get('directory', [DirectoryController::class, 'index']);
