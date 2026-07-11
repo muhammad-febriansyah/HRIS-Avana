@@ -18,9 +18,16 @@ export interface LaporanStats {
     turnover: number;
 }
 
+/** A selectable payroll period for scoping the payroll report. */
+export interface PeriodOption {
+    id: number;
+    name: string;
+}
+
 /** Props for the laporan landing page (`index.tsx`). */
 export interface LaporanProps {
     stats: LaporanStats;
+    periods: PeriodOption[];
 }
 
 /** A single downloadable report definition. */
@@ -32,6 +39,8 @@ export interface ReportCard {
     color: string;
     statLabel: string;
     statValue: string;
+    /** Optional period scoping: 'range' shows a date range, 'period' a select. */
+    periodFilter?: 'range' | 'period';
 }
 
 /** Build the downloadable report card definitions from headline HR stats. */
@@ -54,6 +63,7 @@ export function buildReports(stats: LaporanStats): ReportCard[] {
             color: C.green,
             statLabel: 'Hadir hari ini',
             statValue: stats.hadir_hari_ini.toLocaleString('id-ID'),
+            periodFilter: 'range',
         },
         {
             type: 'cuti',
@@ -63,6 +73,7 @@ export function buildReports(stats: LaporanStats): ReportCard[] {
             color: C.amber,
             statLabel: 'Cuti menunggu',
             statValue: stats.cuti_pending.toLocaleString('id-ID'),
+            periodFilter: 'range',
         },
         {
             type: 'payroll',
@@ -72,6 +83,7 @@ export function buildReports(stats: LaporanStats): ReportCard[] {
             color: C.primary,
             statLabel: 'Payroll terbaru (net)',
             statValue: stats.payroll_net,
+            periodFilter: 'period',
         },
         {
             type: 'bpjs',

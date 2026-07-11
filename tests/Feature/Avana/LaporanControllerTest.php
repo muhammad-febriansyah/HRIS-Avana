@@ -58,6 +58,46 @@ it('aborts with 404 for an unknown export type', function (): void {
         ->assertNotFound();
 });
 
+it('downloads the karyawan report as xlsx', function (): void {
+    $response = actingAs($this->admin)->get('spec-avana/laporan/export/karyawan?format=xlsx');
+
+    $response->assertOk();
+    expect($response->headers->get('content-type'))->toContain('spreadsheetml');
+});
+
+it('downloads the absensi report as pdf', function (): void {
+    $response = actingAs($this->admin)->get('spec-avana/laporan/export/absensi?format=pdf');
+
+    $response->assertOk();
+    expect($response->headers->get('content-type'))->toContain('application/pdf');
+});
+
+it('scopes the absensi report to a date range', function (): void {
+    $all = actingAs($this->admin)->get('spec-avana/laporan/export/absensi')->streamedContent();
+    $future = actingAs($this->admin)
+        ->get('spec-avana/laporan/export/absensi?start=2099-01-01&end=2099-12-31')
+        ->streamedContent();
+
+    // The header row survives; the future window drops every data row.
+    expect($future)->toContain('Tanggal');
+    expect(substr_count($future, "\n"))->toBeLessThan(substr_count($all, "\n"));
+});
+
+it('accepts a payroll period filter without error', function (): void {
+    actingAs($this->admin)
+        ->get('spec-avana/laporan/export/payroll?period_id=1&format=csv')
+        ->assertOk();
+});
+
+it('exposes payroll periods to the index for scoping', function (): void {
+    actingAs($this->admin)
+        ->get('spec-avana/laporan')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/laporan/index', false)
+            ->has('periods'));
+});
+
 it('forbids users without report access from the laporan index', function (): void {
     $employeeRole = Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->firstOrFail();
 

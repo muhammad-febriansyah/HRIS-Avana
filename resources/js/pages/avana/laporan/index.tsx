@@ -4,7 +4,7 @@ import { ReportCardItem } from './components';
 import { buildReports } from './types';
 import type { LaporanProps } from './types';
 
-export default function AvanaLaporan({ stats }: LaporanProps) {
+export default function AvanaLaporan({ stats, periods }: LaporanProps) {
     const reports = buildReports(stats);
 
     return (
@@ -39,7 +39,7 @@ export default function AvanaLaporan({ stats }: LaporanProps) {
                         Laporan
                     </h1>
                     <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
-                        Unduh laporan data HR dalam format CSV.
+                        Unduh laporan data HR dalam format CSV, Excel, atau PDF — dengan filter periode.
                     </div>
                 </div>
 
@@ -54,7 +54,7 @@ export default function AvanaLaporan({ stats }: LaporanProps) {
                     }}
                 >
                     {reports.map((report) => (
-                        <ReportCardItem key={report.type} report={report} />
+                        <ReportCardItem key={report.type} report={report} periods={periods} />
                     ))}
                 </div>
             </div>

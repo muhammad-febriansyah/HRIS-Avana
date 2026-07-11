@@ -2,21 +2,25 @@
 
 namespace App\Http\Controllers\Avana;
 
+use App\Exports\ReportExport;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
 use App\Models\LeaveRequest;
+use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
 use App\Models\TaxProfile;
 use App\Models\User;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 /**
  * Web-admin downloadable CSV reports for the AvanaHR tenant: employees,
@@ -77,13 +81,34 @@ class LaporanController extends Controller
                 'pph21' => $pph21Count,
                 'turnover' => Employee::forTenant($tenantId)->count(),
             ],
+            // Payroll periods so the payroll report can be scoped to one cycle.
+            'periods' => PayrollPeriod::forTenant($tenantId)
+                ->orderByDesc('id')
+                ->limit(24)
+                ->get(['id', 'name'])
+                ->map(fn (PayrollPeriod $p): array => ['id' => $p->id, 'name' => (string) $p->name])
+                ->all(),
         ]);
     }
 
     /**
-     * Stream a tenant-scoped CSV download for the requested report type.
+     * The report types that accept a date range (absensi/cuti) vs. a payroll
+     * period (payroll), surfaced so the UI can show the right filter.
+     *
+     * @var array<string, string>
      */
-    public function export(Request $request, string $type): StreamedResponse
+    private const PERIOD_FILTERS = [
+        'absensi' => 'range',
+        'cuti' => 'range',
+        'payroll' => 'period',
+    ];
+
+    /**
+     * Download a tenant-scoped report in the requested format (csv|xlsx|pdf),
+     * optionally scoped to a period (?start&end for attendance/leave,
+     * ?period_id for payroll).
+     */
+    public function export(Request $request, string $type): HttpResponse
     {
         $this->ensureCanViewReports($request);
 
@@ -101,20 +126,100 @@ class LaporanController extends Controller
             'turnover' => $this->turnoverReport($tenantId),
         };
 
-        $filename = 'laporan-'.$type.'-'.Carbon::today()->format('Y-m-d').'.csv';
+        $this->applyPeriodFilter($query, $type, $request);
 
-        return response()->streamDownload(function () use ($header, $query, $mapper): void {
-            $out = fopen('php://output', 'w');
-            fputcsv($out, $header);
+        $format = in_array($request->query('format'), ['xlsx', 'pdf'], true)
+            ? $request->query('format')
+            : 'csv';
 
-            $query->chunk(500, function ($rows) use ($out, $mapper): void {
-                foreach ($rows as $row) {
-                    fputcsv($out, $mapper($row));
-                }
-            });
+        $base = 'laporan-'.$type.'-'.Carbon::today()->format('Y-m-d');
 
-            fclose($out);
-        }, $filename, ['Content-Type' => 'text/csv']);
+        if ($format === 'csv') {
+            return response()->streamDownload(function () use ($header, $query, $mapper): void {
+                $out = fopen('php://output', 'w');
+                fputcsv($out, $header);
+
+                $query->chunk(500, function ($rows) use ($out, $mapper): void {
+                    foreach ($rows as $row) {
+                        fputcsv($out, $mapper($row));
+                    }
+                });
+
+                fclose($out);
+            }, $base.'.csv', ['Content-Type' => 'text/csv']);
+        }
+
+        $rows = $query->get()->map(fn ($row): array => $mapper($row))->all();
+
+        if ($format === 'xlsx') {
+            return Excel::download(new ReportExport($rows, $header, $this->reportTitle($type)), $base.'.xlsx');
+        }
+
+        return Pdf::loadView('pdf.laporan', [
+            'title' => $this->reportTitle($type),
+            'subtitle' => $this->periodSubtitle($type, $request),
+            'headings' => $header,
+            'rows' => $rows,
+            'generatedAt' => Carbon::now()->format('d M Y H:i'),
+        ])->setPaper('a4', 'landscape')->download($base.'.pdf');
+    }
+
+    /**
+     * Apply the optional period filter to a report query based on its type.
+     */
+    private function applyPeriodFilter(Builder $query, string $type, Request $request): void
+    {
+        $filter = self::PERIOD_FILTERS[$type] ?? null;
+
+        if ($filter === 'range' && $request->filled('start') && $request->filled('end')) {
+            $column = $type === 'cuti' ? 'start_date' : 'date';
+            $query->whereBetween($column, [$request->query('start'), $request->query('end')]);
+
+            return;
+        }
+
+        if ($filter === 'period' && $request->filled('period_id')) {
+            $query->where('payroll_period_id', (int) $request->query('period_id'));
+        }
+    }
+
+    /**
+     * Human-readable title per report type, used for xlsx/pdf headers.
+     */
+    private function reportTitle(string $type): string
+    {
+        return match ($type) {
+            'karyawan' => 'Laporan Data Karyawan',
+            'absensi' => 'Laporan Absensi',
+            'cuti' => 'Laporan Cuti',
+            'payroll' => 'Laporan Payroll',
+            'bpjs' => 'Laporan BPJS',
+            'pph21' => 'Laporan PPh 21',
+            'turnover' => 'Laporan Turnover',
+            default => 'Laporan',
+        };
+    }
+
+    /**
+     * Describe the active period filter for the PDF sub-header, or null.
+     */
+    private function periodSubtitle(string $type, Request $request): ?string
+    {
+        $filter = self::PERIOD_FILTERS[$type] ?? null;
+
+        if ($filter === 'range' && $request->filled('start') && $request->filled('end')) {
+            return 'Periode '.$request->query('start').' s.d. '.$request->query('end');
+        }
+
+        if ($filter === 'period' && $request->filled('period_id')) {
+            $name = PayrollPeriod::forTenant((int) $request->user()->tenant_id)
+                ->whereKey((int) $request->query('period_id'))
+                ->value('name');
+
+            return $name !== null ? 'Periode '.$name : null;
+        }
+
+        return null;
     }
 
     /**
