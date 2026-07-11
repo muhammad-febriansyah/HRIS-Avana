@@ -41,7 +41,10 @@ class NotificationController extends Controller
 
         $notification->update(['read_at' => now()]);
 
-        return response()->json(['message' => 'Ditandai dibaca']);
+        return response()->json([
+            'message' => 'Ditandai dibaca',
+            'meta' => ['unread' => $this->unreadCount($request->user()->id)],
+        ]);
     }
 
     public function markAllRead(Request $request): JsonResponse
@@ -50,6 +53,14 @@ class NotificationController extends Controller
             ->whereNull('read_at')
             ->update(['read_at' => now()]);
 
-        return response()->json(['message' => 'Semua ditandai dibaca']);
+        return response()->json([
+            'message' => 'Semua ditandai dibaca',
+            'meta' => ['unread' => 0],
+        ]);
+    }
+
+    private function unreadCount(int $userId): int
+    {
+        return Notification::where('user_id', $userId)->whereNull('read_at')->count();
     }
 }

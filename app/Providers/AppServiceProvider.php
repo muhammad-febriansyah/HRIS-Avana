@@ -2,9 +2,20 @@
 
 namespace App\Providers;
 
+use App\Models\Announcement;
+use App\Models\AttendanceCorrection;
+use App\Models\Claim;
+use App\Models\LeaveRequest;
+use App\Models\OvertimeRequest;
 use App\Models\PayrollPeriod;
+use App\Models\PayrollRun;
+use App\Models\PermissionRequest;
 use App\Models\PositionPayrollComponent;
 use App\Models\WebsiteSetting;
+use App\Models\WfhRequest;
+use App\Observers\AnnouncementObserver;
+use App\Observers\PayrollRunObserver;
+use App\Observers\RequestDecisionObserver;
 use App\Policies\PayrollPolicy;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
@@ -31,7 +42,30 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->registerPolicies();
+        $this->registerNotificationObservers();
         $this->shareBranding();
+    }
+
+    /**
+     * Wire the in-app notification glue: a decision on any approvable request
+     * notifies its filer, a published announcement notifies the tenant, and a
+     * locked payroll run notifies each paid employee.
+     */
+    protected function registerNotificationObservers(): void
+    {
+        foreach ([
+            LeaveRequest::class,
+            OvertimeRequest::class,
+            PermissionRequest::class,
+            WfhRequest::class,
+            AttendanceCorrection::class,
+            Claim::class,
+        ] as $requestModel) {
+            $requestModel::observe(RequestDecisionObserver::class);
+        }
+
+        Announcement::observe(AnnouncementObserver::class);
+        PayrollRun::observe(PayrollRunObserver::class);
     }
 
     /**
