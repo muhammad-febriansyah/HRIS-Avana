@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\MoodController;
 use App\Http\Controllers\Api\MssController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\OnboardingSlideController;
 use App\Http\Controllers\Api\OvertimeController;
 use App\Http\Controllers\Api\PayslipController;
@@ -82,6 +83,10 @@ Route::prefix('v1')->group(function (): void {
 
             Route::get('directory', [DirectoryController::class, 'index']);
             Route::get('directory/{employee}', [DirectoryController::class, 'show'])->whereNumber('employee');
+
+            Route::get('onboarding', [OnboardingController::class, 'onboarding']);
+            Route::patch('onboarding/tasks/{task}', [OnboardingController::class, 'toggleTask']);
+            Route::get('offboarding', [OnboardingController::class, 'offboarding']);
 
             Route::get('payslips', [PayslipController::class, 'index']);
             Route::get('payslips/{item}', [PayslipController::class, 'show']);
