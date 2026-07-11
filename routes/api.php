@@ -69,6 +69,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('schedule', [ScheduleController::class, 'index']);
 
             Route::get('leave/balances', [LeaveController::class, 'balances']);
+            Route::get('leave/calendar', [LeaveController::class, 'calendar']);
             Route::get('leave-types', [LeaveController::class, 'types']);
             Route::get('leave-requests', [LeaveController::class, 'index']);
             Route::post('leave-requests', [LeaveController::class, 'store']);
