@@ -126,12 +126,21 @@ export default function AbsensiKebijakan({ policy, attestationEnabled }: PagePro
         <>
             <Head title="Kebijakan Absensi" />
 
-            <div style={{ maxWidth: 720 }}>
-                <div style={{ marginBottom: 20 }}>
-                    <h1 style={{ fontSize: 22, fontWeight: 800, color: C.text }}>Kebijakan Absensi</h1>
-                    <p style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
+            <div style={{ padding: '28px 32px' }}>
+                <div style={{ marginBottom: 22 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: C.faint, marginBottom: 7 }}>
+                        <span>Beranda</span>
+                        <AIcon name="chevron-right" size={13} />
+                        <span>Kehadiran</span>
+                        <AIcon name="chevron-right" size={13} />
+                        <span style={{ color: C.muted }}>Kebijakan Absensi</span>
+                    </div>
+                    <h1 style={{ fontSize: 24, fontWeight: 600, color: C.navy, margin: 0, letterSpacing: '-.01em' }}>
+                        Kebijakan Absensi
+                    </h1>
+                    <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
                         Atur verifikasi wajah dan keamanan perangkat saat karyawan clock-in di aplikasi.
-                    </p>
+                    </div>
                 </div>
 
                 <form onSubmit={submit}>
