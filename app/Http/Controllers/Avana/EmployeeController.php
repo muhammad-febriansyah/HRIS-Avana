@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Concerns\AppliesBranchScope;
+use App\Exports\EmployeeBulkTemplateExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Avana\StoreEmployeeRequest;
 use App\Http\Requests\Avana\UpdateEmployeeRequest;
 use App\Http\Resources\Avana\EmployeeResource;
+use App\Imports\EmployeeBulkRowsImport;
 use App\Models\Branch;
 use App\Models\CustomField;
 use App\Models\Department;
@@ -17,13 +19,17 @@ use App\Models\Role;
 use App\Models\User;
 use App\Models\WorkLocation;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class EmployeeController extends Controller
 {
@@ -205,6 +211,185 @@ class EmployeeController extends Controller
 
         return redirect()->route('avana.employees.index')
             ->with('success', "{$count} karyawan berhasil ditambahkan");
+    }
+
+    /**
+     * Download the bulk-import Excel template (data sheet + reference sheet of
+     * the tenant's valid branch / department / position / status values).
+     */
+    public function bulkTemplate(Request $request): BinaryFileResponse
+    {
+        $this->authorize('create', Employee::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        return Excel::download(
+            new EmployeeBulkTemplateExport(
+                Branch::forTenant($tenantId)->orderBy('name')->pluck('name')->all(),
+                Department::forTenant($tenantId)->orderBy('name')->pluck('name')->all(),
+                Position::forTenant($tenantId)->orderBy('name')->pluck('name')->all(),
+            ),
+            'template-karyawan.xlsx',
+        );
+    }
+
+    /**
+     * Parse an uploaded Excel/CSV, resolve branch/department/position/status by
+     * name (tenant-scoped, case-insensitive) and validate every row. Returns a
+     * preview (never writes) so the user can review and fix before importing.
+     */
+    public function bulkPreview(Request $request): JsonResponse
+    {
+        $this->authorize('create', Employee::class);
+
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx,xls,csv,txt', 'max:8192'],
+        ]);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $branches = $this->nameIdMap(Branch::forTenant($tenantId)->pluck('id', 'name'));
+        $departments = $this->nameIdMap(Department::forTenant($tenantId)->pluck('id', 'name'));
+        $positions = $this->nameIdMap(Position::forTenant($tenantId)->pluck('id', 'name'));
+
+        $statusMap = [
+            'masa percobaan' => 'probation', 'probation' => 'probation',
+            'kontrak' => 'contract', 'contract' => 'contract',
+            'tetap' => 'permanent', 'permanent' => 'permanent',
+            'resign' => 'resigned', 'resigned' => 'resigned',
+        ];
+
+        $sheets = Excel::toArray(new EmployeeBulkRowsImport, $request->file('file'));
+        $sheet = $sheets[0] ?? [];
+
+        if ($sheet !== [] && $this->looksLikeHeader($sheet[0])) {
+            array_shift($sheet);
+        }
+
+        $existingEmails = User::query()->pluck('email')
+            ->merge(Employee::forTenant($tenantId)->whereNotNull('email')->pluck('email'))
+            ->map(fn ($e): string => mb_strtolower((string) $e))
+            ->flip();
+        $seen = [];
+        $rows = [];
+
+        foreach ($sheet as $raw) {
+            $cells = array_map(static fn ($v): string => trim((string) ($v ?? '')), array_values((array) $raw));
+
+            if (implode('', $cells) === '') {
+                continue; // skip blank rows
+            }
+
+            [$name, $email, $branch, $dept, $pos, $status, $password] = array_pad($cells, 7, '');
+
+            $errors = [];
+
+            if ($name === '') {
+                $errors['full_name'] = 'Nama wajib diisi';
+            }
+
+            $branchId = $this->resolveName($branch, $branches, $errors, 'branch', 'Cabang tak dikenal');
+            $departmentId = $this->resolveName($dept, $departments, $errors, 'department', 'Departemen tak dikenal');
+            $positionId = $this->resolveName($pos, $positions, $errors, 'position', 'Jabatan tak dikenal');
+
+            $employment = 'permanent';
+            if ($status !== '') {
+                $mapped = $statusMap[mb_strtolower($status)] ?? null;
+                if ($mapped === null) {
+                    $errors['status'] = 'Status tak dikenal';
+                } else {
+                    $employment = $mapped;
+                }
+            }
+
+            if ($email !== '') {
+                $key = mb_strtolower($email);
+                if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    $errors['email'] = 'Format email tidak valid';
+                } elseif (isset($seen[$key])) {
+                    $errors['email'] = 'Email duplikat di file';
+                } elseif ($existingEmails->has($key)) {
+                    $errors['email'] = 'Email sudah terpakai';
+                }
+                $seen[$key] = true;
+            }
+
+            if ($password !== '' && mb_strlen($password) < 8) {
+                $errors['password'] = 'Kata sandi minimal 8 karakter';
+            }
+
+            $rows[] = [
+                'full_name' => $name,
+                'email' => $email,
+                'branch_id' => $branchId,
+                'branch_name' => $branch,
+                'department_id' => $departmentId,
+                'department_name' => $dept,
+                'position_id' => $positionId,
+                'position_name' => $pos,
+                'employment_status' => $employment,
+                'status' => 'active',
+                'password' => $password,
+                'errors' => $errors,
+            ];
+        }
+
+        return response()->json([
+            'rows' => $rows,
+            'summary' => [
+                'total' => count($rows),
+                'valid' => collect($rows)->filter(fn (array $r): bool => $r['errors'] === [])->count(),
+            ],
+        ]);
+    }
+
+    /**
+     * Build a case-insensitive name → id lookup from an id-keyed-by-name map.
+     *
+     * @param  Collection<string, int>  $pairs
+     * @return array<string, int>
+     */
+    private function nameIdMap($pairs): array
+    {
+        $map = [];
+        foreach ($pairs as $name => $id) {
+            $map[mb_strtolower(trim((string) $name))] = (int) $id;
+        }
+
+        return $map;
+    }
+
+    /**
+     * Resolve a provided name to an id; records an error when it is non-empty
+     * but unknown. An empty value resolves to null with no error (optional).
+     *
+     * @param  array<string, int>  $map
+     * @param  array<string, string>  $errors
+     */
+    private function resolveName(string $value, array $map, array &$errors, string $key, string $message): ?int
+    {
+        if ($value === '') {
+            return null;
+        }
+
+        $id = $map[mb_strtolower($value)] ?? null;
+        if ($id === null) {
+            $errors[$key] = $message;
+        }
+
+        return $id;
+    }
+
+    /**
+     * Whether a parsed row is the template's header row rather than data.
+     *
+     * @param  array<int, mixed>  $row
+     */
+    private function looksLikeHeader(array $row): bool
+    {
+        $first = mb_strtolower(trim((string) (array_values($row)[0] ?? '')));
+
+        return $first === 'nama_lengkap' || $first === 'nama lengkap' || $first === 'nama';
     }
 
     /**

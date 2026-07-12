@@ -1,6 +1,6 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import type { CSSProperties } from 'react';
-import { useEffect, useState } from 'react';
+import type { ChangeEvent, ClipboardEvent, CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
 import type { EmployeeFormOptions, FlashProps } from './types';
@@ -8,68 +8,94 @@ import type { EmployeeFormOptions, FlashProps } from './types';
 interface BulkRow {
     full_name: string;
     email: string;
-    password: string;
-}
-
-interface CommonFields {
     branch_id: string;
-    work_location_id: string;
     department_id: string;
     position_id: string;
     employment_status: string;
     status: string;
+    password: string;
+    errors?: Record<string, string>;
 }
 
-const emptyRow = (): BulkRow => ({ full_name: '', email: '', password: '' });
+/** The row fields, left-to-right, that a pasted spreadsheet block can fill. */
+type PasteableKey = 'full_name' | 'email' | 'branch_id' | 'department_id' | 'position_id' | 'employment_status' | 'password';
+
+const emptyRow = (): BulkRow => ({
+    full_name: '',
+    email: '',
+    branch_id: '',
+    department_id: '',
+    position_id: '',
+    employment_status: 'permanent',
+    status: 'active',
+    password: '',
+});
 
 const cell: CSSProperties = {
-    height: 40,
-    padding: '0 11px',
+    height: 38,
+    padding: '0 10px',
     border: `1px solid ${C.border}`,
     borderRadius: 8,
-    fontSize: 13.5,
+    fontSize: 13,
     color: C.text,
     background: '#fff',
     outline: 'none',
     width: '100%',
 };
 
-const label: CSSProperties = {
-    display: 'block',
-    fontSize: 12.5,
-    fontWeight: 500,
-    color: C.text,
-    marginBottom: 6,
-};
-
 const th: CSSProperties = {
-    padding: '11px 12px',
+    padding: '11px 10px',
     textAlign: 'left',
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: 600,
     color: C.faint,
     textTransform: 'uppercase',
+    whiteSpace: 'nowrap',
 };
 
-export default function EmployeesBulkCreate({
-    options,
-}: {
-    options: EmployeeFormOptions;
-}) {
+/** Read the XSRF token Laravel sets as a cookie, for the fetch upload. */
+const csrf = (): string =>
+    decodeURIComponent((document.cookie.match(/XSRF-TOKEN=([^;]+)/) ?? [])[1] ?? '');
+
+export default function EmployeesBulkCreate({ options }: { options: EmployeeFormOptions }) {
     const { flash } = usePage<FlashProps>().props;
     const form = useForm<{ employees: BulkRow[] }>({
         employees: [emptyRow(), emptyRow(), emptyRow()],
     });
     const { data, setData, processing, errors } = form;
+    const rows = data.employees;
 
-    const [common, setCommon] = useState<CommonFields>({
-        branch_id: '',
-        work_location_id: '',
-        department_id: '',
-        position_id: '',
-        employment_status: 'permanent',
-        status: 'active',
-    });
+    const fileInput = useRef<HTMLInputElement>(null);
+    const [uploading, setUploading] = useState(false);
+    const [summary, setSummary] = useState<{ total: number; valid: number } | null>(null);
+
+    // Case-insensitive name -> id lookups so pasted branch/department/position
+    // labels (as typed in Excel) resolve to the option ids the form stores.
+    const nameToId = (items: { id: number; name: string }[]): Map<string, string> =>
+        new Map(items.map((it) => [it.name.trim().toLowerCase(), String(it.id)]));
+    const branchMap = useMemo(() => nameToId(options.branches), [options.branches]);
+    const departmentMap = useMemo(() => nameToId(options.departments), [options.departments]);
+    const positionMap = useMemo(() => nameToId(options.positions), [options.positions]);
+
+    // Employment status accepts the option label ("Tetap"), its stored value
+    // ("permanent"), or a common Indonesian synonym.
+    const employmentMap = useMemo(() => {
+        const map = new Map<string, string>();
+        for (const option of options.employmentStatuses) {
+            map.set(option.label.trim().toLowerCase(), option.value);
+            map.set(option.value.toLowerCase(), option.value);
+        }
+        const synonyms: Record<string, string> = {
+            'masa percobaan': 'probation',
+            kontrak: 'contract',
+            tetap: 'permanent',
+            resign: 'resigned',
+        };
+        for (const [key, value] of Object.entries(synonyms)) {
+            map.set(key, value);
+        }
+        return map;
+    }, [options.employmentStatuses]);
 
     useEffect(() => {
         if (flash?.success) {
@@ -77,421 +103,285 @@ export default function EmployeesBulkCreate({
         }
     }, [flash?.success]);
 
-    const rows = data.employees;
+    // Map a row field to the error key the server reports it under.
+    const errorKeyOf = (key: keyof BulkRow): string =>
+        key === 'branch_id' ? 'branch' : key === 'department_id' ? 'department' : key === 'position_id' ? 'position' : key === 'employment_status' ? 'status' : key;
 
-    const updateRow = (index: number, key: keyof BulkRow, value: string) => {
-        setData(
-            'employees',
-            rows.map((row, i) =>
-                i === index ? { ...row, [key]: value } : row,
-            ),
-        );
-    };
-
-    const setCommonField = (key: keyof CommonFields, value: string) =>
-        setCommon((prev) => ({ ...prev, [key]: value }));
-
-    const setBranch = (value: string) =>
-        setCommon((prev) => ({
-            ...prev,
-            branch_id: value,
-            work_location_id: '',
+    const updateRow = (index: number, key: keyof BulkRow, value: string) =>
+        setData('employees', rows.map((row, i) => {
+            if (i !== index) return row;
+            const nextErrors = { ...(row.errors ?? {}) };
+            delete nextErrors[errorKeyOf(key)]; // clear the flag once the user fixes the field
+            return { ...row, [key]: value, errors: nextErrors };
         }));
 
     const addRow = () => setData('employees', [...rows, emptyRow()]);
+    const removeRow = (index: number) => setData('employees', rows.filter((_, i) => i !== index));
 
-    const removeRow = (index: number) =>
-        setData(
-            'employees',
-            rows.filter((_, i) => i !== index),
-        );
+    const isBlank = (row: BulkRow): boolean => row.full_name.trim() === '' && row.email.trim() === '';
 
-    const isBlank = (row: BulkRow): boolean =>
-        row.full_name.trim() === '' &&
-        row.email.trim() === '' &&
-        row.password.trim() === '';
+    // ---- Paste from Excel / Google Sheets ----
+    // Left-to-right order of the pasteable columns, matching the table headers.
+    const pasteColumns: PasteableKey[] = ['full_name', 'email', 'branch_id', 'department_id', 'position_id', 'employment_status', 'password'];
+
+    // Turn one pasted cell into the value the grid stores. Name columns resolve
+    // to ids (blank when unknown); employment status maps to its value and keeps
+    // the current one when unrecognised; text columns pass through trimmed.
+    const resolvePastedCell = (key: PasteableKey, raw: string, current: string): string => {
+        const value = raw.trim();
+        switch (key) {
+            case 'branch_id':
+                return value === '' ? '' : (branchMap.get(value.toLowerCase()) ?? '');
+            case 'department_id':
+                return value === '' ? '' : (departmentMap.get(value.toLowerCase()) ?? '');
+            case 'position_id':
+                return value === '' ? '' : (positionMap.get(value.toLowerCase()) ?? '');
+            case 'employment_status':
+                return value === '' ? current : (employmentMap.get(value.toLowerCase()) ?? current);
+            default:
+                return value;
+        }
+    };
+
+    // Spread a copied block of cells across the grid, starting at the cell the
+    // user pasted into and adding rows as needed. Single-cell pastes fall
+    // through to the browser's default so normal editing still works.
+    const handlePaste = (rowIndex: number, colKey: PasteableKey) => (event: ClipboardEvent<HTMLInputElement>) => {
+        const text = event.clipboardData.getData('text/plain');
+        const matrix = text.replace(/\r\n?/g, '\n').replace(/\n+$/, '').split('\n').map((line) => line.split('\t'));
+
+        const isMultiCell = matrix.length > 1 || (matrix[0]?.length ?? 0) > 1;
+        if (text === '' || !isMultiCell) {
+            return; // let the browser paste into the single field
+        }
+
+        event.preventDefault();
+        const startCol = pasteColumns.indexOf(colKey);
+        const next: BulkRow[] = rows.map((row) => ({ ...row, errors: { ...(row.errors ?? {}) } }));
+
+        matrix.forEach((cells, r) => {
+            const targetRow = rowIndex + r;
+            while (targetRow >= next.length) {
+                next.push({ ...emptyRow(), errors: {} });
+            }
+            cells.forEach((cell, c) => {
+                const targetCol = startCol + c;
+                if (targetCol >= pasteColumns.length) {
+                    return; // ignore extra columns beyond the grid
+                }
+                const key = pasteColumns[targetCol];
+                next[targetRow][key] = resolvePastedCell(key, cell, next[targetRow][key] as string);
+                delete next[targetRow].errors![errorKeyOf(key)];
+            });
+        });
+
+        setData('employees', next);
+        const added = Math.max(0, rowIndex + matrix.length - rows.length);
+        toast.success(`${matrix.length} baris ditempel${added > 0 ? ` · +${added} baris baru` : ''}`);
+    };
+
+    // ---- Excel upload -> preview ----
+    const onUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+
+        setUploading(true);
+        const body = new FormData();
+        body.append('file', file);
+        try {
+            const res = await fetch('/avana/employees/bulk/preview', {
+                method: 'POST',
+                body,
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json', 'X-XSRF-TOKEN': csrf() },
+            });
+            if (!res.ok) {
+                const e = await res.json().catch(() => ({}));
+                toast.error(e.message ?? 'Gagal membaca file. Pastikan format sesuai template.');
+                return;
+            }
+            const json = await res.json();
+            const mapped: BulkRow[] = (json.rows ?? []).map((r: Record<string, unknown>) => ({
+                full_name: (r.full_name as string) ?? '',
+                email: (r.email as string) ?? '',
+                branch_id: r.branch_id ? String(r.branch_id) : '',
+                department_id: r.department_id ? String(r.department_id) : '',
+                position_id: r.position_id ? String(r.position_id) : '',
+                employment_status: (r.employment_status as string) ?? 'permanent',
+                status: (r.status as string) ?? 'active',
+                password: (r.password as string) ?? '',
+                errors: (r.errors as Record<string, string>) ?? {},
+            }));
+            setData('employees', mapped.length ? mapped : [emptyRow()]);
+            setSummary(json.summary ?? null);
+            toast.success(`${json.summary?.valid ?? 0}/${json.summary?.total ?? 0} baris valid`);
+        } catch {
+            toast.error('Gagal mengunggah file.');
+        } finally {
+            setUploading(false);
+        }
+    };
 
     const submit = () => {
         const filled = rows.filter((row) => !isBlank(row));
         const source = filled.length > 0 ? filled : rows;
-        // Fold the shared settings into every row before submitting.
-        const employees = source.map((row) => ({ ...common, ...row }));
+        const employees = source.map((row) => ({
+            full_name: row.full_name,
+            email: row.email || null,
+            branch_id: row.branch_id || null,
+            department_id: row.department_id || null,
+            position_id: row.position_id || null,
+            employment_status: row.employment_status,
+            status: row.status,
+            password: row.password || null,
+        }));
         form.transform(() => ({ employees }));
         form.post('/avana/employees/bulk', { preserveScroll: true });
     };
 
-    const err = (index: number, key: string): string | undefined =>
-        (errors as Record<string, string>)[`employees.${index}.${key}`];
+    // Combine client-side preview errors with server validation errors.
+    const cellError = (index: number, key: string): string | undefined =>
+        rows[index]?.errors?.[errorKeyOf(key as keyof BulkRow)] ?? (errors as Record<string, string>)[`employees.${index}.${key}`];
 
-    const availableLocations = options.workLocations.filter(
-        (location) =>
-            !common.branch_id ||
-            String(location.branch_id ?? '') === common.branch_id,
+    const styleFor = (index: number, key: string): CSSProperties =>
+        cellError(index, key) ? { ...cell, borderColor: C.red, background: '#FEF2F2' } : cell;
+
+    const filledCount = rows.filter((row) => !isBlank(row)).length || rows.length;
+
+    const selectCell = (index: number, key: keyof BulkRow, blank: string, items: { id: number; name: string }[]) => (
+        <select value={rows[index][key] as string} onChange={(e) => updateRow(index, key, e.target.value)} style={{ ...styleFor(index, key), cursor: 'pointer', minWidth: 130 }}>
+            <option value="">{blank}</option>
+            {items.map((it) => (
+                <option key={it.id} value={String(it.id)}>
+                    {it.name}
+                </option>
+            ))}
+        </select>
     );
-
-    const filledCount =
-        rows.filter((row) => !isBlank(row)).length || rows.length;
 
     return (
         <>
             <Head title="Tambah Karyawan Massal" />
             <div style={{ padding: '28px 32px' }}>
-                <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 7,
-                        fontSize: 12.5,
-                        color: C.faint,
-                        marginBottom: 14,
-                    }}
-                >
-                    <Link
-                        href="/avana/employees"
-                        style={{ color: C.faint, textDecoration: 'none' }}
-                    >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: C.faint, marginBottom: 14 }}>
+                    <Link href="/avana/employees" style={{ color: C.faint, textDecoration: 'none' }}>
                         Karyawan
                     </Link>
                     <AIcon name="chevron-right" size={13} />
                     <span style={{ color: C.muted }}>Tambah Massal</span>
                 </div>
 
-                <h1
-                    style={{
-                        fontSize: 24,
-                        fontWeight: 600,
-                        color: C.navy,
-                        margin: '0 0 4px',
-                        letterSpacing: '-.01em',
-                    }}
-                >
-                    Tambah Karyawan Massal
-                </h1>
-                <div style={{ fontSize: 14, color: C.muted, marginBottom: 20 }}>
-                    Atur data yang sama sekali di atas, lalu isi nama tiap
-                    karyawan di bawah.
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
+                    <div>
+                        <h1 style={{ fontSize: 24, fontWeight: 600, color: C.navy, margin: '0 0 4px', letterSpacing: '-.01em' }}>Tambah Karyawan Massal</h1>
+                        <div style={{ fontSize: 14, color: C.muted }}>Unduh template, isi di Excel, unggah — atau isi manual di tabel. Semua kolom bisa beda tiap baris.</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                        <a href="/avana/employees/bulk/template" download style={{ ...btnOut, textDecoration: 'none' }}>
+                            <AIcon name="download" size={16} />
+                            Unduh Template
+                        </a>
+                        <button type="button" onClick={() => fileInput.current?.click()} disabled={uploading} style={{ ...btnP, opacity: uploading ? 0.7 : 1, cursor: uploading ? 'wait' : 'pointer' }}>
+                            <AIcon name={uploading ? 'loader' : 'upload'} size={16} color="#fff" />
+                            {uploading ? 'Membaca…' : 'Unggah Excel'}
+                        </button>
+                        <input ref={fileInput} type="file" accept=".xlsx,.xls,.csv" onChange={onUpload} style={{ display: 'none' }} />
+                    </div>
                 </div>
 
-                {/* Shared settings applied to every row */}
-                <div style={{ ...card, marginBottom: 18 }}>
-                    <div
-                        style={{
-                            padding: '16px 20px',
-                            borderBottom: `1px solid ${C.line}`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 9,
-                        }}
-                    >
-                        <AIcon name="layers" size={16} color={C.primary} />
-                        <div
-                            style={{
-                                fontSize: 14.5,
-                                fontWeight: 600,
-                                color: C.navy,
-                            }}
-                        >
-                            Berlaku untuk semua
-                        </div>
-                        <span style={{ fontSize: 12.5, color: C.faint }}>
-                            Cabang, lokasi & penempatan yang sama untuk semua
-                            baris.
+                {/* Import summary after an upload */}
+                {summary && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', marginBottom: 16, borderRadius: 12, background: summary.valid === summary.total ? '#ECFDF5' : '#FFF7ED', border: `1px solid ${summary.valid === summary.total ? 'rgba(22,163,74,.3)' : 'rgba(217,119,6,.3)'}` }}>
+                        <AIcon name={summary.valid === summary.total ? 'circle-check' : 'triangle-alert'} size={18} color={summary.valid === summary.total ? C.green : C.amber} />
+                        <span style={{ fontSize: 13.5, color: C.navy, fontWeight: 500 }}>
+                            {summary.total} baris terbaca · {summary.valid} valid
+                            {summary.valid < summary.total ? ` · ${summary.total - summary.valid} perlu diperbaiki (baris merah)` : ''}
                         </span>
                     </div>
-                    <div
-                        style={{
-                            padding: '18px 20px',
-                            display: 'grid',
-                            gridTemplateColumns:
-                                'repeat(auto-fit, minmax(150px, 1fr))',
-                            gap: 14,
-                        }}
-                    >
-                        <div>
-                            <label style={label}>Cabang</label>
-                            <select
-                                value={common.branch_id}
-                                onChange={(event) =>
-                                    setBranch(event.target.value)
-                                }
-                                style={{ ...cell, cursor: 'pointer' }}
-                            >
-                                <option value="">— Pilih —</option>
-                                {options.branches.map((branch) => (
-                                    <option
-                                        key={branch.id}
-                                        value={String(branch.id)}
-                                    >
-                                        {branch.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label style={label}>Lokasi Kerja</label>
-                            <select
-                                value={common.work_location_id}
-                                onChange={(event) =>
-                                    setCommonField(
-                                        'work_location_id',
-                                        event.target.value,
-                                    )
-                                }
-                                style={{ ...cell, cursor: 'pointer' }}
-                            >
-                                <option value="">Otomatis (ikut cabang)</option>
-                                {availableLocations.map((location) => (
-                                    <option
-                                        key={location.id}
-                                        value={String(location.id)}
-                                    >
-                                        {location.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label style={label}>Departemen</label>
-                            <select
-                                value={common.department_id}
-                                onChange={(event) =>
-                                    setCommonField(
-                                        'department_id',
-                                        event.target.value,
-                                    )
-                                }
-                                style={{ ...cell, cursor: 'pointer' }}
-                            >
-                                <option value="">— Pilih —</option>
-                                {options.departments.map((department) => (
-                                    <option
-                                        key={department.id}
-                                        value={String(department.id)}
-                                    >
-                                        {department.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label style={label}>Jabatan</label>
-                            <select
-                                value={common.position_id}
-                                onChange={(event) =>
-                                    setCommonField(
-                                        'position_id',
-                                        event.target.value,
-                                    )
-                                }
-                                style={{ ...cell, cursor: 'pointer' }}
-                            >
-                                <option value="">— Pilih —</option>
-                                {options.positions.map((position) => (
-                                    <option
-                                        key={position.id}
-                                        value={String(position.id)}
-                                    >
-                                        {position.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label style={label}>Status Kepegawaian</label>
-                            <select
-                                value={common.employment_status}
-                                onChange={(event) =>
-                                    setCommonField(
-                                        'employment_status',
-                                        event.target.value,
-                                    )
-                                }
-                                style={{ ...cell, cursor: 'pointer' }}
-                            >
-                                {options.employmentStatuses.map((option) => (
-                                    <option
-                                        key={option.value}
-                                        value={option.value}
-                                    >
-                                        {option.label}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-                </div>
+                )}
 
                 {/* Per-employee rows */}
                 <div style={{ ...card, overflow: 'hidden' }}>
-                    <table
-                        style={{ width: '100%', borderCollapse: 'collapse' }}
-                    >
-                        <thead>
-                            <tr style={{ background: '#FAFBFD' }}>
-                                <th style={{ ...th, width: 34 }}>#</th>
-                                <th style={th}>Nama Lengkap *</th>
-                                <th style={th}>Email</th>
-                                <th style={th}>Password Login</th>
-                                <th style={{ ...th, width: 44 }} />
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {rows.map((row, index) => (
-                                <tr
-                                    key={index}
-                                    style={{ borderTop: `1px solid ${C.line}` }}
-                                >
-                                    <td
-                                        style={{
-                                            padding: '8px 12px',
-                                            fontSize: 12.5,
-                                            color: C.faint,
-                                            textAlign: 'center',
-                                        }}
-                                    >
-                                        {index + 1}
-                                    </td>
-                                    <td style={{ padding: '8px 12px' }}>
-                                        <input
-                                            value={row.full_name}
-                                            onChange={(event) =>
-                                                updateRow(
-                                                    index,
-                                                    'full_name',
-                                                    event.target.value,
-                                                )
-                                            }
-                                            placeholder="Nama karyawan"
-                                            style={
-                                                err(index, 'full_name')
-                                                    ? {
-                                                          ...cell,
-                                                          borderColor: C.red,
-                                                      }
-                                                    : cell
-                                            }
-                                        />
-                                    </td>
-                                    <td style={{ padding: '8px 12px' }}>
-                                        <input
-                                            type="email"
-                                            value={row.email}
-                                            onChange={(event) =>
-                                                updateRow(
-                                                    index,
-                                                    'email',
-                                                    event.target.value,
-                                                )
-                                            }
-                                            placeholder="email@perusahaan.co.id"
-                                            style={
-                                                err(index, 'email')
-                                                    ? {
-                                                          ...cell,
-                                                          borderColor: C.red,
-                                                      }
-                                                    : cell
-                                            }
-                                        />
-                                    </td>
-                                    <td style={{ padding: '8px 12px' }}>
-                                        <input
-                                            type="password"
-                                            autoComplete="new-password"
-                                            value={row.password}
-                                            onChange={(event) =>
-                                                updateRow(
-                                                    index,
-                                                    'password',
-                                                    event.target.value,
-                                                )
-                                            }
-                                            placeholder="opsional · buat login"
-                                            style={
-                                                err(index, 'password')
-                                                    ? {
-                                                          ...cell,
-                                                          borderColor: C.red,
-                                                      }
-                                                    : cell
-                                            }
-                                        />
-                                    </td>
-                                    <td
-                                        style={{
-                                            padding: '8px 12px',
-                                            textAlign: 'center',
-                                        }}
-                                    >
-                                        <button
-                                            type="button"
-                                            onClick={() => removeRow(index)}
-                                            disabled={rows.length <= 1}
-                                            aria-label="Hapus baris"
-                                            style={{
-                                                border: 'none',
-                                                background: 'none',
-                                                cursor:
-                                                    rows.length <= 1
-                                                        ? 'not-allowed'
-                                                        : 'pointer',
-                                                color:
-                                                    rows.length <= 1
-                                                        ? C.faint
-                                                        : C.red,
-                                                padding: 6,
-                                            }}
-                                        >
-                                            <AIcon name="trash-2" size={16} />
-                                        </button>
-                                    </td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderBottom: `1px solid ${C.line}`, background: '#F7F9FC', fontSize: 12.5, color: C.muted }}>
+                        <AIcon name="clipboard-paste" size={15} color={C.primary} />
+                        <span>
+                            Tip: salin beberapa kolom dari Excel / Google Sheets, klik sel <b style={{ color: C.text }}>Nama</b>, lalu tempel (<b style={{ color: C.text }}>Ctrl/Cmd+V</b>) untuk mengisi banyak baris sekaligus. Nama cabang, departemen, jabatan & status dikenali otomatis.
+                        </span>
+                    </div>
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+                            <thead>
+                                <tr style={{ background: '#FAFBFD' }}>
+                                    <th style={{ ...th, width: 30 }}>#</th>
+                                    <th style={th}>Nama Lengkap *</th>
+                                    <th style={th}>Email</th>
+                                    <th style={th}>Cabang</th>
+                                    <th style={th}>Departemen</th>
+                                    <th style={th}>Jabatan</th>
+                                    <th style={th}>Status</th>
+                                    <th style={th}>Password</th>
+                                    <th style={{ ...th, width: 40 }} />
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                    <div
-                        style={{
-                            padding: '12px 16px',
-                            borderTop: `1px solid ${C.border}`,
-                        }}
-                    >
-                        <button
-                            type="button"
-                            onClick={addRow}
-                            style={{ ...btnOut, height: 38 }}
-                        >
+                            </thead>
+                            <tbody>
+                                {rows.map((row, index) => {
+                                    const hasError = row.errors && Object.keys(row.errors).length > 0;
+                                    return (
+                                        <tr key={index} style={{ borderTop: `1px solid ${C.line}`, background: hasError ? '#FFFBFB' : undefined }}>
+                                            <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                                {hasError ? (
+                                                    <span title={Object.values(row.errors ?? {}).join(', ')} style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: C.red }} />
+                                                ) : (
+                                                    <span style={{ fontSize: 12, color: C.faint }}>{index + 1}</span>
+                                                )}
+                                            </td>
+                                            <td style={{ padding: '8px 10px' }}>
+                                                <input value={row.full_name} onChange={(e) => updateRow(index, 'full_name', e.target.value)} onPaste={handlePaste(index, 'full_name')} placeholder="Nama karyawan" title={cellError(index, 'full_name')} style={{ ...styleFor(index, 'full_name'), minWidth: 150 }} />
+                                            </td>
+                                            <td style={{ padding: '8px 10px' }}>
+                                                <input type="email" value={row.email} onChange={(e) => updateRow(index, 'email', e.target.value)} onPaste={handlePaste(index, 'email')} placeholder="email@perusahaan.co.id" title={cellError(index, 'email')} style={{ ...styleFor(index, 'email'), minWidth: 170 }} />
+                                            </td>
+                                            <td style={{ padding: '8px 10px' }}>{selectCell(index, 'branch_id', '— Cabang —', options.branches)}</td>
+                                            <td style={{ padding: '8px 10px' }}>{selectCell(index, 'department_id', '— Dept —', options.departments)}</td>
+                                            <td style={{ padding: '8px 10px' }}>{selectCell(index, 'position_id', '— Jabatan —', options.positions)}</td>
+                                            <td style={{ padding: '8px 10px' }}>
+                                                <select value={row.employment_status} onChange={(e) => updateRow(index, 'employment_status', e.target.value)} style={{ ...styleFor(index, 'employment_status'), cursor: 'pointer', minWidth: 130 }}>
+                                                    {options.employmentStatuses.map((o) => (
+                                                        <option key={o.value} value={o.value}>
+                                                            {o.label}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </td>
+                                            <td style={{ padding: '8px 10px' }}>
+                                                <input type="text" autoComplete="new-password" value={row.password} onChange={(e) => updateRow(index, 'password', e.target.value)} onPaste={handlePaste(index, 'password')} placeholder="opsional" title={cellError(index, 'password')} style={{ ...styleFor(index, 'password'), minWidth: 110 }} />
+                                            </td>
+                                            <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                                <button type="button" onClick={() => removeRow(index)} disabled={rows.length <= 1} aria-label="Hapus baris" style={{ border: 'none', background: 'none', cursor: rows.length <= 1 ? 'not-allowed' : 'pointer', color: rows.length <= 1 ? C.faint : C.red, padding: 6 }}>
+                                                    <AIcon name="trash-2" size={16} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style={{ padding: '12px 16px', borderTop: `1px solid ${C.border}` }}>
+                        <button type="button" onClick={addRow} style={{ ...btnOut, height: 38 }}>
                             <AIcon name="plus" size={16} />
                             Tambah Baris
                         </button>
                     </div>
                 </div>
 
-                <div
-                    style={{
-                        display: 'flex',
-                        justifyContent: 'flex-end',
-                        gap: 10,
-                        marginTop: 18,
-                    }}
-                >
-                    <button
-                        type="button"
-                        onClick={() => router.visit('/avana/employees')}
-                        style={btnOut}
-                    >
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
+                    <button type="button" onClick={() => router.visit('/avana/employees')} style={btnOut}>
                         <AIcon name="x" size={16} />
                         Batal
                     </button>
-                    <button
-                        type="button"
-                        onClick={submit}
-                        disabled={processing}
-                        style={{
-                            ...btnP,
-                            opacity: processing ? 0.7 : 1,
-                            cursor: processing ? 'not-allowed' : 'pointer',
-                        }}
-                    >
+                    <button type="button" onClick={submit} disabled={processing} style={{ ...btnP, opacity: processing ? 0.7 : 1, cursor: processing ? 'not-allowed' : 'pointer' }}>
                         <AIcon name="save" size={16} color="#fff" />
                         Simpan {filledCount} Karyawan
                     </button>

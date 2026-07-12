@@ -25,6 +25,7 @@ function avanaPageUris(): array
             || str_contains($uri, 'transfer')
             || str_contains($uri, 'bpjs-export')
             || str_contains($uri, 'absensi/template')
+            || str_contains($uri, 'bulk/template')
             || str_contains($uri, 'cetak'))
         ->unique()
         ->values()

@@ -9,8 +9,8 @@ use App\Http\Controllers\Avana\ApprovalController;
 use App\Http\Controllers\Avana\ApprovalDelegationController;
 use App\Http\Controllers\Avana\AssetController;
 use App\Http\Controllers\Avana\AttendanceController;
-use App\Http\Controllers\Avana\AttendancePolicyController;
 use App\Http\Controllers\Avana\AttendancePenaltyController;
+use App\Http\Controllers\Avana\AttendancePolicyController;
 use App\Http\Controllers\Avana\AuditController;
 use App\Http\Controllers\Avana\BenefitController;
 use App\Http\Controllers\Avana\BillingController;
@@ -95,6 +95,8 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::put('custom-fields/{field}', [CustomFieldController::class, 'update'])->name('custom-fields.update');
     Route::delete('custom-fields/{field}', [CustomFieldController::class, 'destroy'])->name('custom-fields.destroy');
     Route::get('employees/bulk', [EmployeeController::class, 'bulkCreate'])->name('employees.bulk');
+    Route::get('employees/bulk/template', [EmployeeController::class, 'bulkTemplate'])->name('employees.bulk.template');
+    Route::post('employees/bulk/preview', [EmployeeController::class, 'bulkPreview'])->name('employees.bulk.preview');
     Route::post('employees/bulk', [EmployeeController::class, 'bulkStore'])->name('employees.bulk.store');
     Route::delete('employees/bulk-destroy', [EmployeeController::class, 'bulkDestroy'])->name('employees.bulk-destroy');
     Route::resource('employees', EmployeeController::class);
