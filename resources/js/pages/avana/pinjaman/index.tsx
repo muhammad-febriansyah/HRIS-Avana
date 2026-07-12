@@ -686,7 +686,7 @@ export default function PinjamanIndex({
                                                     <ActionBtn
                                                         icon="check"
                                                         label="Setujui"
-                                                        variant="success"
+                                                        variant="primary"
                                                         onClick={() =>
                                                             approve(row.id)
                                                         }

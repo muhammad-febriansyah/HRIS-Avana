@@ -468,7 +468,7 @@ export default function AsetIndex({
                                                 <ActionBtn
                                                     icon="pencil"
                                                     label="Edit"
-                                                    variant="neutral"
+                                                    variant="success"
                                                     onClick={() =>
                                                         router.visit(
                                                             AssetController.edit(

@@ -153,7 +153,7 @@ export function EntityTable({
                                         <ActionBtn
                                             icon="pencil"
                                             label="Ubah"
-                                            variant="neutral"
+                                            variant="success"
                                             onClick={() => onEdit(row)}
                                         />
                                         <ActionBtn

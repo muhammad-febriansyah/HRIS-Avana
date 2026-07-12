@@ -1,22 +1,9 @@
 import { useForm } from '@inertiajs/react';
-import type {
-    CSSProperties,
-    Dispatch,
-    FormEvent,
-    ReactNode,
-    SetStateAction,
-} from 'react';
+import type { CSSProperties, FormEvent, ReactNode } from 'react';
 import PayrollConfigController from '@/actions/App/Http/Controllers/Avana/PayrollConfigController';
-import { AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
-import {
-    asPercent,
-    asRupiah,
-    buildInitialForm
-    
-    
-    
-} from './types';
-import type {ColumnDef, FlatRecord, SectionDef} from './types';
+import { ActionBtn, AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
+import { asPercent, asRupiah, buildInitialForm } from './types';
+import type { ColumnDef, FlatRecord, SectionDef } from './types';
 
 /* ---------- shared field styles (mirror perusahaan.tsx) ---------- */
 
@@ -71,35 +58,6 @@ const hintTextStyle: CSSProperties = {
     fontSize: 11.5,
     color: C.faint,
     marginTop: 5,
-};
-
-export const rowMenuItemStyle: CSSProperties = {
-    width: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 9,
-    padding: '8px 10px',
-    border: 'none',
-    background: 'none',
-    borderRadius: 7,
-    fontSize: 13,
-    color: C.text,
-    cursor: 'pointer',
-    transition: '.12s',
-};
-
-export const iconBtn: CSSProperties = {
-    width: 32,
-    height: 32,
-    border: `1px solid ${C.border}`,
-    background: '#fff',
-    borderRadius: 8,
-    cursor: 'pointer',
-    color: C.muted,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transition: '.15s',
 };
 
 /** Apply the red error border to a base style when invalid. */
@@ -198,8 +156,6 @@ export function renderCell(row: FlatRecord, column: ColumnDef): ReactNode {
 interface SectionTableProps {
     section: SectionDef;
     rows: FlatRecord[];
-    openMenu: number | null;
-    setOpenMenu: Dispatch<SetStateAction<number | null>>;
     onCreate: () => void;
     onEdit: (row: FlatRecord) => void;
     onDelete: (row: FlatRecord) => void;
@@ -208,8 +164,6 @@ interface SectionTableProps {
 export function SectionTable({
     section,
     rows,
-    openMenu,
-    setOpenMenu,
     onCreate,
     onEdit,
     onDelete,
@@ -340,72 +294,24 @@ export function SectionTable({
                                 >
                                     <div
                                         style={{
-                                            position: 'relative',
-                                            display: 'inline-block',
+                                            display: 'inline-flex',
+                                            gap: 6,
+                                            justifyContent: 'flex-end',
+                                            flexWrap: 'wrap',
                                         }}
                                     >
-                                        <button
-                                            onClick={() =>
-                                                setOpenMenu((prev) =>
-                                                    prev === row.id
-                                                        ? null
-                                                        : row.id,
-                                                )
-                                            }
-                                            aria-label="Aksi"
-                                            style={iconBtn}
-                                        >
-                                            <AIcon
-                                                name="ellipsis-vertical"
-                                                size={16}
-                                            />
-                                        </button>
-                                        <div
-                                            style={{
-                                                display:
-                                                    openMenu === row.id
-                                                        ? 'block'
-                                                        : 'none',
-                                                position: 'absolute',
-                                                right: 0,
-                                                top: 38,
-                                                width: 148,
-                                                background: '#fff',
-                                                border: `1px solid ${C.border}`,
-                                                borderRadius: 10,
-                                                boxShadow:
-                                                    '0 8px 24px rgba(15,23,42,.12)',
-                                                zIndex: 20,
-                                                padding: 5,
-                                                textAlign: 'left',
-                                            }}
-                                        >
-                                            <button
-                                                onClick={() => onEdit(row)}
-                                                style={rowMenuItemStyle}
-                                            >
-                                                <AIcon
-                                                    name="pencil"
-                                                    size={15}
-                                                    color={C.muted}
-                                                />
-                                                Ubah
-                                            </button>
-                                            <button
-                                                onClick={() => onDelete(row)}
-                                                style={{
-                                                    ...rowMenuItemStyle,
-                                                    color: C.red,
-                                                }}
-                                            >
-                                                <AIcon
-                                                    name="trash-2"
-                                                    size={15}
-                                                    color={C.red}
-                                                />
-                                                Hapus
-                                            </button>
-                                        </div>
+                                        <ActionBtn
+                                            icon="pencil"
+                                            label="Ubah"
+                                            variant="success"
+                                            onClick={() => onEdit(row)}
+                                        />
+                                        <ActionBtn
+                                            icon="trash-2"
+                                            label="Hapus"
+                                            variant="danger"
+                                            onClick={() => onDelete(row)}
+                                        />
                                     </div>
                                 </td>
                             </tr>

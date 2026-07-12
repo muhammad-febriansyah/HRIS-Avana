@@ -455,7 +455,7 @@ export default function KinerjaIndex({
                                                 <ActionBtn
                                                     icon="pencil"
                                                     label="Ubah"
-                                                    variant="neutral"
+                                                    variant="success"
                                                     onClick={() =>
                                                         router.visit(
                                                             PerformanceController.edit(

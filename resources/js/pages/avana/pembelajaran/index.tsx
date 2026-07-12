@@ -461,7 +461,7 @@ export default function PembelajaranIndex({
                                                 <ActionBtn
                                                     icon="pencil"
                                                     label="Ubah"
-                                                    variant="neutral"
+                                                    variant="success"
                                                     onClick={() =>
                                                         router.visit(
                                                             LearningController.edit(

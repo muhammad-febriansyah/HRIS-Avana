@@ -517,7 +517,7 @@ export default function KontrakIndex({
                                                 <ActionBtn
                                                     icon="pencil"
                                                     label="Edit"
-                                                    variant="neutral"
+                                                    variant="success"
                                                     onClick={() =>
                                                         router.visit(
                                                             ContractController.edit(

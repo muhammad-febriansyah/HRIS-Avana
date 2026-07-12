@@ -1,7 +1,7 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { toast } from 'sonner';
 import PayrollUmrController from '@/actions/App/Http/Controllers/Avana/PayrollUmrController';
-import { AIcon, C, card } from '@/lib/avana';
+import { AIcon, ActionBtn, C, card } from '@/lib/avana';
 
 interface Rate {
     id: number;
@@ -256,21 +256,12 @@ export default function PayrollUmr({ rates, branchOptions }: Props) {
                                                     textAlign: 'right',
                                                 }}
                                             >
-                                                <button
+                                                <ActionBtn
+                                                    icon="trash-2"
+                                                    label="Hapus"
+                                                    variant="danger"
                                                     onClick={() => del(r.id)}
-                                                    style={{
-                                                        border: 'none',
-                                                        background:
-                                                            'transparent',
-                                                        cursor: 'pointer',
-                                                    }}
-                                                >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={15}
-                                                        color={C.red}
-                                                    />
-                                                </button>
+                                                />
                                             </td>
                                         </tr>
                                     ))

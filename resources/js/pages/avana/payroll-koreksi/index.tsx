@@ -2,7 +2,7 @@ import { Head, router, useForm } from '@inertiajs/react';
 import { toast } from 'sonner';
 import PayrollCorrectionController from '@/actions/App/Http/Controllers/Avana/PayrollCorrectionController';
 import { SearchableSelect } from '@/components/searchable-select';
-import { AIcon, C, card } from '@/lib/avana';
+import { AIcon, ActionBtn, C, card } from '@/lib/avana';
 
 interface Correction {
     id: number;
@@ -350,36 +350,37 @@ export default function PayrollKoreksi({
                                                     whiteSpace: 'nowrap',
                                                 }}
                                             >
-                                                {c.status !== 'approved' && (
-                                                    <button
-                                                        onClick={() =>
-                                                            approve(c.id)
-                                                        }
-                                                        style={{
-                                                            ...primaryBtn,
-                                                            padding: '5px 10px',
-                                                            fontSize: 12,
-                                                            marginRight: 8,
-                                                        }}
-                                                    >
-                                                        Setujui
-                                                    </button>
-                                                )}
-                                                <button
-                                                    onClick={() => del(c.id)}
+                                                <div
                                                     style={{
-                                                        border: 'none',
-                                                        background:
-                                                            'transparent',
-                                                        cursor: 'pointer',
+                                                        display: 'inline-flex',
+                                                        gap: 6,
+                                                        justifyContent:
+                                                            'flex-end',
+                                                        flexWrap: 'wrap',
                                                     }}
                                                 >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={15}
-                                                        color={C.red}
+                                                    {c.status !== 'approved' && (
+                                                        <button
+                                                            onClick={() =>
+                                                                approve(c.id)
+                                                            }
+                                                            style={{
+                                                                ...primaryBtn,
+                                                                padding:
+                                                                    '5px 10px',
+                                                                fontSize: 12,
+                                                            }}
+                                                        >
+                                                            Setujui
+                                                        </button>
+                                                    )}
+                                                    <ActionBtn
+                                                        icon="trash-2"
+                                                        label="Hapus"
+                                                        variant="danger"
+                                                        onClick={() => del(c.id)}
                                                     />
-                                                </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))

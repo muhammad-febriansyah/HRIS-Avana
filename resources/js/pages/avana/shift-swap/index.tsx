@@ -295,7 +295,7 @@ export default function ShiftSwapIndex({
                                                             <ActionBtn
                                                                 icon="check"
                                                                 label="Setujui"
-                                                                variant="success"
+                                                                variant="primary"
                                                                 onClick={() =>
                                                                     approve(
                                                                         swap,
@@ -305,7 +305,7 @@ export default function ShiftSwapIndex({
                                                             <ActionBtn
                                                                 icon="x"
                                                                 label="Tolak"
-                                                                variant="danger"
+                                                                variant="warning"
                                                                 onClick={() =>
                                                                     reject(swap)
                                                                 }

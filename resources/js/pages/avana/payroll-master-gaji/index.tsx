@@ -2,7 +2,7 @@ import { Head, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import SalaryMasterController from '@/actions/App/Http/Controllers/Avana/SalaryMasterController';
-import { AIcon, C, card } from '@/lib/avana';
+import { AIcon, ActionBtn, C, card } from '@/lib/avana';
 
 interface Master {
     id: number;
@@ -73,6 +73,7 @@ export default function PayrollMasterGaji({ masters }: Props) {
         if (!confirm(`Hapus master gaji ${m.code}?`)) {
             return;
         }
+
         router.delete(SalaryMasterController.destroy(m.id).url, {
             preserveScroll: true,
             onSuccess: () => toast.success('Master Gaji dihapus'),
@@ -298,8 +299,10 @@ export default function PayrollMasterGaji({ masters }: Props) {
                                                 />
                                             </td>
                                             <td style={td}>
-                                                <button
-                                                    title="Setting"
+                                                <ActionBtn
+                                                    icon="settings"
+                                                    label="Atur"
+                                                    variant="primary"
                                                     onClick={() =>
                                                         router.visit(
                                                             SalaryMasterController.setting(
@@ -307,38 +310,15 @@ export default function PayrollMasterGaji({ masters }: Props) {
                                                             ).url,
                                                         )
                                                     }
-                                                    style={{
-                                                        border: `1px solid ${C.line}`,
-                                                        background: C.surface,
-                                                        borderRadius: 7,
-                                                        padding: '6px 8px',
-                                                        cursor: 'pointer',
-                                                    }}
-                                                >
-                                                    <AIcon
-                                                        name="settings"
-                                                        size={15}
-                                                        color={C.muted}
-                                                    />
-                                                </button>
+                                                />
                                             </td>
                                             <td style={td}>
-                                                <button
-                                                    title="Hapus"
+                                                <ActionBtn
+                                                    icon="trash-2"
+                                                    label="Hapus"
+                                                    variant="danger"
                                                     onClick={() => del(m)}
-                                                    style={{
-                                                        border: 'none',
-                                                        background:
-                                                            'transparent',
-                                                        cursor: 'pointer',
-                                                    }}
-                                                >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={15}
-                                                        color={C.red}
-                                                    />
-                                                </button>
+                                                />
                                             </td>
                                         </tr>
                                     ))

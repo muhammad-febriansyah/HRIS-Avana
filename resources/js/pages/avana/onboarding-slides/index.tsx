@@ -340,7 +340,7 @@ export default function OnboardingSlides({ slides }: OnboardingSlidesProps) {
                                 <ActionBtn
                                     icon="pencil"
                                     label="Ubah"
-                                    variant="primary"
+                                    variant="success"
                                     onClick={() => openEdit(slide)}
                                 />
                                 <ActionBtn

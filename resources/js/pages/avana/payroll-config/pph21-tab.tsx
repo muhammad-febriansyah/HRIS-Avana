@@ -2,7 +2,7 @@ import { router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import PayrollConfigController from '@/actions/App/Http/Controllers/Avana/PayrollConfigController';
-import { AIcon, C, card, rp } from '@/lib/avana';
+import { ActionBtn, C, card, rp } from '@/lib/avana';
 import type { PkpRate, PtkpRate } from './types';
 
 /**
@@ -212,14 +212,14 @@ export default function Pph21Tab({
                                         <td style={td}>{rp(r.amount)}</td>
                                         <td style={{ ...td, color: C.muted }}>{r.note ?? '—'}</td>
                                         <td style={{ ...td, textAlign: 'right' }}>
-                                            <button
+                                            <ActionBtn
+                                                icon="trash-2"
+                                                label="Hapus"
+                                                variant="danger"
                                                 onClick={() =>
                                                     del(PayrollConfigController.destroyPtkpRate(r.id).url)
                                                 }
-                                                style={delBtn}
-                                            >
-                                                <AIcon name="trash-2" size={15} color={C.red} />
-                                            </button>
+                                            />
                                         </td>
                                     </tr>
                                 ))
@@ -328,14 +328,14 @@ export default function Pph21Tab({
                                             {(r.rate * 100).toFixed(2)}%
                                         </td>
                                         <td style={{ ...td, textAlign: 'right' }}>
-                                            <button
+                                            <ActionBtn
+                                                icon="trash-2"
+                                                label="Hapus"
+                                                variant="danger"
                                                 onClick={() =>
                                                     del(PayrollConfigController.destroyPkpRate(r.id).url)
                                                 }
-                                                style={delBtn}
-                                            >
-                                                <AIcon name="trash-2" size={15} color={C.red} />
-                                            </button>
+                                            />
                                         </td>
                                     </tr>
                                 ))
@@ -347,13 +347,6 @@ export default function Pph21Tab({
         </div>
     );
 }
-
-const delBtn: React.CSSProperties = {
-    border: 'none',
-    background: 'transparent',
-    cursor: 'pointer',
-    padding: 4,
-};
 
 function Field({
     label,

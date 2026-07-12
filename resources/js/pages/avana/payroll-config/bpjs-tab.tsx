@@ -10,7 +10,6 @@ const SECTION = SECTIONS.find((item) => item.key === 'bpjs') ?? SECTIONS[0];
 
 /** Program BPJS tab — table + create/edit modal + delete confirm. */
 export default function BpjsTab({ programs }: { programs: BpjsProgram[] }) {
-    const [openMenu, setOpenMenu] = useState<number | null>(null);
     const [editing, setEditing] = useState<FlatRecord | null>(null);
     const [modalOpen, setModalOpen] = useState(false);
     const [confirm, setConfirm] = useState<FlatRecord | null>(null);
@@ -25,7 +24,6 @@ export default function BpjsTab({ programs }: { programs: BpjsProgram[] }) {
     const openEdit = (row: FlatRecord) => {
         setEditing(row);
         setModalOpen(true);
-        setOpenMenu(null);
     };
 
     const closeModal = () => {
@@ -35,7 +33,6 @@ export default function BpjsTab({ programs }: { programs: BpjsProgram[] }) {
 
     const requestDelete = (row: FlatRecord) => {
         setConfirm(row);
-        setOpenMenu(null);
     };
 
     const deleteRecord = () => {
@@ -57,8 +54,6 @@ export default function BpjsTab({ programs }: { programs: BpjsProgram[] }) {
             <SectionTable
                 section={SECTION}
                 rows={rows}
-                openMenu={openMenu}
-                setOpenMenu={setOpenMenu}
                 onCreate={openCreate}
                 onEdit={openEdit}
                 onDelete={requestDelete}

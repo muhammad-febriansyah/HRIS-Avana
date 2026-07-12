@@ -2,7 +2,7 @@ import { Head, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import PayrollKomponenController from '@/actions/App/Http/Controllers/Avana/PayrollKomponenController';
-import { AIcon, C, card } from '@/lib/avana';
+import { AIcon, ActionBtn, C, card } from '@/lib/avana';
 
 interface ComponentValue {
     id: number;
@@ -524,6 +524,7 @@ function KomponenTab({
 
             {groups.map(([key, label]) => {
                 const rows = components.filter((c) => c.group === key);
+
                 return (
                     <div
                         key={key}
@@ -655,21 +656,12 @@ function KomponenTab({
                                                         textAlign: 'right',
                                                     }}
                                                 >
-                                                    <button
+                                                    <ActionBtn
+                                                        icon="trash-2"
+                                                        label="Hapus"
+                                                        variant="danger"
                                                         onClick={() => del(c.id)}
-                                                        style={{
-                                                            border: 'none',
-                                                            background:
-                                                                'transparent',
-                                                            cursor: 'pointer',
-                                                        }}
-                                                    >
-                                                        <AIcon
-                                                            name="trash-2"
-                                                            size={15}
-                                                            color={C.red}
-                                                        />
-                                                    </button>
+                                                    />
                                                 </td>
                                             </tr>
                                         ))
@@ -710,6 +702,7 @@ function NilaiKomponenTab({
         if (selected === null) {
             return;
         }
+
         form.post(
             PayrollKomponenController.storeComponentValue(selected.id).url,
             {
@@ -858,21 +851,12 @@ function NilaiKomponenTab({
                                                     textAlign: 'right',
                                                 }}
                                             >
-                                                <button
+                                                <ActionBtn
+                                                    icon="trash-2"
+                                                    label="Hapus"
+                                                    variant="danger"
                                                     onClick={() => del(v.id)}
-                                                    style={{
-                                                        border: 'none',
-                                                        background:
-                                                            'transparent',
-                                                        cursor: 'pointer',
-                                                    }}
-                                                >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={15}
-                                                        color={C.red}
-                                                    />
-                                                </button>
+                                                />
                                             </td>
                                         </tr>
                                     ))

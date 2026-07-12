@@ -446,7 +446,7 @@ export default function DinasIndex({ travels, filters }: DinasIndexProps) {
                                                         <ActionBtn
                                                             icon="check"
                                                             label="Setujui"
-                                                            variant="success"
+                                                            variant="primary"
                                                             onClick={() =>
                                                                 approveTravel(
                                                                     row.id,

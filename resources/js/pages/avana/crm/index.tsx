@@ -411,7 +411,7 @@ export default function CrmIndex({
                                                 <ActionBtn
                                                     icon="pencil"
                                                     label="Ubah"
-                                                    variant="neutral"
+                                                    variant="success"
                                                     onClick={() =>
                                                         openDeal(deal)
                                                     }

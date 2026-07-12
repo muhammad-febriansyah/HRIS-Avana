@@ -254,7 +254,7 @@ export default function SalaryStructureIndex({
                                                 <ActionBtn
                                                     icon="pencil"
                                                     label="Ubah"
-                                                    variant="primary"
+                                                    variant="success"
                                                     onClick={() =>
                                                         openEdit(grade)
                                                     }

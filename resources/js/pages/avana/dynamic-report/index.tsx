@@ -459,7 +459,7 @@ export default function DynamicReportIndex({
                                                         <ActionBtn
                                                             icon="eye"
                                                             label="Lihat"
-                                                            variant="primary"
+                                                            variant="warning"
                                                             onClick={() =>
                                                                 router.visit(
                                                                     DynamicReportController.run(
@@ -471,7 +471,7 @@ export default function DynamicReportIndex({
                                                         <ActionBtn
                                                             icon="download"
                                                             label="Unduh"
-                                                            variant="success"
+                                                            variant="neutral"
                                                             title="Export CSV"
                                                             href={
                                                                 DynamicReportController.export(

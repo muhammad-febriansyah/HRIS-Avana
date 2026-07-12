@@ -242,26 +242,26 @@ export default function MenuBuilder({
             <div style={{ display: 'inline-flex', gap: 5 }}>
                 <ActionBtn
                     icon="chevron-up"
-                    label=""
+                    label="Naik"
                     variant="neutral"
                     onClick={() => move(row, 'up')}
                 />
                 <ActionBtn
                     icon="chevron-down"
-                    label=""
+                    label="Turun"
                     variant="neutral"
                     onClick={() => move(row, 'down')}
                 />
                 <ActionBtn
                     icon={row.is_active ? 'eye-off' : 'eye'}
                     label={row.is_active ? 'Sembunyikan' : 'Tampilkan'}
-                    variant={row.is_active ? 'warning' : 'success'}
+                    variant={row.is_active ? 'warning' : 'primary'}
                     onClick={() => toggle(row)}
                 />
                 <ActionBtn
                     icon="pencil"
                     label="Edit"
-                    variant="primary"
+                    variant="success"
                     onClick={() => openEdit(row)}
                 />
                 {!row.is_system && (

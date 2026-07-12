@@ -1,8 +1,8 @@
-import { useState } from 'react';
 import { Head, router, useForm } from '@inertiajs/react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import PaydayController from '@/actions/App/Http/Controllers/Avana/PaydayController';
-import { AIcon, C, card } from '@/lib/avana';
+import { AIcon, ActionBtn, C, card } from '@/lib/avana';
 
 interface Payday {
     id: number;
@@ -105,11 +105,13 @@ export default function MappingPayday({ paydays, employees }: Props) {
     const toggle = (id: number) => {
         setChecked((prev) => {
             const next = new Set(prev);
+
             if (next.has(id)) {
                 next.delete(id);
             } else {
                 next.add(id);
             }
+
             return next;
         });
     };
@@ -118,6 +120,7 @@ export default function MappingPayday({ paydays, employees }: Props) {
         if (!assignTo) {
             return;
         }
+
         router.post(
             PaydayController.assign(assignTo.id).url,
             { employee_ids: Array.from(checked) },
@@ -335,36 +338,38 @@ export default function MappingPayday({ paydays, employees }: Props) {
                                                     whiteSpace: 'nowrap',
                                                 }}
                                             >
-                                                <button
-                                                    onClick={() => openAssign(p)}
+                                                <div
                                                     style={{
-                                                        border: 'none',
-                                                        background:
-                                                            'transparent',
-                                                        cursor: 'pointer',
-                                                        color: C.primary,
-                                                        fontSize: 12.5,
-                                                        fontWeight: 600,
-                                                        marginRight: 12,
+                                                        display: 'inline-flex',
+                                                        gap: 6,
+                                                        justifyContent:
+                                                            'flex-end',
+                                                        flexWrap: 'wrap',
                                                     }}
                                                 >
-                                                    Petakan
-                                                </button>
-                                                <button
-                                                    onClick={() => del(p.id)}
-                                                    style={{
-                                                        border: 'none',
-                                                        background:
-                                                            'transparent',
-                                                        cursor: 'pointer',
-                                                    }}
-                                                >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={15}
-                                                        color={C.red}
+                                                    <button
+                                                        onClick={() =>
+                                                            openAssign(p)
+                                                        }
+                                                        style={{
+                                                            border: 'none',
+                                                            background:
+                                                                'transparent',
+                                                            cursor: 'pointer',
+                                                            color: C.primary,
+                                                            fontSize: 12.5,
+                                                            fontWeight: 600,
+                                                        }}
+                                                    >
+                                                        Petakan
+                                                    </button>
+                                                    <ActionBtn
+                                                        icon="trash-2"
+                                                        label="Hapus"
+                                                        variant="danger"
+                                                        onClick={() => del(p.id)}
                                                     />
-                                                </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))
@@ -419,6 +424,7 @@ export default function MappingPayday({ paydays, employees }: Props) {
                                 const mapped =
                                     e.payday_id !== null &&
                                     e.payday_id !== assignTo.id;
+
                                 return (
                                     <label
                                         key={e.id}

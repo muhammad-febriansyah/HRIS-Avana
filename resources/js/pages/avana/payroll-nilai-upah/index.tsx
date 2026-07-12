@@ -1,7 +1,7 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { toast } from 'sonner';
 import SalaryGradeStepController from '@/actions/App/Http/Controllers/Avana/SalaryGradeStepController';
-import { AIcon, C, card, RupiahInput } from '@/lib/avana';
+import { AIcon, ActionBtn, C, card, RupiahInput } from '@/lib/avana';
 
 interface Grade {
     id: number;
@@ -221,6 +221,7 @@ export default function NilaiUpah({ grades, steps }: Props) {
                                 const rows = steps
                                     .filter((s) => s.salary_grade_id === g.id)
                                     .sort((a, b) => a.masa_kerja - b.masa_kerja);
+
                                 return (
                                     <div
                                         key={g.id}
@@ -330,25 +331,14 @@ export default function NilaiUpah({ grades, steps }: Props) {
                                                                         'right',
                                                                 }}
                                                             >
-                                                                <button
+                                                                <ActionBtn
+                                                                    icon="trash-2"
+                                                                    label="Hapus"
+                                                                    variant="danger"
                                                                     onClick={() =>
                                                                         del(s.id)
                                                                     }
-                                                                    style={{
-                                                                        border: 'none',
-                                                                        background:
-                                                                            'transparent',
-                                                                        cursor: 'pointer',
-                                                                    }}
-                                                                >
-                                                                    <AIcon
-                                                                        name="trash-2"
-                                                                        size={15}
-                                                                        color={
-                                                                            C.red
-                                                                        }
-                                                                    />
-                                                                </button>
+                                                                />
                                                             </td>
                                                         </tr>
                                                     ))

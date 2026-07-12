@@ -538,7 +538,7 @@ export default function PenggunaIndex({
                                                 <ActionBtn
                                                     icon="pencil"
                                                     label="Ubah"
-                                                    variant="neutral"
+                                                    variant="success"
                                                     onClick={() =>
                                                         router.visit(
                                                             UserController.edit(
@@ -561,7 +561,7 @@ export default function PenggunaIndex({
                                                     variant={
                                                         user.status === 'active'
                                                             ? 'warning'
-                                                            : 'success'
+                                                            : 'primary'
                                                     }
                                                     onClick={() =>
                                                         toggleStatus(user)

@@ -1,7 +1,7 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { toast } from 'sonner';
 import DayCalcMethodController from '@/actions/App/Http/Controllers/Avana/DayCalcMethodController';
-import { AIcon, C, card } from '@/lib/avana';
+import { AIcon, ActionBtn, C, card } from '@/lib/avana';
 
 interface Method {
     id: number;
@@ -284,21 +284,12 @@ export default function PerhitunganHari({ methods, basisOptions }: Props) {
                                                     textAlign: 'right',
                                                 }}
                                             >
-                                                <button
+                                                <ActionBtn
+                                                    icon="trash-2"
+                                                    label="Hapus"
+                                                    variant="danger"
                                                     onClick={() => del(m.id)}
-                                                    style={{
-                                                        border: 'none',
-                                                        background:
-                                                            'transparent',
-                                                        cursor: 'pointer',
-                                                    }}
-                                                >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={15}
-                                                        color={C.red}
-                                                    />
-                                                </button>
+                                                />
                                             </td>
                                         </tr>
                                     ))

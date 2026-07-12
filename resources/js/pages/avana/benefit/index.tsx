@@ -356,7 +356,7 @@ export default function BenefitIndex({
                                                     <ActionBtn
                                                         icon="pencil"
                                                         label="Edit"
-                                                        variant="neutral"
+                                                        variant="success"
                                                         onClick={() =>
                                                             router.visit(
                                                                 BenefitController.edit(

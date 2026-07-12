@@ -321,7 +321,7 @@ export default function KompetensiIndex({
                                                 <ActionBtn
                                                     icon="pencil"
                                                     label="Ubah"
-                                                    variant="neutral"
+                                                    variant="success"
                                                     onClick={() =>
                                                         openEdit(competency)
                                                     }

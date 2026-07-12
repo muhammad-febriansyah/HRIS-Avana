@@ -429,7 +429,7 @@ export default function KlienIndex({
                                                 <ActionBtn
                                                     icon="eye"
                                                     label="Lihat"
-                                                    variant="primary"
+                                                    variant="warning"
                                                     title="Lihat detail"
                                                     onClick={() =>
                                                         router.visit(

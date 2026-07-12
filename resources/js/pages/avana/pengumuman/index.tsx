@@ -458,14 +458,14 @@ export default function PengumumanIndex({
                                             <ActionBtn
                                                 icon="send"
                                                 label="Terbitkan"
-                                                variant="success"
+                                                variant="primary"
                                                 onClick={() => publish(item)}
                                             />
                                         )}
                                         <ActionBtn
                                             icon="pencil"
                                             label="Ubah"
-                                            variant="primary"
+                                            variant="success"
                                             onClick={() => openEdit(item)}
                                         />
                                         <ActionBtn

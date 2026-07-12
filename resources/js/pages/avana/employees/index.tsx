@@ -3,7 +3,15 @@ import type { CSSProperties } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import EmployeeController from '@/actions/App/Http/Controllers/Avana/EmployeeController';
-import { AIcon, btnOut, btnP, C, statusBadge, thCell } from '@/lib/avana';
+import {
+    ActionBtn,
+    AIcon,
+    btnOut,
+    btnP,
+    C,
+    statusBadge,
+    thCell,
+} from '@/lib/avana';
 import type {
     Employee,
     FlashProps,
@@ -91,7 +99,6 @@ export default function EmployeesIndex({
     const { flash } = usePage<FlashProps>().props;
     const meta = employees.meta;
 
-    const [openMenu, setOpenMenu] = useState<number | null>(null);
     const [confirm, setConfirm] = useState<Employee | null>(null);
     const [selected, setSelected] = useState<Set<number>>(new Set());
     const [bulkConfirm, setBulkConfirm] = useState(false);
@@ -114,6 +121,7 @@ export default function EmployeesIndex({
     const toggleAllPage = () => {
         setSelected((prev) => {
             const next = new Set(prev);
+
             if (allPageSelected) {
                 pageIds.forEach((id) => next.delete(id));
             } else {
@@ -127,6 +135,7 @@ export default function EmployeesIndex({
     const toggleOne = (id: number) => {
         setSelected((prev) => {
             const next = new Set(prev);
+
             if (next.has(id)) {
                 next.delete(id);
             } else {
@@ -720,162 +729,45 @@ export default function EmployeesIndex({
                                             >
                                                 <div
                                                     style={{
-                                                        position: 'relative',
-                                                        display: 'inline-block',
+                                                        display: 'inline-flex',
+                                                        gap: 6,
+                                                        justifyContent:
+                                                            'flex-end',
+                                                        flexWrap: 'wrap',
                                                     }}
                                                 >
-                                                    <button
+                                                    <ActionBtn
+                                                        icon="eye"
+                                                        label="Lihat"
+                                                        variant="warning"
                                                         onClick={() =>
-                                                            setOpenMenu(
-                                                                (prev) =>
-                                                                    prev ===
-                                                                    e.id
-                                                                        ? null
-                                                                        : e.id,
+                                                            router.visit(
+                                                                EmployeeController.show(
+                                                                    e.id,
+                                                                ).url,
                                                             )
                                                         }
-                                                        style={{
-                                                            width: 32,
-                                                            height: 32,
-                                                            border: `1px solid ${C.border}`,
-                                                            background: '#fff',
-                                                            borderRadius: 8,
-                                                            cursor: 'pointer',
-                                                            color: C.muted,
-                                                            display:
-                                                                'inline-flex',
-                                                            alignItems:
-                                                                'center',
-                                                            justifyContent:
-                                                                'center',
-                                                            transition: '.15s',
-                                                        }}
-                                                    >
-                                                        <AIcon
-                                                            name="ellipsis-vertical"
-                                                            size={16}
-                                                        />
-                                                    </button>
-                                                    <div
-                                                        style={{
-                                                            display:
-                                                                openMenu ===
-                                                                e.id
-                                                                    ? 'block'
-                                                                    : 'none',
-                                                            position:
-                                                                'absolute',
-                                                            right: 0,
-                                                            top: 38,
-                                                            width: 148,
-                                                            background: '#fff',
-                                                            border: `1px solid ${C.border}`,
-                                                            borderRadius: 10,
-                                                            boxShadow:
-                                                                '0 8px 24px rgba(15,23,42,.12)',
-                                                            zIndex: 20,
-                                                            padding: 5,
-                                                            textAlign: 'left',
-                                                        }}
-                                                    >
-                                                        <Link
-                                                            href={EmployeeController.show(
-                                                                e.id,
-                                                            )}
-                                                            style={{
-                                                                width: '100%',
-                                                                display: 'flex',
-                                                                alignItems:
-                                                                    'center',
-                                                                gap: 9,
-                                                                padding:
-                                                                    '8px 10px',
-                                                                border: 'none',
-                                                                background:
-                                                                    'none',
-                                                                borderRadius: 7,
-                                                                fontSize: 13,
-                                                                color: C.text,
-                                                                cursor: 'pointer',
-                                                                transition:
-                                                                    '.12s',
-                                                                textDecoration:
-                                                                    'none',
-                                                            }}
-                                                        >
-                                                            <AIcon
-                                                                name="eye"
-                                                                size={15}
-                                                                color={C.muted}
-                                                            />
-                                                            Lihat
-                                                        </Link>
-                                                        <Link
-                                                            href={EmployeeController.edit(
-                                                                e.id,
-                                                            )}
-                                                            style={{
-                                                                width: '100%',
-                                                                display: 'flex',
-                                                                alignItems:
-                                                                    'center',
-                                                                gap: 9,
-                                                                padding:
-                                                                    '8px 10px',
-                                                                border: 'none',
-                                                                background:
-                                                                    'none',
-                                                                borderRadius: 7,
-                                                                fontSize: 13,
-                                                                color: C.text,
-                                                                cursor: 'pointer',
-                                                                transition:
-                                                                    '.12s',
-                                                                textDecoration:
-                                                                    'none',
-                                                            }}
-                                                        >
-                                                            <AIcon
-                                                                name="pencil"
-                                                                size={15}
-                                                                color={C.muted}
-                                                            />
-                                                            Ubah
-                                                        </Link>
-                                                        <button
-                                                            onClick={() => {
-                                                                setConfirm(e);
-                                                                setOpenMenu(
-                                                                    null,
-                                                                );
-                                                            }}
-                                                            style={{
-                                                                width: '100%',
-                                                                display: 'flex',
-                                                                alignItems:
-                                                                    'center',
-                                                                gap: 9,
-                                                                padding:
-                                                                    '8px 10px',
-                                                                border: 'none',
-                                                                background:
-                                                                    'none',
-                                                                borderRadius: 7,
-                                                                fontSize: 13,
-                                                                color: C.red,
-                                                                cursor: 'pointer',
-                                                                transition:
-                                                                    '.12s',
-                                                            }}
-                                                        >
-                                                            <AIcon
-                                                                name="trash-2"
-                                                                size={15}
-                                                                color={C.red}
-                                                            />
-                                                            Hapus
-                                                        </button>
-                                                    </div>
+                                                    />
+                                                    <ActionBtn
+                                                        icon="pencil"
+                                                        label="Ubah"
+                                                        variant="success"
+                                                        onClick={() =>
+                                                            router.visit(
+                                                                EmployeeController.edit(
+                                                                    e.id,
+                                                                ).url,
+                                                            )
+                                                        }
+                                                    />
+                                                    <ActionBtn
+                                                        icon="trash-2"
+                                                        label="Hapus"
+                                                        variant="danger"
+                                                        onClick={() =>
+                                                            setConfirm(e)
+                                                        }
+                                                    />
                                                 </div>
                                             </td>
                                         </tr>

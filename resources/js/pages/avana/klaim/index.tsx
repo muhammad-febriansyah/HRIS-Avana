@@ -364,7 +364,7 @@ export default function KlaimIndex({ claims, kpis }: KlaimIndexProps) {
                                                         <ActionBtn
                                                             icon="check"
                                                             label="Setujui"
-                                                            variant="success"
+                                                            variant="primary"
                                                             onClick={() =>
                                                                 transition(
                                                                     ClaimController.approve(
@@ -392,7 +392,7 @@ export default function KlaimIndex({ claims, kpis }: KlaimIndexProps) {
                                                     <ActionBtn
                                                         icon="banknote"
                                                         label="Tandai Dibayar"
-                                                        variant="success"
+                                                        variant="primary"
                                                         onClick={() =>
                                                             transition(
                                                                 ClaimController.markPaid(
@@ -405,7 +405,7 @@ export default function KlaimIndex({ claims, kpis }: KlaimIndexProps) {
                                                 <ActionBtn
                                                     icon="pencil"
                                                     label="Edit"
-                                                    variant="neutral"
+                                                    variant="success"
                                                     onClick={() =>
                                                         router.visit(
                                                             ClaimController.edit(

@@ -491,7 +491,7 @@ export default function AnggaranIndex({
                                                     <ActionBtn
                                                         icon="pencil"
                                                         label="Ubah"
-                                                        variant="neutral"
+                                                        variant="success"
                                                         onClick={() =>
                                                             openEdit(budget)
                                                         }
