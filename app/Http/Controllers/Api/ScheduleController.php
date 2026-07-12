@@ -39,7 +39,8 @@ class ScheduleController extends Controller
 
         $schedules = ShiftSchedule::forTenant($employee->tenant_id)
             ->where('employee_id', $employee->id)
-            ->whereBetween('date', [$weekStart->toDateString(), $weekEnd->toDateString()])
+            ->whereDate('date', '>=', $weekStart->toDateString())
+            ->whereDate('date', '<=', $weekEnd->toDateString())
             ->with('shift:id,name,start_time,end_time')
             ->get()
             ->keyBy(fn (ShiftSchedule $s): string => $s->date->toDateString());
