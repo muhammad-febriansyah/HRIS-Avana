@@ -20,6 +20,16 @@ interface BulkRow {
 /** The row fields, left-to-right, that a pasted spreadsheet block can fill. */
 type PasteableKey = 'full_name' | 'email' | 'branch_id' | 'department_id' | 'position_id' | 'employment_status' | 'password';
 
+/** Whether a pasted first cell is a template header rather than a name. */
+const isHeaderCell = (value: string): boolean => {
+    const v = value.trim().toLowerCase();
+
+    return v === 'nama_lengkap' || v === 'nama lengkap' || v === 'nama';
+};
+
+/** Loose email shape check for flagging obviously invalid grid entries. */
+const isValidEmail = (value: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
 const emptyRow = (): BulkRow => ({
     full_name: '',
     email: '',
@@ -97,6 +107,34 @@ export default function EmployeesBulkCreate({ options }: { options: EmployeeForm
         return map;
     }, [options.employmentStatuses]);
 
+    // Client-side email checks mirroring the upload preview: flag rows whose
+    // email is malformed or duplicated within the grid. DB-level "already used"
+    // stays a server concern, enforced on submit.
+    const emailIssues = useMemo(() => {
+        const counts = new Map<string, number>();
+        for (const row of data.employees) {
+            const key = row.email.trim().toLowerCase();
+            if (key !== '') {
+                counts.set(key, (counts.get(key) ?? 0) + 1);
+            }
+        }
+
+        const issues = new Map<number, string>();
+        data.employees.forEach((row, index) => {
+            const email = row.email.trim();
+            if (email === '') {
+                return;
+            }
+            if (!isValidEmail(email)) {
+                issues.set(index, 'Format email tidak valid');
+            } else if ((counts.get(email.toLowerCase()) ?? 0) > 1) {
+                issues.set(index, 'Email duplikat di file');
+            }
+        });
+
+        return issues;
+    }, [data.employees]);
+
     useEffect(() => {
         if (flash?.success) {
             toast.success(flash.success, { id: flash.success });
@@ -157,6 +195,14 @@ export default function EmployeesBulkCreate({ options }: { options: EmployeeForm
 
         event.preventDefault();
         const startCol = pasteColumns.indexOf(colKey);
+
+        // Drop a leading header row ("Nama Lengkap" / "Nama" / …) when the block
+        // is pasted into the name column, so copying straight from a template
+        // that still has its header doesn't create a junk first row.
+        if (startCol === 0 && matrix.length > 1 && isHeaderCell(matrix[0][0] ?? '')) {
+            matrix.shift();
+        }
+
         const next: BulkRow[] = rows.map((row) => ({ ...row, errors: { ...(row.errors ?? {}) } }));
 
         matrix.forEach((cells, r) => {
@@ -240,9 +286,16 @@ export default function EmployeesBulkCreate({ options }: { options: EmployeeForm
         form.post('/avana/employees/bulk', { preserveScroll: true });
     };
 
-    // Combine client-side preview errors with server validation errors.
-    const cellError = (index: number, key: string): string | undefined =>
-        rows[index]?.errors?.[errorKeyOf(key as keyof BulkRow)] ?? (errors as Record<string, string>)[`employees.${index}.${key}`];
+    // Combine client-side preview errors, live email checks, and server
+    // validation errors.
+    const cellError = (index: number, key: string): string | undefined => {
+        const explicit = rows[index]?.errors?.[errorKeyOf(key as keyof BulkRow)] ?? (errors as Record<string, string>)[`employees.${index}.${key}`];
+        if (explicit) {
+            return explicit;
+        }
+
+        return key === 'email' ? emailIssues.get(index) : undefined;
+    };
 
     const styleFor = (index: number, key: string): CSSProperties =>
         cellError(index, key) ? { ...cell, borderColor: C.red, background: '#FEF2F2' } : cell;
@@ -326,12 +379,13 @@ export default function EmployeesBulkCreate({ options }: { options: EmployeeForm
                             </thead>
                             <tbody>
                                 {rows.map((row, index) => {
-                                    const hasError = row.errors && Object.keys(row.errors).length > 0;
+                                    const rowErrors = [...Object.values(row.errors ?? {}), emailIssues.get(index)].filter((message): message is string => Boolean(message));
+                                    const hasError = rowErrors.length > 0;
                                     return (
                                         <tr key={index} style={{ borderTop: `1px solid ${C.line}`, background: hasError ? '#FFFBFB' : undefined }}>
                                             <td style={{ padding: '8px 10px', textAlign: 'center' }}>
                                                 {hasError ? (
-                                                    <span title={Object.values(row.errors ?? {}).join(', ')} style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: C.red }} />
+                                                    <span title={rowErrors.join(', ')} style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: C.red }} />
                                                 ) : (
                                                     <span style={{ fontSize: 12, color: C.faint }}>{index + 1}</span>
                                                 )}
