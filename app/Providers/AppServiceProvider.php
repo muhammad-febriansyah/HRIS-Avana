@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\Announcement;
 use App\Models\AttendanceCorrection;
 use App\Models\Claim;
+use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
 use App\Models\PayrollPeriod;
@@ -14,6 +15,7 @@ use App\Models\PositionPayrollComponent;
 use App\Models\WebsiteSetting;
 use App\Models\WfhRequest;
 use App\Observers\AnnouncementObserver;
+use App\Observers\EmployeeObserver;
 use App\Observers\PayrollRunObserver;
 use App\Observers\RequestDecisionObserver;
 use App\Policies\PayrollPolicy;
@@ -66,6 +68,7 @@ class AppServiceProvider extends ServiceProvider
 
         Announcement::observe(AnnouncementObserver::class);
         PayrollRun::observe(PayrollRunObserver::class);
+        Employee::observe(EmployeeObserver::class);
     }
 
     /**
