@@ -162,22 +162,40 @@ export default function EmployeesBulkCreate({ options }: { options: EmployeeForm
     // Left-to-right order of the pasteable columns, matching the table headers.
     const pasteColumns: PasteableKey[] = ['full_name', 'email', 'branch_id', 'department_id', 'position_id', 'employment_status', 'password'];
 
-    // Turn one pasted cell into the value the grid stores. Name columns resolve
-    // to ids (blank when unknown); employment status maps to its value and keeps
-    // the current one when unrecognised; text columns pass through trimmed.
-    const resolvePastedCell = (key: PasteableKey, raw: string, current: string): string => {
+    // Turn one pasted cell into the value the grid stores plus an optional
+    // error. Name columns resolve to ids (and flag "tak dikenal" when the name
+    // is non-empty but unknown, mirroring the upload preview); employment
+    // status maps to its value and keeps the current one when unrecognised;
+    // text columns pass through trimmed.
+    const resolvePastedCell = (key: PasteableKey, raw: string, current: string): { value: string; error?: string } => {
         const value = raw.trim();
+
+        const resolveName = (map: Map<string, string>, message: string): { value: string; error?: string } => {
+            if (value === '') {
+                return { value: '' };
+            }
+            const id = map.get(value.toLowerCase());
+
+            return id !== undefined ? { value: id } : { value: '', error: message };
+        };
+
         switch (key) {
             case 'branch_id':
-                return value === '' ? '' : (branchMap.get(value.toLowerCase()) ?? '');
+                return resolveName(branchMap, 'Cabang tak dikenal');
             case 'department_id':
-                return value === '' ? '' : (departmentMap.get(value.toLowerCase()) ?? '');
+                return resolveName(departmentMap, 'Departemen tak dikenal');
             case 'position_id':
-                return value === '' ? '' : (positionMap.get(value.toLowerCase()) ?? '');
-            case 'employment_status':
-                return value === '' ? current : (employmentMap.get(value.toLowerCase()) ?? current);
+                return resolveName(positionMap, 'Jabatan tak dikenal');
+            case 'employment_status': {
+                if (value === '') {
+                    return { value: current };
+                }
+                const mapped = employmentMap.get(value.toLowerCase());
+
+                return mapped !== undefined ? { value: mapped } : { value: current, error: 'Status tak dikenal' };
+            }
             default:
-                return value;
+                return { value };
         }
     };
 
@@ -216,8 +234,13 @@ export default function EmployeesBulkCreate({ options }: { options: EmployeeForm
                     return; // ignore extra columns beyond the grid
                 }
                 const key = pasteColumns[targetCol];
-                next[targetRow][key] = resolvePastedCell(key, cell, next[targetRow][key] as string);
-                delete next[targetRow].errors![errorKeyOf(key)];
+                const { value, error } = resolvePastedCell(key, cell, next[targetRow][key] as string);
+                next[targetRow][key] = value;
+                if (error) {
+                    next[targetRow].errors![errorKeyOf(key)] = error;
+                } else {
+                    delete next[targetRow].errors![errorKeyOf(key)];
+                }
             });
         });
 
