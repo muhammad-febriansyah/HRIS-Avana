@@ -468,6 +468,8 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::get('aset', [AssetController::class, 'index'])->name('aset');
     Route::get('aset/create', [AssetController::class, 'create'])->name('aset.create');
     Route::get('aset/{asset}/edit', [AssetController::class, 'edit'])->name('aset.edit');
+    Route::get('aset/{asset}/qr', [AssetController::class, 'qr'])->name('aset.qr');
+    Route::get('aset/{asset}', [AssetController::class, 'show'])->name('aset.show');
     Route::post('aset', [AssetController::class, 'store'])->name('aset.store');
     Route::put('aset/{asset}', [AssetController::class, 'update'])->name('aset.update');
     Route::delete('aset/{asset}', [AssetController::class, 'destroy'])->name('aset.destroy');

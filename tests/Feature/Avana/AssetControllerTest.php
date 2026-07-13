@@ -87,6 +87,62 @@ it('renders the asset index with the expected props', function (): void {
                 ->has('total_value')));
 });
 
+it('renders the asset detail page with its assignment history', function (): void {
+    $asset = makeAsset($this->tenant->id, ['status' => 'assigned']);
+    makeAssignment($this->tenant->id, ['asset_id' => $asset->id]);
+
+    actingAs($this->admin)
+        ->get(route('avana.aset.show', $asset))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/aset/show', false)
+            ->where('asset.id', $asset->id)
+            ->where('asset.code', $asset->code)
+            ->has('asset.book_value')
+            ->has('history.0', fn (Assert $row) => $row
+                ->has('id')
+                ->has('employee_name')
+                ->has('employee_number')
+                ->has('assigned_date')
+                ->has('returned_date')
+                ->has('condition_note'))
+            ->where('qrUrl', route('avana.aset.qr', $asset)));
+});
+
+it('renders the asset qr code as an svg image', function (): void {
+    $asset = makeAsset($this->tenant->id);
+
+    $response = actingAs($this->admin)->get(route('avana.aset.qr', $asset));
+
+    $response->assertOk();
+    expect($response->headers->get('Content-Type'))->toContain('image/svg+xml');
+    expect($response->getContent())->toContain('<svg');
+});
+
+it('returns 404 when viewing an asset from another tenant', function (): void {
+    $otherTenant = Tenant::create(['name' => 'PT Asing', 'slug' => 'pt-asing']);
+    $foreign = makeAsset($otherTenant->id);
+
+    actingAs($this->admin)
+        ->get(route('avana.aset.show', $foreign))
+        ->assertNotFound();
+
+    actingAs($this->admin)
+        ->get(route('avana.aset.qr', $foreign))
+        ->assertNotFound();
+});
+
+it('forbids a plain employee from viewing an asset detail or qr', function (): void {
+    $employeeRole = Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->firstOrFail();
+    $staff = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $staff->roles()->sync([$employeeRole->id]);
+
+    $asset = makeAsset($this->tenant->id);
+
+    actingAs($staff)->get(route('avana.aset.show', $asset))->assertForbidden();
+    actingAs($staff)->get(route('avana.aset.qr', $asset))->assertForbidden();
+});
+
 it('only lists assets that belong to the current tenant', function (): void {
     makeAsset($this->tenant->id);
 

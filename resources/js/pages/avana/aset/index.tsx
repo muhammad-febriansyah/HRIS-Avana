@@ -466,6 +466,18 @@ export default function AsetIndex({
                                                     />
                                                 )}
                                                 <ActionBtn
+                                                    icon="qr-code"
+                                                    label="QR"
+                                                    variant="neutral"
+                                                    onClick={() =>
+                                                        router.visit(
+                                                            AssetController.show(
+                                                                asset.id,
+                                                            ).url,
+                                                        )
+                                                    }
+                                                />
+                                                <ActionBtn
                                                     icon="pencil"
                                                     label="Edit"
                                                     variant="success"

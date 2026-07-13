@@ -8,8 +8,13 @@ use App\Models\AssetAssignment;
 use App\Models\AssetCategory;
 use App\Models\Employee;
 use App\Models\User;
+use BaconQrCode\Renderer\Image\SvgImageBackEnd;
+use BaconQrCode\Renderer\ImageRenderer;
+use BaconQrCode\Renderer\RendererStyle\RendererStyle;
+use BaconQrCode\Writer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -134,6 +139,68 @@ class AssetController extends Controller
             'categories' => $this->categoryOptions($request->user()->tenant_id),
             'conditions' => $this->conditionOptions(),
             'statuses' => $this->statusOptions(),
+        ]);
+    }
+
+    /**
+     * Show the read-only asset detail page reached by scanning its QR code.
+     */
+    public function show(Request $request, Asset $asset): Response
+    {
+        $this->ensureCanManage($request);
+        $this->ensureTenantOwnership($request, $asset);
+
+        $asset->load(['assignments.employee:id,full_name,employee_number']);
+
+        return Inertia::render('avana/aset/show', [
+            'asset' => [
+                'id' => $asset->id,
+                'code' => $asset->code,
+                'name' => $asset->name,
+                'category' => $asset->category,
+                'purchase_date' => $asset->purchase_date?->toDateString(),
+                'purchase_cost' => (float) $asset->purchase_cost,
+                'depreciation_years' => $asset->depreciation_years,
+                'condition' => $asset->condition,
+                'status' => $asset->status,
+                'notes' => $asset->notes,
+                'book_value' => $this->bookValue($asset),
+            ],
+            'history' => $asset->assignments
+                ->sortByDesc('assigned_date')
+                ->values()
+                ->map(fn (AssetAssignment $assignment): array => [
+                    'id' => $assignment->id,
+                    'employee_name' => $assignment->employee?->full_name,
+                    'employee_number' => $assignment->employee?->employee_number,
+                    'assigned_date' => $assignment->assigned_date?->toDateString(),
+                    'returned_date' => $assignment->returned_date?->toDateString(),
+                    'condition_note' => $assignment->condition_note,
+                ])
+                ->all(),
+            'qrUrl' => route('avana.aset.qr', $asset),
+        ]);
+    }
+
+    /**
+     * Render the asset's QR code as an SVG image whose payload is the absolute
+     * URL of its detail page, so scanning it opens that page directly.
+     */
+    public function qr(Request $request, Asset $asset): HttpResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureTenantOwnership($request, $asset);
+
+        $renderer = new ImageRenderer(
+            new RendererStyle(240, 1),
+            new SvgImageBackEnd,
+        );
+
+        $svg = (new Writer($renderer))->writeString(route('avana.aset.show', $asset));
+
+        return response($svg, 200, [
+            'Content-Type' => 'image/svg+xml',
+            'Cache-Control' => 'private, max-age=3600',
         ]);
     }
 

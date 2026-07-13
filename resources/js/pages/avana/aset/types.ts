@@ -71,6 +71,23 @@ export interface AsetIndexProps {
     kpis: AssetKpis;
 }
 
+/** A single assignment row in the asset detail history table. */
+export interface AssetHistoryRow {
+    id: number;
+    employee_name: string | null;
+    employee_number: string | null;
+    assigned_date: string | null;
+    returned_date: string | null;
+    condition_note: string | null;
+}
+
+/** Props for the asset detail page (`show.tsx`), reached by scanning its QR. */
+export interface AsetShowProps {
+    asset: AssetRow;
+    history: AssetHistoryRow[];
+    qrUrl: string;
+}
+
 /** Option lists shared by the create and edit forms. */
 export interface AssetFormOptions {
     categories: string[];
