@@ -1,7 +1,8 @@
 import { Head, Link } from '@inertiajs/react';
+import { Fragment } from 'react';
 import { AIcon, btnOut, C, card, rp, thCell } from '@/lib/avana';
 import CrmController from '@/actions/App/Http/Controllers/Avana/CrmController';
-import { KpiCard, StageBadge } from './components';
+import { KpiCard } from './components';
 import type { CrmInsightsProps } from './types';
 
 const STAGE_BAR: Record<string, string> = {
@@ -13,7 +14,10 @@ const STAGE_BAR: Record<string, string> = {
 };
 
 export default function CrmInsights({ funnel, kpis, byOwner }: CrmInsightsProps) {
-    const maxCount = Math.max(1, ...funnel.map((row) => row.count));
+    // The funnel is the deal progression; "lost" is a drop-out shown apart.
+    const progression = funnel.filter((row) => row.stage !== 'lost');
+    const lost = funnel.find((row) => row.stage === 'lost');
+    const maxCount = Math.max(1, ...progression.map((row) => row.count));
 
     return (
         <>
@@ -137,87 +141,144 @@ export default function CrmInsights({ funnel, kpis, byOwner }: CrmInsightsProps)
                 </div>
 
                 {/* Funnel */}
-                <div style={{ ...card, padding: '18px 22px', marginBottom: 24 }}>
+                <div style={{ ...card, padding: '22px 24px', marginBottom: 24 }}>
                     <div
                         style={{
-                            fontSize: 15,
-                            fontWeight: 600,
-                            color: C.navy,
-                            marginBottom: 16,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginBottom: 18,
+                            flexWrap: 'wrap',
+                            gap: 10,
                         }}
                     >
-                        Funnel Konversi
+                        <div
+                            style={{
+                                fontSize: 15,
+                                fontWeight: 600,
+                                color: C.navy,
+                            }}
+                        >
+                            Funnel Konversi
+                        </div>
+                        {lost && (
+                            <span
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    color: C.red,
+                                    background: 'rgba(220,38,38,.08)',
+                                    borderRadius: 100,
+                                    padding: '4px 11px',
+                                }}
+                            >
+                                <AIcon name="circle-x" size={13} color={C.red} />
+                                Kalah: {lost.count} · {rp(lost.value)}
+                            </span>
+                        )}
                     </div>
                     <div
                         style={{
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: 12,
+                            alignItems: 'center',
                         }}
                     >
-                        {funnel.map((row) => (
-                            <div
-                                key={row.stage}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 12,
-                                }}
-                            >
-                                <div style={{ width: 110, flex: 'none' }}>
-                                    <StageBadge
-                                        stage={row.stage}
-                                        label={row.label}
-                                    />
-                                </div>
-                                <div
-                                    style={{
-                                        flex: 1,
-                                        height: 26,
-                                        background: C.surface,
-                                        borderRadius: 6,
-                                        overflow: 'hidden',
-                                        minWidth: 0,
-                                    }}
-                                >
+                        {progression.map((row, index) => {
+                            const width =
+                                42 + (row.count / maxCount) * 58;
+                            const prev = progression[index - 1];
+                            const conv =
+                                prev && prev.count > 0
+                                    ? Math.round(
+                                          (row.count / prev.count) * 100,
+                                      )
+                                    : null;
+                            const color =
+                                STAGE_BAR[row.stage] ?? C.primary;
+
+                            return (
+                                <Fragment key={row.stage}>
+                                    {index > 0 && (
+                                        <div
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 5,
+                                                fontSize: 11,
+                                                fontWeight: 600,
+                                                color: C.faint,
+                                                padding: '5px 0',
+                                            }}
+                                        >
+                                            <AIcon
+                                                name="chevron-down"
+                                                size={13}
+                                                color={C.faint}
+                                            />
+                                            {conv === null
+                                                ? 'lanjut'
+                                                : `${conv}% lanjut`}
+                                        </div>
+                                    )}
                                     <div
                                         style={{
-                                            width: `${(row.count / maxCount) * 100}%`,
-                                            height: '100%',
-                                            background:
-                                                STAGE_BAR[row.stage] ?? C.primary,
-                                            borderRadius: 6,
-                                            minWidth: row.count > 0 ? 4 : 0,
-                                            transition: 'width .3s',
+                                            width: `${width}%`,
+                                            minWidth: 200,
+                                            maxWidth: '100%',
+                                            background: `linear-gradient(180deg, ${color}, ${color}d9)`,
+                                            borderRadius: 12,
+                                            padding: '13px 20px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            gap: 14,
+                                            color: '#fff',
+                                            boxShadow: `0 2px 8px ${color}33`,
                                         }}
-                                    />
-                                </div>
-                                <div
-                                    style={{
-                                        width: 46,
-                                        flex: 'none',
-                                        textAlign: 'right',
-                                        fontSize: 14,
-                                        fontWeight: 700,
-                                        color: C.navy,
-                                    }}
-                                >
-                                    {row.count}
-                                </div>
-                                <div
-                                    style={{
-                                        width: 140,
-                                        flex: 'none',
-                                        textAlign: 'right',
-                                        fontSize: 12.5,
-                                        color: C.muted,
-                                        fontVariantNumeric: 'tabular-nums',
-                                    }}
-                                >
-                                    {rp(row.value)}
-                                </div>
-                            </div>
-                        ))}
+                                    >
+                                        <span
+                                            style={{
+                                                fontSize: 13.5,
+                                                fontWeight: 600,
+                                            }}
+                                        >
+                                            {row.label}
+                                        </span>
+                                        <span
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'baseline',
+                                                gap: 12,
+                                            }}
+                                        >
+                                            <span
+                                                style={{
+                                                    fontSize: 20,
+                                                    fontWeight: 700,
+                                                    lineHeight: 1,
+                                                }}
+                                            >
+                                                {row.count}
+                                            </span>
+                                            <span
+                                                style={{
+                                                    fontSize: 12,
+                                                    opacity: 0.9,
+                                                    fontVariantNumeric:
+                                                        'tabular-nums',
+                                                }}
+                                            >
+                                                {rp(row.value)}
+                                            </span>
+                                        </span>
+                                    </div>
+                                </Fragment>
+                            );
+                        })}
                     </div>
                 </div>
 

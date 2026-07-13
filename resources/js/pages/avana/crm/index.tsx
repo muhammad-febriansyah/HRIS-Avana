@@ -28,16 +28,14 @@ import {
     textareaStyle,
     withError,
 } from './components';
-import {
-    emptyContactForm,
-    emptyDealForm
-    
-    
-    
-    
-    
+import { emptyContactForm, emptyDealForm, STAGE_COLORS } from './types';
+import type {
+    ContactFormData,
+    CrmIndexProps,
+    DealCard,
+    DealFormData,
+    FlashProps,
 } from './types';
-import type {ContactFormData, CrmIndexProps, DealCard, DealFormData, FlashProps} from './types';
 
 export default function CrmIndex({
     pipeline,
@@ -53,6 +51,12 @@ export default function CrmIndex({
     const [dealModalOpen, setDealModalOpen] = useState(false);
     const [editingDeal, setEditingDeal] = useState<DealCard | null>(null);
     const [confirm, setConfirm] = useState<DealCard | null>(null);
+    const [activeTab, setActiveTab] = useState<'pipeline' | 'kontak'>(
+        'pipeline',
+    );
+
+    const stageTotals = (stageValue: string): number =>
+        (pipeline[stageValue] ?? []).reduce((sum, d) => sum + d.value, 0);
 
     const contactForm = useForm<ContactFormData>({ ...emptyContactForm });
     const dealForm = useForm<DealFormData>({ ...emptyDealForm });
@@ -248,36 +252,98 @@ export default function CrmIndex({
                     />
                 </div>
 
-                {/* Pipeline board */}
+                {/* Tab bar */}
                 <div
                     style={{
-                        fontSize: 15,
-                        fontWeight: 600,
-                        color: C.navy,
-                        marginBottom: 12,
+                        display: 'flex',
+                        gap: 4,
+                        background: C.surface,
+                        padding: 4,
+                        borderRadius: 12,
+                        width: 'fit-content',
+                        marginBottom: 20,
                     }}
                 >
-                    Pipeline Deal
+                    {(
+                        [
+                            { id: 'pipeline', label: 'Pipeline', icon: 'kanban' },
+                            { id: 'kontak', label: 'Kontak', icon: 'contact' },
+                        ] as const
+                    ).map((t) => {
+                        const on = activeTab === t.id;
+
+                        return (
+                            <button
+                                key={t.id}
+                                onClick={() => setActiveTab(t.id)}
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 7,
+                                    padding: '8px 16px',
+                                    borderRadius: 9,
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    fontSize: 13.5,
+                                    fontWeight: 600,
+                                    background: on ? '#fff' : 'transparent',
+                                    color: on ? C.primary : C.muted,
+                                    boxShadow: on
+                                        ? '0 1px 3px rgba(14,26,58,.08)'
+                                        : 'none',
+                                    transition: '.15s',
+                                }}
+                            >
+                                <AIcon
+                                    name={t.icon}
+                                    size={15}
+                                    color={on ? C.primary : C.muted}
+                                />
+                                {t.label}
+                                {t.id === 'kontak' && (
+                                    <span
+                                        style={{
+                                            fontSize: 11,
+                                            fontWeight: 600,
+                                            color: on ? C.primary : C.faint,
+                                            background: on
+                                                ? 'rgba(47,84,201,.1)'
+                                                : C.border,
+                                            borderRadius: 100,
+                                            padding: '1px 7px',
+                                        }}
+                                    >
+                                        {contacts.length}
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
                 </div>
+
+                {/* Pipeline board */}
+                {activeTab === 'pipeline' && (
                 <div
                     style={{
                         display: 'flex',
                         gap: 14,
                         overflowX: 'auto',
                         paddingBottom: 8,
-                        marginBottom: 28,
+                        marginBottom: 8,
                     }}
                 >
                     {stages.map((stage) => {
                         const cards = pipeline[stage.value] ?? [];
+                        const [accent] = STAGE_COLORS[stage.value] ??
+                            STAGE_COLORS.lead;
 
                         return (
                             <div
                                 key={stage.value}
                                 style={{
-                                    ...card,
-                                    flex: '0 0 270px',
+                                    flex: '0 0 288px',
                                     background: C.surface,
+                                    borderRadius: 14,
                                     padding: 12,
                                     display: 'flex',
                                     flexDirection: 'column',
@@ -289,20 +355,56 @@ export default function CrmIndex({
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'space-between',
+                                        padding: '2px 4px 10px',
+                                        borderBottom: `2px solid ${accent}`,
                                     }}
                                 >
-                                    <StageBadge
-                                        stage={stage.value}
-                                        label={stage.label}
-                                    />
-                                    <span
+                                    <div
                                         style={{
-                                            fontSize: 12,
-                                            fontWeight: 600,
-                                            color: C.muted,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 8,
                                         }}
                                     >
-                                        {cards.length}
+                                        <span
+                                            style={{
+                                                width: 8,
+                                                height: 8,
+                                                borderRadius: 100,
+                                                background: accent,
+                                            }}
+                                        />
+                                        <span
+                                            style={{
+                                                fontSize: 13,
+                                                fontWeight: 700,
+                                                color: C.navy,
+                                            }}
+                                        >
+                                            {stage.label}
+                                        </span>
+                                        <span
+                                            style={{
+                                                fontSize: 11,
+                                                fontWeight: 600,
+                                                color: C.muted,
+                                                background: '#fff',
+                                                borderRadius: 100,
+                                                padding: '1px 8px',
+                                            }}
+                                        >
+                                            {cards.length}
+                                        </span>
+                                    </div>
+                                    <span
+                                        style={{
+                                            fontSize: 11.5,
+                                            fontWeight: 600,
+                                            color: C.muted,
+                                            fontVariantNumeric: 'tabular-nums',
+                                        }}
+                                    >
+                                        {rp(stageTotals(stage.value))}
                                     </span>
                                 </div>
 
@@ -325,8 +427,11 @@ export default function CrmIndex({
                                         style={{
                                             background: '#fff',
                                             border: `1px solid ${C.border}`,
+                                            borderLeft: `3px solid ${accent}`,
                                             borderRadius: 10,
-                                            padding: 12,
+                                            padding: '12px 13px',
+                                            boxShadow:
+                                                '0 1px 2px rgba(14,26,58,.04)',
                                         }}
                                     >
                                         <Link
@@ -337,54 +442,83 @@ export default function CrmIndex({
                                                 fontWeight: 600,
                                                 color: C.navy,
                                                 textDecoration: 'none',
+                                                lineHeight: 1.35,
                                             }}
                                         >
                                             {deal.title}
                                         </Link>
                                         <div
                                             style={{
-                                                fontSize: 14,
+                                                fontSize: 15,
                                                 fontWeight: 700,
-                                                color: C.primary,
-                                                marginTop: 4,
+                                                color: C.navy,
+                                                marginTop: 5,
+                                                fontVariantNumeric:
+                                                    'tabular-nums',
                                             }}
                                         >
                                             {rp(deal.value)}
                                         </div>
                                         <div
                                             style={{
-                                                fontSize: 12,
-                                                color: C.muted,
-                                                marginTop: 6,
                                                 display: 'flex',
                                                 alignItems: 'center',
-                                                gap: 5,
+                                                gap: 7,
+                                                marginTop: 9,
                                             }}
                                         >
-                                            <AIcon
-                                                name="user"
-                                                size={12}
-                                                color={C.faint}
-                                            />
-                                            {deal.contact ?? 'Tanpa kontak'}
-                                            {deal.company
-                                                ? ` · ${deal.company}`
-                                                : ''}
+                                            <span
+                                                style={{
+                                                    width: 22,
+                                                    height: 22,
+                                                    borderRadius: 100,
+                                                    background: `${accent}1a`,
+                                                    color: accent,
+                                                    fontSize: 10.5,
+                                                    fontWeight: 700,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    flex: 'none',
+                                                }}
+                                            >
+                                                {(deal.contact ?? '?')
+                                                    .charAt(0)
+                                                    .toUpperCase()}
+                                            </span>
+                                            <span
+                                                style={{
+                                                    fontSize: 12,
+                                                    color: C.muted,
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap',
+                                                }}
+                                            >
+                                                {deal.contact ?? 'Tanpa kontak'}
+                                                {deal.company
+                                                    ? ` · ${deal.company}`
+                                                    : ''}
+                                            </span>
                                         </div>
                                         {deal.owner && (
                                             <div
                                                 style={{
-                                                    fontSize: 11.5,
-                                                    color: C.faint,
-                                                    marginTop: 4,
-                                                    display: 'flex',
+                                                    display: 'inline-flex',
                                                     alignItems: 'center',
                                                     gap: 5,
+                                                    marginTop: 8,
+                                                    fontSize: 11,
+                                                    fontWeight: 600,
+                                                    color: C.muted,
+                                                    background: C.surface,
+                                                    borderRadius: 100,
+                                                    padding: '3px 9px',
                                                 }}
                                             >
                                                 <AIcon
                                                     name="briefcase"
-                                                    size={12}
+                                                    size={11}
                                                     color={C.faint}
                                                 />
                                                 {deal.owner}
@@ -515,18 +649,10 @@ export default function CrmIndex({
                         );
                     })}
                 </div>
+                )}
 
                 {/* Contacts table */}
-                <div
-                    style={{
-                        fontSize: 15,
-                        fontWeight: 600,
-                        color: C.navy,
-                        marginBottom: 12,
-                    }}
-                >
-                    Daftar Kontak
-                </div>
+                {activeTab === 'kontak' && (
                 <div style={{ ...card, overflow: 'hidden' }}>
                     <div style={{ overflowX: 'auto' }}>
                         <table
@@ -638,6 +764,7 @@ export default function CrmIndex({
                         </table>
                     </div>
                 </div>
+                )}
             </div>
 
             {/* Add contact modal */}

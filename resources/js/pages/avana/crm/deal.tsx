@@ -29,13 +29,28 @@ const sectionTitle = {
 } as const;
 
 const cardHead = {
-    padding: '16px 20px',
+    padding: '15px 20px',
     borderBottom: `1px solid ${C.line}`,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
 } as const;
+
+/** Light zone wrapping an inline "add" form so inputs read as one block. */
+const composeZone = {
+    padding: '16px 20px',
+    background: C.surface,
+    borderBottom: `1px solid ${C.line}`,
+} as const;
+
+const STAGE_LABELS: Record<string, string> = {
+    lead: 'Lead',
+    qualified: 'Terkualifikasi',
+    proposal: 'Proposal',
+    won: 'Menang',
+    lost: 'Kalah',
+};
 
 function today(): string {
     return new Date().toISOString().slice(0, 10);
@@ -168,15 +183,16 @@ export default function CrmDealDetail({
                             </h1>
                             <StageBadge
                                 stage={deal.stage}
-                                label={deal.stage}
+                                label={STAGE_LABELS[deal.stage] ?? deal.stage}
                             />
                         </div>
                         <div
                             style={{
-                                fontSize: 22,
+                                fontSize: 24,
                                 fontWeight: 700,
-                                color: C.primary,
-                                marginTop: 8,
+                                color: C.navy,
+                                marginTop: 10,
+                                fontVariantNumeric: 'tabular-nums',
                             }}
                         >
                             {rp(deal.value)}
@@ -185,28 +201,43 @@ export default function CrmDealDetail({
                             style={{
                                 fontSize: 13,
                                 color: C.muted,
-                                marginTop: 6,
+                                marginTop: 12,
                                 display: 'flex',
-                                gap: 16,
+                                gap: '8px 22px',
                                 flexWrap: 'wrap',
                             }}
                         >
-                            <span>
-                                <AIcon name="user" size={13} />{' '}
-                                {deal.contact ?? 'Tanpa kontak'}
-                                {deal.company ? ` · ${deal.company}` : ''}
-                            </span>
+                            <HeaderMeta
+                                icon="building-2"
+                                text={
+                                    deal.company
+                                        ? `${deal.contact ?? 'Tanpa kontak'} · ${deal.company}`
+                                        : (deal.contact ?? 'Tanpa kontak')
+                                }
+                            />
+                            {deal.contact_email && (
+                                <HeaderMeta
+                                    icon="mail"
+                                    text={deal.contact_email}
+                                />
+                            )}
+                            {deal.contact_phone && (
+                                <HeaderMeta
+                                    icon="phone"
+                                    text={deal.contact_phone}
+                                />
+                            )}
                             {deal.owner && (
-                                <span>
-                                    <AIcon name="briefcase" size={13} /> PIC:{' '}
-                                    {deal.owner}
-                                </span>
+                                <HeaderMeta
+                                    icon="briefcase"
+                                    text={`PIC: ${deal.owner}`}
+                                />
                             )}
                             {deal.expected_close && (
-                                <span>
-                                    <AIcon name="calendar" size={13} /> Target:{' '}
-                                    {deal.expected_close}
-                                </span>
+                                <HeaderMeta
+                                    icon="calendar"
+                                    text={`Target: ${deal.expected_close}`}
+                                />
                             )}
                         </div>
                     </div>
@@ -262,8 +293,7 @@ export default function CrmDealDetail({
                             <form
                                 onSubmit={submitActivity}
                                 style={{
-                                    padding: '14px 20px',
-                                    borderBottom: `1px solid ${C.line}`,
+                                    ...composeZone,
                                     display: 'grid',
                                     gridTemplateColumns: '1fr 1fr',
                                     gap: 10,
@@ -382,8 +412,7 @@ export default function CrmDealDetail({
                             <form
                                 onSubmit={submitTask}
                                 style={{
-                                    padding: '14px 20px',
-                                    borderBottom: `1px solid ${C.line}`,
+                                    ...composeZone,
                                     display: 'grid',
                                     gridTemplateColumns: '2fr 1fr',
                                     gap: 10,
@@ -553,8 +582,7 @@ export default function CrmDealDetail({
                             <form
                                 onSubmit={submitMember}
                                 style={{
-                                    padding: '14px 20px',
-                                    borderBottom: `1px solid ${C.line}`,
+                                    ...composeZone,
                                     display: 'flex',
                                     flexDirection: 'column',
                                     gap: 10,
@@ -625,6 +653,22 @@ export default function CrmDealDetail({
                 </div>
             </div>
         </>
+    );
+}
+
+/** A labeled icon+text chip in the deal header meta row. */
+function HeaderMeta({ icon, text }: { icon: string; text: string }) {
+    return (
+        <span
+            style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+            }}
+        >
+            <AIcon name={icon} size={13} color={C.faint} />
+            {text}
+        </span>
     );
 }
 
