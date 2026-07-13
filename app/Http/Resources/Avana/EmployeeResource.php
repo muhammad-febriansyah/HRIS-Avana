@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Avana;
 
+use App\Models\AssetAssignment;
 use App\Models\Employee;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -32,6 +33,17 @@ final class EmployeeResource extends JsonResource
     private const STATUS_LABELS = [
         'active' => 'Aktif',
         'inactive' => 'Nonaktif',
+    ];
+
+    /**
+     * Indonesian labels for the asset condition enum.
+     *
+     * @var array<string, string>
+     */
+    private const ASSET_CONDITION_LABELS = [
+        'good' => 'Baik',
+        'fair' => 'Cukup',
+        'damaged' => 'Rusak',
     ];
 
     /**
@@ -92,6 +104,20 @@ final class EmployeeResource extends JsonResource
                 'name' => $this->manager->full_name,
                 'employee_number' => $this->manager->employee_number,
             ]),
+            'held_assets' => $this->whenLoaded('assetAssignments', fn () => $this->assetAssignments
+                ->map(fn (AssetAssignment $assignment): array => [
+                    'id' => $assignment->id,
+                    'assigned_date' => $assignment->assigned_date?->format('d M Y'),
+                    'notes' => $assignment->condition_note,
+                    'asset' => $assignment->asset === null ? null : [
+                        'id' => $assignment->asset->id,
+                        'code' => $assignment->asset->code,
+                        'name' => $assignment->asset->name,
+                        'category' => $assignment->asset->category,
+                        'condition_label' => self::ASSET_CONDITION_LABELS[$assignment->asset->condition] ?? $assignment->asset->condition,
+                    ],
+                ])
+                ->values()),
         ];
     }
 

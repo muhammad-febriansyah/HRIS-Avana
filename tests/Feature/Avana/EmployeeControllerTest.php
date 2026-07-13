@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Asset;
+use App\Models\AssetAssignment;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Models\Employee;
@@ -215,6 +217,41 @@ it('returns 404 when accessing an employee from another tenant', function (): vo
     actingAs($this->admin)
         ->get(route('avana.employees.show', $foreign))
         ->assertNotFound();
+});
+
+it('exposes only the actively-held assets on the employee detail page', function (): void {
+    $employee = Employee::where('tenant_id', $this->tenant->id)->firstOrFail();
+
+    $held = Asset::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'AST-HELD',
+        'name' => 'Laptop Uji',
+        'condition' => 'good',
+        'status' => 'assigned',
+    ]);
+    AssetAssignment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'asset_id' => $held->id,
+        'employee_id' => $employee->id,
+        'returned_date' => null,
+    ]);
+
+    // A returned assignment must not surface as a currently-held asset.
+    $returned = Asset::factory()->create(['tenant_id' => $this->tenant->id]);
+    AssetAssignment::factory()->returned()->create([
+        'tenant_id' => $this->tenant->id,
+        'asset_id' => $returned->id,
+        'employee_id' => $employee->id,
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.employees.show', $employee))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/employees/show', false)
+            ->has('employee.data.held_assets', 1)
+            ->where('employee.data.held_assets.0.asset.code', 'AST-HELD')
+            ->where('employee.data.held_assets.0.asset.condition_label', 'Baik'));
 });
 
 it('forbids users without employee permissions from listing employees', function (): void {

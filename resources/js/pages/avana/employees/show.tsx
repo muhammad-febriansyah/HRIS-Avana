@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import EmployeeController from '@/actions/App/Http/Controllers/Avana/EmployeeController';
 import { AIcon, btnOut, btnP, C, card, statusBadge } from '@/lib/avana';
-import type { Employee, FlashProps } from './types';
+import type { Employee, FlashProps, HeldAsset } from './types';
 
 interface EmployeesShowProps {
     employee: {
@@ -18,6 +18,7 @@ const empTabs = [
     { id: 'dokumen', label: 'Dokumen', icon: 'folder' },
     { id: 'cuti', label: 'Cuti', icon: 'palmtree' },
     { id: 'payrolltab', label: 'Payroll', icon: 'wallet' },
+    { id: 'aset', label: 'Aset', icon: 'package' },
 ] as const;
 
 const GENDER_LABELS: Record<string, string> = {
@@ -961,7 +962,119 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                         </table>
                     </div>
                 )}
+
+                {/* Aset — aset perusahaan yang sedang dipegang karyawan. */}
+                {activeTab === 'aset' && <AssetTab assets={emp.held_assets ?? []} />}
             </div>
         </>
+    );
+}
+
+/** Real active asset assignments held by the employee. */
+function AssetTab({ assets }: { assets: HeldAsset[] }) {
+    if (assets.length === 0) {
+        return (
+            <div
+                style={{
+                    ...card,
+                    padding: '40px 22px',
+                    textAlign: 'center',
+                    color: C.faint,
+                    fontSize: 13.5,
+                }}
+            >
+                <AIcon name="package" size={26} color={C.faint} />
+                <div style={{ marginTop: 10 }}>
+                    Belum ada aset yang dipegang karyawan ini.
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div style={{ ...card, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                    <tr style={{ background: '#FAFBFD' }}>
+                        <th style={thCell}>Kode</th>
+                        <th style={{ ...thCell, padding: '12px 16px' }}>Aset</th>
+                        <th style={{ ...thCell, padding: '12px 16px' }}>
+                            Kategori
+                        </th>
+                        <th style={{ ...thCell, padding: '12px 16px' }}>
+                            Kondisi
+                        </th>
+                        <th style={thCell}>Tgl Ditugaskan</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {assets.map((held) => (
+                        <tr
+                            key={held.id}
+                            style={{ borderTop: `1px solid ${C.line}` }}
+                        >
+                            <td
+                                style={{
+                                    padding: '13px 18px',
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    color: C.text,
+                                }}
+                            >
+                                {held.asset ? (
+                                    <Link
+                                        href={`/avana/aset/${held.asset.id}`}
+                                        style={{
+                                            color: C.primary,
+                                            textDecoration: 'none',
+                                        }}
+                                    >
+                                        {held.asset.code}
+                                    </Link>
+                                ) : (
+                                    '—'
+                                )}
+                            </td>
+                            <td
+                                style={{
+                                    padding: '13px 16px',
+                                    fontSize: 13,
+                                    color: C.text,
+                                }}
+                            >
+                                {dash(held.asset?.name)}
+                            </td>
+                            <td
+                                style={{
+                                    padding: '13px 16px',
+                                    fontSize: 13,
+                                    color: C.muted,
+                                }}
+                            >
+                                {dash(held.asset?.category)}
+                            </td>
+                            <td
+                                style={{
+                                    padding: '13px 16px',
+                                    fontSize: 13,
+                                    color: C.muted,
+                                }}
+                            >
+                                {dash(held.asset?.condition_label)}
+                            </td>
+                            <td
+                                style={{
+                                    padding: '13px 18px',
+                                    fontSize: 13,
+                                    color: C.muted,
+                                }}
+                            >
+                                {dash(held.assigned_date)}
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
     );
 }

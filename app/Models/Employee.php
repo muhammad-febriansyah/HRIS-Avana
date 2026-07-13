@@ -119,6 +119,11 @@ final class Employee extends Model
         return $this->hasMany(EmployeeCareerHistory::class);
     }
 
+    public function assetAssignments(): HasMany
+    {
+        return $this->hasMany(AssetAssignment::class);
+    }
+
     public function taxProfile(): HasOne
     {
         return $this->hasOne(TaxProfile::class);

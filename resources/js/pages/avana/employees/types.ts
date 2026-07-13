@@ -17,6 +17,20 @@ export type ManagerRef = {
     employee_number: string;
 };
 
+/** An active asset assignment held by the employee (mirrors `held_assets`). */
+export type HeldAsset = {
+    id: number;
+    assigned_date: string | null;
+    notes: string | null;
+    asset: {
+        id: number;
+        code: string;
+        name: string;
+        category: string;
+        condition_label: string;
+    } | null;
+};
+
 /** A single employee record as serialized by `EmployeeResource`. */
 export type Employee = {
     id: number;
@@ -53,6 +67,7 @@ export type Employee = {
     } | null;
     manager?: ManagerRef | null;
     custom_data?: Record<string, string>;
+    held_assets?: HeldAsset[];
 };
 
 /** Laravel paginator `meta` block carried by a resource collection. */

@@ -440,6 +440,10 @@ class EmployeeController extends Controller
             'jobLevel:id,name',
             'workLocation:id,name,radius_meter,status',
             'manager:id,full_name,employee_number',
+            'assetAssignments' => fn ($query) => $query
+                ->whereNull('returned_date')
+                ->with('asset:id,code,name,category,condition')
+                ->latest('assigned_date'),
         ]);
 
         return Inertia::render('avana/employees/show', [
