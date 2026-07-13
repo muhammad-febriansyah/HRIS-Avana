@@ -32,3 +32,10 @@ yarn-error.log
 /.playwright-mcp
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# AI tooling scaffolding (not part of the app)
+/.claude
+/.agents
+/CLAUDE.md
+/AGENTS.md
+/docs
