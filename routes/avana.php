@@ -485,6 +485,16 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::put('crm/deal/{deal}', [CrmController::class, 'updateDeal'])->name('crm.deal.update');
     Route::post('crm/deal/{deal}/stage', [CrmController::class, 'moveStage'])->name('crm.deal.stage');
     Route::delete('crm/deal/{deal}', [CrmController::class, 'destroyDeal'])->name('crm.deal.destroy');
+    Route::get('crm/insights', [CrmController::class, 'insights'])->name('crm.insights');
+    Route::get('crm/deal/{deal}', [CrmController::class, 'show'])->name('crm.deal.show');
+    Route::post('crm/deal/{deal}/activity', [CrmController::class, 'storeActivity'])->name('crm.deal.activity.store');
+    Route::delete('crm/activity/{activity}', [CrmController::class, 'destroyActivity'])->name('crm.activity.destroy');
+    Route::post('crm/deal/{deal}/task', [CrmController::class, 'storeTask'])->name('crm.deal.task.store');
+    Route::post('crm/task/{task}/toggle', [CrmController::class, 'toggleTask'])->name('crm.task.toggle');
+    Route::delete('crm/task/{task}', [CrmController::class, 'destroyTask'])->name('crm.task.destroy');
+    Route::post('crm/deal/{deal}/member', [CrmController::class, 'storeMember'])->name('crm.deal.member.store');
+    Route::delete('crm/member/{member}', [CrmController::class, 'destroyMember'])->name('crm.member.destroy');
+    Route::post('crm/deal/{deal}/project', [CrmController::class, 'linkProject'])->name('crm.deal.project');
 
     // Talenta & Suksesi (9-box + succession)
     Route::get('talenta', [TalentController::class, 'index'])->name('talenta');

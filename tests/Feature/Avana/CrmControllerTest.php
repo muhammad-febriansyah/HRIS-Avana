@@ -1,8 +1,12 @@
 <?php
 
+use App\Models\CrmActivity;
 use App\Models\CrmContact;
 use App\Models\CrmDeal;
+use App\Models\CrmDealMember;
+use App\Models\CrmTask;
 use App\Models\Employee;
+use App\Models\Project;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -64,7 +68,9 @@ it('renders the CRM index with the expected props', function (): void {
                 ->has('owner_id')
                 ->has('owner')
                 ->has('expected_close')
-                ->has('notes'))
+                ->has('notes')
+                ->has('activities_count')
+                ->has('open_tasks_count'))
             ->has('contacts.0', fn (Assert $row) => $row
                 ->has('id')
                 ->has('name')
@@ -246,4 +252,153 @@ it('forbids a plain employee from accessing the CRM', function (): void {
             'stage' => 'lead',
         ])
         ->assertForbidden();
+});
+
+it('renders the deal detail page with follow-up, tasks, and members', function (): void {
+    $deal = makeCrmDeal($this->tenant->id, ['stage' => 'proposal']);
+    $employee = Employee::where('tenant_id', $this->tenant->id)->firstOrFail();
+
+    CrmActivity::create([
+        'tenant_id' => $this->tenant->id,
+        'deal_id' => $deal->id,
+        'type' => 'call',
+        'note' => 'Telepon awal',
+        'activity_date' => now()->toDateString(),
+    ]);
+    CrmTask::create([
+        'tenant_id' => $this->tenant->id,
+        'deal_id' => $deal->id,
+        'title' => 'Kirim proposal',
+        'status' => 'pending',
+    ]);
+    CrmDealMember::create([
+        'tenant_id' => $this->tenant->id,
+        'deal_id' => $deal->id,
+        'employee_id' => $employee->id,
+        'role' => 'Teknis',
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.crm.deal.show', $deal))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/crm/deal', false)
+            ->has('activities', 1)
+            ->has('tasks', 1)
+            ->has('members', 1)
+            ->has('employeeOptions')
+            ->has('projectOptions')
+            ->where('activities.0.type', 'call'));
+});
+
+it('records a follow-up activity against a deal', function (): void {
+    $deal = makeCrmDeal($this->tenant->id);
+
+    actingAs($this->admin)
+        ->post(route('avana.crm.deal.activity.store', $deal), [
+            'type' => 'meeting',
+            'note' => 'Ketemu di kantor',
+            'activity_date' => now()->toDateString(),
+            'outcome' => 'Tertarik',
+        ])
+        ->assertRedirect();
+
+    expect(CrmActivity::where('deal_id', $deal->id)->where('type', 'meeting')->exists())->toBeTrue();
+});
+
+it('validates the follow-up activity type', function (): void {
+    $deal = makeCrmDeal($this->tenant->id);
+
+    actingAs($this->admin)
+        ->post(route('avana.crm.deal.activity.store', $deal), [
+            'type' => 'bogus',
+            'note' => 'x',
+            'activity_date' => now()->toDateString(),
+        ])
+        ->assertSessionHasErrors('type');
+});
+
+it('creates and toggles a sales task', function (): void {
+    $deal = makeCrmDeal($this->tenant->id);
+
+    actingAs($this->admin)
+        ->post(route('avana.crm.deal.task.store', $deal), ['title' => 'Follow up harga'])
+        ->assertRedirect();
+
+    $task = CrmTask::where('deal_id', $deal->id)->firstOrFail();
+    expect($task->status)->toBe('pending');
+
+    actingAs($this->admin)
+        ->post(route('avana.crm.task.toggle', $task))
+        ->assertRedirect();
+
+    $task->refresh();
+    expect($task->status)->toBe('done')
+        ->and($task->completed_at)->not->toBeNull();
+});
+
+it('adds a collaborating member without duplicating', function (): void {
+    $deal = makeCrmDeal($this->tenant->id);
+    $employee = Employee::where('tenant_id', $this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.crm.deal.member.store', $deal), [
+            'employee_id' => $employee->id,
+            'role' => 'Pre-sales',
+        ])
+        ->assertRedirect();
+
+    actingAs($this->admin)
+        ->post(route('avana.crm.deal.member.store', $deal), [
+            'employee_id' => $employee->id,
+        ])
+        ->assertRedirect();
+
+    expect(CrmDealMember::where('deal_id', $deal->id)->count())->toBe(1);
+});
+
+it('links a deal to a delivery project', function (): void {
+    $deal = makeCrmDeal($this->tenant->id);
+    $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'Proyek Onboarding']);
+
+    actingAs($this->admin)
+        ->post(route('avana.crm.deal.project', $deal), ['project_id' => $project->id])
+        ->assertRedirect();
+
+    expect($deal->fresh()->project_id)->toBe($project->id);
+});
+
+it('rejects a cross-tenant project link', function (): void {
+    $deal = makeCrmDeal($this->tenant->id);
+    $otherTenant = Tenant::create(['name' => 'PT Asing CRM', 'slug' => 'pt-asing-crm']);
+    $foreignProject = Project::create(['tenant_id' => $otherTenant->id, 'name' => 'Proyek Asing']);
+
+    actingAs($this->admin)
+        ->post(route('avana.crm.deal.project', $deal), ['project_id' => $foreignProject->id])
+        ->assertSessionHasErrors('project_id');
+});
+
+it('returns 404 viewing a deal from another tenant', function (): void {
+    $otherTenant = Tenant::create(['name' => 'PT Lain CRM', 'slug' => 'pt-lain-crm']);
+    $foreign = makeCrmDeal($otherTenant->id);
+
+    actingAs($this->admin)
+        ->get(route('avana.crm.deal.show', $foreign))
+        ->assertNotFound();
+});
+
+it('renders the CRM insights dashboard', function (): void {
+    makeCrmDeal($this->tenant->id, ['stage' => 'won', 'value' => 10000000]);
+    makeCrmDeal($this->tenant->id, ['stage' => 'lost', 'value' => 4000000]);
+    makeCrmDeal($this->tenant->id, ['stage' => 'proposal', 'value' => 8000000]);
+
+    actingAs($this->admin)
+        ->get(route('avana.crm.insights'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/crm/insights', false)
+            ->has('funnel', 5)
+            ->has('byOwner')
+            ->where('kpis.total_deals', 3)
+            ->where('kpis.win_rate', fn ($value): bool => (float) $value === 50.0));
 });

@@ -1,4 +1,4 @@
-import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -201,6 +201,13 @@ export default function CrmIndex({
                         </div>
                     </div>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        <Link
+                            href={CrmController.insights().url}
+                            style={{ ...btnOut, textDecoration: 'none' }}
+                        >
+                            <AIcon name="chart-pie" size={16} color={C.text} />
+                            Insights
+                        </Link>
                         <button onClick={openContact} style={btnOut}>
                             <AIcon name="user-plus" size={16} color={C.text} />
                             Tambah Kontak
@@ -322,15 +329,18 @@ export default function CrmIndex({
                                             padding: 12,
                                         }}
                                     >
-                                        <div
+                                        <Link
+                                            href={CrmController.show(deal.id).url}
                                             style={{
+                                                display: 'block',
                                                 fontSize: 13.5,
                                                 fontWeight: 600,
                                                 color: C.navy,
+                                                textDecoration: 'none',
                                             }}
                                         >
                                             {deal.title}
-                                        </div>
+                                        </Link>
                                         <div
                                             style={{
                                                 fontSize: 14,
@@ -380,6 +390,54 @@ export default function CrmIndex({
                                                 {deal.owner}
                                             </div>
                                         )}
+                                        {((deal.activities_count ?? 0) > 0 ||
+                                            (deal.open_tasks_count ?? 0) > 0) && (
+                                            <div
+                                                style={{
+                                                    display: 'flex',
+                                                    gap: 10,
+                                                    marginTop: 8,
+                                                    fontSize: 11.5,
+                                                    color: C.faint,
+                                                }}
+                                            >
+                                                {(deal.activities_count ?? 0) >
+                                                    0 && (
+                                                    <span
+                                                        style={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: 4,
+                                                        }}
+                                                    >
+                                                        <AIcon
+                                                            name="activity"
+                                                            size={12}
+                                                            color={C.faint}
+                                                        />
+                                                        {deal.activities_count}
+                                                    </span>
+                                                )}
+                                                {(deal.open_tasks_count ?? 0) >
+                                                    0 && (
+                                                    <span
+                                                        style={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: 4,
+                                                            color: C.amber,
+                                                        }}
+                                                    >
+                                                        <AIcon
+                                                            name="list-checks"
+                                                            size={12}
+                                                            color={C.amber}
+                                                        />
+                                                        {deal.open_tasks_count}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
                                         <div
                                             style={{
                                                 display: 'flex',
@@ -408,6 +466,18 @@ export default function CrmIndex({
                                                     gap: 6,
                                                 }}
                                             >
+                                                <ActionBtn
+                                                    icon="eye"
+                                                    label="Detail"
+                                                    variant="primary"
+                                                    onClick={() =>
+                                                        router.visit(
+                                                            CrmController.show(
+                                                                deal.id,
+                                                            ).url,
+                                                        )
+                                                    }
+                                                />
                                                 <ActionBtn
                                                     icon="pencil"
                                                     label="Ubah"

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class CrmDeal extends Model
 {
@@ -39,5 +40,25 @@ final class CrmDeal extends Model
     public function owner(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'owner_id');
+    }
+
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class, 'project_id');
+    }
+
+    public function activities(): HasMany
+    {
+        return $this->hasMany(CrmActivity::class, 'deal_id');
+    }
+
+    public function tasks(): HasMany
+    {
+        return $this->hasMany(CrmTask::class, 'deal_id');
+    }
+
+    public function members(): HasMany
+    {
+        return $this->hasMany(CrmDealMember::class, 'deal_id');
     }
 }
