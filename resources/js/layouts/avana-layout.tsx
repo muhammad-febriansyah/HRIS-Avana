@@ -138,13 +138,9 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
 
     // Support contact: DB-driven (website settings) with sensible fallbacks.
     const contact = page.props.website?.contact;
-    const helpEmail = contact?.email || 'support@avanahr.co.id';
     const helpPhone = contact?.phone || '(021) 5099-9000';
-    const helpWhatsapp = contact?.whatsapp || null;
-    const telHref = `tel:${helpPhone.replace(/[^\d+]/g, '')}`;
-    const waHref = helpWhatsapp
-        ? `https://wa.me/${helpWhatsapp.replace(/[^\d]/g, '')}`
-        : null;
+    const helpWhatsapp = contact?.whatsapp || helpPhone;
+    const waHref = `https://wa.me/${helpWhatsapp.replace(/[^\d]/g, '')}`;
 
     const switchTenant = (id: string) =>
         router.post(
@@ -424,8 +420,10 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                 >
                     {collapsed ? (
                         <a
-                            href={`mailto:${helpEmail}`}
-                            title="Hubungi support"
+                            href={waHref}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Hubungi support via WhatsApp"
                             style={{
                                 width: '100%',
                                 height: 40,
@@ -494,26 +492,12 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                                 }}
                             >
                                 <HelpRow
-                                    href={`mailto:${helpEmail}`}
-                                    icon="mail"
-                                    label="Email"
-                                    value={helpEmail}
+                                    href={waHref}
+                                    icon="message-circle"
+                                    label="WhatsApp"
+                                    value={helpWhatsapp}
+                                    external
                                 />
-                                <HelpRow
-                                    href={telHref}
-                                    icon="phone"
-                                    label="Telepon"
-                                    value={helpPhone}
-                                />
-                                {waHref && (
-                                    <HelpRow
-                                        href={waHref}
-                                        icon="message-circle"
-                                        label="WhatsApp"
-                                        value={helpWhatsapp!}
-                                        external
-                                    />
-                                )}
                             </div>
                         </div>
                     )}
