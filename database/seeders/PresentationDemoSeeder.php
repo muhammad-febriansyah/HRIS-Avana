@@ -197,7 +197,9 @@ class PresentationDemoSeeder extends Seeder
             );
 
             $leadNo = self::DEPT_LEAD[$dept->name] ?? 1;
-            $manager = $employees[sprintf('EMP-%04d', $leadNo)] ?? null;
+            $manager = $employees[sprintf('EMP-%04d', $leadNo)]
+                ?? $employees['EMP-0001']
+                ?? null;
 
             $joinYear = 2019 + ($i % 7);
             $joinMonth = 1 + ($i % 12);
@@ -226,7 +228,36 @@ class PresentationDemoSeeder extends Seeder
             $employees[$number] = $employee;
         }
 
+        $this->normalizeManagerLines($tenant);
+
         return array_values($employees);
+    }
+
+    /**
+     * Repoint any reporting line whose manager_id no longer resolves to an
+     * existing employee onto the top of the org (the manager-less lead). A dirty
+     * dump or re-seed can leave dangling manager_id values, which would drop
+     * those employees out of every manager's team — and their requests out of
+     * Manager Self-Service. This keeps the org chart connected and idempotent.
+     */
+    private function normalizeManagerLines(Tenant $tenant): void
+    {
+        $existingIds = Employee::forTenant($tenant->id)->pluck('id');
+
+        $top = Employee::forTenant($tenant->id)
+            ->whereNull('manager_id')
+            ->orderBy('id')
+            ->first();
+
+        if ($top === null) {
+            return;
+        }
+
+        Employee::forTenant($tenant->id)
+            ->whereNotNull('manager_id')
+            ->whereNotIn('manager_id', $existingIds)
+            ->where('id', '!=', $top->id)
+            ->update(['manager_id' => $top->id]);
     }
 
     /**
