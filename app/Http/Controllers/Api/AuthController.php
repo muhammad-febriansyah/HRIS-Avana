@@ -56,6 +56,14 @@ class AuthController extends Controller
             ]);
         }
 
+        if ($user->tenant === null || $user->tenant->company()->doesntExist()) {
+            auth('api')->logout();
+
+            throw ValidationException::withMessages([
+                'email' => ['Akun belum terhubung ke perusahaan.'],
+            ]);
+        }
+
         if (($deviceRejection = $this->bindDevice($user, $data)) !== null) {
             auth('api')->logout();
 
