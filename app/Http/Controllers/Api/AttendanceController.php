@@ -501,6 +501,8 @@ class AttendanceController extends Controller
             'date' => now()->toDateString(),
             'clock_in' => $a?->clock_in_at?->format('H:i'),
             'clock_out' => $a?->clock_out_at?->format('H:i'),
+            // Full ISO timestamp so the app can tick worked-hours to the second.
+            'clock_in_at' => $a?->clock_in_at?->toIso8601String(),
             'next_action' => $nextAction,
             'summary' => [
                 'status' => $a?->status,
