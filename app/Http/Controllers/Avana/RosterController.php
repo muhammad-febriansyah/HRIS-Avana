@@ -137,6 +137,145 @@ class RosterController extends Controller
     }
 
     /**
+     * Bulk-assign one shift to many employees across many dates in a single
+     * request — the "isi cepat" workflow for large headcounts. When
+     * `employee_ids` is omitted it targets every active employee in the tenant.
+     */
+    public function bulkStore(Request $request): RedirectResponse
+    {
+        $this->authorize('viewAny', Attendance::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $validated = $request->validate([
+            'shift_id' => ['required', Rule::exists('shifts', 'id')->where('tenant_id', $tenantId)],
+            'dates' => ['required', 'array', 'min:1', 'max:31'],
+            'dates.*' => ['required', 'date'],
+            'employee_ids' => ['nullable', 'array'],
+            'employee_ids.*' => [Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
+        ]);
+
+        $employeeIds = $validated['employee_ids'] ?? Employee::forTenant($tenantId)
+            ->where('status', 'active')
+            ->pluck('id')
+            ->all();
+
+        if ($employeeIds === []) {
+            return back()->with('error', 'Tidak ada karyawan untuk dijadwalkan.');
+        }
+
+        $dates = collect($validated['dates'])
+            ->map(fn (string $date): string => Carbon::parse($date)->format('Y-m-d'))
+            ->unique()
+            ->values();
+
+        $existing = ShiftSchedule::forTenant($tenantId)
+            ->whereIn('employee_id', $employeeIds)
+            ->whereDate('date', '>=', $dates->min())
+            ->whereDate('date', '<=', $dates->max())
+            ->get(['id', 'employee_id', 'date']);
+
+        $existingIds = [];
+        foreach ($existing as $schedule) {
+            $existingIds[$schedule->employee_id.'|'.$schedule->date->format('Y-m-d')] = $schedule->id;
+        }
+
+        $now = now();
+        $insert = [];
+        $updateIds = [];
+
+        foreach ($employeeIds as $employeeId) {
+            foreach ($dates as $date) {
+                $key = $employeeId.'|'.$date;
+
+                if (isset($existingIds[$key])) {
+                    $updateIds[] = $existingIds[$key];
+                } else {
+                    $insert[] = [
+                        'tenant_id' => $tenantId,
+                        'employee_id' => $employeeId,
+                        'shift_id' => $validated['shift_id'],
+                        'date' => $date,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
+            }
+        }
+
+        if ($insert !== []) {
+            ShiftSchedule::insert($insert);
+        }
+
+        if ($updateIds !== []) {
+            ShiftSchedule::whereIn('id', $updateIds)->update(['shift_id' => $validated['shift_id']]);
+        }
+
+        $total = count($employeeIds) * $dates->count();
+
+        return back()->with('success', "Shift diterapkan ke {$total} jadwal.");
+    }
+
+    /**
+     * Copy the previous week's roster onto the currently viewed week, so a
+     * recurring schedule can be rolled forward with one click.
+     */
+    public function copyPreviousWeek(Request $request): RedirectResponse
+    {
+        $this->authorize('viewAny', Attendance::class);
+
+        $tenantId = $request->user()->tenant_id;
+        $weekStart = $this->resolveWeekStart($request->input('week_start'));
+        $prevStart = $weekStart->copy()->subDays(7);
+
+        $previous = ShiftSchedule::forTenant($tenantId)
+            ->whereDate('date', '>=', $prevStart->format('Y-m-d'))
+            ->whereDate('date', '<=', $prevStart->copy()->addDays(6)->format('Y-m-d'))
+            ->get(['employee_id', 'shift_id', 'date']);
+
+        if ($previous->isEmpty()) {
+            return back()->with('error', 'Minggu lalu belum ada jadwal untuk disalin.');
+        }
+
+        $existing = ShiftSchedule::forTenant($tenantId)
+            ->whereDate('date', '>=', $weekStart->format('Y-m-d'))
+            ->whereDate('date', '<=', $weekStart->copy()->addDays(6)->format('Y-m-d'))
+            ->get(['id', 'employee_id', 'date']);
+
+        $existingIds = [];
+        foreach ($existing as $schedule) {
+            $existingIds[$schedule->employee_id.'|'.$schedule->date->format('Y-m-d')] = $schedule->id;
+        }
+
+        $now = now();
+        $insert = [];
+
+        foreach ($previous as $schedule) {
+            $target = Carbon::parse($schedule->date)->addDays(7)->format('Y-m-d');
+            $key = $schedule->employee_id.'|'.$target;
+
+            if (isset($existingIds[$key])) {
+                ShiftSchedule::whereKey($existingIds[$key])->update(['shift_id' => $schedule->shift_id]);
+            } else {
+                $insert[] = [
+                    'tenant_id' => $tenantId,
+                    'employee_id' => $schedule->employee_id,
+                    'shift_id' => $schedule->shift_id,
+                    'date' => $target,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+        }
+
+        if ($insert !== []) {
+            ShiftSchedule::insert($insert);
+        }
+
+        return back()->with('success', 'Jadwal minggu lalu disalin ke minggu ini.');
+    }
+
+    /**
      * Remove a shift assignment from the roster.
      */
     public function destroy(Request $request, ShiftSchedule $schedule): RedirectResponse

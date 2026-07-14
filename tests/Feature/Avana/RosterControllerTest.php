@@ -239,3 +239,77 @@ it('forbids users without attendance permissions from viewing the roster', funct
         ->get(route('avana.roster'))
         ->assertForbidden();
 });
+
+it('bulk-assigns a shift to all active employees across the given dates', function (): void {
+    $activeCount = Employee::forTenant($this->tenant->id)->where('status', 'active')->count();
+    $dates = ['2026-06-29', '2026-06-30'];
+
+    actingAs($this->admin)
+        ->post(route('avana.roster.bulk'), [
+            'shift_id' => $this->shift->id,
+            'dates' => $dates,
+        ])
+        ->assertRedirect();
+
+    expect(ShiftSchedule::forTenant($this->tenant->id)->whereIn('date', $dates)->count())
+        ->toBe($activeCount * count($dates));
+});
+
+it('bulk-assign updates existing rows instead of duplicating', function (): void {
+    ShiftSchedule::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'shift_id' => $this->shift->id,
+        'date' => '2026-06-29',
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.roster.bulk'), [
+            'shift_id' => $this->shift->id,
+            'dates' => ['2026-06-29'],
+            'employee_ids' => [$this->employee->id],
+        ])
+        ->assertRedirect();
+
+    expect(ShiftSchedule::forTenant($this->tenant->id)
+        ->where('employee_id', $this->employee->id)
+        ->whereDate('date', '2026-06-29')
+        ->count())->toBe(1);
+});
+
+it('rejects a bulk-assign shift from another tenant', function (): void {
+    $other = Tenant::create(['name' => 'PT Asing', 'slug' => 'pt-asing-roster']);
+    $foreignShift = Shift::create([
+        'tenant_id' => $other->id,
+        'name' => 'Malam',
+        'start_time' => '22:00',
+        'end_time' => '06:00',
+        'late_tolerance_minutes' => 10,
+        'status' => 'active',
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.roster.bulk'), [
+            'shift_id' => $foreignShift->id,
+            'dates' => ['2026-06-29'],
+        ])
+        ->assertSessionHasErrors('shift_id');
+});
+
+it('copies the previous week roster onto the current week', function (): void {
+    ShiftSchedule::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'shift_id' => $this->shift->id,
+        'date' => '2026-06-22',
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.roster.copy-week'), ['week_start' => WEEK_START])
+        ->assertRedirect();
+
+    expect(ShiftSchedule::forTenant($this->tenant->id)
+        ->where('employee_id', $this->employee->id)
+        ->whereDate('date', '2026-06-29')
+        ->exists())->toBeTrue();
+});

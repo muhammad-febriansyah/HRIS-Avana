@@ -259,6 +259,8 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     // Roster shift
     Route::get('roster', [RosterController::class, 'index'])->name('roster');
     Route::post('roster', [RosterController::class, 'store'])->name('roster.store');
+    Route::post('roster/bulk', [RosterController::class, 'bulkStore'])->name('roster.bulk');
+    Route::post('roster/copy-week', [RosterController::class, 'copyPreviousWeek'])->name('roster.copy-week');
     Route::delete('roster/{schedule}', [RosterController::class, 'destroy'])->name('roster.destroy');
 
     // Mutasi / pergerakan karir karyawan

@@ -1,5 +1,5 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { type CSSProperties, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import RosterController from '@/actions/App/Http/Controllers/Avana/RosterController';
 import { AIcon, C } from '@/lib/avana';
@@ -12,6 +12,16 @@ import type {
     RosterSchedule,
     RosterShift,
 } from './types';
+
+const selectStyle: CSSProperties = {
+    padding: '8px 12px',
+    borderRadius: 9,
+    border: `1px solid ${C.border}`,
+    background: '#fff',
+    fontSize: 12.5,
+    color: C.navy,
+    cursor: 'pointer',
+};
 
 export default function AvanaRoster({
     employees,
@@ -84,6 +94,47 @@ export default function AvanaRoster({
         });
     };
 
+    const [bulkShift, setBulkShift] = useState<number | ''>(
+        shifts[0]?.id ?? '',
+    );
+    const [preset, setPreset] = useState<'weekdays' | 'sixdays' | 'all'>(
+        'weekdays',
+    );
+
+    const datesForPreset = (): string[] => {
+        const allow =
+            preset === 'weekdays'
+                ? ['Sen', 'Sel', 'Rab', 'Kam', 'Jum']
+                : preset === 'sixdays'
+                  ? ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
+                  : ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+
+        return week.filter((d) => allow.includes(d.dow)).map((d) => d.date);
+    };
+
+    const applyBulk = () => {
+        if (bulkShift === '') {
+            return;
+        }
+        const dates = datesForPreset();
+        if (dates.length === 0) {
+            return;
+        }
+        router.post(
+            RosterController.bulkStore().url,
+            { shift_id: bulkShift, dates },
+            { preserveScroll: true, preserveState: false },
+        );
+    };
+
+    const copyWeek = () => {
+        router.post(
+            RosterController.copyPreviousWeek().url,
+            { week_start },
+            { preserveScroll: true, preserveState: false },
+        );
+    };
+
     const weekYear = week_start.slice(0, 4);
     const rangeLabel =
         week.length > 0
@@ -147,6 +198,118 @@ export default function AvanaRoster({
                         shifts={shifts}
                         colorForShift={colorForShift}
                     />
+                </div>
+
+                {/* Quick-fill toolbar — assign one shift to every employee for
+                    the visible week in a single click (built for large teams). */}
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: 10,
+                        padding: '12px 14px',
+                        marginBottom: 16,
+                        borderRadius: 12,
+                        background: 'rgba(47,84,201,.05)',
+                        border: `1px solid ${C.border}`,
+                    }}
+                >
+                    <span
+                        style={{
+                            fontSize: 12.5,
+                            fontWeight: 600,
+                            color: C.navy,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                        }}
+                    >
+                        <AIcon name="zap" size={14} color={C.primary} />
+                        Isi cepat
+                    </span>
+
+                    <select
+                        value={bulkShift}
+                        onChange={(e) =>
+                            setBulkShift(
+                                e.target.value === ''
+                                    ? ''
+                                    : Number(e.target.value),
+                            )
+                        }
+                        style={selectStyle}
+                    >
+                        {shifts.length === 0 && (
+                            <option value="">Belum ada shift</option>
+                        )}
+                        {shifts.map((s) => (
+                            <option key={s.id} value={s.id}>
+                                {s.name} ({s.start_time}–{s.end_time})
+                            </option>
+                        ))}
+                    </select>
+
+                    <select
+                        value={preset}
+                        onChange={(e) =>
+                            setPreset(
+                                e.target.value as
+                                    | 'weekdays'
+                                    | 'sixdays'
+                                    | 'all',
+                            )
+                        }
+                        style={selectStyle}
+                    >
+                        <option value="weekdays">Senin–Jumat</option>
+                        <option value="sixdays">Senin–Sabtu</option>
+                        <option value="all">Setiap hari</option>
+                    </select>
+
+                    <button
+                        onClick={applyBulk}
+                        disabled={bulkShift === ''}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '8px 14px',
+                            borderRadius: 9,
+                            border: 'none',
+                            background:
+                                bulkShift === '' ? C.faint : C.primary,
+                            color: '#fff',
+                            fontSize: 12.5,
+                            fontWeight: 600,
+                            cursor: bulkShift === '' ? 'default' : 'pointer',
+                        }}
+                    >
+                        <AIcon name="users" size={14} color="#fff" />
+                        Terapkan ke semua karyawan
+                    </button>
+
+                    <div style={{ flex: 1 }} />
+
+                    <button
+                        onClick={copyWeek}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '8px 14px',
+                            borderRadius: 9,
+                            border: `1px solid ${C.border}`,
+                            background: '#fff',
+                            color: C.navy,
+                            fontSize: 12.5,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <AIcon name="copy" size={14} color={C.muted} />
+                        Salin minggu lalu
+                    </button>
                 </div>
 
                 {/* Roster grid */}
