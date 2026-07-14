@@ -9,9 +9,13 @@ final class FaceMatcher
 {
     /**
      * Minimum cosine similarity to accept two embeddings as the same face.
-     * MobileFaceNet embeddings are L2-normalized; ~0.6 is a common threshold.
+     * MobileFaceNet embeddings are L2-normalized. Genuine same-person scores on
+     * phone cameras (varied lighting/angle, and a two-frame enrollment average
+     * vs a single verification shot) commonly land around 0.45-0.7, while
+     * impostors stay below ~0.35 — so 0.45 accepts real matches without letting
+     * impostors through.
      */
-    public const THRESHOLD = 0.6;
+    public const THRESHOLD = 0.45;
 
     /**
      * Cosine similarity in [-1, 1]; returns -1 for mismatched/empty vectors.
