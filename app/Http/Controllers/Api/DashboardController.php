@@ -48,11 +48,25 @@ class DashboardController extends Controller
                 ->count();
         }
 
+        // This month's attendance breakdown for the home stat cards.
+        $statusCounts = Attendance::forTenant($tenantId)
+            ->where('employee_id', $employeeId)
+            ->whereYear('date', now()->year)
+            ->whereMonth('date', now()->month)
+            ->selectRaw('status, COUNT(*) as c')
+            ->groupBy('status')
+            ->pluck('c', 'status');
+
         return response()->json(['data' => [
             'leave_available' => $leaveAvailable,
             'work_minutes_month' => $workMinutes,
             'work_hours_month' => round($workMinutes / 60, 1),
             'pending_count' => $pending,
+            'attendance_month' => [
+                'present' => (int) ($statusCounts['present'] ?? 0),
+                'absent' => (int) ($statusCounts['absent'] ?? 0),
+                'late' => (int) ($statusCounts['late'] ?? 0),
+            ],
             'today_shift' => $this->todayShift($tenantId, $employeeId),
         ]]);
     }
