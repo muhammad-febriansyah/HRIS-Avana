@@ -2,6 +2,10 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import { GlobalSearch } from '@/components/avana-ui/global-search';
+import {
+    NotificationSheet,
+    type NotificationItem,
+} from '@/components/avana-ui/notification-sheet';
 import { SearchableSelect } from '@/components/searchable-select';
 import {
     DropdownMenu,
@@ -129,6 +133,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
             view_tenant_id: string;
             tenants: { id: number; name: string }[];
         };
+        notifications?: { items: NotificationItem[]; unread: number };
     }>();
     const url = page.url;
     const user = page.props.auth?.user;
@@ -156,6 +161,8 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
             .slice(0, 2)
             .map((w) => w[0]?.toUpperCase())
             .join('') || 'A';
+    const notif = page.props.notifications ?? { items: [], unread: 0 };
+    const [notifOpen, setNotifOpen] = useState(false);
     const [collapsed, setCollapsed] = useState(false);
     const [mobileNav, setMobileNav] = useState(false);
     const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
@@ -617,6 +624,8 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                         </div>
                     )}
                     <button
+                        onClick={() => setNotifOpen(true)}
+                        aria-label="Notifikasi"
                         style={{
                             position: 'relative',
                             width: 40,
@@ -632,18 +641,29 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                         }}
                     >
                         <AIcon name="bell" size={18} />
-                        <span
-                            style={{
-                                position: 'absolute',
-                                top: 7,
-                                right: 7,
-                                width: 7,
-                                height: 7,
-                                background: C.red,
-                                borderRadius: '50%',
-                                border: '1.5px solid #fff',
-                            }}
-                        />
+                        {notif.unread > 0 && (
+                            <span
+                                style={{
+                                    position: 'absolute',
+                                    top: -4,
+                                    right: -4,
+                                    minWidth: 16,
+                                    height: 16,
+                                    padding: '0 4px',
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    color: '#fff',
+                                    background: C.red,
+                                    borderRadius: 999,
+                                    border: '1.5px solid #fff',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}
+                            >
+                                {notif.unread > 9 ? '9+' : notif.unread}
+                            </span>
+                        )}
                     </button>
                     <div
                         style={{
@@ -764,6 +784,13 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                 {/* CONTENT */}
                 <main style={{ flex: 1, overflowY: 'auto' }}>{children}</main>
             </div>
+
+            <NotificationSheet
+                open={notifOpen}
+                onClose={() => setNotifOpen(false)}
+                items={notif.items}
+                unread={notif.unread}
+            />
         </div>
     );
 }

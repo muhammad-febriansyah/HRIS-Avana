@@ -14,6 +14,7 @@ use App\Models\ShiftSchedule;
 use App\Models\WorkLocation;
 use App\Support\DeviceIntegrity;
 use App\Support\FaceMatcher;
+use App\Support\Notifier;
 use Carbon\CarbonInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -304,6 +305,16 @@ class AttendanceController extends Controller
             ]);
         }
 
+        Notifier::attendancePunch(
+            $employee->tenant_id,
+            $employee->user_id,
+            'in',
+            $status === 'late' ? 'Clock-in tercatat · Terlambat' : 'Clock-in tercatat',
+            'Masuk pukul '.$clockedAt->format('H:i')
+                .($lateMinutes > 0 ? " (telat {$lateMinutes} menit)" : ''),
+            $clockedAt->toDateString(),
+        );
+
         return response()->json(['message' => 'Clock-in berhasil', 'data' => $this->todayShape($attendance)]);
     }
 
@@ -360,6 +371,16 @@ class AttendanceController extends Controller
                 'captured_at' => $clockedAt,
             ]);
         }
+
+        Notifier::attendancePunch(
+            $employee->tenant_id,
+            $employee->user_id,
+            'out',
+            'Clock-out tercatat',
+            'Keluar pukul '.$clockedAt->format('H:i')
+                .' · '.round($attendance->work_minutes / 60, 1).' jam kerja',
+            $clockedAt->toDateString(),
+        );
 
         return response()->json(['message' => 'Clock-out berhasil', 'data' => $this->todayShape($attendance)]);
     }

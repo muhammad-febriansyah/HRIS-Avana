@@ -75,6 +75,36 @@ final class Notifier
         ]]);
     }
 
+    /**
+     * Notify an employee that their own attendance punch (clock-in / clock-out)
+     * was recorded. No-op when the employee has no linked user account.
+     */
+    public static function attendancePunch(
+        int $tenantId,
+        ?int $userId,
+        string $kind,
+        string $title,
+        string $body,
+        string $date,
+    ): void {
+        if ($userId === null) {
+            return;
+        }
+
+        self::insertMany([[
+            'tenant_id' => $tenantId,
+            'user_id' => $userId,
+            'type' => 'attendance',
+            'title' => $title,
+            'body' => $body,
+            'data' => [
+                'link' => ['type' => 'attendance', 'id' => 0],
+                'kind' => $kind,
+                'date' => $date,
+            ],
+        ]]);
+    }
+
     /** Notify the employee that their reimbursement claim has been paid out. */
     public static function reimbursementPaid(Claim $claim): void
     {

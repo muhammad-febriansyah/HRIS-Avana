@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Notification;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WebsiteSetting;
@@ -54,6 +55,7 @@ class HandleInertiaRequests extends Middleware
                 'tenant' => fn () => $user?->tenant?->only('id', 'name', 'company_name'),
             ],
             'nav' => fn () => AvanaNav::forUser($user, $this->isPlatformScope($request, $user)),
+            'notifications' => fn (): array => $this->notifications($user),
             'superAdminView' => fn (): array => $this->superAdminView($request, $user),
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
@@ -89,6 +91,39 @@ class HandleInertiaRequests extends Middleware
         }
 
         return (int) ($request->session()->get('view_tenant_id') ?? 0) === 0;
+    }
+
+    /**
+     * The current user's recent notifications for the header bell. Scoped to
+     * `user_id` alone — a user only ever belongs to one tenant, so this can
+     * never surface another tenant's data.
+     *
+     * @return array{items: array<int, array{id: int, type: string|null, title: string, body: string|null, is_read: bool, created_at: string|null}>, unread: int}
+     */
+    private function notifications(?User $user): array
+    {
+        if ($user === null) {
+            return ['items' => [], 'unread' => 0];
+        }
+
+        $items = Notification::where('user_id', $user->id)
+            ->orderByDesc('id')
+            ->limit(15)
+            ->get(['id', 'type', 'title', 'body', 'read_at', 'created_at'])
+            ->map(fn (Notification $n): array => [
+                'id' => $n->id,
+                'type' => $n->type,
+                'title' => $n->title,
+                'body' => $n->body,
+                'is_read' => $n->read_at !== null,
+                'created_at' => $n->created_at?->toIso8601String(),
+            ])
+            ->all();
+
+        return [
+            'items' => $items,
+            'unread' => Notification::where('user_id', $user->id)->whereNull('read_at')->count(),
+        ];
     }
 
     /**

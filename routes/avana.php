@@ -42,6 +42,7 @@ use App\Http\Controllers\Avana\LoanController;
 use App\Http\Controllers\Avana\MenuBuilderController;
 use App\Http\Controllers\Avana\MoodController;
 use App\Http\Controllers\Avana\MovementController;
+use App\Http\Controllers\Avana\NotificationController;
 use App\Http\Controllers\Avana\OffboardingController;
 use App\Http\Controllers\Avana\OkrController;
 use App\Http\Controllers\Avana\OnboardingController;
@@ -81,6 +82,8 @@ use Illuminate\Support\Facades\Route;
  */
 Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana')->name('avana.')->group(function () {
     Route::post('view-tenant', [ViewTenantController::class, 'store'])->name('view-tenant');
+    Route::post('notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
+    Route::post('notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
     Route::get('search', [SearchController::class, 'index'])->name('search');
     Route::get('organisasi', [EmployeeController::class, 'orgChart'])->name('organisasi');
     Route::get('menu-builder', [MenuBuilderController::class, 'index'])->name('menu-builder');

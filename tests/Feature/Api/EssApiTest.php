@@ -4,6 +4,7 @@ use App\Models\Attendance;
 use App\Models\AttendanceSelfie;
 use App\Models\Employee;
 use App\Models\LeaveType;
+use App\Models\Notification;
 use App\Models\User;
 use App\Models\WorkLocation;
 use Database\Seeders\AvanaDemoSeeder;
@@ -45,6 +46,17 @@ it('clocks in via the unified endpoint with GPS + selfie', function (): void {
         'type' => 'in', 'latitude' => -6.2146, 'longitude' => 106.8451,
         'selfie' => UploadedFile::fake()->image('selfie.jpg'),
     ])->assertOk()->assertJsonPath('data.next_action', 'out');
+});
+
+it('notifies the employee when they clock in', function (): void {
+    $user = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail();
+
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+        'type' => 'in', 'latitude' => -6.2146, 'longitude' => 106.8451,
+    ])->assertOk();
+
+    expect(Notification::where('user_id', $user->id)->where('type', 'attendance')->exists())
+        ->toBeTrue();
 });
 
 it('clocks out with a selfie and stores the attendance photo', function (): void {
