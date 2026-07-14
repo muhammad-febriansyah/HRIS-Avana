@@ -52,6 +52,12 @@ export type Employee = {
     status: string;
     status_label: string;
     has_login?: boolean;
+    account_active?: boolean;
+    device?: {
+        label: string;
+        platform: string | null;
+        last_login: string | null;
+    } | null;
     initials: string;
     avatar_color: string;
     photo_url: string | null;

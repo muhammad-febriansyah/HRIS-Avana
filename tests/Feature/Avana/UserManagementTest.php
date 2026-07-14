@@ -15,6 +15,10 @@ beforeEach(function (): void {
     $this->seed(AvanaDemoSeeder::class);
 
     $this->admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
+    // Pengguna is now super-admin-only. Grant the actor the super_admin role
+    // (keeping its tenant so the tenant-scoped assertions below still hold).
+    $superAdminRole = Role::whereNull('tenant_id')->where('code', 'super_admin')->firstOrFail();
+    $this->admin->roles()->syncWithoutDetaching([$superAdminRole->id]);
     $this->tenant = Tenant::findOrFail($this->admin->tenant_id);
     $this->employeeRole = Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->firstOrFail();
 });

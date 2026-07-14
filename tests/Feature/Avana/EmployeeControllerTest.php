@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\UserDevice;
 use App\Models\WorkLocation;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Support\Facades\Hash;
@@ -411,4 +412,64 @@ it('rejects duplicate login emails within a bulk submit', function (): void {
     ])->assertSessionHasErrors('employees.1.email');
 
     expect(Employee::where('full_name', 'Dup One')->exists())->toBeFalse();
+});
+
+/** Create a tenant-1 employee optionally linked to a login account. */
+function makeEmployeeWithLogin(int $tenantId, string $number, ?User $user): Employee
+{
+    return Employee::create([
+        'tenant_id' => $tenantId,
+        'user_id' => $user?->id,
+        'employee_number' => $number,
+        'full_name' => 'Test '.$number,
+        'employment_status' => 'permanent',
+        'status' => 'active',
+    ]);
+}
+
+it('resets an employee bound device so a new phone can sign in', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id, 'status' => 'active']);
+    $employee = makeEmployeeWithLogin($this->tenant->id, 'EMP-RD-1', $user);
+    $device = UserDevice::create([
+        'tenant_id' => $this->tenant->id,
+        'user_id' => $user->id,
+        'device_id' => 'device-abc',
+        'status' => 'active',
+        'bound_at' => now(),
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.reset-device', $employee))
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    expect($device->fresh()->status)->toBe('reset');
+});
+
+it('toggles an employee login account between active and inactive', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id, 'status' => 'active']);
+    $employee = makeEmployeeWithLogin($this->tenant->id, 'EMP-TA-1', $user);
+
+    actingAs($this->admin)->post(route('avana.employees.toggle-account', $employee))->assertRedirect();
+    expect($user->fresh()->status)->toBe('inactive');
+
+    actingAs($this->admin)->post(route('avana.employees.toggle-account', $employee));
+    expect($user->fresh()->status)->toBe('active');
+});
+
+it('reports an error when the employee has no login account', function (): void {
+    $employee = makeEmployeeWithLogin($this->tenant->id, 'EMP-NL-1', null);
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.reset-device', $employee))
+        ->assertSessionHas('error');
+});
+
+it('rejects account actions on an employee from another tenant', function (): void {
+    $otherTenant = Tenant::create(['name' => 'PT Lain Akun', 'slug' => 'pt-lain-akun']);
+    $employee = makeEmployeeWithLogin($otherTenant->id, 'EMP-XT-1', null);
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.reset-device', $employee))
+        ->assertStatus(404);
 });

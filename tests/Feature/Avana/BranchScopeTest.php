@@ -16,6 +16,11 @@ beforeEach(function (): void {
     $this->seed(AvanaDemoSeeder::class);
 
     $this->admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
+    // Pengguna is now super-admin-only; grant the actor super_admin while it
+    // keeps its tenant so the branch-scope assertions still hold.
+    $this->admin->roles()->syncWithoutDetaching([
+        Role::whereNull('tenant_id')->where('code', 'super_admin')->firstOrFail()->id,
+    ]);
     $this->tenant = Tenant::findOrFail($this->admin->tenant_id);
     $this->hrRole = Role::where('tenant_id', $this->tenant->id)->where('code', 'admin_tenant_hr')->firstOrFail();
     $this->employeeRole = Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->firstOrFail();

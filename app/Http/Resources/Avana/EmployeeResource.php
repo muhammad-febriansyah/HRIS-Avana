@@ -89,6 +89,21 @@ final class EmployeeResource extends JsonResource
             'branch_id' => $this->branch_id,
             'work_location_id' => $this->work_location_id,
             'has_login' => $this->user_id !== null,
+            'account_active' => $this->whenLoaded('user', fn () => $this->user?->status === 'active'),
+            'device' => $this->whenLoaded('user', function () {
+                $device = $this->user?->activeDevice;
+
+                if ($device === null) {
+                    return null;
+                }
+
+                return [
+                    'label' => trim(($device->model ?? '').($device->os_version ? ' · '.$device->os_version : ''))
+                        ?: ($device->device_name ?? 'Perangkat terdaftar'),
+                    'platform' => $device->platform,
+                    'last_login' => $device->last_login_at?->diffForHumans(),
+                ];
+            }),
             'branch' => $this->whenLoaded('branch', fn () => $this->namedRelation($this->branch)),
             'department' => $this->whenLoaded('department', fn () => $this->namedRelation($this->department)),
             'position' => $this->whenLoaded('position', fn () => $this->namedRelation($this->position)),

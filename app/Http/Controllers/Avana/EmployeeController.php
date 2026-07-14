@@ -78,6 +78,8 @@ class EmployeeController extends Controller
                 'position:id,name',
                 'jobLevel:id,name',
                 'manager:id,full_name,employee_number',
+                'user:id,status',
+                'user.activeDevice',
             ])
             ->when($request->query('search'), function ($query, $search): void {
                 $query->where(function ($q) use ($search): void {
@@ -580,6 +582,54 @@ class EmployeeController extends Controller
         $employee->delete();
 
         return back()->with('success', 'Karyawan dihapus');
+    }
+
+    /**
+     * Reset (release) the employee's bound mobile device so they can sign in
+     * from a new phone. The next login re-binds whatever device signs in first.
+     */
+    public function resetDevice(Request $request, Employee $employee): RedirectResponse
+    {
+        $this->ensureTenantOwnership($request, $employee);
+        $this->authorize('update', $employee);
+
+        if ($employee->user_id === null) {
+            return back()->with('error', 'Karyawan ini belum punya akun login.');
+        }
+
+        $employee->user->devices()->where('status', 'active')->update([
+            'status' => 'reset',
+            'reset_by' => $request->user()->id,
+            'reset_at' => now(),
+        ]);
+
+        return back()->with('success', 'Perangkat direset. Karyawan dapat login dari HP baru.');
+    }
+
+    /**
+     * Activate or deactivate the employee's login account. A deactivated account
+     * cannot sign in to the mobile app.
+     */
+    public function toggleAccount(Request $request, Employee $employee): RedirectResponse
+    {
+        $this->ensureTenantOwnership($request, $employee);
+        $this->authorize('update', $employee);
+
+        $user = $employee->user;
+
+        if ($user === null) {
+            return back()->with('error', 'Karyawan ini belum punya akun login.');
+        }
+
+        abort_if($user->id === $request->user()->id, 403, 'Tidak dapat menonaktifkan akun sendiri.');
+
+        $user->update([
+            'status' => $user->status === 'active' ? 'inactive' : 'active',
+        ]);
+
+        return back()->with('success', $user->status === 'active'
+            ? 'Akun karyawan diaktifkan'
+            : 'Akun karyawan dinonaktifkan');
     }
 
     /**

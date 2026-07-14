@@ -132,7 +132,7 @@ final class AvanaNav
             ]],
             ['title' => 'SISTEM', 'items' => [
                 self::leaf('perusahaan', 'Perusahaan', 'building-2', '/avana/perusahaan', 'organization', ['branch', 'department', 'position', 'organization']),
-                self::leaf('pengguna', 'Pengguna', 'user-cog', '/avana/pengguna', null, ['user']),
+                self::leaf('pengguna', 'Pengguna', 'user-cog', '/avana/pengguna', null, ['user'], false, true),
                 self::leaf('custom-fields', 'Field Kustom', 'list-plus', '/avana/custom-fields', null, self::MANAGE_MODULES, true),
                 self::leaf('menu-builder', 'Menu Builder', 'list-tree', '/avana/menu-builder', null, self::MANAGE_MODULES, true, true),
                 self::leaf('hak-akses', 'Hak Akses', 'shield-check', '/avana/hak-akses', null, self::MANAGE_MODULES, true, true),

@@ -760,6 +760,56 @@ export default function EmployeesIndex({
                                                             )
                                                         }
                                                     />
+                                                    {e.has_login && (
+                                                        <ActionBtn
+                                                            icon="smartphone"
+                                                            label="Reset HP"
+                                                            variant="neutral"
+                                                            onClick={() =>
+                                                                router.post(
+                                                                    EmployeeController.resetDevice(
+                                                                        e.id,
+                                                                    ).url,
+                                                                    {},
+                                                                    {
+                                                                        preserveScroll:
+                                                                            true,
+                                                                    },
+                                                                )
+                                                            }
+                                                        />
+                                                    )}
+                                                    {e.has_login && (
+                                                        <ActionBtn
+                                                            icon={
+                                                                e.account_active
+                                                                    ? 'user-x'
+                                                                    : 'user-check'
+                                                            }
+                                                            label={
+                                                                e.account_active
+                                                                    ? 'Nonaktif'
+                                                                    : 'Aktifkan'
+                                                            }
+                                                            variant={
+                                                                e.account_active
+                                                                    ? 'warning'
+                                                                    : 'success'
+                                                            }
+                                                            onClick={() =>
+                                                                router.post(
+                                                                    EmployeeController.toggleAccount(
+                                                                        e.id,
+                                                                    ).url,
+                                                                    {},
+                                                                    {
+                                                                        preserveScroll:
+                                                                            true,
+                                                                    },
+                                                                )
+                                                            }
+                                                        />
+                                                    )}
                                                     <ActionBtn
                                                         icon="trash-2"
                                                         label="Hapus"
