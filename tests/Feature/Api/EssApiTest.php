@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Attendance;
+use App\Models\AttendanceSelfie;
 use App\Models\Employee;
 use App\Models\LeaveType;
 use App\Models\User;
@@ -44,6 +45,31 @@ it('clocks in via the unified endpoint with GPS + selfie', function (): void {
         'type' => 'in', 'latitude' => -6.2146, 'longitude' => 106.8451,
         'selfie' => UploadedFile::fake()->image('selfie.jpg'),
     ])->assertOk()->assertJsonPath('data.next_action', 'out');
+});
+
+it('clocks out with a selfie and stores the attendance photo', function (): void {
+    $employee = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail()->employee;
+
+    // Start from a clean clock-in-only record for today.
+    Attendance::where('employee_id', $employee->id)
+        ->whereDate('date', now()->toDateString())
+        ->delete();
+
+    $attendance = Attendance::create([
+        'tenant_id' => $employee->tenant_id,
+        'employee_id' => $employee->id,
+        'date' => now()->toDateString(),
+        'clock_in_at' => now()->subHour(),
+        'status' => 'present',
+        'branch_id' => $employee->branch_id,
+    ]);
+
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+        'type' => 'out', 'latitude' => -6.2146, 'longitude' => 106.8451,
+        'selfie' => UploadedFile::fake()->image('selfie-out.jpg'),
+    ])->assertOk()->assertJsonPath('data.next_action', 'done');
+
+    expect(AttendanceSelfie::where('attendance_id', $attendance->id)->count())->toBe(1);
 });
 
 it('rejects clock-in outside the work-location radius', function (): void {

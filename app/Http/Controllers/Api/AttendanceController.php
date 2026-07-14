@@ -219,7 +219,7 @@ class AttendanceController extends Controller
 
         return $data['type'] === 'in'
             ? $this->clockIn($request, $employee, $data)
-            : $this->clockOut($employee, $data);
+            : $this->clockOut($request, $employee, $data);
     }
 
     /**
@@ -310,7 +310,7 @@ class AttendanceController extends Controller
     /**
      * @param  array<string, mixed>  $data
      */
-    private function clockOut(Employee $employee, array $data): JsonResponse
+    private function clockOut(Request $request, Employee $employee, array $data): JsonResponse
     {
         $clockedAt = $data['clocked_at'];
 
@@ -348,6 +348,18 @@ class AttendanceController extends Controller
             $attendance->risk_flags = $data['risk_flags'];
         }
         $attendance->save();
+
+        if ($request->hasFile('selfie')) {
+            AttendanceSelfie::create([
+                'tenant_id' => $employee->tenant_id,
+                'attendance_id' => $attendance->id,
+                'employee_id' => $employee->id,
+                'file_path' => $request->file('selfie')->store('selfies', 'public'),
+                'latitude' => $data['latitude'] ?? null,
+                'longitude' => $data['longitude'] ?? null,
+                'captured_at' => $clockedAt,
+            ]);
+        }
 
         return response()->json(['message' => 'Clock-out berhasil', 'data' => $this->todayShape($attendance)]);
     }
