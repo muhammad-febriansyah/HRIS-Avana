@@ -448,25 +448,6 @@ export default function EmployeesIndex({
                             ))}
                         </select>
                         <div style={{ flex: 1 }} />
-                        <button
-                            style={{
-                                height: 38,
-                                padding: '0 13px',
-                                border: `1px solid ${C.border}`,
-                                borderRadius: 8,
-                                fontSize: 13,
-                                color: C.muted,
-                                background: '#fff',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 7,
-                                transition: '.15s',
-                            }}
-                        >
-                            <AIcon name="sliders-horizontal" size={15} />
-                            Kolom
-                        </button>
                     </div>
 
                     {/* Table */}
