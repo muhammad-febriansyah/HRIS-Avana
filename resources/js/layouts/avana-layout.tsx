@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import { GlobalSearch } from '@/components/avana-ui/global-search';
 import { SearchableSelect } from '@/components/searchable-select';
@@ -162,10 +162,30 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
 
     const handleLogout = () => router.flushAll();
 
-    const isActive = (href: string) =>
-        url === href ||
-        url.startsWith(href + '/') ||
-        (href === '/avana/employees' && url.startsWith('/avana/employees'));
+    // Resolve a single active item: the nav link whose href is the longest
+    // prefix of the current URL. Prevents a parent leaf (e.g. /avana/absensi)
+    // from also lighting up on a child route (/avana/absensi/monitor).
+    const activeHref = useMemo(() => {
+        const hrefs: string[] = [];
+        for (const grp of navGroups) {
+            for (const it of grp.items) {
+                if (it.children) {
+                    for (const c of it.children) {
+                        if (c.href) {
+                            hrefs.push(c.href);
+                        }
+                    }
+                } else if (it.href) {
+                    hrefs.push(it.href);
+                }
+            }
+        }
+        return hrefs
+            .filter((h) => url === h || url.startsWith(h + '/'))
+            .sort((a, b) => b.length - a.length)[0];
+    }, [url, navGroups]);
+
+    const isActive = (href: string) => href === activeHref;
 
     const toggleSidebar = () => {
         if (typeof window !== 'undefined' && window.innerWidth <= 860) {
