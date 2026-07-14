@@ -48,6 +48,17 @@ final class AttendancePolicy
     }
 
     /**
+     * Determine whether the user can delete an attendance record.
+     *
+     * @param  Attendance|class-string<Attendance>  $attendance
+     */
+    public function delete(User $user, Attendance|string $attendance = Attendance::class): bool
+    {
+        return $this->belongsToSameTenant($user, $attendance)
+            && $this->hasAttendancePermission($user, 'attendance.delete');
+    }
+
+    /**
      * The user must have a tenant and, for a concrete model, share its tenant.
      *
      * @param  Attendance|class-string<Attendance>  $attendance

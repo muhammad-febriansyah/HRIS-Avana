@@ -230,6 +230,33 @@ class AttendanceController extends Controller
     }
 
     /**
+     * Permanently delete an attendance record along with its selfie photos —
+     * both the rows and the underlying files (the FK only nulls on delete).
+     */
+    public function destroy(Request $request, Attendance $attendance): RedirectResponse
+    {
+        abort_if((int) $attendance->tenant_id !== (int) $request->user()->tenant_id, 404);
+
+        $this->authorize('delete', $attendance);
+
+        $this->assertBranchVisible($request, $attendance);
+
+        foreach ($attendance->selfies as $selfie) {
+            if ($selfie->file_path !== null) {
+                Storage::disk('public')->delete($selfie->file_path);
+            }
+
+            $selfie->delete();
+        }
+
+        $attendance->delete();
+
+        return redirect()
+            ->route('avana.absensi')
+            ->with('success', 'Data absensi dan foto selfie dihapus.');
+    }
+
+    /**
      * Build the rich detail payload for the attendance show page.
      *
      * @return array<string, mixed>

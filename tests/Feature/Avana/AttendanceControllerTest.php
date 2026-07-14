@@ -2,12 +2,15 @@
 
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
+use App\Models\AttendanceSelfie;
 use App\Models\Employee;
 use App\Models\Role;
 use App\Models\Shift;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 
 use function Pest\Laravel\actingAs;
@@ -321,4 +324,50 @@ it('excludes attendance without GPS coordinates from monitor map points', functi
         ->get(route('avana.absensi.monitor', ['date' => TEST_DATE]))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page->has('points', 0));
+});
+
+it('deletes an attendance record and its selfie photo file', function (): void {
+    Storage::fake('public');
+    $attendance = makeAttendance($this->tenant->id, $this->shift->id);
+    $path = UploadedFile::fake()->image('selfie.jpg')->store('selfies', 'public');
+    $selfie = AttendanceSelfie::create([
+        'tenant_id' => $this->tenant->id,
+        'attendance_id' => $attendance->id,
+        'employee_id' => $attendance->employee_id,
+        'file_path' => $path,
+    ]);
+
+    Storage::disk('public')->assertExists($path);
+
+    actingAs($this->admin)
+        ->delete(route('avana.absensi.destroy', $attendance))
+        ->assertRedirect(route('avana.absensi'));
+
+    expect(Attendance::find($attendance->id))->toBeNull();
+    expect(AttendanceSelfie::find($selfie->id))->toBeNull();
+    Storage::disk('public')->assertMissing($path);
+});
+
+it('returns 404 when deleting an attendance from another tenant', function (): void {
+    $other = Tenant::create(['name' => 'PT Asing', 'slug' => 'pt-asing-del']);
+    $employee = Employee::create([
+        'tenant_id' => $other->id,
+        'employee_number' => 'EMP-7777',
+        'full_name' => 'Karyawan Asing',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+    ]);
+    $attendance = Attendance::create([
+        'tenant_id' => $other->id,
+        'employee_id' => $employee->id,
+        'branch_id' => $employee->branch_id,
+        'date' => TEST_DATE,
+        'status' => 'present',
+    ]);
+
+    actingAs($this->admin)
+        ->delete(route('avana.absensi.destroy', $attendance))
+        ->assertNotFound();
+
+    expect(Attendance::find($attendance->id))->not->toBeNull();
 });

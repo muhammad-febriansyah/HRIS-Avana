@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { LocationMap } from '@/components/map/location-map';
 import type { MapPoint } from '@/components/map/location-map';
@@ -205,6 +205,34 @@ export default function AbsensiShow({
                     <span style={{ color: C.muted }}>
                         {attendance.employee?.name ?? 'Detail'}
                     </span>
+                    <div style={{ flex: 1 }} />
+                    <button
+                        onClick={() => {
+                            if (
+                                window.confirm(
+                                    'Hapus data absensi ini? Foto selfie ikut terhapus permanen.',
+                                )
+                            ) {
+                                router.delete(`/avana/absensi/${attendance.id}`);
+                            }
+                        }}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '7px 14px',
+                            borderRadius: 9,
+                            border: `1px solid ${C.red}`,
+                            background: '#fff',
+                            color: C.red,
+                            fontSize: 12.5,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <AIcon name="trash-2" size={14} />
+                        Hapus
+                    </button>
                 </div>
 
                 {/* Header */}
