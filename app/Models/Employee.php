@@ -59,6 +59,20 @@ final class Employee extends Model
         return $this->belongsTo(WorkLocation::class);
     }
 
+    /**
+     * The attendance scope actually in force for this employee: their own
+     * override when set, otherwise the tenant policy's default.
+     */
+    public function effectiveAttendanceScope(AttendancePolicy $policy): string
+    {
+        $scope = $this->attendance_scope ?? $policy->attendance_scope ?? AttendancePolicy::SCOPE_ASSIGNED;
+
+        // An unrecognised value must never silently loosen the geofence.
+        return in_array($scope, AttendancePolicy::SCOPES, true)
+            ? $scope
+            : AttendancePolicy::SCOPE_ASSIGNED;
+    }
+
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);

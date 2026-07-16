@@ -79,12 +79,22 @@ class AttendanceController extends Controller
     /**
      * The employee's allowed work locations (with geofence radius) so the app
      * can auto-detect whether the user is inside an office area.
+     *
+     * `scope` travels with them: without it the app would keep reporting "di
+     * luar area" for a WFA employee whose clock-in the server accepts anyway.
      */
     public function workLocations(Request $request): JsonResponse
     {
         $employee = $this->currentEmployee($request);
+        $scope = $employee->effectiveAttendanceScope(AttendancePolicy::resolve($employee->tenant_id));
 
-        $data = $this->allowedWorkLocations($employee)
+        // Under WFA there is no office to be measured against, but the offices
+        // are still worth sending so the app can name the nearest one.
+        $locations = $scope === AttendancePolicy::SCOPE_ANYWHERE
+            ? $this->allowedWorkLocations($employee, AttendancePolicy::SCOPE_ANY_BRANCH)
+            : $this->allowedWorkLocations($employee, $scope);
+
+        $data = $locations
             ->map(fn (WorkLocation $w): array => [
                 'id' => $w->id,
                 'name' => $w->name,
@@ -94,7 +104,7 @@ class AttendanceController extends Controller
             ])
             ->values();
 
-        return response()->json(['data' => $data]);
+        return response()->json(['data' => $data, 'scope' => $scope]);
     }
 
     public function history(Request $request): JsonResponse
@@ -276,7 +286,11 @@ class AttendanceController extends Controller
             return response()->json(['message' => 'Anda sedang cuti hari ini, tidak perlu absen.'], 422);
         }
 
-        $geofence = $this->geofenceCheck($employee, $data);
+        $geofence = $this->geofenceCheck(
+            $employee,
+            $data,
+            $employee->effectiveAttendanceScope(AttendancePolicy::resolve($employee->tenant_id)),
+        );
 
         if ($geofence instanceof JsonResponse) {
             return $geofence;
@@ -286,14 +300,15 @@ class AttendanceController extends Controller
 
         $attendance->fill([
             'branch_id' => $employee->branch_id,
-            'work_location_id' => $geofence->id,
+            // Null under WFA — there is no office the clock-in belongs to.
+            'work_location_id' => $geofence?->id,
             'shift_id' => $shiftId,
             'clock_in_at' => $clockedAt,
             'clock_in_lat' => $data['latitude'] ?? null,
             'clock_in_lng' => $data['longitude'] ?? null,
             'status' => $status,
             'late_minutes' => $lateMinutes,
-            'location_status' => 'inside',
+            'location_status' => $geofence === null ? 'wfa' : 'inside',
             'face_confidence' => $data['face_confidence'] ?? null,
             'device_id' => $data['device_id'] ?? null,
             'integrity_verdict' => $data['integrity_verdict'] ?? null,
@@ -346,7 +361,11 @@ class AttendanceController extends Controller
             return response()->json(['message' => 'Anda sudah clock-out hari ini.'], 422);
         }
 
-        $geofence = $this->geofenceCheck($employee, $data);
+        $geofence = $this->geofenceCheck(
+            $employee,
+            $data,
+            $employee->effectiveAttendanceScope(AttendancePolicy::resolve($employee->tenant_id)),
+        );
 
         if ($geofence instanceof JsonResponse) {
             return $geofence;
@@ -438,19 +457,26 @@ class AttendanceController extends Controller
      *
      * @param  array<string, mixed>  $data
      */
-    private function geofenceCheck(Employee $employee, array $data): WorkLocation|JsonResponse
+    private function geofenceCheck(Employee $employee, array $data, string $scope): WorkLocation|JsonResponse|null
     {
-        $locations = $this->allowedWorkLocations($employee);
+        // GPS is required even for WFA: the point is still recorded, and the
+        // mock-location check upstream is worthless without it.
+        if (! isset($data['latitude'], $data['longitude'])) {
+            return response()->json([
+                'message' => 'Lokasi GPS tidak terdeteksi. Aktifkan izin lokasi lalu coba lagi.',
+            ], 422);
+        }
+
+        // WFA answers to no office, so there is no radius to be outside of.
+        if ($scope === AttendancePolicy::SCOPE_ANYWHERE) {
+            return null;
+        }
+
+        $locations = $this->allowedWorkLocations($employee, $scope);
 
         if ($locations->isEmpty()) {
             return response()->json([
                 'message' => 'Lokasi kerja belum diatur admin. Hubungi HR.',
-            ], 422);
-        }
-
-        if (! isset($data['latitude'], $data['longitude'])) {
-            return response()->json([
-                'message' => 'Lokasi GPS tidak terdeteksi. Aktifkan izin lokasi lalu coba lagi.',
             ], 422);
         }
 
@@ -498,8 +524,15 @@ class AttendanceController extends Controller
      *
      * @return Collection<int, WorkLocation>
      */
-    private function allowedWorkLocations(Employee $employee): Collection
+    private function allowedWorkLocations(Employee $employee, string $scope): Collection
     {
+        // Any office in the tenant will do, whatever the employee is assigned to.
+        if ($scope === AttendancePolicy::SCOPE_ANY_BRANCH) {
+            return WorkLocation::forTenant($employee->tenant_id)
+                ->where('status', 'active')
+                ->get();
+        }
+
         if ($employee->work_location_id !== null) {
             $employee->loadMissing('workLocation');
 

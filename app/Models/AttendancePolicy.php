@@ -13,6 +13,22 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 final class AttendancePolicy extends Model
 {
+    /** Clock in only at the employee's own work location / branch. */
+    public const SCOPE_ASSIGNED = 'assigned';
+
+    /** Clock in at any active work location in the tenant; radius still applies. */
+    public const SCOPE_ANY_BRANCH = 'any_branch';
+
+    /** Work from anywhere: the geofence radius is not enforced. */
+    public const SCOPE_ANYWHERE = 'anywhere';
+
+    /**
+     * Every selectable scope, loosest last.
+     *
+     * @var array<int, string>
+     */
+    public const SCOPES = [self::SCOPE_ASSIGNED, self::SCOPE_ANY_BRANCH, self::SCOPE_ANYWHERE];
+
     protected $guarded = [];
 
     protected function casts(): array
@@ -35,6 +51,7 @@ final class AttendancePolicy extends Model
         return self::query()->firstOrNew(
             ['tenant_id' => $tenantId],
             [
+                'attendance_scope' => self::SCOPE_ASSIGNED,
                 'require_face_enrollment' => false,
                 'require_liveness_challenge' => false,
                 'face_enforcement' => 'block',

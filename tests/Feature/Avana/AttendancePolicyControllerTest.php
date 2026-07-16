@@ -25,6 +25,7 @@ it('renders the attendance policy screen for an HR admin', function (): void {
 
 it('persists policy changes', function (): void {
     actingAs($this->admin)->put('/avana/absensi/kebijakan', [
+        'attendance_scope' => 'assigned',
         'require_face_enrollment' => true,
         'require_liveness_challenge' => true,
         'face_enforcement' => 'flag',
@@ -38,6 +39,25 @@ it('persists policy changes', function (): void {
     expect($policy->require_face_enrollment)->toBeTrue();
     expect($policy->face_enforcement)->toBe('flag');
     expect($policy->block_emulator)->toBeFalse();
+});
+
+it('persists the attendance scope', function (): void {
+    actingAs($this->admin)->put('/avana/absensi/kebijakan', [
+        'attendance_scope' => 'anywhere',
+        'face_enforcement' => 'block',
+        'integrity_enforcement' => 'block',
+    ])->assertRedirect();
+
+    expect(AttendancePolicy::where('tenant_id', $this->admin->tenant_id)->firstOrFail()->attendance_scope)
+        ->toBe('anywhere');
+});
+
+it('rejects an unknown attendance scope', function (): void {
+    actingAs($this->admin)->put('/avana/absensi/kebijakan', [
+        'attendance_scope' => 'mars',
+        'face_enforcement' => 'block',
+        'integrity_enforcement' => 'block',
+    ])->assertSessionHasErrors('attendance_scope');
 });
 
 it('rejects an invalid enforcement value', function (): void {

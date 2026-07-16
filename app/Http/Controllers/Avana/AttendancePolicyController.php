@@ -32,6 +32,7 @@ class AttendancePolicyController extends Controller
 
         return Inertia::render('avana/absensi-kebijakan/index', [
             'policy' => [
+                'attendance_scope' => $policy->attendance_scope ?? AttendancePolicy::SCOPE_ASSIGNED,
                 'require_face_enrollment' => (bool) $policy->require_face_enrollment,
                 'require_liveness_challenge' => (bool) $policy->require_liveness_challenge,
                 'face_enforcement' => $policy->face_enforcement,
@@ -49,6 +50,7 @@ class AttendancePolicyController extends Controller
         $this->ensureCanManage($request);
 
         $data = $request->validate([
+            'attendance_scope' => ['required', Rule::in(AttendancePolicy::SCOPES)],
             'require_face_enrollment' => ['boolean'],
             'require_liveness_challenge' => ['boolean'],
             'face_enforcement' => ['required', Rule::in(['block', 'flag'])],

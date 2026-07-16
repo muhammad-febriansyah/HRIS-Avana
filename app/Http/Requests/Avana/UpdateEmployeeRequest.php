@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Avana;
 
+use App\Models\AttendancePolicy;
 use App\Models\CustomField;
 use App\Models\Employee;
 use App\Models\User;
@@ -56,6 +57,7 @@ class UpdateEmployeeRequest extends FormRequest
             ],
             'branch_id' => ['nullable', Rule::exists('branches', 'id')->where('tenant_id', $tenantId)],
             'work_location_id' => ['nullable', Rule::exists('work_locations', 'id')->where('tenant_id', $tenantId)],
+            'attendance_scope' => ['nullable', Rule::in(AttendancePolicy::SCOPES)],
             'department_id' => ['nullable', Rule::exists('departments', 'id')->where('tenant_id', $tenantId)],
             'position_id' => ['nullable', Rule::exists('positions', 'id')->where('tenant_id', $tenantId)],
             'job_level_id' => ['nullable', Rule::exists('job_levels', 'id')->where('tenant_id', $tenantId)],

@@ -88,6 +88,7 @@ final class EmployeeResource extends JsonResource
             'photo_url' => $this->photo_path !== null ? Storage::disk('public')->url($this->photo_path) : null,
             'branch_id' => $this->branch_id,
             'work_location_id' => $this->work_location_id,
+            'attendance_scope' => $this->attendance_scope,
             'has_login' => $this->user_id !== null,
             'account_active' => $this->whenLoaded('user', fn () => $this->user?->status === 'active'),
             'device' => $this->whenLoaded('user', function () {
