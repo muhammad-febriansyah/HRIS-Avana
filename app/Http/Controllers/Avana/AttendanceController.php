@@ -166,14 +166,22 @@ class AttendanceController extends Controller
 
         $activity = $records
             ->take(15)
-            ->map(fn (Attendance $a): array => [
-                'id' => $a->id,
-                'name' => (string) ($a->employee?->full_name ?? 'Karyawan'),
-                'location' => (string) ($a->workLocation?->name ?? $a->employee?->branch?->name ?? '—'),
-                'time' => $a->clock_in_at?->format('H:i'),
-                'status' => (string) $a->status,
-                'status_label' => self::STATUS_LABELS[$a->status] ?? ucfirst((string) $a->status),
-            ])
+            ->map(function (Attendance $a): array {
+                $workLocation = $a->workLocation?->name;
+                $branch = $a->employee?->branch?->name;
+
+                return [
+                    'id' => $a->id,
+                    'name' => (string) ($a->employee?->full_name ?? 'Karyawan'),
+                    'location' => (string) ($workLocation ?? $branch ?? '—'),
+                    // Only when the branch isn't already standing in as the
+                    // location above, so it never renders twice in one row.
+                    'branch' => $workLocation !== null ? $branch : null,
+                    'time' => $a->clock_in_at?->format('H:i'),
+                    'status' => (string) $a->status,
+                    'status_label' => self::STATUS_LABELS[$a->status] ?? ucfirst((string) $a->status),
+                ];
+            })
             ->values()
             ->all();
 

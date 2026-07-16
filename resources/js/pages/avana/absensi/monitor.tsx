@@ -12,6 +12,7 @@ interface ActivityRow {
     id: number;
     name: string;
     location: string;
+    branch: string | null;
     time: string | null;
     status: string;
     status_label: string;
@@ -28,6 +29,9 @@ interface MonitorProps {
     points: MonitorPoint[];
     activity: ActivityRow[];
 }
+
+/** Map viewport height; the activity feed is capped to match it. */
+const MAP_HEIGHT = 480;
 
 /** Colour a check-in status pill/dot. */
 function statusColor(status: string): string {
@@ -139,7 +143,10 @@ export default function AbsensiMonitor({
                         >
                             <Link
                                 href="/avana/absensi"
-                                style={{ color: C.faint, textDecoration: 'none' }}
+                                style={{
+                                    color: C.faint,
+                                    textDecoration: 'none',
+                                }}
                             >
                                 Absensi
                             </Link>
@@ -157,8 +164,15 @@ export default function AbsensiMonitor({
                         >
                             Monitor Kehadiran
                         </h1>
-                        <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
-                            Pelacakan kehadiran langsung lintas cabang · {date.display}
+                        <div
+                            style={{
+                                fontSize: 14,
+                                color: C.muted,
+                                marginTop: 4,
+                            }}
+                        >
+                            Pelacakan kehadiran langsung lintas cabang ·{' '}
+                            {date.display}
                         </div>
                     </div>
                     <div
@@ -238,11 +252,16 @@ export default function AbsensiMonitor({
                 >
                     <div style={{ ...card, padding: 14 }}>
                         {points.length > 0 ? (
-                            <LocationMap points={points} height={480} fit />
+                            <LocationMap
+                                points={points}
+                                height={MAP_HEIGHT}
+                                fit
+                                labels
+                            />
                         ) : (
                             <div
                                 style={{
-                                    height: 480,
+                                    height: MAP_HEIGHT,
                                     display: 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'center',
@@ -253,21 +272,38 @@ export default function AbsensiMonitor({
                                     borderRadius: 10,
                                 }}
                             >
-                                <AIcon name="map-pin-off" size={30} color={C.faint} />
+                                <AIcon
+                                    name="map-pin-off"
+                                    size={30}
+                                    color={C.faint}
+                                />
                                 <span style={{ fontSize: 13 }}>
-                                    Belum ada titik check-in GPS untuk tanggal ini
+                                    Belum ada titik check-in GPS untuk tanggal
+                                    ini
                                 </span>
                             </div>
                         )}
                     </div>
 
-                    <div style={{ ...card, padding: '18px 20px' }}>
+                    <div
+                        style={{
+                            ...card,
+                            padding: '18px 20px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            // Cap to the map's height (480 + its card padding) so
+                            // a long feed scrolls itself instead of stretching
+                            // the column past the map.
+                            maxHeight: MAP_HEIGHT + 28,
+                        }}
+                    >
                         <div
                             style={{
                                 display: 'flex',
                                 justifyContent: 'space-between',
                                 alignItems: 'center',
                                 marginBottom: 6,
+                                flex: 'none',
                             }}
                         >
                             <div
@@ -296,7 +332,7 @@ export default function AbsensiMonitor({
                                 Belum ada aktivitas
                             </div>
                         ) : (
-                            <div>
+                            <div style={{ overflowY: 'auto', minHeight: 0 }}>
                                 {activity.map((row) => (
                                     <div key={row.id} style={rowStyle}>
                                         <span
@@ -306,7 +342,9 @@ export default function AbsensiMonitor({
                                                 borderRadius: '50%',
                                                 marginTop: 5,
                                                 flex: 'none',
-                                                background: statusColor(row.status),
+                                                background: statusColor(
+                                                    row.status,
+                                                ),
                                             }}
                                         />
                                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -334,7 +372,26 @@ export default function AbsensiMonitor({
                                                     size={12}
                                                     color={C.faint}
                                                 />
-                                                {row.location}
+                                                <span
+                                                    style={{
+                                                        overflow: 'hidden',
+                                                        textOverflow:
+                                                            'ellipsis',
+                                                        whiteSpace: 'nowrap',
+                                                    }}
+                                                >
+                                                    {row.location}
+                                                    {row.branch ? (
+                                                        <span
+                                                            style={{
+                                                                color: C.faint,
+                                                            }}
+                                                        >
+                                                            {' · '}
+                                                            {row.branch}
+                                                        </span>
+                                                    ) : null}
+                                                </span>
                                             </div>
                                         </div>
                                         <div
@@ -358,7 +415,9 @@ export default function AbsensiMonitor({
                                                 style={{
                                                     fontSize: 11,
                                                     fontWeight: 600,
-                                                    color: statusColor(row.status),
+                                                    color: statusColor(
+                                                        row.status,
+                                                    ),
                                                 }}
                                             >
                                                 {row.status_label}

@@ -8,6 +8,7 @@ use App\Models\Role;
 use App\Models\Shift;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\WorkLocation;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -309,9 +310,43 @@ it('renders the live monitor with map points, KPIs, and recent activity', functi
                 ->has('id')
                 ->has('name')
                 ->has('location')
+                ->has('branch')
                 ->has('time')
                 ->has('status')
                 ->has('status_label')));
+});
+
+it('shows the branch name alongside the work location in the activity feed', function (): void {
+    $workLocation = WorkLocation::forTenant($this->tenant->id)->firstOrFail();
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    makeAttendance($this->tenant->id, $this->shift->id, [
+        'work_location_id' => $workLocation->id,
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.absensi.monitor', ['date' => TEST_DATE]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('activity.0.location', $workLocation->name)
+            ->where('activity.0.branch', $employee->branch->name)
+            ->etc());
+});
+
+it('omits the branch when it already stands in as the activity location', function (): void {
+    makeAttendance($this->tenant->id, $this->shift->id, [
+        'work_location_id' => null,
+    ]);
+
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->get(route('avana.absensi.monitor', ['date' => TEST_DATE]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('activity.0.location', $employee->branch->name)
+            ->where('activity.0.branch', null)
+            ->etc());
 });
 
 it('excludes attendance without GPS coordinates from monitor map points', function (): void {

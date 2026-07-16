@@ -10,6 +10,7 @@ import {
     Marker,
     Popup,
     TileLayer,
+    Tooltip,
     useMap,
 } from 'react-leaflet';
 
@@ -39,6 +40,11 @@ interface LocationMapProps {
     zoom?: number;
     /** Auto-fit the viewport to every point (for multi-location monitors). */
     fit?: boolean;
+    /**
+     * Pin each point's label to the map instead of hiding it behind a click.
+     * For multi-branch views where the labels are the point of the map.
+     */
+    labels?: boolean;
 }
 
 /** Fits the map viewport to every provided point once, on mount/update. */
@@ -69,6 +75,7 @@ export function LocationMap({
     height = 300,
     zoom = 16,
     fit = false,
+    labels = false,
 }: LocationMapProps) {
     const [mounted, setMounted] = useState(false);
 
@@ -142,7 +149,14 @@ export function LocationMap({
                         key={`${point.lat},${point.lng},${index}`}
                         position={[point.lat, point.lng]}
                     >
-                        {point.label && <Popup>{point.label}</Popup>}
+                        {point.label &&
+                            (labels ? (
+                                <Tooltip permanent direction="top">
+                                    {point.label}
+                                </Tooltip>
+                            ) : (
+                                <Popup>{point.label}</Popup>
+                            ))}
                     </Marker>
                 ))}
             </MapContainer>
