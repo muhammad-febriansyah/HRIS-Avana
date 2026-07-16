@@ -12,6 +12,7 @@ use App\Models\Employee;
 use App\Models\EmployeeFaceEmbedding;
 use App\Models\ShiftSchedule;
 use App\Models\WorkLocation;
+use App\Services\LeaveAttendanceMarker;
 use App\Support\DeviceIntegrity;
 use App\Support\FaceMatcher;
 use App\Support\Notifier;
@@ -266,6 +267,13 @@ class AttendanceController extends Controller
 
         if ($attendance->clock_in_at !== null) {
             return response()->json(['message' => 'Anda sudah clock-in hari ini.'], 422);
+        }
+
+        // An approved leave owns the day — refuse the clock-in rather than let a
+        // check-in overwrite the "Cuti" marker. Pending leave deliberately does
+        // not block, or submitting one would be a way to dodge a late mark.
+        if (LeaveAttendanceMarker::covers($employee->tenant_id, $employee->id, $clockedAt->toDateString())) {
+            return response()->json(['message' => 'Anda sedang cuti hari ini, tidak perlu absen.'], 422);
         }
 
         $geofence = $this->geofenceCheck($employee, $data);

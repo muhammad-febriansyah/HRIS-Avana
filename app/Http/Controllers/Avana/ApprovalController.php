@@ -10,6 +10,7 @@ use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
 use App\Models\User;
 use App\Models\WfhRequest;
+use App\Services\LeaveAttendanceMarker;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -139,6 +140,7 @@ class ApprovalController extends Controller
 
         if ($model instanceof LeaveRequest) {
             $this->decrementLeaveBalance($model);
+            LeaveAttendanceMarker::mark($model);
         }
 
         if ($model instanceof AttendanceCorrection) {

@@ -15,6 +15,7 @@ use App\Models\PermissionRequest;
 use App\Models\Shift;
 use App\Models\ShiftSchedule;
 use App\Models\WfhRequest;
+use App\Services\LeaveAttendanceMarker;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
@@ -567,6 +568,7 @@ class MssController extends Controller
 
         if ($approved && $model instanceof LeaveRequest) {
             $this->decrementLeaveBalance($model);
+            LeaveAttendanceMarker::mark($model);
         }
     }
 

@@ -13,6 +13,7 @@ use App\Models\LeaveType;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
 use App\Models\WfhRequest;
+use App\Services\LeaveAttendanceMarker;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
@@ -140,7 +141,8 @@ class LeaveController extends Controller
                 ->map(fn (PermissionRequest $permission): array => [
                     'id' => $permission->id,
                     'employee' => $this->shapeEmployee($permission),
-                    'date' => $permission->date?->format('d M Y'),
+                    'start_date' => $permission->start_date?->format('d M Y'),
+                    'end_date' => $permission->end_date?->format('d M Y'),
                     'type' => $permission->type,
                     'start_time' => $permission->start_time ? substr((string) $permission->start_time, 0, 5) : null,
                     'end_time' => $permission->end_time ? substr((string) $permission->end_time, 0, 5) : null,
@@ -260,6 +262,8 @@ class LeaveController extends Controller
         $this->authorize('approve', $leave);
 
         $leave->update(['status' => 'approved']);
+
+        LeaveAttendanceMarker::mark($leave);
 
         $balance = LeaveBalance::query()
             ->where('employee_id', $leave->employee_id)
