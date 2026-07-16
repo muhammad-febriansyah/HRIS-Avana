@@ -6,9 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\FieldVisit;
 use App\Models\User;
+use App\Services\FieldVisitPhotoStore;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -42,7 +42,7 @@ class FieldVisitController extends Controller
 
         $paginator = FieldVisit::query()
             ->forTenant($tenantId)
-            ->with('employee:id,full_name,employee_number')
+            ->with(['employee:id,full_name,employee_number', 'photos'])
             ->when($request->query('search'), function ($query, $search): void {
                 $query->where(function ($q) use ($search): void {
                     $q->where('location', 'like', "%{$search}%")
@@ -127,16 +127,10 @@ class FieldVisitController extends Controller
             'notes' => ['nullable', 'string'],
             'latitude' => ['nullable', 'numeric'],
             'longitude' => ['nullable', 'numeric'],
-            'photo' => ['nullable', 'image', 'max:4096'],
+            ...FieldVisitPhotoStore::rules(),
         ]);
 
-        $photoPath = null;
-
-        if ($request->hasFile('photo')) {
-            $photoPath = $request->file('photo')->store('field-visits', 'public');
-        }
-
-        FieldVisit::create([
+        $visit = FieldVisit::create([
             'tenant_id' => $tenantId,
             'employee_id' => $data['employee_id'],
             'visit_date' => $data['visit_date'],
@@ -146,25 +140,24 @@ class FieldVisitController extends Controller
             'notes' => $data['notes'] ?? null,
             'latitude' => $data['latitude'] ?? null,
             'longitude' => $data['longitude'] ?? null,
-            'photo_path' => $photoPath,
             'status' => 'submitted',
         ]);
+
+        FieldVisitPhotoStore::attach($visit, $request->file('photos') ?? []);
 
         return redirect()->route('avana.visiting')
             ->with('success', 'Kunjungan kerja dicatat');
     }
 
     /**
-     * Delete a field visit and its uploaded photo.
+     * Delete a field visit and its uploaded photos.
      */
     public function destroy(Request $request, FieldVisit $visit): RedirectResponse
     {
         $this->ensureCanManage($request);
         $this->ensureTenantOwnership($request, $visit);
 
-        if ($visit->photo_path !== null) {
-            Storage::disk('public')->delete($visit->photo_path);
-        }
+        FieldVisitPhotoStore::purge($visit);
 
         $visit->delete();
 
@@ -174,7 +167,7 @@ class FieldVisitController extends Controller
     /**
      * Shape a field visit row for the index DataTable.
      *
-     * @return array{id: int, employee: array{name: string, employee_number: string|null, initials: string, avatar_color: string}|null, visit_date: string|null, location: string, client_name: string|null, purpose: string|null, notes: string|null, photo_url: string|null, latitude: float|null, longitude: float|null, status: string}
+     * @return array{id: int, employee: array{name: string, employee_number: string|null, initials: string, avatar_color: string}|null, visit_date: string|null, location: string, client_name: string|null, purpose: string|null, notes: string|null, photo_urls: list<string>, latitude: float|null, longitude: float|null, status: string}
      */
     private function shapeVisit(FieldVisit $visit): array
     {
@@ -193,9 +186,7 @@ class FieldVisitController extends Controller
             'client_name' => $visit->client_name,
             'purpose' => $visit->purpose,
             'notes' => $visit->notes,
-            'photo_url' => $visit->photo_path !== null
-                ? Storage::disk('public')->url($visit->photo_path)
-                : null,
+            'photo_urls' => FieldVisitPhotoStore::urls($visit),
             'latitude' => $visit->latitude !== null ? (float) $visit->latitude : null,
             'longitude' => $visit->longitude !== null ? (float) $visit->longitude : null,
             'status' => $visit->status,

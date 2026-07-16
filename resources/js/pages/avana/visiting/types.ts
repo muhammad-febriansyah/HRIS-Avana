@@ -31,7 +31,7 @@ export interface VisitRow {
     client_name: string | null;
     purpose: string | null;
     notes: string | null;
-    photo_url: string | null;
+    photo_urls: string[];
     latitude: number | null;
     longitude: number | null;
     status: string;
@@ -70,7 +70,7 @@ export interface VisitFormData {
     latitude: string;
     longitude: string;
     notes: string;
-    photo: File | null;
+    photos: File[];
 }
 
 /** Empty defaults for the create form. */
@@ -83,5 +83,5 @@ export const emptyVisitForm: VisitFormData = {
     latitude: '',
     longitude: '',
     notes: '',
-    photo: null,
+    photos: [],
 };

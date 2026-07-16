@@ -2,9 +2,11 @@
 
 use App\Models\Employee;
 use App\Models\FieldVisit;
+use App\Models\FieldVisitPhoto;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\FieldVisitPhotoStore;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -57,7 +59,7 @@ it('renders the visiting index with visits and employees scoped to the tenant', 
                 ->has('location')
                 ->has('client_name')
                 ->has('purpose')
-                ->has('photo_url')
+                ->has('photo_urls')
                 ->has('latitude')
                 ->has('longitude')
                 ->has('status')
@@ -108,10 +110,10 @@ it('creates a field visit without a photo', function (): void {
     expect($visit->tenant_id)->toBe($this->tenant->id);
     expect($visit->location)->toBe('Plaza Indonesia');
     expect($visit->status)->toBe('submitted');
-    expect($visit->photo_path)->toBeNull();
+    expect($visit->photos)->toHaveCount(0);
 });
 
-it('stores the uploaded photo on the public disk', function (): void {
+it('stores every uploaded photo on the public disk', function (): void {
     Storage::fake('public');
 
     $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
@@ -121,15 +123,84 @@ it('stores the uploaded photo on the public disk', function (): void {
             'employee_id' => $employee->id,
             'visit_date' => '2026-07-11',
             'location' => 'Kantor Klien BSD',
-            'photo' => UploadedFile::fake()->image('kunjungan.jpg'),
+            'photos' => [
+                UploadedFile::fake()->image('kunjungan-1.jpg'),
+                UploadedFile::fake()->image('kunjungan-2.jpg'),
+                UploadedFile::fake()->image('kunjungan-3.jpg'),
+            ],
         ])
         ->assertRedirect(route('avana.visiting'))
         ->assertSessionHas('success');
 
     $visit = FieldVisit::where('employee_id', $employee->id)->latest('id')->firstOrFail();
 
-    expect($visit->photo_path)->not->toBeNull();
-    Storage::disk('public')->assertExists($visit->photo_path);
+    expect($visit->photos)->toHaveCount(3);
+
+    foreach ($visit->photos as $photo) {
+        Storage::disk('public')->assertExists($photo->file_path);
+        expect($photo->tenant_id)->toBe($this->tenant->id)
+            ->and($photo->employee_id)->toBe($employee->id);
+    }
+});
+
+it('rejects more photos than a visit may carry', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.visiting.store'), [
+            'employee_id' => $employee->id,
+            'visit_date' => '2026-07-11',
+            'location' => 'Kantor Klien BSD',
+            'photos' => array_map(
+                fn (int $i) => UploadedFile::fake()->image("foto-{$i}.jpg"),
+                range(1, FieldVisitPhotoStore::MAX + 1),
+            ),
+        ])
+        ->assertSessionHasErrors('photos');
+});
+
+it('rejects a non-image among the photos', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.visiting.store'), [
+            'employee_id' => $employee->id,
+            'visit_date' => '2026-07-11',
+            'location' => 'Kantor Klien BSD',
+            'photos' => [
+                UploadedFile::fake()->image('ok.jpg'),
+                UploadedFile::fake()->create('virus.pdf', 100),
+            ],
+        ])
+        ->assertSessionHasErrors('photos.1');
+});
+
+it('deletes the photo files when the visit is deleted', function (): void {
+    Storage::fake('public');
+
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)->post(route('avana.visiting.store'), [
+        'employee_id' => $employee->id,
+        'visit_date' => '2026-07-11',
+        'location' => 'Kantor Klien BSD',
+        'photos' => [
+            UploadedFile::fake()->image('a.jpg'),
+            UploadedFile::fake()->image('b.jpg'),
+        ],
+    ]);
+
+    $visit = FieldVisit::where('employee_id', $employee->id)->latest('id')->firstOrFail();
+    $paths = $visit->photos->pluck('file_path')->all();
+
+    actingAs($this->admin)->delete(route('avana.visiting.destroy', $visit))
+        ->assertRedirect();
+
+    foreach ($paths as $path) {
+        Storage::disk('public')->assertMissing($path);
+    }
+
+    expect(FieldVisitPhoto::where('field_visit_id', $visit->id)->count())->toBe(0);
 });
 
 it('validates required fields on store', function (): void {

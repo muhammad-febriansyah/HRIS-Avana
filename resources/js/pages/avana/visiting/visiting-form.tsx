@@ -23,7 +23,10 @@ interface VisitingFormProps {
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }
 
-/** Create form for a field visit, including an optional photo upload. */
+/** How many photos one visit may carry; mirrors FieldVisitPhotoStore::MAX. */
+const MAX_PHOTOS = 5;
+
+/** Create form for a field visit, including optional photo evidence. */
 export function VisitingForm({
     form,
     employees,
@@ -35,7 +38,7 @@ export function VisitingForm({
     const { data, setData, errors, processing } = form;
 
     const onPhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
-        setData('photo', event.target.files?.[0] ?? null);
+        setData('photos', Array.from(event.target.files ?? []).slice(0, MAX_PHOTOS));
     };
 
     return (
@@ -169,6 +172,7 @@ export function VisitingForm({
                     <input
                         type="file"
                         accept="image/*"
+                        multiple
                         onChange={onPhotoChange}
                         style={{
                             width: '100%',
@@ -183,9 +187,11 @@ export function VisitingForm({
                             marginTop: 4,
                         }}
                     >
-                        JPG / PNG · maks 4 MB
+                        JPG / PNG · maks 4 MB · hingga {MAX_PHOTOS} foto
+                        {data.photos.length > 0 &&
+                            ` · ${data.photos.length} dipilih`}
                     </div>
-                    <FieldError message={errors.photo} />
+                    <FieldError message={errors.photos} />
                 </div>
 
                 <div>

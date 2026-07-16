@@ -5,10 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\FieldVisit;
+use App\Services\FieldVisitPhotoStore;
+use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Storage;
 
 /** Employee self-service field visits / visiting pekerjaan (list + report). */
 class FieldVisitController extends Controller
@@ -21,17 +21,18 @@ class FieldVisitController extends Controller
 
         $data = FieldVisit::forTenant($employee->tenant_id)
             ->where('employee_id', $employee->id)
+            ->with('photos')
             ->orderByDesc('visit_date')
             ->orderByDesc('id')
             ->get()
             ->map(fn (FieldVisit $visit): array => [
                 'id' => $visit->id,
-                'visit_date' => $visit->visit_date instanceof Carbon ? $visit->visit_date->toDateString() : $visit->visit_date,
+                'visit_date' => self::dateString($visit->visit_date),
                 'location' => $visit->location,
                 'client_name' => $visit->client_name,
                 'purpose' => $visit->purpose,
                 'notes' => $visit->notes,
-                'photo_url' => $visit->photo_path ? Storage::disk('public')->url($visit->photo_path) : null,
+                'photo_urls' => FieldVisitPhotoStore::urls($visit),
                 'status' => $visit->status,
             ]);
 
@@ -50,7 +51,7 @@ class FieldVisitController extends Controller
             'notes' => ['nullable', 'string', 'max:2000'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
-            'photo' => ['nullable', 'image', 'max:4096'],
+            ...FieldVisitPhotoStore::rules(),
         ]);
 
         $visit = FieldVisit::create([
@@ -63,10 +64,24 @@ class FieldVisitController extends Controller
             'notes' => $data['notes'] ?? null,
             'latitude' => $data['latitude'] ?? null,
             'longitude' => $data['longitude'] ?? null,
-            'photo_path' => $request->hasFile('photo') ? $request->file('photo')->store('field-visits', 'public') : null,
             'status' => 'submitted',
         ]);
 
+        FieldVisitPhotoStore::attach($visit, $request->file('photos') ?? []);
+
         return response()->json(['message' => 'Kunjungan tercatat', 'data' => ['id' => $visit->id]], 201);
+    }
+
+    /**
+     * Normalise a date cast back to a plain Y-m-d string.
+     *
+     * Matched on DateTimeInterface, not Illuminate\Support\Carbon: the app runs
+     * Date::use(CarbonImmutable::class), and CarbonImmutable does not extend the
+     * Illuminate class — so a narrower check silently passes the raw datetime
+     * string through.
+     */
+    private static function dateString(mixed $date): ?string
+    {
+        return $date instanceof DateTimeInterface ? $date->format('Y-m-d') : $date;
     }
 }

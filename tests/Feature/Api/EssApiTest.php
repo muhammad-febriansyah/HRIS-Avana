@@ -229,7 +229,7 @@ it('uploads and lists a personal document', function (): void {
         ->assertJsonStructure(['data' => [['id', 'name', 'type', 'url', 'uploaded_at']]]);
 });
 
-it('records and lists a field visit with photo + GPS', function (): void {
+it('records and lists a field visit with photos + GPS', function (): void {
     ($this->auth)()->postJson('/api/v1/me/field-visits', [
         'visit_date' => now()->toDateString(),
         'location' => 'Bandung',
@@ -237,11 +237,37 @@ it('records and lists a field visit with photo + GPS', function (): void {
         'purpose' => 'Meeting',
         'latitude' => -6.9,
         'longitude' => 107.6,
-        'photo' => UploadedFile::fake()->image('visit.jpg'),
+        'photos' => [
+            UploadedFile::fake()->image('visit-1.jpg'),
+            UploadedFile::fake()->image('visit-2.jpg'),
+        ],
     ])->assertCreated();
 
     ($this->auth)()->getJson('/api/v1/me/field-visits')->assertOk()
-        ->assertJsonStructure(['data' => [['id', 'location', 'photo_url', 'status']]]);
+        ->assertJsonStructure(['data' => [['id', 'location', 'photo_urls', 'status']]])
+        ->assertJsonCount(2, 'data.0.photo_urls')
+        ->assertJsonPath('data.0.visit_date', now()->toDateString());
+});
+
+it('records a field visit with no photo at all', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/field-visits', [
+        'visit_date' => now()->toDateString(),
+        'location' => 'Bandung',
+    ])->assertCreated();
+
+    ($this->auth)()->getJson('/api/v1/me/field-visits')->assertOk()
+        ->assertJsonPath('data.0.photo_urls', []);
+});
+
+it('rejects more field-visit photos than allowed', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/field-visits', [
+        'visit_date' => now()->toDateString(),
+        'location' => 'Bandung',
+        'photos' => array_map(
+            fn (int $i) => UploadedFile::fake()->image("v-{$i}.jpg"),
+            range(1, 6),
+        ),
+    ])->assertStatus(422)->assertJsonValidationErrors('photos');
 });
 
 it('requests and lists a shift swap with a colleague', function (): void {

@@ -354,24 +354,39 @@ export default function VisitingIndex({ visits, filters }: VisitingIndexProps) {
                                             {row.purpose ?? '—'}
                                         </td>
                                         <td style={{ padding: '12px 16px' }}>
-                                            {row.photo_url ? (
-                                                <a
-                                                    href={row.photo_url}
-                                                    target="_blank"
-                                                    rel="noreferrer"
+                                            {row.photo_urls.length > 0 ? (
+                                                <div
+                                                    style={{
+                                                        display: 'flex',
+                                                        gap: 4,
+                                                        alignItems: 'center',
+                                                    }}
                                                 >
-                                                    <img
-                                                        src={row.photo_url}
-                                                        alt="Foto kunjungan"
-                                                        style={{
-                                                            width: 40,
-                                                            height: 40,
-                                                            borderRadius: 8,
-                                                            objectFit: 'cover',
-                                                            border: `1px solid ${C.border}`,
-                                                        }}
-                                                    />
-                                                </a>
+                                                    {row.photo_urls.map(
+                                                        (url, index) => (
+                                                            <a
+                                                                key={url}
+                                                                href={url}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                title={`Foto ${index + 1} dari ${row.photo_urls.length}`}
+                                                            >
+                                                                <img
+                                                                    src={url}
+                                                                    alt={`Foto kunjungan ${index + 1}`}
+                                                                    style={{
+                                                                        width: 40,
+                                                                        height: 40,
+                                                                        borderRadius: 8,
+                                                                        objectFit:
+                                                                            'cover',
+                                                                        border: `1px solid ${C.border}`,
+                                                                    }}
+                                                                />
+                                                            </a>
+                                                        ),
+                                                    )}
+                                                </div>
                                             ) : (
                                                 <span
                                                     style={{
