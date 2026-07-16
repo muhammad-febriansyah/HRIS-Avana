@@ -56,7 +56,8 @@ export default function AvanaCuti({
 
     const izinForm = useForm<IzinFormData>({
         employee_id: '',
-        date: '',
+        start_date: '',
+        end_date: '',
         type: 'izin_jam',
         start_time: '',
         end_time: '',

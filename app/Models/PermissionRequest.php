@@ -13,7 +13,8 @@ final class PermissionRequest extends Model
     protected function casts(): array
     {
         return [
-            'date' => 'date',
+            'start_date' => 'date',
+            'end_date' => 'date',
         ];
     }
 

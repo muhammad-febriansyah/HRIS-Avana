@@ -29,7 +29,8 @@ function makePermissionRequest(int $tenantId, array $overrides = []): Permission
     return PermissionRequest::create(array_merge([
         'tenant_id' => $tenantId,
         'employee_id' => $employee->id,
-        'date' => '2026-07-01',
+        'start_date' => '2026-07-01',
+        'end_date' => '2026-07-01',
         'type' => 'izin_jam',
         'start_time' => '08:00',
         'end_time' => '10:00',
@@ -79,7 +80,8 @@ it('renders the cuti page with izin and wfh props', function (): void {
             ->has('permissionRequests.0', fn (Assert $row) => $row
                 ->has('id')
                 ->has('employee.name')
-                ->has('date')
+                ->has('start_date')
+                ->has('end_date')
                 ->has('type')
                 ->has('start_time')
                 ->has('end_time')
@@ -104,7 +106,8 @@ it('creates a pending izin request scoped to the tenant', function (): void {
     actingAs($this->admin)
         ->post(route('avana.cuti.izin.store'), [
             'employee_id' => $employee->id,
-            'date' => '2026-07-10',
+            'start_date' => '2026-07-10',
+            'end_date' => '2026-07-10',
             'type' => 'keluar_kantor',
             'start_time' => '13:00',
             'end_time' => '14:00',
@@ -120,14 +123,48 @@ it('creates a pending izin request scoped to the tenant', function (): void {
     expect($izin->status)->toBe('pending');
 });
 
+it('creates an izin spanning several days', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.cuti.izin.store'), [
+            'employee_id' => $employee->id,
+            'start_date' => '2026-07-10',
+            'end_date' => '2026-07-13',
+            'type' => 'keluar_kantor',
+            'reason' => 'Urusan keluarga luar kota',
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $izin = PermissionRequest::where('employee_id', $employee->id)->latest('id')->firstOrFail();
+
+    expect($izin->start_date->toDateString())->toBe('2026-07-10')
+        ->and($izin->end_date->toDateString())->toBe('2026-07-13');
+});
+
+it('rejects an izin whose end date precedes its start', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.cuti.izin.store'), [
+            'employee_id' => $employee->id,
+            'start_date' => '2026-07-10',
+            'end_date' => '2026-07-08',
+            'type' => 'keluar_kantor',
+        ])
+        ->assertSessionHasErrors('end_date');
+});
+
 it('validates required fields when storing izin', function (): void {
     actingAs($this->admin)
         ->post(route('avana.cuti.izin.store'), [
             'employee_id' => '',
-            'date' => '',
+            'start_date' => '',
+            'end_date' => '',
             'type' => '',
         ])
-        ->assertSessionHasErrors(['employee_id', 'date', 'type']);
+        ->assertSessionHasErrors(['employee_id', 'start_date', 'end_date', 'type']);
 });
 
 it('approves and rejects an izin request', function (): void {
@@ -157,7 +194,8 @@ it('returns 404 when approving an izin request from another tenant', function ()
     $foreign = PermissionRequest::create([
         'tenant_id' => $otherTenant->id,
         'employee_id' => $foreignEmployee->id,
-        'date' => '2026-07-01',
+        'start_date' => '2026-07-01',
+        'end_date' => '2026-07-01',
         'type' => 'izin_jam',
         'status' => 'pending',
     ]);

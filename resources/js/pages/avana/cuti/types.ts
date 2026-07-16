@@ -83,7 +83,8 @@ export interface OvertimeRow {
 export interface PermissionRow {
     id: number;
     employee: RequestEmployee | null;
-    date: string | null;
+    start_date: string | null;
+    end_date: string | null;
     type: string;
     start_time: string | null;
     end_time: string | null;
@@ -139,7 +140,8 @@ export interface OvertimeFormData {
 /** Form payload backing the "Ajukan Izin" form. */
 export interface IzinFormData {
     employee_id: string;
-    date: string;
+    start_date: string;
+    end_date: string;
     type: string;
     start_time: string;
     end_time: string;

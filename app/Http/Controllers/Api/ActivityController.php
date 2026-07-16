@@ -83,7 +83,7 @@ class ActivityController extends Controller
                 $items->push($this->shape(
                     'permission',
                     'Izin'.($p->type ? ' — '.$p->type : ''),
-                    $this->date($p->date),
+                    $this->range($p->start_date, $p->end_date),
                     $p->status,
                     $p->created_at,
                 ));

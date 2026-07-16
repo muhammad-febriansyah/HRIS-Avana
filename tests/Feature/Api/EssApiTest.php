@@ -161,9 +161,40 @@ it('rejects a leave request over balance', function (): void {
 
 it('submits overtime, permission and wfh, and lists announcements', function (): void {
     ($this->auth)()->postJson('/api/v1/me/overtime', ['date' => now()->toDateString(), 'hours' => 2, 'reason' => 'Deadline'])->assertCreated();
-    ($this->auth)()->postJson('/api/v1/me/permissions', ['date' => now()->toDateString(), 'type' => 'keluar', 'start_time' => '10:00', 'end_time' => '11:00'])->assertCreated();
+    ($this->auth)()->postJson('/api/v1/me/permissions', ['start_date' => now()->toDateString(), 'end_date' => now()->toDateString(), 'type' => 'keluar', 'start_time' => '10:00', 'end_time' => '11:00'])->assertCreated();
     ($this->auth)()->postJson('/api/v1/me/wfh', ['start_date' => now()->addDay()->toDateString(), 'end_date' => now()->addDay()->toDateString()])->assertCreated();
     ($this->auth)()->getJson('/api/v1/me/announcements')->assertOk()->assertJsonStructure(['data']);
+});
+
+it('submits an izin spanning several days, and lists it back as a range', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/permissions', [
+        'start_date' => '2026-09-01',
+        'end_date' => '2026-09-03',
+        'type' => 'keluar',
+        'reason' => 'Urusan keluarga',
+    ])->assertCreated();
+
+    ($this->auth)()->getJson('/api/v1/me/permissions')->assertOk()
+        ->assertJsonPath('data.0.start_date', '2026-09-01')
+        ->assertJsonPath('data.0.end_date', '2026-09-03')
+        ->assertJsonPath('data.0.start_time', null);
+});
+
+it('rejects an izin whose end date precedes its start', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/permissions', [
+        'start_date' => '2026-09-03',
+        'end_date' => '2026-09-01',
+        'type' => 'keluar',
+    ])->assertStatus(422)->assertJsonValidationErrors('end_date');
+});
+
+it('rejects a clock time on a multi-day izin', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/permissions', [
+        'start_date' => '2026-09-01',
+        'end_date' => '2026-09-03',
+        'type' => 'keluar',
+        'start_time' => '10:00',
+    ])->assertStatus(422)->assertJsonValidationErrors('start_time');
 });
 
 it('submits a reimbursement', function (): void {

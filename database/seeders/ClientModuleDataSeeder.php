@@ -470,13 +470,20 @@ class ClientModuleDataSeeder extends Seeder
             $employee = $employees[array_rand($employees)];
             $startHour = mt_rand(9, 14);
             $duration = mt_rand(1, 3);
+            $start = $now->copy()->subDays(mt_rand(1, 25));
+
+            // Every third izin spans a couple of days, so the range shows up in
+            // the demo data; the rest stay hourly on a single day.
+            $spanDays = $i % 3 === 0 ? mt_rand(1, 2) : 0;
+
             PermissionRequest::create([
                 'tenant_id' => $tenant->id,
                 'employee_id' => $employee->id,
-                'date' => $now->copy()->subDays(mt_rand(1, 25))->toDateString(),
+                'start_date' => $start->toDateString(),
+                'end_date' => $start->copy()->addDays($spanDays)->toDateString(),
                 'type' => $types[array_rand($types)],
-                'start_time' => sprintf('%02d:00', $startHour),
-                'end_time' => sprintf('%02d:00', $startHour + $duration),
+                'start_time' => $spanDays === 0 ? sprintf('%02d:00', $startHour) : null,
+                'end_time' => $spanDays === 0 ? sprintf('%02d:00', $startHour + $duration) : null,
                 'reason' => $reasons[array_rand($reasons)],
                 'current_approver_id' => $admin->id,
                 'status' => $statuses[array_rand($statuses)],

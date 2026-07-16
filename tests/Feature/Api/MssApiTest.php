@@ -49,7 +49,7 @@ beforeEach(function (): void {
         'hours' => 3, 'reason' => 'Rilis', 'current_approver_id' => $this->manager->id, 'status' => 'pending',
     ]);
     $this->izin = PermissionRequest::create([
-        'tenant_id' => $tenantId, 'employee_id' => $this->sub->id, 'date' => '2026-07-21',
+        'tenant_id' => $tenantId, 'employee_id' => $this->sub->id, 'start_date' => '2026-07-21', 'end_date' => '2026-07-21',
         'type' => 'izin_jam', 'start_time' => '13:00:00', 'end_time' => '15:00:00',
         'reason' => 'Kontrol', 'current_approver_id' => $this->manager->id, 'status' => 'pending',
     ]);

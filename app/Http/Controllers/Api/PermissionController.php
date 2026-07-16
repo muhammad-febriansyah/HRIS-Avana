@@ -5,9 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\PermissionRequest;
+use Closure;
+use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 
 /** Employee self-service hourly permission (izin keluar) requests. */
 class PermissionController extends Controller
@@ -20,11 +21,12 @@ class PermissionController extends Controller
 
         $data = PermissionRequest::forTenant($employee->tenant_id)
             ->where('employee_id', $employee->id)
-            ->orderByDesc('date')
-            ->get(['id', 'date', 'type', 'start_time', 'end_time', 'reason', 'status'])
+            ->orderByDesc('start_date')
+            ->get(['id', 'start_date', 'end_date', 'type', 'start_time', 'end_time', 'reason', 'status'])
             ->map(fn (PermissionRequest $p): array => [
                 'id' => $p->id,
-                'date' => $p->date instanceof Carbon ? $p->date->toDateString() : $p->date,
+                'start_date' => self::dateString($p->start_date),
+                'end_date' => self::dateString($p->end_date),
                 'type' => $p->type,
                 'start_time' => $p->start_time,
                 'end_time' => $p->end_time,
@@ -40,17 +42,22 @@ class PermissionController extends Controller
         $employee = $this->currentEmployee($request);
 
         $data = $request->validate([
-            'date' => ['required', 'date'],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'type' => ['required', 'string', 'max:50'],
-            'start_time' => ['nullable', 'date_format:H:i'],
-            'end_time' => ['nullable', 'date_format:H:i', 'after:start_time'],
+            // Times narrow a single-day izin to part of that day (e.g. "keluar
+            // kantor 09:00-11:00"). A multi-day izin covers whole days, so a
+            // time there is rejected rather than stored and silently ignored.
+            'start_time' => ['nullable', 'date_format:H:i', self::singleDayOnly($request)],
+            'end_time' => ['nullable', 'date_format:H:i', 'after:start_time', self::singleDayOnly($request)],
             'reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
         $permission = PermissionRequest::create([
             'tenant_id' => $employee->tenant_id,
             'employee_id' => $employee->id,
-            'date' => $data['date'],
+            'start_date' => $data['start_date'],
+            'end_date' => $data['end_date'],
             'type' => $data['type'],
             'start_time' => $data['start_time'] ?? null,
             'end_time' => $data['end_time'] ?? null,
@@ -60,5 +67,30 @@ class PermissionController extends Controller
         ]);
 
         return response()->json(['message' => 'Pengajuan izin terkirim', 'data' => ['id' => $permission->id]], 201);
+    }
+
+    /**
+     * Reject a clock time unless the izin sits on one single day.
+     */
+    private static function singleDayOnly(Request $request): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) use ($request): void {
+            if ($request->input('start_date') !== $request->input('end_date')) {
+                $fail('Jam hanya berlaku untuk izin satu hari.');
+            }
+        };
+    }
+
+    /**
+     * Normalise a date cast back to a plain Y-m-d string.
+     *
+     * Matched on DateTimeInterface, not Illuminate\Support\Carbon: the app runs
+     * Date::use(CarbonImmutable::class), and CarbonImmutable does not extend the
+     * Illuminate class — so a narrower check silently passes the raw datetime
+     * string through.
+     */
+    private static function dateString(mixed $date): ?string
+    {
+        return $date instanceof DateTimeInterface ? $date->format('Y-m-d') : $date;
     }
 }

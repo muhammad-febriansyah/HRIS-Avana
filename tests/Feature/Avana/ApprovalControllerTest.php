@@ -71,7 +71,8 @@ function makeApprovalPermission(int $tenantId, array $overrides = []): Permissio
     return PermissionRequest::create(array_merge([
         'tenant_id' => $tenantId,
         'employee_id' => $employee->id,
-        'date' => '2026-07-01',
+        'start_date' => '2026-07-01',
+        'end_date' => '2026-07-01',
         'type' => 'izin_jam',
         'start_time' => '10:00',
         'end_time' => '12:00',
