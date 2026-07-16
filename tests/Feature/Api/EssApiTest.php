@@ -4,6 +4,7 @@ use App\Models\Attendance;
 use App\Models\AttendanceSelfie;
 use App\Models\Employee;
 use App\Models\LeaveType;
+use App\Models\MoodCheckin;
 use App\Models\Notification;
 use App\Models\User;
 use App\Models\WorkLocation;
@@ -396,4 +397,17 @@ it('records and reports a daily mood check-in', function (): void {
 it('rejects an invalid mood value', function (): void {
     ($this->auth)()->postJson('/api/v1/me/mood', ['mood' => 'senang_banget'])
         ->assertStatus(422)->assertJsonValidationErrors('mood');
+});
+
+it('keeps the first mood of the day and rejects a second submission', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/mood', ['mood' => 'baik'])->assertOk();
+
+    ($this->auth)()->postJson('/api/v1/me/mood', ['mood' => 'buruk'])
+        ->assertStatus(409)
+        ->assertJsonPath('data.mood', 'baik');
+
+    ($this->auth)()->getJson('/api/v1/me/mood')->assertOk()
+        ->assertJsonPath('data.mood', 'baik');
+
+    expect(MoodCheckin::whereDate('date', now()->toDateString())->count())->toBe(1);
 });
