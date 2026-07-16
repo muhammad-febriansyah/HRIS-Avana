@@ -4,6 +4,7 @@ use App\Models\Attendance;
 use App\Models\AttendancePolicy;
 use App\Models\Branch;
 use App\Models\User;
+use App\Models\WfhRequest;
 use App\Models\WorkLocation;
 use Database\Seeders\AvanaDemoSeeder;
 
@@ -140,6 +141,105 @@ it('falls back to the strictest scope when the stored value is unrecognised', fu
     $this->employee->update(['attendance_scope' => 'garbage']);
 
     ($this->clockInAway)()->assertStatus(422);
+});
+
+/** An approved WFH request covering today for the seeded employee. */
+function approveWfhToday(int $tenantId, int $employeeId, string $status = 'approved'): WfhRequest
+{
+    return WfhRequest::create([
+        'tenant_id' => $tenantId,
+        'employee_id' => $employeeId,
+        'start_date' => now()->toDateString(),
+        'end_date' => now()->toDateString(),
+        'reason' => 'Kerja dari rumah',
+        'status' => $status,
+    ]);
+}
+
+it('refuses a home clock-in without an approved WFH request', function (): void {
+    ($this->clockInAway)(['work_mode' => 'home'])
+        ->assertStatus(422)
+        ->assertJsonPath('message', fn (string $m): bool => str_contains($m, 'WFH'));
+});
+
+it('refuses a home clock-in when the WFH request is only pending', function (): void {
+    approveWfhToday($this->employee->tenant_id, $this->employee->id, 'pending');
+
+    ($this->clockInAway)(['work_mode' => 'home'])
+        ->assertStatus(422)
+        ->assertJsonPath('message', fn (string $m): bool => str_contains($m, 'WFH'));
+});
+
+it('accepts a home clock-in backed by an approved WFH request', function (): void {
+    approveWfhToday($this->employee->tenant_id, $this->employee->id);
+
+    ($this->clockInAway)(['work_mode' => 'home'])->assertOk();
+
+    $attendance = Attendance::where('employee_id', $this->employee->id)
+        ->whereDate('date', now()->toDateString())
+        ->firstOrFail();
+
+    expect($attendance->work_mode)->toBe('home')
+        ->and($attendance->location_status)->toBe('wfh')
+        ->and($attendance->work_location_id)->toBeNull()
+        ->and((float) $attendance->clock_in_lat)->toBe(AWAY_LAT);
+});
+
+it('defaults to office mode when none is sent', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+        'type' => 'in', 'latitude' => -6.2146, 'longitude' => 106.8451,
+    ])->assertOk();
+
+    expect(Attendance::where('employee_id', $this->employee->id)
+        ->whereDate('date', now()->toDateString())
+        ->firstOrFail()->work_mode)->toBe('office');
+});
+
+it('still blocks a faked GPS location on an approved WFH day', function (): void {
+    approveWfhToday($this->employee->tenant_id, $this->employee->id);
+
+    ($this->clockInAway)(['work_mode' => 'home', 'is_mock_location' => true])
+        ->assertStatus(422)
+        ->assertJsonPath('message', fn (string $m): bool => str_contains($m, 'Fake GPS'));
+});
+
+it('lets a WFH day clock out away from the office', function (): void {
+    approveWfhToday($this->employee->tenant_id, $this->employee->id);
+
+    ($this->clockInAway)(['work_mode' => 'home'])->assertOk();
+
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+        'type' => 'out', 'latitude' => AWAY_LAT, 'longitude' => AWAY_LNG,
+    ])->assertOk();
+});
+
+it('holds an office-mode clock-out to the radius even on a WFH day', function (): void {
+    approveWfhToday($this->employee->tenant_id, $this->employee->id);
+
+    // Clocked in at the office, so the day is not a WFH day in practice.
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+        'type' => 'in', 'latitude' => -6.2146, 'longitude' => 106.8451,
+    ])->assertOk();
+
+    ($this->clockInAway)()->assertStatus(422);
+});
+
+it('rejects an unknown work mode', function (): void {
+    ($this->clockInAway)(['work_mode' => 'beach'])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('work_mode');
+});
+
+it('tells the app whether home is allowed today', function (): void {
+    ($this->auth)()->getJson('/api/v1/me/attendance/today')
+        ->assertOk()
+        ->assertJsonPath('requirements.wfh_approved_today', false);
+
+    approveWfhToday($this->employee->tenant_id, $this->employee->id);
+
+    ($this->auth)()->getJson('/api/v1/me/attendance/today')
+        ->assertOk()
+        ->assertJsonPath('requirements.wfh_approved_today', true);
 });
 
 it('reports the scope alongside the work locations', function (): void {

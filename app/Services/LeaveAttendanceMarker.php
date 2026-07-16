@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Attendance;
 use App\Models\LeaveRequest;
+use App\Models\WfhRequest;
 use Illuminate\Support\Carbon;
 
 /**
@@ -56,6 +57,21 @@ final class LeaveAttendanceMarker
     public static function covers(int $tenantId, int $employeeId, string $date): bool
     {
         return LeaveRequest::query()
+            ->where('tenant_id', $tenantId)
+            ->where('employee_id', $employeeId)
+            ->where('status', 'approved')
+            ->whereDate('start_date', '<=', $date)
+            ->whereDate('end_date', '>=', $date)
+            ->exists();
+    }
+
+    /**
+     * Whether an approved WFH request covers this date for this employee —
+     * the licence for clocking in with work_mode 'home'.
+     */
+    public static function wfhCovers(int $tenantId, int $employeeId, string $date): bool
+    {
+        return WfhRequest::query()
             ->where('tenant_id', $tenantId)
             ->where('employee_id', $employeeId)
             ->where('status', 'approved')

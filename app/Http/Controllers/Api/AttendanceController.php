@@ -45,6 +45,13 @@ class AttendanceController extends Controller
                 'require_face_enrollment' => (bool) $policy->require_face_enrollment,
                 'require_liveness_challenge' => (bool) $policy->require_liveness_challenge,
                 'face_enrolled' => EmployeeFaceEmbedding::where('employee_id', $employee->id)->exists(),
+                // Whether "home" is a legal choice today, so the app can offer
+                // the mode selector instead of letting the user earn a 422.
+                'wfh_approved_today' => LeaveAttendanceMarker::wfhCovers(
+                    $employee->tenant_id,
+                    $employee->id,
+                    now()->toDateString(),
+                ),
             ],
         ]);
     }
@@ -136,6 +143,7 @@ class AttendanceController extends Controller
 
         $data = $request->validate([
             'type' => ['required', 'in:in,out'],
+            'work_mode' => ['nullable', 'in:office,home'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'face_confidence' => ['nullable', 'numeric'],
@@ -286,11 +294,22 @@ class AttendanceController extends Controller
             return response()->json(['message' => 'Anda sedang cuti hari ini, tidak perlu absen.'], 422);
         }
 
-        $geofence = $this->geofenceCheck(
-            $employee,
-            $data,
-            $employee->effectiveAttendanceScope(AttendancePolicy::resolve($employee->tenant_id)),
-        );
+        $workMode = $data['work_mode'] ?? 'office';
+
+        // Working from home is a claim the WFH approval has to back: without it,
+        // anyone late or out of town could pick "home" and walk past the radius.
+        if ($workMode === 'home' && ! LeaveAttendanceMarker::wfhCovers($employee->tenant_id, $employee->id, $clockedAt->toDateString())) {
+            return response()->json([
+                'message' => 'Tidak ada pengajuan WFH yang disetujui untuk hari ini.',
+            ], 422);
+        }
+
+        $scope = $workMode === 'home'
+            // An approved WFH day answers to no office, exactly like WFA.
+            ? AttendancePolicy::SCOPE_ANYWHERE
+            : $employee->effectiveAttendanceScope(AttendancePolicy::resolve($employee->tenant_id));
+
+        $geofence = $this->geofenceCheck($employee, $data, $scope);
 
         if ($geofence instanceof JsonResponse) {
             return $geofence;
@@ -300,7 +319,7 @@ class AttendanceController extends Controller
 
         $attendance->fill([
             'branch_id' => $employee->branch_id,
-            // Null under WFA — there is no office the clock-in belongs to.
+            // Null off-site — there is no office the clock-in belongs to.
             'work_location_id' => $geofence?->id,
             'shift_id' => $shiftId,
             'clock_in_at' => $clockedAt,
@@ -308,7 +327,12 @@ class AttendanceController extends Controller
             'clock_in_lng' => $data['longitude'] ?? null,
             'status' => $status,
             'late_minutes' => $lateMinutes,
-            'location_status' => $geofence === null ? 'wfa' : 'inside',
+            'work_mode' => $workMode,
+            'location_status' => match (true) {
+                $workMode === 'home' => 'wfh',
+                $geofence === null => 'wfa',
+                default => 'inside',
+            },
             'face_confidence' => $data['face_confidence'] ?? null,
             'device_id' => $data['device_id'] ?? null,
             'integrity_verdict' => $data['integrity_verdict'] ?? null,
@@ -361,11 +385,13 @@ class AttendanceController extends Controller
             return response()->json(['message' => 'Anda sudah clock-out hari ini.'], 422);
         }
 
-        $geofence = $this->geofenceCheck(
-            $employee,
-            $data,
-            $employee->effectiveAttendanceScope(AttendancePolicy::resolve($employee->tenant_id)),
-        );
+        // Clock-out follows the mode the day was clocked in under: someone who
+        // started an approved WFH day must not be held to the office radius now.
+        $scope = $attendance->work_mode === 'home'
+            ? AttendancePolicy::SCOPE_ANYWHERE
+            : $employee->effectiveAttendanceScope(AttendancePolicy::resolve($employee->tenant_id));
+
+        $geofence = $this->geofenceCheck($employee, $data, $scope);
 
         if ($geofence instanceof JsonResponse) {
             return $geofence;
@@ -578,6 +604,7 @@ class AttendanceController extends Controller
             // Full ISO timestamp so the app can tick worked-hours to the second.
             'clock_in_at' => $a?->clock_in_at?->toIso8601String(),
             'next_action' => $nextAction,
+            'work_mode' => $a?->work_mode,
             'summary' => [
                 'status' => $a?->status,
                 'work_minutes' => (int) ($a?->work_minutes ?? 0),
