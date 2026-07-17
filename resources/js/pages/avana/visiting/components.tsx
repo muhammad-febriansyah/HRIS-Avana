@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { AIcon, btnOut, C } from '@/lib/avana';
+import type { VisitTaskProgress } from './types';
 
 /* ---------- shared field styles (mirror visiting.tsx) ---------- */
 
@@ -112,6 +113,99 @@ export function FieldError({ message }: { message?: string }) {
         <div style={errorTextStyle}>
             <AIcon name="circle-alert" size={13} color={C.red} />
             {message}
+        </div>
+    );
+}
+
+/** A removable chip naming one selected employee. */
+export function EmployeeChip({
+    label,
+    onRemove,
+}: {
+    label: string;
+    onRemove: () => void;
+}) {
+    return (
+        <span
+            style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '5px 8px 5px 11px',
+                borderRadius: 100,
+                fontSize: 12.5,
+                fontWeight: 500,
+                color: C.primary,
+                background: 'rgba(47,84,201,.08)',
+                border: `1px solid rgba(47,84,201,.2)`,
+            }}
+        >
+            {label}
+            <button
+                type="button"
+                onClick={onRemove}
+                aria-label={`Hapus ${label}`}
+                style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 16,
+                    height: 16,
+                    border: 'none',
+                    borderRadius: '50%',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    padding: 0,
+                    color: C.primary,
+                }}
+            >
+                <AIcon name="x" size={12} color={C.primary} />
+            </button>
+        </span>
+    );
+}
+
+/** "3/5 Selesai" plus the bar underneath it. */
+export function TaskProgressBar({ progress }: { progress: VisitTaskProgress }) {
+    const percent =
+        progress.total === 0
+            ? 0
+            : Math.round((progress.done / progress.total) * 100);
+
+    return (
+        <div>
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: 12,
+                    marginBottom: 6,
+                }}
+            >
+                <span style={{ color: C.muted }}>Progress Kunjungan</span>
+                <span style={{ color: C.primary, fontWeight: 600 }}>
+                    {progress.done}/{progress.total} Selesai
+                </span>
+            </div>
+            <div
+                style={{
+                    height: 6,
+                    borderRadius: 100,
+                    background: C.line,
+                    overflow: 'hidden',
+                }}
+            >
+                <div
+                    style={{
+                        width: `${percent}%`,
+                        height: '100%',
+                        borderRadius: 100,
+                        background: C.primary,
+                        transition: 'width .2s ease',
+                    }}
+                />
+            </div>
         </div>
     );
 }

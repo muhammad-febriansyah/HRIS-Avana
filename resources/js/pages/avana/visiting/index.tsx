@@ -4,9 +4,187 @@ import { toast } from 'sonner';
 import FieldVisitController from '@/actions/App/Http/Controllers/Avana/FieldVisitController';
 import { ActionBtn, AIcon, btnP, C, card } from '@/lib/avana';
 import { ConfirmModal, filterSelectStyle, headThStyle } from './components';
-import type { FlashProps, VisitingIndexProps, VisitRow } from './types';
+import type {
+    FlashProps,
+    VisitEmployee,
+    VisitingIndexProps,
+    VisitRow,
+    VisitTask,
+    VisitTaskProgress,
+} from './types';
 
-export default function VisitingIndex({ visits, filters }: VisitingIndexProps) {
+/** How many attendee avatars to show before collapsing into a "+N" bubble. */
+const MAX_VISIBLE_AVATARS = 3;
+
+/** Overlapping avatar stack naming everyone who attended a visit. */
+function VisitAttendees({ employees }: { employees: VisitEmployee[] }) {
+    if (employees.length === 0) {
+        return <span style={{ fontSize: 12.5, color: C.faint }}>—</span>;
+    }
+
+    const shown = employees.slice(0, MAX_VISIBLE_AVATARS);
+    const overflow = employees.length - shown.length;
+
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', flex: 'none' }}>
+                {shown.map((employee, index) => (
+                    <div
+                        key={employee.id}
+                        title={`${employee.name}${employee.employee_number ? ` (${employee.employee_number})` : ''}`}
+                        style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: '50%',
+                            background: employee.avatar_color,
+                            color: '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            border: '2px solid #fff',
+                            marginLeft: index === 0 ? 0 : -10,
+                        }}
+                    >
+                        {employee.initials}
+                    </div>
+                ))}
+                {overflow > 0 && (
+                    <div
+                        title={employees
+                            .slice(MAX_VISIBLE_AVATARS)
+                            .map((employee) => employee.name)
+                            .join(', ')}
+                        style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: '50%',
+                            background: C.line,
+                            color: C.muted,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 11,
+                            fontWeight: 600,
+                            border: '2px solid #fff',
+                            marginLeft: -10,
+                        }}
+                    >
+                        +{overflow}
+                    </div>
+                )}
+            </div>
+            <div style={{ minWidth: 0 }}>
+                <div
+                    style={{
+                        fontSize: 13,
+                        fontWeight: 500,
+                        color: C.text,
+                    }}
+                >
+                    {employees[0].name}
+                </div>
+                <div style={{ fontSize: 11.5, color: C.faint }}>
+                    {employees.length > 1
+                        ? `+${employees.length - 1} karyawan lain`
+                        : (employees[0].employee_number ?? '')}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/** The visit's tasklist: a progress count plus tickable lines. */
+function VisitTasksCell({
+    visitId,
+    tasks,
+    progress,
+}: {
+    visitId: number;
+    tasks: VisitTask[];
+    progress: VisitTaskProgress;
+}) {
+    if (tasks.length === 0) {
+        return <span style={{ fontSize: 12.5, color: C.faint }}>—</span>;
+    }
+
+    const toggle = (taskId: number) => {
+        router.post(
+            FieldVisitController.toggleTask({
+                visit: visitId,
+                task: taskId,
+            }).url,
+            {},
+            { preserveScroll: true },
+        );
+    };
+
+    const complete = progress.done === progress.total;
+
+    return (
+        <div
+            style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+                minWidth: 190,
+            }}
+        >
+            <span
+                style={{
+                    alignSelf: 'flex-start',
+                    padding: '2px 9px',
+                    borderRadius: 100,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: complete ? '#16A34A' : '#D97706',
+                    background: complete
+                        ? 'rgba(22,163,74,.1)'
+                        : 'rgba(217,119,6,.1)',
+                }}
+            >
+                {progress.done}/{progress.total} Selesai
+            </span>
+            {tasks.map((task) => (
+                <label
+                    key={task.id}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 7,
+                        fontSize: 12,
+                        color: task.is_done ? C.faint : C.text,
+                        cursor: 'pointer',
+                        lineHeight: 1.4,
+                    }}
+                >
+                    <input
+                        type="checkbox"
+                        checked={task.is_done}
+                        onChange={() => toggle(task.id)}
+                        style={{ marginTop: 2, cursor: 'pointer' }}
+                    />
+                    <span
+                        style={{
+                            textDecoration: task.is_done
+                                ? 'line-through'
+                                : 'none',
+                        }}
+                    >
+                        {task.title}
+                    </span>
+                </label>
+            ))}
+        </div>
+    );
+}
+
+export default function VisitingIndex({
+    visits,
+    branches,
+    filters,
+}: VisitingIndexProps) {
     const { flash } = usePage<FlashProps>().props;
     const meta = visits.meta;
 
@@ -188,6 +366,21 @@ export default function VisitingIndex({ visits, filters }: VisitingIndexProps) {
                             }
                             style={filterSelectStyle}
                         />
+                        <select
+                            aria-label="Cabang"
+                            value={filters.branch_id ?? ''}
+                            onChange={(event) =>
+                                applyFilter('branch_id', event.target.value)
+                            }
+                            style={filterSelectStyle}
+                        >
+                            <option value="">Semua Cabang</option>
+                            {branches.map((branch) => (
+                                <option key={branch.id} value={branch.id}>
+                                    {branch.name}
+                                </option>
+                            ))}
+                        </select>
                         <div style={{ flex: 1 }} />
                     </div>
 
@@ -203,10 +396,11 @@ export default function VisitingIndex({ visits, filters }: VisitingIndexProps) {
                             <thead>
                                 <tr style={{ background: '#FAFBFD' }}>
                                     <th style={headThStyle}>Karyawan</th>
+                                    <th style={headThStyle}>Cabang</th>
                                     <th style={headThStyle}>Tanggal</th>
                                     <th style={headThStyle}>Lokasi</th>
                                     <th style={headThStyle}>Klien</th>
-                                    <th style={headThStyle}>Tujuan</th>
+                                    <th style={headThStyle}>Tugas</th>
                                     <th style={headThStyle}>Foto</th>
                                     <th
                                         style={{
@@ -226,7 +420,7 @@ export default function VisitingIndex({ visits, filters }: VisitingIndexProps) {
                                         }}
                                     >
                                         <td
-                                            colSpan={7}
+                                            colSpan={8}
                                             style={{
                                                 padding: '48px 18px',
                                                 textAlign: 'center',
@@ -263,58 +457,18 @@ export default function VisitingIndex({ visits, filters }: VisitingIndexProps) {
                                         }}
                                     >
                                         <td style={{ padding: '12px 16px' }}>
-                                            <div
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: 10,
-                                                }}
-                                            >
-                                                <div
-                                                    style={{
-                                                        width: 32,
-                                                        height: 32,
-                                                        borderRadius: '50%',
-                                                        flex: 'none',
-                                                        background:
-                                                            row.employee
-                                                                ?.avatar_color ??
-                                                            C.faint,
-                                                        color: '#fff',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent:
-                                                            'center',
-                                                        fontSize: 11.5,
-                                                        fontWeight: 600,
-                                                    }}
-                                                >
-                                                    {row.employee?.initials ??
-                                                        '?'}
-                                                </div>
-                                                <div>
-                                                    <div
-                                                        style={{
-                                                            fontSize: 13,
-                                                            fontWeight: 500,
-                                                            color: C.text,
-                                                        }}
-                                                    >
-                                                        {row.employee?.name ??
-                                                            '—'}
-                                                    </div>
-                                                    <div
-                                                        style={{
-                                                            fontSize: 11.5,
-                                                            color: C.faint,
-                                                        }}
-                                                    >
-                                                        {row.employee
-                                                            ?.employee_number ??
-                                                            ''}
-                                                    </div>
-                                                </div>
-                                            </div>
+                                            <VisitAttendees
+                                                employees={row.employees}
+                                            />
+                                        </td>
+                                        <td
+                                            style={{
+                                                padding: '12px 16px',
+                                                fontSize: 12.5,
+                                                color: C.muted,
+                                            }}
+                                        >
+                                            {row.branch ?? '—'}
                                         </td>
                                         <td
                                             style={{
@@ -343,15 +497,12 @@ export default function VisitingIndex({ visits, filters }: VisitingIndexProps) {
                                         >
                                             {row.client_name ?? '—'}
                                         </td>
-                                        <td
-                                            style={{
-                                                padding: '12px 16px',
-                                                fontSize: 12.5,
-                                                color: C.muted,
-                                                maxWidth: 220,
-                                            }}
-                                        >
-                                            {row.purpose ?? '—'}
+                                        <td style={{ padding: '12px 16px' }}>
+                                            <VisitTasksCell
+                                                visitId={row.id}
+                                                tasks={row.tasks}
+                                                progress={row.task_progress}
+                                            />
                                         </td>
                                         <td style={{ padding: '12px 16px' }}>
                                             {row.photo_urls.length > 0 ? (

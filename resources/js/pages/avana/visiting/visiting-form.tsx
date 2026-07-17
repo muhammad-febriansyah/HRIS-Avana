@@ -1,22 +1,26 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { ChangeEvent, FormEvent } from 'react';
+import { useState } from 'react';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
 import {
     dateInputStyle,
+    EmployeeChip,
     FieldError,
     fieldLabelStyle,
     inputStyle,
     selectStyle,
+    TaskProgressBar,
     textareaStyle,
     withError,
 } from './components';
-import type { EmployeeOption, VisitFormData } from './types';
+import type { BranchOption, EmployeeOption, VisitFormData } from './types';
 
 interface VisitingFormProps {
     form: InertiaFormProps<VisitFormData>;
     employees: EmployeeOption[];
+    branches: BranchOption[];
     submitLabel: string;
     submitIcon: string;
     cancelHref: string;
@@ -26,10 +30,11 @@ interface VisitingFormProps {
 /** How many photos one visit may carry; mirrors FieldVisitPhotoStore::MAX. */
 const MAX_PHOTOS = 5;
 
-/** Create form for a field visit, including optional photo evidence. */
+/** Create form for a field visit: attendees, tasklist and photo evidence. */
 export function VisitingForm({
     form,
     employees,
+    branches,
     submitLabel,
     submitIcon,
     cancelHref,
@@ -37,9 +42,85 @@ export function VisitingForm({
 }: VisitingFormProps) {
     const { data, setData, errors, processing } = form;
 
+    const [taskDraft, setTaskDraft] = useState('');
+    const [locating, setLocating] = useState(false);
+    const [locationError, setLocationError] = useState<string | null>(null);
+
     const onPhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
-        setData('photos', Array.from(event.target.files ?? []).slice(0, MAX_PHOTOS));
+        setData(
+            'photos',
+            Array.from(event.target.files ?? []).slice(0, MAX_PHOTOS),
+        );
     };
+
+    const addEmployee = (value: string) => {
+        if (value && !data.employee_ids.includes(value)) {
+            setData('employee_ids', [...data.employee_ids, value]);
+        }
+    };
+
+    const removeEmployee = (value: string) => {
+        setData(
+            'employee_ids',
+            data.employee_ids.filter((id) => id !== value),
+        );
+    };
+
+    const addTask = () => {
+        const title = taskDraft.trim();
+
+        if (title !== '') {
+            setData('tasks', [...data.tasks, title]);
+            setTaskDraft('');
+        }
+    };
+
+    const removeTask = (index: number) => {
+        setData(
+            'tasks',
+            data.tasks.filter((_, i) => i !== index),
+        );
+    };
+
+    const fillPreciseLocation = () => {
+        if (!navigator.geolocation) {
+            setLocationError('Browser ini tidak mendukung lokasi presisi.');
+
+            return;
+        }
+
+        setLocating(true);
+        setLocationError(null);
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setData((current) => ({
+                    ...current,
+                    latitude: position.coords.latitude.toFixed(7),
+                    longitude: position.coords.longitude.toFixed(7),
+                }));
+                setLocating(false);
+            },
+            () => {
+                setLocationError(
+                    'Gagal mengambil lokasi. Izinkan akses lokasi lalu coba lagi.',
+                );
+                setLocating(false);
+            },
+            { enableHighAccuracy: true, timeout: 10000 },
+        );
+    };
+
+    const employeeLabel = (id: string): string => {
+        const employee = employees.find((row) => String(row.id) === id);
+
+        return employee ? employee.name : id;
+    };
+
+    // The picker only offers people not already on the list.
+    const availableEmployees = employees.filter(
+        (employee) => !data.employee_ids.includes(String(employee.id)),
+    );
 
     return (
         <form onSubmit={onSubmit} style={{ ...card }}>
@@ -51,23 +132,78 @@ export function VisitingForm({
                     gap: 16,
                 }}
             >
-                <div>
-                    <label style={fieldLabelStyle}>
-                        Karyawan <span style={{ color: C.red }}>*</span>
-                    </label>
-                    <SearchableSelect
-                        value={data.employee_id}
-                        onChange={(value) => setData('employee_id', value)}
-                        options={employees.map((employee) => ({
-                            value: String(employee.id),
-                            label: `${employee.name} (${employee.employee_number})`,
-                        }))}
-                        placeholder="Pilih karyawan"
-                        searchPlaceholder="Cari nama karyawan…"
-                        allowClear
-                        style={withError(selectStyle, !!errors.employee_id)}
-                    />
-                    <FieldError message={errors.employee_id} />
+                <div
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: 12,
+                    }}
+                >
+                    <div>
+                        <label style={fieldLabelStyle}>
+                            Karyawan <span style={{ color: C.red }}>*</span>
+                        </label>
+                        <SearchableSelect
+                            value=""
+                            onChange={addEmployee}
+                            options={availableEmployees.map((employee) => ({
+                                value: String(employee.id),
+                                label: `${employee.name} (${employee.employee_number})`,
+                            }))}
+                            placeholder="Pilih satu atau lebih karyawan"
+                            searchPlaceholder="Cari nama karyawan…"
+                            style={withError(
+                                selectStyle,
+                                !!errors.employee_ids,
+                            )}
+                        />
+                        {data.employee_ids.length > 0 && (
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    gap: 6,
+                                    marginTop: 8,
+                                }}
+                            >
+                                {data.employee_ids.map((id) => (
+                                    <EmployeeChip
+                                        key={id}
+                                        label={employeeLabel(id)}
+                                        onRemove={() => removeEmployee(id)}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                        <div
+                            style={{
+                                fontSize: 11,
+                                color: C.faint,
+                                marginTop: 6,
+                            }}
+                        >
+                            Pilih berulang untuk menambah lebih dari satu
+                            karyawan.
+                        </div>
+                        <FieldError message={errors.employee_ids} />
+                    </div>
+
+                    <div>
+                        <label style={fieldLabelStyle}>Nama Cabang</label>
+                        <SearchableSelect
+                            value={data.branch_id}
+                            onChange={(value) => setData('branch_id', value)}
+                            options={branches.map((branch) => ({
+                                value: String(branch.id),
+                                label: branch.name,
+                            }))}
+                            placeholder="Pilih cabang"
+                            searchPlaceholder="Cari cabang…"
+                            allowClear
+                            style={withError(selectStyle, !!errors.branch_id)}
+                        />
+                        <FieldError message={errors.branch_id} />
+                    </div>
                 </div>
 
                 <div>
@@ -130,6 +266,147 @@ export function VisitingForm({
                     <FieldError message={errors.purpose} />
                 </div>
 
+                {/* Tasklist */}
+                <div
+                    style={{
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 10,
+                        padding: 16,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 12,
+                        background: '#FAFBFD',
+                    }}
+                >
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 9,
+                        }}
+                    >
+                        <AIcon
+                            name="clipboard-check"
+                            size={16}
+                            color={C.primary}
+                        />
+                        <div>
+                            <div
+                                style={{
+                                    fontSize: 13.5,
+                                    fontWeight: 600,
+                                    color: C.navy,
+                                }}
+                            >
+                                Tasklist Pekerjaan
+                            </div>
+                            <div style={{ fontSize: 11.5, color: C.faint }}>
+                                Daftar tugas selama kunjungan
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <input
+                            type="text"
+                            placeholder="Tambah tugas baru…"
+                            value={taskDraft}
+                            onChange={(event) =>
+                                setTaskDraft(event.target.value)
+                            }
+                            onKeyDown={(event) => {
+                                // Enter adds a task; it must not submit the visit.
+                                if (event.key === 'Enter') {
+                                    event.preventDefault();
+                                    addTask();
+                                }
+                            }}
+                            style={{ ...inputStyle, flex: 1 }}
+                        />
+                        <button
+                            type="button"
+                            onClick={addTask}
+                            aria-label="Tambah tugas"
+                            style={{
+                                ...btnP,
+                                width: 44,
+                                height: 42,
+                                padding: 0,
+                                justifyContent: 'center',
+                                flex: 'none',
+                            }}
+                        >
+                            <AIcon name="plus" size={16} color="#fff" />
+                        </button>
+                    </div>
+
+                    {data.tasks.length === 0 ? (
+                        <div
+                            style={{
+                                fontSize: 12.5,
+                                color: C.faint,
+                                textAlign: 'center',
+                                padding: '10px 0',
+                            }}
+                        >
+                            Belum ada tugas. Tugas bersifat opsional.
+                        </div>
+                    ) : (
+                        <div
+                            style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 8,
+                            }}
+                        >
+                            {data.tasks.map((task, index) => (
+                                <div
+                                    key={`${task}-${index}`}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: 10,
+                                        border: `1px solid ${C.border}`,
+                                        borderRadius: 8,
+                                        padding: '10px 12px',
+                                        background: '#fff',
+                                        fontSize: 13,
+                                        color: C.text,
+                                    }}
+                                >
+                                    <span>{task}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => removeTask(index)}
+                                        aria-label={`Hapus tugas ${task}`}
+                                        style={{
+                                            border: 'none',
+                                            background: 'transparent',
+                                            cursor: 'pointer',
+                                            display: 'inline-flex',
+                                            padding: 0,
+                                        }}
+                                    >
+                                        <AIcon
+                                            name="x"
+                                            size={14}
+                                            color={C.faint}
+                                        />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {data.tasks.length > 0 && (
+                        <TaskProgressBar
+                            progress={{ done: 0, total: data.tasks.length }}
+                        />
+                    )}
+                    <FieldError message={errors.tasks} />
+                </div>
+
                 <div
                     style={{
                         display: 'grid',
@@ -165,6 +442,32 @@ export function VisitingForm({
                         />
                         <FieldError message={errors.longitude} />
                     </div>
+                </div>
+
+                <div>
+                    <button
+                        type="button"
+                        onClick={fillPreciseLocation}
+                        disabled={locating}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 7,
+                            border: 'none',
+                            background: 'transparent',
+                            padding: 0,
+                            fontSize: 12.5,
+                            fontWeight: 500,
+                            color: C.primary,
+                            cursor: locating ? 'wait' : 'pointer',
+                        }}
+                    >
+                        <AIcon name="map-pin" size={14} color={C.primary} />
+                        {locating
+                            ? 'Mengambil lokasi…'
+                            : 'Perbarui Lokasi Presisi'}
+                    </button>
+                    <FieldError message={locationError ?? undefined} />
                 </div>
 
                 <div>
@@ -228,7 +531,7 @@ export function VisitingForm({
                     }}
                 >
                     <AIcon name="x" size={16} />
-                    Batal
+                    Batalkan Kunjungan
                 </Link>
                 <button
                     type="submit"

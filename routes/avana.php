@@ -356,6 +356,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::get('visiting', [FieldVisitController::class, 'index'])->name('visiting');
     Route::get('visiting/create', [FieldVisitController::class, 'create'])->name('visiting.create');
     Route::post('visiting', [FieldVisitController::class, 'store'])->name('visiting.store');
+    Route::post('visiting/{visit}/tasks/{task}/toggle', [FieldVisitController::class, 'toggleTask'])->name('visiting.tasks.toggle');
     Route::delete('visiting/{visit}', [FieldVisitController::class, 'destroy'])->name('visiting.destroy');
 
     // User management (Pengguna)

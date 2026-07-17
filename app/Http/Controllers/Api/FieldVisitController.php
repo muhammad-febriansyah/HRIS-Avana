@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\FieldVisit;
+use App\Models\FieldVisitTask;
 use App\Services\FieldVisitPhotoStore;
 use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /** Employee self-service field visits / visiting pekerjaan (list + report). */
 class FieldVisitController extends Controller
@@ -21,19 +23,29 @@ class FieldVisitController extends Controller
 
         $data = FieldVisit::forTenant($employee->tenant_id)
             ->where('employee_id', $employee->id)
-            ->with('photos')
+            ->with(['photos', 'tasks', 'branch:id,name'])
             ->orderByDesc('visit_date')
             ->orderByDesc('id')
             ->get()
             ->map(fn (FieldVisit $visit): array => [
                 'id' => $visit->id,
                 'visit_date' => self::dateString($visit->visit_date),
+                'branch' => $visit->branch?->name,
                 'location' => $visit->location,
                 'client_name' => $visit->client_name,
                 'purpose' => $visit->purpose,
                 'notes' => $visit->notes,
                 'photo_urls' => FieldVisitPhotoStore::urls($visit),
                 'status' => $visit->status,
+                'tasks' => $visit->tasks
+                    ->map(fn (FieldVisitTask $task): array => [
+                        'id' => $task->id,
+                        'title' => $task->title,
+                        'is_done' => $task->is_done,
+                    ])
+                    ->values()
+                    ->all(),
+                'task_progress' => $visit->taskProgress(),
             ]);
 
         return response()->json(['data' => $data]);
@@ -44,6 +56,7 @@ class FieldVisitController extends Controller
         $employee = $this->currentEmployee($request);
 
         $data = $request->validate([
+            'branch_id' => ['nullable', 'integer', "exists:branches,id,tenant_id,{$employee->tenant_id}"],
             'visit_date' => ['required', 'date'],
             'location' => ['required', 'string', 'max:255'],
             'client_name' => ['nullable', 'string', 'max:255'],
@@ -51,25 +64,63 @@ class FieldVisitController extends Controller
             'notes' => ['nullable', 'string', 'max:2000'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'tasks' => ['nullable', 'array'],
+            'tasks.*' => ['required', 'string', 'max:255'],
             ...FieldVisitPhotoStore::rules(),
         ]);
 
-        $visit = FieldVisit::create([
-            'tenant_id' => $employee->tenant_id,
-            'employee_id' => $employee->id,
-            'visit_date' => $data['visit_date'],
-            'location' => $data['location'],
-            'client_name' => $data['client_name'] ?? null,
-            'purpose' => $data['purpose'] ?? null,
-            'notes' => $data['notes'] ?? null,
-            'latitude' => $data['latitude'] ?? null,
-            'longitude' => $data['longitude'] ?? null,
-            'status' => 'submitted',
-        ]);
+        $visit = DB::transaction(function () use ($employee, $data): FieldVisit {
+            $visit = FieldVisit::create([
+                'tenant_id' => $employee->tenant_id,
+                'employee_id' => $employee->id,
+                // Defaults to the employee's own branch — the app reports from
+                // the field and rarely has one to pick.
+                'branch_id' => $data['branch_id'] ?? $employee->branch_id,
+                'visit_date' => $data['visit_date'],
+                'location' => $data['location'],
+                'client_name' => $data['client_name'] ?? null,
+                'purpose' => $data['purpose'] ?? null,
+                'notes' => $data['notes'] ?? null,
+                'latitude' => $data['latitude'] ?? null,
+                'longitude' => $data['longitude'] ?? null,
+                'status' => 'submitted',
+            ]);
+
+            $visit->syncAttendees([]);
+
+            foreach (array_values($data['tasks'] ?? []) as $order => $title) {
+                $visit->tasks()->create([
+                    'tenant_id' => $employee->tenant_id,
+                    'title' => $title,
+                    'sort_order' => $order,
+                ]);
+            }
+
+            return $visit;
+        });
 
         FieldVisitPhotoStore::attach($visit, $request->file('photos') ?? []);
 
         return response()->json(['message' => 'Kunjungan tercatat', 'data' => ['id' => $visit->id]], 201);
+    }
+
+    /** Tick a task off the employee's own visit, or put it back. */
+    public function toggleTask(Request $request, FieldVisit $visit, FieldVisitTask $task): JsonResponse
+    {
+        $employee = $this->currentEmployee($request);
+
+        abort_if((int) $visit->tenant_id !== (int) $employee->tenant_id, 404);
+        abort_if((int) $visit->employee_id !== (int) $employee->id, 404);
+        abort_if((int) $task->field_visit_id !== (int) $visit->id, 404);
+
+        $isDone = ! $task->is_done;
+
+        $task->update([
+            'is_done' => $isDone,
+            'done_at' => $isDone ? now() : null,
+        ]);
+
+        return response()->json(['data' => ['id' => $task->id, 'is_done' => $isDone]]);
     }
 
     /**

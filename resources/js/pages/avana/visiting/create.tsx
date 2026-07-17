@@ -8,7 +8,10 @@ import { emptyVisitForm } from './types';
 import type { FlashProps, VisitFormData, VisitingCreateProps } from './types';
 import { VisitingForm } from './visiting-form';
 
-export default function VisitingCreate({ employees }: VisitingCreateProps) {
+export default function VisitingCreate({
+    employees,
+    branches,
+}: VisitingCreateProps) {
     const { flash } = usePage<FlashProps>().props;
 
     const form = useForm<VisitFormData>({ ...emptyVisitForm });
@@ -66,7 +69,8 @@ export default function VisitingCreate({ employees }: VisitingCreateProps) {
                 <VisitingForm
                     form={form}
                     employees={employees}
-                    submitLabel="Simpan Kunjungan"
+                    branches={branches}
+                    submitLabel="Simpan Laporan"
                     submitIcon="plus"
                     cancelHref={FieldVisitController.index().url}
                     onSubmit={handleSubmit}
