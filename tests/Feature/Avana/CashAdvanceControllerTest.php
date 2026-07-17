@@ -29,15 +29,14 @@ function makeCashAdvance(int $tenantId, array $overrides = []): CashAdvance
         'tenant_id' => $tenantId,
         'employee_id' => $employee->id,
         'amount' => 1_500_000,
-        'installments' => 3,
-        'monthly_deduction' => 500_000,
+        'purpose' => 'Uang muka perjalanan dinas',
         'request_date' => '2026-07-01',
-        'reason' => 'Kebutuhan mendesak',
+        'reason' => 'Kebutuhan operasional lapangan',
         'status' => 'pending',
     ], $overrides));
 }
 
-it('renders the paginated kasbon index with the expected props', function (): void {
+it('renders the paginated cash advance index with the expected props', function (): void {
     makeCashAdvance($this->tenant->id);
 
     actingAs($this->admin)
@@ -53,15 +52,15 @@ it('renders the paginated kasbon index with the expected props', function (): vo
                 ->has('employee.initials')
                 ->has('employee.avatar_color')
                 ->has('amount')
-                ->has('installments')
-                ->has('monthly_deduction')
+                ->has('purpose')
                 ->has('request_date')
-                ->has('reason')
                 ->has('status')
                 ->has('status_label')
                 ->etc())
             ->has('filters')
-            ->has('employees'));
+            ->has('employees')
+            ->has('disbursementMethods')
+            ->has('kpis.pending'));
 });
 
 it('only lists cash advances that belong to the current tenant', function (): void {
@@ -79,8 +78,7 @@ it('only lists cash advances that belong to the current tenant', function (): vo
         'tenant_id' => $otherTenant->id,
         'employee_id' => $foreignEmployee->id,
         'amount' => 1_000_000,
-        'installments' => 2,
-        'monthly_deduction' => 500_000,
+        'purpose' => 'Uang muka lain',
         'request_date' => '2026-07-01',
         'status' => 'pending',
     ]);
@@ -93,16 +91,17 @@ it('only lists cash advances that belong to the current tenant', function (): vo
         ->assertInertia(fn (Assert $page) => $page->where('requests.meta.total', $tenantTotal));
 });
 
-it('creates a pending cash advance with a computed monthly deduction', function (): void {
+it('creates a pending cash advance', function (): void {
     $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
 
     actingAs($this->admin)
         ->post(route('avana.kasbon.store'), [
             'employee_id' => $employee->id,
             'amount' => 3_000_000,
-            'installments' => 4,
+            'purpose' => 'Uang muka pembelian operasional',
             'request_date' => '2026-07-10',
-            'reason' => 'Renovasi rumah',
+            'needed_date' => '2026-07-15',
+            'reason' => 'Pembelian ATK cabang',
         ])
         ->assertRedirect(route('avana.kasbon'))
         ->assertSessionHas('success');
@@ -112,7 +111,7 @@ it('creates a pending cash advance with a computed monthly deduction', function 
     expect($advance->tenant_id)->toBe($this->tenant->id);
     expect($advance->status)->toBe('pending');
     expect((float) $advance->amount)->toBe(3_000_000.0);
-    expect((float) $advance->monthly_deduction)->toBe(750_000.0);
+    expect($advance->purpose)->toBe('Uang muka pembelian operasional');
 });
 
 it('validates required fields on store', function (): void {
@@ -120,10 +119,24 @@ it('validates required fields on store', function (): void {
         ->post(route('avana.kasbon.store'), [
             'employee_id' => '',
             'amount' => 0,
-            'installments' => 0,
+            'purpose' => '',
             'request_date' => '',
         ])
-        ->assertSessionHasErrors(['employee_id', 'amount', 'installments', 'request_date']);
+        ->assertSessionHasErrors(['employee_id', 'amount', 'purpose', 'request_date']);
+});
+
+it('rejects a needed date that falls before the request date', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.kasbon.store'), [
+            'employee_id' => $employee->id,
+            'amount' => 1_000_000,
+            'purpose' => 'Uang muka',
+            'request_date' => '2026-07-10',
+            'needed_date' => '2026-07-01',
+        ])
+        ->assertSessionHasErrors(['needed_date']);
 });
 
 it('approves a cash advance and records the approver', function (): void {
@@ -136,6 +149,7 @@ it('approves a cash advance and records the approver', function (): void {
     $advance->refresh();
     expect($advance->status)->toBe('approved');
     expect((int) $advance->approved_by)->toBe($this->admin->id);
+    expect($advance->approved_at)->not->toBeNull();
 });
 
 it('rejects a cash advance', function (): void {
@@ -146,6 +160,89 @@ it('rejects a cash advance', function (): void {
         ->assertSessionHas('success');
 
     expect($advance->fresh()->status)->toBe('rejected');
+});
+
+it('disburses an approved cash advance and records how the money moved', function (): void {
+    $advance = makeCashAdvance($this->tenant->id, ['status' => 'approved']);
+
+    actingAs($this->admin)
+        ->post(route('avana.kasbon.disburse', $advance), [
+            'disbursement_method' => 'transfer',
+            'disbursement_reference' => 'TRF-99881',
+        ])
+        ->assertSessionHas('success');
+
+    $advance->refresh();
+    expect($advance->status)->toBe('disbursed');
+    expect($advance->disbursement_method)->toBe('transfer');
+    expect($advance->disbursement_reference)->toBe('TRF-99881');
+    expect((int) $advance->disbursed_by)->toBe($this->admin->id);
+    expect($advance->disbursed_at)->not->toBeNull();
+});
+
+it('refuses to disburse a cash advance that was never approved', function (): void {
+    $advance = makeCashAdvance($this->tenant->id);
+
+    actingAs($this->admin)
+        ->post(route('avana.kasbon.disburse', $advance), [
+            'disbursement_method' => 'transfer',
+        ])
+        ->assertStatus(422);
+
+    expect($advance->fresh()->status)->toBe('pending');
+});
+
+it('refuses to approve a cash advance twice', function (): void {
+    $advance = makeCashAdvance($this->tenant->id, ['status' => 'approved']);
+
+    actingAs($this->admin)
+        ->post(route('avana.kasbon.approve', $advance))
+        ->assertStatus(422);
+});
+
+it('refuses to edit a cash advance whose money is already out the door', function (): void {
+    $advance = makeCashAdvance($this->tenant->id, ['status' => 'disbursed']);
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->put(route('avana.kasbon.update', $advance), [
+            'employee_id' => $employee->id,
+            'amount' => 9_000_000,
+            'purpose' => 'Diubah diam-diam',
+            'request_date' => '2026-07-01',
+        ])
+        ->assertStatus(422);
+
+    expect((float) $advance->fresh()->amount)->toBe(1_500_000.0);
+});
+
+it('updates a cash advance that has not been disbursed', function (): void {
+    $advance = makeCashAdvance($this->tenant->id);
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->put(route('avana.kasbon.update', $advance), [
+            'employee_id' => $employee->id,
+            'amount' => 2_250_000,
+            'purpose' => 'Uang muka direvisi',
+            'request_date' => '2026-07-01',
+        ])
+        ->assertRedirect(route('avana.kasbon'))
+        ->assertSessionHas('success');
+
+    $advance->refresh();
+    expect((float) $advance->amount)->toBe(2_250_000.0);
+    expect($advance->purpose)->toBe('Uang muka direvisi');
+});
+
+it('deletes a pending cash advance', function (): void {
+    $advance = makeCashAdvance($this->tenant->id);
+
+    actingAs($this->admin)
+        ->delete(route('avana.kasbon.destroy', $advance))
+        ->assertSessionHas('success');
+
+    expect(CashAdvance::find($advance->id))->toBeNull();
 });
 
 it('returns 404 when approving a cash advance from another tenant', function (): void {
@@ -161,8 +258,7 @@ it('returns 404 when approving a cash advance from another tenant', function ():
         'tenant_id' => $otherTenant->id,
         'employee_id' => $foreignEmployee->id,
         'amount' => 1_000_000,
-        'installments' => 1,
-        'monthly_deduction' => 1_000_000,
+        'purpose' => 'Uang muka asing',
         'request_date' => '2026-07-01',
         'status' => 'pending',
     ]);
@@ -188,7 +284,7 @@ it('forbids a plain employee from listing or creating cash advances', function (
         ->post(route('avana.kasbon.store'), [
             'employee_id' => Employee::forTenant($this->tenant->id)->value('id'),
             'amount' => 1_000_000,
-            'installments' => 1,
+            'purpose' => 'Uang muka',
             'request_date' => '2026-07-10',
         ])
         ->assertForbidden();

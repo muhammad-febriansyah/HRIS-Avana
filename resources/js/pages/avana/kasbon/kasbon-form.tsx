@@ -2,7 +2,7 @@ import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { SearchableSelect } from '@/components/searchable-select';
-import { AIcon, btnOut, btnP, C, card, rp, RupiahInput } from '@/lib/avana';
+import { AIcon, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
 import {
     dateInputStyle,
     Field,
@@ -13,23 +13,6 @@ import {
 } from './components';
 import type { CashAdvanceFormData, EmployeeOption } from './types';
 
-/** Inclusive rupiah preview of the per-month deduction (0 when incomplete). */
-function monthlyDeduction(amount: string, installments: string): number {
-    const value = Number(amount);
-    const count = Number(installments);
-
-    if (
-        !Number.isFinite(value) ||
-        value <= 0 ||
-        !Number.isFinite(count) ||
-        count < 1
-    ) {
-        return 0;
-    }
-
-    return Math.round(value / count);
-}
-
 interface KasbonFormProps {
     form: InertiaFormProps<CashAdvanceFormData>;
     employees: EmployeeOption[];
@@ -39,7 +22,7 @@ interface KasbonFormProps {
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }
 
-/** Shared create form for a cash advance request (store-only). */
+/** Shared create/edit form for an operational cash advance request. */
 export function KasbonForm({
     form,
     employees,
@@ -49,8 +32,6 @@ export function KasbonForm({
     onSubmit,
 }: KasbonFormProps) {
     const { data, setData, errors, processing } = form;
-
-    const previewDeduction = monthlyDeduction(data.amount, data.installments);
 
     return (
         <form onSubmit={onSubmit} style={{ ...card }}>
@@ -77,29 +58,23 @@ export function KasbonForm({
                     />
                 </Field>
 
+                <Field label="Keperluan" required error={errors.purpose}>
+                    <input
+                        type="text"
+                        placeholder="Contoh: Uang muka perjalanan dinas Surabaya"
+                        value={data.purpose}
+                        onChange={(event) =>
+                            setData('purpose', event.target.value)
+                        }
+                        style={withError(textInputStyle, !!errors.purpose)}
+                    />
+                </Field>
+
                 <Field label="Jumlah (Rp)" required error={errors.amount}>
                     <RupiahInput
                         value={data.amount}
                         onChange={(raw) => setData('amount', raw)}
                         invalid={!!errors.amount}
-                    />
-                </Field>
-
-                <Field
-                    label="Jumlah Cicilan (bulan)"
-                    required
-                    error={errors.installments}
-                >
-                    <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        placeholder="1"
-                        value={data.installments}
-                        onChange={(event) =>
-                            setData('installments', event.target.value)
-                        }
-                        style={withError(textInputStyle, !!errors.installments)}
                     />
                 </Field>
 
@@ -118,29 +93,42 @@ export function KasbonForm({
                     />
                 </Field>
 
+                <Field label="Tanggal Dibutuhkan" error={errors.needed_date}>
+                    <input
+                        type="date"
+                        value={data.needed_date}
+                        onChange={(event) =>
+                            setData('needed_date', event.target.value)
+                        }
+                        style={withError(dateInputStyle, !!errors.needed_date)}
+                    />
+                </Field>
+
                 <div
                     style={{
                         background: C.surface,
                         borderRadius: 8,
                         padding: '11px 13px',
                         display: 'flex',
-                        alignItems: 'center',
+                        alignItems: 'flex-start',
                         gap: 9,
                         fontSize: 12.5,
                         color: C.muted,
+                        lineHeight: 1.5,
                     }}
                 >
                     <AIcon name="info" size={15} color={C.primary} />
-                    Potongan/bln&nbsp;
-                    <span style={{ color: C.text, fontWeight: 600 }}>
-                        {rp(previewDeduction)}
+                    <span>
+                        Uang muka <strong>tidak dipotong dari gaji</strong>.
+                        Setelah dicairkan, karyawan wajib membuat settlement dan
+                        melampirkan bukti pengeluaran.
                     </span>
                 </div>
 
                 <Field label="Alasan" error={errors.reason}>
                     <textarea
                         rows={3}
-                        placeholder="Tuliskan alasan pengajuan kasbon"
+                        placeholder="Tuliskan alasan pengajuan uang muka"
                         value={data.reason}
                         onChange={(event) =>
                             setData('reason', event.target.value)

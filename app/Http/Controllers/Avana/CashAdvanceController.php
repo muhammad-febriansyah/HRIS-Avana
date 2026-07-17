@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\CashAdvance;
 use App\Models\Employee;
+use App\Models\Settlement;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
@@ -13,6 +14,12 @@ use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
+/**
+ * Operational cash advances: an employee asks for a float up front, a manager
+ * approves it, Finance disburses it, and it is later accounted for through a
+ * {@see Settlement}. Nothing here touches payroll — salary-deducted
+ * lending lives in {@see LoanController}.
+ */
 class CashAdvanceController extends Controller
 {
     /**
@@ -31,7 +38,18 @@ class CashAdvanceController extends Controller
         'pending' => 'Menunggu',
         'approved' => 'Disetujui',
         'rejected' => 'Ditolak',
-        'paid' => 'Lunas',
+        'disbursed' => 'Dicairkan',
+        'settled' => 'Selesai',
+    ];
+
+    /**
+     * How Finance can hand the money over.
+     *
+     * @var array<string, string>
+     */
+    private const DISBURSEMENT_METHODS = [
+        'transfer' => 'Transfer Bank',
+        'cash' => 'Tunai',
     ];
 
     /**
@@ -55,7 +73,7 @@ class CashAdvanceController extends Controller
 
         $paginator = CashAdvance::query()
             ->forTenant($tenantId)
-            ->with('employee:id,full_name,employee_number')
+            ->with(['employee:id,full_name,employee_number', 'settlement:id,cash_advance_id,status'])
             ->when($request->query('search'), function ($query, $search): void {
                 $query->whereHas('employee', function ($q) use ($search): void {
                     $q->where('full_name', 'like', "%{$search}%")
@@ -66,6 +84,12 @@ class CashAdvanceController extends Controller
             ->latest('id')
             ->paginate($request->integer('per_page', 10))
             ->withQueryString();
+
+        $totals = CashAdvance::forTenant($tenantId)
+            ->selectRaw('status, COUNT(*) as total, SUM(amount) as amount')
+            ->groupBy('status')
+            ->get()
+            ->keyBy('status');
 
         return Inertia::render('avana/kasbon/index', [
             'requests' => [
@@ -87,6 +111,13 @@ class CashAdvanceController extends Controller
             ],
             'filters' => $request->only(['search', 'status', 'per_page']),
             'employees' => $this->employeeOptions($tenantId),
+            'disbursementMethods' => $this->disbursementMethodOptions(),
+            'kpis' => [
+                'pending' => (int) ($totals['pending']->total ?? 0),
+                'approved' => (int) ($totals['approved']->total ?? 0),
+                'disbursed' => (int) ($totals['disbursed']->total ?? 0),
+                'outstanding_amount' => (float) ($totals['disbursed']->amount ?? 0),
+            ],
         ]);
     }
 
@@ -103,6 +134,29 @@ class CashAdvanceController extends Controller
     }
 
     /**
+     * Show the form for editing a cash advance that has not been paid out yet.
+     */
+    public function edit(Request $request, CashAdvance $cashAdvance): Response
+    {
+        $this->ensureCanManage($request);
+        $this->ensureTenantOwnership($request, $cashAdvance);
+        $this->ensureEditable($cashAdvance);
+
+        return Inertia::render('avana/kasbon/edit', [
+            'advance' => [
+                'id' => $cashAdvance->id,
+                'employee_id' => $cashAdvance->employee_id,
+                'amount' => (float) $cashAdvance->amount,
+                'purpose' => $cashAdvance->purpose,
+                'request_date' => $cashAdvance->request_date?->toDateString(),
+                'needed_date' => $cashAdvance->needed_date?->toDateString(),
+                'reason' => $cashAdvance->reason,
+            ],
+            'employees' => $this->employeeOptions($request->user()->tenant_id),
+        ]);
+    }
+
+    /**
      * Persist a new cash advance on behalf of an employee under the tenant.
      */
     public function store(Request $request): RedirectResponse
@@ -110,51 +164,77 @@ class CashAdvanceController extends Controller
         $this->ensureCanManage($request);
 
         $tenantId = $request->user()->tenant_id;
-
-        $data = $request->validate([
-            'employee_id' => [
-                'required',
-                'integer',
-                "exists:employees,id,tenant_id,{$tenantId}",
-            ],
-            'amount' => ['required', 'numeric', 'min:1'],
-            'installments' => ['required', 'integer', 'min:1'],
-            'request_date' => ['required', 'date'],
-            'reason' => ['nullable', 'string'],
-        ]);
-
-        $amount = round((float) $data['amount'], 2);
-        $installments = (int) $data['installments'];
+        $data = $this->validateAdvance($request, $tenantId);
 
         CashAdvance::create([
             'tenant_id' => $tenantId,
             'employee_id' => $data['employee_id'],
-            'amount' => $amount,
-            'installments' => $installments,
-            'monthly_deduction' => round($amount / $installments, 2),
+            'amount' => round((float) $data['amount'], 2),
+            'purpose' => $data['purpose'],
             'request_date' => $data['request_date'],
+            'needed_date' => $data['needed_date'] ?? null,
             'reason' => $data['reason'] ?? null,
             'status' => 'pending',
         ]);
 
         return redirect()->route('avana.kasbon')
-            ->with('success', 'Pengajuan kasbon dibuat');
+            ->with('success', 'Pengajuan uang muka dibuat');
     }
 
     /**
-     * Approve a pending cash advance.
+     * Update a cash advance that has not been paid out yet.
+     */
+    public function update(Request $request, CashAdvance $cashAdvance): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureTenantOwnership($request, $cashAdvance);
+        $this->ensureEditable($cashAdvance);
+
+        $data = $this->validateAdvance($request, $request->user()->tenant_id);
+
+        $cashAdvance->update([
+            'employee_id' => $data['employee_id'],
+            'amount' => round((float) $data['amount'], 2),
+            'purpose' => $data['purpose'],
+            'request_date' => $data['request_date'],
+            'needed_date' => $data['needed_date'] ?? null,
+            'reason' => $data['reason'] ?? null,
+        ]);
+
+        return redirect()->route('avana.kasbon')
+            ->with('success', 'Pengajuan uang muka diperbarui');
+    }
+
+    /**
+     * Delete a cash advance that has not been paid out yet.
+     */
+    public function destroy(Request $request, CashAdvance $cashAdvance): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureTenantOwnership($request, $cashAdvance);
+        $this->ensureEditable($cashAdvance);
+
+        $cashAdvance->delete();
+
+        return back()->with('success', 'Pengajuan uang muka dihapus');
+    }
+
+    /**
+     * Approve a pending cash advance, clearing it for disbursement.
      */
     public function approve(Request $request, CashAdvance $cashAdvance): RedirectResponse
     {
         $this->ensureCanManage($request);
         $this->ensureTenantOwnership($request, $cashAdvance);
+        $this->ensureStatusIs($cashAdvance, ['pending'], 'Hanya pengajuan berstatus menunggu yang bisa disetujui');
 
         $cashAdvance->update([
             'status' => 'approved',
             'approved_by' => $request->user()->id,
+            'approved_at' => now(),
         ]);
 
-        return back()->with('success', 'Kasbon disetujui');
+        return back()->with('success', 'Uang muka disetujui, menunggu pencairan Finance');
     }
 
     /**
@@ -164,10 +244,61 @@ class CashAdvanceController extends Controller
     {
         $this->ensureCanManage($request);
         $this->ensureTenantOwnership($request, $cashAdvance);
+        $this->ensureStatusIs($cashAdvance, ['pending'], 'Hanya pengajuan berstatus menunggu yang bisa ditolak');
 
-        $cashAdvance->update(['status' => 'rejected']);
+        $cashAdvance->update([
+            'status' => 'rejected',
+            'approved_by' => $request->user()->id,
+            'approved_at' => now(),
+        ]);
 
-        return back()->with('success', 'Kasbon ditolak');
+        return back()->with('success', 'Uang muka ditolak');
+    }
+
+    /**
+     * Record Finance handing the money over to the employee.
+     */
+    public function disburse(Request $request, CashAdvance $cashAdvance): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureTenantOwnership($request, $cashAdvance);
+        $this->ensureStatusIs($cashAdvance, ['approved'], 'Hanya uang muka yang sudah disetujui yang bisa dicairkan');
+
+        $data = $request->validate([
+            'disbursement_method' => ['required', 'in:'.implode(',', array_keys(self::DISBURSEMENT_METHODS))],
+            'disbursement_reference' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $cashAdvance->update([
+            'status' => 'disbursed',
+            'disbursed_at' => now(),
+            'disbursed_by' => $request->user()->id,
+            'disbursement_method' => $data['disbursement_method'],
+            'disbursement_reference' => $data['disbursement_reference'] ?? null,
+        ]);
+
+        return back()->with('success', 'Uang muka dicairkan, menunggu pertanggungjawaban');
+    }
+
+    /**
+     * Validate the create/update payload for a cash advance.
+     *
+     * @return array<string, mixed>
+     */
+    private function validateAdvance(Request $request, ?int $tenantId): array
+    {
+        return $request->validate([
+            'employee_id' => [
+                'required',
+                'integer',
+                "exists:employees,id,tenant_id,{$tenantId}",
+            ],
+            'amount' => ['required', 'numeric', 'min:1'],
+            'purpose' => ['required', 'string', 'max:255'],
+            'request_date' => ['required', 'date'],
+            'needed_date' => ['nullable', 'date', 'after_or_equal:request_date'],
+            'reason' => ['nullable', 'string'],
+        ]);
     }
 
     /**
@@ -188,9 +319,22 @@ class CashAdvanceController extends Controller
     }
 
     /**
+     * Build the `{ value, label }` list of disbursement methods.
+     *
+     * @return array<int, array{value: string, label: string}>
+     */
+    private function disbursementMethodOptions(): array
+    {
+        return collect(self::DISBURSEMENT_METHODS)
+            ->map(fn (string $label, string $value): array => ['value' => $value, 'label' => $label])
+            ->values()
+            ->all();
+    }
+
+    /**
      * Shape a cash advance row for the index DataTable.
      *
-     * @return array{id: int, employee: array{name: string, employee_number: string|null, initials: string, avatar_color: string}|null, amount: float, installments: int, monthly_deduction: float, request_date: string|null, reason: string|null, status: string, status_label: string}
+     * @return array<string, mixed>
      */
     private function shapeAdvance(CashAdvance $advance): array
     {
@@ -198,12 +342,20 @@ class CashAdvanceController extends Controller
             'id' => $advance->id,
             'employee' => $this->shapeEmployee($advance),
             'amount' => (float) $advance->amount,
-            'installments' => (int) $advance->installments,
-            'monthly_deduction' => (float) $advance->monthly_deduction,
+            'purpose' => $advance->purpose,
             'request_date' => $advance->request_date?->format('d M Y'),
+            'needed_date' => $advance->needed_date?->format('d M Y'),
             'reason' => $advance->reason,
             'status' => $advance->status,
             'status_label' => $this->statusLabel($advance->status),
+            'disbursed_at' => $advance->disbursed_at?->format('d M Y'),
+            'disbursement_method' => $advance->disbursement_method,
+            'disbursement_method_label' => $advance->disbursement_method === null
+                ? null
+                : (self::DISBURSEMENT_METHODS[$advance->disbursement_method] ?? $advance->disbursement_method),
+            'disbursement_reference' => $advance->disbursement_reference,
+            'settlement_id' => $advance->settlement?->id,
+            'settlement_status' => $advance->settlement?->status,
         ];
     }
 
@@ -268,6 +420,29 @@ class CashAdvanceController extends Controller
     private function ensureTenantOwnership(Request $request, CashAdvance $cashAdvance): void
     {
         abort_if((int) $cashAdvance->tenant_id !== (int) $request->user()->tenant_id, 404);
+    }
+
+    /**
+     * Money already handed over must not be edited out from under the
+     * settlement that accounts for it.
+     */
+    private function ensureEditable(CashAdvance $cashAdvance): void
+    {
+        $this->ensureStatusIs(
+            $cashAdvance,
+            ['pending', 'approved'],
+            'Uang muka yang sudah dicairkan tidak bisa diubah',
+        );
+    }
+
+    /**
+     * Abort with 422 unless the advance sits in one of the allowed statuses.
+     *
+     * @param  array<int, string>  $allowed
+     */
+    private function ensureStatusIs(CashAdvance $cashAdvance, array $allowed, string $message): void
+    {
+        abort_unless(in_array($cashAdvance->status, $allowed, true), 422, $message);
     }
 
     /**

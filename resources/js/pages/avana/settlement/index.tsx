@@ -1,25 +1,14 @@
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { toast } from 'sonner';
-import CashAdvanceController from '@/actions/App/Http/Controllers/Avana/CashAdvanceController';
 import SettlementController from '@/actions/App/Http/Controllers/Avana/SettlementController';
-import { ConfirmDialog } from '@/components/avana-ui/confirm-dialog';
-import { FormDialog } from '@/components/avana-ui/form-dialog';
-import { AIcon, ActionBtn, btnP, C, card, rp } from '@/lib/avana';
-import {
-    Field,
-    KpiCard,
-    selectStyle,
-    StatusPill,
-    textInputStyle,
-} from './components';
-import { STATUS_OPTIONS } from './types';
+import { AIcon, btnP, C, card, rp } from '@/lib/avana';
+import { KpiCard, OutcomePill, outcomeColor, StatusPill } from './components';
 import type {
-    CashAdvanceRow,
     FlashProps,
-    KasbonFilters,
-    KasbonIndexProps,
+    SettlementFilters,
+    SettlementIndexProps,
 } from './types';
 
 const headThStyle: CSSProperties = {
@@ -37,28 +26,14 @@ const cellStyle: CSSProperties = {
     color: C.muted,
 };
 
-interface DisburseForm {
-    disbursement_method: string;
-    disbursement_reference: string;
-    [key: string]: string;
-}
-
-export default function KasbonIndex({
-    requests,
+export default function SettlementIndex({
+    settlements,
     filters,
-    disbursementMethods,
+    statusOptions,
     kpis,
-}: KasbonIndexProps) {
+}: SettlementIndexProps) {
     const { flash } = usePage<FlashProps>().props;
-    const meta = requests.meta;
-
-    const [disbursing, setDisbursing] = useState<CashAdvanceRow | null>(null);
-    const [deleting, setDeleting] = useState<CashAdvanceRow | null>(null);
-
-    const disburseForm = useForm<DisburseForm>({
-        disbursement_method: disbursementMethods[0]?.value ?? 'transfer',
-        disbursement_reference: '',
-    });
+    const meta = settlements.meta;
 
     useEffect(() => {
         if (flash?.success) {
@@ -66,7 +41,7 @@ export default function KasbonIndex({
         }
     }, [flash?.success]);
 
-    const applyFilters = (next: Partial<KasbonFilters>) => {
+    const applyFilters = (next: Partial<SettlementFilters>) => {
         router.get(
             window.location.pathname,
             { ...filters, ...next, page: 1 },
@@ -82,50 +57,9 @@ export default function KasbonIndex({
         );
     };
 
-    const approve = (id: number) => {
-        router.post(
-            CashAdvanceController.approve(id).url,
-            {},
-            { preserveScroll: true },
-        );
-    };
-
-    const reject = (id: number) => {
-        router.post(
-            CashAdvanceController.reject(id).url,
-            {},
-            { preserveScroll: true },
-        );
-    };
-
-    const submitDisburse = () => {
-        if (!disbursing) {
-            return;
-        }
-
-        disburseForm.post(CashAdvanceController.disburse(disbursing.id).url, {
-            preserveScroll: true,
-            onSuccess: () => {
-                setDisbursing(null);
-                disburseForm.reset();
-            },
-        });
-    };
-
-    const confirmDelete = () => {
-        if (!deleting) {
-            return;
-        }
-
-        router.delete(CashAdvanceController.destroy(deleting.id).url, {
-            preserveScroll: true,
-            onFinish: () => setDeleting(null),
-        });
-    };
-
     return (
         <>
-            <Head title="Cash Advance" />
+            <Head title="Settlement" />
             <div style={{ padding: '28px 32px' }}>
                 {/* Header */}
                 <div
@@ -151,7 +85,7 @@ export default function KasbonIndex({
                         >
                             <span>Finance</span>
                             <AIcon name="chevron-right" size={13} />
-                            <span style={{ color: C.muted }}>Cash Advance</span>
+                            <span style={{ color: C.muted }}>Settlement</span>
                         </div>
                         <h1
                             style={{
@@ -162,7 +96,7 @@ export default function KasbonIndex({
                                 letterSpacing: '-.01em',
                             }}
                         >
-                            Cash Advance / Uang Muka
+                            Settlement
                         </h1>
                         <div
                             style={{
@@ -171,16 +105,16 @@ export default function KasbonIndex({
                                 marginTop: 4,
                             }}
                         >
-                            Pengajuan uang muka, approval, dan pencairan oleh
-                            Finance
+                            Pertanggungjawaban uang muka: bukti pengeluaran,
+                            pengembalian sisa, dan pembayaran kekurangan
                         </div>
                     </div>
                     <Link
-                        href={CashAdvanceController.create()}
+                        href={SettlementController.create()}
                         style={{ ...btnP, textDecoration: 'none' }}
                     >
                         <AIcon name="plus" size={16} color="#fff" />
-                        Ajukan Uang Muka
+                        Buka Settlement
                     </Link>
                 </div>
 
@@ -195,32 +129,32 @@ export default function KasbonIndex({
                     }}
                 >
                     <KpiCard
+                        icon="file-text"
+                        label="Draft"
+                        value={String(kpis.draft)}
+                        accent="#6B7280"
+                    />
+                    <KpiCard
                         icon="clock"
-                        label="Menunggu Approval"
-                        value={String(kpis.pending)}
+                        label="Menunggu Verifikasi"
+                        value={String(kpis.submitted)}
                         accent="#D97706"
                     />
                     <KpiCard
-                        icon="check"
-                        label="Siap Dicairkan"
-                        value={String(kpis.approved)}
+                        icon="file-check"
+                        label="Selesai"
+                        value={String(kpis.closed)}
                         accent="#16A34A"
                     />
                     <KpiCard
                         icon="hand-coins"
-                        label="Belum Dipertanggungjawabkan"
-                        value={String(kpis.disbursed)}
+                        label="Uang Muka Belum Di-settle"
+                        value={String(kpis.unsettled_advances)}
                         accent={C.primary}
-                    />
-                    <KpiCard
-                        icon="wallet"
-                        label="Dana Beredar"
-                        value={rp(kpis.outstanding_amount)}
-                        accent="#8b5cf6"
                     />
                 </div>
 
-                {/* List + approval */}
+                {/* List */}
                 <div style={{ ...card, overflow: 'hidden' }}>
                     <div
                         style={{
@@ -240,7 +174,7 @@ export default function KasbonIndex({
                                 color: C.navy,
                             }}
                         >
-                            Daftar Uang Muka
+                            Daftar Settlement
                         </div>
                         <div
                             style={{
@@ -267,7 +201,7 @@ export default function KasbonIndex({
                                 </span>
                                 <input
                                     type="search"
-                                    placeholder="Cari karyawan"
+                                    placeholder="Cari nomor / karyawan"
                                     defaultValue={filters.search ?? ''}
                                     onChange={(event) =>
                                         applyFilters({
@@ -283,7 +217,7 @@ export default function KasbonIndex({
                                         fontSize: 12.5,
                                         color: C.text,
                                         outline: 'none',
-                                        width: 180,
+                                        width: 190,
                                     }}
                                 />
                             </div>
@@ -292,7 +226,7 @@ export default function KasbonIndex({
                                 onChange={(event) =>
                                     applyFilters({
                                         status: (event.target.value ||
-                                            undefined) as KasbonFilters['status'],
+                                            undefined) as SettlementFilters['status'],
                                     })
                                 }
                                 style={{
@@ -308,7 +242,7 @@ export default function KasbonIndex({
                                 }}
                             >
                                 <option value="">Semua Status</option>
-                                {STATUS_OPTIONS.map((option) => (
+                                {statusOptions.map((option) => (
                                     <option
                                         key={option.value}
                                         value={option.value}
@@ -324,15 +258,16 @@ export default function KasbonIndex({
                             style={{
                                 width: '100%',
                                 borderCollapse: 'collapse',
-                                minWidth: 880,
+                                minWidth: 980,
                             }}
                         >
                             <thead>
                                 <tr style={{ background: '#FAFBFD' }}>
+                                    <th style={headThStyle}>No.</th>
                                     <th style={headThStyle}>Karyawan</th>
-                                    <th style={headThStyle}>Keperluan</th>
-                                    <th style={headThStyle}>Jumlah</th>
-                                    <th style={headThStyle}>Tanggal</th>
+                                    <th style={headThStyle}>Uang Muka</th>
+                                    <th style={headThStyle}>Pengeluaran</th>
+                                    <th style={headThStyle}>Selisih</th>
                                     <th style={headThStyle}>Status</th>
                                     <th
                                         style={{
@@ -345,14 +280,14 @@ export default function KasbonIndex({
                                 </tr>
                             </thead>
                             <tbody>
-                                {requests.data.length === 0 && (
+                                {settlements.data.length === 0 && (
                                     <tr
                                         style={{
                                             borderTop: `1px solid ${C.line}`,
                                         }}
                                     >
                                         <td
-                                            colSpan={6}
+                                            colSpan={7}
                                             style={{
                                                 padding: '48px 18px',
                                                 textAlign: 'center',
@@ -369,25 +304,32 @@ export default function KasbonIndex({
                                                 }}
                                             >
                                                 <AIcon
-                                                    name="wallet"
+                                                    name="file-check"
                                                     size={28}
                                                     color={C.faint}
                                                 />
-                                                <div>
-                                                    Tidak ada pengajuan uang
-                                                    muka.
-                                                </div>
+                                                <div>Belum ada settlement.</div>
                                             </div>
                                         </td>
                                     </tr>
                                 )}
-                                {requests.data.map((row) => (
+                                {settlements.data.map((row) => (
                                     <tr
                                         key={row.id}
                                         style={{
                                             borderTop: `1px solid ${C.line}`,
                                         }}
                                     >
+                                        <td
+                                            style={{
+                                                ...cellStyle,
+                                                fontFamily:
+                                                    'ui-monospace, monospace',
+                                                color: C.text,
+                                            }}
+                                        >
+                                            {row.number ?? '—'}
+                                        </td>
                                         <td style={{ padding: '12px 16px' }}>
                                             <div
                                                 style={{
@@ -435,9 +377,7 @@ export default function KasbonIndex({
                                                             color: C.faint,
                                                         }}
                                                     >
-                                                        {row.employee
-                                                            ?.employee_number ??
-                                                            ''}
+                                                        {row.purpose ?? ''}
                                                     </div>
                                                 </div>
                                             </div>
@@ -445,23 +385,46 @@ export default function KasbonIndex({
                                         <td
                                             style={{
                                                 ...cellStyle,
-                                                maxWidth: 220,
+                                                color: C.text,
+                                                fontWeight: 600,
+                                                fontSize: 13,
                                             }}
                                         >
-                                            {row.purpose ?? '—'}
+                                            {rp(row.advance_amount)}
                                         </td>
                                         <td
                                             style={{
-                                                padding: '12px 16px',
-                                                fontSize: 13,
-                                                fontWeight: 600,
+                                                ...cellStyle,
                                                 color: C.text,
                                             }}
                                         >
-                                            {rp(row.amount)}
+                                            {rp(row.total_spent)}
                                         </td>
-                                        <td style={cellStyle}>
-                                            {row.request_date ?? '—'}
+                                        <td style={{ padding: '12px 16px' }}>
+                                            <div
+                                                style={{
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    gap: 4,
+                                                    alignItems: 'flex-start',
+                                                }}
+                                            >
+                                                <span
+                                                    style={{
+                                                        fontSize: 13,
+                                                        fontWeight: 600,
+                                                        color: outcomeColor(
+                                                            row.outcome,
+                                                        ),
+                                                    }}
+                                                >
+                                                    {rp(Math.abs(row.balance))}
+                                                </span>
+                                                <OutcomePill
+                                                    outcome={row.outcome}
+                                                    label={row.outcome_label}
+                                                />
+                                            </div>
                                         </td>
                                         <td style={{ padding: '12px 16px' }}>
                                             <StatusPill
@@ -474,100 +437,21 @@ export default function KasbonIndex({
                                                 textAlign: 'right',
                                             }}
                                         >
-                                            <div
+                                            <Link
+                                                href={
+                                                    SettlementController.show(
+                                                        row.id,
+                                                    ).url
+                                                }
                                                 style={{
-                                                    display: 'inline-flex',
-                                                    gap: 6,
-                                                    flexWrap: 'wrap',
-                                                    justifyContent: 'flex-end',
+                                                    fontSize: 12.5,
+                                                    color: C.primary,
+                                                    textDecoration: 'none',
+                                                    fontWeight: 500,
                                                 }}
                                             >
-                                                {row.status === 'pending' && (
-                                                    <>
-                                                        <ActionBtn
-                                                            icon="check"
-                                                            label="Setujui"
-                                                            variant="primary"
-                                                            onClick={() =>
-                                                                approve(row.id)
-                                                            }
-                                                        />
-                                                        <ActionBtn
-                                                            icon="x"
-                                                            label="Tolak"
-                                                            variant="warning"
-                                                            onClick={() =>
-                                                                reject(row.id)
-                                                            }
-                                                        />
-                                                        <ActionBtn
-                                                            icon="trash-2"
-                                                            label="Hapus"
-                                                            variant="danger"
-                                                            onClick={() =>
-                                                                setDeleting(row)
-                                                            }
-                                                        />
-                                                    </>
-                                                )}
-                                                {row.status === 'approved' && (
-                                                    <ActionBtn
-                                                        icon="hand-coins"
-                                                        label="Cairkan"
-                                                        variant="primary"
-                                                        onClick={() =>
-                                                            setDisbursing(row)
-                                                        }
-                                                    />
-                                                )}
-                                                {row.status === 'disbursed' &&
-                                                    row.settlement_id ===
-                                                        null && (
-                                                        <Link
-                                                            href={
-                                                                SettlementController.create()
-                                                                    .url
-                                                            }
-                                                            style={{
-                                                                fontSize: 12.5,
-                                                                color: C.primary,
-                                                                textDecoration:
-                                                                    'none',
-                                                                fontWeight: 500,
-                                                            }}
-                                                        >
-                                                            Buat Settlement
-                                                        </Link>
-                                                    )}
-                                                {row.settlement_id !== null && (
-                                                    <Link
-                                                        href={
-                                                            SettlementController.show(
-                                                                row.settlement_id,
-                                                            ).url
-                                                        }
-                                                        style={{
-                                                            fontSize: 12.5,
-                                                            color: C.primary,
-                                                            textDecoration:
-                                                                'none',
-                                                            fontWeight: 500,
-                                                        }}
-                                                    >
-                                                        Lihat Settlement
-                                                    </Link>
-                                                )}
-                                                {row.status === 'rejected' && (
-                                                    <span
-                                                        style={{
-                                                            fontSize: 12.5,
-                                                            color: C.faint,
-                                                        }}
-                                                    >
-                                                        —
-                                                    </span>
-                                                )}
-                                            </div>
+                                                Detail
+                                            </Link>
                                         </td>
                                     </tr>
                                 ))}
@@ -668,73 +552,6 @@ export default function KasbonIndex({
                     </div>
                 </div>
             </div>
-
-            <FormDialog
-                open={disbursing !== null}
-                onOpenChange={(open) => !open && setDisbursing(null)}
-                title="Pencairan Uang Muka"
-                description={
-                    disbursing
-                        ? `${rp(disbursing.amount)} untuk ${disbursing.employee?.name ?? 'karyawan'}`
-                        : undefined
-                }
-                submitLabel="Catat Pencairan"
-                onSubmit={submitDisburse}
-                processing={disburseForm.processing}
-            >
-                <Field
-                    label="Metode Pencairan"
-                    required
-                    error={disburseForm.errors.disbursement_method}
-                >
-                    <select
-                        value={disburseForm.data.disbursement_method}
-                        onChange={(event) =>
-                            disburseForm.setData(
-                                'disbursement_method',
-                                event.target.value,
-                            )
-                        }
-                        style={selectStyle}
-                    >
-                        {disbursementMethods.map((method) => (
-                            <option key={method.value} value={method.value}>
-                                {method.label}
-                            </option>
-                        ))}
-                    </select>
-                </Field>
-                <Field
-                    label="Nomor Referensi"
-                    error={disburseForm.errors.disbursement_reference}
-                >
-                    <input
-                        type="text"
-                        placeholder="Nomor transaksi / bukti transfer"
-                        value={disburseForm.data.disbursement_reference}
-                        onChange={(event) =>
-                            disburseForm.setData(
-                                'disbursement_reference',
-                                event.target.value,
-                            )
-                        }
-                        style={textInputStyle}
-                    />
-                </Field>
-            </FormDialog>
-
-            <ConfirmDialog
-                open={deleting !== null}
-                onOpenChange={(open) => !open && setDeleting(null)}
-                title="Hapus pengajuan uang muka?"
-                description={
-                    deleting
-                        ? `Pengajuan ${rp(deleting.amount)} atas nama ${deleting.employee?.name ?? 'karyawan'} akan dihapus permanen.`
-                        : undefined
-                }
-                destructive
-                onConfirm={confirmDelete}
-            />
         </>
     );
 }

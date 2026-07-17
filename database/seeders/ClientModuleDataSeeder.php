@@ -785,28 +785,36 @@ class ClientModuleDataSeeder extends Seeder
             ]);
         }
 
-        $advanceStatuses = ['pending', 'approved', 'approved', 'paid', 'paid', 'rejected'];
+        $advanceStatuses = ['pending', 'approved', 'disbursed', 'disbursed', 'settled', 'rejected'];
+        $advancePurposes = [
+            'Uang muka perjalanan dinas',
+            'Uang muka pembelian operasional',
+            'Uang muka biaya representasi klien',
+            'Uang muka kegiatan lapangan',
+        ];
         for ($i = 0; $i < 6; $i++) {
             $employee = $pick();
             $amount = mt_rand(10, 50) * 100_000;
-            $installments = mt_rand(1, 6);
             $status = $advanceStatuses[array_rand($advanceStatuses)];
-            $paid = in_array($status, ['approved', 'paid'], true) ? mt_rand(0, $installments) : 0;
-            if ($status === 'paid') {
-                $paid = $installments;
-            }
+            $requestDate = $now->copy()->subDays(mt_rand(10, 120));
+            $isDecided = in_array($status, ['approved', 'disbursed', 'settled', 'rejected'], true);
+            $isDisbursed = in_array($status, ['disbursed', 'settled'], true);
 
             CashAdvance::create([
                 'tenant_id' => $tenant->id,
                 'employee_id' => $employee->id,
                 'amount' => $amount,
-                'installments' => $installments,
-                'monthly_deduction' => round($amount / $installments, 2),
-                'paid_installments' => $paid,
-                'request_date' => $now->copy()->subDays(mt_rand(10, 120))->toDateString(),
-                'reason' => 'Kebutuhan mendesak keluarga.',
+                'purpose' => $advancePurposes[array_rand($advancePurposes)],
+                'request_date' => $requestDate->toDateString(),
+                'needed_date' => $requestDate->copy()->addDays(mt_rand(3, 14))->toDateString(),
+                'reason' => 'Dibutuhkan untuk kegiatan operasional di lapangan.',
                 'status' => $status,
-                'approved_by' => in_array($status, ['approved', 'paid', 'rejected'], true) ? $admin->id : null,
+                'approved_by' => $isDecided ? $admin->id : null,
+                'approved_at' => $isDecided ? $requestDate->copy()->addDays(mt_rand(1, 3)) : null,
+                'disbursed_at' => $isDisbursed ? $requestDate->copy()->addDays(mt_rand(3, 6)) : null,
+                'disbursed_by' => $isDisbursed ? $admin->id : null,
+                'disbursement_method' => $isDisbursed ? 'transfer' : null,
+                'settled_at' => $status === 'settled' ? $requestDate->copy()->addDays(mt_rand(10, 30)) : null,
             ]);
         }
 

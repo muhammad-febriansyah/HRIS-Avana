@@ -86,11 +86,15 @@ final class AvanaNav
                     self::leaf('jurnal', 'Jurnal Akuntansi', 'book-open', '/avana/jurnal', 'journal', ['journal']),
                     self::leaf('anggaran', 'Anggaran (Budget)', 'piggy-bank', '/avana/anggaran', 'budget', ['budget']),
                 ]),
+                self::parent('finance', 'Finance', 'receipt', [
+                    self::leaf('reimbursement', 'Reimbursement', 'receipt', '/avana/reimbursement', 'reimbursement', ['claim']),
+                    self::leaf('kasbon', 'Cash Advance', 'hand-coins', '/avana/kasbon', 'cash_advance', ['payroll']),
+                    self::leaf('settlement', 'Settlement', 'file-check', '/avana/settlement', 'cash_advance', ['claim']),
+                ]),
                 self::parent('benefit-grp', 'Benefit & Klaim', 'gift', [
                     self::leaf('benefit', 'Benefit', 'gift', '/avana/benefit', 'hr_core', ['employee']),
                     self::leaf('klaim', 'Klaim & Reimbursement', 'receipt', '/avana/klaim', 'claim', ['claim']),
                     self::leaf('pinjaman', 'Pinjaman', 'banknote', '/avana/pinjaman', 'loan', ['loan']),
-                    self::leaf('kasbon', 'Kasbon', 'hand-coins', '/avana/kasbon', 'payroll', ['payroll']),
                 ]),
             ]],
             ['title' => 'TALENTA', 'items' => [

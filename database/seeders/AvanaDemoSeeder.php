@@ -224,6 +224,8 @@ final class AvanaDemoSeeder extends Seeder
             'bpjs' => ['BPJS', 'payroll'],
             'pph21' => ['PPh 21', 'payroll'],
             'claim' => ['Klaim & Reimbursement', 'payroll'],
+            'reimbursement' => ['Reimbursement', 'payroll'],
+            'cash_advance' => ['Cash Advance & Settlement', 'payroll'],
             'loan' => ['Pinjaman Karyawan', 'payroll'],
             'salary_structure' => ['Struktur & Skala Upah', 'payroll'],
             'journal' => ['Jurnal Akuntansi', 'payroll'],

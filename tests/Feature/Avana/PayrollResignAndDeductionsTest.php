@@ -151,24 +151,23 @@ it('does not deduct a fully paid loan', function (): void {
     expect(collect($item->calculation_snapshot['deductions'])->firstWhere('name', 'Cicilan Pinjaman'))->toBeNull();
 });
 
-it('deducts an approved cash advance installment', function (): void {
+it('never deducts a cash advance from pay — it is settled with receipts instead', function (): void {
     setBasic($this, 8_000_000);
 
     CashAdvance::create([
         'tenant_id' => $this->tenant->id,
         'employee_id' => $this->employee->id,
         'amount' => 900_000,
-        'installments' => 3,
-        'monthly_deduction' => 300_000,
-        'paid_installments' => 0,
+        'purpose' => 'Uang muka operasional',
         'request_date' => $this->period->start_date->toDateString(),
         'reason' => 'Test',
-        'status' => 'approved',
+        'status' => 'disbursed',
     ]);
 
     $item = runResign($this);
 
-    expect((float) collect($item->calculation_snapshot['deductions'])->firstWhere('name', 'Potongan Kasbon')['amount'])->toBe(300_000.0);
+    expect(collect($item->calculation_snapshot['deductions'])->firstWhere('name', 'Potongan Kasbon'))->toBeNull();
+    expect($item->calculation_snapshot)->not->toHaveKey('advance_ids');
 });
 
 it('adds statutory overtime pay using the Kepmenaker multipliers', function (): void {

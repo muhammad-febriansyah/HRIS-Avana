@@ -1,11 +1,16 @@
 /**
- * Shared types for the AvanaHR kasbon (cash advance) module pages. These
- * mirror the `CashAdvanceController` payloads (`index`, `create`).
+ * Shared types for the AvanaHR cash advance (uang muka operasional) module
+ * pages. These mirror the `CashAdvanceController` payloads (`index`, `create`,
+ * `edit`).
  */
 
 import type { PaginationMeta } from '../employees/types';
 
 export type { FlashProps, PaginationMeta } from '../employees/types';
+
+/** Where a cash advance sits in the pengajuan → approval → pencairan flow. */
+export type CashAdvanceStatus =
+    'pending' | 'approved' | 'rejected' | 'disbursed' | 'settled';
 
 /** A single cash advance row as shaped by `CashAdvanceController@index`. */
 export interface CashAdvanceRow {
@@ -17,12 +22,18 @@ export interface CashAdvanceRow {
         avatar_color: string;
     } | null;
     amount: number;
-    installments: number;
-    monthly_deduction: number;
+    purpose: string | null;
     request_date: string | null;
+    needed_date: string | null;
     reason: string | null;
-    status: 'pending' | 'approved' | 'rejected' | 'paid';
-    status_label: 'Menunggu' | 'Disetujui' | 'Ditolak' | 'Lunas';
+    status: CashAdvanceStatus;
+    status_label: string;
+    disbursed_at: string | null;
+    disbursement_method: string | null;
+    disbursement_method_label: string | null;
+    disbursement_reference: string | null;
+    settlement_id: number | null;
+    settlement_status: string | null;
 }
 
 /** A selectable employee `{ id, name, employee_number }`. */
@@ -32,14 +43,28 @@ export interface EmployeeOption {
     employee_number: string;
 }
 
+/** A `{ value, label }` option pair. */
+export interface SelectOption {
+    value: string;
+    label: string;
+}
+
 /** Server-side filter state carried by the index page. */
 export interface KasbonFilters {
     search?: string;
-    status?: 'pending' | 'approved' | 'rejected' | 'paid';
+    status?: CashAdvanceStatus;
     per_page?: string;
 }
 
-/** Props for the kasbon list page (`index.tsx`). */
+/** Status counters shown above the list. */
+export interface KasbonKpis {
+    pending: number;
+    approved: number;
+    disbursed: number;
+    outstanding_amount: number;
+}
+
+/** Props for the cash advance list page (`index.tsx`). */
 export interface KasbonIndexProps {
     requests: {
         data: CashAdvanceRow[];
@@ -48,19 +73,36 @@ export interface KasbonIndexProps {
     };
     filters: KasbonFilters;
     employees: EmployeeOption[];
+    disbursementMethods: SelectOption[];
+    kpis: KasbonKpis;
 }
 
-/** Props for the kasbon create page (`create.tsx`). */
+/** Props for the cash advance create page (`create.tsx`). */
 export interface KasbonCreateProps {
     employees: EmployeeOption[];
 }
 
-/** Flat form payload backing the "Ajukan Kasbon" form. */
+/** Props for the cash advance edit page (`edit.tsx`). */
+export interface KasbonEditProps {
+    advance: {
+        id: number;
+        employee_id: number;
+        amount: number;
+        purpose: string | null;
+        request_date: string | null;
+        needed_date: string | null;
+        reason: string | null;
+    };
+    employees: EmployeeOption[];
+}
+
+/** Flat form payload backing the "Ajukan Uang Muka" form. */
 export interface CashAdvanceFormData {
     employee_id: string;
     amount: string;
-    installments: string;
+    purpose: string;
     request_date: string;
+    needed_date: string;
     reason: string;
 }
 
@@ -68,15 +110,17 @@ export interface CashAdvanceFormData {
 export const emptyKasbonForm: CashAdvanceFormData = {
     employee_id: '',
     amount: '',
-    installments: '1',
+    purpose: '',
     request_date: '',
+    needed_date: '',
     reason: '',
 };
 
 /** Selectable status filter options. */
-export const STATUS_OPTIONS: { value: string; label: string }[] = [
+export const STATUS_OPTIONS: SelectOption[] = [
     { value: 'pending', label: 'Menunggu' },
     { value: 'approved', label: 'Disetujui' },
+    { value: 'disbursed', label: 'Dicairkan' },
+    { value: 'settled', label: 'Selesai' },
     { value: 'rejected', label: 'Ditolak' },
-    { value: 'paid', label: 'Lunas' },
 ];

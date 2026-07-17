@@ -5,17 +5,19 @@ import { toast } from 'sonner';
 import CashAdvanceController from '@/actions/App/Http/Controllers/Avana/CashAdvanceController';
 import { AIcon, C } from '@/lib/avana';
 import { KasbonForm } from './kasbon-form';
-import { emptyKasbonForm } from './types';
-import type {
-    CashAdvanceFormData,
-    FlashProps,
-    KasbonCreateProps,
-} from './types';
+import type { CashAdvanceFormData, FlashProps, KasbonEditProps } from './types';
 
-export default function KasbonCreate({ employees }: KasbonCreateProps) {
+export default function KasbonEdit({ advance, employees }: KasbonEditProps) {
     const { flash } = usePage<FlashProps>().props;
 
-    const form = useForm<CashAdvanceFormData>({ ...emptyKasbonForm });
+    const form = useForm<CashAdvanceFormData>({
+        employee_id: String(advance.employee_id),
+        amount: String(advance.amount),
+        purpose: advance.purpose ?? '',
+        request_date: advance.request_date ?? '',
+        needed_date: advance.needed_date ?? '',
+        reason: advance.reason ?? '',
+    });
 
     useEffect(() => {
         if (flash?.success) {
@@ -25,12 +27,12 @@ export default function KasbonCreate({ employees }: KasbonCreateProps) {
 
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        form.submit(CashAdvanceController.store());
+        form.submit(CashAdvanceController.update(advance.id));
     };
 
     return (
         <>
-            <Head title="Ajukan Uang Muka" />
+            <Head title="Ubah Uang Muka" />
             <div style={{ padding: '28px 32px' }}>
                 <div
                     style={{
@@ -53,7 +55,7 @@ export default function KasbonCreate({ employees }: KasbonCreateProps) {
                         Cash Advance
                     </Link>
                     <AIcon name="chevron-right" size={13} />
-                    <span style={{ color: C.muted }}>Ajukan Uang Muka</span>
+                    <span style={{ color: C.muted }}>Ubah Pengajuan</span>
                 </div>
                 <h1
                     style={{
@@ -64,14 +66,14 @@ export default function KasbonCreate({ employees }: KasbonCreateProps) {
                         letterSpacing: '-.01em',
                     }}
                 >
-                    Ajukan Uang Muka Baru
+                    Ubah Pengajuan Uang Muka
                 </h1>
 
                 <KasbonForm
                     form={form}
                     employees={employees}
-                    submitLabel="Ajukan Uang Muka"
-                    submitIcon="plus"
+                    submitLabel="Simpan Perubahan"
+                    submitIcon="check"
                     cancelHref={CashAdvanceController.index().url}
                     onSubmit={handleSubmit}
                 />

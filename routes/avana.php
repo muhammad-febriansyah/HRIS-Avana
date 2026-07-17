@@ -57,6 +57,7 @@ use App\Http\Controllers\Avana\PayrollUmrController;
 use App\Http\Controllers\Avana\PerformanceController;
 use App\Http\Controllers\Avana\PermissionRequestController;
 use App\Http\Controllers\Avana\RecruitmentController;
+use App\Http\Controllers\Avana\ReimbursementController;
 use App\Http\Controllers\Avana\RosterController;
 use App\Http\Controllers\Avana\SalaryGradeStepController;
 use App\Http\Controllers\Avana\SalaryMasterController;
@@ -64,6 +65,7 @@ use App\Http\Controllers\Avana\SalaryRapelController;
 use App\Http\Controllers\Avana\SalaryStructureController;
 use App\Http\Controllers\Avana\SalesOrderController;
 use App\Http\Controllers\Avana\SearchController;
+use App\Http\Controllers\Avana\SettlementController;
 use App\Http\Controllers\Avana\ShiftSwapController;
 use App\Http\Controllers\Avana\SurveyController;
 use App\Http\Controllers\Avana\TalentController;
@@ -268,12 +270,30 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::get('mutasi/create', [MovementController::class, 'create'])->name('mutasi.create');
     Route::post('mutasi', [MovementController::class, 'store'])->name('mutasi.store');
 
-    // Kasbon / cash advance
+    // Cash advance (uang muka operasional) — pengajuan, approval, pencairan
     Route::get('kasbon', [CashAdvanceController::class, 'index'])->name('kasbon');
     Route::get('kasbon/create', [CashAdvanceController::class, 'create'])->name('kasbon.create');
+    Route::get('kasbon/{cashAdvance}/edit', [CashAdvanceController::class, 'edit'])->name('kasbon.edit');
     Route::post('kasbon', [CashAdvanceController::class, 'store'])->name('kasbon.store');
+    Route::put('kasbon/{cashAdvance}', [CashAdvanceController::class, 'update'])->name('kasbon.update');
+    Route::delete('kasbon/{cashAdvance}', [CashAdvanceController::class, 'destroy'])->name('kasbon.destroy');
     Route::post('kasbon/{cashAdvance}/approve', [CashAdvanceController::class, 'approve'])->name('kasbon.approve');
     Route::post('kasbon/{cashAdvance}/reject', [CashAdvanceController::class, 'reject'])->name('kasbon.reject');
+    Route::post('kasbon/{cashAdvance}/disburse', [CashAdvanceController::class, 'disburse'])->name('kasbon.disburse');
+
+    // Settlement — pertanggungjawaban uang muka yang sudah dicairkan
+    Route::get('settlement', [SettlementController::class, 'index'])->name('settlement');
+    Route::get('settlement/create', [SettlementController::class, 'create'])->name('settlement.create');
+    Route::get('settlement/{settlement}', [SettlementController::class, 'show'])->name('settlement.show');
+    Route::post('settlement', [SettlementController::class, 'store'])->name('settlement.store');
+    Route::delete('settlement/{settlement}', [SettlementController::class, 'destroy'])->name('settlement.destroy');
+    Route::post('settlement/{settlement}/items', [SettlementController::class, 'storeItem'])->name('settlement.items.store');
+    Route::delete('settlement/{settlement}/items/{item}', [SettlementController::class, 'destroyItem'])->name('settlement.items.destroy');
+    Route::post('settlement/{settlement}/submit', [SettlementController::class, 'submit'])->name('settlement.submit');
+    Route::post('settlement/{settlement}/approve', [SettlementController::class, 'approve'])->name('settlement.approve');
+    Route::post('settlement/{settlement}/reject', [SettlementController::class, 'reject'])->name('settlement.reject');
+    Route::post('settlement/{settlement}/return', [SettlementController::class, 'recordReturn'])->name('settlement.return');
+    Route::post('settlement/{settlement}/topup', [SettlementController::class, 'recordTopup'])->name('settlement.topup');
 
     // Benefit management
     Route::get('benefit', [BenefitController::class, 'index'])->name('benefit');
@@ -452,6 +472,17 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('klaim/{claim}/approve', [ClaimController::class, 'approve'])->name('klaim.approve');
     Route::post('klaim/{claim}/reject', [ClaimController::class, 'reject'])->name('klaim.reject');
     Route::post('klaim/{claim}/pay', [ClaimController::class, 'markPaid'])->name('klaim.pay');
+
+    // Reimbursement — penggantian biaya yang sudah ditalangi karyawan
+    Route::get('reimbursement', [ReimbursementController::class, 'index'])->name('reimbursement');
+    Route::get('reimbursement/create', [ReimbursementController::class, 'create'])->name('reimbursement.create');
+    Route::get('reimbursement/{reimbursement}/edit', [ReimbursementController::class, 'edit'])->name('reimbursement.edit');
+    Route::post('reimbursement', [ReimbursementController::class, 'store'])->name('reimbursement.store');
+    Route::put('reimbursement/{reimbursement}', [ReimbursementController::class, 'update'])->name('reimbursement.update');
+    Route::delete('reimbursement/{reimbursement}', [ReimbursementController::class, 'destroy'])->name('reimbursement.destroy');
+    Route::post('reimbursement/{reimbursement}/approve', [ReimbursementController::class, 'approve'])->name('reimbursement.approve');
+    Route::post('reimbursement/{reimbursement}/reject', [ReimbursementController::class, 'reject'])->name('reimbursement.reject');
+    Route::post('reimbursement/{reimbursement}/pay', [ReimbursementController::class, 'markPaid'])->name('reimbursement.pay');
 
     // HR Helpdesk (ticketing)
     Route::get('helpdesk', [HelpdeskController::class, 'index'])->name('helpdesk');

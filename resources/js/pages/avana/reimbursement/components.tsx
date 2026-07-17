@@ -116,7 +116,7 @@ export function Field({
     );
 }
 
-/** Rounded status badge for a cash advance, driven by its Indonesian label. */
+/** Rounded status badge for a reimbursement, driven by its Indonesian label. */
 export function StatusPill({ label }: { label: string }) {
     const badge = statusBadge(label);
 
@@ -132,6 +132,26 @@ export function StatusPill({ label }: { label: string }) {
             }}
         >
             {badge.label}
+        </span>
+    );
+}
+
+/** Neutral pill naming the expense category of a reimbursement. */
+export function CategoryPill({ label }: { label: string }) {
+    return (
+        <span
+            style={{
+                padding: '3px 10px',
+                borderRadius: 100,
+                fontSize: 11.5,
+                fontWeight: 500,
+                color: C.muted,
+                background: C.surface,
+                border: `1px solid ${C.border}`,
+                whiteSpace: 'nowrap',
+            }}
+        >
+            {label}
         </span>
     );
 }

@@ -2,24 +2,26 @@ import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import CashAdvanceController from '@/actions/App/Http/Controllers/Avana/CashAdvanceController';
-import SettlementController from '@/actions/App/Http/Controllers/Avana/SettlementController';
+import ReimbursementController from '@/actions/App/Http/Controllers/Avana/ReimbursementController';
 import { ConfirmDialog } from '@/components/avana-ui/confirm-dialog';
 import { FormDialog } from '@/components/avana-ui/form-dialog';
 import { AIcon, ActionBtn, btnP, C, card, rp } from '@/lib/avana';
 import {
+    CategoryPill,
     Field,
     KpiCard,
     selectStyle,
     StatusPill,
+    textareaStyle,
     textInputStyle,
+    withError,
 } from './components';
 import { STATUS_OPTIONS } from './types';
 import type {
-    CashAdvanceRow,
     FlashProps,
-    KasbonFilters,
-    KasbonIndexProps,
+    ReimbursementFilters,
+    ReimbursementIndexProps,
+    ReimbursementRow,
 } from './types';
 
 const headThStyle: CSSProperties = {
@@ -37,27 +39,46 @@ const cellStyle: CSSProperties = {
     color: C.muted,
 };
 
-interface DisburseForm {
-    disbursement_method: string;
-    disbursement_reference: string;
+const receiptLinkStyle: CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    fontSize: 12.5,
+    color: C.primary,
+    textDecoration: 'none',
+    fontWeight: 500,
+};
+
+interface RejectForm {
+    rejection_reason: string;
     [key: string]: string;
 }
 
-export default function KasbonIndex({
+interface PayForm {
+    payment_method: string;
+    payment_reference: string;
+    [key: string]: string;
+}
+
+export default function ReimbursementIndex({
     requests,
     filters,
-    disbursementMethods,
+    categories,
+    paymentMethods,
     kpis,
-}: KasbonIndexProps) {
+}: ReimbursementIndexProps) {
     const { flash } = usePage<FlashProps>().props;
     const meta = requests.meta;
 
-    const [disbursing, setDisbursing] = useState<CashAdvanceRow | null>(null);
-    const [deleting, setDeleting] = useState<CashAdvanceRow | null>(null);
+    const [rejecting, setRejecting] = useState<ReimbursementRow | null>(null);
+    const [paying, setPaying] = useState<ReimbursementRow | null>(null);
+    const [deleting, setDeleting] = useState<ReimbursementRow | null>(null);
 
-    const disburseForm = useForm<DisburseForm>({
-        disbursement_method: disbursementMethods[0]?.value ?? 'transfer',
-        disbursement_reference: '',
+    const rejectForm = useForm<RejectForm>({ rejection_reason: '' });
+
+    const payForm = useForm<PayForm>({
+        payment_method: paymentMethods[0]?.value ?? 'transfer',
+        payment_reference: '',
     });
 
     useEffect(() => {
@@ -66,7 +87,7 @@ export default function KasbonIndex({
         }
     }, [flash?.success]);
 
-    const applyFilters = (next: Partial<KasbonFilters>) => {
+    const applyFilters = (next: Partial<ReimbursementFilters>) => {
         router.get(
             window.location.pathname,
             { ...filters, ...next, page: 1 },
@@ -84,30 +105,36 @@ export default function KasbonIndex({
 
     const approve = (id: number) => {
         router.post(
-            CashAdvanceController.approve(id).url,
+            ReimbursementController.approve(id).url,
             {},
             { preserveScroll: true },
         );
     };
 
-    const reject = (id: number) => {
-        router.post(
-            CashAdvanceController.reject(id).url,
-            {},
-            { preserveScroll: true },
-        );
-    };
-
-    const submitDisburse = () => {
-        if (!disbursing) {
+    const submitReject = () => {
+        if (!rejecting) {
             return;
         }
 
-        disburseForm.post(CashAdvanceController.disburse(disbursing.id).url, {
+        rejectForm.post(ReimbursementController.reject(rejecting.id).url, {
             preserveScroll: true,
             onSuccess: () => {
-                setDisbursing(null);
-                disburseForm.reset();
+                setRejecting(null);
+                rejectForm.reset();
+            },
+        });
+    };
+
+    const submitPay = () => {
+        if (!paying) {
+            return;
+        }
+
+        payForm.post(ReimbursementController.markPaid(paying.id).url, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setPaying(null);
+                payForm.reset();
             },
         });
     };
@@ -117,7 +144,7 @@ export default function KasbonIndex({
             return;
         }
 
-        router.delete(CashAdvanceController.destroy(deleting.id).url, {
+        router.delete(ReimbursementController.destroy(deleting.id).url, {
             preserveScroll: true,
             onFinish: () => setDeleting(null),
         });
@@ -125,7 +152,7 @@ export default function KasbonIndex({
 
     return (
         <>
-            <Head title="Cash Advance" />
+            <Head title="Reimbursement" />
             <div style={{ padding: '28px 32px' }}>
                 {/* Header */}
                 <div
@@ -151,7 +178,9 @@ export default function KasbonIndex({
                         >
                             <span>Finance</span>
                             <AIcon name="chevron-right" size={13} />
-                            <span style={{ color: C.muted }}>Cash Advance</span>
+                            <span style={{ color: C.muted }}>
+                                Reimbursement
+                            </span>
                         </div>
                         <h1
                             style={{
@@ -162,7 +191,7 @@ export default function KasbonIndex({
                                 letterSpacing: '-.01em',
                             }}
                         >
-                            Cash Advance / Uang Muka
+                            Reimbursement
                         </h1>
                         <div
                             style={{
@@ -171,16 +200,16 @@ export default function KasbonIndex({
                                 marginTop: 4,
                             }}
                         >
-                            Pengajuan uang muka, approval, dan pencairan oleh
-                            Finance
+                            Penggantian biaya karyawan yang sudah ditalangi,
+                            approval, dan pembayaran oleh Finance
                         </div>
                     </div>
                     <Link
-                        href={CashAdvanceController.create()}
+                        href={ReimbursementController.create()}
                         style={{ ...btnP, textDecoration: 'none' }}
                     >
                         <AIcon name="plus" size={16} color="#fff" />
-                        Ajukan Uang Muka
+                        Ajukan Reimbursement
                     </Link>
                 </div>
 
@@ -196,26 +225,26 @@ export default function KasbonIndex({
                 >
                     <KpiCard
                         icon="clock"
-                        label="Menunggu Approval"
+                        label="Menunggu"
                         value={String(kpis.pending)}
                         accent="#D97706"
                     />
                     <KpiCard
                         icon="check"
-                        label="Siap Dicairkan"
+                        label="Disetujui"
                         value={String(kpis.approved)}
                         accent="#16A34A"
                     />
                     <KpiCard
                         icon="hand-coins"
-                        label="Belum Dipertanggungjawabkan"
-                        value={String(kpis.disbursed)}
+                        label="Dibayar"
+                        value={String(kpis.paid)}
                         accent={C.primary}
                     />
                     <KpiCard
                         icon="wallet"
-                        label="Dana Beredar"
-                        value={rp(kpis.outstanding_amount)}
+                        label="Total Perlu Dibayar"
+                        value={rp(kpis.payable_amount)}
                         accent="#8b5cf6"
                     />
                 </div>
@@ -240,7 +269,7 @@ export default function KasbonIndex({
                                 color: C.navy,
                             }}
                         >
-                            Daftar Uang Muka
+                            Daftar Reimbursement
                         </div>
                         <div
                             style={{
@@ -267,7 +296,7 @@ export default function KasbonIndex({
                                 </span>
                                 <input
                                     type="search"
-                                    placeholder="Cari karyawan"
+                                    placeholder="Cari nomor / judul / karyawan"
                                     defaultValue={filters.search ?? ''}
                                     onChange={(event) =>
                                         applyFilters({
@@ -283,7 +312,7 @@ export default function KasbonIndex({
                                         fontSize: 12.5,
                                         color: C.text,
                                         outline: 'none',
-                                        width: 180,
+                                        width: 200,
                                     }}
                                 />
                             </div>
@@ -292,7 +321,7 @@ export default function KasbonIndex({
                                 onChange={(event) =>
                                     applyFilters({
                                         status: (event.target.value ||
-                                            undefined) as KasbonFilters['status'],
+                                            undefined) as ReimbursementFilters['status'],
                                     })
                                 }
                                 style={{
@@ -317,6 +346,36 @@ export default function KasbonIndex({
                                     </option>
                                 ))}
                             </select>
+                            <select
+                                value={filters.category ?? ''}
+                                onChange={(event) =>
+                                    applyFilters({
+                                        category:
+                                            event.target.value || undefined,
+                                    })
+                                }
+                                style={{
+                                    height: 36,
+                                    padding: '0 10px',
+                                    border: `1px solid ${C.border}`,
+                                    borderRadius: 8,
+                                    fontSize: 12.5,
+                                    color: C.muted,
+                                    background: '#fff',
+                                    outline: 'none',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <option value="">Semua Kategori</option>
+                                {categories.map((option) => (
+                                    <option
+                                        key={option.value}
+                                        value={option.value}
+                                    >
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
                     </div>
                     <div style={{ overflowX: 'auto' }}>
@@ -324,13 +383,15 @@ export default function KasbonIndex({
                             style={{
                                 width: '100%',
                                 borderCollapse: 'collapse',
-                                minWidth: 880,
+                                minWidth: 1040,
                             }}
                         >
                             <thead>
                                 <tr style={{ background: '#FAFBFD' }}>
+                                    <th style={headThStyle}>No.</th>
                                     <th style={headThStyle}>Karyawan</th>
-                                    <th style={headThStyle}>Keperluan</th>
+                                    <th style={headThStyle}>Kategori</th>
+                                    <th style={headThStyle}>Judul</th>
                                     <th style={headThStyle}>Jumlah</th>
                                     <th style={headThStyle}>Tanggal</th>
                                     <th style={headThStyle}>Status</th>
@@ -352,7 +413,7 @@ export default function KasbonIndex({
                                         }}
                                     >
                                         <td
-                                            colSpan={6}
+                                            colSpan={8}
                                             style={{
                                                 padding: '48px 18px',
                                                 textAlign: 'center',
@@ -369,13 +430,13 @@ export default function KasbonIndex({
                                                 }}
                                             >
                                                 <AIcon
-                                                    name="wallet"
+                                                    name="receipt"
                                                     size={28}
                                                     color={C.faint}
                                                 />
                                                 <div>
-                                                    Tidak ada pengajuan uang
-                                                    muka.
+                                                    Tidak ada pengajuan
+                                                    reimbursement.
                                                 </div>
                                             </div>
                                         </td>
@@ -388,6 +449,17 @@ export default function KasbonIndex({
                                             borderTop: `1px solid ${C.line}`,
                                         }}
                                     >
+                                        <td
+                                            style={{
+                                                padding: '12px 16px',
+                                                fontSize: 12.5,
+                                                fontWeight: 500,
+                                                color: C.text,
+                                                whiteSpace: 'nowrap',
+                                            }}
+                                        >
+                                            {row.number}
+                                        </td>
                                         <td style={{ padding: '12px 16px' }}>
                                             <div
                                                 style={{
@@ -442,13 +514,56 @@ export default function KasbonIndex({
                                                 </div>
                                             </div>
                                         </td>
+                                        <td style={{ padding: '12px 16px' }}>
+                                            <CategoryPill
+                                                label={row.category_label}
+                                            />
+                                        </td>
                                         <td
                                             style={{
                                                 ...cellStyle,
-                                                maxWidth: 220,
+                                                maxWidth: 240,
                                             }}
                                         >
-                                            {row.purpose ?? '—'}
+                                            <div
+                                                style={{
+                                                    color: C.text,
+                                                    fontSize: 13,
+                                                }}
+                                            >
+                                                {row.title}
+                                            </div>
+                                            {row.status === 'rejected' &&
+                                                row.rejection_reason && (
+                                                    <div
+                                                        style={{
+                                                            fontSize: 11.5,
+                                                            color: C.red,
+                                                            marginTop: 3,
+                                                        }}
+                                                    >
+                                                        Ditolak:{' '}
+                                                        {row.rejection_reason}
+                                                    </div>
+                                                )}
+                                            {row.receipt_url && (
+                                                <a
+                                                    href={row.receipt_url}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    style={{
+                                                        ...receiptLinkStyle,
+                                                        marginTop: 4,
+                                                    }}
+                                                >
+                                                    <AIcon
+                                                        name="paperclip"
+                                                        size={13}
+                                                        color={C.primary}
+                                                    />
+                                                    Bukti
+                                                </a>
+                                            )}
                                         </td>
                                         <td
                                             style={{
@@ -456,12 +571,18 @@ export default function KasbonIndex({
                                                 fontSize: 13,
                                                 fontWeight: 600,
                                                 color: C.text,
+                                                whiteSpace: 'nowrap',
                                             }}
                                         >
                                             {rp(row.amount)}
                                         </td>
-                                        <td style={cellStyle}>
-                                            {row.request_date ?? '—'}
+                                        <td
+                                            style={{
+                                                ...cellStyle,
+                                                whiteSpace: 'nowrap',
+                                            }}
+                                        >
+                                            {row.expense_date ?? '—'}
                                         </td>
                                         <td style={{ padding: '12px 16px' }}>
                                             <StatusPill
@@ -497,9 +618,43 @@ export default function KasbonIndex({
                                                             label="Tolak"
                                                             variant="warning"
                                                             onClick={() =>
-                                                                reject(row.id)
+                                                                setRejecting(
+                                                                    row,
+                                                                )
                                                             }
                                                         />
+                                                    </>
+                                                )}
+                                                {row.status === 'approved' && (
+                                                    <ActionBtn
+                                                        icon="hand-coins"
+                                                        label="Bayar"
+                                                        variant="primary"
+                                                        onClick={() =>
+                                                            setPaying(row)
+                                                        }
+                                                    />
+                                                )}
+                                                {row.status !== 'paid' && (
+                                                    <>
+                                                        <Link
+                                                            href={
+                                                                ReimbursementController.edit(
+                                                                    row.id,
+                                                                ).url
+                                                            }
+                                                            style={{
+                                                                fontSize: 12.5,
+                                                                color: C.primary,
+                                                                textDecoration:
+                                                                    'none',
+                                                                fontWeight: 500,
+                                                                alignSelf:
+                                                                    'center',
+                                                            }}
+                                                        >
+                                                            Ubah
+                                                        </Link>
                                                         <ActionBtn
                                                             icon="trash-2"
                                                             label="Hapus"
@@ -510,63 +665,39 @@ export default function KasbonIndex({
                                                         />
                                                     </>
                                                 )}
-                                                {row.status === 'approved' && (
-                                                    <ActionBtn
-                                                        icon="hand-coins"
-                                                        label="Cairkan"
-                                                        variant="primary"
-                                                        onClick={() =>
-                                                            setDisbursing(row)
-                                                        }
-                                                    />
-                                                )}
-                                                {row.status === 'disbursed' &&
-                                                    row.settlement_id ===
-                                                        null && (
-                                                        <Link
-                                                            href={
-                                                                SettlementController.create()
-                                                                    .url
-                                                            }
+                                                {row.status === 'paid' &&
+                                                    !row.receipt_url && (
+                                                        <span
                                                             style={{
                                                                 fontSize: 12.5,
-                                                                color: C.primary,
-                                                                textDecoration:
-                                                                    'none',
-                                                                fontWeight: 500,
+                                                                color: C.faint,
                                                             }}
                                                         >
-                                                            Buat Settlement
-                                                        </Link>
+                                                            —
+                                                        </span>
                                                     )}
-                                                {row.settlement_id !== null && (
-                                                    <Link
-                                                        href={
-                                                            SettlementController.show(
-                                                                row.settlement_id,
-                                                            ).url
-                                                        }
-                                                        style={{
-                                                            fontSize: 12.5,
-                                                            color: C.primary,
-                                                            textDecoration:
-                                                                'none',
-                                                            fontWeight: 500,
-                                                        }}
-                                                    >
-                                                        Lihat Settlement
-                                                    </Link>
-                                                )}
-                                                {row.status === 'rejected' && (
-                                                    <span
-                                                        style={{
-                                                            fontSize: 12.5,
-                                                            color: C.faint,
-                                                        }}
-                                                    >
-                                                        —
-                                                    </span>
-                                                )}
+                                                {row.status === 'paid' &&
+                                                    row.receipt_url && (
+                                                        <a
+                                                            href={
+                                                                row.receipt_url
+                                                            }
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            style={
+                                                                receiptLinkStyle
+                                                            }
+                                                        >
+                                                            <AIcon
+                                                                name="paperclip"
+                                                                size={13}
+                                                                color={
+                                                                    C.primary
+                                                                }
+                                                            />
+                                                            Bukti
+                                                        </a>
+                                                    )}
                                             </div>
                                         </td>
                                     </tr>
@@ -670,34 +801,70 @@ export default function KasbonIndex({
             </div>
 
             <FormDialog
-                open={disbursing !== null}
-                onOpenChange={(open) => !open && setDisbursing(null)}
-                title="Pencairan Uang Muka"
+                open={rejecting !== null}
+                onOpenChange={(open) => !open && setRejecting(null)}
+                title="Tolak Reimbursement"
                 description={
-                    disbursing
-                        ? `${rp(disbursing.amount)} untuk ${disbursing.employee?.name ?? 'karyawan'}`
+                    rejecting
+                        ? `${rejecting.number} · ${rp(rejecting.amount)} atas nama ${rejecting.employee?.name ?? 'karyawan'}`
                         : undefined
                 }
-                submitLabel="Catat Pencairan"
-                onSubmit={submitDisburse}
-                processing={disburseForm.processing}
+                submitLabel="Tolak Pengajuan"
+                onSubmit={submitReject}
+                processing={rejectForm.processing}
             >
                 <Field
-                    label="Metode Pencairan"
+                    label="Alasan Penolakan"
                     required
-                    error={disburseForm.errors.disbursement_method}
+                    error={rejectForm.errors.rejection_reason}
+                >
+                    <textarea
+                        rows={3}
+                        placeholder="Jelaskan alasan penolakan"
+                        value={rejectForm.data.rejection_reason}
+                        onChange={(event) =>
+                            rejectForm.setData(
+                                'rejection_reason',
+                                event.target.value,
+                            )
+                        }
+                        style={withError(
+                            textareaStyle,
+                            !!rejectForm.errors.rejection_reason,
+                        )}
+                    />
+                </Field>
+            </FormDialog>
+
+            <FormDialog
+                open={paying !== null}
+                onOpenChange={(open) => !open && setPaying(null)}
+                title="Pembayaran Reimbursement"
+                description={
+                    paying
+                        ? `${rp(paying.amount)} untuk ${paying.employee?.name ?? 'karyawan'}`
+                        : undefined
+                }
+                submitLabel="Catat Pembayaran"
+                onSubmit={submitPay}
+                processing={payForm.processing}
+            >
+                <Field
+                    label="Metode Pembayaran"
+                    required
+                    error={payForm.errors.payment_method}
                 >
                     <select
-                        value={disburseForm.data.disbursement_method}
+                        value={payForm.data.payment_method}
                         onChange={(event) =>
-                            disburseForm.setData(
-                                'disbursement_method',
+                            payForm.setData(
+                                'payment_method',
                                 event.target.value,
                             )
                         }
                         style={selectStyle}
                     >
-                        {disbursementMethods.map((method) => (
+                        {paymentMethods.map((method) => (
                             <option key={method.value} value={method.value}>
                                 {method.label}
                             </option>
@@ -706,15 +873,15 @@ export default function KasbonIndex({
                 </Field>
                 <Field
                     label="Nomor Referensi"
-                    error={disburseForm.errors.disbursement_reference}
+                    error={payForm.errors.payment_reference}
                 >
                     <input
                         type="text"
                         placeholder="Nomor transaksi / bukti transfer"
-                        value={disburseForm.data.disbursement_reference}
+                        value={payForm.data.payment_reference}
                         onChange={(event) =>
-                            disburseForm.setData(
-                                'disbursement_reference',
+                            payForm.setData(
+                                'payment_reference',
                                 event.target.value,
                             )
                         }
@@ -726,10 +893,10 @@ export default function KasbonIndex({
             <ConfirmDialog
                 open={deleting !== null}
                 onOpenChange={(open) => !open && setDeleting(null)}
-                title="Hapus pengajuan uang muka?"
+                title="Hapus pengajuan reimbursement?"
                 description={
                     deleting
-                        ? `Pengajuan ${rp(deleting.amount)} atas nama ${deleting.employee?.name ?? 'karyawan'} akan dihapus permanen.`
+                        ? `Pengajuan ${deleting.number} sebesar ${rp(deleting.amount)} atas nama ${deleting.employee?.name ?? 'karyawan'} akan dihapus permanen.`
                         : undefined
                 }
                 destructive

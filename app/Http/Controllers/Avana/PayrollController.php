@@ -7,7 +7,6 @@ use App\Http\Resources\Avana\PayrollPeriodResource;
 use App\Models\Attendance;
 use App\Models\AuditLog;
 use App\Models\BpjsProgram;
-use App\Models\CashAdvance;
 use App\Models\DayCalcMethod;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
@@ -176,7 +175,6 @@ class PayrollController extends Controller
                         'overtime_hours' => $pay['overtime_hours'],
                         'proration_factor' => $pay['proration_factor'],
                         'loan_ids' => $pay['loan_ids'],
-                        'advance_ids' => $pay['advance_ids'],
                         'gross' => $pay['gross'],
                         'deduction' => $pay['deduction'],
                         'bpjs' => $pay['bpjs_snapshot'],
@@ -833,31 +831,12 @@ class PayrollController extends Controller
     }
 
     /**
-     * Advance the installment counters for every loan/cash-advance that was
-     * deducted in this run, settling them once fully paid.
+     * Advance the installment counters for every loan that was deducted in this
+     * run, settling them once fully paid.
      */
     private function advanceInstallments(PayrollRun $run, int $tenantId): void
     {
-        $items = PayrollRunItem::forTenant($tenantId)
-            ->where('payroll_run_id', $run->id)
-            ->get(['calculation_snapshot']);
-
-        $loanIds = [];
-        $advanceIds = [];
-
-        foreach ($items as $item) {
-            $snapshot = $item->calculation_snapshot ?? [];
-
-            foreach ((array) ($snapshot['loan_ids'] ?? []) as $id) {
-                $loanIds[] = (int) $id;
-            }
-
-            foreach ((array) ($snapshot['advance_ids'] ?? []) as $id) {
-                $advanceIds[] = (int) $id;
-            }
-        }
-
-        foreach (Loan::forTenant($tenantId)->whereIn('id', array_unique($loanIds))->get() as $loan) {
+        foreach (Loan::forTenant($tenantId)->whereIn('id', $this->deductedLoanIds($run, $tenantId))->get() as $loan) {
             $paid = min((int) $loan->tenor_months, (int) $loan->paid_installments + 1);
             $loan->paid_installments = $paid;
 
@@ -867,46 +846,16 @@ class PayrollController extends Controller
 
             $loan->save();
         }
-
-        foreach (CashAdvance::forTenant($tenantId)->whereIn('id', array_unique($advanceIds))->get() as $advance) {
-            $paid = min((int) $advance->installments, (int) $advance->paid_installments + 1);
-            $advance->paid_installments = $paid;
-
-            if ($paid >= (int) $advance->installments) {
-                $advance->status = 'paid';
-            }
-
-            $advance->save();
-        }
     }
 
     /**
      * Reverse {@see advanceInstallments} when a period is unlocked: step each
-     * loan/cash-advance deducted in this run back by one installment and reopen
-     * it if the reversal drops it below fully-paid.
+     * loan deducted in this run back by one installment and reopen it if the
+     * reversal drops it below fully-paid.
      */
     private function reverseInstallments(PayrollRun $run, int $tenantId): void
     {
-        $items = PayrollRunItem::forTenant($tenantId)
-            ->where('payroll_run_id', $run->id)
-            ->get(['calculation_snapshot']);
-
-        $loanIds = [];
-        $advanceIds = [];
-
-        foreach ($items as $item) {
-            $snapshot = $item->calculation_snapshot ?? [];
-
-            foreach ((array) ($snapshot['loan_ids'] ?? []) as $id) {
-                $loanIds[] = (int) $id;
-            }
-
-            foreach ((array) ($snapshot['advance_ids'] ?? []) as $id) {
-                $advanceIds[] = (int) $id;
-            }
-        }
-
-        foreach (Loan::forTenant($tenantId)->whereIn('id', array_unique($loanIds))->get() as $loan) {
+        foreach (Loan::forTenant($tenantId)->whereIn('id', $this->deductedLoanIds($run, $tenantId))->get() as $loan) {
             $paid = max(0, (int) $loan->paid_installments - 1);
             $loan->paid_installments = $paid;
 
@@ -917,17 +866,30 @@ class PayrollController extends Controller
 
             $loan->save();
         }
+    }
 
-        foreach (CashAdvance::forTenant($tenantId)->whereIn('id', array_unique($advanceIds))->get() as $advance) {
-            $paid = max(0, (int) $advance->paid_installments - 1);
-            $advance->paid_installments = $paid;
+    /**
+     * The distinct loan ids this run's snapshots recorded a deduction for.
+     *
+     * @return array<int, int>
+     */
+    private function deductedLoanIds(PayrollRun $run, int $tenantId): array
+    {
+        $items = PayrollRunItem::forTenant($tenantId)
+            ->where('payroll_run_id', $run->id)
+            ->get(['calculation_snapshot']);
 
-            if ($paid < (int) $advance->installments && $advance->status === 'paid') {
-                $advance->status = 'approved';
+        $loanIds = [];
+
+        foreach ($items as $item) {
+            $snapshot = $item->calculation_snapshot ?? [];
+
+            foreach ((array) ($snapshot['loan_ids'] ?? []) as $id) {
+                $loanIds[] = (int) $id;
             }
-
-            $advance->save();
         }
+
+        return array_values(array_unique($loanIds));
     }
 
     /**
@@ -1274,8 +1236,8 @@ class PayrollController extends Controller
             $earnings,
         ));
 
-        // Recurring loan & cash-advance installments deducted from take-home pay.
-        [$recurring, $loanIds, $advanceIds] = $this->recurringDeductions($employee, $tenantId);
+        // Recurring loan installments deducted from take-home pay.
+        [$recurring, $loanIds] = $this->recurringDeductions($employee, $tenantId);
 
         foreach ($recurring as $line) {
             $deductions[] = $line;
@@ -1314,7 +1276,6 @@ class PayrollController extends Controller
             'overtime_hours' => $overtimeHours,
             'proration_factor' => $factor,
             'loan_ids' => $loanIds,
-            'advance_ids' => $advanceIds,
             'basic' => $basic,
             'bpjs_employee' => $bpjs['employee'],
             'bpjs_company' => $bpjs['company'],
@@ -1418,16 +1379,18 @@ class PayrollController extends Controller
     }
 
     /**
-     * Build recurring loan/cash-advance deduction lines for the employee and the
-     * source record ids so the finalize step can advance their installments.
+     * Build recurring loan deduction lines for the employee and the source loan
+     * ids so the finalize step can advance their installments.
      *
-     * @return array{0: list<array{name: string, amount: float, loan_id?: int, cash_advance_id?: int}>, 1: list<int>, 2: list<int>}
+     * Cash advances are deliberately absent: they are an operational float
+     * accounted for with receipts through a settlement, never docked from pay.
+     *
+     * @return array{0: list<array{name: string, amount: float, loan_id: int}>, 1: list<int>}
      */
     private function recurringDeductions(Employee $employee, int $tenantId): array
     {
         $lines = [];
         $loanIds = [];
-        $advanceIds = [];
 
         $loans = Loan::forTenant($tenantId)
             ->where('employee_id', $employee->id)
@@ -1443,21 +1406,7 @@ class PayrollController extends Controller
             }
         }
 
-        $advances = CashAdvance::forTenant($tenantId)
-            ->where('employee_id', $employee->id)
-            ->where('status', 'approved')
-            ->get();
-
-        foreach ($advances as $advance) {
-            $remaining = (int) $advance->installments - (int) $advance->paid_installments;
-
-            if ($remaining > 0 && (float) $advance->monthly_deduction > 0) {
-                $lines[] = ['name' => 'Potongan Kasbon', 'amount' => (float) $advance->monthly_deduction, 'cash_advance_id' => $advance->id];
-                $advanceIds[] = $advance->id;
-            }
-        }
-
-        return [$lines, $loanIds, $advanceIds];
+        return [$lines, $loanIds];
     }
 
     /**

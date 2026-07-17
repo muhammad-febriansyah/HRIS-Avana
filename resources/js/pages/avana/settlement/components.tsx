@@ -1,7 +1,8 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { AIcon, C, statusBadge } from '@/lib/avana';
+import { AIcon, C, rp, statusBadge } from '@/lib/avana';
+import type { SettlementOutcome } from './types';
 
-/* ---------- shared field styles (mirror kasbon prototype) ---------- */
+/* ---------- shared field styles (mirror the kasbon module) ---------- */
 
 export const fieldLabelStyle: CSSProperties = {
     display: 'block',
@@ -79,7 +80,7 @@ export function withError(
         : base;
 }
 
-/** Inline error message rendered under a field, prototype error style. */
+/** Inline error message rendered under a field. */
 export function FieldError({ message }: { message?: string }) {
     if (!message) {
         return null;
@@ -93,7 +94,7 @@ export function FieldError({ message }: { message?: string }) {
     );
 }
 
-/** A single labelled field wrapper matching the prototype form style. */
+/** A single labelled field wrapper. */
 export function Field({
     label,
     required,
@@ -116,7 +117,7 @@ export function Field({
     );
 }
 
-/** Rounded status badge for a cash advance, driven by its Indonesian label. */
+/** Rounded status badge for a settlement, driven by its Indonesian label. */
 export function StatusPill({ label }: { label: string }) {
     const badge = statusBadge(label);
 
@@ -132,6 +133,41 @@ export function StatusPill({ label }: { label: string }) {
             }}
         >
             {badge.label}
+        </span>
+    );
+}
+
+/** Colour per settlement outcome: money owed to us, by us, or neither. */
+export function outcomeColor(outcome: SettlementOutcome): string {
+    return {
+        return: '#D97706',
+        topup: '#DC2626',
+        balanced: '#16A34A',
+    }[outcome];
+}
+
+/** Badge naming which way the money still has to move. */
+export function OutcomePill({
+    outcome,
+    label,
+}: {
+    outcome: SettlementOutcome;
+    label: string;
+}) {
+    const color = outcomeColor(outcome);
+
+    return (
+        <span
+            style={{
+                padding: '3px 10px',
+                borderRadius: 100,
+                fontSize: 11.5,
+                fontWeight: 600,
+                color,
+                background: `${color}1a`,
+            }}
+        >
+            {label}
         </span>
     );
 }
@@ -187,6 +223,42 @@ export function KpiCard({
                     {value}
                 </div>
             </div>
+        </div>
+    );
+}
+
+/** One `label: value` line in the settlement summary panel. */
+export function SummaryRow({
+    label,
+    value,
+    accent,
+    strong = false,
+}: {
+    label: string;
+    value: number;
+    accent?: string;
+    strong?: boolean;
+}) {
+    return (
+        <div
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                fontSize: 13,
+            }}
+        >
+            <span style={{ color: C.muted }}>{label}</span>
+            <span
+                style={{
+                    color: accent ?? C.text,
+                    fontWeight: strong ? 700 : 600,
+                    fontSize: strong ? 15 : 13,
+                }}
+            >
+                {rp(value)}
+            </span>
         </div>
     );
 }

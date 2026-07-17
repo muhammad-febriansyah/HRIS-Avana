@@ -2,20 +2,32 @@ import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
-import CashAdvanceController from '@/actions/App/Http/Controllers/Avana/CashAdvanceController';
+import ReimbursementController from '@/actions/App/Http/Controllers/Avana/ReimbursementController';
 import { AIcon, C } from '@/lib/avana';
-import { KasbonForm } from './kasbon-form';
-import { emptyKasbonForm } from './types';
+import { ReimbursementForm } from './reimbursement-form';
 import type {
-    CashAdvanceFormData,
     FlashProps,
-    KasbonCreateProps,
+    ReimbursementEditProps,
+    ReimbursementFormData,
 } from './types';
 
-export default function KasbonCreate({ employees }: KasbonCreateProps) {
+export default function ReimbursementEdit({
+    reimbursement,
+    employees,
+    categories,
+}: ReimbursementEditProps) {
     const { flash } = usePage<FlashProps>().props;
 
-    const form = useForm<CashAdvanceFormData>({ ...emptyKasbonForm });
+    const form = useForm<ReimbursementFormData>({
+        employee_id: String(reimbursement.employee_id),
+        category: reimbursement.category,
+        title: reimbursement.title,
+        amount: String(reimbursement.amount),
+        expense_date: reimbursement.expense_date ?? '',
+        description: reimbursement.description ?? '',
+        notes: reimbursement.notes ?? '',
+        receipt: null,
+    });
 
     useEffect(() => {
         if (flash?.success) {
@@ -25,12 +37,14 @@ export default function KasbonCreate({ employees }: KasbonCreateProps) {
 
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        form.submit(CashAdvanceController.store());
+        form.submit(ReimbursementController.update(reimbursement.id), {
+            forceFormData: true,
+        });
     };
 
     return (
         <>
-            <Head title="Ajukan Uang Muka" />
+            <Head title="Ubah Reimbursement" />
             <div style={{ padding: '28px 32px' }}>
                 <div
                     style={{
@@ -43,17 +57,19 @@ export default function KasbonCreate({ employees }: KasbonCreateProps) {
                     }}
                 >
                     <Link
-                        href={CashAdvanceController.index()}
+                        href={ReimbursementController.index()}
                         style={{
                             color: C.faint,
                             textDecoration: 'none',
                             cursor: 'pointer',
                         }}
                     >
-                        Cash Advance
+                        Reimbursement
                     </Link>
                     <AIcon name="chevron-right" size={13} />
-                    <span style={{ color: C.muted }}>Ajukan Uang Muka</span>
+                    <span style={{ color: C.muted }}>
+                        {reimbursement.number}
+                    </span>
                 </div>
                 <h1
                     style={{
@@ -64,15 +80,17 @@ export default function KasbonCreate({ employees }: KasbonCreateProps) {
                         letterSpacing: '-.01em',
                     }}
                 >
-                    Ajukan Uang Muka Baru
+                    Ubah Pengajuan Reimbursement
                 </h1>
 
-                <KasbonForm
+                <ReimbursementForm
                     form={form}
                     employees={employees}
-                    submitLabel="Ajukan Uang Muka"
-                    submitIcon="plus"
-                    cancelHref={CashAdvanceController.index().url}
+                    categories={categories}
+                    submitLabel="Simpan Perubahan"
+                    submitIcon="check"
+                    cancelHref={ReimbursementController.index().url}
+                    existingReceiptUrl={reimbursement.receipt_url}
                     onSubmit={handleSubmit}
                 />
             </div>
