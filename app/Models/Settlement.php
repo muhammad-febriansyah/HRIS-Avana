@@ -9,19 +9,34 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * A settlement (expense claim) is money an employee spent on a business trip or
+ * operational task and is claiming back. They list the expense line items, an
+ * 11% tax is applied on top of the subtotal, a manager approves the amounts,
+ * then Finance verifies and pays the total out to the employee's bank account.
+ */
 final class Settlement extends Model
 {
     /** @use HasFactory<SettlementFactory> */
     use HasFactory;
 
-    /** The employee owes the company the leftover float. */
-    public const OUTCOME_RETURN = 'return';
+    /** Being drafted; not yet in anyone's queue. */
+    public const STATUS_DRAFT = 'draft';
 
-    /** The company owes the employee what they overspent. */
-    public const OUTCOME_TOPUP = 'topup';
+    /** Submitted; waiting for the manager to approve the amounts. */
+    public const STATUS_SUBMITTED = 'submitted';
 
-    /** Spend matched the advance exactly; no money moves. */
-    public const OUTCOME_BALANCED = 'balanced';
+    /** Manager approved; waiting for Finance to verify and pay. */
+    public const STATUS_MANAGER_APPROVED = 'manager_approved';
+
+    /** Finance verified and disbursed the payout. */
+    public const STATUS_PAID = 'paid';
+
+    /** Sent back to the employee to fix. */
+    public const STATUS_REJECTED = 'rejected';
+
+    /** Indonesian tax applied on top of the expense subtotal. */
+    public const TAX_RATE = 0.11;
 
     protected $guarded = [];
 
@@ -31,14 +46,13 @@ final class Settlement extends Model
     protected function casts(): array
     {
         return [
-            'settlement_date' => 'date',
-            'advance_amount' => 'decimal:2',
-            'total_spent' => 'decimal:2',
-            'returned_amount' => 'decimal:2',
-            'topup_amount' => 'decimal:2',
-            'approved_at' => 'datetime',
-            'returned_at' => 'datetime',
-            'topup_paid_at' => 'datetime',
+            'submission_date' => 'date',
+            'subtotal' => 'decimal:2',
+            'tax_amount' => 'decimal:2',
+            'total' => 'decimal:2',
+            'manager_approved_at' => 'datetime',
+            'paid_at' => 'datetime',
+            'rejected_at' => 'datetime',
         ];
     }
 
@@ -52,29 +66,24 @@ final class Settlement extends Model
         return $this->belongsTo(Tenant::class);
     }
 
-    public function cashAdvance(): BelongsTo
-    {
-        return $this->belongsTo(CashAdvance::class);
-    }
-
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
     }
 
-    public function approver(): BelongsTo
+    public function managerApprover(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'approver_id');
+        return $this->belongsTo(User::class, 'manager_approved_by');
     }
 
-    public function returnedReceivedBy(): BelongsTo
+    public function financeVerifier(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'returned_received_by');
+        return $this->belongsTo(User::class, 'finance_verified_by');
     }
 
-    public function topupPaidBy(): BelongsTo
+    public function rejecter(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'topup_paid_by');
+        return $this->belongsTo(User::class, 'rejected_by');
     }
 
     public function items(): HasMany
@@ -82,46 +91,23 @@ final class Settlement extends Model
         return $this->hasMany(SettlementItem::class);
     }
 
-    /**
-     * What is left of the advance after the receipts: positive when the
-     * employee is holding leftover float, negative when they overspent.
-     */
-    public function balance(): float
+    public function attachments(): HasMany
     {
-        return round((float) $this->advance_amount - (float) $this->total_spent, 2);
+        return $this->hasMany(SettlementAttachment::class);
     }
 
     /**
-     * Which way the money has to move to close this settlement.
+     * Recompute subtotal, 11% tax, and total from the settlement's line items.
      */
-    public function outcome(): string
+    public function recalculateTotals(): void
     {
-        return match (true) {
-            $this->balance() > 0 => self::OUTCOME_RETURN,
-            $this->balance() < 0 => self::OUTCOME_TOPUP,
-            default => self::OUTCOME_BALANCED,
-        };
-    }
+        $subtotal = round((float) $this->items()->sum('amount'), 2);
+        $tax = round($subtotal * self::TAX_RATE, 2);
 
-    /**
-     * The amount still owed in whichever direction {@see outcome} points, or
-     * zero once it has been handed over.
-     */
-    public function outstanding(): float
-    {
-        return match ($this->outcome()) {
-            self::OUTCOME_RETURN => round(max(0, $this->balance() - (float) $this->returned_amount), 2),
-            self::OUTCOME_TOPUP => round(max(0, abs($this->balance()) - (float) $this->topup_amount), 2),
-            default => 0.0,
-        };
-    }
-
-    /**
-     * Recalculate `total_spent` from the settlement's receipt lines.
-     */
-    public function recalculateTotalSpent(): void
-    {
-        $this->total_spent = round((float) $this->items()->sum('amount'), 2);
-        $this->save();
+        $this->forceFill([
+            'subtotal' => $subtotal,
+            'tax_amount' => $tax,
+            'total' => round($subtotal + $tax, 2),
+        ])->save();
     }
 }

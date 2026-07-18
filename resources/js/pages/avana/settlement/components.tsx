@@ -1,6 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { AIcon, C, rp, statusBadge } from '@/lib/avana';
-import type { SettlementOutcome } from './types';
 
 /* ---------- shared field styles (mirror the kasbon module) ---------- */
 
@@ -133,41 +132,6 @@ export function StatusPill({ label }: { label: string }) {
             }}
         >
             {badge.label}
-        </span>
-    );
-}
-
-/** Colour per settlement outcome: money owed to us, by us, or neither. */
-export function outcomeColor(outcome: SettlementOutcome): string {
-    return {
-        return: '#D97706',
-        topup: '#DC2626',
-        balanced: '#16A34A',
-    }[outcome];
-}
-
-/** Badge naming which way the money still has to move. */
-export function OutcomePill({
-    outcome,
-    label,
-}: {
-    outcome: SettlementOutcome;
-    label: string;
-}) {
-    const color = outcomeColor(outcome);
-
-    return (
-        <span
-            style={{
-                padding: '3px 10px',
-                borderRadius: 100,
-                fontSize: 11.5,
-                fontWeight: 600,
-                color,
-                background: `${color}1a`,
-            }}
-        >
-            {label}
         </span>
     );
 }

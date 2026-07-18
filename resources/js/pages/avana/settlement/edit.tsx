@@ -4,19 +4,37 @@ import { toast } from 'sonner';
 import SettlementController from '@/actions/App/Http/Controllers/Avana/SettlementController';
 import { AIcon, C } from '@/lib/avana';
 import { SettlementForm } from './settlement-form';
-import { emptySettlementForm } from './types';
 import type {
     FlashProps,
-    SettlementCreateProps,
+    SettlementEditProps,
     SettlementFormData,
 } from './types';
 
-export default function SettlementCreate({
+export default function SettlementEdit({
+    settlement,
     employees,
     categories,
-}: SettlementCreateProps) {
+}: SettlementEditProps) {
     const { flash } = usePage<FlashProps>().props;
-    const form = useForm<SettlementFormData>({ ...emptySettlementForm });
+
+    const form = useForm<SettlementFormData>({
+        employee_id: String(settlement.employee_id),
+        title: settlement.title,
+        category: settlement.category ?? '',
+        department: settlement.department ?? '',
+        submission_date: settlement.submission_date ?? '',
+        notes: settlement.notes ?? '',
+        items:
+            settlement.items.length > 0
+                ? settlement.items.map((item) => ({
+                      description: item.description,
+                      category: item.category,
+                      amount: String(item.amount ?? ''),
+                  }))
+                : [{ description: '', category: 'transportasi', amount: '' }],
+        attachments: [],
+        action: 'draft',
+    });
 
     useEffect(() => {
         if (flash?.success) {
@@ -26,12 +44,14 @@ export default function SettlementCreate({
 
     const submit = (action: 'draft' | 'submit'): void => {
         form.transform((data) => ({ ...data, action }));
-        form.post(SettlementController.store().url, { forceFormData: true });
+        form.post(SettlementController.update(settlement.id).url, {
+            forceFormData: true,
+        });
     };
 
     return (
         <>
-            <Head title="Buat Settlement" />
+            <Head title={`Ubah ${settlement.number ?? 'Settlement'}`} />
             <div style={{ padding: '28px 32px' }}>
                 <div
                     style={{
@@ -50,34 +70,28 @@ export default function SettlementCreate({
                         Settlement
                     </Link>
                     <AIcon name="chevron-right" size={13} />
-                    <span style={{ color: C.muted }}>Pengajuan Baru</span>
+                    <span style={{ color: C.muted }}>
+                        Ubah {settlement.number}
+                    </span>
                 </div>
                 <h1
                     style={{
                         fontSize: 24,
                         fontWeight: 600,
                         color: C.navy,
-                        margin: '0 0 4px',
+                        margin: '0 0 24px',
                         letterSpacing: '-.01em',
                     }}
                 >
-                    Buat Pengajuan Settlement
+                    Ubah Pengajuan Settlement
                 </h1>
-                <p
-                    style={{
-                        fontSize: 13.5,
-                        color: C.muted,
-                        margin: '0 0 24px',
-                    }}
-                >
-                    Ajukan klaim biaya perjalanan dinas atau operasional.
-                </p>
 
                 <SettlementForm
                     form={form}
                     employees={employees}
                     categories={categories}
-                    cancelHref={SettlementController.index().url}
+                    cancelHref={SettlementController.show(settlement.id).url}
+                    existingAttachments={settlement.attachments}
                     submit={submit}
                 />
             </div>

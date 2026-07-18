@@ -32,8 +32,6 @@ export interface CashAdvanceRow {
     disbursement_method: string | null;
     disbursement_method_label: string | null;
     disbursement_reference: string | null;
-    settlement_id: number | null;
-    settlement_status: string | null;
 }
 
 /** A selectable employee `{ id, name, employee_number }`. */

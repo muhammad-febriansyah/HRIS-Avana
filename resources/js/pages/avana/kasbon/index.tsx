@@ -3,7 +3,6 @@ import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import CashAdvanceController from '@/actions/App/Http/Controllers/Avana/CashAdvanceController';
-import SettlementController from '@/actions/App/Http/Controllers/Avana/SettlementController';
 import { ConfirmDialog } from '@/components/avana-ui/confirm-dialog';
 import { FormDialog } from '@/components/avana-ui/form-dialog';
 import { AIcon, ActionBtn, btnP, C, card, rp } from '@/lib/avana';
@@ -519,43 +518,6 @@ export default function KasbonIndex({
                                                             setDisbursing(row)
                                                         }
                                                     />
-                                                )}
-                                                {row.status === 'disbursed' &&
-                                                    row.settlement_id ===
-                                                        null && (
-                                                        <Link
-                                                            href={
-                                                                SettlementController.create()
-                                                                    .url
-                                                            }
-                                                            style={{
-                                                                fontSize: 12.5,
-                                                                color: C.primary,
-                                                                textDecoration:
-                                                                    'none',
-                                                                fontWeight: 500,
-                                                            }}
-                                                        >
-                                                            Buat Settlement
-                                                        </Link>
-                                                    )}
-                                                {row.settlement_id !== null && (
-                                                    <Link
-                                                        href={
-                                                            SettlementController.show(
-                                                                row.settlement_id,
-                                                            ).url
-                                                        }
-                                                        style={{
-                                                            fontSize: 12.5,
-                                                            color: C.primary,
-                                                            textDecoration:
-                                                                'none',
-                                                            fontWeight: 500,
-                                                        }}
-                                                    >
-                                                        Lihat Settlement
-                                                    </Link>
                                                 )}
                                                 {row.status === 'rejected' && (
                                                     <span

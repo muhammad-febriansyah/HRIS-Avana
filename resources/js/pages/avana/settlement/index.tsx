@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { toast } from 'sonner';
 import SettlementController from '@/actions/App/Http/Controllers/Avana/SettlementController';
 import { AIcon, btnP, C, card, rp } from '@/lib/avana';
-import { KpiCard, OutcomePill, outcomeColor, StatusPill } from './components';
+import { KpiCard, StatusPill } from './components';
 import type {
     FlashProps,
     SettlementFilters,
@@ -105,16 +105,17 @@ export default function SettlementIndex({
                                 marginTop: 4,
                             }}
                         >
-                            Pertanggungjawaban uang muka: bukti pengeluaran,
-                            pengembalian sisa, dan pembayaran kekurangan
+                            Klaim biaya perjalanan dinas &amp; operasional —
+                            persetujuan manager, verifikasi &amp; pembayaran
+                            Finance
                         </div>
                     </div>
                     <Link
-                        href={SettlementController.create()}
+                        href={SettlementController.create().url}
                         style={{ ...btnP, textDecoration: 'none' }}
                     >
                         <AIcon name="plus" size={16} color="#fff" />
-                        Buka Settlement
+                        Buat Settlement
                     </Link>
                 </div>
 
@@ -129,28 +130,28 @@ export default function SettlementIndex({
                     }}
                 >
                     <KpiCard
-                        icon="file-text"
-                        label="Draft"
-                        value={String(kpis.draft)}
-                        accent="#6B7280"
-                    />
-                    <KpiCard
                         icon="clock"
-                        label="Menunggu Verifikasi"
+                        label="Menunggu Manager"
                         value={String(kpis.submitted)}
                         accent="#D97706"
                     />
                     <KpiCard
+                        icon="badge-check"
+                        label="Menunggu Finance"
+                        value={String(kpis.manager_approved)}
+                        accent={C.primary}
+                    />
+                    <KpiCard
                         icon="file-check"
-                        label="Selesai"
-                        value={String(kpis.closed)}
+                        label="Dibayar"
+                        value={String(kpis.paid)}
                         accent="#16A34A"
                     />
                     <KpiCard
-                        icon="hand-coins"
-                        label="Uang Muka Belum Di-settle"
-                        value={String(kpis.unsettled_advances)}
-                        accent={C.primary}
+                        icon="wallet"
+                        label="Total Dibayar"
+                        value={rp(kpis.paid_amount)}
+                        accent="#0EA5E9"
                     />
                 </div>
 
@@ -201,7 +202,7 @@ export default function SettlementIndex({
                                 </span>
                                 <input
                                     type="search"
-                                    placeholder="Cari nomor / karyawan"
+                                    placeholder="Cari nomor / judul / karyawan"
                                     defaultValue={filters.search ?? ''}
                                     onChange={(event) =>
                                         applyFilters({
@@ -217,7 +218,7 @@ export default function SettlementIndex({
                                         fontSize: 12.5,
                                         color: C.text,
                                         outline: 'none',
-                                        width: 190,
+                                        width: 220,
                                     }}
                                 />
                             </div>
@@ -258,16 +259,16 @@ export default function SettlementIndex({
                             style={{
                                 width: '100%',
                                 borderCollapse: 'collapse',
-                                minWidth: 980,
+                                minWidth: 900,
                             }}
                         >
                             <thead>
                                 <tr style={{ background: '#FAFBFD' }}>
                                     <th style={headThStyle}>No.</th>
                                     <th style={headThStyle}>Karyawan</th>
-                                    <th style={headThStyle}>Uang Muka</th>
-                                    <th style={headThStyle}>Pengeluaran</th>
-                                    <th style={headThStyle}>Selisih</th>
+                                    <th style={headThStyle}>Judul</th>
+                                    <th style={headThStyle}>Total</th>
+                                    <th style={headThStyle}>Tanggal</th>
                                     <th style={headThStyle}>Status</th>
                                     <th
                                         style={{
@@ -308,7 +309,9 @@ export default function SettlementIndex({
                                                     size={28}
                                                     color={C.faint}
                                                 />
-                                                <div>Belum ada settlement.</div>
+                                                <div>
+                                                    Belum ada settlement.
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
@@ -377,7 +380,9 @@ export default function SettlementIndex({
                                                             color: C.faint,
                                                         }}
                                                     >
-                                                        {row.purpose ?? ''}
+                                                        {row.employee
+                                                            ?.employee_number ??
+                                                            ''}
                                                     </div>
                                                 </div>
                                             </div>
@@ -386,45 +391,23 @@ export default function SettlementIndex({
                                             style={{
                                                 ...cellStyle,
                                                 color: C.text,
-                                                fontWeight: 600,
-                                                fontSize: 13,
                                             }}
                                         >
-                                            {rp(row.advance_amount)}
+                                            {row.title}
                                         </td>
                                         <td
                                             style={{
                                                 ...cellStyle,
-                                                color: C.text,
+                                                color: C.navy,
+                                                fontWeight: 600,
+                                                fontSize: 13,
+                                                whiteSpace: 'nowrap',
                                             }}
                                         >
-                                            {rp(row.total_spent)}
+                                            {rp(row.total)}
                                         </td>
-                                        <td style={{ padding: '12px 16px' }}>
-                                            <div
-                                                style={{
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    gap: 4,
-                                                    alignItems: 'flex-start',
-                                                }}
-                                            >
-                                                <span
-                                                    style={{
-                                                        fontSize: 13,
-                                                        fontWeight: 600,
-                                                        color: outcomeColor(
-                                                            row.outcome,
-                                                        ),
-                                                    }}
-                                                >
-                                                    {rp(Math.abs(row.balance))}
-                                                </span>
-                                                <OutcomePill
-                                                    outcome={row.outcome}
-                                                    label={row.outcome_label}
-                                                />
-                                            </div>
+                                        <td style={cellStyle}>
+                                            {row.submission_date ?? '—'}
                                         </td>
                                         <td style={{ padding: '12px 16px' }}>
                                             <StatusPill

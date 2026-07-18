@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
-use App\Models\CashAdvance;
+use App\Models\Employee;
 use App\Models\Reimbursement;
 use App\Models\Settlement;
+use App\Models\SettlementAttachment;
 use App\Models\SettlementItem;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,12 +17,10 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Settlements account for a disbursed cash advance: the employee lists what
- * they spent and attaches the receipts, an approver checks it, then whichever
- * side is short settles up.
- *
- * The advance amount is snapshotted onto the settlement when it is opened, so
- * the balance cannot drift if the advance is touched afterwards.
+ * Settlements are standalone expense claims for business trips and operational
+ * costs: the employee lists expense line items, an 11% tax is applied, a
+ * manager approves the amounts, then Finance verifies and pays the total out to
+ * the employee's bank account.
  */
 class SettlementController extends Controller
 {
@@ -39,36 +37,26 @@ class SettlementController extends Controller
      * @var array<string, string>
      */
     private const STATUS_LABELS = [
-        'draft' => 'Draft',
-        'submitted' => 'Menunggu Verifikasi',
-        'approved' => 'Disetujui',
-        'rejected' => 'Ditolak',
-        'closed' => 'Selesai',
+        Settlement::STATUS_DRAFT => 'Draft',
+        Settlement::STATUS_SUBMITTED => 'Menunggu Persetujuan Manager',
+        Settlement::STATUS_MANAGER_APPROVED => 'Menunggu Verifikasi Finance',
+        Settlement::STATUS_PAID => 'Dibayar',
+        Settlement::STATUS_REJECTED => 'Ditolak',
     ];
 
     /**
-     * Indonesian labels for the derived outcome.
-     *
-     * @var array<string, string>
-     */
-    private const OUTCOME_LABELS = [
-        Settlement::OUTCOME_RETURN => 'Pengembalian Sisa Dana',
-        Settlement::OUTCOME_TOPUP => 'Pembayaran Kekurangan',
-        Settlement::OUTCOME_BALANCED => 'Pas (Tanpa Selisih)',
-    ];
-
-    /**
-     * How money can change hands when closing a settlement.
+     * How Finance can pay a settlement out.
      *
      * @var array<string, string>
      */
     private const PAYMENT_METHODS = [
         'transfer' => 'Transfer Bank',
         'cash' => 'Tunai',
+        'payroll' => 'Ikut Payroll',
     ];
 
     /**
-     * Deterministic avatar background palette (mirrors CashAdvanceController).
+     * Deterministic avatar background palette (mirrors ReimbursementController).
      *
      * @var array<int, string>
      */
@@ -88,10 +76,11 @@ class SettlementController extends Controller
 
         $paginator = Settlement::query()
             ->forTenant($tenantId)
-            ->with(['employee:id,full_name,employee_number', 'cashAdvance:id,purpose,amount'])
+            ->with(['employee:id,full_name,employee_number'])
             ->when($request->query('search'), function ($query, $search): void {
                 $query->where(function ($q) use ($search): void {
                     $q->where('number', 'like', "%{$search}%")
+                        ->orWhere('title', 'like', "%{$search}%")
                         ->orWhereHas('employee', function ($sub) use ($search): void {
                             $sub->where('full_name', 'like', "%{$search}%")
                                 ->orWhere('employee_number', 'like', "%{$search}%");
@@ -103,7 +92,11 @@ class SettlementController extends Controller
             ->paginate($request->integer('per_page', 10))
             ->withQueryString();
 
-        $all = Settlement::forTenant($tenantId)->get(['status', 'advance_amount', 'total_spent']);
+        $totals = Settlement::forTenant($tenantId)
+            ->selectRaw('status, COUNT(*) as total, SUM(total) as amount')
+            ->groupBy('status')
+            ->get()
+            ->keyBy('status');
 
         return Inertia::render('avana/settlement/index', [
             'settlements' => [
@@ -126,104 +119,187 @@ class SettlementController extends Controller
             'filters' => $request->only(['search', 'status', 'per_page']),
             'statusOptions' => $this->statusOptions(),
             'kpis' => [
-                'draft' => $all->where('status', 'draft')->count(),
-                'submitted' => $all->where('status', 'submitted')->count(),
-                'closed' => $all->where('status', 'closed')->count(),
-                'unsettled_advances' => $this->settleableAdvances($tenantId)->count(),
+                'submitted' => (int) ($totals[Settlement::STATUS_SUBMITTED]->total ?? 0),
+                'manager_approved' => (int) ($totals[Settlement::STATUS_MANAGER_APPROVED]->total ?? 0),
+                'paid' => (int) ($totals[Settlement::STATUS_PAID]->total ?? 0),
+                'paid_amount' => (float) ($totals[Settlement::STATUS_PAID]->amount ?? 0),
             ],
         ]);
     }
 
     /**
-     * Show the form for opening a settlement against a disbursed advance.
+     * Show the form for creating a new settlement request.
      */
     public function create(Request $request): Response
     {
         $this->ensureCanManage($request);
 
         return Inertia::render('avana/settlement/create', [
-            'advances' => $this->settleableAdvanceOptions($request->user()->tenant_id),
+            'employees' => $this->employeeOptions($request->user()->tenant_id),
+            'categories' => $this->categoryOptions(),
         ]);
     }
 
     /**
-     * Show one settlement with its receipt lines and the actions open to it.
+     * Show the form for editing a settlement that is still a draft (or was sent
+     * back for changes).
+     */
+    public function edit(Request $request, Settlement $settlement): Response
+    {
+        $this->ensureCanManage($request);
+        $this->ensureTenantOwnership($request, $settlement);
+        $this->ensureStatusIs($settlement, [Settlement::STATUS_DRAFT, Settlement::STATUS_REJECTED], 'Settlement yang sudah diajukan tidak bisa diubah');
+
+        $settlement->load(['items', 'attachments']);
+
+        return Inertia::render('avana/settlement/edit', [
+            'settlement' => [
+                'id' => $settlement->id,
+                'number' => $settlement->number,
+                'employee_id' => $settlement->employee_id,
+                'title' => $settlement->title,
+                'category' => $settlement->category,
+                'department' => $settlement->department,
+                'submission_date' => $settlement->submission_date?->toDateString(),
+                'notes' => $settlement->notes,
+                'items' => $settlement->items
+                    ->map(fn (SettlementItem $item): array => [
+                        'description' => $item->description,
+                        'category' => $item->category,
+                        'amount' => (float) $item->amount,
+                    ])
+                    ->all(),
+                'attachments' => $this->shapeAttachments($settlement),
+            ],
+            'employees' => $this->employeeOptions($request->user()->tenant_id),
+            'categories' => $this->categoryOptions(),
+        ]);
+    }
+
+    /**
+     * Show one settlement with its line items and the actions open to it.
      */
     public function show(Request $request, Settlement $settlement): Response
     {
         $this->ensureCanManage($request);
         $this->ensureTenantOwnership($request, $settlement);
 
-        $settlement->load(['employee:id,full_name,employee_number', 'cashAdvance', 'items', 'approver:id,name', 'returnedReceivedBy:id,name', 'topupPaidBy:id,name']);
+        $settlement->load([
+            'employee:id,full_name,employee_number',
+            'items',
+            'attachments',
+            'managerApprover:id,name',
+            'financeVerifier:id,name',
+            'rejecter:id,name',
+        ]);
 
         return Inertia::render('avana/settlement/show', [
-            'settlement' => $this->shapeSettlement($settlement, withItems: true),
-            'categories' => $this->categoryOptions(),
+            'settlement' => $this->shapeSettlement($settlement, detailed: true),
             'paymentMethods' => $this->paymentMethodOptions(),
         ]);
     }
 
     /**
-     * Open a draft settlement against a disbursed cash advance.
+     * Persist a new settlement — either a draft or straight to submission.
      */
     public function store(Request $request): RedirectResponse
     {
         $this->ensureCanManage($request);
 
         $tenantId = $request->user()->tenant_id;
+        $data = $this->validateSettlement($request, $tenantId);
 
-        $data = $request->validate([
-            'cash_advance_id' => [
-                'required',
-                'integer',
-                "exists:cash_advances,id,tenant_id,{$tenantId}",
-                // One settlement per advance; the DB unique index is the backstop.
-                'unique:settlements,cash_advance_id',
-            ],
-            'settlement_date' => ['required', 'date'],
-            'notes' => ['nullable', 'string'],
-        ]);
+        $settlement = DB::transaction(function () use ($request, $tenantId, $data): Settlement {
+            $employee = Employee::forTenant($tenantId)->findOrFail($data['employee_id']);
+            $bank = $this->primaryBankAccount($employee);
 
-        $advance = CashAdvance::forTenant($tenantId)->findOrFail($data['cash_advance_id']);
+            $settlement = Settlement::create([
+                'tenant_id' => $tenantId,
+                'employee_id' => $employee->id,
+                'number' => $this->nextNumber($tenantId),
+                'title' => $data['title'],
+                'category' => $data['category'] ?? null,
+                'department' => $data['department'] ?? null,
+                'submission_date' => $data['submission_date'],
+                'status' => $data['action'] === 'submit'
+                    ? Settlement::STATUS_SUBMITTED
+                    : Settlement::STATUS_DRAFT,
+                'notes' => $data['notes'] ?? null,
+                'bank_name' => $bank['bank_name'] ?? null,
+                'bank_account_number' => $bank['account_number'] ?? null,
+                'bank_account_holder' => $bank['account_holder'] ?? $employee->full_name,
+                'bank_swift' => null,
+            ]);
 
-        abort_unless(
-            $advance->isSettleable(),
-            422,
-            'Hanya uang muka yang sudah dicairkan yang bisa dipertanggungjawabkan',
-        );
+            $this->syncItems($settlement, $data['items']);
+            $this->storeAttachments($request, $settlement);
+            $settlement->recalculateTotals();
 
-        $settlement = Settlement::create([
-            'tenant_id' => $tenantId,
-            'cash_advance_id' => $advance->id,
-            'employee_id' => $advance->employee_id,
-            'number' => $this->nextNumber($tenantId),
-            'settlement_date' => $data['settlement_date'],
-            // Snapshot: the balance must not move if the advance is edited later.
-            'advance_amount' => (float) $advance->amount,
-            'total_spent' => 0,
-            'status' => 'draft',
-            'notes' => $data['notes'] ?? null,
-        ]);
+            return $settlement;
+        });
 
         return redirect()->route('avana.settlement.show', $settlement)
-            ->with('success', 'Settlement dibuka, unggah bukti pengeluaran');
+            ->with('success', $settlement->status === Settlement::STATUS_SUBMITTED
+                ? 'Settlement diajukan untuk persetujuan'
+                : 'Settlement disimpan sebagai draft');
     }
 
     /**
-     * Delete a settlement that has not been verified yet, along with its receipts.
+     * Update a draft/returned settlement, replacing its line items.
+     */
+    public function update(Request $request, Settlement $settlement): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureTenantOwnership($request, $settlement);
+        $this->ensureStatusIs($settlement, [Settlement::STATUS_DRAFT, Settlement::STATUS_REJECTED], 'Settlement yang sudah diajukan tidak bisa diubah');
+
+        $tenantId = $request->user()->tenant_id;
+        $data = $this->validateSettlement($request, $tenantId);
+
+        DB::transaction(function () use ($request, $tenantId, $data, $settlement): void {
+            $employee = Employee::forTenant($tenantId)->findOrFail($data['employee_id']);
+            $bank = $this->primaryBankAccount($employee);
+
+            $settlement->update([
+                'employee_id' => $employee->id,
+                'title' => $data['title'],
+                'category' => $data['category'] ?? null,
+                'department' => $data['department'] ?? null,
+                'submission_date' => $data['submission_date'],
+                'status' => $data['action'] === 'submit'
+                    ? Settlement::STATUS_SUBMITTED
+                    : Settlement::STATUS_DRAFT,
+                'rejection_reason' => null,
+                'rejected_by' => null,
+                'rejected_at' => null,
+                'notes' => $data['notes'] ?? null,
+                'bank_name' => $bank['bank_name'] ?? null,
+                'bank_account_number' => $bank['account_number'] ?? null,
+                'bank_account_holder' => $bank['account_holder'] ?? $employee->full_name,
+            ]);
+
+            $settlement->items()->delete();
+            $this->syncItems($settlement, $data['items']);
+            $this->storeAttachments($request, $settlement);
+            $settlement->recalculateTotals();
+        });
+
+        return redirect()->route('avana.settlement.show', $settlement)
+            ->with('success', $settlement->status === Settlement::STATUS_SUBMITTED
+                ? 'Settlement diajukan untuk persetujuan'
+                : 'Perubahan settlement disimpan');
+    }
+
+    /**
+     * Delete a settlement that has not been paid, with its receipts.
      */
     public function destroy(Request $request, Settlement $settlement): RedirectResponse
     {
         $this->ensureCanManage($request);
         $this->ensureTenantOwnership($request, $settlement);
-        $this->ensureStatusIs($settlement, ['draft', 'rejected'], 'Settlement yang sudah diverifikasi tidak bisa dihapus');
+        $this->ensureStatusIs($settlement, [Settlement::STATUS_DRAFT, Settlement::STATUS_REJECTED], 'Settlement yang sudah diajukan tidak bisa dihapus');
 
-        foreach ($settlement->items as $item) {
-            if ($item->receipt_path !== null) {
-                Storage::disk('public')->delete($item->receipt_path);
-            }
-        }
-
+        $this->deleteAttachmentFiles($settlement);
         $settlement->delete();
 
         return redirect()->route('avana.settlement')
@@ -231,130 +307,90 @@ class SettlementController extends Controller
     }
 
     /**
-     * Attach one receipt line to an open settlement.
-     */
-    public function storeItem(Request $request, Settlement $settlement): RedirectResponse
-    {
-        $this->ensureCanManage($request);
-        $this->ensureTenantOwnership($request, $settlement);
-        $this->ensureStatusIs($settlement, ['draft', 'rejected'], 'Bukti hanya bisa diubah selama settlement masih terbuka');
-
-        $data = $request->validate([
-            'category' => ['required', 'in:'.implode(',', array_keys(Reimbursement::CATEGORIES))],
-            'description' => ['required', 'string', 'max:255'],
-            'spent_date' => ['required', 'date'],
-            'amount' => ['required', 'numeric', 'min:1'],
-            'receipt' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:4096'],
-        ]);
-
-        $settlement->items()->create([
-            'tenant_id' => $settlement->tenant_id,
-            'category' => $data['category'],
-            'description' => $data['description'],
-            'spent_date' => $data['spent_date'],
-            'amount' => round((float) $data['amount'], 2),
-            'receipt_path' => $request->hasFile('receipt')
-                ? $request->file('receipt')->store('settlements', 'public')
-                : null,
-        ]);
-
-        $settlement->recalculateTotalSpent();
-
-        return back()->with('success', 'Bukti pengeluaran ditambahkan');
-    }
-
-    /**
-     * Remove one receipt line from an open settlement.
-     */
-    public function destroyItem(Request $request, Settlement $settlement, SettlementItem $item): RedirectResponse
-    {
-        $this->ensureCanManage($request);
-        $this->ensureTenantOwnership($request, $settlement);
-        $this->ensureStatusIs($settlement, ['draft', 'rejected'], 'Bukti hanya bisa diubah selama settlement masih terbuka');
-        abort_if((int) $item->settlement_id !== (int) $settlement->id, 404);
-
-        if ($item->receipt_path !== null) {
-            Storage::disk('public')->delete($item->receipt_path);
-        }
-
-        $item->delete();
-        $settlement->recalculateTotalSpent();
-
-        return back()->with('success', 'Bukti pengeluaran dihapus');
-    }
-
-    /**
-     * Hand the settlement to an approver for verification.
+     * Hand a draft/returned settlement to the manager for approval.
      */
     public function submit(Request $request, Settlement $settlement): RedirectResponse
     {
         $this->ensureCanManage($request);
         $this->ensureTenantOwnership($request, $settlement);
-        $this->ensureStatusIs($settlement, ['draft', 'rejected'], 'Settlement ini sudah diajukan');
+        $this->ensureStatusIs($settlement, [Settlement::STATUS_DRAFT, Settlement::STATUS_REJECTED], 'Settlement ini sudah diajukan');
 
-        // Recalculated rather than trusted: an empty settlement means nothing
-        // was accounted for, which is never a valid submission.
-        $settlement->recalculateTotalSpent();
+        abort_if($settlement->items()->count() === 0, 422, 'Tambahkan minimal satu baris pengeluaran sebelum mengajukan');
 
-        abort_if(
-            $settlement->items()->count() === 0,
-            422,
-            'Tambahkan minimal satu bukti pengeluaran sebelum mengajukan',
-        );
-
+        $settlement->recalculateTotals();
         $settlement->update([
-            'status' => 'submitted',
+            'status' => Settlement::STATUS_SUBMITTED,
             'rejection_reason' => null,
+            'rejected_by' => null,
+            'rejected_at' => null,
         ]);
 
-        return back()->with('success', 'Settlement diajukan untuk verifikasi');
+        return back()->with('success', 'Settlement diajukan untuk persetujuan');
     }
 
     /**
-     * Verify a submitted settlement. A settlement that comes out exactly even
-     * has nothing left to move, so it closes on the spot.
+     * Manager approves the claimed amounts, sending it on to Finance.
      */
-    public function approve(Request $request, Settlement $settlement): RedirectResponse
+    public function managerApprove(Request $request, Settlement $settlement): RedirectResponse
     {
         $this->ensureCanManage($request);
         $this->ensureTenantOwnership($request, $settlement);
-        $this->ensureStatusIs($settlement, ['submitted'], 'Hanya settlement yang diajukan yang bisa diverifikasi');
-
-        $settlement->recalculateTotalSpent();
+        $this->ensureStatusIs($settlement, [Settlement::STATUS_SUBMITTED], 'Hanya settlement yang diajukan yang bisa disetujui manager');
 
         $settlement->update([
-            'status' => 'approved',
-            'approver_id' => $request->user()->id,
-            'approved_at' => now(),
-            'rejection_reason' => null,
+            'status' => Settlement::STATUS_MANAGER_APPROVED,
+            'manager_approved_by' => $request->user()->id,
+            'manager_approved_at' => now(),
         ]);
 
-        if ($settlement->outcome() === Settlement::OUTCOME_BALANCED) {
-            $this->close($settlement);
-
-            return back()->with('success', 'Settlement disetujui dan selesai — pengeluaran pas dengan uang muka');
-        }
-
-        return back()->with('success', 'Settlement disetujui, menunggu penyelesaian selisih');
+        return back()->with('success', 'Settlement disetujui manager, menunggu verifikasi Finance');
     }
 
     /**
-     * Send a submitted settlement back to the employee to fix.
+     * Finance verifies the settlement and disburses the payout. Confirming both
+     * the bank details and the tax-compliant receipts is required.
+     */
+    public function financeVerify(Request $request, Settlement $settlement): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureTenantOwnership($request, $settlement);
+        $this->ensureStatusIs($settlement, [Settlement::STATUS_MANAGER_APPROVED], 'Hanya settlement yang disetujui manager yang bisa diverifikasi Finance');
+
+        $data = $request->validate([
+            'payment_method' => ['required', 'in:'.implode(',', array_keys(self::PAYMENT_METHODS))],
+            'payment_reference' => ['nullable', 'string', 'max:255'],
+            'confirm_bank' => ['accepted'],
+            'confirm_receipts' => ['accepted'],
+        ]);
+
+        $settlement->update([
+            'status' => Settlement::STATUS_PAID,
+            'finance_verified_by' => $request->user()->id,
+            'paid_at' => now(),
+            'payment_method' => $data['payment_method'],
+            'payment_reference' => $data['payment_reference'] ?? null,
+        ]);
+
+        return back()->with('success', 'Settlement diverifikasi & pembayaran dicatat');
+    }
+
+    /**
+     * Send a submitted or manager-approved settlement back to the employee.
      */
     public function reject(Request $request, Settlement $settlement): RedirectResponse
     {
         $this->ensureCanManage($request);
         $this->ensureTenantOwnership($request, $settlement);
-        $this->ensureStatusIs($settlement, ['submitted'], 'Hanya settlement yang diajukan yang bisa ditolak');
+        $this->ensureStatusIs($settlement, [Settlement::STATUS_SUBMITTED, Settlement::STATUS_MANAGER_APPROVED], 'Hanya settlement yang sedang diproses yang bisa dikembalikan');
 
         $data = $request->validate([
             'rejection_reason' => ['required', 'string', 'max:1000'],
         ]);
 
         $settlement->update([
-            'status' => 'rejected',
-            'approver_id' => $request->user()->id,
-            'approved_at' => now(),
+            'status' => Settlement::STATUS_REJECTED,
+            'rejected_by' => $request->user()->id,
+            'rejected_at' => now(),
             'rejection_reason' => $data['rejection_reason'],
         ]);
 
@@ -362,94 +398,97 @@ class SettlementController extends Controller
     }
 
     /**
-     * Record the employee handing the leftover float back.
+     * Validate the create/update payload for a settlement.
+     *
+     * @return array<string, mixed>
      */
-    public function recordReturn(Request $request, Settlement $settlement): RedirectResponse
+    private function validateSettlement(Request $request, ?int $tenantId): array
     {
-        $this->ensureCanManage($request);
-        $this->ensureTenantOwnership($request, $settlement);
-        $this->ensureStatusIs($settlement, ['approved'], 'Selisih hanya bisa diselesaikan setelah settlement disetujui');
-
-        abort_unless(
-            $settlement->outcome() === Settlement::OUTCOME_RETURN,
-            422,
-            'Settlement ini tidak menyisakan dana untuk dikembalikan',
-        );
-
-        $data = $request->validate([
-            'returned_amount' => ['required', 'numeric', 'min:1', 'max:'.$settlement->outstanding()],
+        return $request->validate([
+            'employee_id' => ['required', 'integer', "exists:employees,id,tenant_id,{$tenantId}"],
+            'title' => ['required', 'string', 'max:255'],
+            'category' => ['nullable', 'in:'.implode(',', array_keys(Reimbursement::CATEGORIES))],
+            'department' => ['nullable', 'string', 'max:255'],
+            'submission_date' => ['required', 'date'],
+            'notes' => ['nullable', 'string'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.description' => ['required', 'string', 'max:255'],
+            'items.*.category' => ['required', 'in:'.implode(',', array_keys(Reimbursement::CATEGORIES))],
+            'items.*.amount' => ['required', 'numeric', 'min:1'],
+            'attachments' => ['nullable', 'array'],
+            'attachments.*' => ['file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
+            'action' => ['required', 'in:draft,submit'],
         ]);
-
-        $settlement->update([
-            'returned_amount' => round((float) $settlement->returned_amount + (float) $data['returned_amount'], 2),
-            'returned_at' => now(),
-            'returned_received_by' => $request->user()->id,
-        ]);
-
-        return $this->closeWhenSquared($settlement, 'Pengembalian sisa dana dicatat');
     }
 
     /**
-     * Record the company paying the employee back what they overspent.
+     * Persist the given expense line items onto a settlement.
+     *
+     * @param  array<int, array{description: string, category: string, amount: mixed}>  $items
      */
-    public function recordTopup(Request $request, Settlement $settlement): RedirectResponse
+    private function syncItems(Settlement $settlement, array $items): void
     {
-        $this->ensureCanManage($request);
-        $this->ensureTenantOwnership($request, $settlement);
-        $this->ensureStatusIs($settlement, ['approved'], 'Selisih hanya bisa diselesaikan setelah settlement disetujui');
-
-        abort_unless(
-            $settlement->outcome() === Settlement::OUTCOME_TOPUP,
-            422,
-            'Settlement ini tidak memiliki kekurangan untuk dibayarkan',
-        );
-
-        $data = $request->validate([
-            'topup_amount' => ['required', 'numeric', 'min:1', 'max:'.$settlement->outstanding()],
-            'topup_method' => ['required', 'in:'.implode(',', array_keys(self::PAYMENT_METHODS))],
-            'topup_reference' => ['nullable', 'string', 'max:255'],
-        ]);
-
-        $settlement->update([
-            'topup_amount' => round((float) $settlement->topup_amount + (float) $data['topup_amount'], 2),
-            'topup_paid_at' => now(),
-            'topup_paid_by' => $request->user()->id,
-            'topup_method' => $data['topup_method'],
-            'topup_reference' => $data['topup_reference'] ?? null,
-        ]);
-
-        return $this->closeWhenSquared($settlement, 'Pembayaran kekurangan dicatat');
+        foreach ($items as $item) {
+            $settlement->items()->create([
+                'tenant_id' => $settlement->tenant_id,
+                'category' => $item['category'],
+                'description' => $item['description'],
+                'amount' => round((float) $item['amount'], 2),
+            ]);
+        }
     }
 
     /**
-     * Close the settlement once nothing is outstanding either way.
+     * Store any uploaded supporting documents against a settlement.
      */
-    private function closeWhenSquared(Settlement $settlement, string $message): RedirectResponse
+    private function storeAttachments(Request $request, Settlement $settlement): void
     {
-        if ($settlement->outstanding() > 0) {
-            return back()->with('success', $message.' — masih ada sisa yang belum diselesaikan');
+        if (! $request->hasFile('attachments')) {
+            return;
         }
 
-        $this->close($settlement);
-
-        return back()->with('success', $message.', settlement selesai');
+        foreach ($request->file('attachments') as $file) {
+            $settlement->attachments()->create([
+                'tenant_id' => $settlement->tenant_id,
+                'path' => $file->store('settlements', 'public'),
+                'original_name' => $file->getClientOriginalName(),
+                'size' => $file->getSize(),
+            ]);
+        }
     }
 
     /**
-     * Mark the settlement and the advance it accounts for as done. Both flips
-     * are one transaction so an advance can never read settled while its
-     * settlement is still open.
+     * Delete a settlement's attachment files from disk.
      */
-    private function close(Settlement $settlement): void
+    private function deleteAttachmentFiles(Settlement $settlement): void
     {
-        DB::transaction(function () use ($settlement): void {
-            $settlement->update(['status' => 'closed']);
+        foreach ($settlement->attachments as $attachment) {
+            Storage::disk('public')->delete($attachment->path);
+        }
+    }
 
-            $settlement->cashAdvance?->update([
-                'status' => 'settled',
-                'settled_at' => now(),
-            ]);
-        });
+    /**
+     * The employee's primary bank account, snapshotted onto the settlement.
+     *
+     * @return array{bank_name?: string, account_number?: string, account_holder?: string|null}
+     */
+    private function primaryBankAccount(Employee $employee): array
+    {
+        $account = DB::table('employee_bank_accounts')
+            ->where('employee_id', $employee->id)
+            ->orderByDesc('is_primary')
+            ->orderBy('id')
+            ->first();
+
+        if ($account === null) {
+            return [];
+        }
+
+        return [
+            'bank_name' => $account->bank_name,
+            'account_number' => $account->account_number,
+            'account_holder' => $account->account_holder,
+        ];
     }
 
     /**
@@ -473,93 +512,76 @@ class SettlementController extends Controller
     }
 
     /**
-     * Disbursed advances that still have no settlement against them.
-     *
-     * @return Collection<int, CashAdvance>
-     */
-    private function settleableAdvances(int $tenantId)
-    {
-        return CashAdvance::forTenant($tenantId)
-            ->where('status', 'disbursed')
-            ->whereDoesntHave('settlement')
-            ->with('employee:id,full_name,employee_number')
-            ->orderBy('disbursed_at')
-            ->get();
-    }
-
-    /**
-     * Build the selectable advance options for the create screen.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    private function settleableAdvanceOptions(int $tenantId): array
-    {
-        return $this->settleableAdvances($tenantId)
-            ->map(fn (CashAdvance $advance): array => [
-                'id' => $advance->id,
-                'employee_name' => $advance->employee?->full_name,
-                'employee_number' => $advance->employee?->employee_number,
-                'amount' => (float) $advance->amount,
-                'purpose' => $advance->purpose,
-                'disbursed_at' => $advance->disbursed_at?->format('d M Y'),
-            ])
-            ->all();
-    }
-
-    /**
      * Shape a settlement for the index table or the detail screen.
      *
      * @return array<string, mixed>
      */
-    private function shapeSettlement(Settlement $settlement, bool $withItems = false): array
+    private function shapeSettlement(Settlement $settlement, bool $detailed = false): array
     {
-        $outcome = $settlement->outcome();
-
         $shaped = [
             'id' => $settlement->id,
             'number' => $settlement->number,
             'employee' => $this->shapeEmployee($settlement),
-            'cash_advance_id' => $settlement->cash_advance_id,
-            'purpose' => $settlement->cashAdvance?->purpose,
-            'settlement_date' => $settlement->settlement_date?->format('d M Y'),
-            'advance_amount' => (float) $settlement->advance_amount,
-            'total_spent' => (float) $settlement->total_spent,
-            'balance' => $settlement->balance(),
-            'outcome' => $outcome,
-            'outcome_label' => self::OUTCOME_LABELS[$outcome],
-            'outstanding' => $settlement->outstanding(),
+            'title' => $settlement->title,
+            'category' => $settlement->category,
+            'category_label' => $settlement->category === null
+                ? null
+                : (Reimbursement::CATEGORIES[$settlement->category] ?? $settlement->category),
+            'department' => $settlement->department,
+            'submission_date' => $settlement->submission_date?->format('d M Y'),
+            'subtotal' => (float) $settlement->subtotal,
+            'tax_amount' => (float) $settlement->tax_amount,
+            'total' => (float) $settlement->total,
             'status' => $settlement->status,
             'status_label' => self::STATUS_LABELS[$settlement->status] ?? $settlement->status,
-            'returned_amount' => (float) $settlement->returned_amount,
-            'returned_at' => $settlement->returned_at?->format('d M Y H:i'),
-            'topup_amount' => (float) $settlement->topup_amount,
-            'topup_paid_at' => $settlement->topup_paid_at?->format('d M Y H:i'),
-            'rejection_reason' => $settlement->rejection_reason,
-            'notes' => $settlement->notes,
         ];
 
-        if ($withItems) {
-            $shaped['approver'] = $settlement->approver?->name;
-            $shaped['approved_at'] = $settlement->approved_at?->format('d M Y H:i');
-            $shaped['returned_received_by'] = $settlement->returnedReceivedBy?->name;
-            $shaped['topup_paid_by'] = $settlement->topupPaidBy?->name;
-            $shaped['topup_reference'] = $settlement->topup_reference;
+        if ($detailed) {
+            $shaped['bank_name'] = $settlement->bank_name;
+            $shaped['bank_account_number'] = $settlement->bank_account_number;
+            $shaped['bank_account_holder'] = $settlement->bank_account_holder;
+            $shaped['bank_swift'] = $settlement->bank_swift;
+            $shaped['notes'] = $settlement->notes;
+            $shaped['rejection_reason'] = $settlement->rejection_reason;
+            $shaped['manager_approved_by'] = $settlement->managerApprover?->name;
+            $shaped['manager_approved_at'] = $settlement->manager_approved_at?->format('d M Y H:i');
+            $shaped['finance_verified_by'] = $settlement->financeVerifier?->name;
+            $shaped['paid_at'] = $settlement->paid_at?->format('d M Y H:i');
+            $shaped['payment_method_label'] = $settlement->payment_method === null
+                ? null
+                : (self::PAYMENT_METHODS[$settlement->payment_method] ?? $settlement->payment_method);
+            $shaped['payment_reference'] = $settlement->payment_reference;
+            $shaped['rejected_by'] = $settlement->rejecter?->name;
+            $shaped['rejected_at'] = $settlement->rejected_at?->format('d M Y H:i');
             $shaped['items'] = $settlement->items
                 ->map(fn (SettlementItem $item): array => [
                     'id' => $item->id,
                     'category' => $item->category,
                     'category_label' => $item->categoryLabel(),
                     'description' => $item->description,
-                    'spent_date' => $item->spent_date?->format('d M Y'),
                     'amount' => (float) $item->amount,
-                    'receipt_url' => $item->receipt_path === null
-                        ? null
-                        : Storage::disk('public')->url($item->receipt_path),
                 ])
                 ->all();
+            $shaped['attachments'] = $this->shapeAttachments($settlement);
         }
 
         return $shaped;
+    }
+
+    /**
+     * Shape a settlement's uploaded documents.
+     *
+     * @return array<int, array{id: int, name: string, url: string}>
+     */
+    private function shapeAttachments(Settlement $settlement): array
+    {
+        return $settlement->attachments
+            ->map(fn (SettlementAttachment $attachment): array => [
+                'id' => $attachment->id,
+                'name' => $attachment->original_name ?? basename($attachment->path),
+                'url' => Storage::disk('public')->url($attachment->path),
+            ])
+            ->all();
     }
 
     /**
@@ -607,6 +629,24 @@ class SettlementController extends Controller
         $index = crc32((string) $fullName) % count(self::AVATAR_PALETTE);
 
         return self::AVATAR_PALETTE[$index];
+    }
+
+    /**
+     * Build the tenant's selectable employee options.
+     *
+     * @return array<int, array{id: int, name: string, employee_number: string|null}>
+     */
+    private function employeeOptions(int $tenantId): array
+    {
+        return Employee::forTenant($tenantId)
+            ->orderBy('full_name')
+            ->get(['id', 'full_name', 'employee_number'])
+            ->map(fn (Employee $employee): array => [
+                'id' => $employee->id,
+                'name' => $employee->full_name,
+                'employee_number' => $employee->employee_number,
+            ])
+            ->all();
     }
 
     /**

@@ -281,19 +281,18 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('kasbon/{cashAdvance}/reject', [CashAdvanceController::class, 'reject'])->name('kasbon.reject');
     Route::post('kasbon/{cashAdvance}/disburse', [CashAdvanceController::class, 'disburse'])->name('kasbon.disburse');
 
-    // Settlement — pertanggungjawaban uang muka yang sudah dicairkan
+    // Settlement — expense claim: submit, manager approve, Finance verify & pay
     Route::get('settlement', [SettlementController::class, 'index'])->name('settlement');
     Route::get('settlement/create', [SettlementController::class, 'create'])->name('settlement.create');
+    Route::get('settlement/{settlement}/edit', [SettlementController::class, 'edit'])->name('settlement.edit');
     Route::get('settlement/{settlement}', [SettlementController::class, 'show'])->name('settlement.show');
     Route::post('settlement', [SettlementController::class, 'store'])->name('settlement.store');
+    Route::post('settlement/{settlement}', [SettlementController::class, 'update'])->name('settlement.update');
     Route::delete('settlement/{settlement}', [SettlementController::class, 'destroy'])->name('settlement.destroy');
-    Route::post('settlement/{settlement}/items', [SettlementController::class, 'storeItem'])->name('settlement.items.store');
-    Route::delete('settlement/{settlement}/items/{item}', [SettlementController::class, 'destroyItem'])->name('settlement.items.destroy');
     Route::post('settlement/{settlement}/submit', [SettlementController::class, 'submit'])->name('settlement.submit');
-    Route::post('settlement/{settlement}/approve', [SettlementController::class, 'approve'])->name('settlement.approve');
+    Route::post('settlement/{settlement}/manager-approve', [SettlementController::class, 'managerApprove'])->name('settlement.manager-approve');
+    Route::post('settlement/{settlement}/finance-verify', [SettlementController::class, 'financeVerify'])->name('settlement.finance-verify');
     Route::post('settlement/{settlement}/reject', [SettlementController::class, 'reject'])->name('settlement.reject');
-    Route::post('settlement/{settlement}/return', [SettlementController::class, 'recordReturn'])->name('settlement.return');
-    Route::post('settlement/{settlement}/topup', [SettlementController::class, 'recordTopup'])->name('settlement.topup');
 
     // Benefit management
     Route::get('benefit', [BenefitController::class, 'index'])->name('benefit');

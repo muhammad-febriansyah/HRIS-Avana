@@ -1,117 +1,24 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import SettlementController from '@/actions/App/Http/Controllers/Avana/SettlementController';
-import { ConfirmDialog } from '@/components/avana-ui/confirm-dialog';
-import { FormDialog } from '@/components/avana-ui/form-dialog';
-import {
-    AIcon,
-    ActionBtn,
-    btnOut,
-    btnP,
-    C,
-    card,
-    rp,
-    RupiahInput,
-} from '@/lib/avana';
-import {
-    dateInputStyle,
-    Field,
-    OutcomePill,
-    outcomeColor,
-    selectStyle,
-    StatusPill,
-    SummaryRow,
-    textInputStyle,
-    withError,
-} from './components';
+import { AIcon, btnOut, btnP, C, card, rp } from '@/lib/avana';
+import { Field, selectStyle, StatusPill, textareaStyle } from './components';
 import type {
     FlashProps,
-    SettlementItemFormData,
-    SettlementItemRow,
     SettlementShowProps,
+    SettlementStatus,
 } from './types';
 
-const headThStyle: CSSProperties = {
-    padding: '11px 16px',
-    textAlign: 'left',
-    fontSize: 11.5,
-    fontWeight: 600,
-    color: C.faint,
-    textTransform: 'uppercase',
-};
-
-const cellStyle: CSSProperties = {
-    padding: '12px 16px',
-    fontSize: 12.5,
-    color: C.muted,
-};
-
-interface ReturnFormData {
-    returned_amount: string;
-    [key: string]: string;
-}
-
-interface TopupFormData {
-    topup_amount: string;
-    topup_method: string;
-    topup_reference: string;
-    [key: string]: string;
-}
-
-interface RejectFormData {
-    rejection_reason: string;
-    [key: string]: string;
-}
+/** Timeline step render state. */
+type StepState = 'done' | 'current' | 'pending';
 
 export default function SettlementShow({
     settlement,
-    categories,
     paymentMethods,
 }: SettlementShowProps) {
     const { flash } = usePage<FlashProps>().props;
-
     const [rejecting, setRejecting] = useState(false);
-    const [returning, setReturning] = useState(false);
-    const [toppingUp, setToppingUp] = useState(false);
-    const [deletingItem, setDeletingItem] = useState<SettlementItemRow | null>(
-        null,
-    );
-
-    const isOpen =
-        settlement.status === 'draft' || settlement.status === 'rejected';
-
-    const itemForm = useForm<SettlementItemFormData>({
-        category: categories[0]?.value ?? 'operasional',
-        description: '',
-        spent_date: '',
-        amount: '',
-        receipt: null,
-    });
-
-    // Seeded empty and filled when the dialog opens: useForm only reads its
-    // initial values on mount, so seeding from `outstanding` here would pin the
-    // amount to whatever it was before any receipts were added.
-    const returnForm = useForm<ReturnFormData>({ returned_amount: '' });
-
-    const topupForm = useForm<TopupFormData>({
-        topup_amount: '',
-        topup_method: paymentMethods[0]?.value ?? 'transfer',
-        topup_reference: '',
-    });
-
-    const rejectForm = useForm<RejectFormData>({ rejection_reason: '' });
-
-    const openReturn = () => {
-        returnForm.setData('returned_amount', String(settlement.outstanding));
-        setReturning(true);
-    };
-
-    const openTopup = () => {
-        topupForm.setData('topup_amount', String(settlement.outstanding));
-        setToppingUp(true);
-    };
 
     useEffect(() => {
         if (flash?.success) {
@@ -119,57 +26,26 @@ export default function SettlementShow({
         }
     }, [flash?.success]);
 
-    const addItem = (event: React.FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
+    const verify = useForm({
+        payment_method: 'transfer',
+        payment_reference: '',
+        confirm_bank: false as boolean,
+        confirm_receipts: false as boolean,
+    });
 
-        itemForm.post(SettlementController.storeItem(settlement.id).url, {
-            preserveScroll: true,
-            forceFormData: true,
-            onSuccess: () =>
-                itemForm.reset(
-                    'description',
-                    'spent_date',
-                    'amount',
-                    'receipt',
-                ),
-        });
-    };
+    const rejectForm = useForm({ rejection_reason: '' });
 
-    const confirmDeleteItem = () => {
-        if (!deletingItem) {
-            return;
-        }
+    const post = (url: string) =>
+        router.post(url, {}, { preserveScroll: true });
 
-        router.delete(
-            SettlementController.destroyItem({
-                settlement: settlement.id,
-                item: deletingItem.id,
-            }).url,
-            { preserveScroll: true, onFinish: () => setDeletingItem(null) },
-        );
-    };
-
-    const submitForReview = () => {
-        router.post(
-            SettlementController.submit(settlement.id).url,
-            {},
-            { preserveScroll: true },
-        );
-    };
-
-    const approve = () => {
-        router.post(
-            SettlementController.approve(settlement.id).url,
-            {},
-            { preserveScroll: true },
-        );
-    };
+    const isDraft =
+        settlement.status === 'draft' || settlement.status === 'rejected';
 
     return (
         <>
-            <Head title={`Settlement ${settlement.number ?? ''}`} />
+            <Head title={`Settlement ${settlement.number}`} />
             <div style={{ padding: '28px 32px' }}>
-                {/* Header */}
+                {/* ---------- header ---------- */}
                 <div
                     style={{
                         display: 'flex',
@@ -177,19 +53,17 @@ export default function SettlementShow({
                         gap: 7,
                         fontSize: 12.5,
                         color: C.faint,
-                        marginBottom: 14,
+                        marginBottom: 12,
                     }}
                 >
                     <Link
-                        href={SettlementController.index()}
+                        href={SettlementController.index().url}
                         style={{ color: C.faint, textDecoration: 'none' }}
                     >
                         Settlement
                     </Link>
                     <AIcon name="chevron-right" size={13} />
-                    <span style={{ color: C.muted }}>
-                        {settlement.number ?? 'Detail'}
-                    </span>
+                    <span style={{ color: C.muted }}>{settlement.number}</span>
                 </div>
 
                 <div
@@ -197,779 +71,977 @@ export default function SettlementShow({
                         display: 'flex',
                         alignItems: 'flex-start',
                         justifyContent: 'space-between',
-                        flexWrap: 'wrap',
                         gap: 16,
-                        marginBottom: 22,
+                        marginBottom: 24,
                     }}
                 >
-                    <div>
-                        <div
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 10,
-                            }}
-                        >
-                            <h1
-                                style={{
-                                    fontSize: 24,
-                                    fontWeight: 600,
-                                    color: C.navy,
-                                    margin: 0,
-                                    letterSpacing: '-.01em',
-                                }}
-                            >
-                                {settlement.number ?? 'Settlement'}
-                            </h1>
-                            <StatusPill label={settlement.status_label} />
-                        </div>
-                        <div
-                            style={{
-                                fontSize: 14,
-                                color: C.muted,
-                                marginTop: 4,
-                            }}
-                        >
-                            {settlement.employee?.name ?? '—'} ·{' '}
-                            {settlement.purpose ?? 'Tanpa keperluan'} ·{' '}
-                            {settlement.settlement_date ?? '—'}
-                        </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        {isOpen && (
-                            <button
-                                onClick={submitForReview}
-                                disabled={settlement.items.length === 0}
-                                style={{
-                                    ...btnP,
-                                    opacity:
-                                        settlement.items.length === 0 ? 0.5 : 1,
-                                    cursor:
-                                        settlement.items.length === 0
-                                            ? 'not-allowed'
-                                            : 'pointer',
-                                }}
-                            >
-                                <AIcon name="check" size={16} color="#fff" />
-                                Ajukan Verifikasi
-                            </button>
-                        )}
-                        {settlement.status === 'submitted' && (
+                    <h1
+                        style={{
+                            fontSize: 24,
+                            fontWeight: 600,
+                            color: C.navy,
+                            margin: 0,
+                            letterSpacing: '-.01em',
+                        }}
+                    >
+                        {settlement.title}
+                    </h1>
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                        }}
+                    >
+                        {isDraft && (
                             <>
-                                <button onClick={approve} style={{ ...btnP }}>
-                                    <AIcon
-                                        name="check"
-                                        size={16}
-                                        color="#fff"
-                                    />
-                                    Setujui
-                                </button>
-                                <button
-                                    onClick={() => setRejecting(true)}
-                                    style={{ ...btnOut }}
+                                <Link
+                                    href={
+                                        SettlementController.edit(settlement.id)
+                                            .url
+                                    }
+                                    style={{
+                                        ...btnOut,
+                                        height: 38,
+                                        textDecoration: 'none',
+                                    }}
                                 >
-                                    <AIcon name="x" size={16} />
-                                    Tolak
+                                    <AIcon name="pencil" size={15} />
+                                    Ubah
+                                </Link>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (confirm('Hapus settlement ini?')) {
+                                            router.delete(
+                                                SettlementController.destroy(
+                                                    settlement.id,
+                                                ).url,
+                                            );
+                                        }
+                                    }}
+                                    style={{
+                                        ...btnOut,
+                                        height: 38,
+                                        color: C.red,
+                                    }}
+                                >
+                                    <AIcon
+                                        name="trash-2"
+                                        size={15}
+                                        color={C.red}
+                                    />
+                                    Hapus
                                 </button>
                             </>
                         )}
-                        {settlement.status === 'approved' &&
-                            settlement.outcome === 'return' &&
-                            settlement.outstanding > 0 && (
-                                <button
-                                    onClick={openReturn}
-                                    style={{ ...btnP }}
-                                >
-                                    <AIcon
-                                        name="hand-coins"
-                                        size={16}
-                                        color="#fff"
-                                    />
-                                    Catat Pengembalian
-                                </button>
-                            )}
-                        {settlement.status === 'approved' &&
-                            settlement.outcome === 'topup' &&
-                            settlement.outstanding > 0 && (
-                                <button onClick={openTopup} style={{ ...btnP }}>
-                                    <AIcon
-                                        name="wallet"
-                                        size={16}
-                                        color="#fff"
-                                    />
-                                    Bayar Kekurangan
-                                </button>
-                            )}
+                        <StatusPill label={settlement.status_label} />
                     </div>
                 </div>
 
-                {settlement.rejection_reason && (
-                    <div
-                        style={{
-                            background: 'rgba(220,38,38,.08)',
-                            border: `1px solid rgba(220,38,38,.2)`,
-                            borderRadius: 10,
-                            padding: '13px 15px',
-                            marginBottom: 18,
-                            display: 'flex',
-                            gap: 10,
-                            alignItems: 'flex-start',
-                        }}
-                    >
-                        <AIcon name="circle-alert" size={16} color={C.red} />
-                        <div>
-                            <div
-                                style={{
-                                    fontSize: 13,
-                                    fontWeight: 600,
-                                    color: C.red,
-                                }}
-                            >
-                                Dikembalikan untuk diperbaiki
-                            </div>
-                            <div
-                                style={{
-                                    fontSize: 12.5,
-                                    color: C.muted,
-                                    marginTop: 3,
-                                }}
-                            >
-                                {settlement.rejection_reason}
-                            </div>
+                {settlement.status === 'rejected' &&
+                    settlement.rejection_reason && (
+                        <div
+                            style={{
+                                background: '#FEF2F2',
+                                border: `1px solid ${C.red}33`,
+                                borderRadius: 10,
+                                padding: '12px 16px',
+                                marginBottom: 20,
+                                fontSize: 13,
+                                color: '#B91C1C',
+                            }}
+                        >
+                            <strong>Dikembalikan:</strong>{' '}
+                            {settlement.rejection_reason}
                         </div>
-                    </div>
-                )}
+                    )}
 
                 <div
                     style={{
                         display: 'grid',
-                        gridTemplateColumns:
-                            'minmax(0, 1fr) minmax(260px, 320px)',
-                        gap: 18,
+                        gridTemplateColumns: 'minmax(0, 1fr) 330px',
+                        gap: 20,
                         alignItems: 'start',
                     }}
                 >
-                    {/* Receipt lines */}
-                    <div style={{ ...card, overflow: 'hidden' }}>
-                        <div
-                            style={{
-                                padding: '16px 18px',
-                                borderBottom: `1px solid ${C.border}`,
-                                fontSize: 15,
-                                fontWeight: 600,
-                                color: C.navy,
-                            }}
-                        >
-                            Bukti Pengeluaran
+                    {/* ---------- left column ---------- */}
+                    <div
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 20,
+                        }}
+                    >
+                        {/* Settlement summary */}
+                        <div style={{ ...card, padding: 22 }}>
+                            <div
+                                style={{
+                                    fontSize: 15,
+                                    fontWeight: 600,
+                                    color: C.navy,
+                                    marginBottom: 18,
+                                }}
+                            >
+                                Ringkasan Settlement
+                            </div>
+                            <div
+                                style={{
+                                    display: 'grid',
+                                    gridTemplateColumns:
+                                        'repeat(4, minmax(0, 1fr))',
+                                    gap: 16,
+                                }}
+                            >
+                                <SummaryFact
+                                    label="Total"
+                                    value={rp(settlement.total)}
+                                    accent
+                                />
+                                <SummaryFact
+                                    label="Karyawan"
+                                    value={settlement.employee?.name ?? '—'}
+                                />
+                                <SummaryFact
+                                    label="Departemen"
+                                    value={settlement.department ?? '—'}
+                                />
+                                <SummaryFact
+                                    label="Tanggal Diajukan"
+                                    value={settlement.submission_date ?? '—'}
+                                />
+                            </div>
+                            <div
+                                style={{
+                                    marginTop: 16,
+                                    paddingTop: 14,
+                                    borderTop: `1px solid ${C.line}`,
+                                    display: 'flex',
+                                    gap: 24,
+                                    fontSize: 12.5,
+                                    color: C.muted,
+                                }}
+                            >
+                                <span>
+                                    Subtotal{' '}
+                                    <strong style={{ color: C.text }}>
+                                        {rp(settlement.subtotal)}
+                                    </strong>
+                                </span>
+                                <span>
+                                    Pajak 11%{' '}
+                                    <strong style={{ color: C.text }}>
+                                        {rp(settlement.tax_amount)}
+                                    </strong>
+                                </span>
+                            </div>
                         </div>
 
-                        <div style={{ overflowX: 'auto' }}>
+                        {/* Payout account */}
+                        <div style={card}>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 9,
+                                    fontSize: 15,
+                                    fontWeight: 600,
+                                    color: C.navy,
+                                    padding: '16px 20px',
+                                    borderBottom: `1px solid ${C.line}`,
+                                }}
+                            >
+                                <AIcon
+                                    name="landmark"
+                                    size={17}
+                                    color={C.primary}
+                                />
+                                Rekening Pembayaran
+                            </div>
+                            <div
+                                style={{
+                                    padding: 20,
+                                    display: 'grid',
+                                    gridTemplateColumns: '1fr 1fr',
+                                    gap: 18,
+                                }}
+                            >
+                                <SummaryFact
+                                    label="Nama Bank"
+                                    value={settlement.bank_name ?? '—'}
+                                />
+                                <SummaryFact
+                                    label="Nomor Rekening"
+                                    value={
+                                        settlement.bank_account_number ?? '—'
+                                    }
+                                />
+                                <SummaryFact
+                                    label="Atas Nama"
+                                    value={
+                                        settlement.bank_account_holder ?? '—'
+                                    }
+                                />
+                                <SummaryFact
+                                    label="SWIFT / BIC"
+                                    value={settlement.bank_swift ?? '—'}
+                                />
+                            </div>
+                            {!settlement.bank_name && (
+                                <div
+                                    style={{
+                                        margin: '0 20px 18px',
+                                        background: C.surface,
+                                        borderRadius: 8,
+                                        padding: '10px 13px',
+                                        fontSize: 12,
+                                        color: C.muted,
+                                    }}
+                                >
+                                    Karyawan belum punya rekening bank
+                                    tersimpan.
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Expense line items */}
+                        <div style={card}>
+                            <div
+                                style={{
+                                    fontSize: 15,
+                                    fontWeight: 600,
+                                    color: C.navy,
+                                    padding: '16px 20px',
+                                    borderBottom: `1px solid ${C.line}`,
+                                }}
+                            >
+                                Rincian Pengeluaran
+                            </div>
                             <table
                                 style={{
                                     width: '100%',
                                     borderCollapse: 'collapse',
-                                    minWidth: 620,
+                                    fontSize: 13,
                                 }}
                             >
-                                <thead>
-                                    <tr style={{ background: '#FAFBFD' }}>
-                                        <th style={headThStyle}>Kategori</th>
-                                        <th style={headThStyle}>Keterangan</th>
-                                        <th style={headThStyle}>Tanggal</th>
-                                        <th style={headThStyle}>Jumlah</th>
-                                        <th style={headThStyle}>Bukti</th>
-                                        {isOpen && (
-                                            <th
-                                                style={{
-                                                    ...headThStyle,
-                                                    textAlign: 'right',
-                                                }}
-                                            >
-                                                Aksi
-                                            </th>
-                                        )}
-                                    </tr>
-                                </thead>
                                 <tbody>
-                                    {settlement.items.length === 0 && (
-                                        <tr
-                                            style={{
-                                                borderTop: `1px solid ${C.line}`,
-                                            }}
-                                        >
-                                            <td
-                                                colSpan={isOpen ? 6 : 5}
-                                                style={{
-                                                    padding: '40px 18px',
-                                                    textAlign: 'center',
-                                                    fontSize: 13.5,
-                                                    color: C.muted,
-                                                }}
-                                            >
-                                                Belum ada bukti pengeluaran.
-                                            </td>
-                                        </tr>
-                                    )}
                                     {settlement.items.map((item) => (
                                         <tr
                                             key={item.id}
                                             style={{
-                                                borderTop: `1px solid ${C.line}`,
+                                                borderBottom: `1px solid ${C.line}`,
                                             }}
                                         >
-                                            <td style={cellStyle}>
-                                                {item.category_label}
-                                            </td>
                                             <td
                                                 style={{
-                                                    ...cellStyle,
+                                                    padding: '13px 20px',
                                                     color: C.text,
                                                 }}
                                             >
                                                 {item.description}
                                             </td>
-                                            <td style={cellStyle}>
-                                                {item.spent_date ?? '—'}
+                                            <td
+                                                style={{
+                                                    padding: '13px 12px',
+                                                    color: C.muted,
+                                                }}
+                                            >
+                                                {item.category_label}
                                             </td>
                                             <td
                                                 style={{
-                                                    ...cellStyle,
-                                                    color: C.text,
+                                                    padding: '13px 20px',
+                                                    textAlign: 'right',
                                                     fontWeight: 600,
-                                                    fontSize: 13,
+                                                    color: C.navy,
+                                                    whiteSpace: 'nowrap',
                                                 }}
                                             >
                                                 {rp(item.amount)}
                                             </td>
-                                            <td style={cellStyle}>
-                                                {item.receipt_url ? (
-                                                    <a
-                                                        href={item.receipt_url}
-                                                        target="_blank"
-                                                        rel="noreferrer"
-                                                        style={{
-                                                            color: C.primary,
-                                                            textDecoration:
-                                                                'none',
-                                                            fontWeight: 500,
-                                                        }}
-                                                    >
-                                                        Lihat
-                                                    </a>
-                                                ) : (
-                                                    '—'
-                                                )}
-                                            </td>
-                                            {isOpen && (
-                                                <td
-                                                    style={{
-                                                        padding: '12px 16px',
-                                                        textAlign: 'right',
-                                                    }}
-                                                >
-                                                    <ActionBtn
-                                                        icon="trash-2"
-                                                        label="Hapus"
-                                                        variant="danger"
-                                                        onClick={() =>
-                                                            setDeletingItem(
-                                                                item,
-                                                            )
-                                                        }
-                                                    />
-                                                </td>
-                                            )}
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
                         </div>
 
-                        {isOpen && (
-                            <form
-                                onSubmit={addItem}
-                                style={{
-                                    borderTop: `1px solid ${C.border}`,
-                                    padding: '18px',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: 14,
-                                    background: '#FAFBFD',
-                                }}
-                            >
+                        {/* Attachments */}
+                        {settlement.attachments.length > 0 && (
+                            <div style={card}>
                                 <div
                                     style={{
-                                        fontSize: 13.5,
+                                        fontSize: 15,
                                         fontWeight: 600,
                                         color: C.navy,
+                                        padding: '16px 20px',
+                                        borderBottom: `1px solid ${C.line}`,
                                     }}
                                 >
-                                    Tambah Bukti Pengeluaran
+                                    Dokumen Pendukung
                                 </div>
-
                                 <div
                                     style={{
+                                        padding: 16,
                                         display: 'grid',
-                                        gridTemplateColumns:
-                                            'repeat(auto-fit, minmax(180px, 1fr))',
+                                        gridTemplateColumns: '1fr 1fr',
                                         gap: 12,
                                     }}
                                 >
-                                    <Field
-                                        label="Kategori"
-                                        required
-                                        error={itemForm.errors.category}
-                                    >
-                                        <select
-                                            value={itemForm.data.category}
-                                            onChange={(event) =>
-                                                itemForm.setData(
-                                                    'category',
-                                                    event.target.value,
-                                                )
-                                            }
-                                            style={withError(
-                                                selectStyle,
-                                                !!itemForm.errors.category,
-                                            )}
-                                        >
-                                            {categories.map((category) => (
-                                                <option
-                                                    key={category.value}
-                                                    value={category.value}
+                                    {settlement.attachments.map(
+                                        (attachment) => (
+                                            <a
+                                                key={attachment.id}
+                                                href={attachment.url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 10,
+                                                    border: `1px solid ${C.border}`,
+                                                    borderRadius: 8,
+                                                    padding: '11px 13px',
+                                                    textDecoration: 'none',
+                                                    color: C.text,
+                                                    fontSize: 12.5,
+                                                }}
+                                            >
+                                                <AIcon
+                                                    name="file-text"
+                                                    size={17}
+                                                    color={C.primary}
+                                                />
+                                                <span
+                                                    style={{
+                                                        overflow: 'hidden',
+                                                        textOverflow:
+                                                            'ellipsis',
+                                                        whiteSpace: 'nowrap',
+                                                    }}
                                                 >
-                                                    {category.label}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </Field>
-
-                                    <Field
-                                        label="Keterangan"
-                                        required
-                                        error={itemForm.errors.description}
-                                    >
-                                        <input
-                                            type="text"
-                                            placeholder="Contoh: Tiket kereta Jakarta–Surabaya"
-                                            value={itemForm.data.description}
-                                            onChange={(event) =>
-                                                itemForm.setData(
-                                                    'description',
-                                                    event.target.value,
-                                                )
-                                            }
-                                            style={withError(
-                                                textInputStyle,
-                                                !!itemForm.errors.description,
-                                            )}
-                                        />
-                                    </Field>
-
-                                    <Field
-                                        label="Tanggal"
-                                        required
-                                        error={itemForm.errors.spent_date}
-                                    >
-                                        <input
-                                            type="date"
-                                            value={itemForm.data.spent_date}
-                                            onChange={(event) =>
-                                                itemForm.setData(
-                                                    'spent_date',
-                                                    event.target.value,
-                                                )
-                                            }
-                                            style={withError(
-                                                dateInputStyle,
-                                                !!itemForm.errors.spent_date,
-                                            )}
-                                        />
-                                    </Field>
-
-                                    <Field
-                                        label="Jumlah (Rp)"
-                                        required
-                                        error={itemForm.errors.amount}
-                                    >
-                                        <RupiahInput
-                                            value={itemForm.data.amount}
-                                            onChange={(raw) =>
-                                                itemForm.setData('amount', raw)
-                                            }
-                                            invalid={!!itemForm.errors.amount}
-                                        />
-                                    </Field>
-
-                                    <Field
-                                        label="Scan Bukti"
-                                        error={itemForm.errors.receipt}
-                                    >
-                                        <input
-                                            type="file"
-                                            accept=".jpg,.jpeg,.png,.pdf"
-                                            onChange={(event) =>
-                                                itemForm.setData(
-                                                    'receipt',
-                                                    event.target.files?.[0] ??
-                                                        null,
-                                                )
-                                            }
-                                            style={{
-                                                ...textInputStyle,
-                                                padding: '9px 11px',
-                                                height: 'auto',
-                                                fontSize: 12.5,
-                                            }}
-                                        />
-                                    </Field>
+                                                    {attachment.name}
+                                                </span>
+                                            </a>
+                                        ),
+                                    )}
                                 </div>
-
-                                <div
-                                    style={{
-                                        display: 'flex',
-                                        justifyContent: 'flex-end',
-                                    }}
-                                >
-                                    <button
-                                        type="submit"
-                                        disabled={itemForm.processing}
-                                        style={{
-                                            ...btnP,
-                                            opacity: itemForm.processing
-                                                ? 0.7
-                                                : 1,
-                                            cursor: itemForm.processing
-                                                ? 'not-allowed'
-                                                : 'pointer',
-                                        }}
-                                    >
-                                        <AIcon
-                                            name="plus"
-                                            size={16}
-                                            color="#fff"
-                                        />
-                                        Tambah Bukti
-                                    </button>
-                                </div>
-                            </form>
+                            </div>
                         )}
                     </div>
 
-                    {/* Balance summary */}
+                    {/* ---------- right column ---------- */}
                     <div
                         style={{
-                            ...card,
-                            padding: '18px',
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: 14,
+                            gap: 20,
                         }}
                     >
-                        <div
-                            style={{
-                                fontSize: 15,
-                                fontWeight: 600,
-                                color: C.navy,
-                            }}
-                        >
-                            Ringkasan
-                        </div>
-
-                        <div
-                            style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: 10,
-                            }}
-                        >
-                            <SummaryRow
-                                label="Uang muka"
-                                value={settlement.advance_amount}
-                            />
-                            <SummaryRow
-                                label="Total pengeluaran"
-                                value={settlement.total_spent}
-                            />
+                        {/* Process timeline */}
+                        <div style={{ ...card, padding: 22 }}>
                             <div
                                 style={{
-                                    height: 1,
-                                    background: C.line,
+                                    fontSize: 15,
+                                    fontWeight: 600,
+                                    color: C.navy,
+                                    marginBottom: 18,
                                 }}
-                            />
-                            <SummaryRow
-                                label={
-                                    settlement.outcome === 'topup'
-                                        ? 'Kekurangan'
-                                        : 'Sisa dana'
-                                }
-                                value={Math.abs(settlement.balance)}
-                                accent={outcomeColor(settlement.outcome)}
-                                strong
-                            />
-                            <div>
-                                <OutcomePill
-                                    outcome={settlement.outcome}
-                                    label={settlement.outcome_label}
+                            >
+                                Alur Proses
+                            </div>
+                            <Timeline settlement={settlement} />
+                        </div>
+
+                        {/* Action panel */}
+                        {isDraft && (
+                            <ActionCard title="Ajukan Settlement">
+                                <p style={helpText}>
+                                    Ajukan settlement ini agar diproses manager
+                                    lalu Finance.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        post(
+                                            SettlementController.submit(
+                                                settlement.id,
+                                            ).url,
+                                        )
+                                    }
+                                    style={fullPrimary}
+                                >
+                                    <AIcon name="send" size={16} color="#fff" />
+                                    Ajukan untuk Persetujuan
+                                </button>
+                            </ActionCard>
+                        )}
+
+                        {settlement.status === 'submitted' && (
+                            <ActionCard title="Persetujuan Manager">
+                                <p style={helpText}>
+                                    Periksa jumlah yang diklaim, lalu setujui
+                                    untuk diteruskan ke Finance.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        post(
+                                            SettlementController.managerApprove(
+                                                settlement.id,
+                                            ).url,
+                                        )
+                                    }
+                                    style={fullPrimary}
+                                >
+                                    <AIcon
+                                        name="check"
+                                        size={16}
+                                        color="#fff"
+                                    />
+                                    Setujui (Manager)
+                                </button>
+                                <RejectAction
+                                    open={rejecting}
+                                    setOpen={setRejecting}
+                                    form={rejectForm}
+                                    onSubmit={() =>
+                                        rejectForm.post(
+                                            SettlementController.reject(
+                                                settlement.id,
+                                            ).url,
+                                            {
+                                                preserveScroll: true,
+                                                onSuccess: () =>
+                                                    setRejecting(false),
+                                            },
+                                        )
+                                    }
                                 />
-                            </div>
-                        </div>
-
-                        {(settlement.returned_amount > 0 ||
-                            settlement.topup_amount > 0) && (
-                            <div
-                                style={{
-                                    borderTop: `1px solid ${C.line}`,
-                                    paddingTop: 12,
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: 10,
-                                }}
-                            >
-                                {settlement.returned_amount > 0 && (
-                                    <SummaryRow
-                                        label="Sudah dikembalikan"
-                                        value={settlement.returned_amount}
-                                        accent="#16A34A"
-                                    />
-                                )}
-                                {settlement.topup_amount > 0 && (
-                                    <SummaryRow
-                                        label="Sudah dibayarkan"
-                                        value={settlement.topup_amount}
-                                        accent="#16A34A"
-                                    />
-                                )}
-                                {settlement.outstanding > 0 && (
-                                    <SummaryRow
-                                        label="Belum diselesaikan"
-                                        value={settlement.outstanding}
-                                        accent={C.red}
-                                    />
-                                )}
-                            </div>
+                            </ActionCard>
                         )}
 
-                        {settlement.approver && (
-                            <div
-                                style={{
-                                    borderTop: `1px solid ${C.line}`,
-                                    paddingTop: 12,
-                                    fontSize: 12.5,
-                                    color: C.muted,
-                                    lineHeight: 1.6,
-                                }}
-                            >
-                                <div>
-                                    Diverifikasi oleh{' '}
-                                    <span
-                                        style={{
-                                            color: C.text,
-                                            fontWeight: 500,
-                                        }}
+                        {settlement.status === 'manager_approved' && (
+                            <ActionCard title="Verifikasi Finance">
+                                <p style={helpText}>
+                                    Verifikasi akan memicu pembayaran ke
+                                    rekening karyawan. Tindakan ini final.
+                                </p>
+                                <Field label="Metode Pembayaran" required>
+                                    <select
+                                        value={verify.data.payment_method}
+                                        onChange={(event) =>
+                                            verify.setData(
+                                                'payment_method',
+                                                event.target.value,
+                                            )
+                                        }
+                                        style={selectStyle}
                                     >
-                                        {settlement.approver}
-                                    </span>
-                                </div>
-                                <div style={{ color: C.faint }}>
-                                    {settlement.approved_at ?? ''}
-                                </div>
-                            </div>
-                        )}
-
-                        {settlement.notes && (
-                            <div
-                                style={{
-                                    borderTop: `1px solid ${C.line}`,
-                                    paddingTop: 12,
-                                    fontSize: 12.5,
-                                    color: C.muted,
-                                    lineHeight: 1.6,
-                                }}
-                            >
-                                <div
+                                        {paymentMethods.map((method) => (
+                                            <option
+                                                key={method.value}
+                                                value={method.value}
+                                            >
+                                                {method.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </Field>
+                                <Field label="Nomor Referensi">
+                                    <input
+                                        type="text"
+                                        placeholder="Nomor transaksi / bukti transfer"
+                                        value={verify.data.payment_reference}
+                                        onChange={(event) =>
+                                            verify.setData(
+                                                'payment_reference',
+                                                event.target.value,
+                                            )
+                                        }
+                                        style={{
+                                            width: '100%',
+                                            height: 42,
+                                            padding: '0 13px',
+                                            border: `1px solid ${C.border}`,
+                                            borderRadius: 8,
+                                            fontSize: 13.5,
+                                            outline: 'none',
+                                        }}
+                                    />
+                                </Field>
+                                <CheckRow
+                                    checked={verify.data.confirm_bank}
+                                    onChange={(v) =>
+                                        verify.setData('confirm_bank', v)
+                                    }
+                                    label="Rekening tujuan sudah diverifikasi"
+                                />
+                                <CheckRow
+                                    checked={verify.data.confirm_receipts}
+                                    onChange={(v) =>
+                                        verify.setData('confirm_receipts', v)
+                                    }
+                                    label="Bukti sesuai & taat pajak"
+                                />
+                                <button
+                                    type="button"
+                                    disabled={
+                                        !verify.data.confirm_bank ||
+                                        !verify.data.confirm_receipts ||
+                                        verify.processing
+                                    }
+                                    onClick={() =>
+                                        verify.post(
+                                            SettlementController.financeVerify(
+                                                settlement.id,
+                                            ).url,
+                                            { preserveScroll: true },
+                                        )
+                                    }
                                     style={{
-                                        fontWeight: 600,
-                                        color: C.text,
-                                        marginBottom: 3,
+                                        ...fullPrimary,
+                                        opacity:
+                                            !verify.data.confirm_bank ||
+                                            !verify.data.confirm_receipts
+                                                ? 0.5
+                                                : 1,
+                                        cursor:
+                                            !verify.data.confirm_bank ||
+                                            !verify.data.confirm_receipts
+                                                ? 'not-allowed'
+                                                : 'pointer',
                                     }}
                                 >
-                                    Catatan
+                                    <AIcon
+                                        name="badge-check"
+                                        size={16}
+                                        color="#fff"
+                                    />
+                                    Verifikasi &amp; Bayar
+                                </button>
+                                <RejectAction
+                                    open={rejecting}
+                                    setOpen={setRejecting}
+                                    form={rejectForm}
+                                    onSubmit={() =>
+                                        rejectForm.post(
+                                            SettlementController.reject(
+                                                settlement.id,
+                                            ).url,
+                                            {
+                                                preserveScroll: true,
+                                                onSuccess: () =>
+                                                    setRejecting(false),
+                                            },
+                                        )
+                                    }
+                                />
+                            </ActionCard>
+                        )}
+
+                        {settlement.status === 'paid' && (
+                            <ActionCard title="Pembayaran Selesai">
+                                <p style={helpText}>
+                                    Dibayar {settlement.paid_at} oleh{' '}
+                                    {settlement.finance_verified_by ?? '—'}.
+                                </p>
+                                <div
+                                    style={{ fontSize: 12.5, color: C.muted }}
+                                >
+                                    Metode:{' '}
+                                    <strong style={{ color: C.text }}>
+                                        {settlement.payment_method_label ?? '—'}
+                                    </strong>
+                                    {settlement.payment_reference && (
+                                        <>
+                                            {' · Ref: '}
+                                            <strong style={{ color: C.text }}>
+                                                {settlement.payment_reference}
+                                            </strong>
+                                        </>
+                                    )}
                                 </div>
-                                {settlement.notes}
-                            </div>
+                            </ActionCard>
                         )}
                     </div>
                 </div>
             </div>
-
-            <FormDialog
-                open={returning}
-                onOpenChange={setReturning}
-                title="Pengembalian Sisa Dana"
-                description={`Sisa yang belum dikembalikan: ${rp(settlement.outstanding)}`}
-                submitLabel="Catat Pengembalian"
-                onSubmit={() =>
-                    returnForm.post(
-                        SettlementController.recordReturn(settlement.id).url,
-                        {
-                            preserveScroll: true,
-                            onSuccess: () => setReturning(false),
-                        },
-                    )
-                }
-                processing={returnForm.processing}
-            >
-                <Field
-                    label="Jumlah Dikembalikan (Rp)"
-                    required
-                    error={returnForm.errors.returned_amount}
-                >
-                    <RupiahInput
-                        value={returnForm.data.returned_amount}
-                        onChange={(raw) =>
-                            returnForm.setData('returned_amount', raw)
-                        }
-                        invalid={!!returnForm.errors.returned_amount}
-                    />
-                </Field>
-            </FormDialog>
-
-            <FormDialog
-                open={toppingUp}
-                onOpenChange={setToppingUp}
-                title="Pembayaran Kekurangan"
-                description={`Kekurangan yang belum dibayar: ${rp(settlement.outstanding)}`}
-                submitLabel="Catat Pembayaran"
-                onSubmit={() =>
-                    topupForm.post(
-                        SettlementController.recordTopup(settlement.id).url,
-                        {
-                            preserveScroll: true,
-                            onSuccess: () => setToppingUp(false),
-                        },
-                    )
-                }
-                processing={topupForm.processing}
-            >
-                <Field
-                    label="Jumlah Dibayar (Rp)"
-                    required
-                    error={topupForm.errors.topup_amount}
-                >
-                    <RupiahInput
-                        value={topupForm.data.topup_amount}
-                        onChange={(raw) =>
-                            topupForm.setData('topup_amount', raw)
-                        }
-                        invalid={!!topupForm.errors.topup_amount}
-                    />
-                </Field>
-                <Field
-                    label="Metode Pembayaran"
-                    required
-                    error={topupForm.errors.topup_method}
-                >
-                    <select
-                        value={topupForm.data.topup_method}
-                        onChange={(event) =>
-                            topupForm.setData(
-                                'topup_method',
-                                event.target.value,
-                            )
-                        }
-                        style={selectStyle}
-                    >
-                        {paymentMethods.map((method) => (
-                            <option key={method.value} value={method.value}>
-                                {method.label}
-                            </option>
-                        ))}
-                    </select>
-                </Field>
-                <Field
-                    label="Nomor Referensi"
-                    error={topupForm.errors.topup_reference}
-                >
-                    <input
-                        type="text"
-                        placeholder="Nomor transaksi / bukti transfer"
-                        value={topupForm.data.topup_reference}
-                        onChange={(event) =>
-                            topupForm.setData(
-                                'topup_reference',
-                                event.target.value,
-                            )
-                        }
-                        style={textInputStyle}
-                    />
-                </Field>
-            </FormDialog>
-
-            <FormDialog
-                open={rejecting}
-                onOpenChange={setRejecting}
-                title="Tolak Settlement"
-                description="Settlement dikembalikan ke karyawan untuk diperbaiki."
-                submitLabel="Tolak"
-                onSubmit={() =>
-                    rejectForm.post(
-                        SettlementController.reject(settlement.id).url,
-                        {
-                            preserveScroll: true,
-                            onSuccess: () => {
-                                setRejecting(false);
-                                rejectForm.reset();
-                            },
-                        },
-                    )
-                }
-                processing={rejectForm.processing}
-            >
-                <Field
-                    label="Alasan Penolakan"
-                    required
-                    error={rejectForm.errors.rejection_reason}
-                >
-                    <textarea
-                        rows={3}
-                        placeholder="Jelaskan apa yang perlu diperbaiki"
-                        value={rejectForm.data.rejection_reason}
-                        onChange={(event) =>
-                            rejectForm.setData(
-                                'rejection_reason',
-                                event.target.value,
-                            )
-                        }
-                        style={withError(
-                            {
-                                width: '100%',
-                                padding: '11px 13px',
-                                border: `1px solid ${C.border}`,
-                                borderRadius: 8,
-                                fontSize: 13.5,
-                                outline: 'none',
-                                resize: 'vertical',
-                            },
-                            !!rejectForm.errors.rejection_reason,
-                        )}
-                    />
-                </Field>
-            </FormDialog>
-
-            <ConfirmDialog
-                open={deletingItem !== null}
-                onOpenChange={(open) => !open && setDeletingItem(null)}
-                title="Hapus bukti pengeluaran?"
-                description={
-                    deletingItem
-                        ? `"${deletingItem.description}" sebesar ${rp(deletingItem.amount)} akan dihapus.`
-                        : undefined
-                }
-                destructive
-                onConfirm={confirmDeleteItem}
-            />
         </>
+    );
+}
+
+const helpText = {
+    fontSize: 12.5,
+    color: C.muted,
+    lineHeight: 1.5,
+    margin: 0,
+} as const;
+
+const fullPrimary = {
+    ...btnP,
+    height: 44,
+    width: '100%',
+    justifyContent: 'center',
+} as const;
+
+/** One label + value fact block. */
+function SummaryFact({
+    label,
+    value,
+    accent = false,
+}: {
+    label: string;
+    value: string;
+    accent?: boolean;
+}) {
+    return (
+        <div>
+            <div
+                style={{
+                    fontSize: 11,
+                    letterSpacing: '.04em',
+                    textTransform: 'uppercase',
+                    color: C.faint,
+                    marginBottom: 5,
+                }}
+            >
+                {label}
+            </div>
+            <div
+                style={{
+                    fontSize: accent ? 18 : 13.5,
+                    fontWeight: accent ? 700 : 600,
+                    color: accent ? C.primary : C.text,
+                }}
+            >
+                {value}
+            </div>
+        </div>
+    );
+}
+
+/** Wrapper card for a right-column action panel. */
+function ActionCard({
+    title,
+    children,
+}: {
+    title: string;
+    children: React.ReactNode;
+}) {
+    return (
+        <div style={{ ...card, padding: 22 }}>
+            <div
+                style={{
+                    fontSize: 15,
+                    fontWeight: 600,
+                    color: C.navy,
+                    marginBottom: 14,
+                }}
+            >
+                {title}
+            </div>
+            <div
+                style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 13,
+                }}
+            >
+                {children}
+            </div>
+        </div>
+    );
+}
+
+/** A labelled checkbox row for the finance verification gate. */
+function CheckRow({
+    checked,
+    onChange,
+    label,
+}: {
+    checked: boolean;
+    onChange: (value: boolean) => void;
+    label: string;
+}) {
+    return (
+        <label
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 9,
+                fontSize: 12.5,
+                color: C.text,
+                cursor: 'pointer',
+            }}
+        >
+            <input
+                type="checkbox"
+                checked={checked}
+                onChange={(event) => onChange(event.target.checked)}
+                style={{ width: 16, height: 16, cursor: 'pointer' }}
+            />
+            {label}
+        </label>
+    );
+}
+
+/** Reject-with-reason toggle used in both approval stages. */
+function RejectAction({
+    open,
+    setOpen,
+    form,
+    onSubmit,
+}: {
+    open: boolean;
+    setOpen: (value: boolean) => void;
+    form: ReturnType<typeof useForm<{ rejection_reason: string }>>;
+    onSubmit: () => void;
+}) {
+    if (!open) {
+        return (
+            <button
+                type="button"
+                onClick={() => setOpen(true)}
+                style={{
+                    background: 'none',
+                    border: 'none',
+                    color: C.red,
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    padding: 0,
+                }}
+            >
+                Kembalikan ke karyawan
+            </button>
+        );
+    }
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <textarea
+                rows={2}
+                placeholder="Alasan pengembalian…"
+                value={form.data.rejection_reason}
+                onChange={(event) =>
+                    form.setData('rejection_reason', event.target.value)
+                }
+                style={textareaStyle}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                    type="button"
+                    onClick={onSubmit}
+                    disabled={form.processing}
+                    style={{
+                        ...btnP,
+                        height: 38,
+                        background: C.red,
+                        flex: 1,
+                        justifyContent: 'center',
+                    }}
+                >
+                    Kembalikan
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    style={{ ...btnOut, height: 38 }}
+                >
+                    Batal
+                </button>
+            </div>
+        </div>
+    );
+}
+
+/** The four-step process timeline, driven by the settlement status. */
+function Timeline({
+    settlement,
+}: {
+    settlement: SettlementShowProps['settlement'];
+}) {
+    const status: SettlementStatus = settlement.status;
+    const order: Record<SettlementStatus, number> = {
+        draft: 0,
+        rejected: 0,
+        submitted: 1,
+        manager_approved: 2,
+        paid: 3,
+    };
+    // A rejected claim was submitted at least once, so its first step is done.
+    const level = status === 'rejected' ? 1 : order[status];
+
+    // The level at which each milestone becomes complete.
+    const doneAt = [1, 2, 3, 3];
+    const done = doneAt.map((threshold) => level >= threshold);
+    // The current step is the first one not yet done — unless returned.
+    const currentIndex =
+        status === 'rejected' ? -1 : done.findIndex((flag) => !flag);
+
+    const stepState = (index: number): StepState => {
+        if (done[index]) {
+            return 'done';
+        }
+        return index === currentIndex ? 'current' : 'pending';
+    };
+
+    const steps: {
+        state: StepState;
+        title: string;
+        sub: string | null;
+    }[] = [
+        {
+            state: stepState(0),
+            title: 'Diajukan Karyawan',
+            sub: settlement.submission_date,
+        },
+        {
+            state: stepState(1),
+            title: 'Disetujui Manager',
+            sub: settlement.manager_approved_at
+                ? `${settlement.manager_approved_by ?? ''} · ${settlement.manager_approved_at}`
+                : null,
+        },
+        {
+            state: stepState(2),
+            title: 'Verifikasi Finance',
+            sub: settlement.paid_at ? 'Selesai' : null,
+        },
+        {
+            state: stepState(3),
+            title: 'Pembayaran',
+            sub: settlement.paid_at,
+        },
+    ];
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {steps.map((step, index) => (
+                <div
+                    // eslint-disable-next-line react/no-array-index-key
+                    key={index}
+                    style={{ display: 'flex', gap: 12 }}
+                >
+                    <div
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                        }}
+                    >
+                        <StepDot state={step.state} />
+                        {index < steps.length - 1 && (
+                            <div
+                                style={{
+                                    width: 2,
+                                    flex: 1,
+                                    minHeight: 26,
+                                    background:
+                                        step.state === 'done'
+                                            ? '#10B981'
+                                            : C.line,
+                                }}
+                            />
+                        )}
+                    </div>
+                    <div style={{ paddingBottom: 18 }}>
+                        <div
+                            style={{
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color:
+                                    step.state === 'pending'
+                                        ? C.faint
+                                        : C.navy,
+                            }}
+                        >
+                            {step.title}
+                        </div>
+                        {step.sub && (
+                            <div
+                                style={{
+                                    fontSize: 11.5,
+                                    color: C.muted,
+                                    marginTop: 2,
+                                }}
+                            >
+                                {step.sub}
+                            </div>
+                        )}
+                        {step.state === 'current' && !step.sub && (
+                            <div
+                                style={{
+                                    fontSize: 11.5,
+                                    color: C.primary,
+                                    marginTop: 2,
+                                    fontWeight: 600,
+                                }}
+                            >
+                                Sedang diproses
+                            </div>
+                        )}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+/** Timeline node marker. */
+function StepDot({ state }: { state: StepState }) {
+    if (state === 'done') {
+        return (
+            <div
+                style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: 100,
+                    background: '#10B981',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                }}
+            >
+                <AIcon name="check" size={14} color="#fff" />
+            </div>
+        );
+    }
+
+    if (state === 'current') {
+        return (
+            <div
+                style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: 100,
+                    border: `2px solid ${C.primary}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                }}
+            >
+                <div
+                    style={{
+                        width: 9,
+                        height: 9,
+                        borderRadius: 100,
+                        background: C.primary,
+                    }}
+                />
+            </div>
+        );
+    }
+
+    return (
+        <div
+            style={{
+                width: 24,
+                height: 24,
+                borderRadius: 100,
+                border: `2px solid ${C.line}`,
+                background: '#fff',
+            }}
+        />
     );
 }

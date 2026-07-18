@@ -73,7 +73,7 @@ class CashAdvanceController extends Controller
 
         $paginator = CashAdvance::query()
             ->forTenant($tenantId)
-            ->with(['employee:id,full_name,employee_number', 'settlement:id,cash_advance_id,status'])
+            ->with(['employee:id,full_name,employee_number'])
             ->when($request->query('search'), function ($query, $search): void {
                 $query->whereHas('employee', function ($q) use ($search): void {
                     $q->where('full_name', 'like', "%{$search}%")
@@ -354,8 +354,6 @@ class CashAdvanceController extends Controller
                 ? null
                 : (self::DISBURSEMENT_METHODS[$advance->disbursement_method] ?? $advance->disbursement_method),
             'disbursement_reference' => $advance->disbursement_reference,
-            'settlement_id' => $advance->settlement?->id,
-            'settlement_status' => $advance->settlement?->status,
         ];
     }
 

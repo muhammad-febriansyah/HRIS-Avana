@@ -1,13 +1,12 @@
 <?php
 
-use App\Models\CashAdvance;
 use App\Models\Employee;
-use App\Models\Role;
 use App\Models\Settlement;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -22,38 +21,20 @@ beforeEach(function (): void {
 });
 
 /**
- * A disbursed advance, the only state a settlement can be opened against.
+ * A settlement in the given status, carrying a single expense line worth
+ * `$subtotal` (tax + total are recomputed from it).
  */
-function makeDisbursedAdvance(int $tenantId, float $amount = 2_000_000): CashAdvance
+function makeSettlement(int $tenantId, string $status = Settlement::STATUS_SUBMITTED, float $subtotal = 1_000_000): Settlement
 {
     $employee = Employee::forTenant($tenantId)->firstOrFail();
 
-    return CashAdvance::create([
-        'tenant_id' => $tenantId,
-        'employee_id' => $employee->id,
-        'amount' => $amount,
-        'purpose' => 'Uang muka perjalanan dinas',
-        'request_date' => '2026-07-01',
-        'status' => 'disbursed',
-        'disbursed_at' => now(),
-    ]);
-}
-
-/**
- * A settlement carrying a single receipt line worth `$spent`.
- */
-function makeSettlementSpending(int $tenantId, float $advanceAmount, float $spent, string $status = 'draft'): Settlement
-{
-    $advance = makeDisbursedAdvance($tenantId, $advanceAmount);
-
     $settlement = Settlement::create([
         'tenant_id' => $tenantId,
-        'cash_advance_id' => $advance->id,
-        'employee_id' => $advance->employee_id,
-        'number' => 'STL-TEST-0001',
-        'settlement_date' => '2026-07-10',
-        'advance_amount' => $advanceAmount,
-        'total_spent' => 0,
+        'employee_id' => $employee->id,
+        'number' => 'STL-TEST-'.fake()->unique()->numberBetween(1000, 9999),
+        'title' => 'Perjalanan Dinas Jakarta',
+        'category' => 'transportasi',
+        'submission_date' => '2026-07-18',
         'status' => $status,
     ]);
 
@@ -61,17 +42,16 @@ function makeSettlementSpending(int $tenantId, float $advanceAmount, float $spen
         'tenant_id' => $tenantId,
         'category' => 'transportasi',
         'description' => 'Tiket kereta',
-        'spent_date' => '2026-07-05',
-        'amount' => $spent,
+        'amount' => $subtotal,
     ]);
 
-    $settlement->recalculateTotalSpent();
+    $settlement->recalculateTotals();
 
     return $settlement;
 }
 
 it('renders the settlement index with the expected props', function (): void {
-    makeSettlementSpending($this->tenant->id, 2_000_000, 1_500_000);
+    makeSettlement($this->tenant->id, Settlement::STATUS_SUBMITTED);
 
     actingAs($this->admin)
         ->get(route('avana.settlement'))
@@ -81,355 +61,247 @@ it('renders the settlement index with the expected props', function (): void {
             ->has('settlements.data.0', fn (Assert $row) => $row
                 ->has('id')
                 ->has('number')
-                ->has('advance_amount')
-                ->has('total_spent')
-                ->has('balance')
-                ->has('outcome')
-                ->has('outcome_label')
+                ->has('title')
+                ->has('total')
                 ->has('status_label')
                 ->etc())
             ->has('filters')
             ->has('statusOptions')
-            ->has('kpis.draft'));
+            ->has('kpis.paid'));
 });
 
-it('opens a settlement against a disbursed advance and snapshots its amount', function (): void {
-    $advance = makeDisbursedAdvance($this->tenant->id, 2_000_000);
+it('creates a draft settlement with line items and applies 11% tax', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
 
     actingAs($this->admin)
         ->post(route('avana.settlement.store'), [
-            'cash_advance_id' => $advance->id,
-            'settlement_date' => '2026-07-10',
+            'employee_id' => $employee->id,
+            'title' => 'Perjalanan Dinas Q3 Sales Summit',
+            'category' => 'transportasi',
+            'department' => 'Regional Sales',
+            'submission_date' => '2026-07-18',
+            'items' => [
+                ['description' => 'Tiket pesawat', 'category' => 'transportasi', 'amount' => 2_500_000],
+                ['description' => 'Hotel', 'category' => 'operasional', 'amount' => 1_800_000],
+            ],
+            'action' => 'draft',
         ])
+        ->assertRedirect()
         ->assertSessionHas('success');
 
-    $settlement = Settlement::where('cash_advance_id', $advance->id)->firstOrFail();
+    $settlement = Settlement::latest('id')->firstOrFail();
 
-    expect($settlement->status)->toBe('draft');
-    expect((float) $settlement->advance_amount)->toBe(2_000_000.0);
-    expect($settlement->employee_id)->toBe($advance->employee_id);
+    expect($settlement->status)->toBe(Settlement::STATUS_DRAFT);
+    expect($settlement->items)->toHaveCount(2);
+    expect((float) $settlement->subtotal)->toBe(4_300_000.0);
+    expect((float) $settlement->tax_amount)->toBe(473_000.0);
+    expect((float) $settlement->total)->toBe(4_773_000.0);
     expect($settlement->number)->toStartWith('STL-');
 });
 
-it('snapshots the advance amount so later edits cannot move the balance', function (): void {
-    $advance = makeDisbursedAdvance($this->tenant->id, 2_000_000);
+it('submits straight to approval when the submit action is used', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
 
     actingAs($this->admin)
         ->post(route('avana.settlement.store'), [
-            'cash_advance_id' => $advance->id,
-            'settlement_date' => '2026-07-10',
-        ]);
+            'employee_id' => $employee->id,
+            'title' => 'Perjalanan Dinas',
+            'submission_date' => '2026-07-18',
+            'items' => [['description' => 'Taksi', 'category' => 'transportasi', 'amount' => 350_000]],
+            'action' => 'submit',
+        ])
+        ->assertSessionHas('success');
 
-    $advance->update(['amount' => 5_000_000]);
-
-    $settlement = Settlement::where('cash_advance_id', $advance->id)->firstOrFail();
-
-    expect((float) $settlement->advance_amount)->toBe(2_000_000.0);
+    expect(Settlement::latest('id')->firstOrFail()->status)->toBe(Settlement::STATUS_SUBMITTED);
 });
 
-it('refuses to open a settlement against an advance that was never disbursed', function (): void {
+it('snapshots the employee primary bank account onto the settlement', function (): void {
     $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
-    $advance = CashAdvance::create([
+
+    DB::table('employee_bank_accounts')->insert([
         'tenant_id' => $this->tenant->id,
         'employee_id' => $employee->id,
-        'amount' => 1_000_000,
-        'purpose' => 'Uang muka',
-        'request_date' => '2026-07-01',
-        'status' => 'approved',
+        'bank_name' => 'Bank Central Asia',
+        'account_number' => '1234567890',
+        'account_holder' => 'Bagus Pratama',
+        'is_primary' => true,
+        'created_at' => now(),
+        'updated_at' => now(),
     ]);
 
     actingAs($this->admin)
         ->post(route('avana.settlement.store'), [
-            'cash_advance_id' => $advance->id,
-            'settlement_date' => '2026-07-10',
+            'employee_id' => $employee->id,
+            'title' => 'Perjalanan Dinas',
+            'submission_date' => '2026-07-18',
+            'items' => [['description' => 'Taksi', 'category' => 'transportasi', 'amount' => 350_000]],
+            'action' => 'draft',
+        ]);
+
+    $settlement = Settlement::latest('id')->firstOrFail();
+
+    expect($settlement->bank_name)->toBe('Bank Central Asia');
+    expect($settlement->bank_account_number)->toBe('1234567890');
+    expect($settlement->bank_account_holder)->toBe('Bagus Pratama');
+});
+
+it('rejects a settlement with no line items', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.settlement.store'), [
+            'employee_id' => $employee->id,
+            'title' => 'Kosong',
+            'submission_date' => '2026-07-18',
+            'items' => [],
+            'action' => 'draft',
+        ])
+        ->assertSessionHasErrors('items');
+});
+
+it('lets a manager approve a submitted settlement', function (): void {
+    $settlement = makeSettlement($this->tenant->id, Settlement::STATUS_SUBMITTED);
+
+    actingAs($this->admin)
+        ->post(route('avana.settlement.manager-approve', $settlement))
+        ->assertSessionHas('success');
+
+    $settlement->refresh();
+
+    expect($settlement->status)->toBe(Settlement::STATUS_MANAGER_APPROVED);
+    expect($settlement->manager_approved_by)->toBe($this->admin->id);
+    expect($settlement->manager_approved_at)->not->toBeNull();
+});
+
+it('lets Finance verify and pay a manager-approved settlement', function (): void {
+    $settlement = makeSettlement($this->tenant->id, Settlement::STATUS_MANAGER_APPROVED);
+
+    actingAs($this->admin)
+        ->post(route('avana.settlement.finance-verify', $settlement), [
+            'payment_method' => 'transfer',
+            'payment_reference' => 'TRF-20260718-1',
+            'confirm_bank' => true,
+            'confirm_receipts' => true,
+        ])
+        ->assertSessionHas('success');
+
+    $settlement->refresh();
+
+    expect($settlement->status)->toBe(Settlement::STATUS_PAID);
+    expect($settlement->finance_verified_by)->toBe($this->admin->id);
+    expect($settlement->paid_at)->not->toBeNull();
+    expect($settlement->payment_reference)->toBe('TRF-20260718-1');
+});
+
+it('requires the verification confirmations before paying', function (): void {
+    $settlement = makeSettlement($this->tenant->id, Settlement::STATUS_MANAGER_APPROVED);
+
+    actingAs($this->admin)
+        ->post(route('avana.settlement.finance-verify', $settlement), [
+            'payment_method' => 'transfer',
+            'confirm_bank' => false,
+            'confirm_receipts' => false,
+        ])
+        ->assertSessionHasErrors(['confirm_bank', 'confirm_receipts']);
+
+    expect($settlement->refresh()->status)->toBe(Settlement::STATUS_MANAGER_APPROVED);
+});
+
+it('will not let Finance pay before the manager has approved', function (): void {
+    $settlement = makeSettlement($this->tenant->id, Settlement::STATUS_SUBMITTED);
+
+    actingAs($this->admin)
+        ->post(route('avana.settlement.finance-verify', $settlement), [
+            'payment_method' => 'transfer',
+            'confirm_bank' => true,
+            'confirm_receipts' => true,
         ])
         ->assertStatus(422);
 
-    expect(Settlement::where('cash_advance_id', $advance->id)->exists())->toBeFalse();
+    expect($settlement->refresh()->status)->toBe(Settlement::STATUS_SUBMITTED);
 });
 
-it('refuses to open a second settlement for the same advance', function (): void {
-    $settlement = makeSettlementSpending($this->tenant->id, 2_000_000, 1_000_000);
+it('sends a settlement back to the employee on reject', function (): void {
+    $settlement = makeSettlement($this->tenant->id, Settlement::STATUS_SUBMITTED);
 
     actingAs($this->admin)
-        ->post(route('avana.settlement.store'), [
-            'cash_advance_id' => $settlement->cash_advance_id,
-            'settlement_date' => '2026-07-11',
+        ->post(route('avana.settlement.reject', $settlement), [
+            'rejection_reason' => 'Kuitansi hotel tidak jelas',
         ])
-        ->assertSessionHasErrors(['cash_advance_id']);
+        ->assertSessionHas('success');
 
-    expect(Settlement::where('cash_advance_id', $settlement->cash_advance_id)->count())->toBe(1);
+    $settlement->refresh();
+
+    expect($settlement->status)->toBe(Settlement::STATUS_REJECTED);
+    expect($settlement->rejection_reason)->toBe('Kuitansi hotel tidak jelas');
 });
 
-it('adds a receipt line and recalculates the total spent', function (): void {
-    Storage::fake('public');
-
-    $advance = makeDisbursedAdvance($this->tenant->id, 2_000_000);
-    $settlement = Settlement::create([
-        'tenant_id' => $this->tenant->id,
-        'cash_advance_id' => $advance->id,
-        'employee_id' => $advance->employee_id,
-        'number' => 'STL-TEST-0002',
-        'settlement_date' => '2026-07-10',
-        'advance_amount' => 2_000_000,
-        'status' => 'draft',
-    ]);
+it('submits a draft settlement for approval', function (): void {
+    $settlement = makeSettlement($this->tenant->id, Settlement::STATUS_DRAFT);
 
     actingAs($this->admin)
-        ->post(route('avana.settlement.items.store', $settlement), [
-            'category' => 'transportasi',
-            'description' => 'Tiket kereta Jakarta–Surabaya',
-            'spent_date' => '2026-07-05',
-            'amount' => 750_000,
-            'receipt' => UploadedFile::fake()->image('struk.jpg'),
+        ->post(route('avana.settlement.submit', $settlement))
+        ->assertSessionHas('success');
+
+    expect($settlement->refresh()->status)->toBe(Settlement::STATUS_SUBMITTED);
+});
+
+it('replaces the line items and recomputes totals on update', function (): void {
+    $settlement = makeSettlement($this->tenant->id, Settlement::STATUS_DRAFT, 1_000_000);
+    $employee = $settlement->employee;
+
+    actingAs($this->admin)
+        ->post(route('avana.settlement.update', $settlement), [
+            'employee_id' => $employee->id,
+            'title' => 'Perjalanan Dinas (revisi)',
+            'submission_date' => '2026-07-18',
+            'items' => [['description' => 'Tiket revisi', 'category' => 'transportasi', 'amount' => 2_000_000]],
+            'action' => 'draft',
         ])
         ->assertSessionHas('success');
 
     $settlement->refresh();
 
     expect($settlement->items)->toHaveCount(1);
-    expect((float) $settlement->total_spent)->toBe(750_000.0);
-    expect($settlement->items->first()->receipt_path)->not->toBeNull();
-    Storage::disk('public')->assertExists($settlement->items->first()->receipt_path);
+    expect((float) $settlement->subtotal)->toBe(2_000_000.0);
+    expect((float) $settlement->total)->toBe(2_220_000.0);
 });
 
-it('refuses to submit a settlement with no receipts', function (): void {
-    $advance = makeDisbursedAdvance($this->tenant->id, 2_000_000);
-    $settlement = Settlement::create([
+it('deletes a draft settlement with its attachment files', function (): void {
+    Storage::fake('public');
+    $settlement = makeSettlement($this->tenant->id, Settlement::STATUS_DRAFT);
+    $settlement->attachments()->create([
         'tenant_id' => $this->tenant->id,
-        'cash_advance_id' => $advance->id,
-        'employee_id' => $advance->employee_id,
-        'number' => 'STL-TEST-0003',
-        'settlement_date' => '2026-07-10',
-        'advance_amount' => 2_000_000,
-        'status' => 'draft',
+        'path' => UploadedFile::fake()->create('receipt.pdf', 100)->store('settlements', 'public'),
+        'original_name' => 'receipt.pdf',
     ]);
 
     actingAs($this->admin)
-        ->post(route('avana.settlement.submit', $settlement))
-        ->assertStatus(422);
+        ->delete(route('avana.settlement.destroy', $settlement))
+        ->assertRedirect(route('avana.settlement'));
 
-    expect($settlement->fresh()->status)->toBe('draft');
+    expect(Settlement::find($settlement->id))->toBeNull();
 });
 
-it('computes a leftover balance as a return owed by the employee', function (): void {
-    $settlement = makeSettlementSpending($this->tenant->id, 2_000_000, 1_500_000);
-
-    expect($settlement->balance())->toBe(500_000.0);
-    expect($settlement->outcome())->toBe(Settlement::OUTCOME_RETURN);
-    expect($settlement->outstanding())->toBe(500_000.0);
-});
-
-it('computes an overspend as a topup owed to the employee', function (): void {
-    $settlement = makeSettlementSpending($this->tenant->id, 2_000_000, 2_300_000);
-
-    expect($settlement->balance())->toBe(-300_000.0);
-    expect($settlement->outcome())->toBe(Settlement::OUTCOME_TOPUP);
-    expect($settlement->outstanding())->toBe(300_000.0);
-});
-
-it('closes a balanced settlement the moment it is approved', function (): void {
-    $settlement = makeSettlementSpending($this->tenant->id, 2_000_000, 2_000_000, 'submitted');
-
-    actingAs($this->admin)
-        ->post(route('avana.settlement.approve', $settlement))
-        ->assertSessionHas('success');
-
-    $settlement->refresh();
-
-    expect($settlement->outcome())->toBe(Settlement::OUTCOME_BALANCED);
-    expect($settlement->status)->toBe('closed');
-    expect($settlement->cashAdvance->status)->toBe('settled');
-    expect($settlement->cashAdvance->settled_at)->not->toBeNull();
-});
-
-it('keeps a settlement with a difference open until the money moves', function (): void {
-    $settlement = makeSettlementSpending($this->tenant->id, 2_000_000, 1_500_000, 'submitted');
-
-    actingAs($this->admin)
-        ->post(route('avana.settlement.approve', $settlement))
-        ->assertSessionHas('success');
-
-    $settlement->refresh();
-
-    expect($settlement->status)->toBe('approved');
-    expect($settlement->cashAdvance->status)->toBe('disbursed');
-});
-
-it('closes the settlement and the advance once the leftover is returned in full', function (): void {
-    $settlement = makeSettlementSpending($this->tenant->id, 2_000_000, 1_500_000, 'approved');
-
-    actingAs($this->admin)
-        ->post(route('avana.settlement.return', $settlement), [
-            'returned_amount' => 500_000,
-        ])
-        ->assertSessionHas('success');
-
-    $settlement->refresh();
-
-    expect((float) $settlement->returned_amount)->toBe(500_000.0);
-    expect($settlement->outstanding())->toBe(0.0);
-    expect($settlement->status)->toBe('closed');
-    expect($settlement->cashAdvance->status)->toBe('settled');
-});
-
-it('accumulates partial returns and only closes on the last one', function (): void {
-    $settlement = makeSettlementSpending($this->tenant->id, 2_000_000, 1_500_000, 'approved');
-
-    actingAs($this->admin)
-        ->post(route('avana.settlement.return', $settlement), ['returned_amount' => 200_000]);
-
-    $settlement->refresh();
-    expect((float) $settlement->returned_amount)->toBe(200_000.0);
-    expect($settlement->outstanding())->toBe(300_000.0);
-    expect($settlement->status)->toBe('approved');
-
-    actingAs($this->admin)
-        ->post(route('avana.settlement.return', $settlement), ['returned_amount' => 300_000]);
-
-    $settlement->refresh();
-    expect((float) $settlement->returned_amount)->toBe(500_000.0);
-    expect($settlement->status)->toBe('closed');
-});
-
-it('refuses to return more than the leftover', function (): void {
-    $settlement = makeSettlementSpending($this->tenant->id, 2_000_000, 1_500_000, 'approved');
-
-    actingAs($this->admin)
-        ->post(route('avana.settlement.return', $settlement), [
-            'returned_amount' => 600_000,
-        ])
-        ->assertSessionHasErrors(['returned_amount']);
-
-    expect((float) $settlement->fresh()->returned_amount)->toBe(0.0);
-});
-
-it('closes the settlement once the shortfall is paid to the employee', function (): void {
-    $settlement = makeSettlementSpending($this->tenant->id, 2_000_000, 2_300_000, 'approved');
-
-    actingAs($this->admin)
-        ->post(route('avana.settlement.topup', $settlement), [
-            'topup_amount' => 300_000,
-            'topup_method' => 'transfer',
-            'topup_reference' => 'TRF-5512',
-        ])
-        ->assertSessionHas('success');
-
-    $settlement->refresh();
-
-    expect((float) $settlement->topup_amount)->toBe(300_000.0);
-    expect($settlement->topup_reference)->toBe('TRF-5512');
-    expect($settlement->status)->toBe('closed');
-    expect($settlement->cashAdvance->status)->toBe('settled');
-});
-
-it('refuses a topup on a settlement that has leftover instead of a shortfall', function (): void {
-    $settlement = makeSettlementSpending($this->tenant->id, 2_000_000, 1_500_000, 'approved');
-
-    actingAs($this->admin)
-        ->post(route('avana.settlement.topup', $settlement), [
-            'topup_amount' => 100_000,
-            'topup_method' => 'transfer',
-        ])
-        ->assertStatus(422);
-});
-
-it('refuses a return on a settlement that has a shortfall instead of leftover', function (): void {
-    $settlement = makeSettlementSpending($this->tenant->id, 2_000_000, 2_300_000, 'approved');
-
-    actingAs($this->admin)
-        ->post(route('avana.settlement.return', $settlement), [
-            'returned_amount' => 100_000,
-        ])
-        ->assertStatus(422);
-});
-
-it('refuses to settle the difference before the settlement is approved', function (): void {
-    $settlement = makeSettlementSpending($this->tenant->id, 2_000_000, 1_500_000, 'submitted');
-
-    actingAs($this->admin)
-        ->post(route('avana.settlement.return', $settlement), [
-            'returned_amount' => 500_000,
-        ])
-        ->assertStatus(422);
-});
-
-it('sends a submitted settlement back with a reason', function (): void {
-    $settlement = makeSettlementSpending($this->tenant->id, 2_000_000, 1_500_000, 'submitted');
-
-    actingAs($this->admin)
-        ->post(route('avana.settlement.reject', $settlement), [
-            'rejection_reason' => 'Struk tiket tidak terbaca',
-        ])
-        ->assertSessionHas('success');
-
-    $settlement->refresh();
-    expect($settlement->status)->toBe('rejected');
-    expect($settlement->rejection_reason)->toBe('Struk tiket tidak terbaca');
-});
-
-it('requires a reason when rejecting', function (): void {
-    $settlement = makeSettlementSpending($this->tenant->id, 2_000_000, 1_500_000, 'submitted');
-
-    actingAs($this->admin)
-        ->post(route('avana.settlement.reject', $settlement), [])
-        ->assertSessionHasErrors(['rejection_reason']);
-});
-
-it('refuses to change receipts once the settlement is being verified', function (): void {
-    $settlement = makeSettlementSpending($this->tenant->id, 2_000_000, 1_500_000, 'submitted');
-
-    actingAs($this->admin)
-        ->post(route('avana.settlement.items.store', $settlement), [
-            'category' => 'operasional',
-            'description' => 'Tambahan diam-diam',
-            'spent_date' => '2026-07-06',
-            'amount' => 100_000,
-        ])
-        ->assertStatus(422);
-
-    expect($settlement->fresh()->items)->toHaveCount(1);
-});
-
-it('returns 404 for a settlement that belongs to another tenant', function (): void {
-    $otherTenant = Tenant::create(['name' => 'PT Asing', 'slug' => 'pt-asing-stl']);
+it('hides settlements from other tenants', function (): void {
+    $otherTenant = Tenant::create(['name' => 'PT Lain', 'slug' => 'pt-lain-stl']);
     $foreignEmployee = Employee::create([
         'tenant_id' => $otherTenant->id,
-        'employee_number' => 'EMP-7777',
-        'full_name' => 'Foreign Worker',
+        'employee_number' => 'EMP-8888',
+        'full_name' => 'Karyawan Tenant Lain',
         'employment_status' => 'permanent',
         'status' => 'active',
     ]);
-    $foreignAdvance = CashAdvance::create([
+    $settlement = Settlement::create([
         'tenant_id' => $otherTenant->id,
-        'employee_id' => $foreignEmployee->id,
-        'amount' => 1_000_000,
-        'purpose' => 'Uang muka asing',
-        'request_date' => '2026-07-01',
-        'status' => 'disbursed',
-    ]);
-    $foreign = Settlement::create([
-        'tenant_id' => $otherTenant->id,
-        'cash_advance_id' => $foreignAdvance->id,
         'employee_id' => $foreignEmployee->id,
         'number' => 'STL-FOREIGN-0001',
-        'settlement_date' => '2026-07-10',
-        'advance_amount' => 1_000_000,
-        'status' => 'draft',
+        'title' => 'Perjalanan Dinas',
+        'submission_date' => '2026-07-18',
+        'status' => Settlement::STATUS_SUBMITTED,
     ]);
 
     actingAs($this->admin)
-        ->get(route('avana.settlement.show', $foreign))
+        ->get(route('avana.settlement.show', $settlement))
         ->assertNotFound();
-});
-
-it('forbids a plain employee from managing settlements', function (): void {
-    $employeeRole = Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->firstOrFail();
-
-    $staff = User::factory()->create(['tenant_id' => $this->tenant->id]);
-    $staff->roles()->sync([$employeeRole->id]);
-
-    actingAs($staff)
-        ->get(route('avana.settlement'))
-        ->assertForbidden();
 });

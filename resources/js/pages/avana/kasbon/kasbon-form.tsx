@@ -120,8 +120,8 @@ export function KasbonForm({
                     <AIcon name="info" size={15} color={C.primary} />
                     <span>
                         Uang muka <strong>tidak dipotong dari gaji</strong>.
-                        Setelah dicairkan, karyawan wajib membuat settlement dan
-                        melampirkan bukti pengeluaran.
+                        Dana operasional yang dicairkan ke karyawan untuk
+                        kebutuhan kerja.
                     </span>
                 </div>
 
