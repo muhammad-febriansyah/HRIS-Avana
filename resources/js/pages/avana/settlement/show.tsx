@@ -452,6 +452,24 @@ export default function SettlementShow({
                             <Timeline settlement={settlement} />
                         </div>
 
+                        {/* Fraud / authenticity screening */}
+                        {settlement.fraud_checked_at && (
+                            <FraudPanel
+                                settlement={settlement}
+                                canRescan={
+                                    settlement.status === 'submitted' ||
+                                    settlement.status === 'manager_approved'
+                                }
+                                onRescan={() =>
+                                    post(
+                                        SettlementController.rescan(
+                                            settlement.id,
+                                        ).url,
+                                    )
+                                }
+                            />
+                        )}
+
                         {/* Action panel */}
                         {isDraft && (
                             <ActionCard title="Ajukan Settlement">
@@ -526,6 +544,32 @@ export default function SettlementShow({
                                     Verifikasi akan memicu pembayaran ke
                                     rekening karyawan. Tindakan ini final.
                                 </p>
+                                {settlement.fraud_level === 'high' && (
+                                    <div
+                                        style={{
+                                            background: '#FEF2F2',
+                                            border: `1px solid ${C.red}55`,
+                                            borderRadius: 8,
+                                            padding: '10px 12px',
+                                            fontSize: 12,
+                                            color: '#B91C1C',
+                                            display: 'flex',
+                                            gap: 8,
+                                            lineHeight: 1.5,
+                                        }}
+                                    >
+                                        <AIcon
+                                            name="triangle-alert"
+                                            size={15}
+                                            color={C.red}
+                                        />
+                                        <span>
+                                            Bukti berisiko tinggi dimanipulasi —
+                                            tinjau panel Pemeriksaan Keaslian
+                                            sebelum membayar.
+                                        </span>
+                                    </div>
+                                )}
                                 <Field label="Metode Pembayaran" required>
                                     <select
                                         value={verify.data.payment_method}
@@ -1043,5 +1087,258 @@ function StepDot({ state }: { state: StepState }) {
                 background: '#fff',
             }}
         />
+    );
+}
+
+/** Label + colour for a fraud risk level. */
+function fraudMeta(level: 'low' | 'medium' | 'high' | null): {
+    label: string;
+    color: string;
+    bg: string;
+} {
+    switch (level) {
+        case 'high':
+            return { label: 'Berisiko Tinggi', color: '#B91C1C', bg: '#FEF2F2' };
+        case 'medium':
+            return { label: 'Perlu Ditinjau', color: '#B45309', bg: '#FFFBEB' };
+        case 'low':
+            return { label: 'Terlihat Wajar', color: '#047857', bg: '#ECFDF5' };
+        default:
+            return { label: 'Belum Diperiksa', color: C.muted, bg: C.surface };
+    }
+}
+
+/** Tamper/authenticity screening summary for a settlement's documents. */
+function FraudPanel({
+    settlement,
+    canRescan,
+    onRescan,
+}: {
+    settlement: SettlementShowProps['settlement'];
+    canRescan: boolean;
+    onRescan: () => void;
+}) {
+    const overall = fraudMeta(settlement.fraud_level);
+
+    return (
+        <div style={{ ...card, padding: 22 }}>
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: 14,
+                }}
+            >
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 9,
+                        fontSize: 15,
+                        fontWeight: 600,
+                        color: C.navy,
+                    }}
+                >
+                    <AIcon name="shield-check" size={17} color={C.primary} />
+                    Pemeriksaan Keaslian Bukti
+                </div>
+                {canRescan && (
+                    <button
+                        type="button"
+                        onClick={onRescan}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            background: 'none',
+                            border: 'none',
+                            color: C.primary,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <AIcon name="refresh-cw" size={13} color={C.primary} />
+                        Pindai Ulang
+                    </button>
+                )}
+            </div>
+
+            <div
+                style={{
+                    background: overall.bg,
+                    borderRadius: 8,
+                    padding: '11px 13px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: 12,
+                }}
+            >
+                <span style={{ fontSize: 12.5, color: C.muted }}>
+                    Risiko keseluruhan
+                </span>
+                <span
+                    style={{
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        color: overall.color,
+                    }}
+                >
+                    {overall.label}
+                </span>
+            </div>
+
+            {settlement.attachments.length === 0 && (
+                <div style={{ fontSize: 12.5, color: C.muted }}>
+                    Tidak ada bukti yang dilampirkan untuk diperiksa.
+                </div>
+            )}
+
+            <div
+                style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12,
+                }}
+            >
+                {settlement.attachments.map((attachment) => {
+                    const meta = fraudMeta(attachment.fraud_level ?? null);
+                    return (
+                        <div
+                            key={attachment.id}
+                            style={{
+                                border: `1px solid ${C.border}`,
+                                borderRadius: 8,
+                                padding: '11px 13px',
+                            }}
+                        >
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: 8,
+                                }}
+                            >
+                                <span
+                                    style={{
+                                        fontSize: 12.5,
+                                        color: C.text,
+                                        fontWeight: 500,
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                    }}
+                                >
+                                    {attachment.name}
+                                </span>
+                                <span
+                                    style={{
+                                        flex: 'none',
+                                        padding: '2px 8px',
+                                        borderRadius: 100,
+                                        fontSize: 11,
+                                        fontWeight: 600,
+                                        color: meta.color,
+                                        background: meta.bg,
+                                    }}
+                                >
+                                    {attachment.fraud_score ?? 0} · {meta.label}
+                                </span>
+                            </div>
+
+                            {attachment.vision_summary && (
+                                <div
+                                    style={{
+                                        fontSize: 11.5,
+                                        color: C.muted,
+                                        marginTop: 6,
+                                        lineHeight: 1.5,
+                                    }}
+                                >
+                                    {attachment.vision_summary}
+                                </div>
+                            )}
+
+                            {(attachment.fraud_flags ?? []).length > 0 && (
+                                <ul
+                                    style={{
+                                        margin: '8px 0 0',
+                                        paddingLeft: 0,
+                                        listStyle: 'none',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 4,
+                                    }}
+                                >
+                                    {(attachment.fraud_flags ?? []).map(
+                                        (flag, index) => (
+                                            <li
+                                                // eslint-disable-next-line react/no-array-index-key
+                                                key={index}
+                                                style={{
+                                                    display: 'flex',
+                                                    gap: 6,
+                                                    fontSize: 11.5,
+                                                    color:
+                                                        flag.severity === 'high'
+                                                            ? '#B91C1C'
+                                                            : C.muted,
+                                                }}
+                                            >
+                                                <AIcon
+                                                    name={
+                                                        flag.severity === 'high'
+                                                            ? 'triangle-alert'
+                                                            : 'info'
+                                                    }
+                                                    size={12}
+                                                    color={
+                                                        flag.severity === 'high'
+                                                            ? '#B91C1C'
+                                                            : C.faint
+                                                    }
+                                                />
+                                                <span>{flag.label}</span>
+                                            </li>
+                                        ),
+                                    )}
+                                </ul>
+                            )}
+
+                            {attachment.extracted_amount != null && (
+                                <div
+                                    style={{
+                                        fontSize: 11,
+                                        color: C.faint,
+                                        marginTop: 6,
+                                    }}
+                                >
+                                    Terbaca dari bukti:{' '}
+                                    {rp(attachment.extracted_amount)}
+                                    {attachment.extracted_vendor
+                                        ? ` · ${attachment.extracted_vendor}`
+                                        : ''}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+
+            <div
+                style={{
+                    fontSize: 10.5,
+                    color: C.faint,
+                    marginTop: 12,
+                    lineHeight: 1.5,
+                }}
+            >
+                Skor ini sinyal untuk ditinjau manusia, bukan vonis. Diperiksa{' '}
+                {settlement.fraud_checked_at}.
+            </div>
+        </div>
     );
 }

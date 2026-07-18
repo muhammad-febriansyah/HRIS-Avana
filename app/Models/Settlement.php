@@ -53,6 +53,7 @@ final class Settlement extends Model
             'manager_approved_at' => 'datetime',
             'paid_at' => 'datetime',
             'rejected_at' => 'datetime',
+            'fraud_checked_at' => 'datetime',
         ];
     }
 

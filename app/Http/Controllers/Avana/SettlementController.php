@@ -9,6 +9,7 @@ use App\Models\Settlement;
 use App\Models\SettlementAttachment;
 use App\Models\SettlementItem;
 use App\Models\User;
+use App\Services\SettlementFraudAnalyzer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -238,6 +239,10 @@ class SettlementController extends Controller
             return $settlement;
         });
 
+        if ($settlement->status === Settlement::STATUS_SUBMITTED) {
+            $this->screenForFraud($settlement);
+        }
+
         return redirect()->route('avana.settlement.show', $settlement)
             ->with('success', $settlement->status === Settlement::STATUS_SUBMITTED
                 ? 'Settlement diajukan untuk persetujuan'
@@ -284,6 +289,10 @@ class SettlementController extends Controller
             $settlement->recalculateTotals();
         });
 
+        if ($settlement->status === Settlement::STATUS_SUBMITTED) {
+            $this->screenForFraud($settlement);
+        }
+
         return redirect()->route('avana.settlement.show', $settlement)
             ->with('success', $settlement->status === Settlement::STATUS_SUBMITTED
                 ? 'Settlement diajukan untuk persetujuan'
@@ -325,7 +334,40 @@ class SettlementController extends Controller
             'rejected_at' => null,
         ]);
 
+        $this->screenForFraud($settlement);
+
         return back()->with('success', 'Settlement diajukan untuk persetujuan');
+    }
+
+    /**
+     * Re-run the tamper screening on a settlement that is under review.
+     */
+    public function rescan(Request $request, Settlement $settlement): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureTenantOwnership($request, $settlement);
+        $this->ensureStatusIs(
+            $settlement,
+            [Settlement::STATUS_SUBMITTED, Settlement::STATUS_MANAGER_APPROVED],
+            'Pemeriksaan keaslian hanya untuk settlement yang sedang diproses',
+        );
+
+        $this->screenForFraud($settlement);
+
+        return back()->with('success', 'Pemeriksaan keaslian bukti diperbarui');
+    }
+
+    /**
+     * Screen a settlement's documents for tampering. Wrapped so a screening
+     * failure never blocks submission or review.
+     */
+    private function screenForFraud(Settlement $settlement): void
+    {
+        try {
+            app(SettlementFraudAnalyzer::class)->analyzeSettlement($settlement);
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     /**
@@ -553,6 +595,8 @@ class SettlementController extends Controller
             $shaped['payment_reference'] = $settlement->payment_reference;
             $shaped['rejected_by'] = $settlement->rejecter?->name;
             $shaped['rejected_at'] = $settlement->rejected_at?->format('d M Y H:i');
+            $shaped['fraud_level'] = $settlement->fraud_level;
+            $shaped['fraud_checked_at'] = $settlement->fraud_checked_at?->format('d M Y H:i');
             $shaped['items'] = $settlement->items
                 ->map(fn (SettlementItem $item): array => [
                     'id' => $item->id,
@@ -576,11 +620,23 @@ class SettlementController extends Controller
     private function shapeAttachments(Settlement $settlement): array
     {
         return $settlement->attachments
-            ->map(fn (SettlementAttachment $attachment): array => [
-                'id' => $attachment->id,
-                'name' => $attachment->original_name ?? basename($attachment->path),
-                'url' => Storage::disk('public')->url($attachment->path),
-            ])
+            ->map(function (SettlementAttachment $attachment): array {
+                $analysis = $attachment->fraud_analysis ?? [];
+                $vision = $analysis['vision'] ?? [];
+
+                return [
+                    'id' => $attachment->id,
+                    'name' => $attachment->original_name ?? basename($attachment->path),
+                    'url' => Storage::disk('public')->url($attachment->path),
+                    'fraud_score' => $attachment->fraud_score,
+                    'fraud_level' => $attachment->fraud_level,
+                    'fraud_flags' => $attachment->fraud_flags ?? [],
+                    'extracted_amount' => isset($vision['amount']) ? (float) $vision['amount'] : null,
+                    'extracted_vendor' => $vision['vendor'] ?? null,
+                    'vision_summary' => $vision['summary'] ?? null,
+                    'analyzed_at' => $attachment->analyzed_at?->format('d M Y H:i'),
+                ];
+            })
             ->all();
     }
 

@@ -33,11 +33,25 @@ export interface SettlementItemRow {
     amount: number;
 }
 
+/** One fraud/tamper flag raised against an attachment. */
+export interface FraudFlag {
+    code: string;
+    label: string;
+    severity: 'low' | 'medium' | 'high';
+}
+
 /** One supporting document uploaded against a settlement. */
 export interface SettlementAttachmentRow {
     id: number;
     name: string;
     url: string;
+    fraud_score?: number | null;
+    fraud_level?: 'low' | 'medium' | 'high' | null;
+    fraud_flags?: FraudFlag[];
+    extracted_amount?: number | null;
+    extracted_vendor?: string | null;
+    vision_summary?: string | null;
+    analyzed_at?: string | null;
 }
 
 /** A settlement as shaped by `SettlementController@index`. */
@@ -73,6 +87,8 @@ export interface SettlementDetail extends SettlementRow {
     payment_reference: string | null;
     rejected_by: string | null;
     rejected_at: string | null;
+    fraud_level: 'low' | 'medium' | 'high' | null;
+    fraud_checked_at: string | null;
     items: SettlementItemRow[];
     attachments: SettlementAttachmentRow[];
 }

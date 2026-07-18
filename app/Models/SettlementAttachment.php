@@ -13,6 +13,18 @@ final class SettlementAttachment extends Model
 {
     protected $guarded = [];
 
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'fraud_flags' => 'array',
+            'fraud_analysis' => 'array',
+            'analyzed_at' => 'datetime',
+        ];
+    }
+
     public function scopeForTenant(Builder $query, int|string $tenantId): Builder
     {
         return $query->where('tenant_id', $tenantId);

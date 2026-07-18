@@ -292,6 +292,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('settlement/{settlement}/submit', [SettlementController::class, 'submit'])->name('settlement.submit');
     Route::post('settlement/{settlement}/manager-approve', [SettlementController::class, 'managerApprove'])->name('settlement.manager-approve');
     Route::post('settlement/{settlement}/finance-verify', [SettlementController::class, 'financeVerify'])->name('settlement.finance-verify');
+    Route::post('settlement/{settlement}/rescan', [SettlementController::class, 'rescan'])->name('settlement.rescan');
     Route::post('settlement/{settlement}/reject', [SettlementController::class, 'reject'])->name('settlement.reject');
 
     // Benefit management
