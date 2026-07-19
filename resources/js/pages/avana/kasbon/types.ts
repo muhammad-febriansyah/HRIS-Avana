@@ -32,6 +32,15 @@ export interface CashAdvanceRow {
     disbursement_method: string | null;
     disbursement_method_label: string | null;
     disbursement_reference: string | null;
+    /** Who released the money — they may not also sign off on the spend. */
+    disbursed_by: number | null;
+    settled_at: string | null;
+    settled_by_name: string | null;
+    spent_amount: number | null;
+    returned_amount: number;
+    topup_amount: number;
+    settlement_note: string | null;
+    settlement_receipt_url: string | null;
 }
 
 /** A selectable employee `{ id, name, employee_number }`. */
@@ -60,6 +69,7 @@ export interface KasbonKpis {
     approved: number;
     disbursed: number;
     outstanding_amount: number;
+    settled: number;
 }
 
 /** Props for the cash advance list page (`index.tsx`). */
@@ -73,6 +83,8 @@ export interface KasbonIndexProps {
     employees: EmployeeOption[];
     disbursementMethods: SelectOption[];
     kpis: KasbonKpis;
+    /** The viewer, for the four-eyes check on the settlement action. */
+    authUserId: number;
 }
 
 /** Props for the cash advance create page (`create.tsx`). */

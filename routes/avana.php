@@ -280,6 +280,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('kasbon/{cashAdvance}/approve', [CashAdvanceController::class, 'approve'])->name('kasbon.approve');
     Route::post('kasbon/{cashAdvance}/reject', [CashAdvanceController::class, 'reject'])->name('kasbon.reject');
     Route::post('kasbon/{cashAdvance}/disburse', [CashAdvanceController::class, 'disburse'])->name('kasbon.disburse');
+    Route::post('kasbon/{cashAdvance}/settle', [CashAdvanceController::class, 'settle'])->name('kasbon.settle');
 
     // Settlement — expense claim: submit, manager approve, Finance verify & pay
     Route::get('settlement', [SettlementController::class, 'index'])->name('settlement');

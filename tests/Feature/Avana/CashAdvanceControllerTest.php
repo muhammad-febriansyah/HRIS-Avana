@@ -6,6 +6,8 @@ use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 
 use function Pest\Laravel\actingAs;
@@ -288,4 +290,119 @@ it('forbids a plain employee from listing or creating cash advances', function (
             'request_date' => '2026-07-10',
         ])
         ->assertForbidden();
+});
+
+/**
+ * A disbursed advance, released by someone other than the acting admin so the
+ * four-eyes rule does not get in the way of what the test is actually checking.
+ */
+function disbursedAdvance(int $tenantId, float $amount = 2_000_000): CashAdvance
+{
+    $releaser = User::where('email', 'superadmin@avanahr.id')->firstOrFail();
+
+    return makeCashAdvance($tenantId, [
+        'amount' => $amount,
+        'status' => 'disbursed',
+        'approved_by' => $releaser->id,
+        'approved_at' => now()->subDays(2),
+        'disbursed_at' => now()->subDay(),
+        'disbursed_by' => $releaser->id,
+        'disbursement_method' => 'transfer',
+    ]);
+}
+
+it('settles an advance the employee underspent, leaving money to return', function (): void {
+    $advance = disbursedAdvance($this->tenant->id, 2_000_000);
+
+    actingAs($this->admin)
+        ->post(route('avana.kasbon.settle', $advance), [
+            'spent_amount' => 1_400_000,
+            'settlement_note' => 'Hotel lebih murah dari perkiraan',
+        ])
+        ->assertSessionHas('success');
+
+    $advance->refresh();
+
+    expect($advance->status)->toBe('settled')
+        ->and((float) $advance->spent_amount)->toBe(1_400_000.0)
+        ->and((float) $advance->returned_amount)->toBe(600_000.0)
+        ->and((float) $advance->topup_amount)->toBe(0.0)
+        ->and($advance->settled_by)->toBe($this->admin->id)
+        ->and($advance->settled_at)->not->toBeNull();
+});
+
+it('settles an advance the employee overspent, leaving a shortfall to pay', function (): void {
+    $advance = disbursedAdvance($this->tenant->id, 2_000_000);
+
+    actingAs($this->admin)
+        ->post(route('avana.kasbon.settle', $advance), ['spent_amount' => 2_350_000])
+        ->assertSessionHas('success');
+
+    $advance->refresh();
+
+    expect((float) $advance->returned_amount)->toBe(0.0)
+        ->and((float) $advance->topup_amount)->toBe(350_000.0);
+});
+
+it('leaves nothing owed either way when the advance was spent exactly', function (): void {
+    $advance = disbursedAdvance($this->tenant->id, 2_000_000);
+
+    actingAs($this->admin)
+        ->post(route('avana.kasbon.settle', $advance), ['spent_amount' => 2_000_000])
+        ->assertSessionHas('success');
+
+    $advance->refresh();
+
+    expect((float) $advance->returned_amount)->toBe(0.0)
+        ->and((float) $advance->topup_amount)->toBe(0.0);
+});
+
+it('stores the receipt proving what was spent', function (): void {
+    Storage::fake('public');
+
+    $advance = disbursedAdvance($this->tenant->id);
+
+    actingAs($this->admin)
+        ->post(route('avana.kasbon.settle', $advance), [
+            'spent_amount' => 1_000_000,
+            'receipt' => UploadedFile::fake()->image('kuitansi.jpg'),
+        ])
+        ->assertSessionHas('success');
+
+    $advance->refresh();
+
+    expect($advance->settlement_receipt_path)->not->toBeNull();
+    Storage::disk('public')->assertExists($advance->settlement_receipt_path);
+});
+
+it('blocks whoever released the money from signing off on it', function (): void {
+    $advance = makeCashAdvance($this->tenant->id, [
+        'status' => 'disbursed',
+        'disbursed_at' => now(),
+        'disbursed_by' => $this->admin->id,
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.kasbon.settle', $advance), ['spent_amount' => 1_000_000])
+        ->assertForbidden();
+
+    expect($advance->refresh()->status)->toBe('disbursed');
+});
+
+it('refuses to settle an advance that was never disbursed', function (): void {
+    $advance = makeCashAdvance($this->tenant->id, ['status' => 'approved']);
+
+    actingAs($this->admin)
+        ->post(route('avana.kasbon.settle', $advance), ['spent_amount' => 500_000])
+        ->assertStatus(422);
+
+    expect($advance->refresh()->status)->toBe('approved');
+});
+
+it('requires the amount actually spent', function (): void {
+    $advance = disbursedAdvance($this->tenant->id);
+
+    actingAs($this->admin)
+        ->post(route('avana.kasbon.settle', $advance), [])
+        ->assertSessionHasErrors('spent_amount');
 });

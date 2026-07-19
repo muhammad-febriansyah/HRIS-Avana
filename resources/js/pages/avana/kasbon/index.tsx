@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import CashAdvanceController from '@/actions/App/Http/Controllers/Avana/CashAdvanceController';
 import { ConfirmDialog } from '@/components/avana-ui/confirm-dialog';
+import { FileDropzone } from '@/components/avana-ui/file-dropzone';
 import { FormDialog } from '@/components/avana-ui/form-dialog';
-import { AIcon, ActionBtn, btnP, C, card, rp } from '@/lib/avana';
+import { AIcon, ActionBtn, btnP, C, card, rp, RupiahInput } from '@/lib/avana';
 import {
     Field,
     KpiCard,
@@ -42,22 +43,64 @@ interface DisburseForm {
     [key: string]: string;
 }
 
+interface SettleForm {
+    spent_amount: string;
+    settlement_note: string;
+    receipt: File | null;
+    [key: string]: string | File | null;
+}
+
 export default function KasbonIndex({
     requests,
     filters,
     disbursementMethods,
     kpis,
+    authUserId,
 }: KasbonIndexProps) {
     const { flash } = usePage<FlashProps>().props;
     const meta = requests.meta;
 
     const [disbursing, setDisbursing] = useState<CashAdvanceRow | null>(null);
+    const [settling, setSettling] = useState<CashAdvanceRow | null>(null);
     const [deleting, setDeleting] = useState<CashAdvanceRow | null>(null);
 
     const disburseForm = useForm<DisburseForm>({
         disbursement_method: disbursementMethods[0]?.value ?? 'transfer',
         disbursement_reference: '',
     });
+
+    const settleForm = useForm<SettleForm>({
+        spent_amount: '',
+        settlement_note: '',
+        receipt: null,
+    });
+
+    /** What still has to move once the spend is known. */
+    const settlementSplit = (() => {
+        const advanced = settling?.amount ?? 0;
+        const spent = Number(settleForm.data.spent_amount) || 0;
+        const difference = Math.round((advanced - spent) * 100) / 100;
+
+        return {
+            returned: Math.max(difference, 0),
+            topup: Math.max(-difference, 0),
+        };
+    })();
+
+    const submitSettlement = () => {
+        if (!settling) {
+            return;
+        }
+
+        settleForm.post(CashAdvanceController.settle(settling.id).url, {
+            preserveScroll: true,
+            forceFormData: true,
+            onSuccess: () => {
+                setSettling(null);
+                settleForm.reset();
+            },
+        });
+    };
 
     useEffect(() => {
         if (flash?.success) {
@@ -519,6 +562,40 @@ export default function KasbonIndex({
                                                         }
                                                     />
                                                 )}
+                                                {row.status === 'disbursed' &&
+                                                    (row.disbursed_by ===
+                                                    authUserId ? (
+                                                        <span
+                                                            title="Anda yang mencairkan uang muka ini — pertanggungjawaban harus diperiksa orang lain."
+                                                            style={{
+                                                                display:
+                                                                    'inline-flex',
+                                                                alignItems:
+                                                                    'center',
+                                                                gap: 5,
+                                                                fontSize: 12,
+                                                                color: C.faint,
+                                                                whiteSpace:
+                                                                    'nowrap',
+                                                            }}
+                                                        >
+                                                            <AIcon
+                                                                name="user-x"
+                                                                size={14}
+                                                                color={C.faint}
+                                                            />
+                                                            Menunggu orang lain
+                                                        </span>
+                                                    ) : (
+                                                        <ActionBtn
+                                                            icon="clipboard-check"
+                                                            label="Pertanggungjawabkan"
+                                                            variant="primary"
+                                                            onClick={() =>
+                                                                setSettling(row)
+                                                            }
+                                                        />
+                                                    ))}
                                                 {row.status === 'rejected' && (
                                                     <span
                                                         style={{
@@ -681,6 +758,109 @@ export default function KasbonIndex({
                             )
                         }
                         style={textInputStyle}
+                    />
+                </Field>
+            </FormDialog>
+
+            <FormDialog
+                open={settling !== null}
+                onOpenChange={(open) => !open && setSettling(null)}
+                title="Pertanggungjawaban Uang Muka"
+                description={
+                    settling
+                        ? `Uang muka ${rp(settling.amount)} untuk ${settling.employee?.name ?? 'karyawan'}`
+                        : undefined
+                }
+                submitLabel="Simpan Pertanggungjawaban"
+                onSubmit={submitSettlement}
+                processing={settleForm.processing}
+            >
+                <Field
+                    label="Jumlah Terpakai"
+                    required
+                    error={settleForm.errors.spent_amount}
+                >
+                    <RupiahInput
+                        value={settleForm.data.spent_amount}
+                        onChange={(raw) =>
+                            settleForm.setData('spent_amount', raw)
+                        }
+                        invalid={!!settleForm.errors.spent_amount}
+                    />
+                </Field>
+
+                {settleForm.data.spent_amount !== '' && (
+                    <div
+                        style={{
+                            background:
+                                settlementSplit.topup > 0
+                                    ? '#FFF7ED'
+                                    : '#F0FDF4',
+                            borderLeft: `3px solid ${
+                                settlementSplit.topup > 0 ? C.amber : C.green
+                            }`,
+                            borderRadius: 8,
+                            padding: '11px 13px',
+                            fontSize: 12.5,
+                            lineHeight: 1.55,
+                            color:
+                                settlementSplit.topup > 0
+                                    ? '#9A3412'
+                                    : '#166534',
+                        }}
+                    >
+                        {settlementSplit.returned > 0 && (
+                            <>
+                                Sisa{' '}
+                                <strong>{rp(settlementSplit.returned)}</strong>{' '}
+                                harus dikembalikan karyawan.
+                            </>
+                        )}
+                        {settlementSplit.topup > 0 && (
+                            <>
+                                Kekurangan{' '}
+                                <strong>{rp(settlementSplit.topup)}</strong>{' '}
+                                harus dibayarkan ke karyawan.
+                            </>
+                        )}
+                        {settlementSplit.returned === 0 &&
+                            settlementSplit.topup === 0 &&
+                            'Uang muka terpakai pas — tidak ada sisa maupun kekurangan.'}
+                    </div>
+                )}
+
+                <Field
+                    label="Bukti Pengeluaran"
+                    error={settleForm.errors.receipt}
+                >
+                    <FileDropzone
+                        files={
+                            settleForm.data.receipt
+                                ? [settleForm.data.receipt]
+                                : []
+                        }
+                        onChange={(files) =>
+                            settleForm.setData('receipt', files[0] ?? null)
+                        }
+                        label="Seret kuitansi ke sini"
+                    />
+                </Field>
+
+                <Field
+                    label="Catatan"
+                    error={settleForm.errors.settlement_note}
+                >
+                    <textarea
+                        rows={2}
+                        placeholder="Rincian singkat penggunaan dana…"
+                        value={settleForm.data.settlement_note}
+                        onChange={(event) =>
+                            settleForm.setData(
+                                'settlement_note',
+                                event.target.value,
+                            )
+                        }
+                        style={{ ...textInputStyle, resize: 'vertical' }}
                     />
                 </Field>
             </FormDialog>

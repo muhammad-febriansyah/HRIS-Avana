@@ -11,14 +11,16 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
  * Operational cash advances: an employee asks for a float up front, a manager
- * approves it, Finance disburses it, and it is later accounted for through a
- * {@see Settlement}. Nothing here touches payroll — salary-deducted
- * lending lives in {@see LoanController}.
+ * approves it, Finance disburses it, and the employee later accounts for what
+ * they actually spent — returning what is left over, or being paid the
+ * shortfall. Nothing here touches payroll: salary-deducted lending lives in
+ * {@see LoanController}, and a standalone expense claim is a {@see Settlement}.
  */
 class CashAdvanceController extends Controller
 {
@@ -73,7 +75,7 @@ class CashAdvanceController extends Controller
 
         $paginator = CashAdvance::query()
             ->forTenant($tenantId)
-            ->with(['employee:id,full_name,employee_number'])
+            ->with(['employee:id,full_name,employee_number', 'settledBy:id,name'])
             ->when($request->query('search'), function ($query, $search): void {
                 $query->whereHas('employee', function ($q) use ($search): void {
                     $q->where('full_name', 'like', "%{$search}%")
@@ -112,11 +114,14 @@ class CashAdvanceController extends Controller
             'filters' => $request->only(['search', 'status', 'per_page']),
             'employees' => $this->employeeOptions($tenantId),
             'disbursementMethods' => $this->disbursementMethodOptions(),
+            // Whoever released the money may not sign off on how it was spent.
+            'authUserId' => (int) $request->user()->id,
             'kpis' => [
                 'pending' => (int) ($totals['pending']->total ?? 0),
                 'approved' => (int) ($totals['approved']->total ?? 0),
                 'disbursed' => (int) ($totals['disbursed']->total ?? 0),
                 'outstanding_amount' => (float) ($totals['disbursed']->amount ?? 0),
+                'settled' => (int) ($totals['settled']->total ?? 0),
             ],
         ]);
     }
@@ -281,6 +286,74 @@ class CashAdvanceController extends Controller
     }
 
     /**
+     * Account for a disbursed advance: what was actually spent, the receipt
+     * proving it, and which way the difference goes.
+     *
+     * Whoever released the money may not also sign off on how it was spent —
+     * the same four-eyes rule the settlement and reimbursement payouts carry.
+     */
+    public function settle(Request $request, CashAdvance $cashAdvance): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureTenantOwnership($request, $cashAdvance);
+        $this->ensureStatusIs($cashAdvance, ['disbursed'], 'Hanya uang muka yang sudah dicairkan yang bisa dipertanggungjawabkan');
+
+        abort_if(
+            (int) $cashAdvance->disbursed_by === (int) $request->user()->id,
+            403,
+            'Anda yang mencairkan uang muka ini. Pertanggungjawaban harus diperiksa orang lain.',
+        );
+
+        $data = $request->validate([
+            'spent_amount' => ['required', 'numeric', 'min:0'],
+            'settlement_note' => ['nullable', 'string', 'max:1000'],
+            'receipt' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
+        ]);
+
+        $split = CashAdvance::reconcile(
+            (float) $cashAdvance->amount,
+            (float) $data['spent_amount'],
+        );
+
+        $cashAdvance->update([
+            'status' => 'settled',
+            'settled_at' => now(),
+            'settled_by' => $request->user()->id,
+            'spent_amount' => round((float) $data['spent_amount'], 2),
+            'returned_amount' => $split['returned'],
+            'topup_amount' => $split['topup'],
+            'settlement_note' => $data['settlement_note'] ?? null,
+            'settlement_receipt_path' => $request->hasFile('receipt')
+                ? $request->file('receipt')->store('cash-advances', 'public')
+                : $cashAdvance->settlement_receipt_path,
+        ]);
+
+        return back()->with('success', $this->settlementMessage($split));
+    }
+
+    /**
+     * Tell the user which way the money still has to move, if at all.
+     *
+     * @param  array{returned: float, topup: float}  $split
+     */
+    private function settlementMessage(array $split): string
+    {
+        if ($split['returned'] > 0) {
+            return 'Dipertanggungjawabkan. Sisa Rp '
+                .number_format($split['returned'], 0, ',', '.')
+                .' harus dikembalikan karyawan.';
+        }
+
+        if ($split['topup'] > 0) {
+            return 'Dipertanggungjawabkan. Kekurangan Rp '
+                .number_format($split['topup'], 0, ',', '.')
+                .' harus dibayarkan ke karyawan.';
+        }
+
+        return 'Dipertanggungjawabkan. Uang muka terpakai pas, tidak ada sisa.';
+    }
+
+    /**
      * Validate the create/update payload for a cash advance.
      *
      * @return array<string, mixed>
@@ -354,6 +427,16 @@ class CashAdvanceController extends Controller
                 ? null
                 : (self::DISBURSEMENT_METHODS[$advance->disbursement_method] ?? $advance->disbursement_method),
             'disbursement_reference' => $advance->disbursement_reference,
+            'disbursed_by' => $advance->disbursed_by,
+            'settled_at' => $advance->settled_at?->format('d M Y'),
+            'settled_by_name' => $advance->settledBy?->name,
+            'spent_amount' => $advance->spent_amount === null ? null : (float) $advance->spent_amount,
+            'returned_amount' => (float) $advance->returned_amount,
+            'topup_amount' => (float) $advance->topup_amount,
+            'settlement_note' => $advance->settlement_note,
+            'settlement_receipt_url' => $advance->settlement_receipt_path === null
+                ? null
+                : Storage::disk('public')->url($advance->settlement_receipt_path),
         ];
     }
 

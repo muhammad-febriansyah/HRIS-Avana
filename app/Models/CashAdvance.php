@@ -21,11 +21,32 @@ final class CashAdvance extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'spent_amount' => 'decimal:2',
+            'returned_amount' => 'decimal:2',
+            'topup_amount' => 'decimal:2',
             'request_date' => 'date',
             'needed_date' => 'date',
             'approved_at' => 'datetime',
             'disbursed_at' => 'datetime',
             'settled_at' => 'datetime',
+        ];
+    }
+
+    /**
+     * Split what was actually spent against what was handed over.
+     *
+     * Spending less leaves money to return; spending more leaves the company
+     * owing the difference. Exactly one of the two is ever non-zero.
+     *
+     * @return array{returned: float, topup: float}
+     */
+    public static function reconcile(float $advanced, float $spent): array
+    {
+        $difference = round($advanced - $spent, 2);
+
+        return [
+            'returned' => max($difference, 0),
+            'topup' => max(-$difference, 0),
         ];
     }
 
@@ -52,5 +73,10 @@ final class CashAdvance extends Model
     public function disbursedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'disbursed_by');
+    }
+
+    public function settledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'settled_by');
     }
 }
