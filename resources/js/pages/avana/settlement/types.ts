@@ -79,6 +79,8 @@ export interface SettlementDetail extends SettlementRow {
     trip_start_date: string | null;
     trip_end_date: string | null;
     trip_days: number | null;
+    destination_latitude: number | null;
+    destination_longitude: number | null;
     bank_name: string | null;
     bank_account_number: string | null;
     bank_account_holder: string | null;

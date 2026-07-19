@@ -656,6 +656,12 @@ class SettlementController extends Controller
             $shaped['trip_start_date'] = $settlement->trip_start_date?->format('d M Y');
             $shaped['trip_end_date'] = $settlement->trip_end_date?->format('d M Y');
             $shaped['trip_days'] = $settlement->tripDays();
+            $shaped['destination_latitude'] = $settlement->destination_latitude !== null
+                ? (float) $settlement->destination_latitude
+                : null;
+            $shaped['destination_longitude'] = $settlement->destination_longitude !== null
+                ? (float) $settlement->destination_longitude
+                : null;
             $shaped['items'] = $settlement->items
                 ->map(fn (SettlementItem $item): array => [
                     'id' => $item->id,

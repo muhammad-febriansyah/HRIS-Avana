@@ -2,6 +2,7 @@ import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import SettlementController from '@/actions/App/Http/Controllers/Avana/SettlementController';
+import { LocationMap } from '@/components/map/location-map';
 import { AIcon, btnOut, btnP, C, card, rp } from '@/lib/avana';
 import { Field, selectStyle, StatusPill, textareaStyle } from './components';
 import type {
@@ -263,22 +264,45 @@ export default function SettlementShow({
                                     />
                                     Informasi Perjalanan
                                 </div>
-                                <div
-                                    style={{
-                                        padding: 20,
-                                        display: 'grid',
-                                        gridTemplateColumns: '1fr 1fr',
-                                        gap: 18,
-                                    }}
-                                >
-                                    <SummaryFact
-                                        label="Tujuan"
-                                        value={settlement.destination ?? '—'}
-                                    />
-                                    <SummaryFact
-                                        label="Durasi"
-                                        value={tripDuration(settlement)}
-                                    />
+                                <div style={{ padding: 20 }}>
+                                    {settlement.destination_latitude !==
+                                        null &&
+                                        settlement.destination_longitude !==
+                                            null && (
+                                            <div style={{ marginBottom: 18 }}>
+                                                <LocationMap
+                                                    height={200}
+                                                    zoom={12}
+                                                    points={[
+                                                        {
+                                                            lat: settlement.destination_latitude,
+                                                            lng: settlement.destination_longitude,
+                                                            label:
+                                                                settlement.destination ??
+                                                                'Tujuan perjalanan',
+                                                        },
+                                                    ]}
+                                                />
+                                            </div>
+                                        )}
+                                    <div
+                                        style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: '1fr 1fr',
+                                            gap: 18,
+                                        }}
+                                    >
+                                        <SummaryFact
+                                            label="Tujuan"
+                                            value={
+                                                settlement.destination ?? '—'
+                                            }
+                                        />
+                                        <SummaryFact
+                                            label="Durasi"
+                                            value={tripDuration(settlement)}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         )}
