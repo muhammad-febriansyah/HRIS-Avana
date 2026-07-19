@@ -1,7 +1,7 @@
 <?php
 
-use App\Models\Claim;
 use App\Models\Notification;
+use App\Models\Reimbursement;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
 
@@ -24,13 +24,14 @@ beforeEach(function (): void {
         return $this->withHeader('Authorization', 'Bearer '.$token);
     };
 
-    $this->claim = Claim::create([
+    $this->claim = Reimbursement::create([
         'tenant_id' => $this->claimant->tenant_id,
         'employee_id' => $this->claimant->id,
-        'claim_type' => 'transport',
+        'number' => 'RMB-TEST-0001',
+        'category' => 'transportasi',
         'title' => 'Taksi bandara',
         'amount' => 250000,
-        'claim_date' => now()->toDateString(),
+        'expense_date' => now()->toDateString(),
         'status' => 'approved',
         'approved_at' => now(),
     ]);

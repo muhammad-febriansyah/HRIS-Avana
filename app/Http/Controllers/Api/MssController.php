@@ -6,12 +6,12 @@ use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
-use App\Models\Claim;
 use App\Models\Employee;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
+use App\Models\Reimbursement;
 use App\Models\Settlement;
 use App\Models\Shift;
 use App\Models\ShiftSchedule;
@@ -46,7 +46,7 @@ class MssController extends Controller
         'izin' => PermissionRequest::class,
         'wfh' => WfhRequest::class,
         'koreksi' => AttendanceCorrection::class,
-        'reimburse' => Claim::class,
+        'reimburse' => Reimbursement::class,
         'settlement' => Settlement::class,
     ];
 
@@ -607,7 +607,7 @@ class MssController extends Controller
             return;
         }
 
-        if ($model instanceof Claim) {
+        if ($model instanceof Reimbursement) {
             $model->update([
                 'approver_id' => $manager->user_id,
                 'approved_at' => $approved ? now() : null,

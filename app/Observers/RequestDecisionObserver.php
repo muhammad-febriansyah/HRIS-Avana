@@ -2,7 +2,7 @@
 
 namespace App\Observers;
 
-use App\Models\Claim;
+use App\Models\Reimbursement;
 use App\Support\Notifier;
 use Illuminate\Database\Eloquent\Model;
 
@@ -32,7 +32,7 @@ class RequestDecisionObserver
         }
 
         // A reimbursement moving on to paid closes the loop for the employee.
-        if ($request instanceof Claim && $request->status === 'paid') {
+        if ($request instanceof Reimbursement && $request->status === 'paid') {
             Notifier::reimbursementPaid($request);
         }
     }

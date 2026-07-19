@@ -1,11 +1,11 @@
 <?php
 
-use App\Models\Claim;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
+use App\Models\Reimbursement;
 use App\Models\Settlement;
 use App\Models\Shift;
 use App\Models\ShiftSchedule;
@@ -261,15 +261,16 @@ it('reports is_manager on the profile', function (): void {
         ->assertJsonPath('data.is_manager', true);
 });
 
-function mssPendingClaim(object $test): Claim
+function mssPendingClaim(object $test): Reimbursement
 {
-    return Claim::create([
+    return Reimbursement::create([
         'tenant_id' => $test->manager->tenant_id,
         'employee_id' => $test->sub->id,
-        'claim_type' => 'transport',
+        'number' => 'RMB-MSS-'.fake()->unique()->numberBetween(1000, 9999),
+        'category' => 'transportasi',
         'title' => 'Transport klien',
         'amount' => 250000,
-        'claim_date' => '2026-07-08',
+        'expense_date' => '2026-07-08',
         'description' => 'Taksi ke kantor klien',
         'current_approver_id' => $test->manager->id,
         'status' => 'pending',

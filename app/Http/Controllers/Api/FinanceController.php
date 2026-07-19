@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Claim;
+use App\Models\Reimbursement;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -34,20 +34,21 @@ class FinanceController extends Controller
 
         $status = $data['status'] ?? 'approved';
 
-        $claims = Claim::forTenant($user->tenant_id)
+        $claims = Reimbursement::forTenant($user->tenant_id)
             ->when($status !== 'all', fn ($query) => $query->where('status', $status))
             ->with('employee:id,full_name,employee_number')
             ->orderByDesc('approved_at')
             ->orderByDesc('id')
             ->limit(200)
             ->get()
-            ->map(fn (Claim $claim): array => [
+            ->map(fn (Reimbursement $claim): array => [
                 'id' => $claim->id,
+                'number' => $claim->number,
                 'title' => $claim->title,
-                'category' => $claim->claim_type,
+                'category' => $claim->category,
                 'amount' => (int) round((float) $claim->amount),
                 'status' => $claim->status,
-                'claim_date' => $claim->claim_date?->toDateString(),
+                'claim_date' => $claim->expense_date?->toDateString(),
                 'approved_at' => $claim->approved_at?->toIso8601String(),
                 'paid_at' => $claim->paid_at?->toIso8601String(),
                 'employee' => $claim->employee !== null ? [
@@ -60,12 +61,19 @@ class FinanceController extends Controller
     }
 
     /** Pay out an approved reimbursement claim. */
-    public function payReimbursement(Request $request, Claim $claim): JsonResponse
+    public function payReimbursement(Request $request, Reimbursement $claim): JsonResponse
     {
         $user = $this->ensureFinance($request);
 
         abort_if((int) $claim->tenant_id !== (int) $user->tenant_id, 404);
         abort_unless($claim->status === 'approved', 422, 'Hanya klaim yang sudah disetujui yang dapat dibayar.');
+
+        // Four eyes on money leaving the company, as everywhere else.
+        abort_if(
+            (int) $claim->approver_id === (int) $user->id,
+            403,
+            'Anda yang menyetujui reimbursement ini. Pembayaran harus dilakukan orang lain.',
+        );
 
         $claim->update([
             'status' => 'paid',

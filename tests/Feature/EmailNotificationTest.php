@@ -2,9 +2,9 @@
 
 use App\Jobs\SendBrandedNotificationJob;
 use App\Mail\BrandedNotification;
-use App\Models\Claim;
 use App\Models\Company;
 use App\Models\Employee;
+use App\Models\Reimbursement;
 use App\Models\Tenant;
 use App\Models\WebsiteSetting;
 use App\Support\MailBranding;
@@ -111,7 +111,7 @@ it('queues a branded email to the employee when a reimbursement is paid', functi
         'status' => 'active',
     ]);
 
-    $claim = Claim::factory()->create([
+    $claim = Reimbursement::factory()->create([
         'tenant_id' => $tenant->id,
         'employee_id' => $employee->id,
         'title' => 'Berobat',
@@ -137,7 +137,7 @@ it('does not queue an email when the employee has no email address', function ()
         'status' => 'active',
     ]);
 
-    $claim = Claim::factory()->create([
+    $claim = Reimbursement::factory()->create([
         'tenant_id' => $tenant->id,
         'employee_id' => $employee->id,
         'status' => 'paid',

@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\LeaveType;
 use App\Models\MoodCheckin;
 use App\Models\Notification;
+use App\Models\Reimbursement;
 use App\Models\User;
 use App\Models\WorkLocation;
 use Database\Seeders\AvanaDemoSeeder;
@@ -197,11 +198,23 @@ it('rejects a clock time on a multi-day izin', function (): void {
     ])->assertStatus(422)->assertJsonValidationErrors('start_time');
 });
 
-it('submits a reimbursement', function (): void {
+it('submits a reimbursement, numbered and routed to the line manager', function (): void {
     ($this->auth)()->postJson('/api/v1/me/reimbursements', [
-        'category' => 'transport', 'amount' => 85000,
+        'category' => 'transportasi', 'amount' => 85000,
         'receipt' => UploadedFile::fake()->image('receipt.jpg'),
     ])->assertCreated();
+
+    $filed = Reimbursement::latest('id')->firstOrFail();
+
+    expect($filed->number)->toStartWith('RMB-')
+        ->and($filed->status)->toBe('pending')
+        ->and($filed->category)->toBe('transportasi');
+});
+
+it('rejects a reimbursement category the module does not use', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/reimbursements', [
+        'category' => 'transport', 'amount' => 85000,
+    ])->assertJsonValidationErrors('category');
 });
 
 it('lists payslips and notifications with the expected envelope', function (): void {

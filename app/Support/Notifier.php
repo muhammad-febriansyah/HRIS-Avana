@@ -6,7 +6,6 @@ use App\Jobs\SendBrandedNotificationJob;
 use App\Mail\BrandedNotification;
 use App\Models\Announcement;
 use App\Models\AttendanceCorrection;
-use App\Models\Claim;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\Notification;
@@ -14,6 +13,7 @@ use App\Models\OvertimeRequest;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
 use App\Models\PermissionRequest;
+use App\Models\Reimbursement;
 use App\Models\WfhRequest;
 use Illuminate\Database\Eloquent\Model;
 
@@ -39,7 +39,7 @@ final class Notifier
         PermissionRequest::class => ['type' => 'izin', 'label' => 'Izin'],
         WfhRequest::class => ['type' => 'wfh', 'label' => 'WFH'],
         AttendanceCorrection::class => ['type' => 'koreksi', 'label' => 'Koreksi Absen'],
-        Claim::class => ['type' => 'reimburse', 'label' => 'Reimbursement'],
+        Reimbursement::class => ['type' => 'reimburse', 'label' => 'Reimbursement'],
     ];
 
     /**
@@ -113,7 +113,7 @@ final class Notifier
     }
 
     /** Notify the employee that their reimbursement claim has been paid out. */
-    public static function reimbursementPaid(Claim $claim): void
+    public static function reimbursementPaid(Reimbursement $claim): void
     {
         $amount = 'Rp '.number_format((float) $claim->amount, 0, ',', '.');
         $userId = self::userIdFor($claim->employee_id);

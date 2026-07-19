@@ -4,7 +4,6 @@ namespace App\Providers;
 
 use App\Models\Announcement;
 use App\Models\AttendanceCorrection;
-use App\Models\Claim;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
@@ -12,6 +11,7 @@ use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PermissionRequest;
 use App\Models\PositionPayrollComponent;
+use App\Models\Reimbursement;
 use App\Models\WebsiteSetting;
 use App\Models\WfhRequest;
 use App\Observers\AnnouncementObserver;
@@ -61,7 +61,7 @@ class AppServiceProvider extends ServiceProvider
             PermissionRequest::class,
             WfhRequest::class,
             AttendanceCorrection::class,
-            Claim::class,
+            Reimbursement::class,
         ] as $requestModel) {
             $requestModel::observe(RequestDecisionObserver::class);
         }

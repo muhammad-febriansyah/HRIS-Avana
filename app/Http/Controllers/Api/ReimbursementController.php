@@ -4,12 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
-use App\Models\Claim;
+use App\Models\Reimbursement;
+use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
-/** Employee self-service reimbursement (backed by the Claim model). */
+/** Employee self-service reimbursement: money already spent, claimed back. */
 class ReimbursementController extends Controller
 {
     use ResolvesApiEmployee;
@@ -18,19 +19,23 @@ class ReimbursementController extends Controller
     {
         $employee = $this->currentEmployee($request);
 
-        $data = Claim::forTenant($employee->tenant_id)
+        $data = Reimbursement::forTenant($employee->tenant_id)
             ->where('employee_id', $employee->id)
-            ->orderByDesc('claim_date')
-            ->get(['id', 'claim_type', 'title', 'amount', 'claim_date', 'status', 'approved_at', 'paid_at'])
-            ->map(fn (Claim $c): array => [
-                'id' => $c->id,
-                'category' => $c->claim_type,
-                'title' => $c->title,
-                'amount' => (int) round((float) $c->amount),
-                'date' => $c->claim_date instanceof Carbon ? $c->claim_date->toDateString() : $c->claim_date,
-                'status' => $c->status,
-                'approved_at' => $c->approved_at?->toIso8601String(),
-                'paid_at' => $c->paid_at?->toIso8601String(),
+            ->orderByDesc('expense_date')
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (Reimbursement $r): array => [
+                'id' => $r->id,
+                'number' => $r->number,
+                'category' => $r->category,
+                'category_label' => $r->categoryLabel(),
+                'title' => $r->title,
+                'amount' => (int) round((float) $r->amount),
+                'date' => self::dateString($r->expense_date),
+                'status' => $r->status,
+                'approved_at' => $r->approved_at?->toIso8601String(),
+                'paid_at' => $r->paid_at?->toIso8601String(),
+                'rejection_reason' => $r->rejection_reason,
             ]);
 
         return response()->json(['data' => $data]);
@@ -41,25 +46,59 @@ class ReimbursementController extends Controller
         $employee = $this->currentEmployee($request);
 
         $data = $request->validate([
-            'category' => ['required', 'string', 'max:50'],
-            'amount' => ['required', 'numeric', 'min:0'],
+            'category' => ['required', 'in:'.implode(',', array_keys(Reimbursement::CATEGORIES))],
+            'title' => ['nullable', 'string', 'max:255'],
+            'amount' => ['required', 'numeric', 'min:1'],
+            'expense_date' => ['nullable', 'date', 'before_or_equal:today'],
             'description' => ['nullable', 'string', 'max:1000'],
             'receipt' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:4096'],
         ]);
 
-        $claim = Claim::create([
+        $reimbursement = Reimbursement::create([
             'tenant_id' => $employee->tenant_id,
             'employee_id' => $employee->id,
-            'claim_type' => $data['category'],
-            'title' => $data['category'],
-            'amount' => $data['amount'],
-            'claim_date' => now()->toDateString(),
-            'description' => $data['description'] ?? null,
-            'receipt_path' => $request->hasFile('receipt') ? $request->file('receipt')->store('claims', 'public') : null,
             'current_approver_id' => $employee->manager_id,
+            'number' => $this->nextNumber($employee->tenant_id),
+            'category' => $data['category'],
+            'title' => $data['title'] ?? (Reimbursement::CATEGORIES[$data['category']] ?? $data['category']),
+            'amount' => round((float) $data['amount'], 2),
+            'expense_date' => $data['expense_date'] ?? now()->toDateString(),
+            'description' => $data['description'] ?? null,
+            'receipt_path' => $request->hasFile('receipt')
+                ? $request->file('receipt')->store('reimbursements', 'public')
+                : null,
             'status' => 'pending',
         ]);
 
-        return response()->json(['message' => 'Reimbursement terkirim', 'data' => ['id' => $claim->id]], 201);
+        return response()->json([
+            'message' => 'Reimbursement terkirim',
+            'data' => ['id' => $reimbursement->id, 'number' => $reimbursement->number],
+        ], 201);
+    }
+
+    /**
+     * Allocate the next per-tenant reimbursement number (RMB-YYYYMM-0001),
+     * mirroring the web module so both sides stay in one sequence.
+     */
+    private function nextNumber(int $tenantId): string
+    {
+        $prefix = 'RMB-'.now()->format('Ym').'-';
+
+        return DB::transaction(function () use ($tenantId, $prefix): string {
+            $last = Reimbursement::forTenant($tenantId)
+                ->where('number', 'like', $prefix.'%')
+                ->lockForUpdate()
+                ->orderByDesc('number')
+                ->value('number');
+
+            $sequence = $last === null ? 1 : ((int) substr($last, -4)) + 1;
+
+            return $prefix.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
+        });
+    }
+
+    private static function dateString(mixed $date): ?string
+    {
+        return $date instanceof DateTimeInterface ? $date->format('Y-m-d') : $date;
     }
 }
