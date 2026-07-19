@@ -89,7 +89,10 @@ final class AvanaNav
                 self::parent('finance', 'Finance', 'receipt', [
                     self::leaf('reimbursement', 'Reimbursement', 'receipt', '/avana/reimbursement', 'reimbursement', ['claim']),
                     self::leaf('kasbon', 'Cash Advance', 'hand-coins', '/avana/kasbon', 'cash_advance', ['payroll']),
-                    self::leaf('settlement', 'Settlement', 'file-check', '/avana/settlement', 'cash_advance', ['claim']),
+                    // `team` too: a line manager reviews their own reports'
+                    // settlements, and their permissions all live under that
+                    // module (team.claim.approve).
+                    self::leaf('settlement', 'Settlement', 'file-check', '/avana/settlement', 'cash_advance', ['claim', 'team']),
                 ]),
                 self::parent('benefit-grp', 'Benefit & Klaim', 'gift', [
                     self::leaf('benefit', 'Benefit', 'gift', '/avana/benefit', 'hr_core', ['employee']),

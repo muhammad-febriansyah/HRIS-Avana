@@ -16,6 +16,8 @@ type StepState = 'done' | 'current' | 'pending';
 export default function SettlementShow({
     settlement,
     paymentMethods,
+    selfApproved,
+    canManage,
 }: SettlementShowProps) {
     const { flash } = usePage<FlashProps>().props;
     const [rejecting, setRejecting] = useState(false);
@@ -93,7 +95,7 @@ export default function SettlementShow({
                             gap: 10,
                         }}
                     >
-                        {isDraft && (
+                        {isDraft && canManage && (
                             <>
                                 <Link
                                     href={
@@ -538,8 +540,36 @@ export default function SettlementShow({
                             </ActionCard>
                         )}
 
-                        {settlement.status === 'manager_approved' && (
+                        {settlement.status === 'manager_approved' && canManage && (
                             <ActionCard title="Verifikasi Finance">
+                                {selfApproved ? (
+                                    <div
+                                        style={{
+                                            background: '#FFFBEB',
+                                            border: `1px solid ${C.amber}55`,
+                                            borderRadius: 8,
+                                            padding: '12px 13px',
+                                            fontSize: 12.5,
+                                            color: '#92400E',
+                                            display: 'flex',
+                                            gap: 9,
+                                            lineHeight: 1.55,
+                                        }}
+                                    >
+                                        <AIcon
+                                            name="user-x"
+                                            size={16}
+                                            color={C.amber}
+                                        />
+                                        <span>
+                                            Anda yang menyetujui settlement ini
+                                            sebagai manager. Verifikasi &amp;
+                                            pembayaran harus dilakukan orang
+                                            lain.
+                                        </span>
+                                    </div>
+                                ) : (
+                                  <>
                                 <p style={helpText}>
                                     Verifikasi akan memicu pembayaran ke
                                     rekening karyawan. Tindakan ini final.
@@ -663,6 +693,8 @@ export default function SettlementShow({
                                     />
                                     Verifikasi &amp; Bayar
                                 </button>
+                                  </>
+                                )}
                                 <RejectAction
                                     open={rejecting}
                                     setOpen={setRejecting}

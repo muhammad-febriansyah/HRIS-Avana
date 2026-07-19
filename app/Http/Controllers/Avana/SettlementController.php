@@ -70,12 +70,17 @@ class SettlementController extends Controller
      */
     public function index(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $isManager = $this->canManage($request);
+
+        abort_unless($isManager || $this->isTeamApprover($request), 403);
 
         $tenantId = $request->user()->tenant_id;
+        // A line manager sees only what is sitting in their own queue.
+        $teamOnly = $isManager ? null : $request->user()->employee?->id;
 
         $paginator = Settlement::query()
             ->forTenant($tenantId)
+            ->when($teamOnly !== null, fn ($q) => $q->where('current_approver_id', $teamOnly))
             ->with(['employee:id,full_name,employee_number'])
             ->when($request->query('search'), function ($query, $search): void {
                 $query->where(function ($q) use ($search): void {
@@ -93,6 +98,7 @@ class SettlementController extends Controller
             ->withQueryString();
 
         $totals = Settlement::forTenant($tenantId)
+            ->when($teamOnly !== null, fn ($q) => $q->where('current_approver_id', $teamOnly))
             ->selectRaw('status, COUNT(*) as total, SUM(total) as amount')
             ->groupBy('status')
             ->get()
@@ -118,6 +124,8 @@ class SettlementController extends Controller
             ],
             'filters' => $request->only(['search', 'status', 'per_page']),
             'statusOptions' => $this->statusOptions(),
+            // A line manager only reviews; filing and editing stay with HR.
+            'canManage' => $isManager,
             'kpis' => [
                 'submitted' => (int) ($totals[Settlement::STATUS_SUBMITTED]->total ?? 0),
                 'manager_approved' => (int) ($totals[Settlement::STATUS_MANAGER_APPROVED]->total ?? 0),
@@ -187,8 +195,8 @@ class SettlementController extends Controller
      */
     public function show(Request $request, Settlement $settlement): Response
     {
-        $this->ensureCanManage($request);
         $this->ensureTenantOwnership($request, $settlement);
+        $this->ensureCanReview($request, $settlement);
 
         $settlement->load([
             'employee:id,full_name,employee_number',
@@ -202,6 +210,11 @@ class SettlementController extends Controller
         return Inertia::render('avana/settlement/show', [
             'settlement' => $this->shapeSettlement($settlement, detailed: true),
             'paymentMethods' => $this->paymentMethodOptions(),
+            // Drives the Finance panel: the manager who approved this claim is
+            // not allowed to release its payout too.
+            'selfApproved' => (int) $settlement->manager_approved_by === (int) $request->user()->id,
+            // A line manager reviews their team's claims but never pays them.
+            'canManage' => $this->canManage($request),
         ]);
     }
 
@@ -230,6 +243,7 @@ class SettlementController extends Controller
                 'status' => $data['action'] === 'submit'
                     ? Settlement::STATUS_SUBMITTED
                     : Settlement::STATUS_DRAFT,
+                'current_approver_id' => $data['action'] === 'submit' ? $employee->manager_id : null,
                 'notes' => $data['notes'] ?? null,
                 'bank_name' => $bank['bank_name'] ?? null,
                 'bank_account_number' => $bank['account_number'] ?? null,
@@ -279,6 +293,7 @@ class SettlementController extends Controller
                 'status' => $data['action'] === 'submit'
                     ? Settlement::STATUS_SUBMITTED
                     : Settlement::STATUS_DRAFT,
+                'current_approver_id' => $data['action'] === 'submit' ? $employee->manager_id : null,
                 'rejection_reason' => null,
                 'rejected_by' => null,
                 'rejected_at' => null,
@@ -380,14 +395,15 @@ class SettlementController extends Controller
      */
     public function managerApprove(Request $request, Settlement $settlement): RedirectResponse
     {
-        $this->ensureCanManage($request);
         $this->ensureTenantOwnership($request, $settlement);
+        $this->ensureCanReview($request, $settlement);
         $this->ensureStatusIs($settlement, [Settlement::STATUS_SUBMITTED], 'Hanya settlement yang diajukan yang bisa disetujui manager');
 
         $settlement->update([
             'status' => Settlement::STATUS_MANAGER_APPROVED,
             'manager_approved_by' => $request->user()->id,
             'manager_approved_at' => now(),
+            'current_approver_id' => null,
         ]);
 
         return back()->with('success', 'Settlement disetujui manager, menunggu verifikasi Finance');
@@ -395,13 +411,15 @@ class SettlementController extends Controller
 
     /**
      * Finance verifies the settlement and disburses the payout. Confirming both
-     * the bank details and the tax-compliant receipts is required.
+     * the bank details and the tax-compliant receipts is required, and the
+     * approver may not also be the payer.
      */
     public function financeVerify(Request $request, Settlement $settlement): RedirectResponse
     {
         $this->ensureCanManage($request);
         $this->ensureTenantOwnership($request, $settlement);
         $this->ensureStatusIs($settlement, [Settlement::STATUS_MANAGER_APPROVED], 'Hanya settlement yang disetujui manager yang bisa diverifikasi Finance');
+        $this->ensureNotSelfApproved($request, $settlement);
 
         $data = $request->validate([
             'payment_method' => ['required', 'in:'.implode(',', array_keys(self::PAYMENT_METHODS))],
@@ -426,8 +444,8 @@ class SettlementController extends Controller
      */
     public function reject(Request $request, Settlement $settlement): RedirectResponse
     {
-        $this->ensureCanManage($request);
         $this->ensureTenantOwnership($request, $settlement);
+        $this->ensureCanReview($request, $settlement);
         $this->ensureStatusIs($settlement, [Settlement::STATUS_SUBMITTED, Settlement::STATUS_MANAGER_APPROVED], 'Hanya settlement yang sedang diproses yang bisa dikembalikan');
 
         $data = $request->validate([
@@ -439,6 +457,7 @@ class SettlementController extends Controller
             'rejected_by' => $request->user()->id,
             'rejected_at' => now(),
             'rejection_reason' => $data['rejection_reason'],
+            'current_approver_id' => null,
         ]);
 
         return back()->with('success', 'Settlement dikembalikan untuk diperbaiki');
@@ -806,7 +825,30 @@ class SettlementController extends Controller
     /**
      * Abort with 403 unless the user is privileged or holds a claim permission.
      */
+    /**
+     * Four eyes on money leaving the company: whoever approved the settlement as
+     * manager cannot also be the one who verifies it and releases the payout.
+     * Without this the two review desks are a UI formality — one person can walk
+     * a claim they raised all the way to their own bank account.
+     */
+    private function ensureNotSelfApproved(Request $request, Settlement $settlement): void
+    {
+        if ((int) $settlement->manager_approved_by !== (int) $request->user()->id) {
+            return;
+        }
+
+        abort(403, 'Anda yang menyetujui settlement ini sebagai manager. Verifikasi & pembayaran harus dilakukan orang lain.');
+    }
+
     private function ensureCanManage(Request $request): void
+    {
+        abort_unless($this->canManage($request), 403);
+    }
+
+    /**
+     * Finance/HR reach: every settlement in the tenant, all desks.
+     */
+    private function canManage(Request $request): bool
     {
         /** @var User $user */
         $user = $request->user();
@@ -820,6 +862,44 @@ class SettlementController extends Controller
             ->pluck('code')
             ->contains(fn (string $code): bool => str_starts_with($code, 'claim.'));
 
-        abort_unless($isPrivileged || $hasClaimPermission, 403);
+        return $isPrivileged || $hasClaimPermission;
+    }
+
+    /**
+     * A line manager holds `team.claim.approve` and reaches only the settlements
+     * routed to them — their own direct reports'. They get the manager desk and
+     * nothing else: no creating, no editing, no releasing money.
+     */
+    private function isTeamApprover(Request $request): bool
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $user->loadMissing('roles.permissions');
+
+        return $user->roles
+            ->pluck('permissions')
+            ->flatten()
+            ->pluck('code')
+            ->contains('team.claim.approve');
+    }
+
+    /**
+     * Let Finance/HR through unconditionally; let a line manager through only
+     * for a settlement sitting in their own queue.
+     */
+    private function ensureCanReview(Request $request, Settlement $settlement): void
+    {
+        if ($this->canManage($request)) {
+            return;
+        }
+
+        $employeeId = $request->user()->employee?->id;
+
+        abort_unless(
+            $this->isTeamApprover($request)
+                && $employeeId !== null
+                && (int) $settlement->current_approver_id === (int) $employeeId,
+            403,
+        );
     }
 }

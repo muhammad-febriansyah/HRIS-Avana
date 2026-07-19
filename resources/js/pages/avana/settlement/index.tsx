@@ -31,6 +31,7 @@ export default function SettlementIndex({
     filters,
     statusOptions,
     kpis,
+    canManage,
 }: SettlementIndexProps) {
     const { flash } = usePage<FlashProps>().props;
     const meta = settlements.meta;
@@ -110,13 +111,15 @@ export default function SettlementIndex({
                             Finance
                         </div>
                     </div>
-                    <Link
-                        href={SettlementController.create().url}
-                        style={{ ...btnP, textDecoration: 'none' }}
-                    >
-                        <AIcon name="plus" size={16} color="#fff" />
-                        Buat Settlement
-                    </Link>
+                    {canManage && (
+                        <Link
+                            href={SettlementController.create().url}
+                            style={{ ...btnP, textDecoration: 'none' }}
+                        >
+                            <AIcon name="plus" size={16} color="#fff" />
+                            Buat Settlement
+                        </Link>
+                    )}
                 </div>
 
                 {/* KPIs */}

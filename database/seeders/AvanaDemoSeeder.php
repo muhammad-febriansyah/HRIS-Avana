@@ -270,7 +270,7 @@ final class AvanaDemoSeeder extends Seeder
             'role.manage', 'permission.assign', 'branch.manage', 'audit.view',
             'user.view', 'user.create', 'user.update', 'user.disable',
             'tenant.view', 'tenant.create', 'tenant.update', 'tenant.suspend',
-            'team.leave.approve', 'team.attendance.view', 'team.overtime.approve',
+            'team.leave.approve', 'team.attendance.view', 'team.overtime.approve', 'team.claim.approve',
             'own.profile.view', 'own.attendance.clock_in', 'own.leave.request', 'own.payslip.view',
             // Per-menu access modules so every sidebar item is role-configurable
             // from the Hak Akses matrix (not just feature-gated per tenant).
@@ -292,6 +292,7 @@ final class AvanaDemoSeeder extends Seeder
             ['code' => 'super_admin', 'name' => 'Super Admin', 'tenant_id' => null, 'is_system' => true],
             ['code' => 'admin_tenant_hr', 'name' => 'Admin Tenant / HR', 'tenant_id' => $tenant->id, 'is_system' => true],
             ['code' => 'manager', 'name' => 'Manager', 'tenant_id' => $tenant->id, 'is_system' => true],
+            ['code' => 'finance', 'name' => 'Finance', 'tenant_id' => $tenant->id, 'is_system' => true],
             ['code' => 'employee', 'name' => 'Karyawan', 'tenant_id' => $tenant->id, 'is_system' => true],
         ];
         foreach ($roles as $data) {
@@ -301,6 +302,10 @@ final class AvanaDemoSeeder extends Seeder
                 'super_admin' => $permModels,
                 'admin_tenant_hr' => $permModels->reject(fn ($p) => str_starts_with($p->code, 'tenant.')),
                 'manager' => $permModels->filter(fn ($p) => str_starts_with($p->code, 'team.') || str_starts_with($p->code, 'own.')),
+                // Finance settles the money: claims, loans, journals, budgets,
+                // payroll — but none of the HR/people administration.
+                'finance' => $permModels->filter(fn ($p) => in_array($p->module, ['claim', 'loan', 'journal', 'budget', 'salary_structure', 'payroll', 'report'], true)
+                    || str_starts_with($p->code, 'own.')),
                 default => $permModels->filter(fn ($p) => str_starts_with($p->code, 'own.')),
             };
             $role->permissions()->syncWithoutDetaching($assigned->pluck('id'));
@@ -339,6 +344,7 @@ final class AvanaDemoSeeder extends Seeder
 
         $this->seedSuperAdmin($tenant);
         $this->seedManager($tenant);
+        $this->seedFinance($tenant);
 
         return $user;
     }
@@ -403,6 +409,31 @@ final class AvanaDemoSeeder extends Seeder
         $role = Role::where('tenant_id', $tenant->id)->where('code', 'manager')->first();
         if ($role) {
             $manager->roles()->syncWithoutDetaching([$role->id]);
+        }
+    }
+
+    /**
+     * Seed a Finance officer. Settlements are verified and paid out by someone
+     * other than whoever approved them, so the tenant needs a second person who
+     * can reach the money screens without being an HR admin.
+     */
+    private function seedFinance(Tenant $tenant): void
+    {
+        $finance = User::firstOrCreate(
+            ['email' => 'dewi.f@nusantara.co.id'],
+            [
+                'name' => 'Dewi Fitriani',
+                'tenant_id' => $tenant->id,
+                'password' => Hash::make('password'),
+                'status' => 'active',
+                'email_verified_at' => now(),
+            ],
+        );
+        $finance->forceFill(['tenant_id' => $tenant->id])->save();
+
+        $role = Role::where('tenant_id', $tenant->id)->where('code', 'finance')->first();
+        if ($role) {
+            $finance->roles()->syncWithoutDetaching([$role->id]);
         }
     }
 

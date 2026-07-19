@@ -87,6 +87,12 @@ final class Settlement extends Model
         return $this->belongsTo(Employee::class);
     }
 
+    /** The line manager this settlement is currently sitting with. */
+    public function currentApprover(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'current_approver_id');
+    }
+
     public function managerApprover(): BelongsTo
     {
         return $this->belongsTo(User::class, 'manager_approved_by');

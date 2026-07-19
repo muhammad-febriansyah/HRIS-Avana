@@ -6,6 +6,7 @@ use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
+use App\Models\Settlement;
 use App\Models\Shift;
 use App\Models\ShiftSchedule;
 use App\Models\User;
@@ -307,4 +308,84 @@ it('rejects a reimbursement', function (): void {
         ->assertOk();
 
     expect($claim->fresh()->status)->toBe('rejected');
+});
+
+function mssPendingSettlement(object $test): Settlement
+{
+    $settlement = Settlement::create([
+        'tenant_id' => $test->manager->tenant_id,
+        'employee_id' => $test->sub->id,
+        'current_approver_id' => $test->manager->id,
+        'number' => 'STL-MSS-'.fake()->unique()->numberBetween(1000, 9999),
+        'title' => 'Perjalanan Dinas Bandung',
+        'submission_date' => '2026-07-19',
+        'status' => Settlement::STATUS_SUBMITTED,
+    ]);
+
+    $settlement->items()->create([
+        'tenant_id' => $test->manager->tenant_id,
+        'category' => 'transportasi',
+        'description' => 'Tiket kereta',
+        'amount' => 500_000,
+    ]);
+
+    $settlement->recalculateTotals();
+
+    return $settlement->fresh();
+}
+
+it('lists a submitted settlement in the manager approvals', function (): void {
+    $settlement = mssPendingSettlement($this);
+
+    $items = ($this->auth)()
+        ->getJson('/api/v1/mss/approvals')
+        ->assertOk()
+        ->json('data');
+
+    $row = collect($items)->firstWhere('id', 'settlement-'.$settlement->id);
+
+    expect($row)->not->toBeNull()
+        ->and($row['type_label'])->toBe('Settlement')
+        ->and($row['title'])->toBe('Perjalanan Dinas Bandung')
+        ->and($row['detail'])->toBe('Rp 555.000');
+});
+
+it('moves a settlement to the finance desk when the manager approves', function (): void {
+    $settlement = mssPendingSettlement($this);
+
+    ($this->auth)()
+        ->postJson('/api/v1/mss/approvals/settlement-'.$settlement->id.'/act', ['action' => 'approve'])
+        ->assertOk();
+
+    $fresh = $settlement->fresh();
+
+    expect($fresh->status)->toBe(Settlement::STATUS_MANAGER_APPROVED)
+        ->and($fresh->manager_approved_by)->toBe($this->manager->user_id)
+        ->and($fresh->manager_approved_at)->not->toBeNull()
+        ->and($fresh->current_approver_id)->toBeNull();
+});
+
+it('sends a settlement back to the employee when the manager rejects', function (): void {
+    $settlement = mssPendingSettlement($this);
+
+    ($this->auth)()
+        ->postJson('/api/v1/mss/approvals/settlement-'.$settlement->id.'/act', ['action' => 'reject'])
+        ->assertOk();
+
+    $fresh = $settlement->fresh();
+
+    expect($fresh->status)->toBe(Settlement::STATUS_REJECTED)
+        ->and($fresh->rejected_by)->toBe($this->manager->user_id)
+        ->and($fresh->current_approver_id)->toBeNull();
+});
+
+it('will not let a manager act on another team settlement', function (): void {
+    $settlement = mssPendingSettlement($this);
+    $settlement->update(['current_approver_id' => null]);
+
+    ($this->auth)()
+        ->postJson('/api/v1/mss/approvals/settlement-'.$settlement->id.'/act', ['action' => 'approve'])
+        ->assertNotFound();
+
+    expect($settlement->fresh()->status)->toBe(Settlement::STATUS_SUBMITTED);
 });

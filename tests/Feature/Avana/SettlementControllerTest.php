@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Employee;
+use App\Models\Role;
 use App\Models\Settlement;
 use App\Models\Tenant;
 use App\Models\User;
@@ -219,6 +220,176 @@ it('will not let Finance pay before the manager has approved', function (): void
         ->assertStatus(422);
 
     expect($settlement->refresh()->status)->toBe(Settlement::STATUS_SUBMITTED);
+});
+
+/**
+ * A settlement submitted by an employee who reports to `$manager`, routed to
+ * that manager's desk the way the submit paths do.
+ */
+function settlementForManager(int $tenantId, Employee $manager): Settlement
+{
+    $employee = Employee::forTenant($tenantId)->where('manager_id', $manager->id)->firstOrFail();
+
+    $settlement = Settlement::create([
+        'tenant_id' => $tenantId,
+        'employee_id' => $employee->id,
+        'current_approver_id' => $manager->id,
+        'number' => 'STL-TEAM-'.fake()->unique()->numberBetween(1000, 9999),
+        'title' => 'Kunjungan klien',
+        'submission_date' => '2026-07-19',
+        'status' => Settlement::STATUS_SUBMITTED,
+    ]);
+
+    $settlement->items()->create([
+        'tenant_id' => $tenantId,
+        'category' => 'transportasi',
+        'description' => 'Taksi',
+        'amount' => 300_000,
+    ]);
+
+    $settlement->recalculateTotals();
+
+    return $settlement;
+}
+
+/** Grant the `manager` role (which carries team.claim.approve) to a user. */
+function asLineManager(User $user, int $tenantId): User
+{
+    $role = Role::where('tenant_id', $tenantId)->where('code', 'manager')->firstOrFail();
+    $user->roles()->sync([$role->id]);
+
+    return $user->fresh();
+}
+
+it('lets a line manager approve a settlement from their own team', function (): void {
+    $managerEmployee = Employee::forTenant($this->tenant->id)
+        ->whereNotNull('user_id')
+        ->whereHas('subordinates')
+        ->firstOrFail();
+
+    $manager = asLineManager(User::findOrFail($managerEmployee->user_id), $this->tenant->id);
+    $settlement = settlementForManager($this->tenant->id, $managerEmployee);
+
+    actingAs($manager)
+        ->post(route('avana.settlement.manager-approve', $settlement))
+        ->assertSessionHas('success');
+
+    $settlement->refresh();
+
+    expect($settlement->status)->toBe(Settlement::STATUS_MANAGER_APPROVED);
+    expect($settlement->manager_approved_by)->toBe($manager->id);
+    expect($settlement->current_approver_id)->toBeNull();
+});
+
+it('hides another team\'s settlement from a line manager', function (): void {
+    $managerEmployee = Employee::forTenant($this->tenant->id)
+        ->whereNotNull('user_id')
+        ->whereHas('subordinates')
+        ->firstOrFail();
+
+    $manager = asLineManager(User::findOrFail($managerEmployee->user_id), $this->tenant->id);
+
+    // Routed to nobody — certainly not to this manager.
+    $foreign = makeSettlement($this->tenant->id, Settlement::STATUS_SUBMITTED);
+
+    actingAs($manager)
+        ->get(route('avana.settlement.show', $foreign))
+        ->assertForbidden();
+
+    actingAs($manager)
+        ->post(route('avana.settlement.manager-approve', $foreign))
+        ->assertForbidden();
+
+    expect($foreign->refresh()->status)->toBe(Settlement::STATUS_SUBMITTED);
+});
+
+it('keeps a line manager off the Finance desk entirely', function (): void {
+    $managerEmployee = Employee::forTenant($this->tenant->id)
+        ->whereNotNull('user_id')
+        ->whereHas('subordinates')
+        ->firstOrFail();
+
+    $manager = asLineManager(User::findOrFail($managerEmployee->user_id), $this->tenant->id);
+    $settlement = settlementForManager($this->tenant->id, $managerEmployee);
+
+    actingAs($manager)->post(route('avana.settlement.manager-approve', $settlement));
+
+    // Now manager-approved and off their desk: the payout is not theirs to make.
+    actingAs($manager)
+        ->post(route('avana.settlement.finance-verify', $settlement), [
+            'payment_method' => 'transfer',
+            'confirm_bank' => true,
+            'confirm_receipts' => true,
+        ])
+        ->assertForbidden();
+
+    actingAs($manager)
+        ->get(route('avana.settlement.create'))
+        ->assertForbidden();
+
+    expect($settlement->refresh()->paid_at)->toBeNull();
+});
+
+it('blocks the manager who approved from also releasing the payout', function (): void {
+    $settlement = makeSettlement($this->tenant->id, Settlement::STATUS_SUBMITTED);
+
+    actingAs($this->admin)
+        ->post(route('avana.settlement.manager-approve', $settlement))
+        ->assertSessionHas('success');
+
+    actingAs($this->admin)
+        ->post(route('avana.settlement.finance-verify', $settlement), [
+            'payment_method' => 'transfer',
+            'confirm_bank' => true,
+            'confirm_receipts' => true,
+        ])
+        ->assertForbidden();
+
+    expect($settlement->refresh()->status)->toBe(Settlement::STATUS_MANAGER_APPROVED);
+    expect($settlement->paid_at)->toBeNull();
+});
+
+it('lets a second authorised person pay what someone else approved', function (): void {
+    $settlement = makeSettlement($this->tenant->id, Settlement::STATUS_SUBMITTED);
+
+    actingAs($this->admin)
+        ->post(route('avana.settlement.manager-approve', $settlement))
+        ->assertSessionHas('success');
+
+    $finance = User::where('email', 'dewi.f@nusantara.co.id')->firstOrFail();
+
+    actingAs($finance)
+        ->post(route('avana.settlement.finance-verify', $settlement), [
+            'payment_method' => 'transfer',
+            'confirm_bank' => true,
+            'confirm_receipts' => true,
+        ])
+        ->assertSessionHas('success');
+
+    $settlement->refresh();
+
+    expect($settlement->status)->toBe(Settlement::STATUS_PAID);
+    expect($settlement->finance_verified_by)->toBe($finance->id);
+    expect($settlement->manager_approved_by)->toBe($this->admin->id);
+});
+
+it('tells the approver on the detail screen why they cannot pay', function (): void {
+    $settlement = makeSettlement($this->tenant->id, Settlement::STATUS_SUBMITTED);
+
+    actingAs($this->admin)
+        ->post(route('avana.settlement.manager-approve', $settlement));
+
+    actingAs($this->admin)
+        ->get(route('avana.settlement.show', $settlement))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->where('selfApproved', true));
+
+    $finance = User::where('email', 'dewi.f@nusantara.co.id')->firstOrFail();
+
+    actingAs($finance)
+        ->get(route('avana.settlement.show', $settlement))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->where('selfApproved', false));
 });
 
 it('sends a settlement back to the employee on reject', function (): void {

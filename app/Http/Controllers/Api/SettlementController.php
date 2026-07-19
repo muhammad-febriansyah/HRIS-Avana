@@ -166,6 +166,7 @@ class SettlementController extends Controller
                 'status' => $data['action'] === 'submit'
                     ? Settlement::STATUS_SUBMITTED
                     : Settlement::STATUS_DRAFT,
+                'current_approver_id' => $data['action'] === 'submit' ? $employee->manager_id : null,
                 'notes' => $data['notes'] ?? null,
                 'bank_name' => $bank['bank_name'] ?? null,
                 'bank_account_number' => $bank['account_number'] ?? null,

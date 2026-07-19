@@ -12,6 +12,7 @@ use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
+use App\Models\Settlement;
 use App\Models\Shift;
 use App\Models\ShiftSchedule;
 use App\Models\WfhRequest;
@@ -46,6 +47,18 @@ class MssController extends Controller
         'wfh' => WfhRequest::class,
         'koreksi' => AttendanceCorrection::class,
         'reimburse' => Claim::class,
+        'settlement' => Settlement::class,
+    ];
+
+    /**
+     * The pending/approved status each type uses. Most requests share the
+     * approve/reject vocabulary; a settlement passes two review desks, so its
+     * manager step lands on `manager_approved` rather than `approved`.
+     *
+     * @var array<string, array{pending: string, approved: string}>
+     */
+    private const TYPE_STATUSES = [
+        'settlement' => ['pending' => 'submitted', 'approved' => 'manager_approved'],
     ];
 
     /**
@@ -58,6 +71,7 @@ class MssController extends Controller
         'wfh' => 'WFH',
         'koreksi' => 'Koreksi Absen',
         'reimburse' => 'Reimbursement',
+        'settlement' => 'Settlement',
     ];
 
     /**
@@ -496,7 +510,7 @@ class MssController extends Controller
         $query = $modelClass::query()
             ->where('tenant_id', $manager->tenant_id)
             ->where('current_approver_id', $manager->id)
-            ->whereIn('status', $statuses)
+            ->whereIn('status', $this->statusesFor($type, $statuses))
             ->with('employee:id,full_name,employee_number');
 
         if ($type === 'leave') {
@@ -533,7 +547,7 @@ class MssController extends Controller
             ? $modelClass::query()
                 ->where('tenant_id', $manager->tenant_id)
                 ->where('current_approver_id', $manager->id)
-                ->where('status', 'pending')
+                ->whereIn('status', $this->statusesFor((string) $type, ['pending']))
                 ->find((int) $id)
             : null;
 
@@ -542,9 +556,45 @@ class MssController extends Controller
         return $model;
     }
 
+    /**
+     * Translate the shared pending/approved statuses into the vocabulary the
+     * given type actually stores.
+     *
+     * @param  array<int, string>  $statuses
+     * @return array<int, string>
+     */
+    private function statusesFor(string $type, array $statuses): array
+    {
+        $map = self::TYPE_STATUSES[$type] ?? null;
+
+        if ($map === null) {
+            return $statuses;
+        }
+
+        return array_map(fn (string $status): string => $map[$status] ?? $status, $statuses);
+    }
+
     private function applyDecision(Model $model, string $action, Employee $manager): void
     {
         $approved = $action === 'approve';
+
+        if ($model instanceof Settlement) {
+            $model->update([
+                'status' => $approved
+                    ? Settlement::STATUS_MANAGER_APPROVED
+                    : Settlement::STATUS_REJECTED,
+                'manager_approved_by' => $approved ? $manager->user_id : null,
+                'manager_approved_at' => $approved ? now() : null,
+                'rejected_by' => $approved ? null : $manager->user_id,
+                'rejected_at' => $approved ? null : now(),
+                // Off the manager's desk either way: on to Finance, or back
+                // to the employee.
+                'current_approver_id' => null,
+            ]);
+
+            return;
+        }
+
         $model->update(['status' => $approved ? 'approved' : 'rejected']);
 
         if ($model instanceof AttendanceCorrection) {
@@ -653,6 +703,7 @@ class MssController extends Controller
             'wfh' => 'Work From Home',
             'koreksi' => 'Koreksi Absen',
             'reimburse' => $model->title ?: 'Reimbursement',
+            'settlement' => $model->title ?: 'Settlement',
             default => ucfirst($type),
         };
     }
@@ -665,6 +716,7 @@ class MssController extends Controller
             'izin' => $this->izinDetail($model),
             'koreksi' => $this->koreksiDetail($model),
             'reimburse' => 'Rp '.number_format((float) $model->amount, 0, ',', '.'),
+            'settlement' => 'Rp '.number_format((float) $model->total, 0, ',', '.'),
             default => '—',
         };
     }

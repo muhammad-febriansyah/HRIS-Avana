@@ -137,6 +137,8 @@ export interface SettlementIndexProps {
     filters: SettlementFilters;
     statusOptions: SelectOption[];
     kpis: SettlementKpis;
+    /** False for a line manager, who reviews their team but never files. */
+    canManage: boolean;
 }
 
 /** Props for the settlement create page (`create.tsx`). */
@@ -167,6 +169,10 @@ export interface SettlementEditProps {
 export interface SettlementShowProps {
     settlement: SettlementDetail;
     paymentMethods: SelectOption[];
+    /** The viewer approved this claim as manager, so they may not also pay it. */
+    selfApproved: boolean;
+    /** False for a line manager: they review, but never edit or pay. */
+    canManage: boolean;
 }
 
 /**

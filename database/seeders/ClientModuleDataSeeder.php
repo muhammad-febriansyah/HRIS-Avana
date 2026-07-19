@@ -160,7 +160,7 @@ class ClientModuleDataSeeder extends Seeder
             'role.manage', 'permission.assign', 'branch.manage', 'audit.view',
             'user.view', 'user.create', 'user.update', 'user.disable',
             'tenant.view', 'tenant.create', 'tenant.update', 'tenant.suspend',
-            'team.leave.approve', 'team.attendance.view', 'team.overtime.approve',
+            'team.leave.approve', 'team.attendance.view', 'team.overtime.approve', 'team.claim.approve',
             'own.profile.view', 'own.attendance.clock_in', 'own.leave.request', 'own.payslip.view',
             'document.view', 'letter.view', 'offboarding.view', 'organization.view',
             'timesheet.view', 'shift_swap.view', 'delegation.view',
