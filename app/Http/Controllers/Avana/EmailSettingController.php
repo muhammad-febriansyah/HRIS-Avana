@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
+use App\Mail\BrandedNotification;
 use App\Models\EmailLog;
 use App\Models\EmailSetting;
 use App\Models\User;
@@ -126,15 +127,22 @@ class EmailSettingController extends Controller
         try {
             config(['mail.mailers.avana_runtime' => $settings->mailerConfig()]);
 
-            Mail::mailer('avana_runtime')->raw(
-                'Ini adalah email percobaan dari AvanaHR untuk memastikan konfigurasi SMTP Anda berfungsi.',
-                function ($message) use ($recipient, $subject, $settings): void {
-                    $message->to($recipient)->subject($subject);
-                    if ($settings->from_email) {
-                        $message->from($settings->from_email, $settings->from_name ?? 'AvanaHR');
-                    }
-                },
+            $mail = BrandedNotification::make(
+                tenantId: $tenantId,
+                subjectLine: $subject,
+                heading: 'Konfigurasi email berhasil',
+                paragraphs: [
+                    'Ini adalah email percobaan dari AvanaHR untuk memastikan konfigurasi SMTP Anda berfungsi.',
+                    'Jika Anda menerima email ini dengan tampilan logo dan footer yang benar, berarti pengaturan email sudah siap digunakan untuk notifikasi.',
+                ],
+                greetingName: $user->name,
             );
+
+            if ($settings->from_email) {
+                $mail->from($settings->from_email, $settings->from_name ?: 'AvanaHR');
+            }
+
+            Mail::mailer('avana_runtime')->to($recipient)->send($mail);
 
             $this->log($tenantId, $recipient, $subject, 'sent', null);
 

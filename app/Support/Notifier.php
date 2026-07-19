@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Jobs\SendBrandedNotificationJob;
+use App\Mail\BrandedNotification;
 use App\Models\Announcement;
 use App\Models\AttendanceCorrection;
 use App\Models\Claim;
@@ -53,26 +55,31 @@ final class Notifier
             return;
         }
 
+        $approved = $status === 'approved';
         $userId = self::userIdFor($request->employee_id);
 
-        if ($userId === null) {
-            return;
+        if ($userId !== null) {
+            self::insertMany([[
+                'tenant_id' => $request->tenant_id,
+                'user_id' => $userId,
+                'type' => 'approval',
+                'title' => $meta['label'].' '.($approved ? 'disetujui' : 'ditolak'),
+                'body' => 'Pengajuan '.$meta['label'].' Anda telah '
+                    .($approved ? 'disetujui' : 'ditolak').' oleh manajer.',
+                'data' => [
+                    'link' => ['type' => $meta['type'], 'id' => $request->id],
+                    'status' => $status,
+                ],
+            ]]);
         }
 
-        $approved = $status === 'approved';
-
-        self::insertMany([[
-            'tenant_id' => $request->tenant_id,
-            'user_id' => $userId,
-            'type' => 'approval',
-            'title' => $meta['label'].' '.($approved ? 'disetujui' : 'ditolak'),
-            'body' => 'Pengajuan '.$meta['label'].' Anda telah '
-                .($approved ? 'disetujui' : 'ditolak').' oleh manajer.',
-            'data' => [
-                'link' => ['type' => $meta['type'], 'id' => $request->id],
-                'status' => $status,
-            ],
-        ]]);
+        self::emailEmployee(
+            $request->employee_id,
+            $meta['label'].' '.($approved ? 'Disetujui' : 'Ditolak'),
+            'Pengajuan '.$meta['label'].' '.($approved ? 'disetujui' : 'ditolak'),
+            ['Pengajuan '.$meta['label'].' Anda telah '.($approved ? 'disetujui' : 'ditolak').' oleh manajer.'],
+            ['Jenis' => $meta['label'], 'Status' => $approved ? 'Disetujui' : 'Ditolak'],
+        );
     }
 
     /**
@@ -108,24 +115,30 @@ final class Notifier
     /** Notify the employee that their reimbursement claim has been paid out. */
     public static function reimbursementPaid(Claim $claim): void
     {
+        $amount = 'Rp '.number_format((float) $claim->amount, 0, ',', '.');
         $userId = self::userIdFor($claim->employee_id);
 
-        if ($userId === null) {
-            return;
+        if ($userId !== null) {
+            self::insertMany([[
+                'tenant_id' => $claim->tenant_id,
+                'user_id' => $userId,
+                'type' => 'reimburse',
+                'title' => 'Reimbursement dibayar',
+                'body' => 'Reimbursement '.($claim->title ?: 'Anda').' sebesar '.$amount.' telah dibayar.',
+                'data' => [
+                    'link' => ['type' => 'reimburse', 'id' => $claim->id],
+                    'status' => 'paid',
+                ],
+            ]]);
         }
 
-        self::insertMany([[
-            'tenant_id' => $claim->tenant_id,
-            'user_id' => $userId,
-            'type' => 'reimburse',
-            'title' => 'Reimbursement dibayar',
-            'body' => 'Reimbursement '.($claim->title ?: 'Anda').' sebesar Rp '
-                .number_format((float) $claim->amount, 0, ',', '.').' telah dibayar.',
-            'data' => [
-                'link' => ['type' => 'reimburse', 'id' => $claim->id],
-                'status' => 'paid',
-            ],
-        ]]);
+        self::emailEmployee(
+            $claim->employee_id,
+            'Reimbursement Dibayar',
+            'Reimbursement Anda telah dibayar',
+            ['Reimbursement '.($claim->title ?: 'Anda').' sebesar '.$amount.' telah dibayar.'],
+            array_filter(['Keperluan' => $claim->title ?: null, 'Jumlah' => $amount]),
+        );
     }
 
     /**
@@ -157,7 +170,7 @@ final class Notifier
     public static function payrollLocked(PayrollRun $run): void
     {
         $items = PayrollRunItem::where('payroll_run_id', $run->id)
-            ->with('employee:id,user_id')
+            ->with('employee:id,user_id,tenant_id,email,full_name')
             ->get(['id', 'tenant_id', 'employee_id', 'payroll_period_id']);
 
         $rows = $items
@@ -174,6 +187,64 @@ final class Notifier
             ->all();
 
         self::insertMany($rows);
+
+        foreach ($items as $item) {
+            $employee = $item->employee;
+
+            if ($employee === null || blank($employee->email)) {
+                continue;
+            }
+
+            SendBrandedNotificationJob::dispatch(
+                (int) $item->tenant_id,
+                $employee->email,
+                $employee->full_name,
+                BrandedNotification::make(
+                    tenantId: (int) $item->tenant_id,
+                    subjectLine: 'Slip Gaji Tersedia',
+                    heading: 'Slip gaji Anda sudah tersedia',
+                    paragraphs: ['Slip gaji Anda untuk periode ini sudah dapat dilihat dan diunduh melalui aplikasi AvanaHR.'],
+                    greetingName: $employee->full_name,
+                ),
+            );
+        }
+    }
+
+    /**
+     * Queue a branded notification email to an employee (reachable even when
+     * they have no linked app account). No-op when the employee or their email
+     * is missing.
+     *
+     * @param  array<int, string>  $paragraphs
+     * @param  array<string, string>  $details
+     */
+    private static function emailEmployee(?int $employeeId, string $subject, string $heading, array $paragraphs, array $details = []): void
+    {
+        if ($employeeId === null) {
+            return;
+        }
+
+        $employee = Employee::query()
+            ->select('id', 'tenant_id', 'email', 'full_name')
+            ->find($employeeId);
+
+        if ($employee === null || blank($employee->email)) {
+            return;
+        }
+
+        SendBrandedNotificationJob::dispatch(
+            (int) $employee->tenant_id,
+            $employee->email,
+            $employee->full_name,
+            BrandedNotification::make(
+                tenantId: (int) $employee->tenant_id,
+                subjectLine: $subject,
+                heading: $heading,
+                paragraphs: $paragraphs,
+                details: $details,
+                greetingName: $employee->full_name,
+            ),
+        );
     }
 
     private static function userIdFor(?int $employeeId): ?int

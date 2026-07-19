@@ -33,6 +33,10 @@ yarn-error.log
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 
+# Local DB dumps & scratch screenshots
+/*.sql
+/email_preview.png
+
 # AI tooling scaffolding (not part of the app)
 /.claude
 /.agents
