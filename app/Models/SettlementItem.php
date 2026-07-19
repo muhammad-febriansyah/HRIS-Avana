@@ -41,6 +41,6 @@ final class SettlementItem extends Model
      */
     public function categoryLabel(): string
     {
-        return Reimbursement::CATEGORIES[$this->category] ?? (string) $this->category;
+        return Settlement::ITEM_CATEGORIES[$this->category] ?? (string) $this->category;
     }
 }

@@ -38,6 +38,17 @@ final class Settlement extends Model
     /** Indonesian tax applied on top of the expense subtotal. */
     public const TAX_RATE = 0.11;
 
+    /**
+     * Expense categories a settlement line may use. The five reimbursement
+     * categories, plus the two that only ever show up on a business trip.
+     *
+     * @var array<string, string>
+     */
+    public const ITEM_CATEGORIES = Reimbursement::CATEGORIES + [
+        'penerbangan' => 'Tiket Pesawat',
+        'akomodasi' => 'Akomodasi / Hotel',
+    ];
+
     protected $guarded = [];
 
     /**
@@ -47,6 +58,10 @@ final class Settlement extends Model
     {
         return [
             'submission_date' => 'date',
+            'trip_start_date' => 'date',
+            'trip_end_date' => 'date',
+            'destination_latitude' => 'decimal:7',
+            'destination_longitude' => 'decimal:7',
             'subtotal' => 'decimal:2',
             'tax_amount' => 'decimal:2',
             'total' => 'decimal:2',
@@ -95,6 +110,19 @@ final class Settlement extends Model
     public function attachments(): HasMany
     {
         return $this->hasMany(SettlementAttachment::class);
+    }
+
+    /**
+     * How many days the trip covered, counting both the departure and return
+     * days. Null unless both trip dates are set.
+     */
+    public function tripDays(): ?int
+    {
+        if ($this->trip_start_date === null || $this->trip_end_date === null) {
+            return null;
+        }
+
+        return $this->trip_start_date->diffInDays($this->trip_end_date) + 1;
     }
 
     /**

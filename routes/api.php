@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ReimbursementController;
 use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\SecurityController;
+use App\Http\Controllers\Api\SettlementController;
 use App\Http\Controllers\Api\ShiftSwapController;
 use App\Http\Controllers\Api\TaxController;
 use App\Http\Controllers\Api\WfhController;
@@ -104,6 +105,10 @@ Route::prefix('v1')->group(function (): void {
 
             Route::post('reimbursements', [ReimbursementController::class, 'store']);
             Route::get('reimbursements', [ReimbursementController::class, 'index']);
+
+            Route::get('settlements', [SettlementController::class, 'index']);
+            Route::post('settlements', [SettlementController::class, 'store']);
+            Route::get('settlements/{settlement}', [SettlementController::class, 'show']);
 
             Route::get('security/devices', [SecurityController::class, 'devices']);
             Route::post('security/password', [SecurityController::class, 'changePassword']);

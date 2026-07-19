@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
-use App\Models\Reimbursement;
 use App\Models\Settlement;
 use App\Models\SettlementAttachment;
 use App\Models\SettlementItem;
@@ -162,10 +161,16 @@ class SettlementController extends Controller
                 'category' => $settlement->category,
                 'department' => $settlement->department,
                 'submission_date' => $settlement->submission_date?->toDateString(),
+                'destination' => $settlement->destination,
+                'trip_start_date' => $settlement->trip_start_date?->toDateString(),
+                'trip_end_date' => $settlement->trip_end_date?->toDateString(),
+                'destination_latitude' => $settlement->destination_latitude,
+                'destination_longitude' => $settlement->destination_longitude,
                 'notes' => $settlement->notes,
                 'items' => $settlement->items
                     ->map(fn (SettlementItem $item): array => [
                         'description' => $item->description,
+                        'detail' => $item->detail,
                         'category' => $item->category,
                         'amount' => (float) $item->amount,
                     ])
@@ -214,7 +219,7 @@ class SettlementController extends Controller
             $employee = Employee::forTenant($tenantId)->findOrFail($data['employee_id']);
             $bank = $this->primaryBankAccount($employee);
 
-            $settlement = Settlement::create([
+            $settlement = Settlement::create($this->travelFields($data) + [
                 'tenant_id' => $tenantId,
                 'employee_id' => $employee->id,
                 'number' => $this->nextNumber($tenantId),
@@ -265,7 +270,7 @@ class SettlementController extends Controller
             $employee = Employee::forTenant($tenantId)->findOrFail($data['employee_id']);
             $bank = $this->primaryBankAccount($employee);
 
-            $settlement->update([
+            $settlement->update($this->travelFields($data) + [
                 'employee_id' => $employee->id,
                 'title' => $data['title'],
                 'category' => $data['category'] ?? null,
@@ -449,13 +454,19 @@ class SettlementController extends Controller
         return $request->validate([
             'employee_id' => ['required', 'integer', "exists:employees,id,tenant_id,{$tenantId}"],
             'title' => ['required', 'string', 'max:255'],
-            'category' => ['nullable', 'in:'.implode(',', array_keys(Reimbursement::CATEGORIES))],
+            'category' => ['nullable', 'in:'.implode(',', array_keys(Settlement::ITEM_CATEGORIES))],
             'department' => ['nullable', 'string', 'max:255'],
             'submission_date' => ['required', 'date'],
             'notes' => ['nullable', 'string'],
+            'destination' => ['nullable', 'string', 'max:255'],
+            'trip_start_date' => ['nullable', 'date'],
+            'trip_end_date' => ['nullable', 'date', 'after_or_equal:trip_start_date'],
+            'destination_latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'destination_longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.description' => ['required', 'string', 'max:255'],
-            'items.*.category' => ['required', 'in:'.implode(',', array_keys(Reimbursement::CATEGORIES))],
+            'items.*.detail' => ['nullable', 'string', 'max:255'],
+            'items.*.category' => ['required', 'in:'.implode(',', array_keys(Settlement::ITEM_CATEGORIES))],
             'items.*.amount' => ['required', 'numeric', 'min:1'],
             'attachments' => ['nullable', 'array'],
             'attachments.*' => ['file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
@@ -464,9 +475,33 @@ class SettlementController extends Controller
     }
 
     /**
+     * The trip-context columns present in the payload. The web form has no
+     * inputs for these — only the mobile app files them — so an absent key must
+     * leave the stored value alone rather than null it out.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function travelFields(array $data): array
+    {
+        $keys = [
+            'destination',
+            'trip_start_date',
+            'trip_end_date',
+            'destination_latitude',
+            'destination_longitude',
+        ];
+
+        return collect($keys)
+            ->filter(fn (string $key): bool => array_key_exists($key, $data))
+            ->mapWithKeys(fn (string $key): array => [$key => $data[$key]])
+            ->all();
+    }
+
+    /**
      * Persist the given expense line items onto a settlement.
      *
-     * @param  array<int, array{description: string, category: string, amount: mixed}>  $items
+     * @param  array<int, array{description: string, detail?: string|null, category: string, amount: mixed}>  $items
      */
     private function syncItems(Settlement $settlement, array $items): void
     {
@@ -475,6 +510,7 @@ class SettlementController extends Controller
                 'tenant_id' => $settlement->tenant_id,
                 'category' => $item['category'],
                 'description' => $item['description'],
+                'detail' => $item['detail'] ?? null,
                 'amount' => round((float) $item['amount'], 2),
             ]);
         }
@@ -568,7 +604,7 @@ class SettlementController extends Controller
             'category' => $settlement->category,
             'category_label' => $settlement->category === null
                 ? null
-                : (Reimbursement::CATEGORIES[$settlement->category] ?? $settlement->category),
+                : (Settlement::ITEM_CATEGORIES[$settlement->category] ?? $settlement->category),
             'department' => $settlement->department,
             'submission_date' => $settlement->submission_date?->format('d M Y'),
             'subtotal' => (float) $settlement->subtotal,
@@ -597,12 +633,17 @@ class SettlementController extends Controller
             $shaped['rejected_at'] = $settlement->rejected_at?->format('d M Y H:i');
             $shaped['fraud_level'] = $settlement->fraud_level;
             $shaped['fraud_checked_at'] = $settlement->fraud_checked_at?->format('d M Y H:i');
+            $shaped['destination'] = $settlement->destination;
+            $shaped['trip_start_date'] = $settlement->trip_start_date?->format('d M Y');
+            $shaped['trip_end_date'] = $settlement->trip_end_date?->format('d M Y');
+            $shaped['trip_days'] = $settlement->tripDays();
             $shaped['items'] = $settlement->items
                 ->map(fn (SettlementItem $item): array => [
                     'id' => $item->id,
                     'category' => $item->category,
                     'category_label' => $item->categoryLabel(),
                     'description' => $item->description,
+                    'detail' => $item->detail,
                     'amount' => (float) $item->amount,
                 ])
                 ->all();
@@ -712,7 +753,7 @@ class SettlementController extends Controller
      */
     private function categoryOptions(): array
     {
-        return collect(Reimbursement::CATEGORIES)
+        return collect(Settlement::ITEM_CATEGORIES)
             ->map(fn (string $label, string $value): array => ['value' => $value, 'label' => $label])
             ->values()
             ->all();
