@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AppConfigController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AttendanceCorrectionController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CashAdvanceController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DirectoryController;
 use App\Http\Controllers\Api\DocumentController;
@@ -105,6 +106,10 @@ Route::prefix('v1')->group(function (): void {
 
             Route::post('reimbursements', [ReimbursementController::class, 'store']);
             Route::get('reimbursements', [ReimbursementController::class, 'index']);
+
+            Route::get('cash-advances', [CashAdvanceController::class, 'index']);
+            Route::post('cash-advances', [CashAdvanceController::class, 'store']);
+            Route::get('cash-advances/{cashAdvance}', [CashAdvanceController::class, 'show']);
 
             Route::get('settlements', [SettlementController::class, 'index']);
             Route::post('settlements', [SettlementController::class, 'store']);
