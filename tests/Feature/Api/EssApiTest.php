@@ -249,6 +249,50 @@ it('records and lists a field visit with photos + GPS', function (): void {
         ->assertJsonPath('data.0.visit_date', now()->toDateString());
 });
 
+it('files each checklist task with its own before/after evidence', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/field-visits', [
+        'visit_date' => now()->toDateString(),
+        'location' => 'Toko Mitra Senayan',
+        'tasks' => ['Cek ketersediaan stok', 'Dokumentasi visual area toko'],
+        'task_notes' => ['Rak SKU baru', 'Etalase depan'],
+        'task_before' => [
+            UploadedFile::fake()->image('before-1.jpg'),
+            UploadedFile::fake()->image('before-2.jpg'),
+        ],
+        'task_after' => [
+            UploadedFile::fake()->image('after-1.jpg'),
+            UploadedFile::fake()->image('after-2.jpg'),
+        ],
+    ])->assertCreated();
+
+    $tasks = ($this->auth)()->getJson('/api/v1/me/field-visits')
+        ->assertOk()
+        ->json('data.0.tasks');
+
+    expect($tasks)->toHaveCount(2)
+        ->and($tasks[0]['title'])->toBe('Cek ketersediaan stok')
+        ->and($tasks[0]['photo_note'])->toBe('Rak SKU baru')
+        ->and($tasks[0]['before_photo_url'])->not->toBeNull()
+        ->and($tasks[0]['after_photo_url'])->not->toBeNull()
+        ->and($tasks[1]['photo_note'])->toBe('Etalase depan');
+});
+
+it('keeps a checklist task that carries no evidence', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/field-visits', [
+        'visit_date' => now()->toDateString(),
+        'location' => 'Toko Tanpa Foto',
+        'tasks' => ['Wawancara pelanggan'],
+    ])->assertCreated();
+
+    $tasks = ($this->auth)()->getJson('/api/v1/me/field-visits')
+        ->assertOk()
+        ->json('data.0.tasks');
+
+    expect($tasks[0]['before_photo_url'])->toBeNull()
+        ->and($tasks[0]['after_photo_url'])->toBeNull()
+        ->and($tasks[0]['photo_note'])->toBeNull();
+});
+
 it('records a field visit with no photo at all', function (): void {
     ($this->auth)()->postJson('/api/v1/me/field-visits', [
         'visit_date' => now()->toDateString(),

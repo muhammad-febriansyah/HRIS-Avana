@@ -11,6 +11,7 @@ use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 /** Employee self-service field visits / visiting pekerjaan (list + report). */
 class FieldVisitController extends Controller
@@ -42,6 +43,13 @@ class FieldVisitController extends Controller
                         'id' => $task->id,
                         'title' => $task->title,
                         'is_done' => $task->is_done,
+                        'photo_note' => $task->photo_note,
+                        'before_photo_url' => $task->before_photo_path !== null
+                            ? Storage::disk('public')->url($task->before_photo_path)
+                            : null,
+                        'after_photo_url' => $task->after_photo_path !== null
+                            ? Storage::disk('public')->url($task->after_photo_path)
+                            : null,
                     ])
                     ->values()
                     ->all(),
@@ -66,10 +74,18 @@ class FieldVisitController extends Controller
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'tasks' => ['nullable', 'array'],
             'tasks.*' => ['required', 'string', 'max:255'],
+            // Per-task evidence, indexed alongside `tasks` so entry N here
+            // belongs to task N above.
+            'task_notes' => ['nullable', 'array'],
+            'task_notes.*' => ['nullable', 'string', 'max:255'],
+            'task_before' => ['nullable', 'array'],
+            'task_before.*' => ['nullable', 'image', 'max:4096'],
+            'task_after' => ['nullable', 'array'],
+            'task_after.*' => ['nullable', 'image', 'max:4096'],
             ...FieldVisitPhotoStore::rules(),
         ]);
 
-        $visit = DB::transaction(function () use ($employee, $data): FieldVisit {
+        $visit = DB::transaction(function () use ($request, $employee, $data): FieldVisit {
             $visit = FieldVisit::create([
                 'tenant_id' => $employee->tenant_id,
                 'employee_id' => $employee->id,
@@ -88,11 +104,18 @@ class FieldVisitController extends Controller
 
             $visit->syncAttendees([]);
 
+            $notes = array_values($data['task_notes'] ?? []);
+            $before = array_values($request->file('task_before') ?? []);
+            $after = array_values($request->file('task_after') ?? []);
+
             foreach (array_values($data['tasks'] ?? []) as $order => $title) {
                 $visit->tasks()->create([
                     'tenant_id' => $employee->tenant_id,
                     'title' => $title,
                     'sort_order' => $order,
+                    'photo_note' => $notes[$order] ?? null,
+                    'before_photo_path' => ($before[$order] ?? null)?->store('visit-tasks', 'public'),
+                    'after_photo_path' => ($after[$order] ?? null)?->store('visit-tasks', 'public'),
                 ]);
             }
 
