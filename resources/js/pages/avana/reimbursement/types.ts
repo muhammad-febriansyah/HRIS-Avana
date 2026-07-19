@@ -34,6 +34,8 @@ export interface ReimbursementRow {
     notes: string | null;
     rejection_reason: string | null;
     approver: string | null;
+    /** The viewer approved this one, so they may not also pay it. */
+    self_approved: boolean;
     approved_at: string | null;
     paid_by: string | null;
     paid_at: string | null;

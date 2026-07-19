@@ -255,6 +255,45 @@ it('pays an approved reimbursement and records how the money moved', function ()
     expect($reimbursement->paid_at)->not->toBeNull();
 });
 
+it('blocks the approver from also paying the reimbursement out', function (): void {
+    $reimbursement = makeReimbursement($this->tenant->id);
+
+    actingAs($this->admin)
+        ->post(route('avana.reimbursement.approve', $reimbursement))
+        ->assertSessionHas('success');
+
+    actingAs($this->admin)
+        ->post(route('avana.reimbursement.pay', $reimbursement), [
+            'payment_method' => 'transfer',
+        ])
+        ->assertForbidden();
+
+    $reimbursement->refresh();
+    expect($reimbursement->status)->toBe('approved');
+    expect($reimbursement->paid_at)->toBeNull();
+});
+
+it('lets a second authorised person pay what someone else approved', function (): void {
+    $reimbursement = makeReimbursement($this->tenant->id);
+
+    actingAs($this->admin)
+        ->post(route('avana.reimbursement.approve', $reimbursement))
+        ->assertSessionHas('success');
+
+    $finance = User::where('email', 'dewi.f@nusantara.co.id')->firstOrFail();
+
+    actingAs($finance)
+        ->post(route('avana.reimbursement.pay', $reimbursement), [
+            'payment_method' => 'transfer',
+        ])
+        ->assertSessionHas('success');
+
+    $reimbursement->refresh();
+    expect($reimbursement->status)->toBe('paid');
+    expect((int) $reimbursement->paid_by)->toBe($finance->id);
+    expect((int) $reimbursement->approver_id)->toBe($this->admin->id);
+});
+
 it('refuses to pay a reimbursement that was never approved', function (): void {
     $reimbursement = makeReimbursement($this->tenant->id);
 

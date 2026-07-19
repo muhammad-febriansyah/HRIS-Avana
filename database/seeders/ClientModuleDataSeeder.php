@@ -180,6 +180,7 @@ class ClientModuleDataSeeder extends Seeder
         $roles = [
             ['code' => 'admin_tenant_hr', 'name' => 'Admin Tenant / HR', 'tenant_id' => $tenant->id],
             ['code' => 'manager', 'name' => 'Manager', 'tenant_id' => $tenant->id],
+            ['code' => 'finance', 'name' => 'Finance', 'tenant_id' => $tenant->id],
             ['code' => 'employee', 'name' => 'Karyawan', 'tenant_id' => $tenant->id],
         ];
 
@@ -192,6 +193,10 @@ class ClientModuleDataSeeder extends Seeder
             $assigned = match ($data['code']) {
                 'admin_tenant_hr' => $permModels->reject(fn ($p) => str_starts_with($p->code, 'tenant.')),
                 'manager' => $permModels->filter(fn ($p) => str_starts_with($p->code, 'team.') || str_starts_with($p->code, 'own.')),
+                // Finance settles the money and nothing else: claims, loans,
+                // journals, budgets, payroll — no HR administration.
+                'finance' => $permModels->filter(fn ($p) => in_array($p->module, ['claim', 'loan', 'journal', 'budget', 'salary_structure', 'payroll', 'report'], true)
+                    || str_starts_with($p->code, 'own.')),
                 default => $permModels->filter(fn ($p) => str_starts_with($p->code, 'own.')),
             };
             $role->permissions()->syncWithoutDetaching($assigned->pluck('id'));

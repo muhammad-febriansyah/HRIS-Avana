@@ -96,7 +96,7 @@ class ReimbursementController extends Controller
         return Inertia::render('avana/reimbursement/index', [
             'requests' => [
                 'data' => $paginator->getCollection()
-                    ->map(fn (Reimbursement $reimbursement): array => $this->shapeReimbursement($reimbursement))
+                    ->map(fn (Reimbursement $reimbursement): array => $this->shapeReimbursement($reimbursement, (int) $request->user()->id))
                     ->all(),
                 'meta' => [
                     'current_page' => $paginator->currentPage(),
@@ -299,6 +299,7 @@ class ReimbursementController extends Controller
         $this->ensureCanManage($request);
         $this->ensureTenantOwnership($request, $reimbursement);
         $this->ensureStatusIs($reimbursement, ['approved'], 'Hanya reimbursement yang sudah disetujui yang bisa dibayar');
+        $this->ensureNotSelfApproved($request, $reimbursement);
 
         $data = $request->validate([
             'payment_method' => ['required', 'in:'.implode(',', array_keys(self::PAYMENT_METHODS))],
@@ -367,7 +368,7 @@ class ReimbursementController extends Controller
      *
      * @return array<string, mixed>
      */
-    private function shapeReimbursement(Reimbursement $reimbursement): array
+    private function shapeReimbursement(Reimbursement $reimbursement, int $viewerId): array
     {
         return [
             'id' => $reimbursement->id,
@@ -386,6 +387,8 @@ class ReimbursementController extends Controller
             'notes' => $reimbursement->notes,
             'rejection_reason' => $reimbursement->rejection_reason,
             'approver' => $reimbursement->approver?->name,
+            // The approver may not also release the payout.
+            'self_approved' => (int) $reimbursement->approver_id === $viewerId,
             'approved_at' => $reimbursement->approved_at?->format('d M Y H:i'),
             'paid_by' => $reimbursement->paidBy?->name,
             'paid_at' => $reimbursement->paid_at?->format('d M Y H:i'),
@@ -530,6 +533,19 @@ class ReimbursementController extends Controller
     /**
      * Abort with 403 unless the user is privileged or holds a claim permission.
      */
+    /**
+     * Four eyes on money leaving the company: whoever approved a reimbursement
+     * cannot also be the one who pays it out. Mirrors the settlement rule.
+     */
+    private function ensureNotSelfApproved(Request $request, Reimbursement $reimbursement): void
+    {
+        if ((int) $reimbursement->approver_id !== (int) $request->user()->id) {
+            return;
+        }
+
+        abort(403, 'Anda yang menyetujui reimbursement ini. Pembayaran harus dilakukan orang lain.');
+    }
+
     private function ensureCanManage(Request $request): void
     {
         /** @var User $user */
