@@ -100,6 +100,7 @@ export default function EmployeesIndex({
     const meta = employees.meta;
 
     const [confirm, setConfirm] = useState<Employee | null>(null);
+    const [resetTarget, setResetTarget] = useState<Employee | null>(null);
     const [selected, setSelected] = useState<Set<number>>(new Set());
     const [bulkConfirm, setBulkConfirm] = useState(false);
     const [search, setSearch] = useState(filters.search ?? '');
@@ -220,6 +221,25 @@ export default function EmployeesIndex({
             preserveScroll: true,
             onSuccess: () => setConfirm(null),
         });
+    };
+
+    /**
+     * Unbind the employee's phone so they can sign in from a new one. Only
+     * offered while a device is actually bound.
+     */
+    const resetDevice = () => {
+        if (!resetTarget) {
+            return;
+        }
+
+        router.post(
+            EmployeeController.resetDevice(resetTarget.id).url,
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => setResetTarget(null),
+            },
+        );
     };
 
     const sortIcon = (column: string) => {
@@ -741,25 +761,19 @@ export default function EmployeesIndex({
                                                             )
                                                         }
                                                     />
-                                                    {e.has_login && (
-                                                        <ActionBtn
-                                                            icon="smartphone"
-                                                            label="Reset HP"
-                                                            variant="neutral"
-                                                            onClick={() =>
-                                                                router.post(
-                                                                    EmployeeController.resetDevice(
-                                                                        e.id,
-                                                                    ).url,
-                                                                    {},
-                                                                    {
-                                                                        preserveScroll:
-                                                                            true,
-                                                                    },
-                                                                )
-                                                            }
-                                                        />
-                                                    )}
+                                                    {e.has_login &&
+                                                        e.device && (
+                                                            <ActionBtn
+                                                                icon="smartphone"
+                                                                label="Reset HP"
+                                                                variant="neutral"
+                                                                onClick={() =>
+                                                                    setResetTarget(
+                                                                        e,
+                                                                    )
+                                                                }
+                                                            />
+                                                        )}
                                                     {e.has_login && (
                                                         <ActionBtn
                                                             icon={
@@ -1237,6 +1251,158 @@ export default function EmployeesIndex({
                             >
                                 <AIcon name="trash-2" size={16} />
                                 Hapus
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {resetTarget && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: 80,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 20,
+                    }}
+                >
+                    <div
+                        onClick={() => setResetTarget(null)}
+                        style={{
+                            position: 'absolute',
+                            inset: 0,
+                            background: 'rgba(14,26,58,.45)',
+                        }}
+                    />
+                    <div
+                        style={{
+                            position: 'relative',
+                            width: '100%',
+                            maxWidth: 400,
+                            background: '#fff',
+                            borderRadius: 14,
+                            boxShadow: '0 20px 50px rgba(15,23,42,.25)',
+                            padding: 26,
+                            animation: 'toastIn .2s ease',
+                        }}
+                    >
+                        <div
+                            style={{
+                                width: 48,
+                                height: 48,
+                                borderRadius: 12,
+                                background: 'rgba(37,71,249,.1)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                marginBottom: 16,
+                            }}
+                        >
+                            <AIcon
+                                name="smartphone"
+                                size={22}
+                                color={C.primary}
+                            />
+                        </div>
+                        <div
+                            style={{
+                                fontSize: 18,
+                                fontWeight: 600,
+                                color: C.navy,
+                            }}
+                        >
+                            Reset perangkat?
+                        </div>
+                        <div
+                            style={{
+                                fontSize: 13.5,
+                                color: C.muted,
+                                marginTop: 8,
+                                lineHeight: 1.55,
+                            }}
+                        >
+                            <strong style={{ color: C.text }}>
+                                {resetTarget.full_name}
+                            </strong>{' '}
+                            akan dilepas dari perangkat yang terikat sekarang,
+                            lalu bisa masuk lagi dari HP mana pun.
+                        </div>
+
+                        <div
+                            style={{
+                                marginTop: 14,
+                                padding: '12px 14px',
+                                background: C.surface,
+                                borderRadius: 10,
+                                fontSize: 12.5,
+                                lineHeight: 1.6,
+                            }}
+                        >
+                            <div style={{ color: C.faint }}>
+                                Perangkat terikat
+                            </div>
+                            <div
+                                style={{ color: C.text, fontWeight: 600 }}
+                            >
+                                {resetTarget.device?.label}
+                            </div>
+                            {resetTarget.device?.last_login && (
+                                <div style={{ color: C.faint }}>
+                                    Terakhir masuk{' '}
+                                    {resetTarget.device.last_login}
+                                </div>
+                            )}
+                        </div>
+
+                        <div
+                            style={{ display: 'flex', gap: 10, marginTop: 22 }}
+                        >
+                            <button
+                                onClick={() => setResetTarget(null)}
+                                style={{
+                                    flex: 1,
+                                    height: 44,
+                                    background: '#fff',
+                                    color: C.text,
+                                    border: `1px solid ${C.border}`,
+                                    borderRadius: 9,
+                                    fontSize: 14,
+                                    fontWeight: 500,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 8,
+                                    transition: '.15s',
+                                }}
+                            >
+                                <AIcon name="x" size={16} />
+                                Batal
+                            </button>
+                            <button
+                                onClick={resetDevice}
+                                style={{
+                                    flex: 1,
+                                    height: 44,
+                                    background: C.primary,
+                                    color: '#fff',
+                                    border: 'none',
+                                    borderRadius: 9,
+                                    fontSize: 14,
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 8,
+                                    transition: '.15s',
+                                }}
+                            >
+                                <AIcon name="smartphone" size={16} />
+                                Reset
                             </button>
                         </div>
                     </div>
