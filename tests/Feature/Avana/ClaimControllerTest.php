@@ -2,6 +2,7 @@
 
 use App\Models\Claim;
 use App\Models\Employee;
+use App\Models\MenuItem;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -18,6 +19,11 @@ beforeEach(function (): void {
 
     $this->admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
     $this->tenant = Tenant::findOrFail($this->admin->tenant_id);
+
+    // Klaim is superseded by Finance → Reimbursement and ships switched off, so
+    // the access middleware turns the route away. These tests cover the screen
+    // as a tenant that has switched it back on from the Menu Builder sees it.
+    MenuItem::query()->where('href', '/avana/klaim')->update(['is_active' => true]);
 });
 
 /**

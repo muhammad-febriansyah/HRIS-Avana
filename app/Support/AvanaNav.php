@@ -96,7 +96,12 @@ final class AvanaNav
                 ]),
                 self::parent('benefit-grp', 'Benefit & Klaim', 'gift', [
                     self::leaf('benefit', 'Benefit', 'gift', '/avana/benefit', 'hr_core', ['employee']),
-                    self::leaf('klaim', 'Klaim & Reimbursement', 'receipt', '/avana/klaim', 'claim', ['claim']),
+                    // Superseded by Finance → Reimbursement, which covers the
+                    // same ground with numbering, status guards and a payment
+                    // method. Kept as an inactive row so the route stays gated
+                    // (a missing menu row would leave /avana/klaim ungated) and
+                    // so a tenant can switch it back on from the Menu Builder.
+                    self::leaf('klaim', 'Klaim & Reimbursement', 'receipt', '/avana/klaim', 'claim', ['claim'], isActive: false),
                     self::leaf('pinjaman', 'Pinjaman', 'banknote', '/avana/pinjaman', 'loan', ['loan']),
                 ]),
             ]],
@@ -163,12 +168,13 @@ final class AvanaNav
      * @param  array<int, string>  $modules
      * @return array<string, mixed>
      */
-    private static function leaf(string $id, string $label, string $icon, string $href, ?string $feature = null, array $modules = [], bool $adminOnly = false, bool $superAdminOnly = false): array
+    private static function leaf(string $id, string $label, string $icon, string $href, ?string $feature = null, array $modules = [], bool $adminOnly = false, bool $superAdminOnly = false, bool $isActive = true): array
     {
         return [
             'id' => $id, 'label' => $label, 'icon' => $icon, 'href' => $href,
             'feature' => $feature, 'modules' => $modules,
             'adminOnly' => $adminOnly, 'superAdminOnly' => $superAdminOnly,
+            'isActive' => $isActive,
         ];
     }
 
@@ -501,6 +507,7 @@ final class AvanaNav
                             'modules' => $child['modules'] ?? [],
                             'admin_only' => $child['adminOnly'] ?? false,
                             'super_admin_only' => $child['superAdminOnly'] ?? false,
+                            'is_active' => $child['isActive'] ?? true,
                             'is_system' => true,
                             'sort_order' => $childOrder,
                         ],
