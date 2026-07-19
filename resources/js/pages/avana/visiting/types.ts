@@ -99,6 +99,8 @@ export interface VisitFormData {
     notes: string;
     photos: File[];
     tasks: string[];
+    /** Whether saving files the report or parks it as a draft. */
+    action: 'draft' | 'submit';
 }
 
 /** Empty defaults for the create form. */
@@ -114,4 +116,24 @@ export const emptyVisitForm: VisitFormData = {
     notes: '',
     photos: [],
     tasks: [],
+    action: 'submit',
 };
+
+/** Props for the visiting draft edit page (`edit.tsx`). */
+export interface VisitingEditProps {
+    visit: {
+        id: number;
+        employee_ids: number[];
+        branch_id: number | null;
+        visit_date: string | null;
+        location: string | null;
+        client_name: string | null;
+        purpose: string | null;
+        notes: string | null;
+        latitude: string | null;
+        longitude: string | null;
+        tasks: string[];
+    };
+    employees: EmployeeOption[];
+    branches: BranchOption[];
+}

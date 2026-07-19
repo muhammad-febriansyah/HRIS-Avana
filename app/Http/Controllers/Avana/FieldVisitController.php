@@ -106,26 +106,7 @@ class FieldVisitController extends Controller
         $this->ensureCanManage($request);
 
         $tenantId = $request->user()->tenant_id;
-
-        $data = $request->validate([
-            'employee_ids' => ['required', 'array', 'min:1'],
-            'employee_ids.*' => [
-                'required',
-                'integer',
-                "exists:employees,id,tenant_id,{$tenantId}",
-            ],
-            'branch_id' => ['nullable', 'integer', "exists:branches,id,tenant_id,{$tenantId}"],
-            'visit_date' => ['required', 'date'],
-            'location' => ['required', 'string', 'max:255'],
-            'client_name' => ['nullable', 'string', 'max:255'],
-            'purpose' => ['nullable', 'string'],
-            'notes' => ['nullable', 'string'],
-            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
-            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
-            'tasks' => ['nullable', 'array'],
-            'tasks.*' => ['required', 'string', 'max:255'],
-            ...FieldVisitPhotoStore::rules(),
-        ]);
+        $data = $this->validateVisit($request, $tenantId);
 
         $employeeIds = array_values(array_unique(array_map('intval', $data['employee_ids'])));
 
@@ -142,7 +123,7 @@ class FieldVisitController extends Controller
                 'notes' => $data['notes'] ?? null,
                 'latitude' => $data['latitude'] ?? null,
                 'longitude' => $data['longitude'] ?? null,
-                'status' => 'submitted',
+                'status' => ($data['action'] ?? 'submit') === 'draft' ? 'draft' : 'submitted',
             ]);
 
             $visit->syncAttendees($employeeIds);
@@ -161,7 +142,127 @@ class FieldVisitController extends Controller
         FieldVisitPhotoStore::attach($visit, $request->file('photos') ?? []);
 
         return redirect()->route('avana.visiting')
-            ->with('success', 'Kunjungan kerja dicatat');
+            ->with('success', $visit->status === 'draft'
+                ? 'Kunjungan disimpan sebagai draft'
+                : 'Kunjungan kerja dicatat');
+    }
+
+    /**
+     * Show the form for continuing a draft. A submitted report is a record of
+     * what happened and is not edited after the fact.
+     */
+    public function edit(Request $request, FieldVisit $visit): Response
+    {
+        $this->ensureCanManage($request);
+        $this->ensureTenantOwnership($request, $visit);
+        $this->ensureDraft($visit);
+
+        $visit->load(['employees:id', 'tasks']);
+
+        return Inertia::render('avana/visiting/edit', [
+            'visit' => [
+                'id' => $visit->id,
+                'employee_ids' => $visit->employees->pluck('id')->all(),
+                'branch_id' => $visit->branch_id,
+                'visit_date' => $visit->visit_date?->toDateString(),
+                'location' => $visit->location,
+                'client_name' => $visit->client_name,
+                'purpose' => $visit->purpose,
+                'notes' => $visit->notes,
+                'latitude' => $visit->latitude,
+                'longitude' => $visit->longitude,
+                'tasks' => $visit->tasks->pluck('title')->all(),
+            ],
+            'employees' => $this->employeeOptions($request->user()->tenant_id),
+            'branches' => $this->branchOptions($request->user()->tenant_id),
+        ]);
+    }
+
+    /**
+     * Save a draft again — still a draft, or finally submitted.
+     */
+    public function update(Request $request, FieldVisit $visit): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $this->ensureTenantOwnership($request, $visit);
+        $this->ensureDraft($visit);
+
+        $tenantId = $request->user()->tenant_id;
+        $data = $this->validateVisit($request, $tenantId);
+        $employeeIds = array_values(array_unique(array_map('intval', $data['employee_ids'])));
+
+        DB::transaction(function () use ($visit, $tenantId, $data, $employeeIds): void {
+            $visit->update([
+                'employee_id' => $employeeIds[0],
+                'branch_id' => $data['branch_id'] ?? null,
+                'visit_date' => $data['visit_date'],
+                'location' => $data['location'],
+                'client_name' => $data['client_name'] ?? null,
+                'purpose' => $data['purpose'] ?? null,
+                'notes' => $data['notes'] ?? null,
+                'latitude' => $data['latitude'] ?? null,
+                'longitude' => $data['longitude'] ?? null,
+                'status' => ($data['action'] ?? 'submit') === 'draft' ? 'draft' : 'submitted',
+            ]);
+
+            $visit->syncAttendees($employeeIds);
+
+            // Replacing wholesale would drop the done flags; a draft has none
+            // yet, so rebuilding the list is safe here.
+            $visit->tasks()->delete();
+
+            foreach (array_values($data['tasks'] ?? []) as $order => $title) {
+                $visit->tasks()->create([
+                    'tenant_id' => $tenantId,
+                    'title' => $title,
+                    'sort_order' => $order,
+                ]);
+            }
+        });
+
+        FieldVisitPhotoStore::attach($visit, $request->file('photos') ?? []);
+
+        return redirect()->route('avana.visiting')
+            ->with('success', $visit->fresh()->status === 'draft'
+                ? 'Draft kunjungan diperbarui'
+                : 'Kunjungan kerja dicatat');
+    }
+
+    /**
+     * Validate the create/update payload for a visit report.
+     *
+     * @return array<string, mixed>
+     */
+    private function validateVisit(Request $request, ?int $tenantId): array
+    {
+        return $request->validate([
+            'employee_ids' => ['required', 'array', 'min:1'],
+            'employee_ids.*' => [
+                'required',
+                'integer',
+                "exists:employees,id,tenant_id,{$tenantId}",
+            ],
+            'branch_id' => ['nullable', 'integer', "exists:branches,id,tenant_id,{$tenantId}"],
+            'visit_date' => ['required', 'date'],
+            'location' => ['required', 'string', 'max:255'],
+            'client_name' => ['nullable', 'string', 'max:255'],
+            'purpose' => ['nullable', 'string'],
+            'notes' => ['nullable', 'string'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'tasks' => ['nullable', 'array'],
+            'tasks.*' => ['required', 'string', 'max:255'],
+            // Optional so an existing caller keeps filing reports as before;
+            // only the draft path has to say so explicitly.
+            'action' => ['nullable', 'in:draft,submit'],
+            ...FieldVisitPhotoStore::rules(),
+        ]);
+    }
+
+    /** Only a draft may be reopened; a submitted report stands as filed. */
+    private function ensureDraft(FieldVisit $visit): void
+    {
+        abort_if($visit->status !== 'draft', 422, 'Kunjungan yang sudah dicatat tidak bisa diubah');
     }
 
     /**

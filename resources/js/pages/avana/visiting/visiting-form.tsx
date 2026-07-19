@@ -23,6 +23,8 @@ interface VisitingFormProps {
     branches: BranchOption[];
     submitLabel: string;
     submitIcon: string;
+    /** Saves the report as a draft to be finished later. */
+    onSaveDraft?: () => void;
     cancelHref: string;
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }
@@ -37,6 +39,7 @@ export function VisitingForm({
     branches,
     submitLabel,
     submitIcon,
+    onSaveDraft,
     cancelHref,
     onSubmit,
 }: VisitingFormProps) {
@@ -533,6 +536,22 @@ export function VisitingForm({
                     <AIcon name="x" size={16} />
                     Batalkan Kunjungan
                 </Link>
+                {onSaveDraft && (
+                    <button
+                        type="button"
+                        onClick={onSaveDraft}
+                        disabled={processing}
+                        style={{
+                            ...btnOut,
+                            height: 44,
+                            justifyContent: 'center',
+                            cursor: processing ? 'not-allowed' : 'pointer',
+                        }}
+                    >
+                        <AIcon name="save" size={16} />
+                        Simpan sebagai Draft
+                    </button>
+                )}
                 <button
                     type="submit"
                     disabled={processing}

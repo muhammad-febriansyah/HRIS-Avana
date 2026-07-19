@@ -430,3 +430,87 @@ it('forbids users without attendance permissions from listing field visits', fun
         ->get(route('avana.visiting'))
         ->assertForbidden();
 });
+
+/** A visit parked as a draft by the acting admin. */
+function draftVisit(int $tenantId): FieldVisit
+{
+    $employee = Employee::forTenant($tenantId)->firstOrFail();
+
+    $visit = FieldVisit::create([
+        'tenant_id' => $tenantId,
+        'employee_id' => $employee->id,
+        'visit_date' => '2026-07-19',
+        'location' => 'Toko Mitra Senayan',
+        'status' => 'draft',
+    ]);
+
+    $visit->syncAttendees([$employee->id]);
+
+    return $visit;
+}
+
+it('parks a visit as a draft instead of filing it', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.visiting.store'), [
+            'employee_ids' => [$employee->id],
+            'visit_date' => '2026-07-19',
+            'location' => 'Belum selesai diisi',
+            'action' => 'draft',
+        ])
+        ->assertSessionHas('success');
+
+    expect(FieldVisit::latest('id')->firstOrFail()->status)->toBe('draft');
+});
+
+it('lets a draft be reopened and finally filed', function (): void {
+    $visit = draftVisit($this->tenant->id);
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->get(route('avana.visiting.edit', $visit))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/visiting/edit', false)
+            ->has('visit', fn (Assert $row) => $row
+                ->where('location', 'Toko Mitra Senayan')
+                ->has('employee_ids')
+                ->has('tasks')
+                ->etc()));
+
+    actingAs($this->admin)
+        ->post(route('avana.visiting.update', $visit), [
+            'employee_ids' => [$employee->id],
+            'visit_date' => '2026-07-19',
+            'location' => 'Toko Mitra Senayan',
+            'tasks' => ['Cek stok', 'Wawancara pelanggan'],
+            'action' => 'submit',
+        ])
+        ->assertSessionHas('success');
+
+    $visit->refresh();
+
+    expect($visit->status)->toBe('submitted')
+        ->and($visit->tasks)->toHaveCount(2);
+});
+
+it('will not reopen a visit that was already filed', function (): void {
+    $visit = draftVisit($this->tenant->id);
+    $visit->update(['status' => 'submitted']);
+
+    actingAs($this->admin)
+        ->get(route('avana.visiting.edit', $visit))
+        ->assertStatus(422);
+
+    actingAs($this->admin)
+        ->post(route('avana.visiting.update', $visit), [
+            'employee_ids' => [$visit->employee_id],
+            'visit_date' => '2026-07-19',
+            'location' => 'Diubah diam-diam',
+            'action' => 'submit',
+        ])
+        ->assertStatus(422);
+
+    expect($visit->refresh()->location)->toBe('Toko Mitra Senayan');
+});

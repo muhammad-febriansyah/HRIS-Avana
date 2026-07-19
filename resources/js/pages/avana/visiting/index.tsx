@@ -469,6 +469,22 @@ export default function VisitingIndex({
                                             }}
                                         >
                                             {row.branch ?? '—'}
+                                            {row.status === 'draft' && (
+                                                <span
+                                                    style={{
+                                                        display: 'inline-block',
+                                                        marginLeft: 8,
+                                                        padding: '2px 8px',
+                                                        borderRadius: 100,
+                                                        background: '#EEF2FF',
+                                                        color: C.primary,
+                                                        fontSize: 10.5,
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    Draft
+                                                </span>
+                                            )}
                                         </td>
                                         <td
                                             style={{
@@ -555,6 +571,20 @@ export default function VisitingIndex({
                                                 textAlign: 'right',
                                             }}
                                         >
+                                            {row.status === 'draft' && (
+                                                <ActionBtn
+                                                    icon="pencil"
+                                                    label="Lanjutkan"
+                                                    variant="success"
+                                                    onClick={() =>
+                                                        router.visit(
+                                                            FieldVisitController.edit(
+                                                                row.id,
+                                                            ).url,
+                                                        )
+                                                    }
+                                                />
+                                            )}
                                             <ActionBtn
                                                 icon="trash-2"
                                                 label="Hapus"

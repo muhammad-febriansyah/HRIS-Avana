@@ -4,17 +4,31 @@ import { useEffect } from 'react';
 import { toast } from 'sonner';
 import FieldVisitController from '@/actions/App/Http/Controllers/Avana/FieldVisitController';
 import { AIcon, C } from '@/lib/avana';
-import { emptyVisitForm } from './types';
-import type { FlashProps, VisitFormData, VisitingCreateProps } from './types';
+import type { FlashProps, VisitFormData, VisitingEditProps } from './types';
 import { VisitingForm } from './visiting-form';
 
-export default function VisitingCreate({
+/** Continue a visit report that was parked as a draft. */
+export default function VisitingEdit({
+    visit,
     employees,
     branches,
-}: VisitingCreateProps) {
+}: VisitingEditProps) {
     const { flash } = usePage<FlashProps>().props;
 
-    const form = useForm<VisitFormData>({ ...emptyVisitForm });
+    const form = useForm<VisitFormData>({
+        employee_ids: visit.employee_ids.map(String),
+        branch_id: visit.branch_id === null ? '' : String(visit.branch_id),
+        visit_date: visit.visit_date ?? '',
+        location: visit.location ?? '',
+        client_name: visit.client_name ?? '',
+        purpose: visit.purpose ?? '',
+        latitude: visit.latitude ?? '',
+        longitude: visit.longitude ?? '',
+        notes: visit.notes ?? '',
+        photos: [],
+        tasks: visit.tasks,
+        action: 'submit',
+    });
 
     useEffect(() => {
         if (flash?.success) {
@@ -24,7 +38,9 @@ export default function VisitingCreate({
 
     const save = (action: 'draft' | 'submit') => {
         form.transform((data) => ({ ...data, action }));
-        form.submit(FieldVisitController.store(), { forceFormData: true });
+        form.submit(FieldVisitController.update(visit.id), {
+            forceFormData: true,
+        });
     };
 
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -34,7 +50,7 @@ export default function VisitingCreate({
 
     return (
         <>
-            <Head title="Catat Kunjungan" />
+            <Head title="Lanjutkan Draft Kunjungan" />
             <div style={{ padding: '28px 32px' }}>
                 <div
                     style={{
@@ -57,7 +73,7 @@ export default function VisitingCreate({
                         Visiting
                     </Link>
                     <AIcon name="chevron-right" size={13} />
-                    <span style={{ color: C.muted }}>Catat Kunjungan</span>
+                    <span style={{ color: C.muted }}>Lanjutkan Draft</span>
                 </div>
                 <h1
                     style={{
@@ -68,7 +84,7 @@ export default function VisitingCreate({
                         letterSpacing: '-.01em',
                     }}
                 >
-                    Catat Kunjungan Baru
+                    Lanjutkan Draft Kunjungan
                 </h1>
 
                 <VisitingForm
@@ -76,7 +92,7 @@ export default function VisitingCreate({
                     employees={employees}
                     branches={branches}
                     submitLabel="Simpan Laporan"
-                    submitIcon="plus"
+                    submitIcon="check"
                     cancelHref={FieldVisitController.index().url}
                     onSubmit={handleSubmit}
                     onSaveDraft={() => save('draft')}
