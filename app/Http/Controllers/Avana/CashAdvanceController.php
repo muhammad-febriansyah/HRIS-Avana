@@ -127,6 +127,35 @@ class CashAdvanceController extends Controller
     }
 
     /**
+     * Show one advance with its approval trail and, once accounted for, what
+     * the money actually went on.
+     */
+    public function show(Request $request, CashAdvance $cashAdvance): Response
+    {
+        $this->ensureCanManage($request);
+        $this->ensureTenantOwnership($request, $cashAdvance);
+
+        $cashAdvance->load([
+            'employee:id,full_name,employee_number',
+            'approvedBy:id,name',
+            'disbursedBy:id,name',
+            'settledBy:id,name',
+        ]);
+
+        return Inertia::render('avana/kasbon/show', [
+            'advance' => $this->shapeAdvance($cashAdvance) + [
+                'approved_at' => $cashAdvance->approved_at?->format('d M Y H:i'),
+                'approved_by_name' => $cashAdvance->approvedBy?->name,
+                'disbursed_by_name' => $cashAdvance->disbursedBy?->name,
+                'settled_at_full' => $cashAdvance->settled_at?->format('d M Y H:i'),
+            ],
+            'disbursementMethods' => $this->disbursementMethodOptions(),
+            // Whoever released the money may not sign off on how it was spent.
+            'authUserId' => (int) $request->user()->id,
+        ]);
+    }
+
+    /**
      * Show the form for submitting a new cash advance request.
      */
     public function create(Request $request): Response

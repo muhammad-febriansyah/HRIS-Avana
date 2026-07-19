@@ -134,3 +134,19 @@ export const STATUS_OPTIONS: SelectOption[] = [
     { value: 'settled', label: 'Selesai' },
     { value: 'rejected', label: 'Ditolak' },
 ];
+
+/** A cash advance with its full approval trail (`@show`). */
+export interface CashAdvanceDetail extends CashAdvanceRow {
+    approved_at: string | null;
+    approved_by_name: string | null;
+    disbursed_by_name: string | null;
+    settled_at_full: string | null;
+}
+
+/** Props for the cash advance detail page (`show.tsx`). */
+export interface CashAdvanceShowProps {
+    advance: CashAdvanceDetail;
+    disbursementMethods: SelectOption[];
+    /** The viewer, for the four-eyes check on the settlement action. */
+    authUserId: number;
+}

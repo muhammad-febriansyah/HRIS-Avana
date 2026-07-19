@@ -524,6 +524,18 @@ export default function KasbonIndex({
                                                     justifyContent: 'flex-end',
                                                 }}
                                             >
+                                                <ActionBtn
+                                                    icon="eye"
+                                                    label="Detail"
+                                                    variant="warning"
+                                                    onClick={() =>
+                                                        router.visit(
+                                                            CashAdvanceController.show(
+                                                                row.id,
+                                                            ).url,
+                                                        )
+                                                    }
+                                                />
                                                 {row.status === 'pending' && (
                                                     <>
                                                         <ActionBtn

@@ -406,3 +406,63 @@ it('requires the amount actually spent', function (): void {
         ->post(route('avana.kasbon.settle', $advance), [])
         ->assertSessionHasErrors('spent_amount');
 });
+
+it('renders the detail with its approval trail', function (): void {
+    $advance = disbursedAdvance($this->tenant->id, 2_000_000);
+
+    actingAs($this->admin)
+        ->get(route('avana.kasbon.show', $advance))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/kasbon/show', false)
+            ->has('advance', fn (Assert $row) => $row
+                ->where('status', 'disbursed')
+                ->where('disbursement_method_label', 'Transfer Bank')
+                ->has('approved_at')
+                ->has('approved_by_name')
+                ->has('disbursed_by_name')
+                ->has('settled_at_full')
+                ->etc())
+            ->has('disbursementMethods')
+            ->where('authUserId', $this->admin->id));
+});
+
+it('shows what a settled advance was spent on', function (): void {
+    $advance = disbursedAdvance($this->tenant->id, 2_000_000);
+
+    actingAs($this->admin)
+        ->post(route('avana.kasbon.settle', $advance), [
+            'spent_amount' => 1_400_000,
+            'settlement_note' => 'Hotel lebih murah',
+        ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.kasbon.show', $advance))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('advance', fn (Assert $row) => $row
+                ->where('status', 'settled')
+                ->where('spent_amount', 1_400_000)
+                ->where('returned_amount', 600_000)
+                ->where('topup_amount', 0)
+                ->where('settlement_note', 'Hotel lebih murah')
+                ->where('settled_by_name', $this->admin->name)
+                ->etc()));
+});
+
+it('hides an advance from another tenant', function (): void {
+    $otherTenant = Tenant::create(['name' => 'PT Asing Kasbon', 'slug' => 'pt-asing-kasbon']);
+    $stranger = Employee::create([
+        'tenant_id' => $otherTenant->id,
+        'employee_number' => 'EMP-KB-1',
+        'full_name' => 'Karyawan Tenant Lain',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+    ]);
+
+    $foreign = makeCashAdvance($otherTenant->id, ['employee_id' => $stranger->id]);
+
+    actingAs($this->admin)
+        ->get(route('avana.kasbon.show', $foreign))
+        ->assertNotFound();
+});
