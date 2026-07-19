@@ -6,6 +6,7 @@ import { AIcon, btnOut, btnP, C, card, rp } from '@/lib/avana';
 import { Field, selectStyle, StatusPill, textareaStyle } from './components';
 import type {
     FlashProps,
+    SettlementDetail,
     SettlementShowProps,
     SettlementStatus,
 } from './types';
@@ -238,6 +239,49 @@ export default function SettlementShow({
                                 </span>
                             </div>
                         </div>
+
+                        {/* Travel context — only for a claim that carries a trip */}
+                        {(settlement.destination ||
+                            settlement.trip_start_date) && (
+                            <div style={card}>
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 9,
+                                        fontSize: 15,
+                                        fontWeight: 600,
+                                        color: C.navy,
+                                        padding: '16px 20px',
+                                        borderBottom: `1px solid ${C.line}`,
+                                    }}
+                                >
+                                    <AIcon
+                                        name="map-pin"
+                                        size={17}
+                                        color={C.primary}
+                                    />
+                                    Informasi Perjalanan
+                                </div>
+                                <div
+                                    style={{
+                                        padding: 20,
+                                        display: 'grid',
+                                        gridTemplateColumns: '1fr 1fr',
+                                        gap: 18,
+                                    }}
+                                >
+                                    <SummaryFact
+                                        label="Tujuan"
+                                        value={settlement.destination ?? '—'}
+                                    />
+                                    <SummaryFact
+                                        label="Durasi"
+                                        value={tripDuration(settlement)}
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                         {/* Payout account */}
                         <div style={card}>
@@ -761,6 +805,23 @@ const fullPrimary = {
 } as const;
 
 /** One label + value fact block. */
+/**
+ * "18 Jul 2026 — 21 Jul 2026 (4 hari)". Falls back to whichever half of the
+ * trip is known, since both dates are optional.
+ */
+function tripDuration(settlement: SettlementDetail): string {
+    const { trip_start_date: start, trip_end_date: end, trip_days: days } =
+        settlement;
+
+    if (!start && !end) {
+        return '—';
+    }
+
+    const range = start && end ? `${start} — ${end}` : (start ?? end ?? '—');
+
+    return days ? `${range} (${days} hari)` : range;
+}
+
 function SummaryFact({
     label,
     value,
