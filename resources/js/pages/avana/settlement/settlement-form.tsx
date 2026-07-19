@@ -1,6 +1,6 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
-import type { ChangeEvent } from 'react';
+import { useRef, useState } from 'react';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, btnOut, btnP, C, card, rp, RupiahInput } from '@/lib/avana';
 import {
@@ -13,12 +13,13 @@ import {
     textInputStyle,
     withError,
 } from './components';
-import type {
-    EmployeeOption,
-    SelectOption,
-    SettlementAttachmentRow,
-    SettlementFormData,
-    SettlementLineInput,
+import {
+    emptySettlementLine,
+    type EmployeeOption,
+    type SelectOption,
+    type SettlementAttachmentRow,
+    type SettlementFormData,
+    type SettlementLineInput,
 } from './types';
 
 interface SettlementFormProps {
@@ -57,6 +58,8 @@ export function SettlementForm({
     submit,
 }: SettlementFormProps) {
     const { data, setData, errors, processing } = form;
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [dragging, setDragging] = useState(false);
 
     const subtotal = data.items.reduce(
         (sum, item) => sum + (Number(item.amount) || 0),
@@ -78,10 +81,7 @@ export function SettlementForm({
     };
 
     const addItem = (): void => {
-        setData('items', [
-            ...data.items,
-            { description: '', category: 'transportasi', amount: '' },
-        ]);
+        setData('items', [...data.items, emptySettlementLine()]);
     };
 
     const removeItem = (index: number): void => {
@@ -91,8 +91,38 @@ export function SettlementForm({
         );
     };
 
-    const onFilesChange = (event: ChangeEvent<HTMLInputElement>): void => {
-        setData('attachments', Array.from(event.target.files ?? []));
+    /** Append picked/dropped files, skipping ones already staged. */
+    const addFiles = (incoming: FileList | null): void => {
+        const picked = Array.from(incoming ?? []);
+
+        if (picked.length === 0) {
+            return;
+        }
+
+        const isStaged = (file: File): boolean =>
+            data.attachments.some(
+                (staged) =>
+                    staged.name === file.name &&
+                    staged.size === file.size &&
+                    staged.lastModified === file.lastModified,
+            );
+
+        setData('attachments', [
+            ...data.attachments,
+            ...picked.filter((file) => !isStaged(file)),
+        ]);
+
+        // Let the same file be re-picked after it is removed.
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
+    const removeFile = (index: number): void => {
+        setData(
+            'attachments',
+            data.attachments.filter((_, i) => i !== index),
+        );
     };
 
     return (
@@ -392,26 +422,138 @@ export function SettlementForm({
                         <label style={fieldLabelStyle}>
                             Bukti / Kuitansi
                         </label>
-                        <input
-                            type="file"
-                            multiple
-                            accept="image/jpeg,image/png,application/pdf"
-                            onChange={onFilesChange}
-                            style={{
-                                width: '100%',
-                                fontSize: 12.5,
-                                color: C.muted,
-                            }}
-                        />
                         <div
+                            onDragOver={(event) => {
+                                event.preventDefault();
+                                setDragging(true);
+                            }}
+                            onDragLeave={() => setDragging(false)}
+                            onDrop={(event) => {
+                                event.preventDefault();
+                                setDragging(false);
+                                addFiles(event.dataTransfer.files);
+                            }}
                             style={{
-                                fontSize: 11,
-                                color: C.faint,
-                                marginTop: 6,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: 10,
+                                padding: '30px 20px',
+                                border: `1.5px dashed ${dragging ? C.primary : C.border}`,
+                                borderRadius: 10,
+                                background: dragging ? '#F5F8FF' : '#FCFDFF',
+                                transition: 'border-color .15s, background .15s',
                             }}
                         >
-                            PDF / JPG / PNG · maks 5 MB per berkas
+                            <AIcon
+                                name="file-up"
+                                size={30}
+                                color={dragging ? C.primary : C.faint}
+                            />
+                            <div
+                                style={{
+                                    fontSize: 13.5,
+                                    fontWeight: 600,
+                                    color: C.navy,
+                                }}
+                            >
+                                Seret bukti kuitansi ke sini
+                            </div>
+                            <div style={{ fontSize: 11.5, color: C.faint }}>
+                                Format didukung: PDF, JPG, PNG (maks 5 MB)
+                            </div>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                multiple
+                                accept="image/jpeg,image/png,application/pdf"
+                                onChange={(event) =>
+                                    addFiles(event.target.files)
+                                }
+                                style={{ display: 'none' }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                style={{
+                                    ...btnP,
+                                    height: 34,
+                                    padding: '0 16px',
+                                    fontSize: 11.5,
+                                    letterSpacing: '.03em',
+                                    textTransform: 'uppercase',
+                                }}
+                            >
+                                Pilih Berkas
+                            </button>
                         </div>
+
+                        {data.attachments.length > 0 && (
+                            <div
+                                style={{
+                                    marginTop: 12,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 6,
+                                }}
+                            >
+                                {data.attachments.map((file, index) => (
+                                    <div
+                                        key={`${file.name}-${file.lastModified}`}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 8,
+                                            fontSize: 12.5,
+                                            color: C.text,
+                                        }}
+                                    >
+                                        <AIcon
+                                            name="file-text"
+                                            size={14}
+                                            color={C.primary}
+                                        />
+                                        <span
+                                            style={{
+                                                flex: 1,
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap',
+                                            }}
+                                        >
+                                            {file.name}
+                                        </span>
+                                        <span
+                                            style={{
+                                                fontSize: 11,
+                                                color: C.faint,
+                                            }}
+                                        >
+                                            {formatFileSize(file.size)}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeFile(index)}
+                                            title="Hapus berkas"
+                                            style={{
+                                                display: 'flex',
+                                                border: 'none',
+                                                background: 'none',
+                                                padding: 2,
+                                                cursor: 'pointer',
+                                            }}
+                                        >
+                                            <AIcon
+                                                name="x"
+                                                size={14}
+                                                color={C.red}
+                                            />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
                         {existingAttachments &&
                             existingAttachments.length > 0 && (
                                 <div
@@ -571,6 +713,19 @@ export function SettlementForm({
             </div>
         </form>
     );
+}
+
+/** Human-readable byte size for a staged attachment. */
+function formatFileSize(bytes: number): string {
+    if (bytes < 1024) {
+        return `${bytes} B`;
+    }
+
+    if (bytes < 1024 * 1024) {
+        return `${Math.round(bytes / 1024)} KB`;
+    }
+
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /** One `label — Rp value` line in the summary panel. */

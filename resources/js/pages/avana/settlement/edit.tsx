@@ -4,10 +4,11 @@ import { toast } from 'sonner';
 import SettlementController from '@/actions/App/Http/Controllers/Avana/SettlementController';
 import { AIcon, C } from '@/lib/avana';
 import { SettlementForm } from './settlement-form';
-import type {
-    FlashProps,
-    SettlementEditProps,
-    SettlementFormData,
+import {
+    emptySettlementLine,
+    type FlashProps,
+    type SettlementEditProps,
+    type SettlementFormData,
 } from './types';
 
 export default function SettlementEdit({
@@ -28,10 +29,12 @@ export default function SettlementEdit({
             settlement.items.length > 0
                 ? settlement.items.map((item) => ({
                       description: item.description,
+                      // Carried through untouched; the web form has no input.
+                      detail: item.detail ?? '',
                       category: item.category,
                       amount: String(item.amount ?? ''),
                   }))
-                : [{ description: '', category: 'transportasi', amount: '' }],
+                : [emptySettlementLine()],
         attachments: [],
         action: 'draft',
     });

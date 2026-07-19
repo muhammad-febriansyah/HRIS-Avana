@@ -30,6 +30,8 @@ export interface SettlementItemRow {
     category: string;
     category_label: string;
     description: string;
+    /** Specifics under the category — flight number, hotel + nights, route. */
+    detail: string | null;
     amount: number;
 }
 
@@ -73,6 +75,10 @@ export interface SettlementRow {
 
 /** A settlement with its line items + payout + approval trail (`@show`). */
 export interface SettlementDetail extends SettlementRow {
+    destination: string | null;
+    trip_start_date: string | null;
+    trip_end_date: string | null;
+    trip_days: number | null;
     bank_name: string | null;
     bank_account_number: string | null;
     bank_account_holder: string | null;
@@ -150,7 +156,7 @@ export interface SettlementEditProps {
         department: string | null;
         submission_date: string | null;
         notes: string | null;
-        items: SettlementLineInput[];
+        items: (SettlementLineInput & { detail: string | null })[];
         attachments: SettlementAttachmentRow[];
     };
     employees: EmployeeOption[];
@@ -163,9 +169,14 @@ export interface SettlementShowProps {
     paymentMethods: SelectOption[];
 }
 
-/** One editable expense line in the create/edit form. */
+/**
+ * One editable expense line in the create/edit form. `detail` has no input on
+ * web — it rides along so editing a mobile-filed settlement here does not wipe
+ * the flight number / hotel line the employee entered on their phone.
+ */
 export interface SettlementLineInput {
     description: string;
+    detail?: string;
     category: string;
     amount: string | number;
 }
@@ -183,6 +194,14 @@ export interface SettlementFormData {
     action: 'draft' | 'submit';
 }
 
+/**
+ * A fresh blank expense line. Built per call — a shared object would make every
+ * row added from it edit as one.
+ */
+export function emptySettlementLine(): SettlementLineInput {
+    return { description: '', category: 'transportasi', amount: '' };
+}
+
 /** Empty defaults for the create form (one blank line to start). */
 export const emptySettlementForm: SettlementFormData = {
     employee_id: '',
@@ -191,7 +210,7 @@ export const emptySettlementForm: SettlementFormData = {
     department: '',
     submission_date: '',
     notes: '',
-    items: [{ description: '', category: 'transportasi', amount: '' }],
+    items: [emptySettlementLine()],
     attachments: [],
     action: 'draft',
 };
