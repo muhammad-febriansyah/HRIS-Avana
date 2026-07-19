@@ -311,7 +311,12 @@ class UserController extends Controller
             'reset_at' => now(),
         ]);
 
-        return back()->with('success', 'Perangkat direset. Pengguna dapat login dari HP baru.');
+        // Freeing the binding slot is not the same as revoking access: the old
+        // phone still holds a valid token and could refresh it for weeks. Bump
+        // the token version so every token it issued stops working now.
+        $user->increment('token_version');
+
+        return back()->with('success', 'Perangkat direset. HP lama otomatis keluar, pengguna dapat login dari HP baru.');
     }
 
     /**

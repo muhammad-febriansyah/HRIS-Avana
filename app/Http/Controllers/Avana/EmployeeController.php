@@ -603,7 +603,12 @@ class EmployeeController extends Controller
             'reset_at' => now(),
         ]);
 
-        return back()->with('success', 'Perangkat direset. Karyawan dapat login dari HP baru.');
+        // Freeing the binding slot is not the same as revoking access: the old
+        // phone still holds a valid token and could refresh it for weeks. Bump
+        // the token version so every token it issued stops working now.
+        $employee->user->increment('token_version');
+
+        return back()->with('success', 'Perangkat direset. HP lama otomatis keluar, karyawan dapat login dari HP baru.');
     }
 
     /**

@@ -65,3 +65,47 @@ it('allows login without device info for non-mobile clients', function (): void 
 
     expect(UserDevice::count())->toBe(0);
 });
+
+it('locks the old phone out the moment an admin resets the device', function (): void {
+    $token = login([
+        'device_id' => 'DEV-OLD',
+        'model' => 'Pixel 8',
+    ])->assertOk()->json('access_token');
+
+    // The old phone works right up until the reset.
+    app('auth')->forgetGuards();
+    test()->withHeader('Authorization', 'Bearer '.$token)
+        ->getJson('/api/v1/me/profile')
+        ->assertOk();
+
+    $admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
+
+    test()->actingAs($admin)
+        ->post(route('avana.employees.reset-device', $this->employee->employee))
+        ->assertSessionHas('success');
+
+    // Freeing the slot is not enough — the token it already holds must die too,
+    // otherwise a lost phone keeps working until the refresh window closes.
+    app('auth')->forgetGuards();
+    test()->withHeader('Authorization', 'Bearer '.$token)
+        ->getJson('/api/v1/me/profile')
+        ->assertUnauthorized();
+
+    app('auth')->forgetGuards();
+    test()->withHeader('Authorization', 'Bearer '.$token)
+        ->postJson('/api/v1/auth/refresh')
+        ->assertUnauthorized();
+});
+
+it('lets the employee bind a new phone after the reset', function (): void {
+    login(['device_id' => 'DEV-OLD'])->assertOk();
+
+    $admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
+    test()->actingAs($admin)
+        ->post(route('avana.employees.reset-device', $this->employee->employee));
+
+    login(['device_id' => 'DEV-NEW', 'model' => 'Galaxy S24'])->assertOk();
+
+    expect(UserDevice::where('user_id', $this->employee->id)->active()->first()->device_id)
+        ->toBe('DEV-NEW');
+});
