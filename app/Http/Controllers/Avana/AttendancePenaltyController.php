@@ -101,7 +101,7 @@ class AttendancePenaltyController extends Controller
      */
     public function create(Request $request): Response
     {
-        $this->authorize('viewAny', Attendance::class);
+        $this->authorize('create', Attendance::class);
 
         return Inertia::render('avana/sanksi/create', [
             'employees' => $this->employeeOptions($request->user()->tenant_id),
@@ -113,7 +113,7 @@ class AttendancePenaltyController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $this->authorize('viewAny', Attendance::class);
+        $this->authorize('create', Attendance::class);
 
         $tenantId = $request->user()->tenant_id;
 
@@ -147,7 +147,7 @@ class AttendancePenaltyController extends Controller
      */
     public function generate(Request $request): RedirectResponse
     {
-        $this->authorize('viewAny', Attendance::class);
+        $this->authorize('create', Attendance::class);
 
         $tenantId = $request->user()->tenant_id;
 
@@ -200,7 +200,7 @@ class AttendancePenaltyController extends Controller
     {
         abort_if((int) $penalty->tenant_id !== (int) $request->user()->tenant_id, 404);
 
-        $this->authorize('viewAny', Attendance::class);
+        $this->authorize('delete', Attendance::class);
 
         $penalty->delete();
 

@@ -108,7 +108,7 @@ class MovementController extends Controller
      */
     public function create(Request $request): Response
     {
-        $this->authorize('viewAny', Employee::class);
+        $this->authorize('create', Employee::class);
 
         $tenantId = $request->user()->tenant_id;
 
@@ -137,7 +137,7 @@ class MovementController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $this->authorize('viewAny', Employee::class);
+        $this->authorize('create', Employee::class);
 
         $tenantId = $request->user()->tenant_id;
 

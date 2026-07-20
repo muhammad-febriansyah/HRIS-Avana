@@ -77,10 +77,6 @@ final class EmployeeContractPolicy
             return true;
         }
 
-        return $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains($permission);
+        return $user->hasPermissionTo($permission);
     }
 }

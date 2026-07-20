@@ -33,7 +33,7 @@ final class LeaveTypePolicy
     public function create(User $user, LeaveType|string $leaveType = LeaveType::class): bool
     {
         return $this->belongsToSameTenant($user, $leaveType)
-            && $this->hasLeavePermission($user, 'leave.manage');
+            && $this->hasLeavePermission($user, 'leave.create');
     }
 
     /**
@@ -44,7 +44,7 @@ final class LeaveTypePolicy
     public function update(User $user, LeaveType|string $leaveType): bool
     {
         return $this->belongsToSameTenant($user, $leaveType)
-            && $this->hasLeavePermission($user, 'leave.manage');
+            && $this->hasLeavePermission($user, 'leave.update');
     }
 
     /**
@@ -55,7 +55,7 @@ final class LeaveTypePolicy
     public function delete(User $user, LeaveType|string $leaveType): bool
     {
         return $this->belongsToSameTenant($user, $leaveType)
-            && $this->hasLeavePermission($user, 'leave.manage');
+            && $this->hasLeavePermission($user, 'leave.archive');
     }
 
     /**
@@ -87,10 +87,6 @@ final class LeaveTypePolicy
             return true;
         }
 
-        return $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains($permission);
+        return $user->hasPermissionTo($permission);
     }
 }

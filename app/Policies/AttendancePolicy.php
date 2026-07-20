@@ -26,6 +26,18 @@ final class AttendancePolicy
     }
 
     /**
+     * Determine whether the user can create attendance records, roster
+     * entries, and penalties.
+     *
+     * @param  Attendance|class-string<Attendance>  $attendance
+     */
+    public function create(User $user, Attendance|string $attendance = Attendance::class): bool
+    {
+        return $this->belongsToSameTenant($user, $attendance)
+            && $this->hasAttendancePermission($user, 'attendance.create');
+    }
+
+    /**
      * Determine whether the user can approve attendance corrections.
      *
      * @param  Attendance|class-string<Attendance>  $attendance
@@ -33,7 +45,7 @@ final class AttendancePolicy
     public function approveCorrection(User $user, Attendance|string $attendance = Attendance::class): bool
     {
         return $this->belongsToSameTenant($user, $attendance)
-            && $this->hasAttendancePermission($user, 'attendance.correction.approve');
+            && $this->hasAttendancePermission($user, 'attendance.approve');
     }
 
     /**
@@ -44,7 +56,7 @@ final class AttendancePolicy
     public function rejectCorrection(User $user, Attendance|string $attendance = Attendance::class): bool
     {
         return $this->belongsToSameTenant($user, $attendance)
-            && $this->hasAttendancePermission($user, 'attendance.correction.approve');
+            && $this->hasAttendancePermission($user, 'attendance.approve');
     }
 
     /**
@@ -55,7 +67,7 @@ final class AttendancePolicy
     public function delete(User $user, Attendance|string $attendance = Attendance::class): bool
     {
         return $this->belongsToSameTenant($user, $attendance)
-            && $this->hasAttendancePermission($user, 'attendance.delete');
+            && $this->hasAttendancePermission($user, 'attendance.archive');
     }
 
     /**
@@ -87,10 +99,6 @@ final class AttendancePolicy
             return true;
         }
 
-        return $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains($permission);
+        return $user->hasPermissionTo($permission);
     }
 }

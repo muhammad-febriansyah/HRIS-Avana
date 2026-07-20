@@ -104,7 +104,7 @@ class RosterController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $this->authorize('viewAny', Attendance::class);
+        $this->authorize('create', Attendance::class);
 
         $tenantId = $request->user()->tenant_id;
 
@@ -143,7 +143,7 @@ class RosterController extends Controller
      */
     public function bulkStore(Request $request): RedirectResponse
     {
-        $this->authorize('viewAny', Attendance::class);
+        $this->authorize('create', Attendance::class);
 
         $tenantId = $request->user()->tenant_id;
 
@@ -222,7 +222,7 @@ class RosterController extends Controller
      */
     public function copyPreviousWeek(Request $request): RedirectResponse
     {
-        $this->authorize('viewAny', Attendance::class);
+        $this->authorize('create', Attendance::class);
 
         $tenantId = $request->user()->tenant_id;
         $weekStart = $this->resolveWeekStart($request->input('week_start'));
@@ -280,7 +280,7 @@ class RosterController extends Controller
      */
     public function destroy(Request $request, ShiftSchedule $schedule): RedirectResponse
     {
-        $this->authorize('viewAny', Attendance::class);
+        $this->authorize('delete', Attendance::class);
 
         abort_if((int) $schedule->tenant_id !== (int) $request->user()->tenant_id, 404);
 

@@ -33,7 +33,7 @@ final class OvertimeRequestPolicy
     public function create(User $user, OvertimeRequest|string $overtime = OvertimeRequest::class): bool
     {
         return $this->belongsToSameTenant($user, $overtime)
-            && $this->hasOvertimePermission($user, 'overtime.view');
+            && $this->hasOvertimePermission($user, 'overtime.create');
     }
 
     /**
@@ -87,10 +87,6 @@ final class OvertimeRequestPolicy
             return true;
         }
 
-        return $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains($permission);
+        return $user->hasPermissionTo($permission);
     }
 }

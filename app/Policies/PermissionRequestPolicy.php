@@ -33,7 +33,7 @@ final class PermissionRequestPolicy
     public function create(User $user, PermissionRequest|string $permissionRequest = PermissionRequest::class): bool
     {
         return $this->belongsToSameTenant($user, $permissionRequest)
-            && $this->hasPermission($user, 'leave.manage');
+            && $this->hasPermission($user, 'leave.create');
     }
 
     /**
@@ -87,10 +87,6 @@ final class PermissionRequestPolicy
             return true;
         }
 
-        return $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains($permission);
+        return $user->hasPermissionTo($permission);
     }
 }

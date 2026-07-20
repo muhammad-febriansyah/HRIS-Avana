@@ -22,7 +22,7 @@ final class WfhRequestPolicy
     public function viewAny(User $user, WfhRequest|string $wfh = WfhRequest::class): bool
     {
         return $this->belongsToSameTenant($user, $wfh)
-            && $this->hasWfhPermission($user, 'wfh.approve');
+            && $this->hasWfhPermission($user, 'wfh.view');
     }
 
     /**
@@ -33,7 +33,7 @@ final class WfhRequestPolicy
     public function create(User $user, WfhRequest|string $wfh = WfhRequest::class): bool
     {
         return $this->belongsToSameTenant($user, $wfh)
-            && $this->hasWfhPermission($user, 'wfh.approve');
+            && $this->hasWfhPermission($user, 'wfh.create');
     }
 
     /**
@@ -87,10 +87,6 @@ final class WfhRequestPolicy
             return true;
         }
 
-        return $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains($permission);
+        return $user->hasPermissionTo($permission);
     }
 }
