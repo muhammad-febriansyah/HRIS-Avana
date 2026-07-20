@@ -105,7 +105,7 @@ class PayrollController extends Controller
      */
     public function run(Request $request): RedirectResponse
     {
-        $this->authorize('run', PayrollPeriod::class);
+        $this->authorize('create', PayrollPeriod::class);
 
         $tenantId = $request->user()->tenant_id;
 
@@ -209,7 +209,7 @@ class PayrollController extends Controller
      */
     public function createPeriod(): Response
     {
-        $this->authorize('run', PayrollPeriod::class);
+        $this->authorize('create', PayrollPeriod::class);
 
         return Inertia::render('avana/payroll/period-create');
     }
@@ -221,7 +221,7 @@ class PayrollController extends Controller
      */
     public function storePeriod(Request $request): RedirectResponse
     {
-        $this->authorize('run', PayrollPeriod::class);
+        $this->authorize('create', PayrollPeriod::class);
 
         $tenantId = $request->user()->tenant_id;
 
@@ -274,7 +274,7 @@ class PayrollController extends Controller
      */
     public function thr(Request $request): RedirectResponse
     {
-        $this->authorize('run', PayrollPeriod::class);
+        $this->authorize('create', PayrollPeriod::class);
 
         $tenantId = $request->user()->tenant_id;
 
@@ -403,7 +403,7 @@ class PayrollController extends Controller
      */
     public function transferFile(Request $request): StreamedResponse|RedirectResponse
     {
-        $this->authorize('viewAny', PayrollPeriod::class);
+        $this->authorize('export', PayrollPeriod::class);
 
         $tenantId = $request->user()->tenant_id;
 
@@ -475,7 +475,7 @@ class PayrollController extends Controller
      */
     public function bpjsFile(Request $request): StreamedResponse|RedirectResponse
     {
-        $this->authorize('viewAny', PayrollPeriod::class);
+        $this->authorize('export', PayrollPeriod::class);
 
         $tenantId = $request->user()->tenant_id;
 
@@ -623,7 +623,7 @@ class PayrollController extends Controller
      */
     public function lock(Request $request): RedirectResponse
     {
-        $this->authorize('run', PayrollPeriod::class);
+        $this->authorize('update', PayrollPeriod::class);
 
         $tenantId = $request->user()->tenant_id;
 
@@ -671,7 +671,7 @@ class PayrollController extends Controller
      */
     public function unlock(Request $request): RedirectResponse
     {
-        $this->authorize('run', PayrollPeriod::class);
+        $this->authorize('update', PayrollPeriod::class);
 
         $tenantId = $request->user()->tenant_id;
 
@@ -729,7 +729,7 @@ class PayrollController extends Controller
      */
     public function approve(Request $request): RedirectResponse
     {
-        $this->authorize('run', PayrollPeriod::class);
+        $this->authorize('approve', PayrollPeriod::class);
 
         $tenantId = $request->user()->tenant_id;
 
@@ -789,7 +789,7 @@ class PayrollController extends Controller
      */
     public function reject(Request $request): RedirectResponse
     {
-        $this->authorize('run', PayrollPeriod::class);
+        $this->authorize('approve', PayrollPeriod::class);
 
         $tenantId = $request->user()->tenant_id;
 

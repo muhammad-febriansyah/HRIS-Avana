@@ -25,12 +25,41 @@ final class PayrollPolicy
     }
 
     /**
-     * Determine whether the user can run/recalculate payroll.
+     * Determine whether the user can prepare payroll: run/recalculate a run,
+     * create periods, and generate THR.
      */
-    public function run(User $user, PayrollPeriod|PositionPayrollComponent|string $subject = PayrollPeriod::class): bool
+    public function create(User $user, PayrollPeriod|PositionPayrollComponent|string $subject = PayrollPeriod::class): bool
     {
         return $this->belongsToSameTenant($user, $subject)
-            && $this->hasPayrollPermission($user, 'payroll.run');
+            && $this->hasPayrollPermission($user, 'payroll.create');
+    }
+
+    /**
+     * Determine whether the user can approve or reject a calculated payroll run.
+     * Kept distinct from create() so segregation of duties can be enforced.
+     */
+    public function approve(User $user, PayrollPeriod|PositionPayrollComponent|string $subject = PayrollPeriod::class): bool
+    {
+        return $this->belongsToSameTenant($user, $subject)
+            && $this->hasPayrollPermission($user, 'payroll.approve');
+    }
+
+    /**
+     * Determine whether the user can lock (publish) or unlock a payroll run.
+     */
+    public function update(User $user, PayrollPeriod|PositionPayrollComponent|string $subject = PayrollPeriod::class): bool
+    {
+        return $this->belongsToSameTenant($user, $subject)
+            && $this->hasPayrollPermission($user, 'payroll.update');
+    }
+
+    /**
+     * Determine whether the user can export payroll files (bank transfer, BPJS).
+     */
+    public function export(User $user, PayrollPeriod|PositionPayrollComponent|string $subject = PayrollPeriod::class): bool
+    {
+        return $this->belongsToSameTenant($user, $subject)
+            && $this->hasPayrollPermission($user, 'payroll.export');
     }
 
     /**
