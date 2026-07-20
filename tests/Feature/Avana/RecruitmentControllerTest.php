@@ -6,6 +6,7 @@ use App\Models\ApplicantMedicalCheck;
 use App\Models\Department;
 use App\Models\HeadcountRequest;
 use App\Models\JobPosting;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\TalentPool;
 use App\Models\Tenant;
@@ -503,6 +504,34 @@ it('forbids a plain employee from listing or creating postings', function (): vo
     actingAs($staff)
         ->post(route('avana.rekrutmen.store'), [
             'title' => 'Tidak Boleh',
+            'employment_type' => 'tetap',
+            'quota' => 1,
+            'status' => 'open',
+        ])
+        ->assertForbidden();
+});
+
+it('enforces recruitment actions at the permission level', function (): void {
+    $role = Role::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'recruitment-viewer',
+        'name' => 'Recruitment Viewer',
+        'is_system' => false,
+    ]);
+    $role->permissions()->syncWithoutDetaching(
+        Permission::where('code', 'recruitment.view')->pluck('id'),
+    );
+
+    $viewer = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $viewer->roles()->sync([$role->id]);
+
+    actingAs($viewer)
+        ->get(route('avana.rekrutmen'))
+        ->assertOk();
+
+    actingAs($viewer)
+        ->post(route('avana.rekrutmen.store'), [
+            'title' => 'Butuh Create',
             'employment_type' => 'tetap',
             'quota' => 1,
             'status' => 'open',

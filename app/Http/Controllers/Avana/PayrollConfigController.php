@@ -34,19 +34,12 @@ class PayrollConfigController extends Controller
     private const MANAGER_ROLES = ['super_admin', 'admin_tenant_hr'];
 
     /**
-     * Permissions that grant access to manage the configuration.
-     *
-     * @var array<int, string>
-     */
-    private const MANAGE_PERMISSIONS = ['bpjs.manage', 'pph21.manage'];
-
-    /**
      * Render the BPJS & PPh 21 configuration screen with every program (and its
      * rates), the PPh 21 TER brackets, and tenant-scoped profile counts.
      */
     public function index(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'payroll', 'view');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -214,7 +207,7 @@ class PayrollConfigController extends Controller
      */
     public function storePtkpRate(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'pph21', 'create');
 
         $tenantId = (int) $request->user()->tenant_id;
 
@@ -238,7 +231,7 @@ class PayrollConfigController extends Controller
      */
     public function destroyPtkpRate(Request $request, PtkpRate $rate): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'pph21', 'archive');
         abort_if((int) $rate->tenant_id !== (int) $request->user()->tenant_id, 404);
 
         $rate->delete();
@@ -251,7 +244,7 @@ class PayrollConfigController extends Controller
      */
     public function storePkpRate(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'pph21', 'create');
 
         $tenantId = (int) $request->user()->tenant_id;
 
@@ -278,7 +271,7 @@ class PayrollConfigController extends Controller
      */
     public function destroyPkpRate(Request $request, PkpRate $rate): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'pph21', 'archive');
         abort_if((int) $rate->tenant_id !== (int) $request->user()->tenant_id, 404);
 
         $rate->delete();
@@ -362,24 +355,20 @@ class PayrollConfigController extends Controller
     }
 
     /**
-     * Abort with 403 unless the user is privileged or holds a manage permission.
+     * Authorize a `{module}.{action}` permission (super admin bypasses). The
+     * module is passed per call because this screen spans several permission
+     * domains (payroll settings, PPh 21 tax tables).
      */
-    private function ensureCanManage(Request $request): void
+    private function ensureCan(Request $request, string $module, string $action): void
     {
         /** @var User $user */
         $user = $request->user();
-        $user->loadMissing('roles.permissions');
 
-        $isPrivileged = $user->roles->whereIn('code', self::MANAGER_ROLES)->isNotEmpty();
+        if ($user->isSuperAdmin()) {
+            return;
+        }
 
-        $hasManagePermission = $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->intersect(self::MANAGE_PERMISSIONS)
-            ->isNotEmpty();
-
-        abort_unless($isPrivileged || $hasManagePermission, 403);
+        abort_unless($user->hasPermissionTo($module.'.'.$action), 403);
     }
 
     /**

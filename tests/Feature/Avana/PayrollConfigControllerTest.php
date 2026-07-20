@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Avana\PayrollConfigController;
 use App\Models\BpjsProgram;
+use App\Models\Permission;
 use App\Models\PkpRate;
 use App\Models\PtkpRate;
 use App\Models\Role;
@@ -240,6 +241,35 @@ it('lets an HR admin view but not edit the global statutory config', function ()
         ->assertRedirect();
 
     expect(BpjsProgram::where('code', 'JKM')->exists())->toBeFalse();
+});
+
+it('maps each config action to its own permission module', function (): void {
+    // A role scoped to only pph21.create: may add a PTKP tariff, but cannot open
+    // the config landing (that needs payroll.view) nor touch BPJS (super admin).
+    $role = Role::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'tax-editor',
+        'name' => 'Tax Editor',
+        'is_system' => false,
+    ]);
+    $role->permissions()->syncWithoutDetaching(
+        Permission::where('code', 'pph21.create')->pluck('id'),
+    );
+
+    $taxEditor = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $taxEditor->roles()->sync([$role->id]);
+
+    actingAs($taxEditor)
+        ->post('spec-payroll-config/ptkp', [
+            'ptkp_status' => 'K/1',
+            'year' => 2026,
+            'amount' => 63000000,
+        ])
+        ->assertRedirect();
+
+    actingAs($taxEditor)
+        ->get('spec-payroll-config')
+        ->assertForbidden();
 });
 
 /**

@@ -4,6 +4,7 @@ use App\Models\Employee;
 use App\Models\PerformanceCycle;
 use App\Models\PerformanceFeedback;
 use App\Models\PerformanceReview;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -379,6 +380,33 @@ it('returns 404 when deleting feedback from another tenant', function (): void {
         ->assertNotFound();
 
     expect(PerformanceFeedback::find($feedback->id))->not->toBeNull();
+});
+
+it('enforces performance actions at the permission level', function (): void {
+    $role = Role::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'performance-viewer',
+        'name' => 'Performance Viewer',
+        'is_system' => false,
+    ]);
+    $role->permissions()->syncWithoutDetaching(
+        Permission::where('code', 'performance.view')->pluck('id'),
+    );
+
+    $viewer = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $viewer->roles()->sync([$role->id]);
+
+    actingAs($viewer)
+        ->get(route('avana.kinerja'))
+        ->assertOk();
+
+    actingAs($viewer)
+        ->post(route('avana.kinerja.store'), [
+            'cycle_id' => 1,
+            'employee_id' => 1,
+            'status' => 'pending',
+        ])
+        ->assertForbidden();
 });
 
 it('forbids a plain employee from listing or creating reviews', function (): void {

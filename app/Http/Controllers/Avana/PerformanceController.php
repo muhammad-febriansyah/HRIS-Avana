@@ -17,11 +17,9 @@ use Inertia\Response;
 class PerformanceController extends Controller
 {
     /**
-     * Roles that may always manage performance reviews within their tenant.
-     *
-     * @var array<int, string>
+     * Permission module key for action-level RBAC.
      */
-    private const PRIVILEGED_ROLES = ['super_admin', 'admin_tenant_hr'];
+    private const MODULE = 'performance';
 
     /**
      * Allowed performance review status values, in display order.
@@ -49,7 +47,7 @@ class PerformanceController extends Controller
      */
     public function index(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -87,7 +85,7 @@ class PerformanceController extends Controller
      */
     public function hav(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -153,7 +151,7 @@ class PerformanceController extends Controller
      */
     public function create(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -169,7 +167,7 @@ class PerformanceController extends Controller
      */
     public function edit(Request $request, PerformanceReview $review): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $review);
 
         $tenantId = $request->user()->tenant_id;
@@ -202,7 +200,7 @@ class PerformanceController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -222,7 +220,7 @@ class PerformanceController extends Controller
      */
     public function update(Request $request, PerformanceReview $review): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $review);
 
         $data = $this->validateReview($request, $request->user()->tenant_id);
@@ -238,7 +236,7 @@ class PerformanceController extends Controller
      */
     public function destroy(Request $request, PerformanceReview $review): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
         $this->ensureTenantOwnership($request, $review);
 
         $review->delete();
@@ -251,7 +249,7 @@ class PerformanceController extends Controller
      */
     public function storeCycle(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -277,7 +275,7 @@ class PerformanceController extends Controller
      */
     public function submitScore(Request $request, PerformanceReview $review): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $review);
 
         $data = $request->validate([
@@ -300,7 +298,7 @@ class PerformanceController extends Controller
      */
     public function calibrate(Request $request, PerformanceReview $review): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'approve');
         $this->ensureTenantOwnership($request, $review);
 
         $data = $request->validate([
@@ -325,7 +323,7 @@ class PerformanceController extends Controller
      */
     public function storeFeedback(Request $request, PerformanceReview $review): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $review);
 
         $tenantId = $request->user()->tenant_id;
@@ -358,7 +356,7 @@ class PerformanceController extends Controller
      */
     public function destroyFeedback(Request $request, PerformanceFeedback $feedback): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
 
         abort_if((int) $feedback->tenant_id !== (int) $request->user()->tenant_id, 404);
 
@@ -570,22 +568,17 @@ class PerformanceController extends Controller
     }
 
     /**
-     * Abort with 403 unless the user is privileged or holds an employee permission.
+     * Authorize an action-level permission on this module (super admin bypasses).
      */
-    private function ensureCanManage(Request $request): void
+    private function ensureCan(Request $request, string $action): void
     {
         /** @var User $user */
         $user = $request->user();
-        $user->loadMissing('roles.permissions');
 
-        $isPrivileged = $user->roles->whereIn('code', self::PRIVILEGED_ROLES)->isNotEmpty();
+        if ($user->isSuperAdmin()) {
+            return;
+        }
 
-        $hasEmployeePermission = $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains(fn (string $code): bool => str_starts_with($code, 'employee.'));
-
-        abort_unless($isPrivileged || $hasEmployeePermission, 403);
+        abort_unless($user->hasPermissionTo(self::MODULE.'.'.$action), 403);
     }
 }

@@ -23,11 +23,9 @@ use Inertia\Response;
 class RecruitmentController extends Controller
 {
     /**
-     * Roles that may always manage recruitment within their tenant.
-     *
-     * @var array<int, string>
+     * Permission module key for action-level RBAC.
      */
-    private const PRIVILEGED_ROLES = ['super_admin', 'admin_tenant_hr'];
+    private const MODULE = 'recruitment';
 
     /**
      * Allowed employment type enum values for a job posting.
@@ -69,7 +67,7 @@ class RecruitmentController extends Controller
      */
     public function dashboard(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = (int) $request->user()->tenant_id;
         $today = Carbon::today();
@@ -128,7 +126,7 @@ class RecruitmentController extends Controller
      */
     public function jobs(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = (int) $request->user()->tenant_id;
 
@@ -155,7 +153,7 @@ class RecruitmentController extends Controller
      */
     public function pipeline(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = (int) $request->user()->tenant_id;
 
@@ -188,7 +186,7 @@ class RecruitmentController extends Controller
      */
     public function candidates(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = (int) $request->user()->tenant_id;
 
@@ -215,7 +213,7 @@ class RecruitmentController extends Controller
      */
     public function aiIntelligence(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = (int) $request->user()->tenant_id;
 
@@ -241,7 +239,7 @@ class RecruitmentController extends Controller
      */
     public function pools(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = (int) $request->user()->tenant_id;
 
@@ -267,7 +265,7 @@ class RecruitmentController extends Controller
      */
     public function interviews(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = (int) $request->user()->tenant_id;
 
@@ -296,7 +294,7 @@ class RecruitmentController extends Controller
      */
     public function offers(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = (int) $request->user()->tenant_id;
 
@@ -325,7 +323,7 @@ class RecruitmentController extends Controller
      */
     public function analytics(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = (int) $request->user()->tenant_id;
 
@@ -364,7 +362,7 @@ class RecruitmentController extends Controller
      */
     public function headcount(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = (int) $request->user()->tenant_id;
 
@@ -395,7 +393,7 @@ class RecruitmentController extends Controller
      */
     public function storeHeadcount(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = (int) $request->user()->tenant_id;
 
@@ -421,7 +419,7 @@ class RecruitmentController extends Controller
      */
     public function decideHeadcount(Request $request, HeadcountRequest $headcountRequest): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'approve');
         abort_if((int) $headcountRequest->tenant_id !== (int) $request->user()->tenant_id, 404);
 
         $data = $request->validate([
@@ -443,7 +441,7 @@ class RecruitmentController extends Controller
      */
     public function salesOrders(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = (int) $request->user()->tenant_id;
 
@@ -478,7 +476,7 @@ class RecruitmentController extends Controller
      */
     public function decideSalesOrder(Request $request, SalesOrder $salesOrder): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'approve');
         abort_if((int) $salesOrder->tenant_id !== (int) $request->user()->tenant_id, 404);
 
         $data = $request->validate([
@@ -507,7 +505,7 @@ class RecruitmentController extends Controller
      */
     public function storePool(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = (int) $request->user()->tenant_id;
 
@@ -530,7 +528,7 @@ class RecruitmentController extends Controller
      */
     public function decideOffer(Request $request, Applicant $applicant): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'approve');
         $this->ensureTenantOwnership($request, $applicant);
 
         $data = $request->validate([
@@ -550,7 +548,7 @@ class RecruitmentController extends Controller
      */
     public function create(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         return Inertia::render('avana/rekrutmen/create', [
             'departments' => $this->departmentOptions($request->user()->tenant_id),
@@ -562,7 +560,7 @@ class RecruitmentController extends Controller
      */
     public function edit(Request $request, JobPosting $jobPosting): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $jobPosting);
 
         return Inertia::render('avana/rekrutmen/edit', [
@@ -587,7 +585,7 @@ class RecruitmentController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -607,7 +605,7 @@ class RecruitmentController extends Controller
      */
     public function update(Request $request, JobPosting $jobPosting): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $jobPosting);
 
         $data = $this->validatePosting($request, $request->user()->tenant_id);
@@ -623,7 +621,7 @@ class RecruitmentController extends Controller
      */
     public function destroy(Request $request, JobPosting $jobPosting): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
         $this->ensureTenantOwnership($request, $jobPosting);
 
         $jobPosting->delete();
@@ -636,7 +634,7 @@ class RecruitmentController extends Controller
      */
     public function storeApplicant(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -670,7 +668,7 @@ class RecruitmentController extends Controller
      */
     public function moveStage(Request $request, Applicant $applicant): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'approve');
         $this->ensureTenantOwnership($request, $applicant);
 
         $data = $request->validate([
@@ -687,7 +685,7 @@ class RecruitmentController extends Controller
      */
     public function toggleBlacklist(Request $request, Applicant $applicant): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $applicant);
 
         $data = $request->validate([
@@ -708,7 +706,7 @@ class RecruitmentController extends Controller
      */
     public function showApplicant(Request $request, Applicant $applicant): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
         $this->ensureTenantOwnership($request, $applicant);
 
         $applicant->load([
@@ -728,7 +726,7 @@ class RecruitmentController extends Controller
      */
     public function updateApplicant(Request $request, Applicant $applicant): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $applicant);
 
         $data = $request->validate([
@@ -752,7 +750,7 @@ class RecruitmentController extends Controller
      */
     public function uploadCv(Request $request, Applicant $applicant): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $applicant);
 
         $request->validate([
@@ -774,7 +772,7 @@ class RecruitmentController extends Controller
      */
     public function scheduleInterview(Request $request, Applicant $applicant): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $applicant);
 
         $data = $request->validate([
@@ -799,7 +797,7 @@ class RecruitmentController extends Controller
      */
     public function makeOffer(Request $request, Applicant $applicant): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $applicant);
 
         $data = $request->validate([
@@ -825,7 +823,7 @@ class RecruitmentController extends Controller
      */
     public function storeMedicalCheck(Request $request, Applicant $applicant): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
         $this->ensureTenantOwnership($request, $applicant);
 
         $data = $request->validate([
@@ -858,7 +856,7 @@ class RecruitmentController extends Controller
      */
     public function storeBackgroundCheck(Request $request, Applicant $applicant): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
         $this->ensureTenantOwnership($request, $applicant);
 
         $data = $request->validate([
@@ -1081,22 +1079,17 @@ class RecruitmentController extends Controller
     }
 
     /**
-     * Abort with 403 unless the user is privileged or holds an employee permission.
+     * Authorize an action-level permission on this module (super admin bypasses).
      */
-    private function ensureCanManage(Request $request): void
+    private function ensureCan(Request $request, string $action): void
     {
         /** @var User $user */
         $user = $request->user();
-        $user->loadMissing('roles.permissions');
 
-        $isPrivileged = $user->roles->whereIn('code', self::PRIVILEGED_ROLES)->isNotEmpty();
+        if ($user->isSuperAdmin()) {
+            return;
+        }
 
-        $hasEmployeePermission = $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains(fn (string $code): bool => str_starts_with($code, 'employee.'));
-
-        abort_unless($isPrivileged || $hasEmployeePermission, 403);
+        abort_unless($user->hasPermissionTo(self::MODULE.'.'.$action), 403);
     }
 }
