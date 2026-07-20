@@ -5,9 +5,12 @@ import { toast } from 'sonner';
 import UserController from '@/actions/App/Http/Controllers/Avana/UserController';
 import { AIcon, C } from '@/lib/avana';
 import { PenggunaForm } from './pengguna-form';
+import { PermissionOverrides } from './permission-overrides';
 import type {
     BranchOption,
     FlashProps,
+    PermissionActionOption,
+    PermissionOverride,
     RoleOption,
     UserEditRecord,
     UserFormData,
@@ -17,12 +20,18 @@ interface PenggunaEditProps {
     user: UserEditRecord;
     roles: RoleOption[];
     branches: BranchOption[];
+    overrides: PermissionOverride[];
+    permissionModules: string[];
+    permissionActions: PermissionActionOption[];
 }
 
 export default function PenggunaEdit({
     user,
     roles,
     branches = [],
+    overrides = [],
+    permissionModules = [],
+    permissionActions = [],
 }: PenggunaEditProps) {
     const { flash } = usePage<FlashProps>().props;
 
@@ -96,6 +105,13 @@ export default function PenggunaEdit({
                     submitIcon="check"
                     cancelHref={UserController.index().url}
                     onSubmit={handleSubmit}
+                />
+
+                <PermissionOverrides
+                    userId={user.id}
+                    overrides={overrides}
+                    modules={permissionModules}
+                    actions={permissionActions}
                 />
             </div>
         </>

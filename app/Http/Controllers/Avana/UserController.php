@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\UserPermissionOverride;
+use App\Support\PermissionCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -122,6 +124,7 @@ class UserController extends Controller
             'roles:id,name,code',
             'branchAccesses:id,user_id,branch_id',
             'dataScopes:id,user_id,scope_type,scope_value',
+            'permissionOverrides',
         ]);
 
         return Inertia::render('avana/pengguna/edit', [
@@ -145,6 +148,18 @@ class UserController extends Controller
             ],
             'roles' => $this->assignableRoles($tenantId),
             'branches' => $this->tenantBranches($tenantId),
+            'overrides' => $user->permissionOverrides
+                ->map(fn (UserPermissionOverride $override): array => [
+                    'code' => $override->permission_code,
+                    'type' => $override->type,
+                ])
+                ->values()
+                ->all(),
+            'permissionModules' => PermissionCatalog::MODULES,
+            'permissionActions' => collect(PermissionCatalog::ACTIONS)
+                ->map(fn (string $label, string $key): array => ['key' => $key, 'label' => $label])
+                ->values()
+                ->all(),
         ]);
     }
 
@@ -225,6 +240,44 @@ class UserController extends Controller
 
         return redirect()->route('avana.pengguna')
             ->with('success', 'Pengguna berhasil diperbarui');
+    }
+
+    /**
+     * Replace the user's per-user permission overrides (grant/revoke specific
+     * action codes on top of their roles). One row per code wins over the role
+     * grant; a revoke removes an inherited code, a grant adds a missing one.
+     */
+    public function updateOverrides(Request $request, User $user): RedirectResponse
+    {
+        $this->ensureTenantOwnership($request, $user);
+        $this->authorize('update', $user);
+
+        $validated = $request->validate([
+            'overrides' => ['array'],
+            'overrides.*.code' => ['required', 'string', Rule::in(PermissionCatalog::codes())],
+            'overrides.*.type' => ['required', Rule::in([
+                UserPermissionOverride::TYPE_GRANT,
+                UserPermissionOverride::TYPE_REVOKE,
+            ])],
+        ]);
+
+        // The table has a unique (user_id, permission_code); keep the last entry
+        // per code so a duplicated payload cannot violate the constraint.
+        $rows = collect($validated['overrides'] ?? [])
+            ->keyBy('code')
+            ->values();
+
+        $user->permissionOverrides()->delete();
+
+        foreach ($rows as $override) {
+            $user->permissionOverrides()->create([
+                'tenant_id' => $user->tenant_id,
+                'permission_code' => $override['code'],
+                'type' => $override['type'],
+            ]);
+        }
+
+        return back()->with('success', 'Hak akses khusus diperbarui');
     }
 
     /**

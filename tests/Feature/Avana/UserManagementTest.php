@@ -1,9 +1,12 @@
 <?php
 
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\UserDevice;
+use App\Models\UserPermissionOverride;
+use App\Support\Access;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -304,4 +307,81 @@ it('forbids resetting a device for a user from another tenant', function (): voi
     actingAs($this->admin)
         ->post(route('avana.pengguna.reset-device', $foreign))
         ->assertNotFound();
+});
+
+it('loads the edit screen with per-user override props', function (): void {
+    $target = User::factory()->create(['tenant_id' => $this->tenant->id]);
+
+    actingAs($this->admin)
+        ->get(route('avana.pengguna.edit', $target))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/pengguna/edit', false)
+            ->has('overrides')
+            ->has('permissionModules')
+            ->has('permissionActions.0.key')
+            ->has('permissionActions.0.label'));
+});
+
+it('applies granted and revoked override codes to the target user', function (): void {
+    Access::setEnforced(true);
+
+    $role = Role::create(['tenant_id' => $this->tenant->id, 'code' => 'ov-role', 'name' => 'OvRole', 'is_system' => false]);
+    $role->permissions()->syncWithoutDetaching(Permission::where('code', 'asset.view')->pluck('id'));
+
+    $target = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $target->roles()->sync([$role->id]);
+
+    expect($target->hasPermissionTo('asset.view'))->toBeTrue();
+    expect($target->hasPermissionTo('budget.approve'))->toBeFalse();
+
+    actingAs($this->admin)
+        ->put(route('avana.pengguna.overrides', $target), [
+            'overrides' => [
+                ['code' => 'budget.approve', 'type' => 'grant'],
+                ['code' => 'asset.view', 'type' => 'revoke'],
+            ],
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $fresh = $target->fresh();
+    expect($fresh->hasPermissionTo('budget.approve'))->toBeTrue();
+    expect($fresh->hasPermissionTo('asset.view'))->toBeFalse();
+    expect(UserPermissionOverride::where('user_id', $target->id)->count())->toBe(2);
+});
+
+it('replaces the full override set on save', function (): void {
+    $target = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $target->permissionOverrides()->create([
+        'tenant_id' => $this->tenant->id,
+        'permission_code' => 'loan.approve',
+        'type' => 'grant',
+    ]);
+
+    actingAs($this->admin)
+        ->put(route('avana.pengguna.overrides', $target), [
+            'overrides' => [
+                ['code' => 'journal.view', 'type' => 'grant'],
+            ],
+        ])
+        ->assertRedirect();
+
+    $codes = UserPermissionOverride::where('user_id', $target->id)->pluck('permission_code');
+    expect($codes->all())->toBe(['journal.view']);
+});
+
+it('rejects an unknown override code or invalid type', function (): void {
+    $target = User::factory()->create(['tenant_id' => $this->tenant->id]);
+
+    actingAs($this->admin)
+        ->put(route('avana.pengguna.overrides', $target), [
+            'overrides' => [
+                ['code' => 'not.a-real-code', 'type' => 'grant'],
+                ['code' => 'budget.view', 'type' => 'sideways'],
+            ],
+        ])
+        ->assertSessionHasErrors(['overrides.0.code', 'overrides.1.type']);
+
+    expect(UserPermissionOverride::where('user_id', $target->id)->count())->toBe(0);
 });

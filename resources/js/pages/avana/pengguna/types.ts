@@ -61,6 +61,18 @@ export interface PenggunaIndexProps {
     filters: PenggunaFilters;
 }
 
+/** A per-user permission override row (`user_permission_overrides`). */
+export interface PermissionOverride {
+    code: string;
+    type: 'grant' | 'revoke';
+}
+
+/** A permission action key paired with its Indonesian label. */
+export interface PermissionActionOption {
+    key: string;
+    label: string;
+}
+
 /** The flat user record prefilled into the edit form (`UserController@edit`). */
 export interface UserEditRecord {
     id: number;

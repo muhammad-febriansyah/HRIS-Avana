@@ -369,6 +369,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::get('pengguna/{user}/edit', [UserController::class, 'edit'])->name('pengguna.edit');
     Route::post('pengguna', [UserController::class, 'store'])->name('pengguna.store');
     Route::put('pengguna/{user}', [UserController::class, 'update'])->name('pengguna.update');
+    Route::put('pengguna/{user}/overrides', [UserController::class, 'updateOverrides'])->name('pengguna.overrides');
     Route::delete('pengguna/{user}', [UserController::class, 'destroy'])->name('pengguna.destroy');
     Route::post('pengguna/{user}/toggle', [UserController::class, 'toggleStatus'])->name('pengguna.toggle');
     Route::post('pengguna/{user}/reset-device', [UserController::class, 'resetDevice'])->name('pengguna.reset-device');
