@@ -1,6 +1,7 @@
 import { Head, router } from '@inertiajs/react';
 import { toast } from 'sonner';
 import RecruitmentController from '@/actions/App/Http/Controllers/Avana/RecruitmentController';
+import { usePermission } from '@/hooks/use-permission';
 import { C, card, rp } from '@/lib/avana';
 import { Empty, RecruitmentHeader, td, th } from './shell';
 
@@ -23,6 +24,8 @@ const STATUS_STYLE: Record<string, { c: string; bg: string; label: string }> = {
 };
 
 export default function RecruitmentOffers({ offers }: { offers: Offer[] }) {
+    const { can } = usePermission();
+    const canApprove = can('recruitment.approve');
     const decide = (
         id: number,
         offer_status: 'approved' | 'accepted' | 'rejected',
@@ -82,7 +85,10 @@ export default function RecruitmentOffers({ offers }: { offers: Offer[] }) {
                                         ].map((h) => (
                                             <th
                                                 key={h}
-                                                style={{ ...th, paddingTop: 14 }}
+                                                style={{
+                                                    ...th,
+                                                    paddingTop: 14,
+                                                }}
                                             >
                                                 {h}
                                             </th>
@@ -94,6 +100,7 @@ export default function RecruitmentOffers({ offers }: { offers: Offer[] }) {
                                         const st =
                                             STATUS_STYLE[o.status] ??
                                             STATUS_STYLE.draft;
+
                                         return (
                                             <tr key={o.id}>
                                                 <td style={td}>
@@ -148,10 +155,10 @@ export default function RecruitmentOffers({ offers }: { offers: Offer[] }) {
                                                     </span>
                                                 </td>
                                                 <td style={td}>
-                                                    {[
-                                                        'sent',
-                                                        'draft',
-                                                    ].includes(o.status) ? (
+                                                    {canApprove &&
+                                                    ['sent', 'draft'].includes(
+                                                        o.status,
+                                                    ) ? (
                                                         <div
                                                             style={{
                                                                 display: 'flex',
@@ -203,8 +210,9 @@ export default function RecruitmentOffers({ offers }: { offers: Offer[] }) {
                                                                 Tolak
                                                             </button>
                                                         </div>
-                                                    ) : o.status ===
-                                                      'approved' ? (
+                                                    ) : canApprove &&
+                                                      o.status ===
+                                                          'approved' ? (
                                                         <button
                                                             onClick={() =>
                                                                 decide(

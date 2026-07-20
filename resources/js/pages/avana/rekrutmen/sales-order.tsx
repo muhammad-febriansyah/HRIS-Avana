@@ -2,6 +2,7 @@ import { Head, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import RecruitmentController from '@/actions/App/Http/Controllers/Avana/RecruitmentController';
+import { usePermission } from '@/hooks/use-permission';
 import { AIcon, C, card } from '@/lib/avana';
 
 interface Order {
@@ -39,6 +40,8 @@ const td: React.CSSProperties = {
 };
 
 export default function RecruitmentSalesOrder({ orders }: Props) {
+    const { can } = usePermission();
+    const canApprove = can('recruitment.approve');
     const [deciding, setDeciding] = useState<Order | null>(null);
 
     return (
@@ -181,7 +184,8 @@ export default function RecruitmentSalesOrder({ orders }: Props) {
                                                     whiteSpace: 'nowrap',
                                                 }}
                                             >
-                                                {o.status === 'forwarded' ? (
+                                                {canApprove &&
+                                                o.status === 'forwarded' ? (
                                                     <button
                                                         onClick={() =>
                                                             setDeciding(o)
@@ -256,6 +260,7 @@ function DecisionModal({
     const decide = (decision: 'approve' | 'reject') => {
         if (decision === 'reject' && form.data.note.trim().length < 3) {
             toast.error('Alasan penolakan minimal 3 karakter.');
+
             return;
         }
 

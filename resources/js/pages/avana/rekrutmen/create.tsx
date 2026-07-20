@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import RecruitmentController from '@/actions/App/Http/Controllers/Avana/RecruitmentController';
+import { usePermission } from '@/hooks/use-permission';
 import { AIcon, C } from '@/lib/avana';
 import { RekrutmenForm } from './rekrutmen-form';
 import { emptyPostingForm } from './types';
@@ -13,6 +14,7 @@ interface RekrutmenCreateProps {
 }
 
 export default function RekrutmenCreate({ departments }: RekrutmenCreateProps) {
+    const { can } = usePermission();
     const { flash } = usePage<FlashProps>().props;
 
     const form = useForm<PostingFormData>({ ...emptyPostingForm });
@@ -74,6 +76,7 @@ export default function RekrutmenCreate({ departments }: RekrutmenCreateProps) {
                     submitIcon="plus"
                     cancelHref={RecruitmentController.jobs().url}
                     onSubmit={handleSubmit}
+                    canSubmit={can('recruitment.create')}
                 />
             </div>
         </>

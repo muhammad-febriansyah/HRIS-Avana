@@ -2,6 +2,7 @@ import { Head, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import RecruitmentController from '@/actions/App/Http/Controllers/Avana/RecruitmentController';
+import { usePermission } from '@/hooks/use-permission';
 import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
 import { Empty, RecruitmentHeader } from './shell';
 
@@ -14,6 +15,7 @@ interface Pool {
 }
 
 export default function RecruitmentPools({ pools }: { pools: Pool[] }) {
+    const { can } = usePermission();
     const [open, setOpen] = useState(false);
     const form = useForm({ name: '', description: '' });
 
@@ -47,10 +49,12 @@ export default function RecruitmentPools({ pools }: { pools: Pool[] }) {
                     title="Talent Pool"
                     subtitle="Kelompokkan kandidat ke pool talenta untuk kebutuhan mendatang."
                     action={
-                        <button style={btnP} onClick={() => setOpen(true)}>
-                            <AIcon name="plus" size={16} color="#fff" />
-                            Buat Pool
-                        </button>
+                        can('recruitment.create') ? (
+                            <button style={btnP} onClick={() => setOpen(true)}>
+                                <AIcon name="plus" size={16} color="#fff" />
+                                Buat Pool
+                            </button>
+                        ) : null
                     }
                 />
 
@@ -195,7 +199,12 @@ export default function RecruitmentPools({ pools }: { pools: Pool[] }) {
                 >
                     <div
                         onClick={(e) => e.stopPropagation()}
-                        style={{ ...card, width: 440, maxWidth: '100%', padding: 26 }}
+                        style={{
+                            ...card,
+                            width: 440,
+                            maxWidth: '100%',
+                            padding: 26,
+                        }}
                     >
                         <div
                             style={{
@@ -251,7 +260,11 @@ export default function RecruitmentPools({ pools }: { pools: Pool[] }) {
                                 Deskripsi (opsional)
                             </label>
                             <textarea
-                                style={{ ...input, minHeight: 72, resize: 'vertical' }}
+                                style={{
+                                    ...input,
+                                    minHeight: 72,
+                                    resize: 'vertical',
+                                }}
                                 value={form.data.description}
                                 onChange={(e) =>
                                     form.setData('description', e.target.value)
@@ -265,7 +278,10 @@ export default function RecruitmentPools({ pools }: { pools: Pool[] }) {
                                 gap: 10,
                             }}
                         >
-                            <button style={btnOut} onClick={() => setOpen(false)}>
+                            <button
+                                style={btnOut}
+                                onClick={() => setOpen(false)}
+                            >
                                 Batal
                             </button>
                             <button

@@ -1,4 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
+import { usePermission } from '@/hooks/use-permission';
 import { AIcon, btnP, C } from '@/lib/avana';
 import {
     ColumnChart,
@@ -41,6 +42,8 @@ export default function RecruitmentDashboard({
     funnel,
     tasks,
 }: DashboardProps) {
+    const { can } = usePermission();
+
     return (
         <>
             <Head title="Recruitment Dashboard" />
@@ -49,10 +52,12 @@ export default function RecruitmentDashboard({
                     title="Dashboard"
                     subtitle="Pantau performa rekrutmen & status lowongan secara real-time."
                     action={
-                        <Link href="/avana/rekrutmen/create" style={btnP}>
-                            <AIcon name="plus" size={16} color="#fff" />
-                            Buat Lowongan
-                        </Link>
+                        can('recruitment.create') ? (
+                            <Link href="/avana/rekrutmen/create" style={btnP}>
+                                <AIcon name="plus" size={16} color="#fff" />
+                                Buat Lowongan
+                            </Link>
+                        ) : null
                     }
                 />
 

@@ -1,6 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { usePermission } from '@/hooks/use-permission';
 import { AIcon, btnP, C, card } from '@/lib/avana';
 import { Empty, Kpi, KpiRow, RecruitmentHeader } from './shell';
 
@@ -19,7 +20,11 @@ interface Posting {
 
 interface JobsProps {
     postings: Posting[];
-    kpis: { open_postings: number; total_postings: number; total_quota: number };
+    kpis: {
+        open_postings: number;
+        total_postings: number;
+        total_quota: number;
+    };
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -34,13 +39,16 @@ function subjectCode(title: string): string {
 }
 
 export default function RecruitmentJobs({ postings, kpis }: JobsProps) {
+    const { can } = usePermission();
     const [query, setQuery] = useState('');
 
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
+
         if (!q) {
             return postings;
         }
+
         return postings.filter(
             (p) =>
                 p.title.toLowerCase().includes(q) ||
@@ -61,10 +69,12 @@ export default function RecruitmentJobs({ postings, kpis }: JobsProps) {
                     title="Lowongan"
                     subtitle="Kelola posisi terbuka & pantau minat pelamar."
                     action={
-                        <Link href="/avana/rekrutmen/create" style={btnP}>
-                            <AIcon name="plus" size={16} color="#fff" />
-                            Buat Lowongan Baru
-                        </Link>
+                        can('recruitment.create') ? (
+                            <Link href="/avana/rekrutmen/create" style={btnP}>
+                                <AIcon name="plus" size={16} color="#fff" />
+                                Buat Lowongan Baru
+                            </Link>
+                        ) : null
                     }
                 />
 
@@ -145,7 +155,11 @@ export default function RecruitmentJobs({ postings, kpis }: JobsProps) {
                         {filtered.map((p) => (
                             <div
                                 key={p.id}
-                                style={{ ...card, padding: 0, overflow: 'hidden' }}
+                                style={{
+                                    ...card,
+                                    padding: 0,
+                                    overflow: 'hidden',
+                                }}
                             >
                                 <div style={{ padding: '20px 20px 16px' }}>
                                     <div

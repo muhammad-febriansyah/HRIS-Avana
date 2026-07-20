@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import RecruitmentController from '@/actions/App/Http/Controllers/Avana/RecruitmentController';
+import { usePermission } from '@/hooks/use-permission';
 import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
 import { StageBadge } from './components';
 import {
@@ -133,6 +134,8 @@ function fmtDate(value: string | null): string {
 
 export default function Candidate({ applicant, stages }: CandidateProps) {
     const { flash } = usePage<FlashProps>().props;
+    const { can } = usePermission();
+    const canUpdate = can('recruitment.update');
 
     const [editProfile, setEditProfile] = useState(false);
     const [panel, setPanel] = useState<
@@ -350,15 +353,17 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                                             'Pelamar'}
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() =>
-                                        setEditProfile((value) => !value)
-                                    }
-                                    style={{ ...btnOut, height: 36 }}
-                                >
-                                    <AIcon name="pencil" size={14} />
-                                    {editProfile ? 'Tutup' : 'Edit'}
-                                </button>
+                                {canUpdate && (
+                                    <button
+                                        onClick={() =>
+                                            setEditProfile((value) => !value)
+                                        }
+                                        style={{ ...btnOut, height: 36 }}
+                                    >
+                                        <AIcon name="pencil" size={14} />
+                                        {editProfile ? 'Tutup' : 'Edit'}
+                                    </button>
+                                )}
                             </div>
 
                             {editProfile ? (
@@ -526,21 +531,25 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                                         Dokumen verifikasi kesehatan & status
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() =>
-                                        setPanel((p) =>
-                                            p === 'medical' ? null : 'medical',
-                                        )
-                                    }
-                                    style={{
-                                        ...btnP,
-                                        height: 36,
-                                        background: C.green,
-                                    }}
-                                >
-                                    <AIcon name="plus" size={14} />
-                                    Tambah
-                                </button>
+                                {canUpdate && (
+                                    <button
+                                        onClick={() =>
+                                            setPanel((p) =>
+                                                p === 'medical'
+                                                    ? null
+                                                    : 'medical',
+                                            )
+                                        }
+                                        style={{
+                                            ...btnP,
+                                            height: 36,
+                                            background: C.green,
+                                        }}
+                                    >
+                                        <AIcon name="plus" size={14} />
+                                        Tambah
+                                    </button>
+                                )}
                             </div>
 
                             {panel === 'medical' ? (
@@ -713,23 +722,25 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                                         Verifikasi & rekam jejak
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() =>
-                                        setPanel((p) =>
-                                            p === 'background'
-                                                ? null
-                                                : 'background',
-                                        )
-                                    }
-                                    style={{
-                                        ...btnP,
-                                        height: 36,
-                                        background: C.green,
-                                    }}
-                                >
-                                    <AIcon name="plus" size={14} />
-                                    Minta
-                                </button>
+                                {canUpdate && (
+                                    <button
+                                        onClick={() =>
+                                            setPanel((p) =>
+                                                p === 'background'
+                                                    ? null
+                                                    : 'background',
+                                            )
+                                        }
+                                        style={{
+                                            ...btnP,
+                                            height: 36,
+                                            background: C.green,
+                                        }}
+                                    >
+                                        <AIcon name="plus" size={14} />
+                                        Minta
+                                    </button>
+                                )}
                             </div>
 
                             {panel === 'background' ? (
@@ -985,38 +996,44 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                                         marginBottom: 8,
                                     }}
                                 />
+                                {canUpdate && (
+                                    <button
+                                        type="submit"
+                                        disabled={
+                                            !cvForm.data.cv || cvForm.processing
+                                        }
+                                        style={{
+                                            ...btnOut,
+                                            width: '100%',
+                                            justifyContent: 'center',
+                                        }}
+                                    >
+                                        <AIcon name="upload" size={15} />
+                                        Unggah CV
+                                    </button>
+                                )}
+                            </form>
+
+                            {canUpdate && (
                                 <button
-                                    type="submit"
-                                    disabled={
-                                        !cvForm.data.cv || cvForm.processing
+                                    onClick={() =>
+                                        setPanel((p) =>
+                                            p === 'interview'
+                                                ? null
+                                                : 'interview',
+                                        )
                                     }
                                     style={{
                                         ...btnOut,
                                         width: '100%',
                                         justifyContent: 'center',
+                                        marginBottom: 10,
                                     }}
                                 >
-                                    <AIcon name="upload" size={15} />
-                                    Unggah CV
+                                    <AIcon name="calendar-clock" size={15} />
+                                    Jadwalkan Wawancara
                                 </button>
-                            </form>
-
-                            <button
-                                onClick={() =>
-                                    setPanel((p) =>
-                                        p === 'interview' ? null : 'interview',
-                                    )
-                                }
-                                style={{
-                                    ...btnOut,
-                                    width: '100%',
-                                    justifyContent: 'center',
-                                    marginBottom: 10,
-                                }}
-                            >
-                                <AIcon name="calendar-clock" size={15} />
-                                Jadwalkan Wawancara
-                            </button>
+                            )}
                             {panel === 'interview' ? (
                                 <form
                                     onSubmit={(event) => {
@@ -1067,21 +1084,23 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                                 </form>
                             ) : null}
 
-                            <button
-                                onClick={() =>
-                                    setPanel((p) =>
-                                        p === 'offer' ? null : 'offer',
-                                    )
-                                }
-                                style={{
-                                    ...btnP,
-                                    width: '100%',
-                                    justifyContent: 'center',
-                                }}
-                            >
-                                <AIcon name="badge-check" size={15} />
-                                Buat Penawaran
-                            </button>
+                            {canUpdate && (
+                                <button
+                                    onClick={() =>
+                                        setPanel((p) =>
+                                            p === 'offer' ? null : 'offer',
+                                        )
+                                    }
+                                    style={{
+                                        ...btnP,
+                                        width: '100%',
+                                        justifyContent: 'center',
+                                    }}
+                                >
+                                    <AIcon name="badge-check" size={15} />
+                                    Buat Penawaran
+                                </button>
+                            )}
                             {panel === 'offer' ? (
                                 <form
                                     onSubmit={(event) => {
@@ -1154,57 +1173,62 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                                             Alasan: {applicant.blacklist_reason}
                                         </div>
                                     ) : null}
-                                    <button
-                                        onClick={() =>
-                                            router.post(
-                                                RecruitmentController.toggleBlacklist(
-                                                    applicant.id,
-                                                ).url,
-                                                { blacklisted: false },
-                                                { preserveScroll: true },
-                                            )
-                                        }
-                                        style={{
-                                            ...btnOut,
-                                            width: '100%',
-                                            justifyContent: 'center',
-                                            color: C.green,
-                                            borderColor: C.green,
-                                        }}
-                                    >
-                                        <AIcon
-                                            name="rotate-ccw"
-                                            size={15}
-                                            color={C.green}
-                                        />
-                                        Keluarkan dari Blacklist
-                                    </button>
+                                    {canUpdate && (
+                                        <button
+                                            onClick={() =>
+                                                router.post(
+                                                    RecruitmentController.toggleBlacklist(
+                                                        applicant.id,
+                                                    ).url,
+                                                    { blacklisted: false },
+                                                    { preserveScroll: true },
+                                                )
+                                            }
+                                            style={{
+                                                ...btnOut,
+                                                width: '100%',
+                                                justifyContent: 'center',
+                                                color: C.green,
+                                                borderColor: C.green,
+                                            }}
+                                        >
+                                            <AIcon
+                                                name="rotate-ccw"
+                                                size={15}
+                                                color={C.green}
+                                            />
+                                            Keluarkan dari Blacklist
+                                        </button>
+                                    )}
                                 </>
                             ) : (
                                 <>
-                                    <button
-                                        onClick={() =>
-                                            setPanel((p) =>
-                                                p === 'blacklist'
-                                                    ? null
-                                                    : 'blacklist',
-                                            )
-                                        }
-                                        style={{
-                                            ...btnOut,
-                                            width: '100%',
-                                            justifyContent: 'center',
-                                            color: C.red,
-                                            borderColor: 'rgba(220,38,38,.4)',
-                                        }}
-                                    >
-                                        <AIcon
-                                            name="ban"
-                                            size={15}
-                                            color={C.red}
-                                        />
-                                        Masukkan Blacklist
-                                    </button>
+                                    {canUpdate && (
+                                        <button
+                                            onClick={() =>
+                                                setPanel((p) =>
+                                                    p === 'blacklist'
+                                                        ? null
+                                                        : 'blacklist',
+                                                )
+                                            }
+                                            style={{
+                                                ...btnOut,
+                                                width: '100%',
+                                                justifyContent: 'center',
+                                                color: C.red,
+                                                borderColor:
+                                                    'rgba(220,38,38,.4)',
+                                            }}
+                                        >
+                                            <AIcon
+                                                name="ban"
+                                                size={15}
+                                                color={C.red}
+                                            />
+                                            Masukkan Blacklist
+                                        </button>
+                                    )}
                                     {panel === 'blacklist' ? (
                                         <form
                                             onSubmit={(event) => {

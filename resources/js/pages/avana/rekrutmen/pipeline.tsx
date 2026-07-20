@@ -2,6 +2,7 @@ import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import RecruitmentController from '@/actions/App/Http/Controllers/Avana/RecruitmentController';
+import { usePermission } from '@/hooks/use-permission';
 import { AIcon, C } from '@/lib/avana';
 import { RecruitmentHeader } from './shell';
 
@@ -37,12 +38,19 @@ const STAGE_COLOR: Record<string, string> = {
 
 /** Deterministic avatar palette so a candidate keeps one colour. */
 const AVATAR = [
-    '#2563EB', '#7C3AED', '#DB2777', '#EA580C',
-    '#0891B2', '#16A34A', '#4F46E5', '#D97706',
+    '#2563EB',
+    '#7C3AED',
+    '#DB2777',
+    '#EA580C',
+    '#0891B2',
+    '#16A34A',
+    '#4F46E5',
+    '#D97706',
 ];
 
 function initials(name: string): string {
     const parts = name.trim().split(/\s+/);
+
     return (
         (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? parts[0]?.[1] ?? '')
     ).toUpperCase();
@@ -50,9 +58,11 @@ function initials(name: string): string {
 
 function avatarColor(name: string): string {
     let hash = 0;
+
     for (let i = 0; i < name.length; i++) {
         hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
     }
+
     return AVATAR[hash % AVATAR.length];
 }
 
@@ -61,31 +71,40 @@ export default function RecruitmentPipeline({
     stages,
     total,
 }: PipelineProps) {
+    const { can } = usePermission();
+    const canApprove = can('recruitment.approve');
     const [board, setBoard] = useState(pipeline);
     const [dragId, setDragId] = useState<number | null>(null);
     const [overStage, setOverStage] = useState<string | null>(null);
 
     const moveTo = (targetStage: string) => {
         setOverStage(null);
-        if (dragId === null) {
+
+        if (dragId === null || !canApprove) {
             return;
         }
 
         let moved: Card | null = null;
         const next: Record<string, Card[]> = {};
+
         for (const [stage, cards] of Object.entries(board)) {
             next[stage] = cards.filter((c) => {
                 if (c.id === dragId) {
                     moved = c;
+
                     return false;
                 }
+
                 return true;
             });
         }
+
         if (moved === null || (moved as Card).stage === targetStage) {
             setDragId(null);
+
             return;
         }
+
         next[targetStage] = [
             { ...(moved as Card), stage: targetStage },
             ...(next[targetStage] ?? []),
@@ -162,6 +181,7 @@ export default function RecruitmentPipeline({
                                 key={stage.value}
                                 onDragOver={(e) => {
                                     e.preventDefault();
+
                                     if (overStage !== stage.value) {
                                         setOverStage(stage.value);
                                     }
@@ -262,11 +282,12 @@ export default function RecruitmentPipeline({
 
                                     {cards.map((c) => {
                                         const ac = avatarColor(c.name);
+
                                         return (
                                             <div
                                                 key={c.id}
                                                 className="pl-card"
-                                                draggable
+                                                draggable={canApprove}
                                                 onDragStart={() =>
                                                     setDragId(c.id)
                                                 }
@@ -306,7 +327,8 @@ export default function RecruitmentPipeline({
                                                                 'center',
                                                             justifyContent:
                                                                 'center',
-                                                            background: ac + '1a',
+                                                            background:
+                                                                ac + '1a',
                                                             color: ac,
                                                             fontSize: 12.5,
                                                             fontWeight: 700,
@@ -419,7 +441,11 @@ export default function RecruitmentPipeline({
                                                 </div>
 
                                                 {c.source && (
-                                                    <div style={{ marginTop: 10 }}>
+                                                    <div
+                                                        style={{
+                                                            marginTop: 10,
+                                                        }}
+                                                    >
                                                         <span
                                                             style={{
                                                                 display:

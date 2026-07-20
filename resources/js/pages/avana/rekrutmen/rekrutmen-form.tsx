@@ -20,6 +20,8 @@ interface RekrutmenFormProps {
     submitIcon: string;
     cancelHref: string;
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+    /** Hide the submit button when the user lacks the create/update permission. */
+    canSubmit?: boolean;
 }
 
 /** Shared create/edit form for a job posting. */
@@ -30,6 +32,7 @@ export function RekrutmenForm({
     submitIcon,
     cancelHref,
     onSubmit,
+    canSubmit = true,
 }: RekrutmenFormProps) {
     const { data, setData, errors, processing } = form;
 
@@ -243,20 +246,22 @@ export function RekrutmenForm({
                     <AIcon name="x" size={16} color={C.text} />
                     Batal
                 </Link>
-                <button
-                    type="submit"
-                    disabled={processing}
-                    style={{
-                        ...btnP,
-                        height: 44,
-                        justifyContent: 'center',
-                        opacity: processing ? 0.7 : 1,
-                        cursor: processing ? 'not-allowed' : 'pointer',
-                    }}
-                >
-                    <AIcon name={submitIcon} size={16} color="#fff" />
-                    {submitLabel}
-                </button>
+                {canSubmit && (
+                    <button
+                        type="submit"
+                        disabled={processing}
+                        style={{
+                            ...btnP,
+                            height: 44,
+                            justifyContent: 'center',
+                            opacity: processing ? 0.7 : 1,
+                            cursor: processing ? 'not-allowed' : 'pointer',
+                        }}
+                    >
+                        <AIcon name={submitIcon} size={16} color="#fff" />
+                        {submitLabel}
+                    </button>
+                )}
             </div>
         </form>
     );

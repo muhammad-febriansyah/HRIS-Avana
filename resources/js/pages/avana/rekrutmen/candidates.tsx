@@ -2,6 +2,7 @@ import { Head, useForm } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import RecruitmentController from '@/actions/App/Http/Controllers/Avana/RecruitmentController';
+import { usePermission } from '@/hooks/use-permission';
 import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
 import { StageBadge } from './components';
 import { Empty, RecruitmentHeader, td, th } from './shell';
@@ -45,6 +46,7 @@ export default function RecruitmentCandidates({
     stages,
 }: CandidatesProps) {
     const [query, setQuery] = useState('');
+    const { can } = usePermission();
     const [open, setOpen] = useState(false);
 
     const stageLabel = useMemo(
@@ -54,9 +56,11 @@ export default function RecruitmentCandidates({
 
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
+
         if (!q) {
             return candidates;
         }
+
         return candidates.filter(
             (c) =>
                 c.name.toLowerCase().includes(q) ||
@@ -96,10 +100,12 @@ export default function RecruitmentCandidates({
                     title="Kandidat"
                     subtitle="Basis data terpusat seluruh pelamar."
                     action={
-                        <button style={btnP} onClick={() => setOpen(true)}>
-                            <AIcon name="plus" size={16} color="#fff" />
-                            Tambah Kandidat
-                        </button>
+                        can('recruitment.create') ? (
+                            <button style={btnP} onClick={() => setOpen(true)}>
+                                <AIcon name="plus" size={16} color="#fff" />
+                                Tambah Kandidat
+                            </button>
+                        ) : null
                     }
                 />
 
@@ -181,11 +187,13 @@ export default function RecruitmentCandidates({
                                                             borderRadius: '50%',
                                                             flex: 'none',
                                                             display: 'flex',
-                                                            alignItems: 'center',
+                                                            alignItems:
+                                                                'center',
                                                             justifyContent:
                                                                 'center',
                                                             background:
-                                                                C.primary + '18',
+                                                                C.primary +
+                                                                '18',
                                                             color: C.primary,
                                                             fontSize: 12,
                                                             fontWeight: 700,
@@ -254,7 +262,8 @@ export default function RecruitmentCandidates({
                                                         }}
                                                     >
                                                         {c.ai_recommendation.toUpperCase()}
-                                                        {c.ai_confidence !== null
+                                                        {c.ai_confidence !==
+                                                        null
                                                             ? ` · ${c.ai_confidence}%`
                                                             : ''}
                                                     </span>
@@ -267,7 +276,8 @@ export default function RecruitmentCandidates({
                                                         }
                                                         style={{
                                                             display: 'flex',
-                                                            alignItems: 'center',
+                                                            alignItems:
+                                                                'center',
                                                             gap: 6,
                                                             fontSize: 12,
                                                             fontWeight: 600,
@@ -343,7 +353,7 @@ function AddCandidateModal({
     onClose,
     onSubmit,
 }: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     form: any;
     jobs: JobOption[];
     onClose: () => void;
@@ -428,7 +438,9 @@ function AddCandidateModal({
                         onChange={(e) => form.setData('name', e.target.value)}
                     />
                     {form.errors.name && (
-                        <div style={{ fontSize: 12, color: C.red, marginTop: 4 }}>
+                        <div
+                            style={{ fontSize: 12, color: C.red, marginTop: 4 }}
+                        >
                             {form.errors.name}
                         </div>
                     )}
@@ -492,7 +504,9 @@ function AddCandidateModal({
                         ))}
                     </select>
                     {form.errors.job_posting_id && (
-                        <div style={{ fontSize: 12, color: C.red, marginTop: 4 }}>
+                        <div
+                            style={{ fontSize: 12, color: C.red, marginTop: 4 }}
+                        >
                             {form.errors.job_posting_id}
                         </div>
                     )}

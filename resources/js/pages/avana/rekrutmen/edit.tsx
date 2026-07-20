@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import RecruitmentController from '@/actions/App/Http/Controllers/Avana/RecruitmentController';
+import { usePermission } from '@/hooks/use-permission';
 import { AIcon, C } from '@/lib/avana';
 import { RekrutmenForm } from './rekrutmen-form';
 import type {
@@ -21,6 +22,7 @@ export default function RekrutmenEdit({
     posting,
     departments,
 }: RekrutmenEditProps) {
+    const { can } = usePermission();
     const { flash } = usePage<FlashProps>().props;
 
     const form = useForm<PostingFormData>({
@@ -94,6 +96,7 @@ export default function RekrutmenEdit({
                     submitIcon="check"
                     cancelHref={RecruitmentController.jobs().url}
                     onSubmit={handleSubmit}
+                    canSubmit={can('recruitment.update')}
                 />
             </div>
         </>

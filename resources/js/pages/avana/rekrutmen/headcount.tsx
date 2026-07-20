@@ -2,6 +2,7 @@ import { Head, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import RecruitmentController from '@/actions/App/Http/Controllers/Avana/RecruitmentController';
+import { usePermission } from '@/hooks/use-permission';
 import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
 import { Empty, RecruitmentHeader, td, th } from './shell';
 
@@ -37,6 +38,8 @@ export default function RecruitmentHeadcount({
     requests,
     departments,
 }: HeadcountProps) {
+    const { can } = usePermission();
+    const canApprove = can('recruitment.approve');
     const [open, setOpen] = useState(false);
 
     const form = useForm({
@@ -92,10 +95,12 @@ export default function RecruitmentHeadcount({
                     title="Headcount Approval"
                     subtitle="Tinjau & setujui permintaan headcount dari manajer."
                     action={
-                        <button style={btnP} onClick={() => setOpen(true)}>
-                            <AIcon name="plus" size={16} color="#fff" />
-                            Ajukan Headcount
-                        </button>
+                        can('recruitment.create') ? (
+                            <button style={btnP} onClick={() => setOpen(true)}>
+                                <AIcon name="plus" size={16} color="#fff" />
+                                Ajukan Headcount
+                            </button>
+                        ) : null
                     }
                 />
 
@@ -137,7 +142,10 @@ export default function RecruitmentHeadcount({
                                         ].map((h) => (
                                             <th
                                                 key={h}
-                                                style={{ ...th, paddingTop: 14 }}
+                                                style={{
+                                                    ...th,
+                                                    paddingTop: 14,
+                                                }}
                                             >
                                                 {h}
                                             </th>
@@ -149,9 +157,12 @@ export default function RecruitmentHeadcount({
                                         const st =
                                             STATUS_STYLE[r.status] ??
                                             STATUS_STYLE.pending;
+
                                         return (
                                             <tr key={r.id}>
-                                                <td style={td}>{r.requester}</td>
+                                                <td style={td}>
+                                                    {r.requester}
+                                                </td>
                                                 <td
                                                     style={{
                                                         ...td,
@@ -187,7 +198,8 @@ export default function RecruitmentHeadcount({
                                                     </span>
                                                 </td>
                                                 <td style={td}>
-                                                    {r.status === 'pending' ? (
+                                                    {canApprove &&
+                                                    r.status === 'pending' ? (
                                                         <div
                                                             style={{
                                                                 display: 'flex',
@@ -279,7 +291,12 @@ export default function RecruitmentHeadcount({
                 >
                     <div
                         onClick={(e) => e.stopPropagation()}
-                        style={{ ...card, width: 480, maxWidth: '100%', padding: 26 }}
+                        style={{
+                            ...card,
+                            width: 480,
+                            maxWidth: '100%',
+                            padding: 26,
+                        }}
                     >
                         <div
                             style={{
@@ -402,7 +419,11 @@ export default function RecruitmentHeadcount({
                                 Alasan
                             </label>
                             <textarea
-                                style={{ ...input, minHeight: 72, resize: 'vertical' }}
+                                style={{
+                                    ...input,
+                                    minHeight: 72,
+                                    resize: 'vertical',
+                                }}
                                 value={form.data.reason}
                                 onChange={(e) =>
                                     form.setData('reason', e.target.value)
