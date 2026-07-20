@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\PermissionCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -16,14 +19,21 @@ use Inertia\Response;
 class AccessController extends Controller
 {
     /**
-     * Roles that implicitly hold every permission (rendered as a full row).
-     * Only super_admin is immutable; every other role — including
-     * admin_tenant_hr — reflects its real permissions so the matrix stays in
-     * sync with the sidebar (which is permission-driven via AvanaNav).
+     * Roles that implicitly hold every permission (rendered as a full,
+     * uneditable row). Only super_admin is immutable.
      *
      * @var array<int, string>
      */
     private const PRIVILEGED_ROLES = ['super_admin'];
+
+    /**
+     * Roles allowed to open the access-control screen. A super admin manages any
+     * tenant (via the tenant switcher); a tenant admin manages only the roles
+     * inside their own tenant.
+     *
+     * @var array<int, string>
+     */
+    private const MANAGER_ROLES = ['super_admin', 'admin_tenant_hr'];
 
     /**
      * Avatar colours cycled across the role cards.
@@ -41,12 +51,13 @@ class AccessController extends Controller
         'super_admin' => 'Akses penuh seluruh modul & tenant',
         'admin_tenant_hr' => 'Kelola karyawan, absensi, cuti, payroll',
         'manager' => 'Approval tim & lihat laporan unit',
+        'finance' => 'Kelola klaim, pinjaman, jurnal & payroll',
         'employee' => 'Self-service pribadi (ESS)',
     ];
 
     /**
-     * Matrix rows mapping a UI module to the permission module prefixes it covers.
-     * An empty `modules` list marks an always-on row (Dashboard).
+     * Matrix rows mapping a UI menu to the permission module prefixes it covers.
+     * An empty `modules` list marks an always-on row (Dashboard) with no actions.
      *
      * @var array<int, array{key: string, label: string, modules: array<int, string>}>
      */
@@ -71,20 +82,27 @@ class AccessController extends Controller
         ['key' => 'perusahaan', 'label' => 'Perusahaan', 'modules' => ['branch', 'department', 'position', 'organization']],
         ['key' => 'pengguna', 'label' => 'Pengguna', 'modules' => ['user']],
         ['key' => 'pengaturan', 'label' => 'Pengaturan', 'modules' => ['settings', 'role', 'permission']],
+        ['key' => 'audit', 'label' => 'Audit Trail', 'modules' => ['audit']],
     ];
 
     /**
-     * Render the access-control (RBAC) screen: role cards and the permission matrix.
+     * Render the access-control (RBAC) screen: role cards and the per-action
+     * permission matrix (menu × role × action).
      */
     public function index(Request $request): Response
     {
         $this->ensureCanManageAccess($request);
 
-        $tenantId = $request->user()->tenant_id;
+        /** @var User $user */
+        $user = $request->user();
+        $isSuperAdmin = $user->isSuperAdmin();
+        $tenantId = $user->tenant_id;
 
-        $roleModels = $this->tenantRoles($tenantId)
-            ->withCount(['permissions', 'users'])
-            ->with('permissions:id,module')
+        $actorRoleIds = $isSuperAdmin ? collect() : $user->roles()->pluck('roles.id');
+
+        $roleModels = $this->tenantRoles($tenantId, $isSuperAdmin)
+            ->withCount('users')
+            ->with('permissions:id,code')
             ->orderBy('id')
             ->get();
 
@@ -95,31 +113,44 @@ class AccessController extends Controller
             'desc' => self::ROLE_DESCRIPTIONS[$role->code] ?? '',
             'users' => $role->users_count,
             'color' => self::ROLE_COLORS[$index % count(self::ROLE_COLORS)],
+            // A locked role cannot be edited by the current actor: super_admin is
+            // always immutable, and a tenant admin can never edit their own role.
+            'locked' => $role->code === 'super_admin' || $actorRoleIds->contains($role->id),
         ])->all();
+
+        $actions = collect(PermissionCatalog::ACTIONS)
+            ->map(fn (string $label, string $key): array => ['key' => $key, 'label' => $label])
+            ->values()
+            ->all();
 
         $modules = collect(self::MODULES)
             ->map(fn (array $module): array => [
                 'key' => $module['key'],
                 'label' => $module['label'],
+                'actionable' => $module['modules'] !== [],
             ])
             ->all();
 
+        // matrix[rowIdx][roleIdx] = { view: bool, create: bool, ... }
         $matrix = collect(self::MODULES)
             ->map(fn (array $module): array => $roleModels
-                ->map(fn (Role $role): bool => $this->roleCoversModule($role, $module))
+                ->map(fn (Role $role): array => $this->roleActionCells($role, $module))
                 ->all())
             ->all();
 
         return Inertia::render('avana/hak-akses/index', [
             'roles' => $roles,
+            'actions' => $actions,
             'modules' => $modules,
             'permHeaders' => $roleModels->pluck('name')->all(),
             'matrix' => $matrix,
+            'isSuperAdmin' => $isSuperAdmin,
         ]);
     }
 
     /**
-     * Toggle every permission belonging to a module on or off for a role.
+     * Toggle a single action of a menu (across the modules it covers) on or off
+     * for a role.
      */
     public function togglePermission(Request $request): RedirectResponse
     {
@@ -127,6 +158,7 @@ class AccessController extends Controller
 
         $validated = $request->validate([
             'module_key' => ['required', 'string'],
+            'action' => ['required', 'string', 'in:'.implode(',', PermissionCatalog::actionKeys())],
             'role_id' => ['required', 'integer', 'exists:roles,id'],
         ]);
 
@@ -134,34 +166,46 @@ class AccessController extends Controller
 
         abort_if($module === null || $module['modules'] === [], 422, 'Module cannot be toggled.');
 
-        $tenantId = $request->user()->tenant_id;
+        /** @var User $user */
+        $user = $request->user();
+        $isSuperAdmin = $user->isSuperAdmin();
 
-        $role = $this->tenantRoles($tenantId)
+        $role = $this->tenantRoles($user->tenant_id, $isSuperAdmin)
             ->whereKey($validated['role_id'])
             ->firstOrFail();
 
         // System super-admin access is immutable.
         abort_if($role->code === 'super_admin', 403, 'Super admin access cannot be modified.');
 
-        $permissionIds = Permission::query()
-            ->whereIn('module', $module['modules'])
-            ->pluck('id');
+        // A tenant admin can never edit the permissions of a role they hold
+        // (prevents self-lockout).
+        abort_if(
+            ! $isSuperAdmin && $user->roles()->whereKey($role->id)->exists(),
+            403,
+            'Anda tidak dapat mengubah izin peran Anda sendiri.',
+        );
 
-        $hasAny = $role->permissions()
-            ->whereIn('permissions.id', $permissionIds)
-            ->exists();
+        $codes = collect($module['modules'])->map(fn (string $m): string => $m.'.'.$validated['action']);
+        $permissionIds = Permission::query()->whereIn('code', $codes)->pluck('id');
 
-        if ($hasAny) {
+        $before = $role->permissions()->pluck('code');
+
+        $hasAll = $role->permissions()->whereIn('permissions.id', $permissionIds)->count() === $permissionIds->count()
+            && $permissionIds->isNotEmpty();
+
+        if ($hasAll) {
             $role->permissions()->detach($permissionIds);
         } else {
             $role->permissions()->syncWithoutDetaching($permissionIds);
         }
 
+        $this->recordPermissionChange($user, $role, $before, $role->permissions()->pluck('code'));
+
         return back()->with('success', 'Hak akses diperbarui');
     }
 
     /**
-     * Create a new custom role for the current tenant.
+     * Create a new custom role for the current (or impersonated) tenant.
      */
     public function storeRole(Request $request): RedirectResponse
     {
@@ -182,43 +226,87 @@ class AccessController extends Controller
     }
 
     /**
-     * Base query for roles visible to a tenant: tenant-owned plus global roles.
+     * Base query for the roles a user may manage: a super admin sees the tenant's
+     * roles plus the global (null-tenant) roles; a tenant admin sees only their
+     * own tenant's roles — never another tenant's, never the global super_admin.
      */
-    private function tenantRoles(?int $tenantId): Builder
+    private function tenantRoles(?int $tenantId, bool $isSuperAdmin): Builder
     {
-        return Role::query()->where(function ($query) use ($tenantId): void {
-            $query->where('tenant_id', $tenantId)->orWhereNull('tenant_id');
+        return Role::query()->where(function (Builder $query) use ($tenantId, $isSuperAdmin): void {
+            $query->where('tenant_id', $tenantId);
+
+            if ($isSuperAdmin) {
+                $query->orWhereNull('tenant_id');
+            }
         });
     }
 
     /**
-     * Whether a matrix cell should be checked for the given role/module pairing.
+     * The per-action checked state for a role/menu pairing.
      *
      * @param  array{key: string, label: string, modules: array<int, string>}  $module
+     * @return array<string, bool>
      */
-    private function roleCoversModule(Role $role, array $module): bool
+    private function roleActionCells(Role $role, array $module): array
     {
-        if (in_array($role->code, self::PRIVILEGED_ROLES, true)) {
-            return true;
+        $privileged = in_array($role->code, self::PRIVILEGED_ROLES, true);
+        $held = $role->permissions->pluck('code')->flip();
+
+        $cells = [];
+
+        foreach (PermissionCatalog::actionKeys() as $action) {
+            if ($module['modules'] === []) {
+                $cells[$action] = false;
+
+                continue;
+            }
+
+            if ($privileged) {
+                $cells[$action] = true;
+
+                continue;
+            }
+
+            // Checked only when the role holds the action for EVERY module the
+            // menu covers, so a toggle flips the whole menu consistently.
+            $cells[$action] = collect($module['modules'])
+                ->every(fn (string $m): bool => $held->has($m.'.'.$action));
         }
 
-        if ($module['modules'] === []) {
-            return true;
-        }
-
-        return $role->permissions->whereIn('module', $module['modules'])->isNotEmpty();
+        return $cells;
     }
 
     /**
-     * Abort with 403 unless the user is a privileged role or holds role.manage.
+     * Write an audit row for a role permission change.
+     *
+     * @param  Collection<int, string>  $before
+     * @param  Collection<int, string>  $after
+     */
+    private function recordPermissionChange(User $actor, Role $role, Collection $before, Collection $after): void
+    {
+        AuditLog::create([
+            'tenant_id' => $role->tenant_id ?? $actor->tenant_id,
+            'user_id' => $actor->id,
+            'auditable_type' => $role->getMorphClass(),
+            'auditable_id' => $role->getKey(),
+            'action' => 'permission.updated',
+            'old_values' => ['role' => $role->code, 'codes' => $before->sort()->values()->all()],
+            'new_values' => ['role' => $role->code, 'codes' => $after->sort()->values()->all()],
+            'ip_address' => request()->ip(),
+        ]);
+    }
+
+    /**
+     * Abort with 403 unless the user may manage access control. A tenant admin is
+     * scoped to their own tenant by {@see tenantRoles()}; a super admin manages
+     * any tenant via the tenant switcher.
      */
     private function ensureCanManageAccess(Request $request): void
     {
         /** @var User $user */
         $user = $request->user();
-        $user->loadMissing('roles.permissions');
+        $user->loadMissing('roles');
 
-        // Access control (roles × permissions) is a platform-level concern.
-        abort_unless($user->roles->contains(fn ($role): bool => $role->code === 'super_admin'), 403);
+        abort_unless($user->roles->whereIn('code', self::MANAGER_ROLES)->isNotEmpty(), 403);
     }
 }

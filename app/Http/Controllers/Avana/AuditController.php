@@ -185,16 +185,12 @@ class AuditController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $user->loadMissing('roles.permissions');
+        $user->loadMissing('roles');
 
-        $isPrivileged = $user->roles->whereIn('code', self::VIEWER_ROLES)->isNotEmpty();
+        if ($user->roles->whereIn('code', self::VIEWER_ROLES)->isNotEmpty()) {
+            return;
+        }
 
-        $hasViewPermission = $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains('audit.view');
-
-        abort_unless($isPrivileged || $hasViewPermission, 403);
+        abort_unless($user->hasPermissionTo('audit.view'), 403);
     }
 }

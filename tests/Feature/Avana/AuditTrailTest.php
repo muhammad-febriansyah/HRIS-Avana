@@ -2,6 +2,7 @@
 
 use App\Models\AuditLog;
 use App\Models\Employee;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -125,4 +126,19 @@ it('forbids a plain employee from viewing the audit trail', function (): void {
     actingAs($staff)
         ->get(route('avana.audit'))
         ->assertForbidden();
+});
+
+it('gates the audit trail screen on the audit.view permission', function (): void {
+    $role = Role::create(['tenant_id' => $this->tenant->id, 'code' => 'auditor', 'name' => 'Auditor', 'is_system' => false]);
+    $role->permissions()->syncWithoutDetaching(Permission::where('code', 'audit.view')->pluck('id'));
+
+    $viewer = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $viewer->roles()->sync([$role->id]);
+
+    actingAs($viewer)->get(route('avana.audit'))->assertOk();
+
+    $plain = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $plain->roles()->sync([$this->employeeRole->id]);
+
+    actingAs($plain)->get(route('avana.audit'))->assertForbidden();
 });
