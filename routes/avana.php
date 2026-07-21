@@ -29,6 +29,7 @@ use App\Http\Controllers\Avana\DutyTravelController;
 use App\Http\Controllers\Avana\DynamicReportController;
 use App\Http\Controllers\Avana\EmailSettingController;
 use App\Http\Controllers\Avana\EmployeeController;
+use App\Http\Controllers\Avana\FeatureCatalogController;
 use App\Http\Controllers\Avana\FeatureController;
 use App\Http\Controllers\Avana\FieldVisitController;
 use App\Http\Controllers\Avana\HelpdeskController;
@@ -397,6 +398,13 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('billing/invoice/{invoice}/pay', [BillingController::class, 'markPaid'])->name('billing.invoice.pay');
     Route::post('billing/invoice/{invoice}/cancel', [BillingController::class, 'cancelInvoice'])->name('billing.invoice.cancel');
     Route::delete('billing/invoice/{invoice}', [BillingController::class, 'destroyInvoice'])->name('billing.invoice.destroy');
+
+    // Katalog Fitur (super admin) — CRUD the product feature catalog; new rows
+    // appear in the Hak Akses matrix + become enable-able per tenant, no code.
+    Route::get('katalog-fitur', [FeatureCatalogController::class, 'index'])->name('katalog-fitur');
+    Route::post('katalog-fitur', [FeatureCatalogController::class, 'store'])->name('katalog-fitur.store');
+    Route::put('katalog-fitur/{feature}', [FeatureCatalogController::class, 'update'])->name('katalog-fitur.update');
+    Route::delete('katalog-fitur/{feature}', [FeatureCatalogController::class, 'destroy'])->name('katalog-fitur.destroy');
 
     // Pengaturan website (super admin) — edit-only, single settings row
     Route::get('website-settings', [WebsiteSettingController::class, 'edit'])->name('website-settings');

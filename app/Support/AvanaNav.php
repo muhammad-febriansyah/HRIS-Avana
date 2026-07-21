@@ -158,6 +158,7 @@ final class AvanaNav
             ['title' => 'PLATFORM', 'items' => [
                 self::leaf('klien', 'Klien / Tenant', 'building-2', '/avana/klien', null, [], false, true),
                 self::leaf('billing', 'Billing & Invoice', 'receipt-text', '/avana/billing', null, [], false, true),
+                self::leaf('katalog-fitur', 'Katalog Fitur', 'layout-grid', '/avana/katalog-fitur', null, [], false, true),
                 self::leaf('website-settings', 'Pengaturan Website', 'globe', '/avana/website-settings', null, [], false, true),
                 self::leaf('ai-settings', 'Pengaturan AI', 'sparkles', '/avana/ai-settings', null, [], false, true),
                 self::leaf('onboarding-slides', 'Onboarding App', 'smartphone', '/avana/onboarding-slides', null, [], false, true),
@@ -543,6 +544,7 @@ final class AvanaNav
                 self::leaf('hak-akses', 'Hak Akses', 'shield-check', '/avana/hak-akses', null, [], false, true),
                 self::leaf('fitur', 'Menu & Fitur', 'toggle-right', '/avana/fitur', null, [], false, true),
                 self::leaf('menu-builder', 'Menu Builder', 'list-tree', '/avana/menu-builder', null, [], false, true),
+                self::leaf('katalog-fitur', 'Katalog Fitur', 'layout-grid', '/avana/katalog-fitur', null, [], false, true),
                 self::leaf('website-settings', 'Pengaturan Website', 'globe', '/avana/website-settings', null, [], false, true),
                 self::leaf('ai-settings', 'Pengaturan AI', 'sparkles', '/avana/ai-settings', null, [], false, true),
                 self::leaf('email-settings', 'Pengaturan Email', 'mail', '/avana/email-settings', null, [], false, true),
