@@ -202,7 +202,8 @@ export default function PayrollKomponen({
                                 padding: '9px 15px',
                                 borderRadius: 8,
                                 border: `1px solid ${tab === key ? C.primary : C.line}`,
-                                background: tab === key ? C.primary + '10' : '#fff',
+                                background:
+                                    tab === key ? C.primary + '10' : '#fff',
                                 color: tab === key ? C.primary : C.muted,
                                 fontSize: 13.5,
                                 fontWeight: 600,
@@ -480,7 +481,10 @@ function KomponenTab({
                                     placeholder="Min (opsional)"
                                     value={form.data.basis_min}
                                     onChange={(e) =>
-                                        form.setData('basis_min', e.target.value)
+                                        form.setData(
+                                            'basis_min',
+                                            e.target.value,
+                                        )
                                     }
                                 />
                                 <input
@@ -489,7 +493,10 @@ function KomponenTab({
                                     placeholder="Max (opsional)"
                                     value={form.data.basis_max}
                                     onChange={(e) =>
-                                        form.setData('basis_max', e.target.value)
+                                        form.setData(
+                                            'basis_max',
+                                            e.target.value,
+                                        )
                                     }
                                 />
                             </>
@@ -604,7 +611,8 @@ function KomponenTab({
                                                             style={{
                                                                 fontSize: 11.5,
                                                                 fontWeight: 700,
-                                                                padding: '3px 8px',
+                                                                padding:
+                                                                    '3px 8px',
                                                                 borderRadius: 6,
                                                                 background:
                                                                     C.primary +
@@ -660,7 +668,9 @@ function KomponenTab({
                                                         icon="trash-2"
                                                         label="Hapus"
                                                         variant="danger"
-                                                        onClick={() => del(c.id)}
+                                                        onClick={() =>
+                                                            del(c.id)
+                                                        }
                                                     />
                                                 </td>
                                             </tr>
@@ -778,15 +788,18 @@ function NilaiKomponenTab({
                                     fontWeight: 500,
                                 }}
                             >
-                                Dasar perhitungan bukan "Tabel" — nilai ini belum
-                                dipakai engine.
+                                Dasar perhitungan bukan "Tabel" — nilai ini
+                                belum dipakai engine.
                             </span>
                         )}
                     </div>
 
                     <div style={{ overflowX: 'auto' }}>
                         <table
-                            style={{ width: '100%', borderCollapse: 'collapse' }}
+                            style={{
+                                width: '100%',
+                                borderCollapse: 'collapse',
+                            }}
                         >
                             <thead>
                                 <tr>
@@ -816,8 +829,8 @@ function NilaiKomponenTab({
                                                 color: C.faint,
                                             }}
                                         >
-                                            Belum ada nilai. Baris tanpa filter =
-                                            berlaku untuk semua pegawai.
+                                            Belum ada nilai. Baris tanpa filter
+                                            = berlaku untuk semua pegawai.
                                         </td>
                                     </tr>
                                 ) : (
@@ -835,7 +848,9 @@ function NilaiKomponenTab({
                                             <td style={td}>
                                                 {v.job_level ?? '—'}
                                             </td>
-                                            <td style={td}>{v.branch ?? '—'}</td>
+                                            <td style={td}>
+                                                {v.branch ?? '—'}
+                                            </td>
                                             <td
                                                 style={{
                                                     ...td,
@@ -869,8 +884,7 @@ function NilaiKomponenTab({
                     <div
                         style={{
                             display: 'grid',
-                            gridTemplateColumns:
-                                '1fr 1fr 1fr 1fr 1fr 1fr auto',
+                            gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr auto',
                             gap: 10,
                             padding: 14,
                             alignItems: 'center',
@@ -1011,13 +1025,17 @@ function FormulaTab({
                         style={{ ...input, flex: 1 }}
                         placeholder="Nama formula (mis. Gaji Kotor)"
                         value={newForm.data.name}
-                        onChange={(e) => newForm.setData('name', e.target.value)}
+                        onChange={(e) =>
+                            newForm.setData('name', e.target.value)
+                        }
                     />
                     <input
                         style={{ ...input, flex: 1 }}
                         placeholder="Keterangan (opsional)"
                         value={newForm.data.note}
-                        onChange={(e) => newForm.setData('note', e.target.value)}
+                        onChange={(e) =>
+                            newForm.setData('note', e.target.value)
+                        }
                     />
                     <button
                         style={primaryBtn}
@@ -1090,10 +1108,13 @@ function FormulaCard({
         });
 
     const delFormula = () =>
-        router.delete(PayrollKomponenController.destroyFormula(formula.id).url, {
-            preserveScroll: true,
-            onSuccess: () => toast.success('Formula dihapus'),
-        });
+        router.delete(
+            PayrollKomponenController.destroyFormula(formula.id).url,
+            {
+                preserveScroll: true,
+                onSuccess: () => toast.success('Formula dihapus'),
+            },
+        );
 
     return (
         <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
@@ -1122,16 +1143,12 @@ function FormulaCard({
                         </div>
                     )}
                 </div>
-                <button
+                <ActionBtn
+                    icon="trash-2"
+                    label="Hapus"
+                    variant="danger"
                     onClick={delFormula}
-                    style={{
-                        border: 'none',
-                        background: 'transparent',
-                        cursor: 'pointer',
-                    }}
-                >
-                    <AIcon name="trash-2" size={16} color={C.red} />
-                </button>
+                />
             </div>
 
             {/* Items */}

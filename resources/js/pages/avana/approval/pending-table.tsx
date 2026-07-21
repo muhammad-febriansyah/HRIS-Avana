@@ -1,4 +1,4 @@
-import { AIcon, C, card } from '@/lib/avana';
+import { AIcon, ActionBtn, C, card } from '@/lib/avana';
 import { DetailCell, EmployeeCell, headThStyle, TypeBadge } from './components';
 import type { ApprovalItem } from './types';
 
@@ -126,58 +126,18 @@ export function PendingTable({
                                             gap: 6,
                                         }}
                                     >
-                                        <button
+                                        <ActionBtn
+                                            icon="check"
+                                            label="Setujui"
+                                            variant="success"
                                             onClick={() => onApprove(item)}
-                                            style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: 5,
-                                                height: 30,
-                                                padding: '0 11px',
-                                                border: 'none',
-                                                borderRadius: 7,
-                                                background:
-                                                    'rgba(22,163,74,.1)',
-                                                color: C.green,
-                                                fontSize: 12,
-                                                fontWeight: 600,
-                                                cursor: 'pointer',
-                                                transition: '.15s',
-                                            }}
-                                        >
-                                            <AIcon
-                                                name="check"
-                                                size={14}
-                                                color={C.green}
-                                            />
-                                            Setujui
-                                        </button>
-                                        <button
+                                        />
+                                        <ActionBtn
+                                            icon="x"
+                                            label="Tolak"
+                                            variant="danger"
                                             onClick={() => onReject(item)}
-                                            style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: 5,
-                                                height: 30,
-                                                padding: '0 11px',
-                                                border: 'none',
-                                                borderRadius: 7,
-                                                background:
-                                                    'rgba(220,38,38,.08)',
-                                                color: C.red,
-                                                fontSize: 12,
-                                                fontWeight: 600,
-                                                cursor: 'pointer',
-                                                transition: '.15s',
-                                            }}
-                                        >
-                                            <AIcon
-                                                name="x"
-                                                size={14}
-                                                color={C.red}
-                                            />
-                                            Tolak
-                                        </button>
+                                        />
                                     </div>
                                 </td>
                             </tr>

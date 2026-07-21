@@ -95,9 +95,7 @@ export default function MappingPayday({ paydays, employees }: Props) {
         setAssignTo(p);
         setChecked(
             new Set(
-                employees
-                    .filter((e) => e.payday_id === p.id)
-                    .map((e) => e.id),
+                employees.filter((e) => e.payday_id === p.id).map((e) => e.id),
             ),
         );
     };
@@ -166,8 +164,8 @@ export default function MappingPayday({ paydays, employees }: Props) {
                     Mapping Payday
                 </h1>
                 <div style={{ fontSize: 14, color: C.muted, marginBottom: 18 }}>
-                    Jadwal tanggal gajian (payday) dan pemetaan karyawan ke
-                    tiap jadwal — mis. staf digaji tanggal 25, harian tanggal 1.
+                    Jadwal tanggal gajian (payday) dan pemetaan karyawan ke tiap
+                    jadwal — mis. staf digaji tanggal 25, harian tanggal 1.
                 </div>
 
                 <div style={{ ...card, padding: 18, marginBottom: 18 }}>
@@ -194,13 +192,17 @@ export default function MappingPayday({ paydays, employees }: Props) {
                             style={input}
                             placeholder="Kode"
                             value={form.data.code}
-                            onChange={(e) => form.setData('code', e.target.value)}
+                            onChange={(e) =>
+                                form.setData('code', e.target.value)
+                            }
                         />
                         <input
                             style={input}
                             placeholder="Nama jadwal"
                             value={form.data.name}
-                            onChange={(e) => form.setData('name', e.target.value)}
+                            onChange={(e) =>
+                                form.setData('name', e.target.value)
+                            }
                         />
                         <input
                             style={input}
@@ -245,7 +247,10 @@ export default function MappingPayday({ paydays, employees }: Props) {
                 <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
                     <div style={{ overflowX: 'auto' }}>
                         <table
-                            style={{ width: '100%', borderCollapse: 'collapse' }}
+                            style={{
+                                width: '100%',
+                                borderCollapse: 'collapse',
+                            }}
                         >
                             <thead>
                                 <tr>
@@ -292,9 +297,7 @@ export default function MappingPayday({ paydays, employees }: Props) {
                                                 {p.code}
                                             </td>
                                             <td style={td}>{p.name}</td>
-                                            <td style={td}>
-                                                Tgl {p.pay_day}
-                                            </td>
+                                            <td style={td}>Tgl {p.pay_day}</td>
                                             <td style={td}>
                                                 {p.cut_off_day
                                                     ? `Tgl ${p.cut_off_day}`
@@ -347,27 +350,21 @@ export default function MappingPayday({ paydays, employees }: Props) {
                                                         flexWrap: 'wrap',
                                                     }}
                                                 >
-                                                    <button
+                                                    <ActionBtn
+                                                        icon="link"
+                                                        label="Petakan"
+                                                        variant="primary"
                                                         onClick={() =>
                                                             openAssign(p)
                                                         }
-                                                        style={{
-                                                            border: 'none',
-                                                            background:
-                                                                'transparent',
-                                                            cursor: 'pointer',
-                                                            color: C.primary,
-                                                            fontSize: 12.5,
-                                                            fontWeight: 600,
-                                                        }}
-                                                    >
-                                                        Petakan
-                                                    </button>
+                                                    />
                                                     <ActionBtn
                                                         icon="trash-2"
                                                         label="Hapus"
                                                         variant="danger"
-                                                        onClick={() => del(p.id)}
+                                                        onClick={() =>
+                                                            del(p.id)
+                                                        }
                                                     />
                                                 </div>
                                             </td>

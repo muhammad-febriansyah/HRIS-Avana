@@ -1,6 +1,6 @@
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
 import { SearchableSelect } from '@/components/searchable-select';
-import { AIcon, C, card, statusBadge } from '@/lib/avana';
+import { ActionBtn, AIcon, C, card, statusBadge } from '@/lib/avana';
 import type {
     EmployeeOption,
     RequestEmployee,
@@ -460,32 +460,14 @@ export function ApprovalTable({
                                                     />
                                                     Setujui
                                                 </button>
-                                                <button
+                                                <ActionBtn
+                                                    icon="x"
+                                                    label="Tolak"
+                                                    variant="danger"
                                                     onClick={() =>
                                                         onReject(item.id)
                                                     }
-                                                    style={{
-                                                        width: 30,
-                                                        height: 30,
-                                                        border: 'none',
-                                                        borderRadius: 7,
-                                                        background:
-                                                            'rgba(220,38,38,.08)',
-                                                        color: C.red,
-                                                        cursor: 'pointer',
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        justifyContent:
-                                                            'center',
-                                                        transition: '.15s',
-                                                    }}
-                                                >
-                                                    <AIcon
-                                                        name="x"
-                                                        size={14}
-                                                        color={C.red}
-                                                    />
-                                                </button>
+                                                />
                                             </div>
                                         ) : (
                                             <span

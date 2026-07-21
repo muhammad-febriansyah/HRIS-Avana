@@ -2,7 +2,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { LocationMap } from '@/components/map/location-map';
 import type { MapPoint } from '@/components/map/location-map';
-import { AIcon, C, card, statusBadge } from '@/lib/avana';
+import { AIcon, ActionBtn, C, card, statusBadge } from '@/lib/avana';
 
 interface LatLng {
     lat: number;
@@ -206,33 +206,22 @@ export default function AbsensiShow({
                         {attendance.employee?.name ?? 'Detail'}
                     </span>
                     <div style={{ flex: 1 }} />
-                    <button
+                    <ActionBtn
+                        icon="trash-2"
+                        label="Hapus"
+                        variant="danger"
                         onClick={() => {
                             if (
                                 window.confirm(
                                     'Hapus data absensi ini? Foto selfie ikut terhapus permanen.',
                                 )
                             ) {
-                                router.delete(`/avana/absensi/${attendance.id}`);
+                                router.delete(
+                                    `/avana/absensi/${attendance.id}`,
+                                );
                             }
                         }}
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            padding: '7px 14px',
-                            borderRadius: 9,
-                            border: `1px solid ${C.red}`,
-                            background: '#fff',
-                            color: C.red,
-                            fontSize: 12.5,
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                        }}
-                    >
-                        <AIcon name="trash-2" size={14} />
-                        Hapus
-                    </button>
+                    />
                 </div>
 
                 {/* Header */}

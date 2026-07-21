@@ -2,7 +2,7 @@ import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import type { ChangeEvent, ClipboardEvent, CSSProperties } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import { ActionBtn, AIcon, btnOut, btnP, C, card } from '@/lib/avana';
 import type { EmployeeFormOptions, FlashProps } from './types';
 
 interface BulkRow {
@@ -860,32 +860,16 @@ export default function EmployeesBulkCreate({
                                                     textAlign: 'center',
                                                 }}
                                             >
-                                                <button
-                                                    type="button"
+                                                <ActionBtn
+                                                    icon="trash-2"
+                                                    label="Hapus"
+                                                    variant="danger"
+                                                    title="Hapus baris"
                                                     onClick={() =>
                                                         removeRow(index)
                                                     }
                                                     disabled={rows.length <= 1}
-                                                    aria-label="Hapus baris"
-                                                    style={{
-                                                        border: 'none',
-                                                        background: 'none',
-                                                        cursor:
-                                                            rows.length <= 1
-                                                                ? 'not-allowed'
-                                                                : 'pointer',
-                                                        color:
-                                                            rows.length <= 1
-                                                                ? C.faint
-                                                                : C.red,
-                                                        padding: 6,
-                                                    }}
-                                                >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={16}
-                                                    />
-                                                </button>
+                                                />
                                             </td>
                                         </tr>
                                     );

@@ -3,7 +3,15 @@ import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import EmployeeController from '@/actions/App/Http/Controllers/Avana/EmployeeController';
-import { AIcon, btnOut, btnP, C, card, statusBadge } from '@/lib/avana';
+import {
+    ActionBtn,
+    AIcon,
+    btnOut,
+    btnP,
+    C,
+    card,
+    statusBadge,
+} from '@/lib/avana';
 import type { Employee, FlashProps, HeldAsset } from './types';
 
 interface EmployeesShowProps {
@@ -562,23 +570,11 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                                     </div>
                                 </div>
                             </div>
-                            <button
-                                style={{
-                                    width: 34,
-                                    height: 34,
-                                    border: `1px solid ${C.border}`,
-                                    background: '#fff',
-                                    borderRadius: 8,
-                                    cursor: 'pointer',
-                                    color: C.muted,
-                                }}
-                            >
-                                <AIcon
-                                    name="download"
-                                    size={16}
-                                    color={C.muted}
-                                />
-                            </button>
+                            <ActionBtn
+                                icon="download"
+                                label="Unduh"
+                                variant="neutral"
+                            />
                         </div>
                         <div
                             style={{
@@ -634,23 +630,11 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                                     </div>
                                 </div>
                             </div>
-                            <button
-                                style={{
-                                    width: 34,
-                                    height: 34,
-                                    border: `1px solid ${C.border}`,
-                                    background: '#fff',
-                                    borderRadius: 8,
-                                    cursor: 'pointer',
-                                    color: C.muted,
-                                }}
-                            >
-                                <AIcon
-                                    name="download"
-                                    size={16}
-                                    color={C.muted}
-                                />
-                            </button>
+                            <ActionBtn
+                                icon="download"
+                                label="Unduh"
+                                variant="neutral"
+                            />
                         </div>
                         <div
                             style={{
@@ -705,23 +689,11 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                                     </div>
                                 </div>
                             </div>
-                            <button
-                                style={{
-                                    width: 34,
-                                    height: 34,
-                                    border: `1px solid ${C.border}`,
-                                    background: '#fff',
-                                    borderRadius: 8,
-                                    cursor: 'pointer',
-                                    color: C.muted,
-                                }}
-                            >
-                                <AIcon
-                                    name="download"
-                                    size={16}
-                                    color={C.muted}
-                                />
-                            </button>
+                            <ActionBtn
+                                icon="download"
+                                label="Unduh"
+                                variant="neutral"
+                            />
                         </div>
                     </div>
                 )}
@@ -964,7 +936,9 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                 )}
 
                 {/* Aset — aset perusahaan yang sedang dipegang karyawan. */}
-                {activeTab === 'aset' && <AssetTab assets={emp.held_assets ?? []} />}
+                {activeTab === 'aset' && (
+                    <AssetTab assets={emp.held_assets ?? []} />
+                )}
             </div>
         </>
     );
@@ -997,7 +971,9 @@ function AssetTab({ assets }: { assets: HeldAsset[] }) {
                 <thead>
                     <tr style={{ background: '#FAFBFD' }}>
                         <th style={thCell}>Kode</th>
-                        <th style={{ ...thCell, padding: '12px 16px' }}>Aset</th>
+                        <th style={{ ...thCell, padding: '12px 16px' }}>
+                            Aset
+                        </th>
                         <th style={{ ...thCell, padding: '12px 16px' }}>
                             Kategori
                         </th>

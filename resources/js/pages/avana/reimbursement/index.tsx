@@ -664,24 +664,18 @@ export default function ReimbursementIndex({
                                                     ))}
                                                 {row.status !== 'paid' && (
                                                     <>
-                                                        <Link
-                                                            href={
-                                                                ReimbursementController.edit(
-                                                                    row.id,
-                                                                ).url
+                                                        <ActionBtn
+                                                            icon="pencil"
+                                                            label="Ubah"
+                                                            variant="success"
+                                                            onClick={() =>
+                                                                router.visit(
+                                                                    ReimbursementController.edit(
+                                                                        row.id,
+                                                                    ).url,
+                                                                )
                                                             }
-                                                            style={{
-                                                                fontSize: 12.5,
-                                                                color: C.primary,
-                                                                textDecoration:
-                                                                    'none',
-                                                                fontWeight: 500,
-                                                                alignSelf:
-                                                                    'center',
-                                                            }}
-                                                        >
-                                                            Ubah
-                                                        </Link>
+                                                        />
                                                         <ActionBtn
                                                             icon="trash-2"
                                                             label="Hapus"

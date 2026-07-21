@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import CrmController from '@/actions/App/Http/Controllers/Avana/CrmController';
 import { SearchableSelect } from '@/components/searchable-select';
-import { AIcon, btnP, C, card, rp } from '@/lib/avana';
+import { AIcon, ActionBtn, btnP, C, card, rp } from '@/lib/avana';
 import {
     fieldLabelStyle,
     inputStyle,
@@ -312,14 +312,19 @@ export default function CrmDealDetail({
                                         style={selectStyle}
                                     >
                                         {activityTypes.map((t) => (
-                                            <option key={t.value} value={t.value}>
+                                            <option
+                                                key={t.value}
+                                                value={t.value}
+                                            >
                                                 {t.label}
                                             </option>
                                         ))}
                                     </select>
                                 </div>
                                 <div>
-                                    <label style={fieldLabelStyle}>Tanggal</label>
+                                    <label style={fieldLabelStyle}>
+                                        Tanggal
+                                    </label>
                                     <input
                                         type="date"
                                         value={activityForm.data.activity_date}
@@ -333,7 +338,9 @@ export default function CrmDealDetail({
                                     />
                                 </div>
                                 <div style={{ gridColumn: '1/-1' }}>
-                                    <label style={fieldLabelStyle}>Catatan</label>
+                                    <label style={fieldLabelStyle}>
+                                        Catatan
+                                    </label>
                                     <textarea
                                         value={activityForm.data.note}
                                         onChange={(e) =>
@@ -343,7 +350,10 @@ export default function CrmDealDetail({
                                             )
                                         }
                                         placeholder="Ringkasan interaksi dengan prospek…"
-                                        style={{ ...textareaStyle, minHeight: 60 }}
+                                        style={{
+                                            ...textareaStyle,
+                                            minHeight: 60,
+                                        }}
                                     />
                                 </div>
                                 <div style={{ gridColumn: '1/-1' }}>
@@ -368,7 +378,11 @@ export default function CrmDealDetail({
                                         disabled={activityForm.processing}
                                         style={btnP}
                                     >
-                                        <AIcon name="plus" size={15} color="#fff" />
+                                        <AIcon
+                                            name="plus"
+                                            size={15}
+                                            color="#fff"
+                                        />
                                         Catat Aktivitas
                                     </button>
                                 </div>
@@ -419,7 +433,9 @@ export default function CrmDealDetail({
                                 }}
                             >
                                 <div style={{ gridColumn: '1/-1' }}>
-                                    <label style={fieldLabelStyle}>Judul task</label>
+                                    <label style={fieldLabelStyle}>
+                                        Judul task
+                                    </label>
                                     <input
                                         value={taskForm.data.title}
                                         onChange={(e) =>
@@ -449,7 +465,9 @@ export default function CrmDealDetail({
                                     />
                                 </div>
                                 <div>
-                                    <label style={fieldLabelStyle}>Penanggung jawab</label>
+                                    <label style={fieldLabelStyle}>
+                                        Penanggung jawab
+                                    </label>
                                     <SearchableSelect
                                         value={taskForm.data.assignee_id}
                                         onChange={(v) =>
@@ -468,7 +486,11 @@ export default function CrmDealDetail({
                                         disabled={taskForm.processing}
                                         style={btnP}
                                     >
-                                        <AIcon name="plus" size={15} color="#fff" />
+                                        <AIcon
+                                            name="plus"
+                                            size={15}
+                                            color="#fff"
+                                        />
                                         Tambah Task
                                     </button>
                                 </div>
@@ -546,7 +568,9 @@ export default function CrmDealDetail({
                         {/* Team / collaboration */}
                         <div style={card}>
                             <div style={cardHead}>
-                                <div style={sectionTitle}>Tim &amp; Kolaborasi</div>
+                                <div style={sectionTitle}>
+                                    Tim &amp; Kolaborasi
+                                </div>
                                 <span style={{ fontSize: 12, color: C.muted }}>
                                     {members.length} anggota
                                 </span>
@@ -589,7 +613,9 @@ export default function CrmDealDetail({
                                 }}
                             >
                                 <div>
-                                    <label style={fieldLabelStyle}>Karyawan</label>
+                                    <label style={fieldLabelStyle}>
+                                        Karyawan
+                                    </label>
                                     <SearchableSelect
                                         value={memberForm.data.employee_id}
                                         onChange={(v) =>
@@ -645,7 +671,10 @@ export default function CrmDealDetail({
                                     </div>
                                 )}
                                 {members.map((member) => (
-                                    <MemberRow key={member.id} member={member} />
+                                    <MemberRow
+                                        key={member.id}
+                                        member={member}
+                                    />
                                 ))}
                             </div>
                         </div>
@@ -751,7 +780,10 @@ function ActivityRow({ activity }: { activity: CrmActivity }) {
                     </div>
                 )}
             </div>
-            <button
+            <ActionBtn
+                icon="trash-2"
+                label="Hapus"
+                variant="danger"
                 title="Hapus aktivitas"
                 onClick={() =>
                     router.delete(
@@ -759,16 +791,7 @@ function ActivityRow({ activity }: { activity: CrmActivity }) {
                         { preserveScroll: true },
                     )
                 }
-                style={{
-                    border: 'none',
-                    background: 'none',
-                    cursor: 'pointer',
-                    color: C.faint,
-                    flex: 'none',
-                }}
-            >
-                <AIcon name="trash-2" size={15} color={C.faint} />
-            </button>
+            />
         </div>
     );
 }
@@ -845,23 +868,17 @@ function TaskRow({ task }: { task: CrmTask }) {
                     {task.assignee && <span>{task.assignee}</span>}
                 </div>
             </div>
-            <button
+            <ActionBtn
+                icon="trash-2"
+                label="Hapus"
+                variant="danger"
                 title="Hapus task"
                 onClick={() =>
                     router.delete(CrmController.destroyTask(task.id).url, {
                         preserveScroll: true,
                     })
                 }
-                style={{
-                    border: 'none',
-                    background: 'none',
-                    cursor: 'pointer',
-                    color: C.faint,
-                    flex: 'none',
-                }}
-            >
-                <AIcon name="trash-2" size={15} color={C.faint} />
-            </button>
+            />
         </div>
     );
 }
@@ -888,23 +905,17 @@ function MemberRow({ member }: { member: CrmMember }) {
                     </div>
                 )}
             </div>
-            <button
+            <ActionBtn
+                icon="trash-2"
+                label="Hapus"
+                variant="danger"
                 title="Hapus anggota"
                 onClick={() =>
                     router.delete(CrmController.destroyMember(member.id).url, {
                         preserveScroll: true,
                     })
                 }
-                style={{
-                    border: 'none',
-                    background: 'none',
-                    cursor: 'pointer',
-                    color: C.faint,
-                    flex: 'none',
-                }}
-            >
-                <AIcon name="x" size={15} color={C.faint} />
-            </button>
+            />
         </div>
     );
 }

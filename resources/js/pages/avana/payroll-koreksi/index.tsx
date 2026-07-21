@@ -359,26 +359,24 @@ export default function PayrollKoreksi({
                                                         flexWrap: 'wrap',
                                                     }}
                                                 >
-                                                    {c.status !== 'approved' && (
-                                                        <button
+                                                    {c.status !==
+                                                        'approved' && (
+                                                        <ActionBtn
+                                                            icon="check"
+                                                            label="Setujui"
+                                                            variant="success"
                                                             onClick={() =>
                                                                 approve(c.id)
                                                             }
-                                                            style={{
-                                                                ...primaryBtn,
-                                                                padding:
-                                                                    '5px 10px',
-                                                                fontSize: 12,
-                                                            }}
-                                                        >
-                                                            Setujui
-                                                        </button>
+                                                        />
                                                     )}
                                                     <ActionBtn
                                                         icon="trash-2"
                                                         label="Hapus"
                                                         variant="danger"
-                                                        onClick={() => del(c.id)}
+                                                        onClick={() =>
+                                                            del(c.id)
+                                                        }
                                                     />
                                                 </div>
                                             </td>

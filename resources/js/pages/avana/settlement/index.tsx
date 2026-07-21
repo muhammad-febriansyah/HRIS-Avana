@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import SettlementController from '@/actions/App/Http/Controllers/Avana/SettlementController';
-import { AIcon, btnP, C, card, rp } from '@/lib/avana';
+import { AIcon, ActionBtn, btnP, C, card, rp } from '@/lib/avana';
 import { KpiCard, StatusPill } from './components';
 import type {
     FlashProps,
@@ -312,9 +312,7 @@ export default function SettlementIndex({
                                                     size={28}
                                                     color={C.faint}
                                                 />
-                                                <div>
-                                                    Belum ada settlement.
-                                                </div>
+                                                <div>Belum ada settlement.</div>
                                             </div>
                                         </td>
                                     </tr>
@@ -423,21 +421,18 @@ export default function SettlementIndex({
                                                 textAlign: 'right',
                                             }}
                                         >
-                                            <Link
-                                                href={
-                                                    SettlementController.show(
-                                                        row.id,
-                                                    ).url
+                                            <ActionBtn
+                                                icon="eye"
+                                                label="Detail"
+                                                variant="warning"
+                                                onClick={() =>
+                                                    router.visit(
+                                                        SettlementController.show(
+                                                            row.id,
+                                                        ).url,
+                                                    )
                                                 }
-                                                style={{
-                                                    fontSize: 12.5,
-                                                    color: C.primary,
-                                                    textDecoration: 'none',
-                                                    fontWeight: 500,
-                                                }}
-                                            >
-                                                Detail
-                                            </Link>
+                                            />
                                         </td>
                                     </tr>
                                 ))}

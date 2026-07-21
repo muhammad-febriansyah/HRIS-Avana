@@ -392,26 +392,24 @@ export default function PayrollRapel({
                                                         flexWrap: 'wrap',
                                                     }}
                                                 >
-                                                    {r.status !== 'approved' && (
-                                                        <button
+                                                    {r.status !==
+                                                        'approved' && (
+                                                        <ActionBtn
+                                                            icon="check"
+                                                            label="Setujui"
+                                                            variant="success"
                                                             onClick={() =>
                                                                 approve(r.id)
                                                             }
-                                                            style={{
-                                                                ...primaryBtn,
-                                                                padding:
-                                                                    '5px 10px',
-                                                                fontSize: 12,
-                                                            }}
-                                                        >
-                                                            Setujui
-                                                        </button>
+                                                        />
                                                     )}
                                                     <ActionBtn
                                                         icon="trash-2"
                                                         label="Hapus"
                                                         variant="danger"
-                                                        onClick={() => del(r.id)}
+                                                        onClick={() =>
+                                                            del(r.id)
+                                                        }
                                                     />
                                                 </div>
                                             </td>
