@@ -47,7 +47,8 @@ it('renders the hak-akses screen with roles, actions and the per-action matrix',
             ->has('actions.0', fn (Assert $action) => $action->has('key')->has('label'))
             ->has('modules')
             ->has('modules.0', fn (Assert $module) => $module->has('key')->has('label')->has('group')
-                ->has('actionable')->has('hasFeature')->has('featureEnabled'))
+                ->has('actionable')->has('hasFeature')->has('featureEnabled')
+                ->has('featureId')->has('moduleGroup')->has('permissionModules'))
             ->has('permHeaders')
             ->has('matrix')
             ->where('isSuperAdmin', true));
@@ -223,4 +224,32 @@ it('stops a tenant admin from touching another tenant\'s role', function (): voi
 
 it('lets a tenant admin reach the real hak-akses route (middleware allows admin)', function (): void {
     actingAs($this->admin)->get(route('avana.hak-akses'))->assertOk();
+});
+
+it('exposes the embedded menu-builder + feature-catalog handles to a super admin', function (): void {
+    actingAs($this->superAdmin)
+        ->get('/__access')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('canManageFeatures', true)
+            ->where('canManageMenu', true)
+            ->has('menu.tree')
+            ->has('moduleGroups')
+            ->has('moduleOptions'));
+});
+
+it('points the embedded menu builder at a tenant via ?tenant (super admin)', function (): void {
+    actingAs($this->superAdmin)
+        ->get('/__access?tenant='.$this->tenant->id)
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->where('menu.selectedTenant', $this->tenant->id));
+});
+
+it('hides the menu tab + feature CRUD from a tenant admin', function (): void {
+    actingAs($this->admin)
+        ->get('/__access')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('canManageFeatures', false)
+            ->where('canManageMenu', false));
 });

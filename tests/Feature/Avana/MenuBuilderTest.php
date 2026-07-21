@@ -19,7 +19,8 @@ beforeEach(function (): void {
 
 it('seeds the tenant menu from the AvanaNav defaults', function (): void {
     expect(MenuItem::forTenant($this->tenant->id)->where('key', 'crm')->exists())->toBeTrue();
-    expect(MenuItem::forTenant($this->tenant->id)->where('key', 'menu-builder')->exists())->toBeTrue();
+    // Menu Builder is now folded into Hak Akses (a tab), so hak-akses is the seeded system leaf.
+    expect(MenuItem::forTenant($this->tenant->id)->where('key', 'hak-akses')->exists())->toBeTrue();
 });
 
 it('adds a custom menu item that appears in the nav', function (): void {
@@ -163,10 +164,9 @@ it('hides menu-builder but shows hak-akses in the tenant admin sidebar', functio
         ->flatMap(fn ($g) => $g['items'])
         ->pluck('label');
 
-    // Menu Builder stays a super-admin (platform) concern.
+    // Menu Builder + Menu & Fitur are now folded into Hak Akses (tabs/inline),
+    // so only the single Hak Akses leaf remains.
     expect($labels)->not->toContain('Menu Builder');
-    // Hak Akses is now available so a tenant admin can configure their roles.
+    expect($labels)->not->toContain('Menu & Fitur');
     expect($labels)->toContain('Hak Akses');
-    // Menu & Fitur stays available to the tenant admin.
-    expect($labels)->toContain('Menu & Fitur');
 });

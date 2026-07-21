@@ -14,8 +14,11 @@ interface PermissionMatrixProps {
     modules: AccessModule[];
     permHeaders: string[];
     hasTenant: boolean;
+    canManageFeatures: boolean;
     onToggle: (rowIdx: number, colIdx: number, action: string) => void;
     onToggleFeature: (rowIdx: number, enabled: boolean) => void;
+    onEditFeature: (module: AccessModule) => void;
+    onDeleteFeature: (module: AccessModule) => void;
     matrix: MatrixCell[][];
 }
 
@@ -65,6 +68,20 @@ function MasterSwitch({
     );
 }
 
+const featIconBtn: React.CSSProperties = {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    border: `1px solid ${C.border}`,
+    background: '#fff',
+    color: C.faint,
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 0,
+};
+
 /** Menu × role matrix; each role cell holds one toggle per action. */
 export function PermissionMatrix({
     roles,
@@ -72,8 +89,11 @@ export function PermissionMatrix({
     modules,
     permHeaders,
     hasTenant,
+    canManageFeatures,
     onToggle,
     onToggleFeature,
+    onEditFeature,
+    onDeleteFeature,
     matrix,
 }: PermissionMatrixProps) {
     return (
@@ -209,7 +229,57 @@ export function PermissionMatrix({
                                             whiteSpace: 'nowrap',
                                         }}
                                     >
-                                        {module.label}
+                                        <span
+                                            style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 8,
+                                            }}
+                                        >
+                                            {module.label}
+                                            {canManageFeatures &&
+                                                module.featureId !== null && (
+                                                    <span
+                                                        style={{
+                                                            display:
+                                                                'inline-flex',
+                                                            gap: 4,
+                                                        }}
+                                                    >
+                                                        <button
+                                                            title="Ubah fitur"
+                                                            onClick={() =>
+                                                                onEditFeature(
+                                                                    module,
+                                                                )
+                                                            }
+                                                            style={featIconBtn}
+                                                        >
+                                                            <AIcon
+                                                                name="pencil"
+                                                                size={12}
+                                                            />
+                                                        </button>
+                                                        <button
+                                                            title="Hapus fitur"
+                                                            onClick={() =>
+                                                                onDeleteFeature(
+                                                                    module,
+                                                                )
+                                                            }
+                                                            style={{
+                                                                ...featIconBtn,
+                                                                color: '#DC2626',
+                                                            }}
+                                                        >
+                                                            <AIcon
+                                                                name="trash-2"
+                                                                size={12}
+                                                            />
+                                                        </button>
+                                                    </span>
+                                                )}
+                                        </span>
                                     </td>
                                     <td
                                         style={{

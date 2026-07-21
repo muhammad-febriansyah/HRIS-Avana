@@ -146,19 +146,16 @@ final class AvanaNav
                 self::leaf('perusahaan', 'Perusahaan', 'building-2', '/avana/perusahaan', 'organization', ['branch', 'department', 'position', 'organization']),
                 self::leaf('pengguna', 'Pengguna', 'user-cog', '/avana/pengguna', null, ['user'], false, true),
                 self::leaf('custom-fields', 'Field Kustom', 'list-plus', '/avana/custom-fields', null, self::MANAGE_MODULES, true),
-                self::leaf('menu-builder', 'Menu Builder', 'list-tree', '/avana/menu-builder', null, self::MANAGE_MODULES, true, true),
-                // Hak Akses is admin-only (not super-admin-only): a tenant admin
-                // configures the roles inside their own tenant. The platform
-                // (null-tenant) row in platformGroups() stays super-admin-only.
+                // Hak Akses now bundles per-role permissions, feature on/off, the
+                // feature catalog CRUD, and the sidebar Menu Builder (as tabs) —
+                // so the old Menu Builder / Menu & Fitur leaves are retired.
                 self::leaf('hak-akses', 'Hak Akses', 'shield-check', '/avana/hak-akses', null, self::MANAGE_MODULES, true),
-                self::leaf('fitur', 'Menu & Fitur', 'toggle-right', '/avana/fitur', null, self::MANAGE_MODULES, true),
                 self::leaf('email-settings', 'Pengaturan Email', 'mail', '/avana/email-settings', null, self::MANAGE_MODULES, true),
                 self::leaf('audit', 'Audit Trail', 'history', '/avana/audit', null, ['audit']),
             ]],
             ['title' => 'PLATFORM', 'items' => [
                 self::leaf('klien', 'Klien / Tenant', 'building-2', '/avana/klien', null, [], false, true),
                 self::leaf('billing', 'Billing & Invoice', 'receipt-text', '/avana/billing', null, [], false, true),
-                self::leaf('katalog-fitur', 'Katalog Fitur', 'layout-grid', '/avana/katalog-fitur', null, [], false, true),
                 self::leaf('website-settings', 'Pengaturan Website', 'globe', '/avana/website-settings', null, [], false, true),
                 self::leaf('ai-settings', 'Pengaturan AI', 'sparkles', '/avana/ai-settings', null, [], false, true),
                 self::leaf('onboarding-slides', 'Onboarding App', 'smartphone', '/avana/onboarding-slides', null, [], false, true),
@@ -542,9 +539,6 @@ final class AvanaNav
             ['title' => 'PENGATURAN PLATFORM', 'items' => [
                 self::leaf('pengguna', 'Pengguna', 'user-cog', '/avana/pengguna', null, [], false, true),
                 self::leaf('hak-akses', 'Hak Akses', 'shield-check', '/avana/hak-akses', null, [], false, true),
-                self::leaf('fitur', 'Menu & Fitur', 'toggle-right', '/avana/fitur', null, [], false, true),
-                self::leaf('menu-builder', 'Menu Builder', 'list-tree', '/avana/menu-builder', null, [], false, true),
-                self::leaf('katalog-fitur', 'Katalog Fitur', 'layout-grid', '/avana/katalog-fitur', null, [], false, true),
                 self::leaf('website-settings', 'Pengaturan Website', 'globe', '/avana/website-settings', null, [], false, true),
                 self::leaf('ai-settings', 'Pengaturan AI', 'sparkles', '/avana/ai-settings', null, [], false, true),
                 self::leaf('email-settings', 'Pengaturan Email', 'mail', '/avana/email-settings', null, [], false, true),

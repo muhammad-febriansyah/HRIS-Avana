@@ -40,6 +40,8 @@ interface Props {
     isSuperAdmin: boolean;
     selectedTenant: number;
     tenants: { id: number; name: string }[];
+    /** True when rendered inside the Hak Akses "Struktur Menu" tab. */
+    embedded?: boolean;
 }
 
 type FlashProps = { flash?: { success?: string } };
@@ -66,18 +68,32 @@ export default function MenuBuilder({
     isSuperAdmin,
     selectedTenant,
     tenants,
+    embedded = false,
 }: Props) {
     const { flash } = usePage<FlashProps>().props;
     const [modalOpen, setModalOpen] = useState(false);
     const [draggingId, setDraggingId] = useState<number | null>(null);
     const form = useForm({ ...emptyForm, tenant_id: selectedTenant });
 
-    const switchTenant = (id: string) =>
+    const switchTenant = (id: string) => {
+        // Embedded in the Hak Akses "Struktur Menu" tab: reload that page (keep
+        // the tab) instead of navigating to the standalone Menu Builder route.
+        if (embedded) {
+            router.get(
+                '/avana/hak-akses',
+                { tenant: id, tab: 'menu' },
+                { preserveScroll: true },
+            );
+
+            return;
+        }
+
         router.get(
             MenuBuilderController.index().url,
             { tenant: id },
             { preserveScroll: true },
         );
+    };
 
     const allRows = useMemo(
         () => tree.flatMap((t) => [t, ...t.children]),
@@ -278,7 +294,7 @@ export default function MenuBuilder({
 
     return (
         <>
-            <Head title="Menu Builder" />
+            {!embedded && <Head title="Menu Builder" />}
             <div style={{ padding: '22px 26px' }}>
                 <div
                     style={{

@@ -5,9 +5,12 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Feature;
+use App\Models\MenuItem;
 use App\Models\Permission;
 use App\Models\Role;
+use App\Models\Tenant;
 use App\Models\User;
+use App\Support\AvanaNav;
 use App\Support\PermissionCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -116,10 +119,12 @@ class AccessController extends Controller
                 'modules' => $feature->permission_modules ?? [],
                 'features' => [$feature->code],
                 'group' => self::GROUP_LABELS[$feature->module_group] ?? 'LAINNYA',
+                'featureId' => $feature->id,
+                'moduleGroup' => $feature->module_group,
             ])
             ->all();
 
-        $core = fn (array $row): array => [...$row, 'features' => []];
+        $core = fn (array $row): array => [...$row, 'features' => [], 'featureId' => null, 'moduleGroup' => null];
 
         return [
             ...array_map($core, self::CORE_HEAD),
@@ -186,6 +191,10 @@ class AccessController extends Controller
                 // switch flips the whole menu consistently.
                 'featureEnabled' => $module['features'] !== []
                     && collect($module['features'])->every(fn (string $code): bool => $enabledFeatureCodes->contains($code)),
+                // Feature-catalog handles: null on fixed core rows.
+                'featureId' => $module['featureId'] ?? null,
+                'moduleGroup' => $module['moduleGroup'] ?? null,
+                'permissionModules' => $module['modules'],
             ])
             ->all();
 
@@ -205,7 +214,93 @@ class AccessController extends Controller
             'isSuperAdmin' => $isSuperAdmin,
             // Master feature switches only operate against a concrete tenant.
             'hasTenant' => $tenant !== null,
+            // Feature-catalog CRUD (super-admin only) folded into this screen.
+            'canManageFeatures' => $isSuperAdmin,
+            'moduleGroups' => Feature::query()->distinct()->orderBy('module_group')->pluck('module_group')->filter()->values(),
+            'moduleOptions' => Permission::query()->distinct()->orderBy('module')->pluck('module')->filter()->values(),
+            // Menu-builder (super-admin only) folded in as the "Struktur Menu" tab.
+            'canManageMenu' => $isSuperAdmin,
+            'menu' => $this->menuBuilderData($request, $user, $isSuperAdmin),
         ]);
+    }
+
+    /**
+     * Data for the folded-in Menu Builder tab (sidebar structure). Mirrors
+     * {@see MenuBuilderController::index} so the shared page component renders
+     * unchanged. Seeds the scope's default menu when it has never been edited.
+     *
+     * @return array<string, mixed>
+     */
+    private function menuBuilderData(Request $request, User $user, bool $isSuperAdmin): array
+    {
+        // Super admin may point the builder at a specific tenant via ?tenant=;
+        // otherwise their own tenant (or the impersonated one). Mirrors
+        // MenuBuilderController::resolveTenantId so the embedded switcher works.
+        $tenantId = $user->tenant_id;
+
+        if ($isSuperAdmin) {
+            $requested = (int) ($request->query('tenant') ?? 0);
+            if ($requested > 0 && Tenant::whereKey($requested)->exists()) {
+                $tenantId = $requested;
+            }
+        }
+
+        if (MenuItem::forTenant($tenantId)->doesntExist()) {
+            $tenantId === null
+                ? AvanaNav::seedPlatformDefaults()
+                : AvanaNav::seedDefaultsFor($tenantId);
+        }
+
+        $rows = MenuItem::forTenant($tenantId)
+            ->when(! $isSuperAdmin, fn ($query) => $query->where('super_admin_only', false))
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        $byParent = $rows->groupBy(fn (MenuItem $row): int => (int) ($row->parent_id ?? 0));
+
+        $tree = $byParent->get(0, collect())->map(fn (MenuItem $item): array => [
+            ...$this->menuRow($item),
+            'children' => $byParent->get($item->id, collect())->map(fn (MenuItem $child): array => $this->menuRow($child))->all(),
+        ])->all();
+
+        return [
+            'tree' => $tree,
+            'parents' => $byParent->get(0, collect())->map(fn (MenuItem $i): array => ['id' => $i->id, 'label' => $i->label])->values()->all(),
+            'sections' => $byParent->get(0, collect())->pluck('section')->filter()->unique()->values()->all(),
+            'features' => Feature::orderBy('name')->get(['code', 'name'])->map(fn (Feature $f): array => ['value' => $f->code, 'label' => $f->name])->all(),
+            'modules' => Permission::query()->distinct()->orderBy('module')->pluck('module')->all(),
+            'isSuperAdmin' => $isSuperAdmin,
+            'selectedTenant' => $tenantId,
+            'tenants' => $isSuperAdmin
+                ? Tenant::orderBy('name')->get(['id', 'name'])->map(fn (Tenant $t): array => ['id' => $t->id, 'name' => $t->name])->all()
+                : [],
+        ];
+    }
+
+    /**
+     * Flatten a menu item to the shape the Menu Builder component expects.
+     *
+     * @return array<string, mixed>
+     */
+    private function menuRow(MenuItem $item): array
+    {
+        return [
+            'id' => $item->id,
+            'key' => $item->key,
+            'parent_id' => $item->parent_id,
+            'section' => $item->section,
+            'label' => $item->label,
+            'icon' => $item->icon,
+            'href' => $item->href,
+            'feature' => $item->feature,
+            'modules' => $item->modules ?? [],
+            'admin_only' => $item->admin_only,
+            'super_admin_only' => $item->super_admin_only,
+            'is_active' => $item->is_active,
+            'is_system' => $item->is_system,
+            'sort_order' => $item->sort_order,
+        ];
     }
 
     /**
