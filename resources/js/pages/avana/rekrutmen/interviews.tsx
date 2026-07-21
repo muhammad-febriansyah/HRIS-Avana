@@ -2,7 +2,7 @@ import { Head, router } from '@inertiajs/react';
 import { toast } from 'sonner';
 import RecruitmentController from '@/actions/App/Http/Controllers/Avana/RecruitmentController';
 import { usePermission } from '@/hooks/use-permission';
-import { AIcon, C, card } from '@/lib/avana';
+import { AIcon, ActionBtn, C, card } from '@/lib/avana';
 import { Empty, RecruitmentHeader, td, th } from './shell';
 
 interface Interview {
@@ -232,52 +232,32 @@ export default function RecruitmentInterviews({
                                                             style={{
                                                                 display: 'flex',
                                                                 gap: 6,
+                                                                flexWrap:
+                                                                    'wrap',
                                                             }}
                                                         >
-                                                            <button
+                                                            <ActionBtn
+                                                                icon="circle-check"
+                                                                label="Passed"
+                                                                variant="success"
                                                                 onClick={() =>
                                                                     recordResult(
                                                                         iv.id,
                                                                         'passed',
                                                                     )
                                                                 }
-                                                                style={{
-                                                                    fontSize: 12,
-                                                                    fontWeight: 600,
-                                                                    color: '#15803D',
-                                                                    padding:
-                                                                        '5px 10px',
-                                                                    borderRadius: 6,
-                                                                    border: '1px solid #BBF7D0',
-                                                                    background:
-                                                                        '#F0FDF4',
-                                                                    cursor: 'pointer',
-                                                                }}
-                                                            >
-                                                                Passed
-                                                            </button>
-                                                            <button
+                                                            />
+                                                            <ActionBtn
+                                                                icon="circle-x"
+                                                                label="Failed"
+                                                                variant="danger"
                                                                 onClick={() =>
                                                                     recordResult(
                                                                         iv.id,
                                                                         'failed',
                                                                     )
                                                                 }
-                                                                style={{
-                                                                    fontSize: 12,
-                                                                    fontWeight: 600,
-                                                                    color: '#B91C1C',
-                                                                    padding:
-                                                                        '5px 10px',
-                                                                    borderRadius: 6,
-                                                                    border: '1px solid #FECACA',
-                                                                    background:
-                                                                        '#FEF2F2',
-                                                                    cursor: 'pointer',
-                                                                }}
-                                                            >
-                                                                Failed
-                                                            </button>
+                                                            />
                                                         </div>
                                                     ) : (
                                                         <span

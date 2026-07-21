@@ -397,7 +397,7 @@ function DecisionModal({
                             padding: '9px 16px',
                             borderRadius: 8,
                             border: `1px solid ${C.red}`,
-                            background: 'transparent',
+                            background: '#FEF2F2',
                             color: C.red,
                             fontSize: 13,
                             fontWeight: 600,

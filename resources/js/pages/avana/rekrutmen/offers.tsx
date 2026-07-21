@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import RecruitmentController from '@/actions/App/Http/Controllers/Avana/RecruitmentController';
 import { usePermission } from '@/hooks/use-permission';
-import { AIcon, btnOut, btnP, C, card, rp } from '@/lib/avana';
+import { AIcon, ActionBtn, btnOut, btnP, C, card, rp } from '@/lib/avana';
 import { Empty, RecruitmentHeader, td, th } from './shell';
 
 interface OnboardingItem {
@@ -206,79 +206,47 @@ export default function RecruitmentOffers({ offers }: { offers: Offer[] }) {
                                                             style={{
                                                                 display: 'flex',
                                                                 gap: 6,
+                                                                flexWrap:
+                                                                    'wrap',
                                                             }}
                                                         >
-                                                            <button
+                                                            <ActionBtn
+                                                                icon="check"
+                                                                label="Setujui"
+                                                                variant="success"
                                                                 onClick={() =>
                                                                     decide(
                                                                         o.id,
                                                                         'approved',
                                                                     )
                                                                 }
-                                                                style={{
-                                                                    fontSize: 12,
-                                                                    fontWeight: 600,
-                                                                    color: '#15803D',
-                                                                    padding:
-                                                                        '5px 10px',
-                                                                    borderRadius: 6,
-                                                                    border: '1px solid #BBF7D0',
-                                                                    background:
-                                                                        '#F0FDF4',
-                                                                    cursor: 'pointer',
-                                                                }}
-                                                            >
-                                                                Setujui
-                                                            </button>
-                                                            <button
+                                                            />
+                                                            <ActionBtn
+                                                                icon="x"
+                                                                label="Tolak"
+                                                                variant="danger"
                                                                 onClick={() =>
                                                                     decide(
                                                                         o.id,
                                                                         'rejected',
                                                                     )
                                                                 }
-                                                                style={{
-                                                                    fontSize: 12,
-                                                                    fontWeight: 600,
-                                                                    color: '#B91C1C',
-                                                                    padding:
-                                                                        '5px 10px',
-                                                                    borderRadius: 6,
-                                                                    border: '1px solid #FECACA',
-                                                                    background:
-                                                                        '#FEF2F2',
-                                                                    cursor: 'pointer',
-                                                                }}
-                                                            >
-                                                                Tolak
-                                                            </button>
+                                                            />
                                                         </div>
                                                     ) : canApprove &&
                                                       o.status ===
                                                           'approved' ? (
-                                                        <button
+                                                        <ActionBtn
+                                                            icon="badge-check"
+                                                            label="Tandai Diterima"
+                                                            variant="primary"
                                                             onClick={() =>
                                                                 decide(
                                                                     o.id,
                                                                     'accepted',
                                                                 )
                                                             }
-                                                            style={{
-                                                                fontSize: 12,
-                                                                fontWeight: 600,
-                                                                color: C.primary,
-                                                                padding:
-                                                                    '5px 10px',
-                                                                borderRadius: 6,
-                                                                border: `1px solid ${C.primary}44`,
-                                                                background:
-                                                                    C.primary +
-                                                                    '10',
-                                                                cursor: 'pointer',
-                                                            }}
-                                                        >
-                                                            Tandai Diterima
-                                                        </button>
+                                                        />
                                                     ) : o.status ===
                                                           'accepted' &&
                                                       !o.activated &&

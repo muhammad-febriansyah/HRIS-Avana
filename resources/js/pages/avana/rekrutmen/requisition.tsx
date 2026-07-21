@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import RecruitmentRequisitionController from '@/actions/App/Http/Controllers/Avana/RecruitmentRequisitionController';
 import { usePermission } from '@/hooks/use-permission';
-import { AIcon, btnP, C, card } from '@/lib/avana';
-import { Field, Modal, RowBtn } from './hiring-request';
+import { AIcon, ActionBtn, btnP, C, card } from '@/lib/avana';
+import { Field, Modal } from './hiring-request';
 import { Empty, Kpi, KpiRow, RecruitmentHeader, td, th } from './shell';
 
 interface Dept {
@@ -333,6 +333,7 @@ export default function RequisitionPage({
                                                         style={{
                                                             display: 'flex',
                                                             gap: 6,
+                                                            flexWrap: 'wrap',
                                                         }}
                                                     >
                                                         {can(
@@ -340,47 +341,26 @@ export default function RequisitionPage({
                                                         ) &&
                                                             r.status ===
                                                                 'draft' && (
-                                                                <button
+                                                                <ActionBtn
+                                                                    icon="megaphone"
+                                                                    label="Publish"
+                                                                    variant="success"
                                                                     onClick={() =>
                                                                         setPublishId(
                                                                             r.id,
                                                                         )
                                                                     }
-                                                                    style={{
-                                                                        fontSize: 12,
-                                                                        fontWeight: 600,
-                                                                        color: '#15803D',
-                                                                        padding:
-                                                                            '6px 10px',
-                                                                        borderRadius: 7,
-                                                                        border: '1px solid #BBF7D0',
-                                                                        background:
-                                                                            '#F0FDF4',
-                                                                        cursor: 'pointer',
-                                                                        display:
-                                                                            'inline-flex',
-                                                                        alignItems:
-                                                                            'center',
-                                                                        gap: 5,
-                                                                    }}
-                                                                >
-                                                                    <AIcon
-                                                                        name="megaphone"
-                                                                        size={
-                                                                            13
-                                                                        }
-                                                                        color="#15803D"
-                                                                    />
-                                                                    Publish
-                                                                </button>
+                                                                />
                                                             )}
                                                         {can(
                                                             'recruitment.update',
                                                         ) &&
                                                             r.status ===
                                                                 'draft' && (
-                                                                <RowBtn
+                                                                <ActionBtn
                                                                     icon="pencil"
+                                                                    label="Edit"
+                                                                    variant="primary"
                                                                     onClick={() =>
                                                                         openEdit(
                                                                             r,
@@ -393,9 +373,10 @@ export default function RequisitionPage({
                                                         ) &&
                                                             r.status !==
                                                                 'published' && (
-                                                                <RowBtn
+                                                                <ActionBtn
                                                                     icon="trash-2"
-                                                                    danger
+                                                                    label="Hapus"
+                                                                    variant="danger"
                                                                     onClick={() =>
                                                                         remove(
                                                                             r.id,

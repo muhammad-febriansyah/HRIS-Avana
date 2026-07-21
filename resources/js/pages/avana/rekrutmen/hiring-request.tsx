@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import HiringRequestController from '@/actions/App/Http/Controllers/Avana/HiringRequestController';
 import { usePermission } from '@/hooks/use-permission';
-import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import { AIcon, ActionBtn, btnOut, btnP, C, card } from '@/lib/avana';
 import { Empty, Kpi, KpiRow, RecruitmentHeader, td, th } from './shell';
 
 interface Dept {
@@ -278,6 +278,7 @@ export default function HiringRequestPage({
                                                         style={{
                                                             display: 'flex',
                                                             gap: 6,
+                                                            flexWrap: 'wrap',
                                                         }}
                                                     >
                                                         {can(
@@ -285,8 +286,10 @@ export default function HiringRequestPage({
                                                         ) &&
                                                             r.status !==
                                                                 'closed' && (
-                                                                <RowBtn
+                                                                <ActionBtn
                                                                     icon="pencil"
+                                                                    label="Edit"
+                                                                    variant="primary"
                                                                     onClick={() =>
                                                                         openEdit(
                                                                             r,
@@ -299,9 +302,10 @@ export default function HiringRequestPage({
                                                         ) &&
                                                             r.status !==
                                                                 'closed' && (
-                                                                <RowBtn
+                                                                <ActionBtn
                                                                     icon="lock"
-                                                                    title="Tutup"
+                                                                    label="Tutup"
+                                                                    variant="warning"
                                                                     onClick={() =>
                                                                         close(
                                                                             r.id,
@@ -312,9 +316,10 @@ export default function HiringRequestPage({
                                                         {can(
                                                             'recruitment.archive',
                                                         ) && (
-                                                            <RowBtn
+                                                            <ActionBtn
                                                                 icon="trash-2"
-                                                                danger
+                                                                label="Hapus"
+                                                                variant="danger"
                                                                 onClick={() =>
                                                                     remove(r.id)
                                                                 }
@@ -459,39 +464,6 @@ export default function HiringRequestPage({
                 </Modal>
             )}
         </>
-    );
-}
-
-export function RowBtn({
-    icon,
-    onClick,
-    danger,
-    title,
-}: {
-    icon: string;
-    onClick: () => void;
-    danger?: boolean;
-    title?: string;
-}) {
-    const color = danger ? C.red : C.text;
-    return (
-        <button
-            title={title ?? icon}
-            onClick={onClick}
-            style={{
-                height: 30,
-                width: 30,
-                border: `1px solid ${C.border}`,
-                borderRadius: 7,
-                background: '#fff',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-            }}
-        >
-            <AIcon name={icon} size={14} color={color} />
-        </button>
     );
 }
 
