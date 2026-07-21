@@ -34,6 +34,7 @@ use App\Http\Controllers\Avana\FeatureCatalogController;
 use App\Http\Controllers\Avana\FeatureController;
 use App\Http\Controllers\Avana\FieldVisitController;
 use App\Http\Controllers\Avana\HelpdeskController;
+use App\Http\Controllers\Avana\HiringRequestController;
 use App\Http\Controllers\Avana\JournalController;
 use App\Http\Controllers\Avana\LaporanController;
 use App\Http\Controllers\Avana\LearningController;
@@ -59,6 +60,7 @@ use App\Http\Controllers\Avana\PayrollUmrController;
 use App\Http\Controllers\Avana\PerformanceController;
 use App\Http\Controllers\Avana\PermissionRequestController;
 use App\Http\Controllers\Avana\RecruitmentController;
+use App\Http\Controllers\Avana\RecruitmentRequisitionController;
 use App\Http\Controllers\Avana\ReimbursementController;
 use App\Http\Controllers\Avana\RosterController;
 use App\Http\Controllers\Avana\SalaryGradeStepController;
@@ -342,6 +344,23 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('rekrutmen/pelamar/{applicant}/medical', [RecruitmentController::class, 'storeMedicalCheck'])->name('rekrutmen.pelamar.medical');
     Route::post('rekrutmen/pelamar/{applicant}/background', [RecruitmentController::class, 'storeBackgroundCheck'])->name('rekrutmen.pelamar.background');
     Route::post('rekrutmen/pelamar/{applicant}/blacklist', [RecruitmentController::class, 'toggleBlacklist'])->name('rekrutmen.pelamar.blacklist');
+    Route::post('rekrutmen/pelamar/{applicant}/interview-result', [RecruitmentController::class, 'recordInterviewResult'])->name('rekrutmen.pelamar.interview-result');
+    Route::post('rekrutmen/pelamar/{applicant}/activate', [RecruitmentController::class, 'activateEmployee'])->name('rekrutmen.pelamar.activate');
+
+    // Rekrutmen ATS flow — stage 1 (Hiring Request) & stage 9 (Candidate Progress)
+    Route::get('rekrutmen/hiring-request', [HiringRequestController::class, 'index'])->name('rekrutmen.hiring-request');
+    Route::post('rekrutmen/hiring-request', [HiringRequestController::class, 'store'])->name('rekrutmen.hiring-request.store');
+    Route::put('rekrutmen/hiring-request/{hiringRequest}', [HiringRequestController::class, 'update'])->name('rekrutmen.hiring-request.update');
+    Route::post('rekrutmen/hiring-request/{hiringRequest}/close', [HiringRequestController::class, 'close'])->name('rekrutmen.hiring-request.close');
+    Route::delete('rekrutmen/hiring-request/{hiringRequest}', [HiringRequestController::class, 'destroy'])->name('rekrutmen.hiring-request.destroy');
+    Route::get('rekrutmen/progress', [HiringRequestController::class, 'progress'])->name('rekrutmen.progress');
+
+    // Rekrutmen ATS flow — stage 2 (Requisition) & stage 3 (Publish Vacancy)
+    Route::get('rekrutmen/requisition', [RecruitmentRequisitionController::class, 'index'])->name('rekrutmen.requisition');
+    Route::post('rekrutmen/requisition', [RecruitmentRequisitionController::class, 'store'])->name('rekrutmen.requisition.store');
+    Route::put('rekrutmen/requisition/{requisition}', [RecruitmentRequisitionController::class, 'update'])->name('rekrutmen.requisition.update');
+    Route::post('rekrutmen/requisition/{requisition}/publish', [RecruitmentRequisitionController::class, 'publish'])->name('rekrutmen.requisition.publish');
+    Route::delete('rekrutmen/requisition/{requisition}', [RecruitmentRequisitionController::class, 'destroy'])->name('rekrutmen.requisition.destroy');
 
     // Perjalanan dinas (duty travel)
     Route::get('dinas', [DutyTravelController::class, 'index'])->name('dinas');

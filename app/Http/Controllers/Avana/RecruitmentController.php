@@ -7,6 +7,7 @@ use App\Models\Applicant;
 use App\Models\ApplicantBackgroundCheck;
 use App\Models\ApplicantMedicalCheck;
 use App\Models\Department;
+use App\Models\Employee;
 use App\Models\HeadcountRequest;
 use App\Models\JobPosting;
 use App\Models\SalesOrder;
@@ -280,6 +281,7 @@ class RecruitmentController extends Controller
                 'job_title' => $a->jobPosting?->title,
                 'type' => $a->interview_type,
                 'status' => $a->interview_status ?? 'scheduled',
+                'result' => $a->interview_result,
                 'location' => $a->interview_location,
                 'interview_at' => $a->interview_at?->toDateTimeString(),
             ]);
@@ -311,6 +313,7 @@ class RecruitmentController extends Controller
                 'start_date' => $a->offer_start_date?->toDateString(),
                 'status' => $a->offer_status ?? 'draft',
                 'note' => $a->offer_note,
+                'activated' => $a->employee_id !== null,
             ]);
 
         return Inertia::render('avana/rekrutmen/offers', [
@@ -655,12 +658,108 @@ class RecruitmentController extends Controller
             'portfolio_url' => ['nullable', 'url', 'max:255'],
         ]);
 
-        Applicant::create([
+        // Business rule: a candidate may only apply once to the same vacancy.
+        $duplicate = Applicant::forTenant($tenantId)
+            ->where('job_posting_id', $data['job_posting_id'])
+            ->whereRaw('LOWER(email) = ?', [mb_strtolower($data['email'])])
+            ->exists();
+
+        if ($duplicate) {
+            return back()->withErrors(['email' => 'Kandidat ini sudah melamar pada lowongan tersebut.']);
+        }
+
+        $applicant = Applicant::create([
             ...$data,
             'tenant_id' => $tenantId,
         ]);
 
-        return back()->with('success', 'Pelamar berhasil ditambahkan');
+        $applicant->update([
+            'tracking_number' => 'APP-'.$applicant->created_at->format('Y').'-'.str_pad((string) $applicant->id, 5, '0', STR_PAD_LEFT),
+        ]);
+
+        return back()->with('success', 'Pelamar ditambahkan (No. '.$applicant->tracking_number.')');
+    }
+
+    /**
+     * Stage 6 — record the interviewer's verdict. Passed keeps the candidate in
+     * the interview stage ready for an offer; Failed moves them to rejected.
+     */
+    public function recordInterviewResult(Request $request, Applicant $applicant): RedirectResponse
+    {
+        $this->ensureCan($request, 'approve');
+        $this->ensureTenantOwnership($request, $applicant);
+
+        $data = $request->validate([
+            'interview_result' => ['required', Rule::in(['passed', 'failed'])],
+        ]);
+
+        $applicant->update([
+            'interview_result' => $data['interview_result'],
+            'interview_status' => 'completed',
+            'stage' => $data['interview_result'] === 'failed' ? 'rejected' : $applicant->stage,
+        ]);
+
+        return back()->with('success', 'Hasil wawancara disimpan');
+    }
+
+    /**
+     * Stage 8 — Onboarding. Activate a hired candidate into an active Employee
+     * record and mark the applicant onboarded.
+     */
+    public function activateEmployee(Request $request, Applicant $applicant): RedirectResponse
+    {
+        $this->ensureCan($request, 'approve');
+        $this->ensureTenantOwnership($request, $applicant);
+
+        if ($applicant->employee_id !== null) {
+            return back()->withErrors(['applicant' => 'Kandidat ini sudah diaktivasi menjadi karyawan.']);
+        }
+
+        if (! in_array($applicant->stage, ['offer', 'hired'], true) || $applicant->offer_status !== 'accepted') {
+            return back()->withErrors(['applicant' => 'Aktivasi hanya untuk kandidat dengan penawaran diterima.']);
+        }
+
+        $data = $request->validate([
+            'join_date' => ['nullable', 'date'],
+        ]);
+
+        $applicant->loadMissing('jobPosting:id,department_id');
+        $tenantId = (int) $applicant->tenant_id;
+
+        $employee = Employee::create([
+            'tenant_id' => $tenantId,
+            'employee_number' => $this->nextEmployeeNumber($tenantId),
+            'full_name' => $applicant->name,
+            'email' => $applicant->email,
+            'phone' => $applicant->phone,
+            'department_id' => $applicant->jobPosting?->department_id,
+            'join_date' => $data['join_date'] ?? $applicant->offer_start_date?->toDateString() ?? now()->toDateString(),
+            'employment_status' => 'probation',
+            'status' => 'active',
+        ]);
+
+        $applicant->update([
+            'employee_id' => $employee->id,
+            'stage' => 'hired',
+            'onboarded_at' => now(),
+        ]);
+
+        return back()->with('success', 'Kandidat diaktivasi menjadi karyawan ('.$employee->employee_number.')');
+    }
+
+    /**
+     * The next unused tenant-scoped employee number (EMP00001, EMP00002, …).
+     */
+    private function nextEmployeeNumber(int $tenantId): string
+    {
+        $seq = (int) Employee::forTenant($tenantId)->max('id') + 1;
+
+        do {
+            $number = 'EMP'.str_pad((string) $seq, 5, '0', STR_PAD_LEFT);
+            $seq++;
+        } while (Employee::forTenant($tenantId)->where('employee_number', $number)->exists());
+
+        return $number;
     }
 
     /**

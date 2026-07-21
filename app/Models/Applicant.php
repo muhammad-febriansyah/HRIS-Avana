@@ -24,6 +24,7 @@ final class Applicant extends Model
             'offer_salary' => 'decimal:2',
             'ai_confidence' => 'integer',
             'blacklisted' => 'boolean',
+            'onboarded_at' => 'datetime',
         ];
     }
 
@@ -40,6 +41,11 @@ final class Applicant extends Model
     public function jobPosting(): BelongsTo
     {
         return $this->belongsTo(JobPosting::class);
+    }
+
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class);
     }
 
     public function talentPool(): BelongsTo

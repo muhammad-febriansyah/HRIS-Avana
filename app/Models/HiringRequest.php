@@ -3,22 +3,19 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-final class JobPosting extends Model
+final class HiringRequest extends Model
 {
-    use HasFactory;
-
     protected $guarded = [];
 
     protected function casts(): array
     {
         return [
-            'posted_date' => 'date',
-            'closing_date' => 'date',
+            'vacancy' => 'integer',
+            'target_join_date' => 'date',
         ];
     }
 
@@ -32,18 +29,18 @@ final class JobPosting extends Model
         return $this->belongsTo(Tenant::class);
     }
 
+    public function requester(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'requester_id');
+    }
+
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
     }
 
-    public function requisition(): BelongsTo
+    public function requisitions(): HasMany
     {
-        return $this->belongsTo(RecruitmentRequisition::class, 'recruitment_requisition_id');
-    }
-
-    public function applicants(): HasMany
-    {
-        return $this->hasMany(Applicant::class);
+        return $this->hasMany(RecruitmentRequisition::class);
     }
 }

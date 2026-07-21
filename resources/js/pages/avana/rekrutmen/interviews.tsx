@@ -1,4 +1,7 @@
-import { Head } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
+import { toast } from 'sonner';
+import RecruitmentController from '@/actions/App/Http/Controllers/Avana/RecruitmentController';
+import { usePermission } from '@/hooks/use-permission';
 import { AIcon, C, card } from '@/lib/avana';
 import { Empty, RecruitmentHeader, td, th } from './shell';
 
@@ -8,6 +11,7 @@ interface Interview {
     job_title: string | null;
     type: string | null;
     status: string;
+    result: string | null;
     location: string | null;
     interview_at: string | null;
 }
@@ -30,6 +34,19 @@ export default function RecruitmentInterviews({
 }: {
     interviews: Interview[];
 }) {
+    const { can } = usePermission();
+    const canApprove = can('recruitment.approve');
+
+    const recordResult = (id: number, interview_result: 'passed' | 'failed') =>
+        router.post(
+            RecruitmentController.recordInterviewResult(id).url,
+            { interview_result },
+            {
+                preserveScroll: true,
+                onSuccess: () => toast.success('Hasil wawancara disimpan'),
+            },
+        );
+
     return (
         <>
             <Head title="Interview" />
@@ -75,7 +92,10 @@ export default function RecruitmentInterviews({
                                         ].map((h) => (
                                             <th
                                                 key={h}
-                                                style={{ ...th, paddingTop: 14 }}
+                                                style={{
+                                                    ...th,
+                                                    paddingTop: 14,
+                                                }}
                                             >
                                                 {h}
                                             </th>
@@ -141,7 +161,8 @@ export default function RecruitmentInterviews({
                                                                     '3px 9px',
                                                                 borderRadius: 6,
                                                                 color: st.c,
-                                                                background: st.bg,
+                                                                background:
+                                                                    st.bg,
                                                             }}
                                                         >
                                                             {st.label}
@@ -165,7 +186,8 @@ export default function RecruitmentInterviews({
                                                     <span
                                                         style={{
                                                             display: 'flex',
-                                                            alignItems: 'center',
+                                                            alignItems:
+                                                                'center',
                                                             gap: 5,
                                                             color: C.muted,
                                                         }}
@@ -175,27 +197,98 @@ export default function RecruitmentInterviews({
                                                             size={13}
                                                             color={C.faint}
                                                         />
-                                                        {iv.location ?? 'Online'}
+                                                        {iv.location ??
+                                                            'Online'}
                                                     </span>
                                                 </td>
                                                 <td style={td}>
-                                                    <span
-                                                        style={{
-                                                            display: 'inline-flex',
-                                                            alignItems: 'center',
-                                                            gap: 6,
-                                                            fontSize: 12.5,
-                                                            fontWeight: 600,
-                                                            color: C.primary,
-                                                        }}
-                                                    >
-                                                        <AIcon
-                                                            name="clipboard-check"
-                                                            size={14}
-                                                            color={C.primary}
-                                                        />
-                                                        Scorecard
-                                                    </span>
+                                                    {iv.result ? (
+                                                        <span
+                                                            style={{
+                                                                fontSize: 12,
+                                                                fontWeight: 700,
+                                                                padding:
+                                                                    '4px 10px',
+                                                                borderRadius: 6,
+                                                                color:
+                                                                    iv.result ===
+                                                                    'passed'
+                                                                        ? '#15803D'
+                                                                        : '#B91C1C',
+                                                                background:
+                                                                    iv.result ===
+                                                                    'passed'
+                                                                        ? '#DCFCE7'
+                                                                        : '#FEE2E2',
+                                                            }}
+                                                        >
+                                                            {iv.result ===
+                                                            'passed'
+                                                                ? 'Passed'
+                                                                : 'Failed'}
+                                                        </span>
+                                                    ) : canApprove ? (
+                                                        <div
+                                                            style={{
+                                                                display: 'flex',
+                                                                gap: 6,
+                                                            }}
+                                                        >
+                                                            <button
+                                                                onClick={() =>
+                                                                    recordResult(
+                                                                        iv.id,
+                                                                        'passed',
+                                                                    )
+                                                                }
+                                                                style={{
+                                                                    fontSize: 12,
+                                                                    fontWeight: 600,
+                                                                    color: '#15803D',
+                                                                    padding:
+                                                                        '5px 10px',
+                                                                    borderRadius: 6,
+                                                                    border: '1px solid #BBF7D0',
+                                                                    background:
+                                                                        '#F0FDF4',
+                                                                    cursor: 'pointer',
+                                                                }}
+                                                            >
+                                                                Passed
+                                                            </button>
+                                                            <button
+                                                                onClick={() =>
+                                                                    recordResult(
+                                                                        iv.id,
+                                                                        'failed',
+                                                                    )
+                                                                }
+                                                                style={{
+                                                                    fontSize: 12,
+                                                                    fontWeight: 600,
+                                                                    color: '#B91C1C',
+                                                                    padding:
+                                                                        '5px 10px',
+                                                                    borderRadius: 6,
+                                                                    border: '1px solid #FECACA',
+                                                                    background:
+                                                                        '#FEF2F2',
+                                                                    cursor: 'pointer',
+                                                                }}
+                                                            >
+                                                                Failed
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <span
+                                                            style={{
+                                                                fontSize: 12,
+                                                                color: C.faint,
+                                                            }}
+                                                        >
+                                                            —
+                                                        </span>
+                                                    )}
                                                 </td>
                                             </tr>
                                         );

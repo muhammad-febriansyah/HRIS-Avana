@@ -2,7 +2,7 @@ import { Head, router } from '@inertiajs/react';
 import { toast } from 'sonner';
 import RecruitmentController from '@/actions/App/Http/Controllers/Avana/RecruitmentController';
 import { usePermission } from '@/hooks/use-permission';
-import { C, card, rp } from '@/lib/avana';
+import { AIcon, C, card, rp } from '@/lib/avana';
 import { Empty, RecruitmentHeader, td, th } from './shell';
 
 interface Offer {
@@ -13,6 +13,7 @@ interface Offer {
     start_date: string | null;
     status: string;
     note: string | null;
+    activated: boolean;
 }
 
 const STATUS_STYLE: Record<string, { c: string; bg: string; label: string }> = {
@@ -36,6 +37,18 @@ export default function RecruitmentOffers({ offers }: { offers: Offer[] }) {
             {
                 preserveScroll: true,
                 onSuccess: () => toast.success('Status penawaran diperbarui'),
+            },
+        );
+    };
+
+    const activate = (id: number) => {
+        router.post(
+            RecruitmentController.activateEmployee(id).url,
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => toast.success('Kandidat diaktivasi'),
+                onError: () => toast.error('Aktivasi gagal'),
             },
         );
     };
@@ -236,6 +249,49 @@ export default function RecruitmentOffers({ offers }: { offers: Offer[] }) {
                                                         >
                                                             Tandai Diterima
                                                         </button>
+                                                    ) : o.status ===
+                                                          'accepted' &&
+                                                      !o.activated &&
+                                                      canApprove ? (
+                                                        <button
+                                                            onClick={() =>
+                                                                activate(o.id)
+                                                            }
+                                                            style={{
+                                                                fontSize: 12,
+                                                                fontWeight: 600,
+                                                                color: '#15803D',
+                                                                padding:
+                                                                    '5px 10px',
+                                                                borderRadius: 6,
+                                                                border: '1px solid #BBF7D0',
+                                                                background:
+                                                                    '#F0FDF4',
+                                                                cursor: 'pointer',
+                                                                display:
+                                                                    'inline-flex',
+                                                                alignItems:
+                                                                    'center',
+                                                                gap: 5,
+                                                            }}
+                                                        >
+                                                            <AIcon
+                                                                name="user-check"
+                                                                size={13}
+                                                                color="#15803D"
+                                                            />
+                                                            Aktivasi Karyawan
+                                                        </button>
+                                                    ) : o.activated ? (
+                                                        <span
+                                                            style={{
+                                                                fontSize: 12,
+                                                                fontWeight: 600,
+                                                                color: C.green,
+                                                            }}
+                                                        >
+                                                            ✓ Karyawan Aktif
+                                                        </span>
                                                     ) : (
                                                         <span
                                                             style={{
