@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\BpjsProgram;
 use App\Models\BpjsRate;
+use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
 use App\Models\PkpRate;
 use App\Models\PtkpRate;
 use App\Models\TaxProfile;
 use App\Models\User;
+use App\Support\Pph21Calculator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -92,10 +94,29 @@ class PayrollConfigController extends Controller
                 'sort_order' => $rate->sort_order,
             ]);
 
+        $taxProfiles = Employee::forTenant($tenantId)
+            ->with('taxProfile')
+            ->orderBy('full_name')
+            ->get(['id', 'full_name', 'employee_number'])
+            ->map(fn (Employee $e): array => [
+                'employee_id' => $e->id,
+                'name' => $e->full_name,
+                'employee_number' => $e->employee_number,
+                'npwp' => $e->taxProfile?->npwp,
+                'nik' => $e->taxProfile?->nik,
+                'ptkp_status' => $e->taxProfile?->ptkp_status,
+                'tax_subject' => $e->taxProfile?->tax_subject ?? 'pegawai_tetap',
+                'wage_basis' => $e->taxProfile?->wage_basis ?? 'monthly',
+                'daily_wage' => $e->taxProfile?->daily_wage !== null ? (float) $e->taxProfile->daily_wage : null,
+            ]);
+
         return Inertia::render('avana/payroll-config/index', [
             'programs' => $programs,
             'ptkpRates' => $ptkpRates,
             'pkpRates' => $pkpRates,
+            'taxProfiles' => $taxProfiles,
+            'taxSubjects' => $this->taxSubjectOptions(),
+            'ptkpStatuses' => ['TK/0', 'TK/1', 'TK/2', 'TK/3', 'K/0', 'K/1', 'K/2', 'K/3'],
             'profileStats' => [
                 'bpjs_profiles' => EmployeeBpjsProfile::where('tenant_id', $tenantId)->count(),
                 'tax_profiles' => TaxProfile::where('tenant_id', $tenantId)->count(),
@@ -104,6 +125,68 @@ class PayrollConfigController extends Controller
                 'enforce_payroll_segregation' => (bool) $request->user()->tenant?->enforce_payroll_segregation,
             ],
         ]);
+    }
+
+    /**
+     * The PPh 21 subject options ({value, label}) mirroring the official
+     * "Resume Skema" income-recipient categories.
+     *
+     * @return array<int, array{value: string, label: string}>
+     */
+    private function taxSubjectOptions(): array
+    {
+        $labels = [
+            'pegawai_tetap' => 'Pegawai Tetap & Pensiunan',
+            'pns' => 'PNS/TNI/Polri/Pejabat Negara',
+            'komisaris' => 'Dewan Komisaris/Pengawas',
+            'pegawai_tidak_tetap' => 'Pegawai Tidak Tetap',
+            'bukan_pegawai' => 'Bukan Pegawai',
+            'peserta_kegiatan' => 'Peserta Kegiatan',
+            'peserta_pensiun' => 'Peserta Program Pensiun',
+            'mantan_pegawai' => 'Mantan Pegawai',
+        ];
+
+        return array_map(
+            fn (string $key): array => ['value' => $key, 'label' => $labels[$key] ?? $key],
+            Pph21Calculator::SUBJECTS,
+        );
+    }
+
+    /**
+     * Create or update an employee's PPh 21 tax profile — the subject category
+     * (drives the withholding scheme), PTKP status, and daily-wage settings.
+     */
+    public function upsertTaxProfile(Request $request): RedirectResponse
+    {
+        $this->ensureCan($request, 'pph21', 'update');
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $validated = $request->validate([
+            'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
+            'tax_subject' => ['required', Rule::in(Pph21Calculator::SUBJECTS)],
+            'ptkp_status' => ['nullable', 'string', 'max:20'],
+            'wage_basis' => ['required', Rule::in(['monthly', 'daily'])],
+            'daily_wage' => ['nullable', 'numeric', 'min:0'],
+            'npwp' => ['nullable', 'string', 'max:32'],
+            'nik' => ['nullable', 'string', 'max:32'],
+        ]);
+
+        TaxProfile::updateOrCreate(
+            ['tenant_id' => $tenantId, 'employee_id' => $validated['employee_id']],
+            [
+                'tax_subject' => $validated['tax_subject'],
+                'ptkp_status' => $validated['ptkp_status'] !== null && $validated['ptkp_status'] !== ''
+                    ? strtoupper($validated['ptkp_status'])
+                    : null,
+                'wage_basis' => $validated['wage_basis'],
+                'daily_wage' => $validated['wage_basis'] === 'daily' ? ($validated['daily_wage'] ?? null) : null,
+                'npwp' => $validated['npwp'] ?? null,
+                'nik' => $validated['nik'] ?? null,
+            ],
+        );
+
+        return back()->with('success', 'Profil pajak karyawan disimpan');
     }
 
     /**

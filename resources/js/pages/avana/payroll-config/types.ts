@@ -55,11 +55,32 @@ export interface ProfileStats {
     tax_profiles: number;
 }
 
+export interface Option {
+    value: string;
+    label: string;
+}
+
+/** A per-employee PPh 21 tax profile row (PayrollConfigController@index). */
+export interface TaxProfileRow {
+    employee_id: number;
+    name: string;
+    employee_number: string | null;
+    npwp: string | null;
+    nik: string | null;
+    ptkp_status: string | null;
+    tax_subject: string;
+    wage_basis: string;
+    daily_wage: number | null;
+}
+
 export interface PayrollConfigProps {
     programs: BpjsProgram[];
     ptkpRates: PtkpRate[];
     pkpRates: PkpRate[];
     profileStats: ProfileStats;
+    taxProfiles: TaxProfileRow[];
+    taxSubjects: Option[];
+    ptkpStatuses: string[];
     settings: {
         enforce_payroll_segregation: boolean;
     };
@@ -95,7 +116,7 @@ export interface FieldDef {
 
 /** Full configuration for one tab/section. */
 export interface SectionDef {
-    key: 'bpjs' | 'pph21';
+    key: 'bpjs' | 'pph21' | 'tax-profile';
     label: string;
     title: string;
     icon: string;
@@ -290,6 +311,17 @@ export const SECTIONS: SectionDef[] = [
                 options: ACTIVE_OPTIONS,
             },
         ],
+    },
+    {
+        key: 'tax-profile',
+        label: 'Profil Pajak Karyawan',
+        title: 'Profil Pajak Karyawan',
+        icon: 'receipt',
+        emptyText: 'Belum ada karyawan.',
+        addLabel: '',
+        entityLabel: 'Profil Pajak',
+        columns: [],
+        fields: [],
     },
 ];
 

@@ -190,6 +190,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::delete('payroll/konfigurasi/ptkp/{rate}', [PayrollConfigController::class, 'destroyPtkpRate'])->name('payroll.konfigurasi.ptkp.destroy');
     Route::post('payroll/konfigurasi/pkp', [PayrollConfigController::class, 'storePkpRate'])->name('payroll.konfigurasi.pkp.store');
     Route::delete('payroll/konfigurasi/pkp/{rate}', [PayrollConfigController::class, 'destroyPkpRate'])->name('payroll.konfigurasi.pkp.destroy');
+    Route::post('payroll/konfigurasi/tax-profile', [PayrollConfigController::class, 'upsertTaxProfile'])->name('payroll.konfigurasi.tax-profile.upsert');
 
     // Master Komponen & Master Formula (BPR-manual payroll config)
     Route::get('payroll/komponen', [PayrollKomponenController::class, 'index'])->name('payroll.komponen');

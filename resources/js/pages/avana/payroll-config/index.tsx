@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { AIcon, C, card } from '@/lib/avana';
 import BpjsTab from './bpjs-tab';
 import Pph21Tab from './pph21-tab';
+import TaxProfileTab from './tax-profile-tab';
 import { SECTIONS } from './types';
 import type { FlashProps, PayrollConfigProps } from './types';
 
@@ -12,11 +13,16 @@ export default function PayrollConfig({
     ptkpRates,
     pkpRates,
     profileStats,
+    taxProfiles,
+    taxSubjects,
+    ptkpStatuses,
     settings,
 }: PayrollConfigProps) {
     const { flash } = usePage<FlashProps>().props;
 
-    const [activeKey, setActiveKey] = useState<'bpjs' | 'pph21'>('bpjs');
+    const [activeKey, setActiveKey] = useState<
+        'bpjs' | 'pph21' | 'tax-profile'
+    >('bpjs');
 
     const toggleSegregation = (value: boolean) => {
         router.put(
@@ -269,8 +275,14 @@ export default function PayrollConfig({
                 {/* Active section */}
                 {activeKey === 'bpjs' ? (
                     <BpjsTab programs={programs} />
-                ) : (
+                ) : activeKey === 'pph21' ? (
                     <Pph21Tab ptkpRates={ptkpRates} pkpRates={pkpRates} />
+                ) : (
+                    <TaxProfileTab
+                        taxProfiles={taxProfiles}
+                        taxSubjects={taxSubjects}
+                        ptkpStatuses={ptkpStatuses}
+                    />
                 )}
             </div>
         </>

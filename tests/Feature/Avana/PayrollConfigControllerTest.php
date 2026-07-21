@@ -2,10 +2,12 @@
 
 use App\Http\Controllers\Avana\PayrollConfigController;
 use App\Models\BpjsProgram;
+use App\Models\Employee;
 use App\Models\Permission;
 use App\Models\PkpRate;
 use App\Models\PtkpRate;
 use App\Models\Role;
+use App\Models\TaxProfile;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
@@ -34,7 +36,53 @@ beforeEach(function (): void {
         Route::delete('spec-payroll-config/ptkp/{rate}', [PayrollConfigController::class, 'destroyPtkpRate']);
         Route::post('spec-payroll-config/pkp', [PayrollConfigController::class, 'storePkpRate']);
         Route::delete('spec-payroll-config/pkp/{rate}', [PayrollConfigController::class, 'destroyPkpRate']);
+        Route::post('spec-payroll-config/tax-profile', [PayrollConfigController::class, 'upsertTaxProfile']);
     });
+});
+
+it('lists employee tax profiles and subject options', function (): void {
+    actingAs($this->admin)
+        ->get('spec-payroll-config')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('taxProfiles.0.tax_subject')
+            ->has('taxSubjects.0.value')
+            ->has('ptkpStatuses'));
+});
+
+it('upserts an employee PPh 21 tax profile (daily worker)', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post('spec-payroll-config/tax-profile', [
+            'employee_id' => $employee->id,
+            'tax_subject' => 'pegawai_tidak_tetap',
+            'ptkp_status' => 'tk/0',
+            'wage_basis' => 'daily',
+            'daily_wage' => 400000,
+            'npwp' => '12.345.678.9-012.000',
+        ])
+        ->assertSessionHas('success');
+
+    $profile = TaxProfile::where('tenant_id', $this->tenant->id)
+        ->where('employee_id', $employee->id)->firstOrFail();
+
+    expect($profile->tax_subject)->toBe('pegawai_tidak_tetap')
+        ->and($profile->wage_basis)->toBe('daily')
+        ->and((float) $profile->daily_wage)->toBe(400000.0)
+        ->and($profile->ptkp_status)->toBe('TK/0');
+});
+
+it('rejects an unknown tax subject', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post('spec-payroll-config/tax-profile', [
+            'employee_id' => $employee->id,
+            'tax_subject' => 'not_a_subject',
+            'wage_basis' => 'monthly',
+        ])
+        ->assertSessionHasErrors('tax_subject');
 });
 
 it('renders the payroll config screen with the expected props', function (): void {
