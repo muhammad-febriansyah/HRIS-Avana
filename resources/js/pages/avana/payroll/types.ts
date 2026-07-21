@@ -57,10 +57,24 @@ export interface Slip {
     net: string;
 }
 
+/** A single employee who received pay in the selected period. */
+export interface Recipient {
+    id: number;
+    employee_id: number;
+    name: string;
+    employee_number: string | null;
+    gross: string;
+    deduction: string;
+    tax: string;
+    net: string;
+    tax_method: string | null;
+}
+
 export interface PayrollFilters {
     search?: string;
     status?: string;
     per_page?: string;
+    period?: string;
 }
 
 export interface PayrollProps {
@@ -69,7 +83,8 @@ export interface PayrollProps {
         meta: import('../employees/types').PaginationMeta;
         links: Record<string, string | null>;
     };
-    summary: PayrollSummary;
+    summary: PayrollSummary & { recipient_count?: number };
+    recipients: Recipient[];
     slip: Slip;
     filters: PayrollFilters;
 }

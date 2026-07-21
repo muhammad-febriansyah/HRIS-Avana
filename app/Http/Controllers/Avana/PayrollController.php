@@ -69,33 +69,71 @@ class PayrollController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        $latestPeriod = PayrollPeriod::forTenant($tenantId)
+        // The period whose payslips are shown — a chosen one (?period) or the
+        // latest. This lets HR open the recipient list for any month, not just
+        // the current draft.
+        $selectedPeriod = $request->filled('period')
+            ? PayrollPeriod::forTenant($tenantId)
+                ->with(['runs' => fn ($query) => $query->orderByDesc('id')])
+                ->find($request->integer('period'))
+            : null;
+
+        $selectedPeriod ??= PayrollPeriod::forTenant($tenantId)
             ->with(['runs' => fn ($query) => $query->orderByDesc('id')])
             ->orderByDesc('start_date')
             ->first();
 
-        $latestRun = $latestPeriod?->runs->first();
+        $selectedRun = $selectedPeriod?->runs->first();
+        $search = trim((string) $request->input('search', ''));
+
+        $recipients = $selectedRun === null ? [] : PayrollRunItem::where('payroll_run_id', $selectedRun->id)
+            ->with('employee:id,full_name,employee_number')
+            ->when($search !== '', fn ($query) => $query->whereHas(
+                'employee',
+                fn ($sub) => $sub->where('full_name', 'like', "%{$search}%")
+                    ->orWhere('employee_number', 'like', "%{$search}%"),
+            ))
+            ->orderByDesc('net_salary')
+            ->get()
+            ->map(function (PayrollRunItem $item): array {
+                $snapshot = is_array($item->calculation_snapshot) ? $item->calculation_snapshot : [];
+
+                return [
+                    'id' => $item->id,
+                    'employee_id' => $item->employee_id,
+                    'name' => $item->employee?->full_name ?? '—',
+                    'employee_number' => $item->employee?->employee_number,
+                    'gross' => $this->rupiah($item->gross_salary),
+                    'deduction' => $this->rupiah($item->total_deduction + $item->bpjs_employee_total + $item->pph21_total),
+                    'tax' => $this->rupiah($item->pph21_total),
+                    'net' => $this->rupiah($item->net_salary),
+                    'tax_method' => $snapshot['tax']['method'] ?? null,
+                ];
+            })
+            ->all();
 
         return Inertia::render('avana/payroll/index', [
             'periods' => PayrollPeriodResource::collection($periods),
             'summary' => [
-                'period' => $latestPeriod?->name,
-                'period_id' => $latestPeriod?->id,
-                'pay_date' => $latestPeriod?->pay_date?->toDateString(),
-                'start_date' => $latestPeriod?->start_date?->toDateString(),
-                'end_date' => $latestPeriod?->end_date?->toDateString(),
-                'status' => $latestRun?->status ?? $latestPeriod?->status,
-                'status_label' => PayrollPeriodResource::statusLabel($latestRun?->status ?? $latestPeriod?->status),
-                'approval_note' => $latestRun?->approval_note,
-                'rejection_note' => $latestRun?->rejection_note,
-                'total_gross' => $this->rupiah($latestRun?->total_gross ?? 0),
-                'total_deduction' => $this->rupiah($latestRun?->total_deduction ?? 0),
-                'total_tax' => $this->rupiah($latestRun?->total_tax ?? 0),
-                'total_net' => $this->rupiah($latestRun?->total_net ?? 0),
-                'employee_count' => (int) ($latestRun?->employee_count ?? 0),
+                'period' => $selectedPeriod?->name,
+                'period_id' => $selectedPeriod?->id,
+                'pay_date' => $selectedPeriod?->pay_date?->toDateString(),
+                'start_date' => $selectedPeriod?->start_date?->toDateString(),
+                'end_date' => $selectedPeriod?->end_date?->toDateString(),
+                'status' => $selectedRun?->status ?? $selectedPeriod?->status,
+                'status_label' => PayrollPeriodResource::statusLabel($selectedRun?->status ?? $selectedPeriod?->status),
+                'approval_note' => $selectedRun?->approval_note,
+                'rejection_note' => $selectedRun?->rejection_note,
+                'total_gross' => $this->rupiah($selectedRun?->total_gross ?? 0),
+                'total_deduction' => $this->rupiah($selectedRun?->total_deduction ?? 0),
+                'total_tax' => $this->rupiah($selectedRun?->total_tax ?? 0),
+                'total_net' => $this->rupiah($selectedRun?->total_net ?? 0),
+                'employee_count' => (int) ($selectedRun?->employee_count ?? 0),
+                'recipient_count' => count($recipients),
             ],
-            'slip' => $this->buildSampleSlip($tenantId, $latestPeriod),
-            'filters' => $request->only(['search', 'status', 'per_page']),
+            'recipients' => $recipients,
+            'slip' => $this->buildSampleSlip($tenantId, $selectedPeriod),
+            'filters' => $request->only(['search', 'status', 'per_page', 'period']),
         ]);
     }
 

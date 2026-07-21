@@ -74,7 +74,9 @@ it('renders the payroll index with the expected props', function (): void {
                 ->has('total_deduction')
                 ->has('total_tax')
                 ->has('total_net')
-                ->has('employee_count'))
+                ->has('employee_count')
+                ->has('recipient_count'))
+            ->has('recipients')
             ->has('slip', fn (Assert $slip) => $slip
                 ->has('employee')
                 ->has('earnings')

@@ -6,6 +6,7 @@ import SalaryMasterController from '@/actions/App/Http/Controllers/Avana/SalaryM
 import { AIcon, btnOut, btnP, C } from '@/lib/avana';
 import { LockedAlert } from './components';
 import { PeriodTable } from './period-table';
+import { RecipientsTable } from './recipients-table';
 import { SlipDetail } from './slip-detail';
 import { SummaryCard } from './summary-card';
 import type { CSSProperties } from 'react';
@@ -107,6 +108,7 @@ function StepArrow() {
 export default function AvanaPayroll({
     periods,
     summary,
+    recipients,
     slip,
     filters,
 }: PayrollProps) {
@@ -742,6 +744,16 @@ export default function AvanaPayroll({
 
                     {/* Slip gaji detail */}
                     <SlipDetail slip={slip} period={summary.period} />
+                </div>
+
+                {/* Daftar penerima gaji — semua karyawan pada periode terpilih */}
+                <div style={{ marginTop: 18 }}>
+                    <RecipientsTable
+                        recipients={recipients}
+                        period={summary.period}
+                        periodId={summary.period_id}
+                        search={filters.search}
+                    />
                 </div>
             </div>
 

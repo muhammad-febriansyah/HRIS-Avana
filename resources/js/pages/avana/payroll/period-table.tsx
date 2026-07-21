@@ -1,3 +1,4 @@
+import { Link } from '@inertiajs/react';
 import { ActionBtn, AIcon, C, card, statusBadge } from '@/lib/avana';
 import type { PaginationMeta, Period } from './types';
 
@@ -147,15 +148,19 @@ export function PeriodTable({
                                                 gap: 8,
                                             }}
                                         >
-                                            <div
+                                            <Link
+                                                href={`/avana/payroll?period=${period.id}`}
+                                                preserveScroll
                                                 style={{
                                                     fontSize: 13.5,
                                                     fontWeight: 600,
                                                     color: C.navy,
+                                                    textDecoration: 'none',
                                                 }}
+                                                title="Lihat penerima gaji periode ini"
                                             >
                                                 {period.periode}
-                                            </div>
+                                            </Link>
                                             <span
                                                 style={{
                                                     padding: '2px 8px',
