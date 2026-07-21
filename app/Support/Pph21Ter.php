@@ -19,15 +19,15 @@ namespace App\Support;
  *
  * Brackets below reproduce the PMK 168/2023 Lampiran (Tarif Efektif Bulanan).
  * Each row is [upper bound of monthly bruto (inclusive), effective rate]; the
- * final row uses PHP_INT_MAX for "and above". The working-salary range has been
- * cross-checked against the DJP worked examples (Rp6.5jt→1%, Rp10jt→2%); the
- * very top brackets (> ~Rp206jt/month) should be confirmed against the source
- * lampiran before use in that income range.
+ * final row uses PHP_INT_MAX for "and above". Every bracket in all three
+ * categories AND the PTKP→category mapping have been validated end-to-end
+ * against the client's official "Setup TER PPh21" workbook (PP 58/2023 &
+ * PMK 168/2023 Lampiran) — the full range, including the top brackets, matches.
  */
 final class Pph21Ter
 {
     /**
-     * TER Kategori A — PTKP TK/0 (54jt), TK/1 & K/0 (58,5jt). 44 brackets.
+     * TER Kategori A — PTKP TK/0 (54jt), TK/1 & K/0 (58,5jt). 42 brackets.
      *
      * @var list<array{0: int, 1: float}>
      */
@@ -46,7 +46,7 @@ final class Pph21Ter
     ];
 
     /**
-     * TER Kategori B — PTKP TK/2 & K/1 (63jt), TK/3 & K/2 (67,5jt). 40 brackets.
+     * TER Kategori B — PTKP TK/2 & K/1 (63jt), TK/3 & K/2 (67,5jt). 39 brackets.
      *
      * @var list<array{0: int, 1: float}>
      */
@@ -81,6 +81,35 @@ final class Pph21Ter
         [561_000_000, 0.15], [709_000_000, 0.20], [1_020_000_000, 0.25], [1_415_000_000, 0.30],
         [PHP_INT_MAX, 0.34],
     ];
+
+    /**
+     * TER Harian (daily) brackets — PMK 168/2023: bruto harian s.d. Rp450.000
+     * is 0%, above that up to Rp2.500.000/day is 0,5%. A daily wage over
+     * Rp2.500.000 is NOT withheld via TER Harian — the caller applies
+     * 50% × Tarif Pasal 17 instead.
+     *
+     * @var list<array{0: int, 1: float}>
+     */
+    private const DAILY = [
+        [450_000, 0.0],
+        [2_500_000, 0.005],
+    ];
+
+    /**
+     * The effective daily TER rate for a single day's gross wage (≤ Rp2,5jt).
+     */
+    public static function dailyRate(float $dailyGross): float
+    {
+        $gross = max(0.0, $dailyGross);
+
+        foreach (self::DAILY as [$upTo, $rate]) {
+            if ($gross <= $upTo) {
+                return $rate;
+            }
+        }
+
+        return 0.005;
+    }
 
     /**
      * Resolve the TER category (A/B/C) for a PTKP status code such as "TK/0".

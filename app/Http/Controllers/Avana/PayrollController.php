@@ -26,7 +26,7 @@ use App\Models\SalaryMasterComponent;
 use App\Models\SalaryRapel;
 use App\Models\TaxProfile;
 use App\Models\UmrRate;
-use App\Support\Pph21Ter;
+use App\Support\Pph21Calculator;
 use App\Support\TaxForm1721;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -1247,9 +1247,12 @@ class PayrollController extends Controller
         $bpjs = $this->computeBpjs($employee, $tenantId, $basic > 0 ? $basic : $gross);
 
         // December (or the employee's final tax month) reconciles the year against
-        // the progressive Pasal 17 tariff; other months use the monthly progressive
-        // method. Both work on the taxable base, not the full gross.
-        $pph21 = $this->isFinalTaxMonth($employee, $period)
+        // the progressive Pasal 17 tariff — but only for subjects that withhold
+        // monthly via TER (pegawai tetap / PNS). Every other subject (komisaris,
+        // pegawai tidak tetap, bukan pegawai, peserta, mantan pegawai) is taxed
+        // per masa pajak with no annual reconciliation.
+        $pph21 = ($this->isFinalTaxMonth($employee, $period)
+            && Pph21Calculator::needsAnnualReconciliation($this->taxSubjectOf($employee, $tenantId)))
             ? $this->computeAnnualPph21($employee, $tenantId, $period, $taxableGross)
             : $this->computePph21($employee, $tenantId, $taxableGross);
 
@@ -1813,22 +1816,43 @@ class PayrollController extends Controller
             ->where('employee_id', $employee->id)
             ->first();
 
-        $status = $profile?->ptkp_status;
-        $category = Pph21Ter::category($status);
-        $rate = Pph21Ter::monthlyRate($category, $gross);
-        $amount = round($gross * $rate);
+        $year = (int) now()->year;
+
+        $result = Pph21Calculator::compute(
+            $profile?->tax_subject ?? 'pegawai_tetap',
+            $profile?->ptkp_status,
+            $gross,
+            [
+                'wage_basis' => $profile?->wage_basis ?? 'monthly',
+                'daily_wage' => $profile?->daily_wage !== null ? (float) $profile->daily_wage : null,
+            ],
+            fn (float $base): float => $this->progressiveTax($base, $tenantId, $year),
+        );
 
         return [
-            'amount' => $amount,
+            'amount' => $result['amount'],
             'snapshot' => [
-                'method' => 'ter',
-                'ptkp_status' => $status,
-                'ter_category' => $category,
-                'ter_rate' => $rate,
-                'gross' => round($gross),
-                'pph21_amount' => $amount,
+                'method' => $result['method'],
+                'subject' => $result['subject'],
+                'ptkp_status' => $result['ptkp_status'],
+                'ter_category' => $result['ter_category'],
+                'ter_rate' => $result['ter_rate'],
+                'base' => $result['base'],
+                'gross' => $result['gross'],
+                'pph21_amount' => $result['amount'],
             ],
         ];
+    }
+
+    /**
+     * The PPh 21 subject category configured for an employee (defaults to
+     * pegawai tetap when no tax profile exists).
+     */
+    private function taxSubjectOf(Employee $employee, int $tenantId): string
+    {
+        return TaxProfile::where('tenant_id', $tenantId)
+            ->where('employee_id', $employee->id)
+            ->value('tax_subject') ?? 'pegawai_tetap';
     }
 
     /**

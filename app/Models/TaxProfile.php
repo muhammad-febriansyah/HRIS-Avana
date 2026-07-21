@@ -18,6 +18,7 @@ final class TaxProfile extends Model
         return [
             'effective_start_date' => 'date',
             'effective_end_date' => 'date',
+            'daily_wage' => 'decimal:2',
         ];
     }
 

@@ -141,7 +141,7 @@ it('computes internal PPh 21 with the monthly TER scheme (PMK 168/2023)', functi
 
     expect((float) $item->gross_salary)->toBe(5_800_000.0);
     expect((float) $item->pph21_total)->toBe(29_000.0);
-    expect($item->calculation_snapshot['tax']['method'])->toBe('ter');
+    expect($item->calculation_snapshot['tax']['method'])->toBe('ter_bulanan');
     expect($item->calculation_snapshot['tax']['ter_category'])->toBe('A');
     expect((float) $item->calculation_snapshot['tax']['ter_rate'])->toBe(0.005);
 });

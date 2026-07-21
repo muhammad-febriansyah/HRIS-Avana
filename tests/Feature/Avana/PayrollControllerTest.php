@@ -144,7 +144,7 @@ it('computes a payroll run with items for every active employee', function (): v
     expect((float) $item->total_deduction)->toBe(587_500.0);
     expect((float) $item->net_salary)->toBe(6_412_500.0);
     expect($item->calculation_snapshot)->toHaveKey('earnings');
-    expect($item->calculation_snapshot['tax']['method'] ?? null)->toBe('ter');
+    expect($item->calculation_snapshot['tax']['method'] ?? null)->toBe('ter_bulanan');
 });
 
 it('refreshes the existing run without duplicating items on re-run', function (): void {
