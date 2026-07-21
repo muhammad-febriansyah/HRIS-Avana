@@ -75,6 +75,8 @@ export interface PayrollFilters {
     status?: string;
     per_page?: string;
     period?: string;
+    scheme?: string;
+    only_paid?: string | boolean;
 }
 
 export interface PayrollProps {
@@ -85,6 +87,7 @@ export interface PayrollProps {
     };
     summary: PayrollSummary & { recipient_count?: number };
     recipients: Recipient[];
+    recipient_meta: import('../employees/types').PaginationMeta | null;
     slip: Slip;
     filters: PayrollFilters;
 }

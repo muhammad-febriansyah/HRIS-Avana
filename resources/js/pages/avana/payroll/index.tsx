@@ -109,6 +109,7 @@ export default function AvanaPayroll({
     periods,
     summary,
     recipients,
+    recipient_meta,
     slip,
     filters,
 }: PayrollProps) {
@@ -750,9 +751,10 @@ export default function AvanaPayroll({
                 <div style={{ marginTop: 18 }}>
                     <RecipientsTable
                         recipients={recipients}
+                        meta={recipient_meta}
                         period={summary.period}
                         periodId={summary.period_id}
-                        search={filters.search}
+                        filters={filters}
                     />
                 </div>
             </div>

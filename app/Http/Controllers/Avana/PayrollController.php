@@ -84,17 +84,29 @@ class PayrollController extends Controller
             ->first();
 
         $selectedRun = $selectedPeriod?->runs->first();
-        $search = trim((string) $request->input('search', ''));
 
-        $recipients = $selectedRun === null ? [] : PayrollRunItem::where('payroll_run_id', $selectedRun->id)
+        // Recipient list is server-side paginated + filterable so a period with
+        // hundreds of employees stays a small payload. HR can narrow by name/NIP,
+        // tax scheme, or hide the not-yet-paid (net 0) rows.
+        $search = trim((string) $request->input('search', ''));
+        $scheme = trim((string) $request->input('scheme', ''));
+        $onlyPaid = $request->boolean('only_paid');
+        $perPage = min(max((int) $request->input('per_page', 20), 10), 100);
+
+        $recipientsPage = $selectedRun === null ? null : PayrollRunItem::where('payroll_run_id', $selectedRun->id)
             ->with('employee:id,full_name,employee_number')
             ->when($search !== '', fn ($query) => $query->whereHas(
                 'employee',
                 fn ($sub) => $sub->where('full_name', 'like', "%{$search}%")
                     ->orWhere('employee_number', 'like', "%{$search}%"),
             ))
+            ->when($scheme !== '', fn ($query) => $query->where('calculation_snapshot->tax->method', $scheme))
+            ->when($onlyPaid, fn ($query) => $query->where('net_salary', '>', 0))
             ->orderByDesc('net_salary')
-            ->get()
+            ->paginate($perPage)
+            ->withQueryString();
+
+        $recipients = $recipientsPage === null ? [] : collect($recipientsPage->items())
             ->map(function (PayrollRunItem $item): array {
                 $snapshot = is_array($item->calculation_snapshot) ? $item->calculation_snapshot : [];
 
@@ -111,6 +123,15 @@ class PayrollController extends Controller
                 ];
             })
             ->all();
+
+        $recipientMeta = $recipientsPage === null ? null : [
+            'current_page' => $recipientsPage->currentPage(),
+            'last_page' => $recipientsPage->lastPage(),
+            'per_page' => $recipientsPage->perPage(),
+            'from' => $recipientsPage->firstItem(),
+            'to' => $recipientsPage->lastItem(),
+            'total' => $recipientsPage->total(),
+        ];
 
         return Inertia::render('avana/payroll/index', [
             'periods' => PayrollPeriodResource::collection($periods),
@@ -129,11 +150,12 @@ class PayrollController extends Controller
                 'total_tax' => $this->rupiah($selectedRun?->total_tax ?? 0),
                 'total_net' => $this->rupiah($selectedRun?->total_net ?? 0),
                 'employee_count' => (int) ($selectedRun?->employee_count ?? 0),
-                'recipient_count' => count($recipients),
+                'recipient_count' => $recipientMeta['total'] ?? 0,
             ],
             'recipients' => $recipients,
+            'recipient_meta' => $recipientMeta,
             'slip' => $this->buildSampleSlip($tenantId, $selectedPeriod),
-            'filters' => $request->only(['search', 'status', 'per_page', 'period']),
+            'filters' => $request->only(['search', 'status', 'per_page', 'period', 'scheme', 'only_paid']),
         ]);
     }
 
