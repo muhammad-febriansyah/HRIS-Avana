@@ -33,7 +33,7 @@ const CALC_LABEL: Record<CalcType, { label: string; icon: string }> = {
     per_hari: { label: 'Per Hari', icon: 'calendar-days' },
     per_jam: { label: 'Per Jam', icon: 'clock' },
     persentase: { label: 'Persentase', icon: 'percent' },
-    rumus: { label: 'Rumus', icon: 'function-square' },
+    rumus: { label: 'Rumus', icon: 'calculator' },
 };
 
 const CAT_STYLE: Record<Category, { c: string; bg: string; label: string }> = {
@@ -105,6 +105,9 @@ export default function PayrollKomponen({
     const [tab, setTab] = useState<'komponen' | 'rumus' | 'pajak'>('komponen');
     const [cat, setCat] = useState<'semua' | Category>('semua');
     const [search, setSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState<
+        'all' | 'active' | 'inactive'
+    >('all');
     const [selected, setSelected] = useState<number | null>(null);
     const [modal, setModal] = useState(false);
 
@@ -137,11 +140,18 @@ export default function PayrollKomponen({
             .filter((c) => cat === 'semua' || c.category === cat)
             .filter(
                 (c) =>
+                    statusFilter === 'all' ||
+                    (statusFilter === 'active'
+                        ? c.status === 'active'
+                        : c.status !== 'active'),
+            )
+            .filter(
+                (c) =>
                     !q ||
                     c.name.toLowerCase().includes(q) ||
                     (c.code ?? '').toLowerCase().includes(q),
             );
-    }, [components, cat, search]);
+    }, [components, cat, search, statusFilter]);
 
     const taxRows = useMemo(
         () => taxBpjs.filter((t) => cat === 'semua' || t.category === cat),
@@ -209,6 +219,30 @@ export default function PayrollKomponen({
         } else {
             router.post('/avana/payroll/komponen/component', payload, opts);
         }
+    };
+
+    const exportCsv = () => {
+        const head = ['Kode', 'Nama', 'Kategori', 'Tipe Perhitungan', 'Status'];
+        const lines = rows.map((c) =>
+            [
+                c.code ?? '',
+                c.name,
+                c.category,
+                (CALC_LABEL[c.calc_type] ?? CALC_LABEL.jumlah_tetap).label,
+                c.status === 'active' ? 'Aktif' : 'Nonaktif',
+            ]
+                .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+                .join(','),
+        );
+        const blob = new Blob([[head.join(','), ...lines].join('\n')], {
+            type: 'text/csv;charset=utf-8;',
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'komponen-payroll.csv';
+        a.click();
+        URL.revokeObjectURL(url);
     };
 
     const toggle = (c: Component) =>
@@ -430,6 +464,46 @@ export default function PayrollKomponen({
                             {catItem('potongan', 'Potongan', '#DC2626')}
                             {catItem('pajak', 'Pajak', '#2F54C9')}
                             {catItem('bpjs', 'BPJS', '#7C3AED')}
+
+                            <div
+                                style={{
+                                    marginTop: 14,
+                                    padding: 12,
+                                    borderRadius: 10,
+                                    background: 'rgba(47,84,201,.05)',
+                                    border: `1px solid rgba(47,84,201,.12)`,
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 7,
+                                        fontSize: 12.5,
+                                        fontWeight: 600,
+                                        color: C.primary,
+                                        marginBottom: 6,
+                                    }}
+                                >
+                                    <AIcon
+                                        name="info"
+                                        size={14}
+                                        color={C.primary}
+                                    />
+                                    Informasi
+                                </div>
+                                <div
+                                    style={{
+                                        fontSize: 11.5,
+                                        color: C.muted,
+                                        lineHeight: 1.5,
+                                    }}
+                                >
+                                    Komponen payroll dipakai untuk perhitungan
+                                    gaji karyawan. Pastikan pengaturan sesuai
+                                    kebijakan perusahaan.
+                                </div>
+                            </div>
                         </div>
 
                         <div
@@ -460,32 +534,81 @@ export default function PayrollKomponen({
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: 8,
-                                        border: `1px solid ${C.border}`,
-                                        borderRadius: 8,
-                                        padding: '6px 10px',
-                                        minWidth: 200,
+                                        flexWrap: 'wrap',
                                     }}
                                 >
-                                    <AIcon
-                                        name="search"
-                                        size={15}
-                                        color={C.faint}
-                                    />
-                                    <input
-                                        value={search}
-                                        onChange={(e) =>
-                                            setSearch(e.target.value)
-                                        }
-                                        placeholder="Cari komponen…"
+                                    <div
                                         style={{
-                                            border: 'none',
-                                            outline: 'none',
-                                            fontSize: 13,
-                                            flex: 1,
-                                            background: 'transparent',
-                                            color: C.text,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 8,
+                                            border: `1px solid ${C.border}`,
+                                            borderRadius: 8,
+                                            padding: '6px 10px',
+                                            minWidth: 170,
                                         }}
-                                    />
+                                    >
+                                        <AIcon
+                                            name="search"
+                                            size={15}
+                                            color={C.faint}
+                                        />
+                                        <input
+                                            value={search}
+                                            onChange={(e) =>
+                                                setSearch(e.target.value)
+                                            }
+                                            placeholder="Cari komponen…"
+                                            style={{
+                                                border: 'none',
+                                                outline: 'none',
+                                                fontSize: 13,
+                                                flex: 1,
+                                                background: 'transparent',
+                                                color: C.text,
+                                            }}
+                                        />
+                                    </div>
+                                    <select
+                                        value={statusFilter}
+                                        onChange={(e) =>
+                                            setStatusFilter(
+                                                e.target.value as
+                                                    | 'all'
+                                                    | 'active'
+                                                    | 'inactive',
+                                            )
+                                        }
+                                        style={{
+                                            padding: '8px 10px',
+                                            borderRadius: 8,
+                                            border: `1px solid ${C.border}`,
+                                            fontSize: 13,
+                                            color: C.text,
+                                            background: '#fff',
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        <option value="all">
+                                            Semua Status
+                                        </option>
+                                        <option value="active">Aktif</option>
+                                        <option value="inactive">
+                                            Nonaktif
+                                        </option>
+                                    </select>
+                                    <button
+                                        onClick={exportCsv}
+                                        style={{
+                                            ...btnOut,
+                                            height: 34,
+                                            padding: '0 12px',
+                                            fontSize: 12.5,
+                                        }}
+                                    >
+                                        <AIcon name="upload" size={14} />
+                                        Export
+                                    </button>
                                 </div>
                             </div>
 
@@ -754,20 +877,17 @@ export default function PayrollKomponen({
                                     }
                                 />
                             ) : (
-                                <>
-                                    <div
-                                        style={{
-                                            fontSize: 12.5,
-                                            color: C.muted,
-                                            marginBottom: 18,
-                                        }}
-                                    >
-                                        Pilih komponen untuk melihat detail
-                                        informasi & aturan perhitungan.
-                                    </div>
-                                    <Legend />
-                                </>
+                                <div
+                                    style={{
+                                        fontSize: 12.5,
+                                        color: C.muted,
+                                    }}
+                                >
+                                    Pilih komponen untuk melihat detail
+                                    informasi & aturan perhitungan.
+                                </div>
                             )}
+                            <Legend />
                         </div>
                     </div>
                 )}
@@ -1148,21 +1268,36 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
     );
 }
 
+const CALC_DESC: Record<CalcType, { desc: string; color: string }> = {
+    jumlah_tetap: {
+        desc: 'Nilai komponen dalam jumlah tetap',
+        color: '#2F54C9',
+    },
+    per_hari: { desc: 'Nilai komponen dihitung per hari', color: '#2F54C9' },
+    per_jam: {
+        desc: 'Nilai komponen dihitung per jam lembur',
+        color: '#0891B2',
+    },
+    persentase: {
+        desc: 'Nilai komponen berdasarkan persentase',
+        color: '#D97706',
+    },
+    rumus: { desc: 'Nilai komponen berdasarkan rumus', color: '#7C3AED' },
+};
+
+const sectionHead: CSSProperties = {
+    fontSize: 12,
+    fontWeight: 600,
+    color: C.faint,
+    textTransform: 'uppercase',
+    letterSpacing: '.04em',
+    margin: '18px 0 12px',
+};
+
 function Legend() {
     return (
         <>
-            <div
-                style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: C.faint,
-                    textTransform: 'uppercase',
-                    letterSpacing: '.04em',
-                    margin: '4px 0 10px',
-                }}
-            >
-                Tipe Perhitungan
-            </div>
+            <div style={{ ...sectionHead, marginTop: 6 }}>Tipe Perhitungan</div>
             {(
                 Object.entries(CALC_LABEL) as [
                     CalcType,
@@ -1173,15 +1308,111 @@ function Legend() {
                     key={k}
                     style={{
                         display: 'flex',
-                        alignItems: 'center',
-                        gap: 9,
-                        marginBottom: 10,
+                        alignItems: 'flex-start',
+                        gap: 10,
+                        marginBottom: 12,
                     }}
                 >
-                    <AIcon name={v.icon} size={16} color={C.primary} />
-                    <span style={{ fontSize: 13, color: C.text }}>
-                        {v.label}
+                    <div
+                        style={{
+                            width: 30,
+                            height: 30,
+                            borderRadius: 8,
+                            flex: 'none',
+                            background: `${CALC_DESC[k].color}1a`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
+                    >
+                        <AIcon
+                            name={v.icon}
+                            size={15}
+                            color={CALC_DESC[k].color}
+                        />
+                    </div>
+                    <div>
+                        <div
+                            style={{
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: C.navy,
+                            }}
+                        >
+                            {v.label}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: C.faint }}>
+                            {CALC_DESC[k].desc}
+                        </div>
+                    </div>
+                </div>
+            ))}
+
+            <div
+                style={{
+                    borderTop: `1px solid ${C.line}`,
+                    margin: '4px 0',
+                }}
+            />
+            <div style={sectionHead}>Status Komponen</div>
+            {[
+                {
+                    on: true,
+                    label: 'Aktif',
+                    desc: 'Komponen digunakan dalam perhitungan payroll',
+                },
+                {
+                    on: false,
+                    label: 'Nonaktif',
+                    desc: 'Komponen tidak digunakan dalam perhitungan',
+                },
+            ].map((s) => (
+                <div
+                    key={s.label}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 10,
+                        marginBottom: 12,
+                    }}
+                >
+                    <span
+                        style={{
+                            width: 34,
+                            height: 20,
+                            flex: 'none',
+                            borderRadius: 100,
+                            background: s.on ? C.primary : C.border,
+                            position: 'relative',
+                            marginTop: 1,
+                        }}
+                    >
+                        <span
+                            style={{
+                                position: 'absolute',
+                                top: 2,
+                                left: s.on ? 16 : 2,
+                                width: 16,
+                                height: 16,
+                                borderRadius: 100,
+                                background: '#fff',
+                            }}
+                        />
                     </span>
+                    <div>
+                        <div
+                            style={{
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: C.navy,
+                            }}
+                        >
+                            {s.label}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: C.faint }}>
+                            {s.desc}
+                        </div>
+                    </div>
                 </div>
             ))}
         </>
