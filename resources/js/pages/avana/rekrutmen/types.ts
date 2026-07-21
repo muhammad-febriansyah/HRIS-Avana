@@ -79,19 +79,41 @@ export interface ApplicantDetail {
     notes: string | null;
     applied_date: string | null;
     interview_at: string | null;
+    interview_result: string | null;
+    interviewer: string | null;
+    interviewer_id: number | null;
     offered_at: string | null;
     offer_note: string | null;
+    offer_benefit: string | null;
+    offer_salary: number | null;
+    offer_start_date: string | null;
+    offer_valid_until: string | null;
+    offer_status: string | null;
+    tracking_number: string | null;
     job_posting_id: number;
     job_title: string | null;
     employment_type: string | null;
     medical_checks: MedicalCheck[];
     background_checks: BackgroundCheck[];
+    status_logs: StatusLog[];
+    onboarding_items: { id: number; label: string; is_done: boolean }[];
+}
+
+/** A single stage-change entry on the candidate history trail. */
+export interface StatusLog {
+    id: number;
+    from_stage: string | null;
+    to_stage: string;
+    note: string | null;
+    actor: string | null;
+    at: string | null;
 }
 
 /** Props for the candidate detail page (`candidate.tsx`). */
 export interface CandidateProps {
     applicant: ApplicantDetail;
     stages: SelectOption[];
+    interviewers: { id: number; name: string }[];
 }
 
 /** Indonesian label for a background-check type. */

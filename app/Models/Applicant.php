@@ -25,6 +25,7 @@ final class Applicant extends Model
             'ai_confidence' => 'integer',
             'blacklisted' => 'boolean',
             'onboarded_at' => 'datetime',
+            'offer_valid_until' => 'date',
         ];
     }
 
@@ -46,6 +47,21 @@ final class Applicant extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    public function interviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'interviewer_id');
+    }
+
+    public function statusLogs(): HasMany
+    {
+        return $this->hasMany(ApplicantStatusLog::class)->latest('id');
+    }
+
+    public function onboardingItems(): HasMany
+    {
+        return $this->hasMany(ApplicantOnboardingItem::class)->orderBy('sort_order');
     }
 
     public function talentPool(): BelongsTo

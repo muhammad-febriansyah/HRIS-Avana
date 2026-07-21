@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Applicant;
 use App\Models\Department;
 use App\Models\HiringRequest;
+use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -88,7 +89,36 @@ class HiringRequestController extends Controller
             'request_number' => 'HR-'.$hiringRequest->created_at->format('Y').'-'.str_pad((string) $hiringRequest->id, 4, '0', STR_PAD_LEFT),
         ]);
 
+        $this->notifyRecruiters($tenantId, $request->user()->id, $hiringRequest);
+
         return back()->with('success', 'Hiring Request dibuat ('.$hiringRequest->request_number.')');
+    }
+
+    /**
+     * Notify HR recruiters (users holding recruitment.view) that a new hiring
+     * request needs processing. Best-effort — never breaks the request.
+     */
+    private function notifyRecruiters(int $tenantId, int $excludeUserId, HiringRequest $hiringRequest): void
+    {
+        try {
+            $recipients = User::where('tenant_id', $tenantId)
+                ->where('id', '!=', $excludeUserId)
+                ->whereHas('roles.permissions', fn ($q) => $q->where('code', self::MODULE.'.view'))
+                ->pluck('id');
+
+            foreach ($recipients as $userId) {
+                Notification::create([
+                    'tenant_id' => $tenantId,
+                    'user_id' => $userId,
+                    'type' => 'hiring_request',
+                    'title' => 'Hiring Request baru',
+                    'body' => $hiringRequest->request_number.' — '.$hiringRequest->position_title.' ('.$hiringRequest->vacancy.' posisi)',
+                    'data' => ['hiring_request_id' => $hiringRequest->id],
+                ]);
+            }
+        } catch (\Throwable) {
+            // best-effort
+        }
     }
 
     /**

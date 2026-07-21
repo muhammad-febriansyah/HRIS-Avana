@@ -346,6 +346,8 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('rekrutmen/pelamar/{applicant}/blacklist', [RecruitmentController::class, 'toggleBlacklist'])->name('rekrutmen.pelamar.blacklist');
     Route::post('rekrutmen/pelamar/{applicant}/interview-result', [RecruitmentController::class, 'recordInterviewResult'])->name('rekrutmen.pelamar.interview-result');
     Route::post('rekrutmen/pelamar/{applicant}/activate', [RecruitmentController::class, 'activateEmployee'])->name('rekrutmen.pelamar.activate');
+    Route::post('rekrutmen/pelamar/{applicant}/onboarding/start', [RecruitmentController::class, 'startOnboarding'])->name('rekrutmen.pelamar.onboarding.start');
+    Route::post('rekrutmen/onboarding-item/{item}/toggle', [RecruitmentController::class, 'toggleOnboardingItem'])->name('rekrutmen.onboarding-item.toggle');
 
     // Rekrutmen ATS flow — stage 1 (Hiring Request) & stage 9 (Candidate Progress)
     Route::get('rekrutmen/hiring-request', [HiringRequestController::class, 'index'])->name('rekrutmen.hiring-request');

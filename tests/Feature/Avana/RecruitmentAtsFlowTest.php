@@ -1,10 +1,14 @@
 <?php
 
 use App\Models\Applicant;
+use App\Models\ApplicantOnboardingItem;
+use App\Models\ApplicantStatusLog;
 use App\Models\Employee;
 use App\Models\HiringRequest;
 use App\Models\JobPosting;
+use App\Models\Notification;
 use App\Models\RecruitmentRequisition;
+use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
@@ -187,7 +191,7 @@ it('records an interview result of failed and rejects the candidate', function (
         ->and($applicant->stage)->toBe('rejected');
 });
 
-it('activates an accepted candidate into an active employee', function (): void {
+it('gates activation on the onboarding checklist then activates the employee', function (): void {
     $posting = JobPosting::create([
         'tenant_id' => $this->tenant->id, 'title' => 'X', 'employment_type' => 'tetap', 'quota' => 1, 'status' => 'open',
     ]);
@@ -196,6 +200,17 @@ it('activates an accepted candidate into an active employee', function (): void 
         'name' => 'Charlie', 'email' => 'charlie@example.com', 'stage' => 'offer',
         'offer_status' => 'accepted', 'offer_start_date' => '2026-09-01', 'applied_date' => '2026-07-20',
     ]);
+
+    // First attempt seeds the checklist and blocks activation.
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.pelamar.activate', $applicant), [])
+        ->assertSessionHasErrors('applicant');
+
+    expect($applicant->fresh()->employee_id)->toBeNull()
+        ->and(ApplicantOnboardingItem::where('applicant_id', $applicant->id)->count())->toBe(4);
+
+    // Complete every checklist item.
+    ApplicantOnboardingItem::where('applicant_id', $applicant->id)->update(['is_done' => true]);
 
     actingAs($this->admin)
         ->post(route('avana.rekrutmen.pelamar.activate', $applicant), [])
@@ -211,6 +226,9 @@ it('activates an accepted candidate into an active employee', function (): void 
         ->and($employee->full_name)->toBe('Charlie')
         ->and($employee->status)->toBe('active')
         ->and($employee->employee_number)->toMatch('/^EMP\d{5}$/');
+
+    // Every stage change is recorded on the history trail.
+    expect(ApplicantStatusLog::where('applicant_id', $applicant->id)->where('to_stage', 'hired')->exists())->toBeTrue();
 });
 
 it('does not activate a candidate whose offer is not accepted', function (): void {
@@ -245,4 +263,95 @@ it('forbids a non-recruitment user', function (): void {
     actingAs($plain)
         ->post(route('avana.rekrutmen.hiring-request.store'), hiringPayload())
         ->assertForbidden();
+});
+
+it('records a status log when an applicant moves stage', function (): void {
+    $posting = JobPosting::create([
+        'tenant_id' => $this->tenant->id, 'title' => 'X', 'employment_type' => 'tetap', 'quota' => 1, 'status' => 'open',
+    ]);
+    $applicant = Applicant::create([
+        'tenant_id' => $this->tenant->id, 'job_posting_id' => $posting->id,
+        'name' => 'Eka', 'email' => 'eka@example.com', 'stage' => 'applied', 'applied_date' => '2026-07-20',
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.pelamar.stage', $applicant), ['stage' => 'screening'])
+        ->assertRedirect();
+
+    expect(ApplicantStatusLog::where('applicant_id', $applicant->id)
+        ->where('from_stage', 'applied')->where('to_stage', 'screening')->exists())->toBeTrue();
+});
+
+it('blocks scheduling an interview before screening', function (): void {
+    $posting = JobPosting::create([
+        'tenant_id' => $this->tenant->id, 'title' => 'X', 'employment_type' => 'tetap', 'quota' => 1, 'status' => 'open',
+    ]);
+    $applicant = Applicant::create([
+        'tenant_id' => $this->tenant->id, 'job_posting_id' => $posting->id,
+        'name' => 'Fajar', 'email' => 'fajar@example.com', 'stage' => 'applied', 'applied_date' => '2026-07-20',
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.pelamar.interview', $applicant), ['interview_at' => '2026-08-01 10:00'])
+        ->assertSessionHasErrors('interview_at');
+});
+
+it('rejects an interviewer double-booking', function (): void {
+    $posting = JobPosting::create([
+        'tenant_id' => $this->tenant->id, 'title' => 'X', 'employment_type' => 'tetap', 'quota' => 2, 'status' => 'open',
+    ]);
+    $a1 = Applicant::create([
+        'tenant_id' => $this->tenant->id, 'job_posting_id' => $posting->id,
+        'name' => 'A1', 'email' => 'a1@example.com', 'stage' => 'shortlisted', 'applied_date' => '2026-07-20',
+        'interviewer_id' => $this->admin->id, 'interview_at' => '2026-08-01 10:00',
+    ]);
+    $a2 = Applicant::create([
+        'tenant_id' => $this->tenant->id, 'job_posting_id' => $posting->id,
+        'name' => 'A2', 'email' => 'a2@example.com', 'stage' => 'shortlisted', 'applied_date' => '2026-07-20',
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.pelamar.interview', $a2), [
+            'interview_at' => '2026-08-01 10:30',
+            'interviewer_id' => $this->admin->id,
+        ])
+        ->assertSessionHasErrors('interview_at');
+
+    expect($a1->fresh()->stage)->toBe('shortlisted');
+});
+
+it('only offers a candidate who passed the interview', function (): void {
+    $posting = JobPosting::create([
+        'tenant_id' => $this->tenant->id, 'title' => 'X', 'employment_type' => 'tetap', 'quota' => 1, 'status' => 'open',
+    ]);
+    $applicant = Applicant::create([
+        'tenant_id' => $this->tenant->id, 'job_posting_id' => $posting->id,
+        'name' => 'Gita', 'email' => 'gita@example.com', 'stage' => 'interview', 'applied_date' => '2026-07-20',
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.pelamar.offer', $applicant), ['offer_salary' => 10000000])
+        ->assertSessionHasErrors('offer_salary');
+
+    $applicant->update(['interview_result' => 'passed']);
+
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.pelamar.offer', $applicant), ['offer_salary' => 10000000])
+        ->assertRedirect();
+
+    expect($applicant->fresh()->offer_status)->toBe('sent');
+});
+
+it('notifies recruiters when a hiring request is created', function (): void {
+    $hrRole = Role::where('tenant_id', $this->tenant->id)->where('code', 'admin_tenant_hr')->firstOrFail();
+    $recruiter = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $recruiter->roles()->sync([$hrRole->id]);
+
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.hiring-request.store'), hiringPayload())
+        ->assertRedirect();
+
+    expect(Notification::where('tenant_id', $this->tenant->id)
+        ->where('user_id', $recruiter->id)
+        ->where('type', 'hiring_request')->exists())->toBeTrue();
 });

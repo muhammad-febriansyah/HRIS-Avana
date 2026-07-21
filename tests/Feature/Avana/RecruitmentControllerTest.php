@@ -377,7 +377,8 @@ it('updates a candidate profile and social links', function (): void {
 });
 
 it('schedules an interview and advances the stage', function (): void {
-    $applicant = makeApplicant($this->tenant->id, ['stage' => 'applied']);
+    // A candidate must clear screening (shortlisted) before an interview.
+    $applicant = makeApplicant($this->tenant->id, ['stage' => 'shortlisted']);
 
     actingAs($this->admin)
         ->post(route('avana.rekrutmen.pelamar.interview', $applicant), [
@@ -392,7 +393,8 @@ it('schedules an interview and advances the stage', function (): void {
 });
 
 it('records a job offer and advances the stage', function (): void {
-    $applicant = makeApplicant($this->tenant->id, ['stage' => 'interview']);
+    // Only a candidate who passed the interview can receive an offer.
+    $applicant = makeApplicant($this->tenant->id, ['stage' => 'interview', 'interview_result' => 'passed']);
 
     actingAs($this->admin)
         ->post(route('avana.rekrutmen.pelamar.offer', $applicant), [

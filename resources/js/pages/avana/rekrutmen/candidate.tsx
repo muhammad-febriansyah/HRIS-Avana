@@ -132,7 +132,11 @@ function fmtDate(value: string | null): string {
     });
 }
 
-export default function Candidate({ applicant, stages }: CandidateProps) {
+export default function Candidate({
+    applicant,
+    stages,
+    interviewers,
+}: CandidateProps) {
     const { flash } = usePage<FlashProps>().props;
     const { can } = usePermission();
     const canUpdate = can('recruitment.update');
@@ -165,8 +169,21 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
     const cvForm = useForm<{ cv: File | null }>({ cv: null });
     const interviewForm = useForm({
         interview_at: applicant.interview_at?.slice(0, 16) ?? '',
+        interview_type: 'hr',
+        interview_location: '',
+        interviewer_id: applicant.interviewer_id
+            ? String(applicant.interviewer_id)
+            : '',
     });
-    const offerForm = useForm({ offer_note: applicant.offer_note ?? '' });
+    const offerForm = useForm({
+        offer_note: applicant.offer_note ?? '',
+        offer_salary: applicant.offer_salary
+            ? String(applicant.offer_salary)
+            : '',
+        offer_start_date: applicant.offer_start_date ?? '',
+        offer_benefit: applicant.offer_benefit ?? '',
+        offer_valid_until: applicant.offer_valid_until ?? '',
+    });
     const blacklistForm = useForm({ blacklisted: true, blacklist_reason: '' });
     const medicalForm = useForm<{
         title: string;
@@ -942,6 +959,118 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                                     value={fmtDate(applicant.offered_at)}
                                 />
                             ) : null}
+                            {applicant.tracking_number ? (
+                                <InfoRow
+                                    icon="hash"
+                                    label="No. Lacak"
+                                    value={applicant.tracking_number}
+                                />
+                            ) : null}
+                            {applicant.interviewer ? (
+                                <InfoRow
+                                    icon="user"
+                                    label="Interviewer"
+                                    value={applicant.interviewer}
+                                />
+                            ) : null}
+                            {applicant.interview_result ? (
+                                <InfoRow
+                                    icon="clipboard-check"
+                                    label="Hasil Wawancara"
+                                    value={
+                                        applicant.interview_result === 'passed'
+                                            ? 'Passed'
+                                            : 'Failed'
+                                    }
+                                />
+                            ) : null}
+                        </div>
+
+                        {/* status history */}
+                        <div style={cardPad}>
+                            <div style={sectionTitle}>Riwayat Status</div>
+                            {applicant.status_logs.length === 0 ? (
+                                <div style={{ fontSize: 13, color: C.faint }}>
+                                    Belum ada riwayat.
+                                </div>
+                            ) : (
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 0,
+                                    }}
+                                >
+                                    {applicant.status_logs.map((log, i) => (
+                                        <div
+                                            key={log.id}
+                                            style={{
+                                                display: 'flex',
+                                                gap: 10,
+                                            }}
+                                        >
+                                            <div
+                                                style={{
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    alignItems: 'center',
+                                                }}
+                                            >
+                                                <span
+                                                    style={{
+                                                        width: 10,
+                                                        height: 10,
+                                                        borderRadius: 100,
+                                                        background: C.primary,
+                                                        marginTop: 4,
+                                                        flex: 'none',
+                                                    }}
+                                                />
+                                                {i <
+                                                    applicant.status_logs
+                                                        .length -
+                                                        1 && (
+                                                    <span
+                                                        style={{
+                                                            width: 2,
+                                                            flex: 1,
+                                                            background:
+                                                                C.border,
+                                                            minHeight: 18,
+                                                        }}
+                                                    />
+                                                )}
+                                            </div>
+                                            <div style={{ paddingBottom: 14 }}>
+                                                <div
+                                                    style={{
+                                                        fontSize: 13,
+                                                        fontWeight: 600,
+                                                        color: C.navy,
+                                                    }}
+                                                >
+                                                    {stageLabel(log.to_stage)}
+                                                    {log.note
+                                                        ? ` — ${log.note}`
+                                                        : ''}
+                                                </div>
+                                                <div
+                                                    style={{
+                                                        fontSize: 11.5,
+                                                        color: C.faint,
+                                                        marginTop: 2,
+                                                    }}
+                                                >
+                                                    {log.at?.slice(0, 16) ?? ''}
+                                                    {log.actor
+                                                        ? ` · ${log.actor}`
+                                                        : ''}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
                         {/* quick actions */}
@@ -1069,6 +1198,85 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                                             marginBottom: 10,
                                         }}
                                     />
+                                    <label style={fieldLabelStyle}>
+                                        Interviewer
+                                    </label>
+                                    <select
+                                        value={
+                                            interviewForm.data.interviewer_id
+                                        }
+                                        onChange={(e) =>
+                                            interviewForm.setData(
+                                                'interviewer_id',
+                                                e.target.value,
+                                            )
+                                        }
+                                        style={{
+                                            ...selectStyle,
+                                            marginBottom: 10,
+                                        }}
+                                    >
+                                        <option value="">— Pilih —</option>
+                                        {interviewers.map((iv) => (
+                                            <option key={iv.id} value={iv.id}>
+                                                {iv.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div
+                                        style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: '1fr 1fr',
+                                            gap: 10,
+                                            marginBottom: 10,
+                                        }}
+                                    >
+                                        <select
+                                            value={
+                                                interviewForm.data
+                                                    .interview_type
+                                            }
+                                            onChange={(e) =>
+                                                interviewForm.setData(
+                                                    'interview_type',
+                                                    e.target.value,
+                                                )
+                                            }
+                                            style={selectStyle}
+                                        >
+                                            <option value="hr">HR</option>
+                                            <option value="technical">
+                                                Teknis
+                                            </option>
+                                            <option value="user">User</option>
+                                            <option value="final">Final</option>
+                                        </select>
+                                        <input
+                                            placeholder="Lokasi / link"
+                                            value={
+                                                interviewForm.data
+                                                    .interview_location
+                                            }
+                                            onChange={(e) =>
+                                                interviewForm.setData(
+                                                    'interview_location',
+                                                    e.target.value,
+                                                )
+                                            }
+                                            style={inputStyle}
+                                        />
+                                    </div>
+                                    {interviewForm.errors.interview_at && (
+                                        <div
+                                            style={{
+                                                fontSize: 12,
+                                                color: C.red,
+                                                marginBottom: 10,
+                                            }}
+                                        >
+                                            {interviewForm.errors.interview_at}
+                                        </div>
+                                    )}
                                     <button
                                         type="submit"
                                         disabled={interviewForm.processing}
@@ -1119,6 +1327,87 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                                         borderRadius: 10,
                                     }}
                                 >
+                                    <div
+                                        style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: '1fr 1fr',
+                                            gap: 10,
+                                            marginBottom: 10,
+                                        }}
+                                    >
+                                        <div>
+                                            <label style={fieldLabelStyle}>
+                                                Gaji (Rp)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                value={
+                                                    offerForm.data.offer_salary
+                                                }
+                                                onChange={(e) =>
+                                                    offerForm.setData(
+                                                        'offer_salary',
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                style={inputStyle}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label style={fieldLabelStyle}>
+                                                Mulai Kerja
+                                            </label>
+                                            <input
+                                                type="date"
+                                                value={
+                                                    offerForm.data
+                                                        .offer_start_date
+                                                }
+                                                onChange={(e) =>
+                                                    offerForm.setData(
+                                                        'offer_start_date',
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                style={inputStyle}
+                                            />
+                                        </div>
+                                    </div>
+                                    <label style={fieldLabelStyle}>
+                                        Benefit
+                                    </label>
+                                    <input
+                                        value={offerForm.data.offer_benefit}
+                                        placeholder="BPJS, tunjangan, dll"
+                                        onChange={(e) =>
+                                            offerForm.setData(
+                                                'offer_benefit',
+                                                e.target.value,
+                                            )
+                                        }
+                                        style={{
+                                            ...inputStyle,
+                                            marginBottom: 10,
+                                        }}
+                                    />
+                                    <label style={fieldLabelStyle}>
+                                        Berlaku Hingga
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={offerForm.data.offer_valid_until}
+                                        onChange={(e) =>
+                                            offerForm.setData(
+                                                'offer_valid_until',
+                                                e.target.value,
+                                            )
+                                        }
+                                        style={{
+                                            ...inputStyle,
+                                            marginBottom: 10,
+                                        }}
+                                    />
                                     <label style={fieldLabelStyle}>
                                         Catatan Penawaran
                                     </label>
@@ -1136,6 +1425,17 @@ export default function Candidate({ applicant, stages }: CandidateProps) {
                                             marginBottom: 10,
                                         }}
                                     />
+                                    {offerForm.errors.offer_salary && (
+                                        <div
+                                            style={{
+                                                fontSize: 12,
+                                                color: C.red,
+                                                marginBottom: 10,
+                                            }}
+                                        >
+                                            {offerForm.errors.offer_salary}
+                                        </div>
+                                    )}
                                     <button
                                         type="submit"
                                         disabled={offerForm.processing}
