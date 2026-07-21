@@ -16,6 +16,7 @@ final class Feature extends Model
     {
         return [
             'is_active' => 'boolean',
+            'permission_modules' => 'array',
         ];
     }
 

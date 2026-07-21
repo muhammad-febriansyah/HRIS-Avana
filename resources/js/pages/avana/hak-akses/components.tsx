@@ -44,3 +44,56 @@ export function ToggleCell({ on, onToggle }: ToggleCellProps) {
         </td>
     );
 }
+
+interface ActionCheckboxProps {
+    label: string;
+    on: boolean;
+    disabled?: boolean;
+    title?: string;
+    onToggle: () => void;
+}
+
+/**
+ * A per-action checkbox used inside a role cell (Lihat / Tambah / Ubah / Hapus /
+ * Ekspor / Setujui). Checked = granted; a locked role renders it disabled.
+ */
+export function ActionCheckbox({
+    label,
+    on,
+    disabled = false,
+    title,
+    onToggle,
+}: ActionCheckboxProps) {
+    return (
+        <label
+            title={title ?? label}
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                opacity: disabled ? 0.5 : 1,
+                fontSize: 11.5,
+                fontWeight: 500,
+                color: on ? C.green : C.muted,
+                userSelect: 'none',
+                whiteSpace: 'nowrap',
+            }}
+        >
+            <input
+                type="checkbox"
+                checked={on}
+                disabled={disabled}
+                onChange={disabled ? undefined : onToggle}
+                style={{
+                    width: 15,
+                    height: 15,
+                    margin: 0,
+                    accentColor: C.green,
+                    cursor: 'inherit',
+                }}
+            />
+            {label}
+        </label>
+    );
+}

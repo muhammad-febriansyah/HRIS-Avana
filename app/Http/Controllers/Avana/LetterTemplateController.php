@@ -22,9 +22,9 @@ class LetterTemplateController extends Controller
     /**
      * Roles that may always manage letter templates within their tenant.
      *
-     * @var array<int, string>
+     * The permission module that gates this controller's action-level checks.
      */
-    private const PRIVILEGED_ROLES = ['super_admin', 'admin_tenant_hr', 'manager'];
+    private const MODULE = 'letter';
 
     /**
      * Allowed letter template type enum values.
@@ -38,7 +38,7 @@ class LetterTemplateController extends Controller
      */
     public function index(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -76,7 +76,7 @@ class LetterTemplateController extends Controller
      */
     public function create(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         return Inertia::render('avana/surat/create', [
             'types' => $this->typeOptions(),
@@ -89,7 +89,7 @@ class LetterTemplateController extends Controller
      */
     public function edit(Request $request, LetterTemplate $letterTemplate): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $letterTemplate);
 
         return Inertia::render('avana/surat/edit', [
@@ -110,7 +110,7 @@ class LetterTemplateController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -130,7 +130,7 @@ class LetterTemplateController extends Controller
      */
     public function update(Request $request, LetterTemplate $letterTemplate): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $letterTemplate);
 
         $letterTemplate->update($this->validateTemplate($request));
@@ -144,7 +144,7 @@ class LetterTemplateController extends Controller
      */
     public function destroy(Request $request, LetterTemplate $letterTemplate): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
         $this->ensureTenantOwnership($request, $letterTemplate);
 
         $letterTemplate->delete();
@@ -157,7 +157,7 @@ class LetterTemplateController extends Controller
      */
     public function generate(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -202,7 +202,7 @@ class LetterTemplateController extends Controller
      */
     public function print(Request $request, GeneratedLetter $generatedLetter): \Illuminate\Http\Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'export');
         $this->ensureTenantOwnership($request, $generatedLetter);
 
         $pdf = Pdf::loadView('pdf.surat', [
@@ -227,7 +227,7 @@ class LetterTemplateController extends Controller
      */
     public function destroyGenerated(Request $request, GeneratedLetter $generatedLetter): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
         $this->ensureTenantOwnership($request, $generatedLetter);
 
         $generatedLetter->delete();
@@ -433,20 +433,15 @@ class LetterTemplateController extends Controller
     /**
      * Abort with 403 unless the user is privileged or holds an employee permission.
      */
-    private function ensureCanManage(Request $request): void
+    private function ensureCan(Request $request, string $action): void
     {
         /** @var User $user */
         $user = $request->user();
-        $user->loadMissing('roles.permissions');
 
-        $isPrivileged = $user->roles->whereIn('code', self::PRIVILEGED_ROLES)->isNotEmpty();
+        if ($user->isSuperAdmin()) {
+            return;
+        }
 
-        $hasEmployeePermission = $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains(fn (string $code): bool => str_starts_with($code, 'employee.'));
-
-        abort_unless($isPrivileged || $hasEmployeePermission, 403);
+        abort_unless($user->hasPermissionTo(self::MODULE.'.'.$action), 403);
     }
 }

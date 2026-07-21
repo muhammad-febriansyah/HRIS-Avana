@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import AssetController from '@/actions/App/Http/Controllers/Avana/AssetController';
 import { SearchableSelect } from '@/components/searchable-select';
+import { usePermission } from '@/hooks/use-permission';
 import { AIcon, ActionBtn, btnP, C, card, rp, thCell } from '@/lib/avana';
 import {
     ConditionBadge,
@@ -45,6 +46,7 @@ export default function AsetIndex({
     kpis,
 }: AsetIndexProps) {
     const { flash } = usePage<FlashProps>().props;
+    const { can } = usePermission();
 
     const [confirm, setConfirm] = useState<AssetRow | null>(null);
     const [assignTarget, setAssignTarget] = useState<AssetRow | null>(null);
@@ -190,13 +192,15 @@ export default function AsetIndex({
                             Kelola inventaris aset &amp; penugasan ke karyawan.
                         </div>
                     </div>
-                    <Link
-                        href={AssetController.create()}
-                        style={{ ...btnP, textDecoration: 'none' }}
-                    >
-                        <AIcon name="plus" size={16} color="#fff" />
-                        Tambah Aset
-                    </Link>
+                    {can('asset.create') && (
+                        <Link
+                            href={AssetController.create()}
+                            style={{ ...btnP, textDecoration: 'none' }}
+                        >
+                            <AIcon name="plus" size={16} color="#fff" />
+                            Tambah Aset
+                        </Link>
+                    )}
                 </div>
 
                 {/* KPI cards */}
@@ -438,33 +442,36 @@ export default function AsetIndex({
                                                     justifyContent: 'flex-end',
                                                 }}
                                             >
-                                                {asset.current_assignment ? (
-                                                    <ActionBtn
-                                                        icon="undo-2"
-                                                        label="Kembalikan"
-                                                        variant="warning"
-                                                        onClick={() =>
-                                                            returnAsset(
-                                                                asset
-                                                                    .current_assignment!
-                                                                    .id,
-                                                            )
-                                                        }
-                                                    />
-                                                ) : (
-                                                    <ActionBtn
-                                                        icon="user-plus"
-                                                        label="Tugaskan"
-                                                        variant="primary"
-                                                        disabled={
-                                                            employees.length ===
-                                                            0
-                                                        }
-                                                        onClick={() =>
-                                                            openAssign(asset)
-                                                        }
-                                                    />
-                                                )}
+                                                {can('asset.update') &&
+                                                    (asset.current_assignment ? (
+                                                        <ActionBtn
+                                                            icon="undo-2"
+                                                            label="Kembalikan"
+                                                            variant="warning"
+                                                            onClick={() =>
+                                                                returnAsset(
+                                                                    asset
+                                                                        .current_assignment!
+                                                                        .id,
+                                                                )
+                                                            }
+                                                        />
+                                                    ) : (
+                                                        <ActionBtn
+                                                            icon="user-plus"
+                                                            label="Tugaskan"
+                                                            variant="primary"
+                                                            disabled={
+                                                                employees.length ===
+                                                                0
+                                                            }
+                                                            onClick={() =>
+                                                                openAssign(
+                                                                    asset,
+                                                                )
+                                                            }
+                                                        />
+                                                    ))}
                                                 <ActionBtn
                                                     icon="qr-code"
                                                     label="QR"
@@ -477,26 +484,30 @@ export default function AsetIndex({
                                                         )
                                                     }
                                                 />
-                                                <ActionBtn
-                                                    icon="pencil"
-                                                    label="Edit"
-                                                    variant="success"
-                                                    onClick={() =>
-                                                        router.visit(
-                                                            AssetController.edit(
-                                                                asset.id,
-                                                            ).url,
-                                                        )
-                                                    }
-                                                />
-                                                <ActionBtn
-                                                    icon="trash-2"
-                                                    label="Hapus"
-                                                    variant="danger"
-                                                    onClick={() =>
-                                                        setConfirm(asset)
-                                                    }
-                                                />
+                                                {can('asset.update') && (
+                                                    <ActionBtn
+                                                        icon="pencil"
+                                                        label="Edit"
+                                                        variant="success"
+                                                        onClick={() =>
+                                                            router.visit(
+                                                                AssetController.edit(
+                                                                    asset.id,
+                                                                ).url,
+                                                            )
+                                                        }
+                                                    />
+                                                )}
+                                                {can('asset.archive') && (
+                                                    <ActionBtn
+                                                        icon="trash-2"
+                                                        label="Hapus"
+                                                        variant="danger"
+                                                        onClick={() =>
+                                                            setConfirm(asset)
+                                                        }
+                                                    />
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -618,14 +629,18 @@ export default function AsetIndex({
                                                 textAlign: 'right',
                                             }}
                                         >
-                                            <ActionBtn
-                                                icon="undo-2"
-                                                label="Kembalikan"
-                                                variant="warning"
-                                                onClick={() =>
-                                                    returnAsset(assignment.id)
-                                                }
-                                            />
+                                            {can('asset.update') && (
+                                                <ActionBtn
+                                                    icon="undo-2"
+                                                    label="Kembalikan"
+                                                    variant="warning"
+                                                    onClick={() =>
+                                                        returnAsset(
+                                                            assignment.id,
+                                                        )
+                                                    }
+                                                />
+                                            )}
                                         </td>
                                     </tr>
                                 ))}

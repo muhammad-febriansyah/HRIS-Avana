@@ -12,6 +12,7 @@ use App\Models\PayrollRun;
 use App\Models\PermissionRequest;
 use App\Models\PositionPayrollComponent;
 use App\Models\Reimbursement;
+use App\Models\User;
 use App\Models\WebsiteSetting;
 use App\Models\WfhRequest;
 use App\Observers\AnnouncementObserver;
@@ -89,6 +90,11 @@ class AppServiceProvider extends ServiceProvider
     {
         Gate::policy(PayrollPeriod::class, PayrollPolicy::class);
         Gate::policy(PositionPayrollComponent::class, PayrollPolicy::class);
+
+        // Action-level RBAC: Gate::allows('access', 'employee.update'). Mirrors
+        // the frontend usePermission() helper so a button hidden in the UI is
+        // also refused on the server.
+        Gate::define('access', fn (User $user, string $code): bool => $user->hasPermissionTo($code));
     }
 
     /**

@@ -60,7 +60,7 @@ final class AvanaNav
                     self::leaf('timesheet', 'Timesheet', 'clock', '/avana/timesheet', 'timesheet', ['timesheet']),
                     self::leaf('sanksi', 'Sanksi Absensi', 'octagon-alert', '/avana/sanksi', 'attendance', ['attendance']),
                     self::leaf('visiting', 'Visiting Pekerjaan', 'map-pin', '/avana/visiting', 'attendance', ['attendance']),
-                    self::leaf('mood', 'Mood Karyawan', 'smile', '/avana/mood', null, ['employee']),
+                    self::leaf('mood', 'Mood Karyawan', 'smile', '/avana/mood', 'hr_core', ['employee']),
                 ]),
                 self::leaf('cuti', 'Cuti & Lembur', 'palmtree', '/avana/cuti', 'leave', ['leave', 'overtime', 'wfh']),
                 self::leaf('dinas', 'Perjalanan Dinas', 'plane', '/avana/dinas', 'hr_core', ['employee']),
@@ -147,7 +147,10 @@ final class AvanaNav
                 self::leaf('pengguna', 'Pengguna', 'user-cog', '/avana/pengguna', null, ['user'], false, true),
                 self::leaf('custom-fields', 'Field Kustom', 'list-plus', '/avana/custom-fields', null, self::MANAGE_MODULES, true),
                 self::leaf('menu-builder', 'Menu Builder', 'list-tree', '/avana/menu-builder', null, self::MANAGE_MODULES, true, true),
-                self::leaf('hak-akses', 'Hak Akses', 'shield-check', '/avana/hak-akses', null, self::MANAGE_MODULES, true, true),
+                // Hak Akses is admin-only (not super-admin-only): a tenant admin
+                // configures the roles inside their own tenant. The platform
+                // (null-tenant) row in platformGroups() stays super-admin-only.
+                self::leaf('hak-akses', 'Hak Akses', 'shield-check', '/avana/hak-akses', null, self::MANAGE_MODULES, true),
                 self::leaf('fitur', 'Menu & Fitur', 'toggle-right', '/avana/fitur', null, self::MANAGE_MODULES, true),
                 self::leaf('email-settings', 'Pengaturan Email', 'mail', '/avana/email-settings', null, self::MANAGE_MODULES, true),
                 self::leaf('audit', 'Audit Trail', 'history', '/avana/audit', null, ['audit']),

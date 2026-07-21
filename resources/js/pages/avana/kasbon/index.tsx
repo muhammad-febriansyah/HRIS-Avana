@@ -6,6 +6,7 @@ import CashAdvanceController from '@/actions/App/Http/Controllers/Avana/CashAdva
 import { ConfirmDialog } from '@/components/avana-ui/confirm-dialog';
 import { FileDropzone } from '@/components/avana-ui/file-dropzone';
 import { FormDialog } from '@/components/avana-ui/form-dialog';
+import { usePermission } from '@/hooks/use-permission';
 import { AIcon, ActionBtn, btnP, C, card, rp, RupiahInput } from '@/lib/avana';
 import {
     Field,
@@ -58,6 +59,7 @@ export default function KasbonIndex({
     authUserId,
 }: KasbonIndexProps) {
     const { flash } = usePage<FlashProps>().props;
+    const { can } = usePermission();
     const meta = requests.meta;
 
     const [disbursing, setDisbursing] = useState<CashAdvanceRow | null>(null);
@@ -217,13 +219,15 @@ export default function KasbonIndex({
                             Finance
                         </div>
                     </div>
-                    <Link
-                        href={CashAdvanceController.create()}
-                        style={{ ...btnP, textDecoration: 'none' }}
-                    >
-                        <AIcon name="plus" size={16} color="#fff" />
-                        Ajukan Uang Muka
-                    </Link>
+                    {can('payroll.create') && (
+                        <Link
+                            href={CashAdvanceController.create()}
+                            style={{ ...btnP, textDecoration: 'none' }}
+                        >
+                            <AIcon name="plus" size={16} color="#fff" />
+                            Ajukan Uang Muka
+                        </Link>
+                    )}
                 </div>
 
                 {/* KPIs */}

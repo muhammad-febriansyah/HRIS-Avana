@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import BudgetController from '@/actions/App/Http/Controllers/Avana/BudgetController';
+import { usePermission } from '@/hooks/use-permission';
 import {
     ActionBtn,
     AIcon,
@@ -114,6 +115,7 @@ export default function AnggaranIndex({
     kpis,
 }: AnggaranIndexProps) {
     const { flash } = usePage<FlashProps>().props;
+    const { can } = usePermission();
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<BudgetRow | null>(null);
     const [confirm, setConfirm] = useState<BudgetRow | null>(null);
@@ -247,13 +249,15 @@ export default function AnggaranIndex({
                             Rencana vs realisasi anggaran per kategori.
                         </div>
                     </div>
-                    <button
-                        onClick={openAdd}
-                        style={{ ...btnP, cursor: 'pointer' }}
-                    >
-                        <AIcon name="plus" size={16} color="#fff" />
-                        Tambah Anggaran
-                    </button>
+                    {can('budget.create') && (
+                        <button
+                            onClick={openAdd}
+                            style={{ ...btnP, cursor: 'pointer' }}
+                        >
+                            <AIcon name="plus" size={16} color="#fff" />
+                            Tambah Anggaran
+                        </button>
+                    )}
                 </div>
 
                 {/* KPI cards */}

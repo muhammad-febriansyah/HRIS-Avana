@@ -18,16 +18,16 @@ class BenefitController extends Controller
     /**
      * Roles that may always manage benefits within their tenant.
      *
-     * @var array<int, string>
+     * The permission module that gates this controller's action-level checks.
      */
-    private const PRIVILEGED_ROLES = ['super_admin', 'admin_tenant_hr'];
+    private const MODULE = 'employee';
 
     /**
      * Display the benefit master list together with employee assignments.
      */
     public function index(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -84,7 +84,7 @@ class BenefitController extends Controller
      */
     public function create(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         return Inertia::render('avana/benefit/create');
     }
@@ -94,7 +94,7 @@ class BenefitController extends Controller
      */
     public function edit(Request $request, Benefit $benefit): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $benefit);
 
         return Inertia::render('avana/benefit/edit', [
@@ -115,7 +115,7 @@ class BenefitController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -152,7 +152,7 @@ class BenefitController extends Controller
      */
     public function update(Request $request, Benefit $benefit): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $benefit);
 
         $tenantId = $request->user()->tenant_id;
@@ -191,7 +191,7 @@ class BenefitController extends Controller
      */
     public function destroy(Request $request, Benefit $benefit): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
         $this->ensureTenantOwnership($request, $benefit);
 
         $benefit->delete();
@@ -204,7 +204,7 @@ class BenefitController extends Controller
      */
     public function assign(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -243,7 +243,7 @@ class BenefitController extends Controller
      */
     public function unassign(Request $request, EmployeeBenefit $employeeBenefit): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $employeeBenefit);
 
         $employeeBenefit->delete();
@@ -262,20 +262,15 @@ class BenefitController extends Controller
     /**
      * Abort with 403 unless the user is privileged or holds an employee permission.
      */
-    private function ensureCanManage(Request $request): void
+    private function ensureCan(Request $request, string $action): void
     {
         /** @var User $user */
         $user = $request->user();
-        $user->loadMissing('roles.permissions');
 
-        $isPrivileged = $user->roles->whereIn('code', self::PRIVILEGED_ROLES)->isNotEmpty();
+        if ($user->isSuperAdmin()) {
+            return;
+        }
 
-        $hasEmployeePermission = $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains(fn (string $code): bool => str_starts_with($code, 'employee.'));
-
-        abort_unless($isPrivileged || $hasEmployeePermission, 403);
+        abort_unless($user->hasPermissionTo(self::MODULE.'.'.$action), 403);
     }
 }

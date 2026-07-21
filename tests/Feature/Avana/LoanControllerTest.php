@@ -2,6 +2,7 @@
 
 use App\Models\Employee;
 use App\Models\Loan;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -221,4 +222,31 @@ it('forbids a plain employee from listing or creating loans', function (): void 
             'tenor_months' => 1,
         ])
         ->assertForbidden();
+});
+
+it('enforces action-level loan permissions', function (): void {
+    $role = Role::create(['tenant_id' => $this->tenant->id, 'code' => 'loan-viewer', 'name' => 'Loan Viewer', 'is_system' => false]);
+    $role->permissions()->syncWithoutDetaching(Permission::where('code', 'loan.view')->pluck('id'));
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $user->roles()->sync([$role->id]);
+
+    $loan = makeLoan($this->tenant->id);
+
+    // view-only: can list, cannot create or approve.
+    actingAs($user)->get(route('avana.pinjaman'))->assertOk();
+    actingAs($user)->post(route('avana.pinjaman.approve', $loan))->assertForbidden();
+    actingAs($user)->post(route('avana.pinjaman.store'), [
+        'employee_id' => makeLoan($this->tenant->id)->employee_id,
+        'amount' => 1_000_000,
+        'tenor_months' => 3,
+    ])->assertForbidden();
+
+    // grant create: store now allowed.
+    $role->permissions()->syncWithoutDetaching(Permission::where('code', 'loan.create')->pluck('id'));
+
+    actingAs($user->fresh())->post(route('avana.pinjaman.store'), [
+        'employee_id' => makeLoan($this->tenant->id)->employee_id,
+        'amount' => 2_000_000,
+        'tenor_months' => 4,
+    ])->assertRedirect();
 });

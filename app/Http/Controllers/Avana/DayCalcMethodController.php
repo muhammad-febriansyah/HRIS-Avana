@@ -20,9 +20,9 @@ use Inertia\Response;
 class DayCalcMethodController extends Controller
 {
     /**
-     * @var array<int, string>
+     * The permission module that gates this controller's action-level checks.
      */
-    private const PRIVILEGED_ROLES = ['super_admin', 'admin_tenant_hr'];
+    private const MODULE = 'payroll';
 
     /**
      * @var array<int, string>
@@ -31,7 +31,7 @@ class DayCalcMethodController extends Controller
 
     public function index(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = (int) $request->user()->tenant_id;
 
@@ -56,7 +56,7 @@ class DayCalcMethodController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = (int) $request->user()->tenant_id;
 
@@ -72,7 +72,7 @@ class DayCalcMethodController extends Controller
 
     public function update(Request $request, DayCalcMethod $perhitunganHari): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         abort_if((int) $perhitunganHari->tenant_id !== (int) $request->user()->tenant_id, 404);
 
         $data = $this->validated($request, (int) $perhitunganHari->tenant_id, $perhitunganHari->id);
@@ -84,7 +84,7 @@ class DayCalcMethodController extends Controller
 
     public function destroy(Request $request, DayCalcMethod $perhitunganHari): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
         abort_if((int) $perhitunganHari->tenant_id !== (int) $request->user()->tenant_id, 404);
 
         $perhitunganHari->delete();
@@ -118,20 +118,15 @@ class DayCalcMethodController extends Controller
         return $validated;
     }
 
-    private function ensureCanManage(Request $request): void
+    private function ensureCan(Request $request, string $action): void
     {
         /** @var User $user */
         $user = $request->user();
-        $user->loadMissing('roles.permissions');
 
-        $isPrivileged = $user->roles->whereIn('code', self::PRIVILEGED_ROLES)->isNotEmpty();
+        if ($user->isSuperAdmin()) {
+            return;
+        }
 
-        $hasPermission = $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains(fn (string $code): bool => str_starts_with($code, 'payroll.'));
-
-        abort_unless($isPrivileged || $hasPermission, 403);
+        abort_unless($user->hasPermissionTo(self::MODULE.'.'.$action), 403);
     }
 }

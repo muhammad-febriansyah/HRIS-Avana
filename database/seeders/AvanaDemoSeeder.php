@@ -27,6 +27,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WorkLocation;
 use App\Support\AvanaNav;
+use App\Support\PermissionCatalog;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
@@ -202,59 +203,63 @@ final class AvanaDemoSeeder extends Seeder
 
     private function seedFeatures()
     {
-        // [code => [name, module_group]] — module_group drives the Menu & Fitur grouping.
+        // [code => [name, module_group, permission_modules]] — module_group drives
+        // the grouping; permission_modules are the permission prefixes the feature
+        // owns in the Hak Akses matrix (empty = feature-only row, no per-role
+        // actions — access governed by a related feature, e.g. cash_advance via
+        // payroll/claim, ess is mobile-only).
         $codes = [
             // Core HR
-            'hr_core' => ['HR Core', 'core'],
-            'organization' => ['Organization', 'core'],
-            'document' => ['Manajemen Dokumen', 'core'],
-            'letter' => ['Template Surat', 'core'],
-            'offboarding' => ['Offboarding & Clearance', 'core'],
-            'helpdesk' => ['HR Helpdesk', 'core'],
-            'delegation' => ['Delegasi Approval', 'core'],
+            'hr_core' => ['HR Core', 'core', ['employee']],
+            'organization' => ['Organization', 'core', ['branch', 'department', 'position', 'organization']],
+            'document' => ['Manajemen Dokumen', 'core', ['document']],
+            'letter' => ['Template Surat', 'core', ['letter']],
+            'offboarding' => ['Offboarding & Clearance', 'core', ['offboarding']],
+            'helpdesk' => ['HR Helpdesk', 'core', ['helpdesk']],
+            'delegation' => ['Delegasi Approval', 'core', ['delegation']],
             // Time & Attendance
-            'attendance' => ['Attendance', 'time'],
-            'leave' => ['Leave', 'time'],
-            'overtime' => ['Overtime', 'time'],
-            'wfh' => ['WFH', 'time'],
-            'timesheet' => ['Timesheet', 'time'],
-            'shift_swap' => ['Tukar Shift', 'time'],
+            'attendance' => ['Attendance', 'time', ['attendance']],
+            'leave' => ['Leave', 'time', ['leave']],
+            'overtime' => ['Overtime', 'time', ['overtime']],
+            'wfh' => ['WFH', 'time', ['wfh']],
+            'timesheet' => ['Timesheet', 'time', ['timesheet']],
+            'shift_swap' => ['Tukar Shift', 'time', ['shift_swap']],
             // Payroll & Finance
-            'payroll' => ['Payroll', 'payroll'],
-            'bpjs' => ['BPJS', 'payroll'],
-            'pph21' => ['PPh 21', 'payroll'],
-            'claim' => ['Klaim & Reimbursement', 'payroll'],
-            'reimbursement' => ['Reimbursement', 'payroll'],
-            'cash_advance' => ['Cash Advance & Settlement', 'payroll'],
-            'loan' => ['Pinjaman Karyawan', 'payroll'],
-            'salary_structure' => ['Struktur & Skala Upah', 'payroll'],
-            'journal' => ['Jurnal Akuntansi', 'payroll'],
+            'payroll' => ['Payroll', 'payroll', ['payroll']],
+            'bpjs' => ['BPJS', 'payroll', ['bpjs']],
+            'pph21' => ['PPh 21', 'payroll', ['pph21']],
+            'claim' => ['Klaim & Reimbursement', 'payroll', ['claim']],
+            'reimbursement' => ['Reimbursement', 'payroll', []],
+            'cash_advance' => ['Cash Advance & Settlement', 'payroll', []],
+            'loan' => ['Pinjaman Karyawan', 'payroll', ['loan']],
+            'salary_structure' => ['Struktur & Skala Upah', 'payroll', ['salary_structure']],
+            'journal' => ['Jurnal Akuntansi', 'payroll', ['journal']],
             // Talent
-            'recruitment' => ['Recruitment (ATS)', 'talent'],
-            'onboarding' => ['Onboarding', 'talent'],
-            'performance' => ['Manajemen Kinerja', 'talent'],
-            'okr' => ['OKR & Goal', 'talent'],
-            'competency' => ['Kompetensi', 'talent'],
-            'talent' => ['Talenta & Suksesi', 'talent'],
-            'learning' => ['Pembelajaran (LMS)', 'talent'],
+            'recruitment' => ['Recruitment (ATS)', 'talent', ['recruitment']],
+            'onboarding' => ['Onboarding', 'talent', ['onboarding']],
+            'performance' => ['Manajemen Kinerja', 'talent', ['performance']],
+            'okr' => ['OKR & Goal', 'talent', ['okr']],
+            'competency' => ['Kompetensi', 'talent', ['competency']],
+            'talent' => ['Talenta & Suksesi', 'talent', ['talent']],
+            'learning' => ['Pembelajaran (LMS)', 'talent', ['learning']],
             // Engagement & Self-Service
-            'ess' => ['Employee Self-Service', 'engagement'],
-            'announcement' => ['Pengumuman', 'engagement'],
-            'survey' => ['Survei Karyawan', 'engagement'],
+            'ess' => ['Employee Self-Service', 'engagement', []],
+            'announcement' => ['Pengumuman', 'engagement', ['announcement']],
+            'survey' => ['Survei Karyawan', 'engagement', ['survey']],
             // Analytics
-            'analytics' => ['Analytics & Laporan', 'analytics'],
-            'dynamic_report' => ['Dynamic Report', 'analytics'],
+            'analytics' => ['Analytics & Laporan', 'analytics', ['report']],
+            'dynamic_report' => ['Dynamic Report', 'analytics', ['dynamic_report']],
             // Asset & CRM
-            'asset' => ['Manajemen Aset', 'asset'],
-            'crm' => ['CRM', 'crm'],
-            'calendar' => ['Kalender Acara', 'engagement'],
-            'budget' => ['Anggaran (Budget)', 'payroll'],
-            'ai' => ['AI Assistant', 'analytics'],
+            'asset' => ['Manajemen Aset', 'asset', ['asset']],
+            'crm' => ['CRM', 'crm', ['crm']],
+            'calendar' => ['Kalender Acara', 'engagement', ['calendar']],
+            'budget' => ['Anggaran (Budget)', 'payroll', ['budget']],
+            'ai' => ['AI Assistant', 'analytics', ['ai']],
         ];
 
-        return collect($codes)->map(fn ($meta, $code) => Feature::firstOrCreate(
+        return collect($codes)->map(fn ($meta, $code) => Feature::updateOrCreate(
             ['code' => $code],
-            ['name' => $meta[0], 'module_group' => $meta[1]],
+            ['name' => $meta[0], 'module_group' => $meta[1], 'permission_modules' => $meta[2]],
         ))->values();
     }
 
@@ -309,6 +314,14 @@ final class AvanaDemoSeeder extends Seeder
                 default => $permModels->filter(fn ($p) => str_starts_with($p->code, 'own.')),
             };
             $role->permissions()->syncWithoutDetaching($assigned->pluck('id'));
+
+            // Fail-open baseline: for every module the role already holds, grant
+            // its full action set (view/create/update/archive/export/approve) so
+            // action-level enforcement never removes access a role had before.
+            $actionCodes = PermissionCatalog::actionCodesForModules($assigned->pluck('module')->all());
+            $role->permissions()->syncWithoutDetaching(
+                Permission::whereIn('code', $actionCodes)->pluck('id'),
+            );
         }
     }
 

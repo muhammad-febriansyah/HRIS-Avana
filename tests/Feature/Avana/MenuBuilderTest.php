@@ -158,13 +158,15 @@ it('forbids a tenant admin from the menu builder (super-admin only)', function (
         ->assertForbidden();
 });
 
-it('hides menu-builder and hak-akses from the tenant admin sidebar', function (): void {
+it('hides menu-builder but shows hak-akses in the tenant admin sidebar', function (): void {
     $labels = collect(AvanaNav::forUser($this->admin->fresh()))
         ->flatMap(fn ($g) => $g['items'])
         ->pluck('label');
 
+    // Menu Builder stays a super-admin (platform) concern.
     expect($labels)->not->toContain('Menu Builder');
-    expect($labels)->not->toContain('Hak Akses');
+    // Hak Akses is now available so a tenant admin can configure their roles.
+    expect($labels)->toContain('Hak Akses');
     // Menu & Fitur stays available to the tenant admin.
     expect($labels)->toContain('Menu & Fitur');
 });

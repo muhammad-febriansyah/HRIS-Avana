@@ -3,6 +3,7 @@
 use App\Models\Asset;
 use App\Models\AssetAssignment;
 use App\Models\Employee;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -395,4 +396,62 @@ it('forbids a plain employee from listing or creating assets', function (): void
             'status' => 'available',
         ])
         ->assertForbidden();
+});
+
+// --- Action-level enforcement (asset.view/create/update/archive) -----------
+
+/**
+ * A role holding only a subset of asset actions, assigned to a fresh user.
+ */
+function assetViewerUser(object $ctx, array $actions): User
+{
+    $role = Role::create(['tenant_id' => $ctx->tenant->id, 'code' => 'aset-viewer-'.implode('-', $actions), 'name' => 'Aset Viewer', 'is_system' => false]);
+    $ids = Permission::whereIn('code', array_map(fn (string $a): string => "asset.$a", $actions))->pluck('id');
+    $role->permissions()->syncWithoutDetaching($ids);
+
+    $user = User::factory()->create(['tenant_id' => $ctx->tenant->id]);
+    $user->roles()->sync([$role->id]);
+
+    return $user;
+}
+
+it('lets a view-only role list assets but refuses to create/update/delete', function (): void {
+    $viewer = assetViewerUser($this, ['view']);
+    $asset = makeAsset($this->tenant->id);
+
+    actingAs($viewer)->get(route('avana.aset'))->assertOk();
+    actingAs($viewer)->get(route('avana.aset.show', $asset))->assertOk();
+
+    actingAs($viewer)->get(route('avana.aset.create'))->assertForbidden();
+    actingAs($viewer)
+        ->post(route('avana.aset.store'), [
+            'code' => 'AST-X', 'name' => 'X', 'category' => 'Elektronik',
+            'purchase_cost' => 1, 'depreciation_years' => 1, 'condition' => 'good', 'status' => 'available',
+        ])
+        ->assertForbidden();
+    actingAs($viewer)->delete(route('avana.aset.destroy', $asset))->assertForbidden();
+});
+
+it('lets a create-capable role store an asset', function (): void {
+    $creator = assetViewerUser($this, ['view', 'create']);
+
+    actingAs($creator)
+        ->post(route('avana.aset.store'), [
+            'code' => 'AST-OK', 'name' => 'OK', 'category' => 'Elektronik',
+            'purchase_cost' => 1, 'depreciation_years' => 1, 'condition' => 'good', 'status' => 'available',
+        ])
+        ->assertRedirect();
+
+    expect(Asset::where('tenant_id', $this->tenant->id)->where('code', 'AST-OK')->exists())->toBeTrue();
+});
+
+it('shares the effective permission codes with the frontend', function (): void {
+    actingAs($this->admin)
+        ->get(route('avana.aset'))
+        ->assertOk()
+        ->assertInertia(function (Assert $page): void {
+            $perms = collect($page->toArray()['props']['auth']['permissions']);
+            // The tenant admin holds the full asset action set after the fail-open grant.
+            expect($perms)->toContain('asset.create', 'asset.update', 'asset.archive');
+        });
 });

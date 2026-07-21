@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import ReimbursementController from '@/actions/App/Http/Controllers/Avana/ReimbursementController';
 import { ConfirmDialog } from '@/components/avana-ui/confirm-dialog';
 import { FormDialog } from '@/components/avana-ui/form-dialog';
+import { usePermission } from '@/hooks/use-permission';
 import { AIcon, ActionBtn, btnP, C, card, rp } from '@/lib/avana';
 import {
     CategoryPill,
@@ -68,6 +69,7 @@ export default function ReimbursementIndex({
     kpis,
 }: ReimbursementIndexProps) {
     const { flash } = usePage<FlashProps>().props;
+    const { can } = usePermission();
     const meta = requests.meta;
 
     const [rejecting, setRejecting] = useState<ReimbursementRow | null>(null);
@@ -204,13 +206,15 @@ export default function ReimbursementIndex({
                             approval, dan pembayaran oleh Finance
                         </div>
                     </div>
-                    <Link
-                        href={ReimbursementController.create()}
-                        style={{ ...btnP, textDecoration: 'none' }}
-                    >
-                        <AIcon name="plus" size={16} color="#fff" />
-                        Ajukan Reimbursement
-                    </Link>
+                    {can('claim.create') && (
+                        <Link
+                            href={ReimbursementController.create()}
+                            style={{ ...btnP, textDecoration: 'none' }}
+                        >
+                            <AIcon name="plus" size={16} color="#fff" />
+                            Ajukan Reimbursement
+                        </Link>
+                    )}
                 </div>
 
                 {/* KPIs */}

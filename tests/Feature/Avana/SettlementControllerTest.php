@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Employee;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Settlement;
 use App\Models\Tenant;
@@ -475,4 +476,29 @@ it('hides settlements from other tenants', function (): void {
     actingAs($this->admin)
         ->get(route('avana.settlement.show', $settlement))
         ->assertNotFound();
+});
+
+it('enforces action-level claim permissions on settlement', function (): void {
+    $role = Role::create(['tenant_id' => $this->tenant->id, 'code' => 'stl-viewer', 'name' => 'STL Viewer', 'is_system' => false]);
+    $role->permissions()->syncWithoutDetaching(Permission::where('code', 'claim.view')->pluck('id'));
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $user->roles()->sync([$role->id]);
+
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    // A claim.view holder reaches the manage desk but cannot create.
+    actingAs($user)->get(route('avana.settlement.create'))->assertForbidden();
+    actingAs($user)->post(route('avana.settlement.store'), [
+        'employee_id' => $employee->id,
+        'title' => 'Coba Buat',
+        'category' => 'transportasi',
+        'submission_date' => '2026-07-18',
+        'items' => [['description' => 'Tiket', 'category' => 'transportasi', 'amount' => 500_000]],
+        'action' => 'draft',
+    ])->assertForbidden();
+
+    // grant create: create form now allowed.
+    $role->permissions()->syncWithoutDetaching(Permission::where('code', 'claim.create')->pluck('id'));
+
+    actingAs($user->fresh())->get(route('avana.settlement.create'))->assertOk();
 });

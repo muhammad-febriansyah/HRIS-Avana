@@ -18,16 +18,16 @@ class CompetencyController extends Controller
     /**
      * Roles that may always manage competencies within their tenant.
      *
-     * @var array<int, string>
+     * The permission module that gates this controller's action-level checks.
      */
-    private const PRIVILEGED_ROLES = ['super_admin', 'admin_tenant_hr', 'manager'];
+    private const MODULE = 'competency';
 
     /**
      * Display the competency master together with the assessment matrix.
      */
     public function index(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -68,7 +68,7 @@ class CompetencyController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -88,7 +88,7 @@ class CompetencyController extends Controller
      */
     public function update(Request $request, Competency $competency): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $competency);
 
         $data = $this->validateCompetency($request);
@@ -104,7 +104,7 @@ class CompetencyController extends Controller
      */
     public function destroy(Request $request, Competency $competency): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
         $this->ensureTenantOwnership($request, $competency);
 
         $competency->delete();
@@ -117,7 +117,7 @@ class CompetencyController extends Controller
      */
     public function assess(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -183,20 +183,15 @@ class CompetencyController extends Controller
     /**
      * Abort with 403 unless the user is privileged or holds an employee permission.
      */
-    private function ensureCanManage(Request $request): void
+    private function ensureCan(Request $request, string $action): void
     {
         /** @var User $user */
         $user = $request->user();
-        $user->loadMissing('roles.permissions');
 
-        $isPrivileged = $user->roles->whereIn('code', self::PRIVILEGED_ROLES)->isNotEmpty();
+        if ($user->isSuperAdmin()) {
+            return;
+        }
 
-        $hasEmployeePermission = $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains(fn (string $code): bool => str_starts_with($code, 'employee.'));
-
-        abort_unless($isPrivileged || $hasEmployeePermission, 403);
+        abort_unless($user->hasPermissionTo(self::MODULE.'.'.$action), 403);
     }
 }

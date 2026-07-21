@@ -20,13 +20,13 @@ use Inertia\Response;
 class PayrollCorrectionController extends Controller
 {
     /**
-     * @var array<int, string>
+     * The permission module that gates this controller's action-level checks.
      */
-    private const PRIVILEGED_ROLES = ['super_admin', 'admin_tenant_hr'];
+    private const MODULE = 'payroll';
 
     public function index(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = (int) $request->user()->tenant_id;
 
@@ -64,7 +64,7 @@ class PayrollCorrectionController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = (int) $request->user()->tenant_id;
 
@@ -99,7 +99,7 @@ class PayrollCorrectionController extends Controller
 
     public function approve(Request $request, PayrollCorrection $correction): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'approve');
         abort_if((int) $correction->tenant_id !== (int) $request->user()->tenant_id, 404);
 
         $correction->update([
@@ -113,7 +113,7 @@ class PayrollCorrectionController extends Controller
 
     public function destroy(Request $request, PayrollCorrection $correction): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
         abort_if((int) $correction->tenant_id !== (int) $request->user()->tenant_id, 404);
 
         $correction->delete();
@@ -121,20 +121,15 @@ class PayrollCorrectionController extends Controller
         return back()->with('success', 'Koreksi gaji dihapus');
     }
 
-    private function ensureCanManage(Request $request): void
+    private function ensureCan(Request $request, string $action): void
     {
         /** @var User $user */
         $user = $request->user();
-        $user->loadMissing('roles.permissions');
 
-        $isPrivileged = $user->roles->whereIn('code', self::PRIVILEGED_ROLES)->isNotEmpty();
+        if ($user->isSuperAdmin()) {
+            return;
+        }
 
-        $hasPermission = $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains(fn (string $code): bool => str_starts_with($code, 'payroll.'));
-
-        abort_unless($isPrivileged || $hasPermission, 403);
+        abort_unless($user->hasPermissionTo(self::MODULE.'.'.$action), 403);
     }
 }

@@ -22,13 +22,13 @@ use Inertia\Response;
 class SalesOrderController extends Controller
 {
     /**
-     * @var array<int, string>
+     * The permission module that gates this controller's action-level checks.
      */
-    private const PRIVILEGED_ROLES = ['super_admin', 'admin_tenant_hr'];
+    private const MODULE = 'payroll';
 
     public function index(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = (int) $request->user()->tenant_id;
 
@@ -90,7 +90,7 @@ class SalesOrderController extends Controller
      */
     public function map(Request $request, SalesOrder $salesOrder): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         abort_if((int) $salesOrder->tenant_id !== (int) $request->user()->tenant_id, 404);
 
         $tenantId = (int) $request->user()->tenant_id;
@@ -118,7 +118,7 @@ class SalesOrderController extends Controller
      */
     public function forward(Request $request, SalesOrder $salesOrder): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         abort_if((int) $salesOrder->tenant_id !== (int) $request->user()->tenant_id, 404);
 
         if ($salesOrder->status !== 'mapped') {
@@ -135,20 +135,15 @@ class SalesOrderController extends Controller
         return back()->with('success', 'Sales Order diteruskan ke rekrutmen');
     }
 
-    private function ensureCanManage(Request $request): void
+    private function ensureCan(Request $request, string $action): void
     {
         /** @var User $user */
         $user = $request->user();
-        $user->loadMissing('roles.permissions');
 
-        $isPrivileged = $user->roles->whereIn('code', self::PRIVILEGED_ROLES)->isNotEmpty();
+        if ($user->isSuperAdmin()) {
+            return;
+        }
 
-        $hasPermission = $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains(fn (string $code): bool => str_starts_with($code, 'payroll.'));
-
-        abort_unless($isPrivileged || $hasPermission, 403);
+        abort_unless($user->hasPermissionTo(self::MODULE.'.'.$action), 403);
     }
 }

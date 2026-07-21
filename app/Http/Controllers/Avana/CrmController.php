@@ -24,9 +24,9 @@ class CrmController extends Controller
     /**
      * Roles that may always manage the CRM pipeline within their tenant.
      *
-     * @var array<int, string>
+     * The permission module that gates this controller's action-level checks.
      */
-    private const PRIVILEGED_ROLES = ['super_admin', 'admin_tenant_hr', 'manager'];
+    private const MODULE = 'crm';
 
     /**
      * Allowed deal pipeline stages, in display order.
@@ -60,7 +60,7 @@ class CrmController extends Controller
      */
     public function index(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -108,7 +108,7 @@ class CrmController extends Controller
      */
     public function storeContact(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -134,7 +134,7 @@ class CrmController extends Controller
      */
     public function storeDeal(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -154,7 +154,7 @@ class CrmController extends Controller
      */
     public function updateDeal(Request $request, CrmDeal $deal): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $deal);
 
         $data = $this->validateDeal($request, $request->user()->tenant_id);
@@ -170,7 +170,7 @@ class CrmController extends Controller
      */
     public function moveStage(Request $request, CrmDeal $deal): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $deal);
 
         $data = $request->validate([
@@ -187,7 +187,7 @@ class CrmController extends Controller
      */
     public function destroyDeal(Request $request, CrmDeal $deal): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
         $this->ensureTenantOwnership($request, $deal);
 
         $deal->delete();
@@ -200,7 +200,7 @@ class CrmController extends Controller
      */
     public function show(Request $request, CrmDeal $deal): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
         $this->guardTenant($request, $deal);
 
         $tenantId = $request->user()->tenant_id;
@@ -261,7 +261,7 @@ class CrmController extends Controller
      */
     public function storeActivity(Request $request, CrmDeal $deal): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
         $this->guardTenant($request, $deal);
 
         $data = $request->validate([
@@ -286,7 +286,7 @@ class CrmController extends Controller
      */
     public function destroyActivity(Request $request, CrmActivity $activity): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
         $this->guardTenant($request, $activity);
 
         $activity->delete();
@@ -299,7 +299,7 @@ class CrmController extends Controller
      */
     public function storeTask(Request $request, CrmDeal $deal): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
         $this->guardTenant($request, $deal);
 
         $data = $request->validate([
@@ -323,7 +323,7 @@ class CrmController extends Controller
      */
     public function toggleTask(Request $request, CrmTask $task): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->guardTenant($request, $task);
 
         $done = $task->status === 'done';
@@ -341,7 +341,7 @@ class CrmController extends Controller
      */
     public function destroyTask(Request $request, CrmTask $task): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
         $this->guardTenant($request, $task);
 
         $task->delete();
@@ -354,7 +354,7 @@ class CrmController extends Controller
      */
     public function storeMember(Request $request, CrmDeal $deal): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
         $this->guardTenant($request, $deal);
 
         $data = $request->validate([
@@ -375,7 +375,7 @@ class CrmController extends Controller
      */
     public function destroyMember(Request $request, CrmDealMember $member): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
         $this->guardTenant($request, $member);
 
         $member->delete();
@@ -388,7 +388,7 @@ class CrmController extends Controller
      */
     public function linkProject(Request $request, CrmDeal $deal): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->guardTenant($request, $deal);
 
         $data = $request->validate([
@@ -405,7 +405,7 @@ class CrmController extends Controller
      */
     public function insights(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -613,20 +613,15 @@ class CrmController extends Controller
     /**
      * Abort with 403 unless the user is privileged or holds an employee permission.
      */
-    private function ensureCanManage(Request $request): void
+    private function ensureCan(Request $request, string $action): void
     {
         /** @var User $user */
         $user = $request->user();
-        $user->loadMissing('roles.permissions');
 
-        $isPrivileged = $user->roles->whereIn('code', self::PRIVILEGED_ROLES)->isNotEmpty();
+        if ($user->isSuperAdmin()) {
+            return;
+        }
 
-        $hasEmployeePermission = $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains(fn (string $code): bool => str_starts_with($code, 'employee.'));
-
-        abort_unless($isPrivileged || $hasEmployeePermission, 403);
+        abort_unless($user->hasPermissionTo(self::MODULE.'.'.$action), 403);
     }
 }

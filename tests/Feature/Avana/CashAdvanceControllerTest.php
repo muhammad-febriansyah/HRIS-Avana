@@ -2,6 +2,7 @@
 
 use App\Models\CashAdvance;
 use App\Models\Employee;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -465,4 +466,23 @@ it('hides an advance from another tenant', function (): void {
     actingAs($this->admin)
         ->get(route('avana.kasbon.show', $foreign))
         ->assertNotFound();
+});
+
+it('enforces action-level payroll permissions on cash advances', function (): void {
+    $role = Role::create(['tenant_id' => $this->tenant->id, 'code' => 'ksb-viewer', 'name' => 'Kasbon Viewer', 'is_system' => false]);
+    $role->permissions()->syncWithoutDetaching(Permission::where('code', 'payroll.view')->pluck('id'));
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $user->roles()->sync([$role->id]);
+
+    $adv = makeCashAdvance($this->tenant->id);
+
+    // view-only: can list, cannot create or approve.
+    actingAs($user)->get(route('avana.kasbon'))->assertOk();
+    actingAs($user)->get(route('avana.kasbon.create'))->assertForbidden();
+    actingAs($user)->post(route('avana.kasbon.approve', $adv))->assertForbidden();
+
+    // grant create: create form now allowed.
+    $role->permissions()->syncWithoutDetaching(Permission::where('code', 'payroll.create')->pluck('id'));
+
+    actingAs($user->fresh())->get(route('avana.kasbon.create'))->assertOk();
 });

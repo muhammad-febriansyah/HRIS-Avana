@@ -32,6 +32,11 @@ class SettlementController extends Controller
     private const PRIVILEGED_ROLES = ['super_admin', 'admin_tenant_hr'];
 
     /**
+     * The permission module that gates this controller's action-level checks.
+     */
+    private const MODULE = 'claim';
+
+    /**
      * Indonesian labels for the status enum.
      *
      * @var array<string, string>
@@ -140,7 +145,7 @@ class SettlementController extends Controller
      */
     public function create(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         return Inertia::render('avana/settlement/create', [
             'employees' => $this->employeeOptions($request->user()->tenant_id),
@@ -154,7 +159,7 @@ class SettlementController extends Controller
      */
     public function edit(Request $request, Settlement $settlement): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $settlement);
         $this->ensureStatusIs($settlement, [Settlement::STATUS_DRAFT, Settlement::STATUS_REJECTED], 'Settlement yang sudah diajukan tidak bisa diubah');
 
@@ -223,7 +228,7 @@ class SettlementController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = $request->user()->tenant_id;
         $data = $this->validateSettlement($request, $tenantId);
@@ -273,7 +278,7 @@ class SettlementController extends Controller
      */
     public function update(Request $request, Settlement $settlement): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $settlement);
         $this->ensureStatusIs($settlement, [Settlement::STATUS_DRAFT, Settlement::STATUS_REJECTED], 'Settlement yang sudah diajukan tidak bisa diubah');
 
@@ -324,7 +329,7 @@ class SettlementController extends Controller
      */
     public function destroy(Request $request, Settlement $settlement): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
         $this->ensureTenantOwnership($request, $settlement);
         $this->ensureStatusIs($settlement, [Settlement::STATUS_DRAFT, Settlement::STATUS_REJECTED], 'Settlement yang sudah diajukan tidak bisa dihapus');
 
@@ -340,7 +345,7 @@ class SettlementController extends Controller
      */
     public function submit(Request $request, Settlement $settlement): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $settlement);
         $this->ensureStatusIs($settlement, [Settlement::STATUS_DRAFT, Settlement::STATUS_REJECTED], 'Settlement ini sudah diajukan');
 
@@ -364,7 +369,7 @@ class SettlementController extends Controller
      */
     public function rescan(Request $request, Settlement $settlement): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $settlement);
         $this->ensureStatusIs(
             $settlement,
@@ -416,7 +421,7 @@ class SettlementController extends Controller
      */
     public function financeVerify(Request $request, Settlement $settlement): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'approve');
         $this->ensureTenantOwnership($request, $settlement);
         $this->ensureStatusIs($settlement, [Settlement::STATUS_MANAGER_APPROVED], 'Hanya settlement yang disetujui manager yang bisa diverifikasi Finance');
         $this->ensureNotSelfApproved($request, $settlement);
@@ -846,9 +851,20 @@ class SettlementController extends Controller
         abort(403, 'Anda yang menyetujui settlement ini sebagai manager. Verifikasi & pembayaran harus dilakukan orang lain.');
     }
 
-    private function ensureCanManage(Request $request): void
+    /**
+     * Authorize an action-level permission on this module (super admin bypasses).
+     * The team-approval desks use {@see ensureCanReview()} instead.
+     */
+    private function ensureCan(Request $request, string $action): void
     {
-        abort_unless($this->canManage($request), 403);
+        /** @var User $user */
+        $user = $request->user();
+
+        if ($user->isSuperAdmin()) {
+            return;
+        }
+
+        abort_unless($user->hasPermissionTo(self::MODULE.'.'.$action), 403);
     }
 
     /**

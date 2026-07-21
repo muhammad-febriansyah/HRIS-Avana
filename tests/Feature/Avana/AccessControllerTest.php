@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Avana\AccessController;
 use App\Models\AuditLog;
+use App\Models\Feature;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Tenant;
@@ -45,7 +46,8 @@ it('renders the hak-akses screen with roles, actions and the per-action matrix',
             ->has('actions', 6)
             ->has('actions.0', fn (Assert $action) => $action->has('key')->has('label'))
             ->has('modules')
-            ->has('modules.0', fn (Assert $module) => $module->has('key')->has('label')->has('actionable'))
+            ->has('modules.0', fn (Assert $module) => $module->has('key')->has('label')->has('group')
+                ->has('actionable')->has('hasFeature')->has('featureEnabled'))
             ->has('permHeaders')
             ->has('matrix')
             ->where('isSuperAdmin', true));
@@ -61,10 +63,13 @@ it('exposes a matrix cell per action for every module/role pairing', function ()
                 ->orWhereNull('tenant_id')
                 ->count();
 
+            // Rows = 1 core head (Dashboard) + every feature + 3 core tail rows.
+            $rowCount = Feature::count() + 4;
+
             $page->has('roles', $roleCount)
                 ->has('permHeaders', $roleCount)
-                ->has('modules', 21)
-                ->has('matrix', 21)
+                ->has('modules', $rowCount)
+                ->has('matrix', $rowCount)
                 ->has('matrix.0', $roleCount)
                 ->has('matrix.1.0', fn (Assert $cell) => $cell
                     ->has('view')->has('create')->has('update')
@@ -80,7 +85,7 @@ it('toggles a single action of a menu on and off for a role', function (): void 
 
     // First toggle grants employee.export (not the whole module).
     actingAs($this->superAdmin)
-        ->post('/__access/toggle', ['module_key' => 'karyawan', 'action' => 'export', 'role_id' => $employeeRole->id])
+        ->post('/__access/toggle', ['module_key' => 'hr_core', 'action' => 'export', 'role_id' => $employeeRole->id])
         ->assertSessionHas('success', 'Hak akses diperbarui');
 
     expect($employeeRole->fresh()->permissions()->whereKey($exportId)->exists())->toBeTrue();
@@ -90,19 +95,19 @@ it('toggles a single action of a menu on and off for a role', function (): void 
 
     // Second toggle revokes it.
     actingAs($this->superAdmin)
-        ->post('/__access/toggle', ['module_key' => 'karyawan', 'action' => 'export', 'role_id' => $employeeRole->id])
+        ->post('/__access/toggle', ['module_key' => 'hr_core', 'action' => 'export', 'role_id' => $employeeRole->id])
         ->assertSessionHas('success');
 
     expect($employeeRole->fresh()->permissions()->whereKey($exportId)->exists())->toBeFalse();
 });
 
-it('toggles every module a menu covers for one action', function (): void {
+it('toggles every module a feature owns for one action', function (): void {
     $employeeRole = Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->firstOrFail();
-    // "Cuti & Lembur" covers leave, overtime and wfh.
-    $ids = Permission::whereIn('code', ['leave.approve', 'overtime.approve', 'wfh.approve'])->pluck('id');
+    // The "Organization" feature owns branch, department, position and organization.
+    $ids = Permission::whereIn('code', ['branch.view', 'department.view', 'position.view', 'organization.view'])->pluck('id');
 
     actingAs($this->superAdmin)
-        ->post('/__access/toggle', ['module_key' => 'cuti-lembur', 'action' => 'approve', 'role_id' => $employeeRole->id])
+        ->post('/__access/toggle', ['module_key' => 'organization', 'action' => 'view', 'role_id' => $employeeRole->id])
         ->assertSessionHas('success');
 
     expect($employeeRole->fresh()->permissions()->whereIn('permissions.id', $ids)->count())->toBe($ids->count());
@@ -123,7 +128,7 @@ it('records an audit log row for a permission change', function (): void {
     $employeeRole = Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->firstOrFail();
 
     actingAs($this->superAdmin)
-        ->post('/__access/toggle', ['module_key' => 'karyawan', 'action' => 'view', 'role_id' => $employeeRole->id]);
+        ->post('/__access/toggle', ['module_key' => 'hr_core', 'action' => 'view', 'role_id' => $employeeRole->id]);
 
     expect(AuditLog::where('auditable_type', $employeeRole->getMorphClass())
         ->where('auditable_id', $employeeRole->id)
@@ -135,7 +140,7 @@ it('rejects an unknown action', function (): void {
     $employeeRole = Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->firstOrFail();
 
     actingAs($this->superAdmin)
-        ->post('/__access/toggle', ['module_key' => 'karyawan', 'action' => 'destroy', 'role_id' => $employeeRole->id])
+        ->post('/__access/toggle', ['module_key' => 'hr_core', 'action' => 'destroy', 'role_id' => $employeeRole->id])
         ->assertSessionHasErrors('action');
 });
 
@@ -143,7 +148,7 @@ it('refuses to modify the system super admin role', function (): void {
     $superAdminRole = Role::where('code', 'super_admin')->firstOrFail();
 
     actingAs($this->superAdmin)
-        ->post('/__access/toggle', ['module_key' => 'karyawan', 'action' => 'view', 'role_id' => $superAdminRole->id])
+        ->post('/__access/toggle', ['module_key' => 'hr_core', 'action' => 'view', 'role_id' => $superAdminRole->id])
         ->assertForbidden();
 });
 
@@ -192,7 +197,7 @@ it('locks the tenant admin\'s own role against self-lockout', function (): void 
     $ownRole = Role::where('tenant_id', $this->tenant->id)->where('code', 'admin_tenant_hr')->firstOrFail();
 
     actingAs($this->admin)
-        ->post('/__access/toggle', ['module_key' => 'karyawan', 'action' => 'archive', 'role_id' => $ownRole->id])
+        ->post('/__access/toggle', ['module_key' => 'hr_core', 'action' => 'archive', 'role_id' => $ownRole->id])
         ->assertForbidden();
 });
 
@@ -201,7 +206,7 @@ it('lets a tenant admin toggle a subordinate role', function (): void {
     $viewId = Permission::where('code', 'asset.view')->value('id');
 
     actingAs($this->admin)
-        ->post('/__access/toggle', ['module_key' => 'layanan', 'action' => 'view', 'role_id' => $employeeRole->id])
+        ->post('/__access/toggle', ['module_key' => 'asset', 'action' => 'view', 'role_id' => $employeeRole->id])
         ->assertSessionHas('success');
 
     expect($employeeRole->fresh()->permissions()->whereKey($viewId)->exists())->toBeTrue();
@@ -212,7 +217,7 @@ it('stops a tenant admin from touching another tenant\'s role', function (): voi
     $otherRole = Role::create(['tenant_id' => $other->id, 'code' => 'staff', 'name' => 'Staff', 'is_system' => false]);
 
     actingAs($this->admin)
-        ->post('/__access/toggle', ['module_key' => 'karyawan', 'action' => 'view', 'role_id' => $otherRole->id])
+        ->post('/__access/toggle', ['module_key' => 'hr_core', 'action' => 'view', 'role_id' => $otherRole->id])
         ->assertNotFound();
 });
 

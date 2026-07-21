@@ -10,9 +10,11 @@ import type { FlashProps, HakAksesProps } from './types';
 
 export default function AvanaHakAkses({
     roles,
+    actions,
     modules,
     permHeaders,
     matrix,
+    hasTenant,
 }: HakAksesProps) {
     const { flash } = usePage<FlashProps>().props;
     const [roleModalOpen, setRoleModalOpen] = useState(false);
@@ -29,10 +31,22 @@ export default function AvanaHakAkses({
         setRoleName('');
     };
 
-    const toggleCell = (rowIdx: number, colIdx: number) => {
+    const toggleCell = (rowIdx: number, colIdx: number, action: string) => {
         router.post(
             AccessController.togglePermission().url,
-            { module_key: modules[rowIdx].key, role_id: roles[colIdx].id },
+            {
+                module_key: modules[rowIdx].key,
+                action,
+                role_id: roles[colIdx].id,
+            },
+            { preserveScroll: true },
+        );
+    };
+
+    const toggleFeature = (rowIdx: number, enabled: boolean) => {
+        router.post(
+            AccessController.toggleFeature().url,
+            { module_key: modules[rowIdx].key, enabled },
             { preserveScroll: true },
         );
     };
@@ -107,10 +121,13 @@ export default function AvanaHakAkses({
                 {/* Permission matrix */}
                 <PermissionMatrix
                     roles={roles}
+                    actions={actions}
                     modules={modules}
                     permHeaders={permHeaders}
                     matrix={matrix}
+                    hasTenant={hasTenant}
                     onToggle={toggleCell}
+                    onToggleFeature={toggleFeature}
                 />
             </div>
 

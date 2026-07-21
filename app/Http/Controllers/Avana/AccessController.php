@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\Feature;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
@@ -56,34 +57,76 @@ class AccessController extends Controller
     ];
 
     /**
-     * Matrix rows mapping a UI menu to the permission module prefixes it covers.
-     * An empty `modules` list marks an always-on row (Dashboard) with no actions.
+     * Section titles for each feature `module_group`, in display order. Feature
+     * rows are grouped under these; codes not listed fall back to a generic
+     * "LAINNYA" section so a new module_group never disappears from the matrix.
      *
-     * @var array<int, array{key: string, label: string, modules: array<int, string>}>
+     * @var array<string, string>
      */
-    private const MODULES = [
-        ['key' => 'dashboard', 'label' => 'Dashboard', 'modules' => []],
-        ['key' => 'karyawan', 'label' => 'Karyawan', 'modules' => ['employee']],
-        ['key' => 'dokumen', 'label' => 'Dokumen & Surat', 'modules' => ['document', 'letter']],
-        ['key' => 'offboarding', 'label' => 'Offboarding', 'modules' => ['offboarding']],
-        ['key' => 'absensi', 'label' => 'Absensi', 'modules' => ['attendance']],
-        ['key' => 'jadwal', 'label' => 'Timesheet & Shift', 'modules' => ['timesheet', 'shift_swap']],
-        ['key' => 'cuti-lembur', 'label' => 'Cuti & Lembur', 'modules' => ['leave', 'overtime', 'wfh']],
-        ['key' => 'delegasi', 'label' => 'Delegasi Approval', 'modules' => ['delegation']],
-        ['key' => 'payroll', 'label' => 'Payroll', 'modules' => ['payroll']],
-        ['key' => 'bpjs-pajak', 'label' => 'BPJS & Pajak', 'modules' => ['bpjs', 'pph21']],
-        ['key' => 'keuangan', 'label' => 'Klaim, Pinjaman & Jurnal', 'modules' => ['claim', 'loan', 'journal', 'budget', 'salary_structure']],
-        ['key' => 'rekrutmen', 'label' => 'Rekrutmen & Onboarding', 'modules' => ['recruitment', 'onboarding']],
-        ['key' => 'kinerja', 'label' => 'Kinerja & Talenta', 'modules' => ['performance', 'okr', 'competency', 'talent']],
-        ['key' => 'pembelajaran', 'label' => 'Pembelajaran (LMS)', 'modules' => ['learning']],
-        ['key' => 'layanan', 'label' => 'Layanan & Engagement', 'modules' => ['helpdesk', 'announcement', 'survey', 'calendar', 'ai', 'asset', 'crm']],
-        ['key' => 'laporan', 'label' => 'Laporan', 'modules' => ['report']],
-        ['key' => 'analitik', 'label' => 'HR Analytics', 'modules' => ['dynamic_report']],
-        ['key' => 'perusahaan', 'label' => 'Perusahaan', 'modules' => ['branch', 'department', 'position', 'organization']],
-        ['key' => 'pengguna', 'label' => 'Pengguna', 'modules' => ['user']],
-        ['key' => 'pengaturan', 'label' => 'Pengaturan', 'modules' => ['settings', 'role', 'permission']],
-        ['key' => 'audit', 'label' => 'Audit Trail', 'modules' => ['audit']],
+    private const GROUP_LABELS = [
+        'core' => 'INTI HR',
+        'time' => 'WAKTU & KEHADIRAN',
+        'payroll' => 'PAYROLL & KEUANGAN',
+        'talent' => 'TALENTA',
+        'engagement' => 'ENGAGEMENT',
+        'analytics' => 'ANALITIK',
+        'asset' => 'ASET',
+        'crm' => 'CRM',
     ];
+
+    /**
+     * Fixed core/system rows that are NOT tenant features (always available, no
+     * master switch). Rendered before (UTAMA) and after (SISTEM) the feature rows.
+     *
+     * @var array<int, array{key: string, label: string, modules: array<int, string>, group: string}>
+     */
+    private const CORE_HEAD = [
+        ['key' => 'dashboard', 'label' => 'Dashboard', 'modules' => [], 'group' => 'UTAMA'],
+    ];
+
+    private const CORE_TAIL = [
+        ['key' => 'pengguna', 'label' => 'Pengguna', 'modules' => ['user'], 'group' => 'SISTEM'],
+        ['key' => 'pengaturan', 'label' => 'Pengaturan', 'modules' => ['settings', 'role', 'permission'], 'group' => 'SISTEM'],
+        ['key' => 'audit', 'label' => 'Audit Trail', 'modules' => ['audit'], 'group' => 'SISTEM'],
+    ];
+
+    /**
+     * The matrix rows, generated from the `features` table so a newly-added
+     * feature appears automatically. Each feature is one row: its master "Aktif"
+     * switch toggles that feature, and its per-role action columns come from the
+     * feature's `permission_modules`. Fixed core/system rows (no feature) bookend
+     * the list.
+     *
+     * @return array<int, array{key: string, label: string, modules: array<int, string>, features: array<int, string>, group: string}>
+     */
+    private function matrixRows(): array
+    {
+        $groupOrder = array_keys(self::GROUP_LABELS);
+
+        $featureRows = Feature::query()
+            ->orderBy('name')
+            ->get()
+            ->sortBy(fn (Feature $feature): int => array_search($feature->module_group, $groupOrder, true) === false
+                ? count($groupOrder)
+                : array_search($feature->module_group, $groupOrder, true))
+            ->values()
+            ->map(fn (Feature $feature): array => [
+                'key' => $feature->code,
+                'label' => $feature->name,
+                'modules' => $feature->permission_modules ?? [],
+                'features' => [$feature->code],
+                'group' => self::GROUP_LABELS[$feature->module_group] ?? 'LAINNYA',
+            ])
+            ->all();
+
+        $core = fn (array $row): array => [...$row, 'features' => []];
+
+        return [
+            ...array_map($core, self::CORE_HEAD),
+            ...$featureRows,
+            ...array_map($core, self::CORE_TAIL),
+        ];
+    }
 
     /**
      * Render the access-control (RBAC) screen: role cards and the per-action
@@ -123,16 +166,31 @@ class AccessController extends Controller
             ->values()
             ->all();
 
-        $modules = collect(self::MODULES)
+        // Feature codes currently enabled for the tenant (super admin without an
+        // impersonated tenant has none). Drives each row's master "Aktif" switch.
+        $tenant = $user->tenant;
+        $enabledFeatureCodes = $tenant === null
+            ? collect()
+            : Feature::whereIn('id', $tenant->features()->where('is_enabled', true)->pluck('feature_id'))->pluck('code');
+
+        $rows = $this->matrixRows();
+
+        $modules = collect($rows)
             ->map(fn (array $module): array => [
                 'key' => $module['key'],
                 'label' => $module['label'],
+                'group' => $module['group'],
                 'actionable' => $module['modules'] !== [],
+                'hasFeature' => $module['features'] !== [],
+                // Enabled only when EVERY feature the row covers is on, so the
+                // switch flips the whole menu consistently.
+                'featureEnabled' => $module['features'] !== []
+                    && collect($module['features'])->every(fn (string $code): bool => $enabledFeatureCodes->contains($code)),
             ])
             ->all();
 
         // matrix[rowIdx][roleIdx] = { view: bool, create: bool, ... }
-        $matrix = collect(self::MODULES)
+        $matrix = collect($rows)
             ->map(fn (array $module): array => $roleModels
                 ->map(fn (Role $role): array => $this->roleActionCells($role, $module))
                 ->all())
@@ -145,6 +203,8 @@ class AccessController extends Controller
             'permHeaders' => $roleModels->pluck('name')->all(),
             'matrix' => $matrix,
             'isSuperAdmin' => $isSuperAdmin,
+            // Master feature switches only operate against a concrete tenant.
+            'hasTenant' => $tenant !== null,
         ]);
     }
 
@@ -162,7 +222,7 @@ class AccessController extends Controller
             'role_id' => ['required', 'integer', 'exists:roles,id'],
         ]);
 
-        $module = collect(self::MODULES)->firstWhere('key', $validated['module_key']);
+        $module = collect($this->matrixRows())->firstWhere('key', $validated['module_key']);
 
         abort_if($module === null || $module['modules'] === [], 422, 'Module cannot be toggled.');
 
@@ -202,6 +262,40 @@ class AccessController extends Controller
         $this->recordPermissionChange($user, $role, $before, $role->permissions()->pluck('code'));
 
         return back()->with('success', 'Hak akses diperbarui');
+    }
+
+    /**
+     * Toggle a menu's master "Aktif" switch: enable/disable every tenant feature
+     * the menu depends on. A disabled menu is hidden from the sidebar and its
+     * routes 403 (via {@see AvanaNav} + EnsureAvanaAccess). Replaces the separate
+     * Menu & Fitur screen so all menu control lives on the Hak Akses page.
+     */
+    public function toggleFeature(Request $request): RedirectResponse
+    {
+        $this->ensureCanManageAccess($request);
+
+        $validated = $request->validate([
+            'module_key' => ['required', 'string'],
+            'enabled' => ['required', 'boolean'],
+        ]);
+
+        $module = collect($this->matrixRows())->firstWhere('key', $validated['module_key']);
+
+        abort_if($module === null || $module['features'] === [], 422, 'Menu ini tidak memiliki fitur untuk diaktifkan.');
+
+        $tenant = $request->user()->tenant;
+        abort_if($tenant === null, 404);
+
+        $featureIds = Feature::whereIn('code', $module['features'])->pluck('id');
+
+        foreach ($featureIds as $featureId) {
+            $tenant->features()->updateOrCreate(
+                ['feature_id' => $featureId],
+                ['is_enabled' => $validated['enabled']],
+            );
+        }
+
+        return back()->with('success', $validated['enabled'] ? 'Menu diaktifkan' : 'Menu dinonaktifkan');
     }
 
     /**

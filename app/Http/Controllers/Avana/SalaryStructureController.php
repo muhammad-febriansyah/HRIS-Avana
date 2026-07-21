@@ -15,16 +15,16 @@ class SalaryStructureController extends Controller
     /**
      * Roles that may always manage the salary structure within their tenant.
      *
-     * @var array<int, string>
+     * The permission module that gates this controller's action-level checks.
      */
-    private const PRIVILEGED_ROLES = ['super_admin', 'admin_tenant_hr', 'manager'];
+    private const MODULE = 'salary_structure';
 
     /**
      * Display the tenant's salary grades ordered by level.
      */
     public function index(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -49,7 +49,7 @@ class SalaryStructureController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -69,7 +69,7 @@ class SalaryStructureController extends Controller
      */
     public function update(Request $request, SalaryGrade $grade): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $grade);
 
         $data = $this->validateGrade($request);
@@ -85,7 +85,7 @@ class SalaryStructureController extends Controller
      */
     public function destroy(Request $request, SalaryGrade $grade): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
         $this->ensureTenantOwnership($request, $grade);
 
         $grade->delete();
@@ -139,20 +139,15 @@ class SalaryStructureController extends Controller
     /**
      * Abort with 403 unless the user is privileged or holds an employee permission.
      */
-    private function ensureCanManage(Request $request): void
+    private function ensureCan(Request $request, string $action): void
     {
         /** @var User $user */
         $user = $request->user();
-        $user->loadMissing('roles.permissions');
 
-        $isPrivileged = $user->roles->whereIn('code', self::PRIVILEGED_ROLES)->isNotEmpty();
+        if ($user->isSuperAdmin()) {
+            return;
+        }
 
-        $hasEmployeePermission = $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains(fn (string $code): bool => str_starts_with($code, 'employee.'));
-
-        abort_unless($isPrivileged || $hasEmployeePermission, 403);
+        abort_unless($user->hasPermissionTo(self::MODULE.'.'.$action), 403);
     }
 }

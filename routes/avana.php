@@ -231,6 +231,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
 
     Route::get('hak-akses', [AccessController::class, 'index'])->name('hak-akses');
     Route::post('hak-akses/permission/toggle', [AccessController::class, 'togglePermission'])->name('hak-akses.permission.toggle');
+    Route::post('hak-akses/feature/toggle', [AccessController::class, 'toggleFeature'])->name('hak-akses.feature.toggle');
     Route::post('hak-akses/roles', [AccessController::class, 'storeRole'])->name('hak-akses.roles.store');
 
     Route::get('fitur', [FeatureController::class, 'index'])->name('fitur');

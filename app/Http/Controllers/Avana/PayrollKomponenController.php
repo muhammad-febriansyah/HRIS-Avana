@@ -26,9 +26,9 @@ use Inertia\Response;
 class PayrollKomponenController extends Controller
 {
     /**
-     * @var array<int, string>
+     * The permission module that gates this controller's action-level checks.
      */
-    private const PRIVILEGED_ROLES = ['super_admin', 'admin_tenant_hr'];
+    private const MODULE = 'payroll';
 
     /**
      * @var array<int, string>
@@ -54,7 +54,7 @@ class PayrollKomponenController extends Controller
 
     public function index(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = (int) $request->user()->tenant_id;
 
@@ -142,7 +142,7 @@ class PayrollKomponenController extends Controller
 
     public function storeComponent(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
         $tenantId = (int) $request->user()->tenant_id;
 
         $data = $this->validateComponent($request);
@@ -166,7 +166,7 @@ class PayrollKomponenController extends Controller
 
     public function updateComponent(Request $request, PayrollComponent $component): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureOwnership($request, $component->tenant_id);
 
         $data = $this->validateComponent($request);
@@ -188,7 +188,7 @@ class PayrollKomponenController extends Controller
 
     public function destroyComponent(Request $request, PayrollComponent $component): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
         $this->ensureOwnership($request, $component->tenant_id);
 
         $component->delete();
@@ -203,7 +203,7 @@ class PayrollKomponenController extends Controller
      */
     public function storeComponentValue(Request $request, PayrollComponent $component): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureOwnership($request, $component->tenant_id);
 
         $tenantId = (int) $request->user()->tenant_id;
@@ -234,7 +234,7 @@ class PayrollKomponenController extends Controller
 
     public function destroyComponentValue(Request $request, PayrollComponentValue $value): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureOwnership($request, $value->tenant_id);
 
         $value->delete();
@@ -244,7 +244,7 @@ class PayrollKomponenController extends Controller
 
     public function storeFormula(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
         $tenantId = (int) $request->user()->tenant_id;
 
         $data = $request->validate([
@@ -264,7 +264,7 @@ class PayrollKomponenController extends Controller
 
     public function destroyFormula(Request $request, PayrollFormula $formula): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
         $this->ensureOwnership($request, $formula->tenant_id);
 
         $formula->delete();
@@ -274,7 +274,7 @@ class PayrollKomponenController extends Controller
 
     public function storeFormulaItem(Request $request, PayrollFormula $formula): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureOwnership($request, $formula->tenant_id);
 
         $tenantId = (int) $request->user()->tenant_id;
@@ -301,7 +301,7 @@ class PayrollKomponenController extends Controller
 
     public function destroyFormulaItem(Request $request, PayrollFormulaItem $item): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $item->loadMissing('formula');
         $this->ensureOwnership($request, $item->formula?->tenant_id);
 
@@ -360,20 +360,15 @@ class PayrollKomponenController extends Controller
         abort_if((int) $tenantId !== (int) $request->user()->tenant_id, 404);
     }
 
-    private function ensureCanManage(Request $request): void
+    private function ensureCan(Request $request, string $action): void
     {
         /** @var User $user */
         $user = $request->user();
-        $user->loadMissing('roles.permissions');
 
-        $isPrivileged = $user->roles->whereIn('code', self::PRIVILEGED_ROLES)->isNotEmpty();
+        if ($user->isSuperAdmin()) {
+            return;
+        }
 
-        $hasPermission = $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains(fn (string $code): bool => str_starts_with($code, 'payroll.'));
-
-        abort_unless($isPrivileged || $hasPermission, 403);
+        abort_unless($user->hasPermissionTo(self::MODULE.'.'.$action), 403);
     }
 }

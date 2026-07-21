@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Budget;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -200,4 +201,32 @@ it('forbids a plain employee from managing budgets', function (): void {
         'planned_amount' => 1000,
         'actual_amount' => 0,
     ])->assertForbidden();
+});
+
+it('enforces action-level budget permissions', function (): void {
+    $role = Role::create(['tenant_id' => $this->tenant->id, 'code' => 'budget-viewer', 'name' => 'Budget Viewer', 'is_system' => false]);
+    $role->permissions()->syncWithoutDetaching(Permission::where('code', 'budget.view')->pluck('id'));
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $user->roles()->sync([$role->id]);
+
+    // view-only: can list, cannot create.
+    actingAs($user)->get(route('avana.anggaran'))->assertOk();
+    actingAs($user)->post(route('avana.anggaran.store'), [
+        'category' => 'training',
+        'period_type' => 'monthly',
+        'period' => '2026-08',
+        'planned_amount' => 1_000_000,
+        'actual_amount' => 0,
+    ])->assertForbidden();
+
+    // grant create: store now allowed.
+    $role->permissions()->syncWithoutDetaching(Permission::where('code', 'budget.create')->pluck('id'));
+
+    actingAs($user->fresh())->post(route('avana.anggaran.store'), [
+        'category' => 'training',
+        'period_type' => 'monthly',
+        'period' => '2026-09',
+        'planned_amount' => 1_000_000,
+        'actual_amount' => 0,
+    ])->assertSessionHas('success');
 });

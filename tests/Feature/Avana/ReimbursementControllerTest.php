@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Employee;
+use App\Models\Permission;
 use App\Models\Reimbursement;
 use App\Models\Role;
 use App\Models\Tenant;
@@ -421,4 +422,23 @@ it('forbids a plain employee from listing or creating reimbursements', function 
             'expense_date' => '2026-07-05',
         ])
         ->assertForbidden();
+});
+
+it('enforces action-level claim permissions on reimbursement', function (): void {
+    $role = Role::create(['tenant_id' => $this->tenant->id, 'code' => 'rmb-viewer', 'name' => 'RMB Viewer', 'is_system' => false]);
+    $role->permissions()->syncWithoutDetaching(Permission::where('code', 'claim.view')->pluck('id'));
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $user->roles()->sync([$role->id]);
+
+    $rmb = makeReimbursement($this->tenant->id);
+
+    // view-only: can list, cannot create or approve.
+    actingAs($user)->get(route('avana.reimbursement'))->assertOk();
+    actingAs($user)->get(route('avana.reimbursement.create'))->assertForbidden();
+    actingAs($user)->post(route('avana.reimbursement.approve', $rmb))->assertForbidden();
+
+    // grant create: store now allowed.
+    $role->permissions()->syncWithoutDetaching(Permission::where('code', 'claim.create')->pluck('id'));
+
+    actingAs($user->fresh())->get(route('avana.reimbursement.create'))->assertOk();
 });

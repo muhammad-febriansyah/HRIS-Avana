@@ -18,9 +18,9 @@ class LearningController extends Controller
     /**
      * Roles that may always manage learning within their tenant.
      *
-     * @var array<int, string>
+     * The permission module that gates this controller's action-level checks.
      */
-    private const PRIVILEGED_ROLES = ['super_admin', 'admin_tenant_hr'];
+    private const MODULE = 'learning';
 
     /**
      * Allowed training type enum values.
@@ -48,7 +48,7 @@ class LearningController extends Controller
      */
     public function index(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -83,7 +83,7 @@ class LearningController extends Controller
      */
     public function create(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         return Inertia::render('avana/pembelajaran/create');
     }
@@ -93,7 +93,7 @@ class LearningController extends Controller
      */
     public function edit(Request $request, Training $training): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $training);
 
         return Inertia::render('avana/pembelajaran/edit', [
@@ -118,7 +118,7 @@ class LearningController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -138,7 +138,7 @@ class LearningController extends Controller
      */
     public function update(Request $request, Training $training): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $training);
 
         $data = $this->validateTraining($request);
@@ -154,7 +154,7 @@ class LearningController extends Controller
      */
     public function destroy(Request $request, Training $training): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
         $this->ensureTenantOwnership($request, $training);
 
         $training->delete();
@@ -167,7 +167,7 @@ class LearningController extends Controller
      */
     public function enroll(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -201,7 +201,7 @@ class LearningController extends Controller
      */
     public function updateEnrollment(Request $request, TrainingEnrollment $enrollment): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $enrollment);
 
         $data = $request->validate([
@@ -337,20 +337,15 @@ class LearningController extends Controller
     /**
      * Abort with 403 unless the user is privileged or holds an employee permission.
      */
-    private function ensureCanManage(Request $request): void
+    private function ensureCan(Request $request, string $action): void
     {
         /** @var User $user */
         $user = $request->user();
-        $user->loadMissing('roles.permissions');
 
-        $isPrivileged = $user->roles->whereIn('code', self::PRIVILEGED_ROLES)->isNotEmpty();
+        if ($user->isSuperAdmin()) {
+            return;
+        }
 
-        $hasEmployeePermission = $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains(fn (string $code): bool => str_starts_with($code, 'employee.'));
-
-        abort_unless($isPrivileged || $hasEmployeePermission, 403);
+        abort_unless($user->hasPermissionTo(self::MODULE.'.'.$action), 403);
     }
 }

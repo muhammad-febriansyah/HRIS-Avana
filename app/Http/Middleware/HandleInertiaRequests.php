@@ -6,6 +6,7 @@ use App\Models\Notification;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WebsiteSetting;
+use App\Support\Access;
 use App\Support\AvanaNav;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -53,6 +54,12 @@ class HandleInertiaRequests extends Middleware
                 'roles' => fn () => $user?->roles()->pluck('code')->all() ?? [],
                 'isSuperAdmin' => fn () => (bool) $user?->roles()->where('code', 'super_admin')->exists(),
                 'tenant' => fn () => $user?->tenant?->only('id', 'name', 'company_name'),
+                // Effective {module}.{action} codes for action-level UI gating
+                // (usePermission). A super admin resolves to every code; null
+                // when enforcement is disabled so the UI gates nothing.
+                'permissions' => fn (): ?array => Access::enforced()
+                    ? ($user?->permissionCodes()->all() ?? [])
+                    : null,
             ],
             'nav' => fn () => AvanaNav::forUser($user, $this->isPlatformScope($request, $user)),
             'notifications' => fn (): array => $this->notifications($user),

@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import JournalController from '@/actions/App/Http/Controllers/Avana/JournalController';
+import { usePermission } from '@/hooks/use-permission';
 import { ActionBtn, AIcon, btnP, C, card, rp, thCell } from '@/lib/avana';
 import type { FlashProps } from '../employees/types';
 
@@ -73,6 +74,7 @@ export default function JurnalIndex({
 }: JurnalIndexProps) {
     const { flash } = usePage<FlashProps & { flash?: { error?: string } }>()
         .props;
+    const { can } = usePermission();
     const [confirm, setConfirm] = useState<JournalEntryRow | null>(null);
     const [generating, setGenerating] = useState(false);
 
@@ -194,22 +196,26 @@ export default function JurnalIndex({
                             Jurnal umum hasil ekspor dari payroll.
                         </div>
                     </div>
-                    <button
-                        onClick={generate}
-                        disabled={!latestRun || generating}
-                        title={latestRun ? undefined : 'Belum ada payroll run'}
-                        style={{
-                            ...btnP,
-                            opacity: !latestRun || generating ? 0.6 : 1,
-                            cursor:
-                                !latestRun || generating
-                                    ? 'not-allowed'
-                                    : 'pointer',
-                        }}
-                    >
-                        <AIcon name="sparkles" size={16} color="#fff" />
-                        Generate dari Payroll
-                    </button>
+                    {can('journal.create') && (
+                        <button
+                            onClick={generate}
+                            disabled={!latestRun || generating}
+                            title={
+                                latestRun ? undefined : 'Belum ada payroll run'
+                            }
+                            style={{
+                                ...btnP,
+                                opacity: !latestRun || generating ? 0.6 : 1,
+                                cursor:
+                                    !latestRun || generating
+                                        ? 'not-allowed'
+                                        : 'pointer',
+                            }}
+                        >
+                            <AIcon name="sparkles" size={16} color="#fff" />
+                            Generate dari Payroll
+                        </button>
+                    )}
                 </div>
 
                 {/* KPI cards */}

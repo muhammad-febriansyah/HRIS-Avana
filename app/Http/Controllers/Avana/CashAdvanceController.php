@@ -25,11 +25,10 @@ use Inertia\Response;
 class CashAdvanceController extends Controller
 {
     /**
-     * Roles that may always manage cash advances within their tenant.
-     *
-     * @var array<int, string>
+     * The permission module that gates this controller's action-level checks.
+     * Cash advances live under the payroll module, mirroring the prior guard.
      */
-    private const PRIVILEGED_ROLES = ['super_admin', 'admin_tenant_hr'];
+    private const MODULE = 'payroll';
 
     /**
      * Indonesian labels for the status enum.
@@ -69,7 +68,7 @@ class CashAdvanceController extends Controller
      */
     public function index(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -132,7 +131,7 @@ class CashAdvanceController extends Controller
      */
     public function show(Request $request, CashAdvance $cashAdvance): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
         $this->ensureTenantOwnership($request, $cashAdvance);
 
         $cashAdvance->load([
@@ -160,7 +159,7 @@ class CashAdvanceController extends Controller
      */
     public function create(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         return Inertia::render('avana/kasbon/create', [
             'employees' => $this->employeeOptions($request->user()->tenant_id),
@@ -172,7 +171,7 @@ class CashAdvanceController extends Controller
      */
     public function edit(Request $request, CashAdvance $cashAdvance): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $cashAdvance);
         $this->ensureEditable($cashAdvance);
 
@@ -195,7 +194,7 @@ class CashAdvanceController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = $request->user()->tenant_id;
         $data = $this->validateAdvance($request, $tenantId);
@@ -220,7 +219,7 @@ class CashAdvanceController extends Controller
      */
     public function update(Request $request, CashAdvance $cashAdvance): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $cashAdvance);
         $this->ensureEditable($cashAdvance);
 
@@ -244,7 +243,7 @@ class CashAdvanceController extends Controller
      */
     public function destroy(Request $request, CashAdvance $cashAdvance): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
         $this->ensureTenantOwnership($request, $cashAdvance);
         $this->ensureEditable($cashAdvance);
 
@@ -258,7 +257,7 @@ class CashAdvanceController extends Controller
      */
     public function approve(Request $request, CashAdvance $cashAdvance): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'approve');
         $this->ensureTenantOwnership($request, $cashAdvance);
         $this->ensureStatusIs($cashAdvance, ['pending'], 'Hanya pengajuan berstatus menunggu yang bisa disetujui');
 
@@ -276,7 +275,7 @@ class CashAdvanceController extends Controller
      */
     public function reject(Request $request, CashAdvance $cashAdvance): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'approve');
         $this->ensureTenantOwnership($request, $cashAdvance);
         $this->ensureStatusIs($cashAdvance, ['pending'], 'Hanya pengajuan berstatus menunggu yang bisa ditolak');
 
@@ -294,7 +293,7 @@ class CashAdvanceController extends Controller
      */
     public function disburse(Request $request, CashAdvance $cashAdvance): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $cashAdvance);
         $this->ensureStatusIs($cashAdvance, ['approved'], 'Hanya uang muka yang sudah disetujui yang bisa dicairkan');
 
@@ -323,7 +322,7 @@ class CashAdvanceController extends Controller
      */
     public function settle(Request $request, CashAdvance $cashAdvance): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $cashAdvance);
         $this->ensureStatusIs($cashAdvance, ['disbursed'], 'Hanya uang muka yang sudah dicairkan yang bisa dipertanggungjawabkan');
 
@@ -558,20 +557,18 @@ class CashAdvanceController extends Controller
     /**
      * Abort with 403 unless the user is privileged or holds a payroll permission.
      */
-    private function ensureCanManage(Request $request): void
+    /**
+     * Authorize an action-level permission on this module (super admin bypasses).
+     */
+    private function ensureCan(Request $request, string $action): void
     {
         /** @var User $user */
         $user = $request->user();
-        $user->loadMissing('roles.permissions');
 
-        $isPrivileged = $user->roles->whereIn('code', self::PRIVILEGED_ROLES)->isNotEmpty();
+        if ($user->isSuperAdmin()) {
+            return;
+        }
 
-        $hasPayrollPermission = $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains(fn (string $code): bool => str_starts_with($code, 'payroll.'));
-
-        abort_unless($isPrivileged || $hasPayrollPermission, 403);
+        abort_unless($user->hasPermissionTo(self::MODULE.'.'.$action), 403);
     }
 }

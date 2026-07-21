@@ -20,11 +20,9 @@ use Inertia\Response;
 class ReimbursementController extends Controller
 {
     /**
-     * Roles that may always manage reimbursements within their tenant.
-     *
-     * @var array<int, string>
+     * The permission module that gates this controller's action-level checks.
      */
-    private const PRIVILEGED_ROLES = ['super_admin', 'admin_tenant_hr'];
+    private const MODULE = 'claim';
 
     /**
      * Indonesian labels for the status enum.
@@ -64,7 +62,7 @@ class ReimbursementController extends Controller
      */
     public function index(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -129,7 +127,7 @@ class ReimbursementController extends Controller
      */
     public function create(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         return Inertia::render('avana/reimbursement/create', [
             'employees' => $this->employeeOptions($request->user()->tenant_id),
@@ -142,7 +140,7 @@ class ReimbursementController extends Controller
      */
     public function edit(Request $request, Reimbursement $reimbursement): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $reimbursement);
         $this->ensureEditable($reimbursement);
 
@@ -169,7 +167,7 @@ class ReimbursementController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = $request->user()->tenant_id;
         $data = $this->validateReimbursement($request, $tenantId);
@@ -201,7 +199,7 @@ class ReimbursementController extends Controller
      */
     public function update(Request $request, Reimbursement $reimbursement): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $reimbursement);
         $this->ensureEditable($reimbursement);
 
@@ -236,7 +234,7 @@ class ReimbursementController extends Controller
      */
     public function destroy(Request $request, Reimbursement $reimbursement): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
         $this->ensureTenantOwnership($request, $reimbursement);
         $this->ensureEditable($reimbursement);
 
@@ -254,7 +252,7 @@ class ReimbursementController extends Controller
      */
     public function approve(Request $request, Reimbursement $reimbursement): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'approve');
         $this->ensureTenantOwnership($request, $reimbursement);
         $this->ensureStatusIs($reimbursement, ['pending'], 'Hanya reimbursement berstatus menunggu yang bisa disetujui');
 
@@ -273,7 +271,7 @@ class ReimbursementController extends Controller
      */
     public function reject(Request $request, Reimbursement $reimbursement): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'approve');
         $this->ensureTenantOwnership($request, $reimbursement);
         $this->ensureStatusIs($reimbursement, ['pending'], 'Hanya reimbursement berstatus menunggu yang bisa ditolak');
 
@@ -296,7 +294,7 @@ class ReimbursementController extends Controller
      */
     public function markPaid(Request $request, Reimbursement $reimbursement): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $reimbursement);
         $this->ensureStatusIs($reimbursement, ['approved'], 'Hanya reimbursement yang sudah disetujui yang bisa dibayar');
         $this->ensureNotSelfApproved($request, $reimbursement);
@@ -546,20 +544,18 @@ class ReimbursementController extends Controller
         abort(403, 'Anda yang menyetujui reimbursement ini. Pembayaran harus dilakukan orang lain.');
     }
 
-    private function ensureCanManage(Request $request): void
+    /**
+     * Authorize an action-level permission on this module (super admin bypasses).
+     */
+    private function ensureCan(Request $request, string $action): void
     {
         /** @var User $user */
         $user = $request->user();
-        $user->loadMissing('roles.permissions');
 
-        $isPrivileged = $user->roles->whereIn('code', self::PRIVILEGED_ROLES)->isNotEmpty();
+        if ($user->isSuperAdmin()) {
+            return;
+        }
 
-        $hasClaimPermission = $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains(fn (string $code): bool => str_starts_with($code, 'claim.'));
-
-        abort_unless($isPrivileged || $hasClaimPermission, 403);
+        abort_unless($user->hasPermissionTo(self::MODULE.'.'.$action), 403);
     }
 }

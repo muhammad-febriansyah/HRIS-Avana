@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import LoanController from '@/actions/App/Http/Controllers/Avana/LoanController';
 import { SearchableSelect } from '@/components/searchable-select';
+import { usePermission } from '@/hooks/use-permission';
 import {
     AIcon,
     ActionBtn,
@@ -187,6 +188,7 @@ export default function PinjamanIndex({
     kpis,
 }: PinjamanIndexProps) {
     const { flash } = usePage<FlashProps>().props;
+    const { can } = usePermission();
     const meta = loans.meta;
 
     const [modalOpen, setModalOpen] = useState(false);
@@ -330,10 +332,12 @@ export default function PinjamanIndex({
                             Ajukan dan kelola persetujuan pinjaman karyawan.
                         </div>
                     </div>
-                    <button onClick={openModal} style={btnP}>
-                        <AIcon name="plus" size={16} color="#fff" />
-                        Ajukan Pinjaman
-                    </button>
+                    {can('loan.create') && (
+                        <button onClick={openModal} style={btnP}>
+                            <AIcon name="plus" size={16} color="#fff" />
+                            Ajukan Pinjaman
+                        </button>
+                    )}
                 </div>
 
                 {/* KPI cards */}

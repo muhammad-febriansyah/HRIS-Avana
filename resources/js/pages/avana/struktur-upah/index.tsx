@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import SalaryStructureController from '@/actions/App/Http/Controllers/Avana/SalaryStructureController';
+import { usePermission } from '@/hooks/use-permission';
 import {
     ActionBtn,
     AIcon,
@@ -42,6 +43,7 @@ export default function SalaryStructureIndex({
     kpis,
 }: SalaryStructureIndexProps) {
     const { flash } = usePage<FlashProps>().props;
+    const { can } = usePermission();
 
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<GradeRow | null>(null);
@@ -117,10 +119,12 @@ export default function SalaryStructureIndex({
                     title="Struktur & Skala Upah"
                     subtitle="Kelola grade dan rentang gaji per level jabatan."
                     actions={
-                        <button onClick={openCreate} style={btnP}>
-                            <AIcon name="plus" size={16} color="#fff" />
-                            Tambah Grade
-                        </button>
+                        can('salary_structure.create') ? (
+                            <button onClick={openCreate} style={btnP}>
+                                <AIcon name="plus" size={16} color="#fff" />
+                                Tambah Grade
+                            </button>
+                        ) : null
                     }
                 />
 

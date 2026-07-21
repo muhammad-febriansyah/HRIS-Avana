@@ -22,13 +22,6 @@ use Inertia\Response;
 class AssetController extends Controller
 {
     /**
-     * Roles that may always manage assets within their tenant.
-     *
-     * @var array<int, string>
-     */
-    private const PRIVILEGED_ROLES = ['super_admin', 'admin_tenant_hr'];
-
-    /**
      * Allowed asset condition enum values.
      *
      * @var array<int, string>
@@ -54,7 +47,7 @@ class AssetController extends Controller
      */
     public function index(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -105,7 +98,7 @@ class AssetController extends Controller
      */
     public function create(Request $request): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         return Inertia::render('avana/aset/create', [
             'categories' => $this->categoryOptions($request->user()->tenant_id),
@@ -119,7 +112,7 @@ class AssetController extends Controller
      */
     public function edit(Request $request, Asset $asset): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $asset);
 
         return Inertia::render('avana/aset/edit', [
@@ -147,7 +140,7 @@ class AssetController extends Controller
      */
     public function show(Request $request, Asset $asset): Response
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
         $this->ensureTenantOwnership($request, $asset);
 
         $asset->load(['assignments.employee:id,full_name,employee_number']);
@@ -188,7 +181,7 @@ class AssetController extends Controller
      */
     public function qr(Request $request, Asset $asset): HttpResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'view');
         $this->ensureTenantOwnership($request, $asset);
 
         $renderer = new ImageRenderer(
@@ -209,7 +202,7 @@ class AssetController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'create');
 
         $tenantId = $request->user()->tenant_id;
 
@@ -229,7 +222,7 @@ class AssetController extends Controller
      */
     public function update(Request $request, Asset $asset): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $asset);
 
         $data = $this->validateAsset($request, $request->user()->tenant_id, $asset->id);
@@ -245,7 +238,7 @@ class AssetController extends Controller
      */
     public function destroy(Request $request, Asset $asset): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'archive');
         $this->ensureTenantOwnership($request, $asset);
 
         $asset->delete();
@@ -258,7 +251,7 @@ class AssetController extends Controller
      */
     public function assign(Request $request, Asset $asset): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $asset);
 
         $tenantId = $request->user()->tenant_id;
@@ -292,7 +285,7 @@ class AssetController extends Controller
      */
     public function returnAsset(Request $request, AssetAssignment $assignment): RedirectResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $assignment);
 
         $data = $request->validate([
@@ -480,20 +473,20 @@ class AssetController extends Controller
     /**
      * Abort with 403 unless the user is privileged or holds an employee permission.
      */
-    private function ensureCanManage(Request $request): void
+    /**
+     * Authorize an action-level asset permission (`asset.view`, `asset.create`,
+     * ...). A super admin always passes. Mirrors the frontend usePermission()
+     * gating so a hidden button is also refused on the server.
+     */
+    private function ensureCan(Request $request, string $action): void
     {
         /** @var User $user */
         $user = $request->user();
-        $user->loadMissing('roles.permissions');
 
-        $isPrivileged = $user->roles->whereIn('code', self::PRIVILEGED_ROLES)->isNotEmpty();
+        if ($user->isSuperAdmin()) {
+            return;
+        }
 
-        $hasEmployeePermission = $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains(fn (string $code): bool => str_starts_with($code, 'employee.'));
-
-        abort_unless($isPrivileged || $hasEmployeePermission, 403);
+        abort_unless($user->hasPermissionTo('asset.'.$action), 403);
     }
 }
