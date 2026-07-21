@@ -10,6 +10,13 @@ final class ApprovalStep extends Model
 {
     protected $guarded = [];
 
+    protected function casts(): array
+    {
+        return [
+            'condition' => 'array',
+        ];
+    }
+
     public function scopeForTenant(Builder $query, int|string $tenantId): Builder
     {
         return $query->where('tenant_id', $tenantId);
@@ -28,5 +35,20 @@ final class ApprovalStep extends Model
     public function approverUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approver_user_id');
+    }
+
+    public function approverRole(): BelongsTo
+    {
+        return $this->belongsTo(Role::class, 'approver_role_id');
+    }
+
+    public function approverDepartment(): BelongsTo
+    {
+        return $this->belongsTo(Department::class, 'approver_department_id');
+    }
+
+    public function approverPosition(): BelongsTo
+    {
+        return $this->belongsTo(Position::class, 'approver_position_id');
     }
 }

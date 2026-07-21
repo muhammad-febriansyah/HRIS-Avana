@@ -150,6 +150,7 @@ final class AvanaNav
                 // feature catalog CRUD, and the sidebar Menu Builder (as tabs) —
                 // so the old Menu Builder / Menu & Fitur leaves are retired.
                 self::leaf('hak-akses', 'Hak Akses', 'shield-check', '/avana/hak-akses', null, self::MANAGE_MODULES, true),
+                self::leaf('approval-workflow', 'Alur Persetujuan', 'git-branch', '/avana/approval-workflow', null, self::MANAGE_MODULES, true),
                 self::leaf('email-settings', 'Pengaturan Email', 'mail', '/avana/email-settings', null, self::MANAGE_MODULES, true),
                 self::leaf('audit', 'Audit Trail', 'history', '/avana/audit', null, ['audit']),
             ]],

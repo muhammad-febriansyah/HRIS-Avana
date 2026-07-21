@@ -7,6 +7,7 @@ use App\Http\Controllers\Avana\AnalyticsController;
 use App\Http\Controllers\Avana\AnnouncementController;
 use App\Http\Controllers\Avana\ApprovalController;
 use App\Http\Controllers\Avana\ApprovalDelegationController;
+use App\Http\Controllers\Avana\ApprovalWorkflowController;
 use App\Http\Controllers\Avana\AssetController;
 use App\Http\Controllers\Avana\AttendanceController;
 use App\Http\Controllers\Avana\AttendancePenaltyController;
@@ -616,6 +617,13 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('delegasi', [ApprovalDelegationController::class, 'store'])->name('delegasi.store');
     Route::post('delegasi/{delegation}/toggle', [ApprovalDelegationController::class, 'toggle'])->name('delegasi.toggle');
     Route::delete('delegasi/{delegation}', [ApprovalDelegationController::class, 'destroy'])->name('delegasi.destroy');
+
+    // Setup Alur Persetujuan (approval workflow builder)
+    Route::get('approval-workflow', [ApprovalWorkflowController::class, 'index'])->name('approval-workflow');
+    Route::post('approval-workflow', [ApprovalWorkflowController::class, 'store'])->name('approval-workflow.store');
+    Route::put('approval-workflow/{workflow}', [ApprovalWorkflowController::class, 'update'])->name('approval-workflow.update');
+    Route::post('approval-workflow/{workflow}/toggle', [ApprovalWorkflowController::class, 'toggle'])->name('approval-workflow.toggle');
+    Route::delete('approval-workflow/{workflow}', [ApprovalWorkflowController::class, 'destroy'])->name('approval-workflow.destroy');
 
     // Jurnal Akuntansi (GL export from payroll)
     Route::get('jurnal', [JournalController::class, 'index'])->name('jurnal');
