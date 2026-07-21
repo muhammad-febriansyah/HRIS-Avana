@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
+use App\Models\BpjsProgram;
 use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\JobLevel;
@@ -74,6 +75,8 @@ class PayrollKomponenController extends Controller
                 'code' => $c->code,
                 'name' => $c->name,
                 'group' => $c->component_group ?? ($c->type === 'deduction' ? 'potongan' : 'penerimaan'),
+                'category' => ($c->component_group ?? ($c->type === 'deduction' ? 'potongan' : 'penerimaan')) === 'potongan' ? 'potongan' : 'pendapatan',
+                'calc_type' => $this->calcType($c),
                 'is_taxable' => (bool) $c->is_taxable,
                 'show_on_slip' => $c->show_on_slip ?? true,
                 'calc_basis' => $c->calc_basis ?? 'fixed',
@@ -118,9 +121,34 @@ class PayrollKomponenController extends Controller
                 ])->all(),
             ]);
 
+        $taxBpjs = BpjsProgram::orderBy('name')->get(['id', 'code', 'name', 'type', 'is_active'])
+            ->map(fn (BpjsProgram $p): array => [
+                'id' => $p->id,
+                'code' => $p->code,
+                'name' => $p->name,
+                'category' => 'bpjs',
+                'is_active' => (bool) $p->is_active,
+            ])
+            ->prepend([
+                'id' => 0,
+                'code' => 'PPH21',
+                'name' => 'PPh 21 (TER / Pasal 17)',
+                'category' => 'pajak',
+                'is_active' => true,
+            ])
+            ->values();
+
         return Inertia::render('avana/payroll-komponen/index', [
             'components' => $components,
             'formulas' => $formulas,
+            'taxBpjs' => $taxBpjs,
+            'kpis' => [
+                'pendapatan' => $components->where('category', 'pendapatan')->count(),
+                'pendapatan_active' => $components->where('category', 'pendapatan')->where('status', 'active')->count(),
+                'potongan' => $components->where('category', 'potongan')->count(),
+                'potongan_active' => $components->where('category', 'potongan')->where('status', 'active')->count(),
+                'pajak_bpjs' => $taxBpjs->count(),
+            ],
             'componentOptions' => PayrollComponent::forTenant($tenantId)
                 ->orderBy('name')
                 ->get(['id', 'name'])
@@ -194,6 +222,39 @@ class PayrollKomponenController extends Controller
         $component->delete();
 
         return back()->with('success', 'Komponen dihapus');
+    }
+
+    /**
+     * Toggle a component active/inactive. Inactive components are skipped by the
+     * payroll engine (which only loads status = active).
+     */
+    public function toggleComponent(Request $request, PayrollComponent $component): RedirectResponse
+    {
+        $this->ensureCan($request, 'update');
+        $this->ensureOwnership($request, $component->tenant_id);
+
+        $active = $component->status === 'active';
+        $component->update(['status' => $active ? 'inactive' : 'active']);
+
+        return back()->with('success', $active ? 'Komponen dinonaktifkan' : 'Komponen diaktifkan');
+    }
+
+    /**
+     * Derive the "Tipe Perhitungan" shown on the component list from the stored
+     * basis: Rumus (formula) > Persentase > Per Hari > Jumlah Tetap.
+     */
+    private function calcType(PayrollComponent $c): string
+    {
+        if ($c->payroll_formula_id !== null || $c->basis_type === 'formula') {
+            return 'rumus';
+        }
+
+        return match ($c->calc_basis) {
+            'percentage' => 'persentase',
+            'per_present_day' => 'per_hari',
+            'per_overtime_hour' => 'per_jam',
+            default => 'jumlah_tetap',
+        };
     }
 
     /**

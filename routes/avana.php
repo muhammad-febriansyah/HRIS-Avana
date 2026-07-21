@@ -197,6 +197,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('payroll/komponen/component', [PayrollKomponenController::class, 'storeComponent'])->name('payroll.komponen.component.store');
     Route::put('payroll/komponen/component/{component}', [PayrollKomponenController::class, 'updateComponent'])->name('payroll.komponen.component.update');
     Route::delete('payroll/komponen/component/{component}', [PayrollKomponenController::class, 'destroyComponent'])->name('payroll.komponen.component.destroy');
+    Route::post('payroll/komponen/component/{component}/toggle', [PayrollKomponenController::class, 'toggleComponent'])->name('payroll.komponen.component.toggle');
     Route::post('payroll/komponen/component/{component}/nilai', [PayrollKomponenController::class, 'storeComponentValue'])->name('payroll.komponen.nilai.store');
     Route::delete('payroll/komponen/nilai/{value}', [PayrollKomponenController::class, 'destroyComponentValue'])->name('payroll.komponen.nilai.destroy');
     Route::post('payroll/komponen/formula', [PayrollKomponenController::class, 'storeFormula'])->name('payroll.komponen.formula.store');

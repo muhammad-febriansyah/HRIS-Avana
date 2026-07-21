@@ -1,463 +1,893 @@
-import { Head, router, useForm } from '@inertiajs/react';
-import { useState } from 'react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
+import type { CSSProperties } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import PayrollKomponenController from '@/actions/App/Http/Controllers/Avana/PayrollKomponenController';
-import { AIcon, ActionBtn, C, card } from '@/lib/avana';
-
-interface ComponentValue {
-    id: number;
-    kategori: string | null;
-    employment_status: string | null;
-    position: string | null;
-    job_level: string | null;
-    branch: string | null;
-    value: number;
-    note: string | null;
-}
-
-interface Component {
-    id: number;
-    code: string | null;
-    name: string;
-    group: string;
-    is_taxable: boolean;
-    show_on_slip: boolean;
-    calc_basis: string;
-    period_basis: string | null;
-    formula: string | null;
-    basis_type: string | null;
-    basis_value: number | null;
-    basis_min: number | null;
-    basis_max: number | null;
-    basis_cut_off_day: number | null;
-    payroll_formula_id: number | null;
-    values: ComponentValue[];
-    status: string;
-}
-
-interface Option {
-    id: number;
-    name: string;
-}
-
-interface MappingOptions {
-    positions: Option[];
-    jobLevels: Option[];
-    branches: Option[];
-    kategori: string[];
-    statuses: string[];
-}
-
-interface FormulaItem {
-    id: number;
-    tipe: string;
-    component: string | null;
-    component_id: number | null;
-    operator: string;
-    nilai: number;
-    prorate: boolean;
-}
-
-interface Formula {
-    id: number;
-    name: string;
-    note: string | null;
-    is_active: boolean;
-    items: FormulaItem[];
-}
+import { AIcon, ActionBtn, btnOut, btnP, C, card, rp } from '@/lib/avana';
+import FormulaTab from './formula-tab';
+import type {
+    CalcType,
+    Category,
+    Component,
+    Formula,
+    Kpis,
+    Option,
+    TaxBpjsRow,
+} from './types';
 
 interface Props {
     components: Component[];
     formulas: Formula[];
-    componentOptions: { id: number; name: string }[];
+    taxBpjs: TaxBpjsRow[];
+    kpis: Kpis;
+    componentOptions: Option[];
     formulaOptions: Option[];
-    mappingOptions: MappingOptions;
 }
 
-const BASIS_LABEL: Record<string, string> = {
-    fixed: 'Tetap',
-    percentage: 'Persentase',
-    per_present_day: 'Per Hari Hadir',
-    per_overtime_hour: 'Per Jam Lembur',
+interface FlashProps {
+    flash?: { success?: string };
+    [key: string]: unknown;
+}
+
+const CALC_LABEL: Record<CalcType, { label: string; icon: string }> = {
+    jumlah_tetap: { label: 'Jumlah Tetap', icon: 'calendar' },
+    per_hari: { label: 'Per Hari', icon: 'calendar-days' },
+    per_jam: { label: 'Per Jam', icon: 'clock' },
+    persentase: { label: 'Persentase', icon: 'percent' },
+    rumus: { label: 'Rumus', icon: 'function-square' },
 };
 
-const DASAR_LABEL: Record<string, string> = {
-    '': 'Bawaan (posisi/kehadiran)',
-    fixed: 'Fixed (nilai tetap)',
-    tabel: 'Tabel (nilai komponen)',
-    formula: 'Formula (kombinasi)',
+const CAT_STYLE: Record<Category, { c: string; bg: string; label: string }> = {
+    pendapatan: { c: '#15803D', bg: '#DCFCE7', label: 'Pendapatan' },
+    potongan: { c: '#B91C1C', bg: '#FEE2E2', label: 'Potongan' },
+    pajak: { c: '#1D4ED8', bg: '#DBEAFE', label: 'Pajak' },
+    bpjs: { c: '#7C3AED', bg: '#EDE9FE', label: 'BPJS' },
 };
 
-const rupiah = (n: number) => 'Rp ' + n.toLocaleString('id-ID');
+const cell: CSSProperties = {
+    fontSize: 13,
+    color: C.text,
+    padding: '12px 16px',
+};
+const cellName: CSSProperties = { ...cell };
 
-const input: React.CSSProperties = {
-    padding: '9px 11px',
+const input: CSSProperties = {
+    width: '100%',
+    padding: '10px 12px',
     borderRadius: 8,
     border: `1px solid ${C.line}`,
-    fontSize: 13.5,
+    fontSize: 14,
     outline: 'none',
     color: C.text,
-    width: '100%',
+    background: '#fff',
 };
-const th: React.CSSProperties = {
-    textAlign: 'left',
-    fontSize: 12,
-    fontWeight: 600,
-    color: C.muted,
-    padding: '12px 14px',
-    borderBottom: `1px solid ${C.line}`,
-};
-const td: React.CSSProperties = {
-    fontSize: 13.5,
-    color: C.text,
-    padding: '12px 14px',
-    borderBottom: `1px solid ${C.line}`,
-};
-const primaryBtn: React.CSSProperties = {
-    padding: '9px 16px',
-    borderRadius: 8,
-    border: 'none',
-    background: C.primary,
-    color: '#fff',
+const label: CSSProperties = {
     fontSize: 13,
     fontWeight: 600,
-    cursor: 'pointer',
+    color: C.text,
+    display: 'block',
+    marginBottom: 6,
 };
 
-function Pill({ on, label }: { on: boolean; label: string }) {
-    return (
-        <span
-            style={{
-                fontSize: 11.5,
-                fontWeight: 700,
-                padding: '3px 9px',
-                borderRadius: 6,
-                color: on ? '#15803D' : C.muted,
-                background: on ? '#DCFCE7' : C.line,
-            }}
-        >
-            {label}
-        </span>
-    );
+interface CForm {
+    id: number | null;
+    code: string;
+    name: string;
+    group: string;
+    tipe: CalcType;
+    basis_value: string;
+    payroll_formula_id: string;
+    is_taxable: boolean;
+    show_on_slip: boolean;
+    [key: string]: string | number | boolean | null;
 }
+
+const emptyForm: CForm = {
+    id: null,
+    code: '',
+    name: '',
+    group: 'penerimaan',
+    tipe: 'jumlah_tetap',
+    basis_value: '',
+    payroll_formula_id: '',
+    is_taxable: true,
+    show_on_slip: true,
+};
 
 export default function PayrollKomponen({
     components,
     formulas,
+    taxBpjs,
+    kpis,
     componentOptions,
     formulaOptions,
-    mappingOptions,
 }: Props) {
-    const [tab, setTab] = useState<'komponen' | 'nilai' | 'formula'>(
-        'komponen',
+    const { flash } = usePage<FlashProps>().props;
+    const [tab, setTab] = useState<'komponen' | 'rumus' | 'pajak'>('komponen');
+    const [cat, setCat] = useState<'semua' | Category>('semua');
+    const [search, setSearch] = useState('');
+    const [selected, setSelected] = useState<number | null>(null);
+    const [modal, setModal] = useState(false);
+
+    const form = useForm<CForm>({ ...emptyForm });
+
+    useEffect(() => {
+        if (flash?.success) {
+            toast.success(flash.success, { id: flash.success });
+        }
+    }, [flash?.success]);
+
+    const counts = useMemo(
+        () => ({
+            semua: components.length,
+            pendapatan: components.filter((c) => c.category === 'pendapatan')
+                .length,
+            potongan: components.filter((c) => c.category === 'potongan')
+                .length,
+            pajak: taxBpjs.filter((t) => t.category === 'pajak').length,
+            bpjs: taxBpjs.filter((t) => t.category === 'bpjs').length,
+        }),
+        [components, taxBpjs],
+    );
+
+    const showingTax = cat === 'pajak' || cat === 'bpjs';
+
+    const rows = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        return components
+            .filter((c) => cat === 'semua' || c.category === cat)
+            .filter(
+                (c) =>
+                    !q ||
+                    c.name.toLowerCase().includes(q) ||
+                    (c.code ?? '').toLowerCase().includes(q),
+            );
+    }, [components, cat, search]);
+
+    const taxRows = useMemo(
+        () => taxBpjs.filter((t) => cat === 'semua' || t.category === cat),
+        [taxBpjs, cat],
+    );
+
+    const detail = components.find((c) => c.id === selected) ?? null;
+
+    const openCreate = () => {
+        form.setData({ ...emptyForm });
+        form.clearErrors();
+        setModal(true);
+    };
+    const openEdit = (c: Component) => {
+        form.setData({
+            id: c.id,
+            code: c.code ?? '',
+            name: c.name,
+            group: c.group,
+            tipe: c.calc_type,
+            basis_value: c.basis_value != null ? String(c.basis_value) : '',
+            payroll_formula_id: c.payroll_formula_id
+                ? String(c.payroll_formula_id)
+                : '',
+            is_taxable: c.is_taxable,
+            show_on_slip: c.show_on_slip,
+        });
+        form.clearErrors();
+        setModal(true);
+    };
+
+    const submit = () => {
+        const tipe = form.data.tipe;
+        const calc_basis =
+            tipe === 'persentase'
+                ? 'percentage'
+                : tipe === 'per_hari'
+                  ? 'per_present_day'
+                  : tipe === 'per_jam'
+                    ? 'per_overtime_hour'
+                    : 'fixed';
+        const payload = {
+            code: form.data.code,
+            name: form.data.name,
+            group: form.data.group,
+            calc_basis,
+            basis_type: tipe === 'rumus' ? 'formula' : 'fixed',
+            basis_value: form.data.basis_value,
+            payroll_formula_id:
+                tipe === 'rumus' ? form.data.payroll_formula_id : '',
+            is_taxable: form.data.is_taxable,
+            show_on_slip: form.data.show_on_slip,
+        };
+        const opts = {
+            preserveScroll: true,
+            onSuccess: () => setModal(false),
+            onError: () => toast.error('Periksa kembali isian'),
+        };
+        if (form.data.id) {
+            router.put(
+                `/avana/payroll/komponen/component/${form.data.id}`,
+                payload,
+                opts,
+            );
+        } else {
+            router.post('/avana/payroll/komponen/component', payload, opts);
+        }
+    };
+
+    const toggle = (c: Component) =>
+        router.post(
+            `/avana/payroll/komponen/component/${c.id}/toggle`,
+            {},
+            { preserveScroll: true },
+        );
+    const remove = (c: Component) =>
+        router.delete(`/avana/payroll/komponen/component/${c.id}`, {
+            preserveScroll: true,
+        });
+
+    const catItem = (key: 'semua' | Category, name: string, dot?: string) => (
+        <button
+            key={key}
+            onClick={() => setCat(key)}
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: 9,
+                border: 'none',
+                background: cat === key ? 'rgba(47,84,201,.08)' : 'transparent',
+                color: cat === key ? C.primary : C.text,
+                fontWeight: cat === key ? 600 : 500,
+                fontSize: 13.5,
+                cursor: 'pointer',
+                textAlign: 'left',
+            }}
+        >
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {dot ? (
+                    <span
+                        style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 100,
+                            background: dot,
+                        }}
+                    />
+                ) : (
+                    <AIcon
+                        name="layers"
+                        size={15}
+                        color={cat === key ? C.primary : C.faint}
+                    />
+                )}
+                {name}
+            </span>
+            <span style={{ fontSize: 12, color: C.faint }}>
+                {counts[key as keyof typeof counts]}
+            </span>
+        </button>
     );
 
     return (
         <>
-            <Head title="Master Komponen" />
+            <Head title="Pengaturan Komponen Payroll" />
             <div style={{ padding: '28px 32px' }}>
-                <div style={{ marginBottom: 20 }}>
-                    <div
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 7,
-                            fontSize: 12.5,
-                            color: C.faint,
-                            marginBottom: 7,
-                        }}
-                    >
-                        <span>Payroll</span>
-                        <AIcon name="chevron-right" size={13} />
-                        <span style={{ color: C.muted }}>Master Komponen</span>
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: 16,
+                        marginBottom: 20,
+                    }}
+                >
+                    <div>
+                        <div
+                            style={{
+                                fontSize: 12.5,
+                                color: C.faint,
+                                marginBottom: 7,
+                            }}
+                        >
+                            Payroll · Komponen
+                        </div>
+                        <h1
+                            style={{
+                                fontSize: 24,
+                                fontWeight: 600,
+                                color: C.navy,
+                                margin: 0,
+                            }}
+                        >
+                            Pengaturan Komponen Payroll
+                        </h1>
+                        <div
+                            style={{
+                                fontSize: 14,
+                                color: C.muted,
+                                marginTop: 4,
+                            }}
+                        >
+                            Kelola komponen pendapatan, potongan, dan pengaturan
+                            perhitungan payroll perusahaan Anda.
+                        </div>
                     </div>
-                    <h1
-                        style={{
-                            fontSize: 24,
-                            fontWeight: 600,
-                            color: C.navy,
-                            margin: 0,
-                        }}
-                    >
-                        Master Komponen &amp; Formula
-                    </h1>
-                    <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
-                        Kelola komponen penerimaan/potongan &amp; kombinasi
-                        formula perhitungan gaji.
-                    </div>
+                    {tab === 'komponen' && !showingTax && (
+                        <button style={btnP} onClick={openCreate}>
+                            <AIcon name="plus" size={16} color="#fff" />
+                            Tambah Komponen
+                        </button>
+                    )}
                 </div>
 
-                <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+                <div
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns:
+                            'repeat(auto-fit, minmax(240px,1fr))',
+                        gap: 16,
+                        marginBottom: 20,
+                    }}
+                >
+                    <Kpi
+                        icon="wallet"
+                        color={C.green}
+                        title="Total Pendapatan"
+                        value={kpis.pendapatan}
+                        active={kpis.pendapatan_active}
+                        hint="Komponen yang menambah penghasilan karyawan"
+                    />
+                    <Kpi
+                        icon="arrow-down"
+                        color={C.red}
+                        title="Total Potongan"
+                        value={kpis.potongan}
+                        active={kpis.potongan_active}
+                        hint="Komponen yang mengurangi penghasilan karyawan"
+                    />
+                    <Kpi
+                        icon="percent"
+                        color={C.primary}
+                        title="Pajak & BPJS"
+                        value={kpis.pajak_bpjs}
+                        hint="Komponen pajak dan iuran wajib"
+                    />
+                </div>
+
+                <div
+                    style={{
+                        display: 'flex',
+                        gap: 4,
+                        borderBottom: `1px solid ${C.border}`,
+                        marginBottom: 18,
+                    }}
+                >
                     {(
                         [
-                            ['komponen', 'Master Komponen'],
-                            ['nilai', 'Nilai Komponen'],
-                            ['formula', 'Master Formula'],
+                            ['komponen', 'Komponen'],
+                            ['rumus', 'Rumus Perhitungan'],
+                            ['pajak', 'Kategori Pajak & BPJS'],
                         ] as const
-                    ).map(([key, label]) => (
+                    ).map(([key, lbl]) => (
                         <button
                             key={key}
-                            onClick={() => setTab(key)}
+                            onClick={() => {
+                                setTab(key);
+                                if (key === 'pajak') {
+                                    setCat('pajak');
+                                } else if (key === 'komponen') {
+                                    setCat('semua');
+                                }
+                            }}
                             style={{
-                                padding: '9px 15px',
-                                borderRadius: 8,
-                                border: `1px solid ${tab === key ? C.primary : C.line}`,
-                                background:
-                                    tab === key ? C.primary + '10' : '#fff',
-                                color: tab === key ? C.primary : C.muted,
+                                padding: '11px 14px',
+                                background: 'none',
+                                border: 'none',
+                                borderBottom: `2px solid ${tab === key ? C.primary : 'transparent'}`,
+                                marginBottom: -1,
                                 fontSize: 13.5,
-                                fontWeight: 600,
+                                fontWeight: tab === key ? 600 : 500,
+                                color: tab === key ? C.primary : C.muted,
                                 cursor: 'pointer',
                             }}
                         >
-                            {label}
+                            {lbl}
                         </button>
                     ))}
                 </div>
 
-                {tab === 'komponen' && (
-                    <KomponenTab
-                        components={components}
-                        formulaOptions={formulaOptions}
-                    />
-                )}
-                {tab === 'nilai' && (
-                    <NilaiKomponenTab
-                        components={components}
-                        mappingOptions={mappingOptions}
-                    />
-                )}
-                {tab === 'formula' && (
+                {tab === 'rumus' && (
                     <FormulaTab
                         formulas={formulas}
                         componentOptions={componentOptions}
                     />
                 )}
-            </div>
-        </>
-    );
-}
 
-function KomponenTab({
-    components,
-    formulaOptions,
-}: {
-    components: Component[];
-    formulaOptions: Option[];
-}) {
-    const form = useForm({
-        code: '',
-        name: '',
-        group: 'penerimaan',
-        calc_basis: 'fixed',
-        period_basis: '',
-        is_taxable: true,
-        show_on_slip: true,
-        basis_type: '',
-        basis_value: '',
-        basis_min: '',
-        basis_max: '',
-        basis_cut_off_day: '',
-        payroll_formula_id: '',
-    });
+                {tab === 'pajak' && <TaxBpjsPanel taxBpjs={taxBpjs} />}
 
-    const submit = () => {
-        form.post(PayrollKomponenController.storeComponent().url, {
-            preserveScroll: true,
-            onSuccess: () => {
-                toast.success('Komponen disimpan');
-                form.reset(
-                    'code',
-                    'name',
-                    'basis_value',
-                    'basis_min',
-                    'basis_max',
-                    'basis_cut_off_day',
-                );
-            },
-            onError: () => toast.error('Periksa isian komponen'),
-        });
-    };
-
-    const del = (id: number) =>
-        router.delete(PayrollKomponenController.destroyComponent(id).url, {
-            preserveScroll: true,
-            onSuccess: () => toast.success('Komponen dihapus'),
-        });
-
-    const groups = [
-        ['penerimaan', 'Komponen Penerimaan'],
-        ['potongan', 'Komponen Potongan'],
-    ] as const;
-
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            {/* Add form */}
-            <div style={{ ...card, padding: 18 }}>
-                <div
-                    style={{
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: C.navy,
-                        marginBottom: 14,
-                    }}
-                >
-                    Tambah Komponen
-                </div>
-                <div
-                    style={{
-                        display: 'grid',
-                        gridTemplateColumns: '110px 1.4fr 1fr 1fr 1fr',
-                        gap: 12,
-                        marginBottom: 14,
-                    }}
-                >
-                    <input
-                        style={input}
-                        placeholder="Kode"
-                        value={form.data.code}
-                        onChange={(e) => form.setData('code', e.target.value)}
-                    />
-                    <input
-                        style={input}
-                        placeholder="Nama komponen"
-                        value={form.data.name}
-                        onChange={(e) => form.setData('name', e.target.value)}
-                    />
-                    <select
-                        style={input}
-                        value={form.data.group}
-                        onChange={(e) => form.setData('group', e.target.value)}
-                    >
-                        <option value="penerimaan">Penerimaan</option>
-                        <option value="potongan">Potongan</option>
-                    </select>
-                    <select
-                        style={input}
-                        value={form.data.calc_basis}
-                        onChange={(e) =>
-                            form.setData('calc_basis', e.target.value)
-                        }
-                    >
-                        {Object.entries(BASIS_LABEL).map(([v, l]) => (
-                            <option key={v} value={v}>
-                                {l}
-                            </option>
-                        ))}
-                    </select>
-                    <select
-                        style={input}
-                        value={form.data.period_basis}
-                        onChange={(e) =>
-                            form.setData('period_basis', e.target.value)
-                        }
-                    >
-                        <option value="">Periode —</option>
-                        <option value="berjalan">Berjalan</option>
-                        <option value="bulan_lalu">Bulan Lalu</option>
-                    </select>
-                </div>
-                <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 20,
-                    }}
-                >
-                    <label
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 7,
-                            fontSize: 13,
-                            color: C.text,
-                            cursor: 'pointer',
-                        }}
-                    >
-                        <input
-                            type="checkbox"
-                            checked={form.data.is_taxable}
-                            onChange={(e) =>
-                                form.setData('is_taxable', e.target.checked)
-                            }
-                        />
-                        Perhitungan Pajak (masuk PPh 21)
-                    </label>
-                    <label
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 7,
-                            fontSize: 13,
-                            color: C.text,
-                            cursor: 'pointer',
-                        }}
-                    >
-                        <input
-                            type="checkbox"
-                            checked={form.data.show_on_slip}
-                            onChange={(e) =>
-                                form.setData('show_on_slip', e.target.checked)
-                            }
-                        />
-                        Tampil di Slip Gaji
-                    </label>
-                </div>
-
-                {/* Dasar Perhitungan (BPR manual 1.2.2) */}
-                <div
-                    style={{
-                        marginTop: 16,
-                        paddingTop: 14,
-                        borderTop: `1px solid ${C.line}`,
-                    }}
-                >
-                    <div
-                        style={{
-                            fontSize: 13,
-                            fontWeight: 600,
-                            color: C.navy,
-                            marginBottom: 10,
-                        }}
-                    >
-                        Dasar Perhitungan
-                    </div>
+                {tab === 'komponen' && (
                     <div
                         style={{
                             display: 'grid',
-                            gridTemplateColumns: '1.4fr 1fr 1fr 1fr',
-                            gap: 12,
-                            alignItems: 'end',
+                            gridTemplateColumns: '210px minmax(0,1fr) 260px',
+                            gap: 16,
+                            alignItems: 'start',
                         }}
                     >
-                        <select
-                            style={input}
-                            value={form.data.basis_type}
-                            onChange={(e) =>
-                                form.setData('basis_type', e.target.value)
-                            }
+                        <div style={{ ...card, padding: 12 }}>
+                            <div
+                                style={{
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    color: C.navy,
+                                    padding: '4px 8px 10px',
+                                }}
+                            >
+                                Kategori Komponen
+                            </div>
+                            {catItem('semua', 'Semua Komponen')}
+                            {catItem('pendapatan', 'Pendapatan', '#16A34A')}
+                            {catItem('potongan', 'Potongan', '#DC2626')}
+                            {catItem('pajak', 'Pajak', '#2F54C9')}
+                            {catItem('bpjs', 'BPJS', '#7C3AED')}
+                        </div>
+
+                        <div
+                            style={{ ...card, padding: 0, overflow: 'hidden' }}
                         >
-                            {Object.entries(DASAR_LABEL).map(([v, l]) => (
-                                <option key={v} value={v}>
-                                    {l}
-                                </option>
-                            ))}
-                        </select>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: 12,
+                                    flexWrap: 'wrap',
+                                    padding: '14px 16px',
+                                    borderBottom: `1px solid ${C.line}`,
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        fontSize: 15,
+                                        fontWeight: 600,
+                                        color: C.navy,
+                                    }}
+                                >
+                                    Daftar Komponen
+                                </div>
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 8,
+                                        border: `1px solid ${C.border}`,
+                                        borderRadius: 8,
+                                        padding: '6px 10px',
+                                        minWidth: 200,
+                                    }}
+                                >
+                                    <AIcon
+                                        name="search"
+                                        size={15}
+                                        color={C.faint}
+                                    />
+                                    <input
+                                        value={search}
+                                        onChange={(e) =>
+                                            setSearch(e.target.value)
+                                        }
+                                        placeholder="Cari komponen…"
+                                        style={{
+                                            border: 'none',
+                                            outline: 'none',
+                                            fontSize: 13,
+                                            flex: 1,
+                                            background: 'transparent',
+                                            color: C.text,
+                                        }}
+                                    />
+                                </div>
+                            </div>
 
-                        {form.data.basis_type === 'fixed' && (
-                            <input
-                                style={input}
-                                type="number"
-                                placeholder="Nilai tetap"
-                                value={form.data.basis_value}
-                                onChange={(e) =>
-                                    form.setData('basis_value', e.target.value)
-                                }
-                            />
-                        )}
+                            <div style={{ overflowX: 'auto' }}>
+                                <table
+                                    style={{
+                                        width: '100%',
+                                        borderCollapse: 'collapse',
+                                        minWidth: 640,
+                                    }}
+                                >
+                                    <thead>
+                                        <tr style={{ background: '#FAFBFD' }}>
+                                            {[
+                                                'Nama Komponen',
+                                                'Kategori',
+                                                'Tipe Perhitungan',
+                                                'Status',
+                                                'Aksi',
+                                            ].map((h) => (
+                                                <th
+                                                    key={h}
+                                                    style={{
+                                                        textAlign: 'left',
+                                                        fontSize: 11.5,
+                                                        fontWeight: 600,
+                                                        color: C.faint,
+                                                        padding: '11px 16px',
+                                                        textTransform:
+                                                            'uppercase',
+                                                        letterSpacing: '.03em',
+                                                    }}
+                                                >
+                                                    {h}
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {showingTax
+                                            ? taxRows.map((t) => (
+                                                  <tr
+                                                      key={`tax-${t.id}`}
+                                                      style={{
+                                                          borderTop: `1px solid ${C.line}`,
+                                                      }}
+                                                  >
+                                                      <td style={cellName}>
+                                                          <div
+                                                              style={{
+                                                                  fontWeight: 600,
+                                                                  color: C.navy,
+                                                              }}
+                                                          >
+                                                              {t.name}
+                                                          </div>
+                                                          <div
+                                                              style={{
+                                                                  fontSize: 11.5,
+                                                                  color: C.faint,
+                                                              }}
+                                                          >
+                                                              {t.code}
+                                                          </div>
+                                                      </td>
+                                                      <td style={cell}>
+                                                          <CatBadge
+                                                              category={
+                                                                  t.category
+                                                              }
+                                                          />
+                                                      </td>
+                                                      <td
+                                                          style={{
+                                                              ...cell,
+                                                              color: C.muted,
+                                                          }}
+                                                      >
+                                                          Otomatis (engine)
+                                                      </td>
+                                                      <td style={cell}>
+                                                          <StatusPill
+                                                              active={
+                                                                  t.is_active
+                                                              }
+                                                          />
+                                                      </td>
+                                                      <td style={cell}>
+                                                          <a
+                                                              href="/avana/payroll/konfigurasi"
+                                                              style={{
+                                                                  fontSize: 12,
+                                                                  color: C.primary,
+                                                                  fontWeight: 600,
+                                                                  textDecoration:
+                                                                      'none',
+                                                              }}
+                                                          >
+                                                              Kelola →
+                                                          </a>
+                                                      </td>
+                                                  </tr>
+                                              ))
+                                            : rows.map((c) => {
+                                                  const ct =
+                                                      CALC_LABEL[c.calc_type] ??
+                                                      CALC_LABEL.jumlah_tetap;
+                                                  const active =
+                                                      c.status === 'active';
+                                                  return (
+                                                      <tr
+                                                          key={c.id}
+                                                          onClick={() =>
+                                                              setSelected(c.id)
+                                                          }
+                                                          style={{
+                                                              borderTop: `1px solid ${C.line}`,
+                                                              cursor: 'pointer',
+                                                              background:
+                                                                  selected ===
+                                                                  c.id
+                                                                      ? 'rgba(47,84,201,.04)'
+                                                                      : 'transparent',
+                                                          }}
+                                                      >
+                                                          <td style={cellName}>
+                                                              <div
+                                                                  style={{
+                                                                      fontWeight: 600,
+                                                                      color: C.navy,
+                                                                  }}
+                                                              >
+                                                                  {c.name}
+                                                              </div>
+                                                              <div
+                                                                  style={{
+                                                                      fontSize: 11.5,
+                                                                      color: C.faint,
+                                                                  }}
+                                                              >
+                                                                  {c.code ??
+                                                                      '—'}
+                                                              </div>
+                                                          </td>
+                                                          <td style={cell}>
+                                                              <CatBadge
+                                                                  category={
+                                                                      c.category
+                                                                  }
+                                                              />
+                                                          </td>
+                                                          <td style={cell}>
+                                                              <span
+                                                                  style={{
+                                                                      display:
+                                                                          'inline-flex',
+                                                                      alignItems:
+                                                                          'center',
+                                                                      gap: 6,
+                                                                      fontSize: 13,
+                                                                      color: C.text,
+                                                                  }}
+                                                              >
+                                                                  <AIcon
+                                                                      name={
+                                                                          ct.icon
+                                                                      }
+                                                                      size={14}
+                                                                      color={
+                                                                          C.muted
+                                                                      }
+                                                                  />
+                                                                  {ct.label}
+                                                              </span>
+                                                          </td>
+                                                          <td
+                                                              style={cell}
+                                                              onClick={(e) =>
+                                                                  e.stopPropagation()
+                                                              }
+                                                          >
+                                                              <Toggle
+                                                                  on={active}
+                                                                  onClick={() =>
+                                                                      toggle(c)
+                                                                  }
+                                                              />
+                                                          </td>
+                                                          <td
+                                                              style={cell}
+                                                              onClick={(e) =>
+                                                                  e.stopPropagation()
+                                                              }
+                                                          >
+                                                              <div
+                                                                  style={{
+                                                                      display:
+                                                                          'flex',
+                                                                      gap: 6,
+                                                                  }}
+                                                              >
+                                                                  <ActionBtn
+                                                                      icon="pencil"
+                                                                      label="Edit"
+                                                                      variant="primary"
+                                                                      onClick={() =>
+                                                                          openEdit(
+                                                                              c,
+                                                                          )
+                                                                      }
+                                                                  />
+                                                                  <ActionBtn
+                                                                      icon="trash-2"
+                                                                      label="Hapus"
+                                                                      variant="danger"
+                                                                      onClick={() =>
+                                                                          remove(
+                                                                              c,
+                                                                          )
+                                                                      }
+                                                                  />
+                                                              </div>
+                                                          </td>
+                                                      </tr>
+                                                  );
+                                              })}
+                                        {!showingTax && rows.length === 0 && (
+                                            <tr>
+                                                <td
+                                                    colSpan={5}
+                                                    style={{
+                                                        ...cell,
+                                                        textAlign: 'center',
+                                                        color: C.faint,
+                                                        padding: '40px',
+                                                    }}
+                                                >
+                                                    Tidak ada komponen.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
 
-                        {form.data.basis_type === 'formula' && (
-                            <>
+                        <div style={{ ...card, padding: 18 }}>
+                            <div
+                                style={{
+                                    fontSize: 14.5,
+                                    fontWeight: 600,
+                                    color: C.navy,
+                                    marginBottom: 4,
+                                }}
+                            >
+                                Detail Komponen
+                            </div>
+                            {detail ? (
+                                <ComponentDetail
+                                    component={detail}
+                                    calcLabel={
+                                        (
+                                            CALC_LABEL[detail.calc_type] ??
+                                            CALC_LABEL.jumlah_tetap
+                                        ).label
+                                    }
+                                />
+                            ) : (
+                                <>
+                                    <div
+                                        style={{
+                                            fontSize: 12.5,
+                                            color: C.muted,
+                                            marginBottom: 18,
+                                        }}
+                                    >
+                                        Pilih komponen untuk melihat detail
+                                        informasi & aturan perhitungan.
+                                    </div>
+                                    <Legend />
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {modal && (
+                <div
+                    onClick={() => setModal(false)}
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(15,23,42,.45)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 50,
+                        padding: 20,
+                    }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            ...card,
+                            width: 520,
+                            maxWidth: '100%',
+                            maxHeight: '90vh',
+                            overflowY: 'auto',
+                            padding: 26,
+                        }}
+                    >
+                        <div
+                            style={{
+                                fontSize: 18,
+                                fontWeight: 700,
+                                color: C.navy,
+                                marginBottom: 18,
+                            }}
+                        >
+                            {form.data.id ? 'Ubah Komponen' : 'Tambah Komponen'}
+                        </div>
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 2fr',
+                                gap: 12,
+                                marginBottom: 14,
+                            }}
+                        >
+                            <div>
+                                <label style={label}>Kode</label>
+                                <input
+                                    style={input}
+                                    value={form.data.code}
+                                    onChange={(e) =>
+                                        form.setData('code', e.target.value)
+                                    }
+                                />
+                            </div>
+                            <div>
+                                <label style={label}>Nama Komponen</label>
+                                <input
+                                    style={input}
+                                    value={form.data.name}
+                                    onChange={(e) =>
+                                        form.setData('name', e.target.value)
+                                    }
+                                />
+                            </div>
+                        </div>
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr',
+                                gap: 12,
+                                marginBottom: 14,
+                            }}
+                        >
+                            <div>
+                                <label style={label}>Kategori</label>
+                                <select
+                                    style={input}
+                                    value={form.data.group}
+                                    onChange={(e) =>
+                                        form.setData('group', e.target.value)
+                                    }
+                                >
+                                    <option value="penerimaan">
+                                        Pendapatan
+                                    </option>
+                                    <option value="potongan">Potongan</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style={label}>Tipe Perhitungan</label>
+                                <select
+                                    style={input}
+                                    value={form.data.tipe}
+                                    onChange={(e) =>
+                                        form.setData(
+                                            'tipe',
+                                            e.target.value as CalcType,
+                                        )
+                                    }
+                                >
+                                    <option value="jumlah_tetap">
+                                        Jumlah Tetap
+                                    </option>
+                                    <option value="per_hari">Per Hari</option>
+                                    <option value="per_jam">Per Jam</option>
+                                    <option value="persentase">
+                                        Persentase
+                                    </option>
+                                    <option value="rumus">Rumus</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {form.data.tipe === 'rumus' ? (
+                            <div style={{ marginBottom: 14 }}>
+                                <label style={label}>Formula</label>
                                 <select
                                     style={input}
                                     value={form.data.payroll_formula_id}
@@ -468,654 +898,382 @@ function KomponenTab({
                                         )
                                     }
                                 >
-                                    <option value="">Pilih formula —</option>
+                                    <option value="">Pilih formula…</option>
                                     {formulaOptions.map((f) => (
                                         <option key={f.id} value={f.id}>
                                             {f.name}
                                         </option>
                                     ))}
                                 </select>
+                            </div>
+                        ) : (
+                            <div style={{ marginBottom: 14 }}>
+                                <label style={label}>
+                                    {form.data.tipe === 'persentase'
+                                        ? 'Persentase (%)'
+                                        : 'Nilai / Nominal (Rp)'}
+                                </label>
                                 <input
-                                    style={input}
                                     type="number"
-                                    placeholder="Min (opsional)"
-                                    value={form.data.basis_min}
+                                    min={0}
+                                    style={input}
+                                    value={form.data.basis_value}
                                     onChange={(e) =>
                                         form.setData(
-                                            'basis_min',
+                                            'basis_value',
                                             e.target.value,
                                         )
                                     }
+                                    placeholder="0"
                                 />
-                                <input
-                                    style={input}
-                                    type="number"
-                                    placeholder="Max (opsional)"
-                                    value={form.data.basis_max}
-                                    onChange={(e) =>
-                                        form.setData(
-                                            'basis_max',
-                                            e.target.value,
-                                        )
-                                    }
-                                />
-                            </>
-                        )}
-
-                        {form.data.basis_type === 'tabel' && (
-                            <div
-                                style={{
-                                    gridColumn: 'span 2',
-                                    fontSize: 12.5,
-                                    color: C.faint,
-                                }}
-                            >
-                                Atur nilainya di tab{' '}
-                                <strong>Nilai Komponen</strong> setelah komponen
-                                dibuat.
                             </div>
                         )}
-                    </div>
-                </div>
 
-                <div style={{ marginTop: 14, textAlign: 'right' }}>
-                    <button
-                        style={primaryBtn}
-                        disabled={form.processing}
-                        onClick={submit}
-                    >
-                        Tambah Komponen
-                    </button>
-                </div>
-            </div>
-
-            {groups.map(([key, label]) => {
-                const rows = components.filter((c) => c.group === key);
-
-                return (
-                    <div
-                        key={key}
-                        style={{ ...card, padding: 0, overflow: 'hidden' }}
-                    >
                         <div
                             style={{
-                                padding: '16px 18px 6px',
-                                fontSize: 15,
-                                fontWeight: 600,
-                                color: C.navy,
+                                display: 'flex',
+                                gap: 18,
+                                marginBottom: 22,
+                                flexWrap: 'wrap',
                             }}
                         >
-                            {label} ({rows.length})
-                        </div>
-                        <div style={{ overflowX: 'auto' }}>
-                            <table
+                            <label
                                 style={{
-                                    width: '100%',
-                                    borderCollapse: 'collapse',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 7,
+                                    fontSize: 13,
+                                    cursor: 'pointer',
                                 }}
                             >
-                                <thead>
-                                    <tr>
-                                        {[
-                                            'Kode',
-                                            'Nama',
-                                            'Basis',
-                                            'Pajak',
-                                            'Slip',
-                                            'Periode',
-                                            '',
-                                        ].map((h, i) => (
-                                            <th key={i} style={th}>
-                                                {h}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {rows.length === 0 ? (
-                                        <tr>
-                                            <td
-                                                colSpan={7}
-                                                style={{
-                                                    ...td,
-                                                    textAlign: 'center',
-                                                    color: C.faint,
-                                                }}
-                                            >
-                                                Belum ada komponen.
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        rows.map((c) => (
-                                            <tr key={c.id}>
-                                                <td
-                                                    style={{
-                                                        ...td,
-                                                        color: C.faint,
-                                                    }}
-                                                >
-                                                    {c.code ?? '—'}
-                                                </td>
-                                                <td
-                                                    style={{
-                                                        ...td,
-                                                        fontWeight: 600,
-                                                        color: C.navy,
-                                                    }}
-                                                >
-                                                    {c.name}
-                                                </td>
-                                                <td style={td}>
-                                                    {c.basis_type ? (
-                                                        <span
-                                                            style={{
-                                                                fontSize: 11.5,
-                                                                fontWeight: 700,
-                                                                padding:
-                                                                    '3px 8px',
-                                                                borderRadius: 6,
-                                                                background:
-                                                                    C.primary +
-                                                                    '14',
-                                                                color: C.primary,
-                                                            }}
-                                                        >
-                                                            {DASAR_LABEL[
-                                                                c.basis_type
-                                                            ] ?? c.basis_type}
-                                                        </span>
-                                                    ) : (
-                                                        (BASIS_LABEL[
-                                                            c.calc_basis
-                                                        ] ?? c.calc_basis)
-                                                    )}
-                                                </td>
-                                                <td style={td}>
-                                                    <Pill
-                                                        on={c.is_taxable}
-                                                        label={
-                                                            c.is_taxable
-                                                                ? 'Ya'
-                                                                : 'Tidak'
-                                                        }
-                                                    />
-                                                </td>
-                                                <td style={td}>
-                                                    <Pill
-                                                        on={c.show_on_slip}
-                                                        label={
-                                                            c.show_on_slip
-                                                                ? 'Ya'
-                                                                : 'Tidak'
-                                                        }
-                                                    />
-                                                </td>
-                                                <td
-                                                    style={{
-                                                        ...td,
-                                                        color: C.muted,
-                                                    }}
-                                                >
-                                                    {c.period_basis ?? '—'}
-                                                </td>
-                                                <td
-                                                    style={{
-                                                        ...td,
-                                                        textAlign: 'right',
-                                                    }}
-                                                >
-                                                    <ActionBtn
-                                                        icon="trash-2"
-                                                        label="Hapus"
-                                                        variant="danger"
-                                                        onClick={() =>
-                                                            del(c.id)
-                                                        }
-                                                    />
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                );
-            })}
-        </div>
-    );
-}
-
-function NilaiKomponenTab({
-    components,
-    mappingOptions,
-}: {
-    components: Component[];
-    mappingOptions: MappingOptions;
-}) {
-    const [selectedId, setSelectedId] = useState<number | null>(
-        components[0]?.id ?? null,
-    );
-    const selected = components.find((c) => c.id === selectedId) ?? null;
-
-    const form = useForm({
-        kategori: '',
-        employment_status: '',
-        position_id: '',
-        job_level_id: '',
-        branch_id: '',
-        value: '',
-        note: '',
-    });
-
-    const add = () => {
-        if (selected === null) {
-            return;
-        }
-
-        form.post(
-            PayrollKomponenController.storeComponentValue(selected.id).url,
-            {
-                preserveScroll: true,
-                onSuccess: () => {
-                    toast.success('Nilai komponen disimpan');
-                    form.reset('value', 'note');
-                },
-                onError: () => toast.error('Periksa isian nilai'),
-            },
-        );
-    };
-
-    const del = (id: number) =>
-        router.delete(PayrollKomponenController.destroyComponentValue(id).url, {
-            preserveScroll: true,
-            onSuccess: () => toast.success('Nilai dihapus'),
-        });
-
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <div style={{ ...card, padding: 18 }}>
-                <div
-                    style={{
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: C.navy,
-                        marginBottom: 6,
-                    }}
-                >
-                    Nilai Komponen (mapping)
-                </div>
-                <div
-                    style={{ fontSize: 12.5, color: C.faint, marginBottom: 14 }}
-                >
-                    Setel nilai komponen per jenis pegawai, status, posisi,
-                    pangkat, atau cabang. Baris paling spesifik yang cocok akan
-                    dipakai saat proses gaji (komponen dengan dasar perhitungan{' '}
-                    <strong>Tabel</strong>).
-                </div>
-                <select
-                    style={{ ...input, maxWidth: 360 }}
-                    value={selectedId ?? ''}
-                    onChange={(e) => setSelectedId(Number(e.target.value))}
-                >
-                    {components.map((c) => (
-                        <option key={c.id} value={c.id}>
-                            {c.name}
-                            {c.basis_type === 'tabel' ? ' • Tabel' : ''}
-                        </option>
-                    ))}
-                </select>
-            </div>
-
-            {selected && (
-                <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
-                    <div
-                        style={{
-                            padding: '14px 18px',
-                            fontSize: 15,
-                            fontWeight: 600,
-                            color: C.navy,
-                            borderBottom: `1px solid ${C.line}`,
-                        }}
-                    >
-                        {selected.name}
-                        {selected.basis_type !== 'tabel' && (
-                            <span
+                                <input
+                                    type="checkbox"
+                                    checked={form.data.is_taxable}
+                                    onChange={(e) =>
+                                        form.setData(
+                                            'is_taxable',
+                                            e.target.checked,
+                                        )
+                                    }
+                                />
+                                Masuk perhitungan PPh 21
+                            </label>
+                            <label
                                 style={{
-                                    marginLeft: 10,
-                                    fontSize: 11.5,
-                                    color: '#B45309',
-                                    fontWeight: 500,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 7,
+                                    fontSize: 13,
+                                    cursor: 'pointer',
                                 }}
                             >
-                                Dasar perhitungan bukan "Tabel" — nilai ini
-                                belum dipakai engine.
-                            </span>
-                        )}
-                    </div>
+                                <input
+                                    type="checkbox"
+                                    checked={form.data.show_on_slip}
+                                    onChange={(e) =>
+                                        form.setData(
+                                            'show_on_slip',
+                                            e.target.checked,
+                                        )
+                                    }
+                                />
+                                Tampil di slip gaji
+                            </label>
+                        </div>
 
-                    <div style={{ overflowX: 'auto' }}>
-                        <table
+                        <div
                             style={{
-                                width: '100%',
-                                borderCollapse: 'collapse',
+                                display: 'flex',
+                                justifyContent: 'flex-end',
+                                gap: 10,
                             }}
                         >
-                            <thead>
-                                <tr>
-                                    {[
-                                        'Kategori',
-                                        'Status',
-                                        'Posisi',
-                                        'Pangkat',
-                                        'Cabang',
-                                        'Nilai',
-                                        '',
-                                    ].map((h, i) => (
-                                        <th key={i} style={th}>
-                                            {h}
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {selected.values.length === 0 ? (
-                                    <tr>
-                                        <td
-                                            colSpan={7}
-                                            style={{
-                                                ...td,
-                                                textAlign: 'center',
-                                                color: C.faint,
-                                            }}
-                                        >
-                                            Belum ada nilai. Baris tanpa filter
-                                            = berlaku untuk semua pegawai.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    selected.values.map((v) => (
-                                        <tr key={v.id}>
-                                            <td style={td}>
-                                                {v.kategori ?? '—'}
-                                            </td>
-                                            <td style={td}>
-                                                {v.employment_status ?? '—'}
-                                            </td>
-                                            <td style={td}>
-                                                {v.position ?? '—'}
-                                            </td>
-                                            <td style={td}>
-                                                {v.job_level ?? '—'}
-                                            </td>
-                                            <td style={td}>
-                                                {v.branch ?? '—'}
-                                            </td>
-                                            <td
-                                                style={{
-                                                    ...td,
-                                                    fontWeight: 600,
-                                                    color: C.navy,
-                                                }}
-                                            >
-                                                {rupiah(v.value)}
-                                            </td>
-                                            <td
-                                                style={{
-                                                    ...td,
-                                                    textAlign: 'right',
-                                                }}
-                                            >
-                                                <ActionBtn
-                                                    icon="trash-2"
-                                                    label="Hapus"
-                                                    variant="danger"
-                                                    onClick={() => del(v.id)}
-                                                />
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
+                            <button
+                                style={btnOut}
+                                onClick={() => setModal(false)}
+                            >
+                                Batal
+                            </button>
+                            <button
+                                style={btnP}
+                                disabled={form.processing}
+                                onClick={submit}
+                            >
+                                <AIcon name="save" size={15} color="#fff" />
+                                Simpan
+                            </button>
+                        </div>
                     </div>
+                </div>
+            )}
+        </>
+    );
+}
 
-                    {/* Add mapping row */}
-                    <div
+function Kpi({
+    icon,
+    color,
+    title,
+    value,
+    active,
+    hint,
+}: {
+    icon: string;
+    color: string;
+    title: string;
+    value: number;
+    active?: number;
+    hint: string;
+}) {
+    return (
+        <div style={{ ...card, padding: '18px 20px' }}>
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    marginBottom: 12,
+                }}
+            >
+                <div
+                    style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 10,
+                        background: `${color}1a`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    }}
+                >
+                    <AIcon name={icon} size={18} color={color} />
+                </div>
+                <span style={{ fontSize: 13, color: C.muted, fontWeight: 500 }}>
+                    {title}
+                </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontSize: 26, fontWeight: 700, color: C.navy }}>
+                    {value}
+                </span>
+                <span style={{ fontSize: 13, color: C.muted }}>Komponen</span>
+                {active !== undefined && (
+                    <span
                         style={{
-                            display: 'grid',
-                            gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr auto',
-                            gap: 10,
-                            padding: 14,
-                            alignItems: 'center',
-                            background: C.surface,
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            color: C.green,
+                            background: 'rgba(22,163,74,.1)',
+                            padding: '2px 8px',
+                            borderRadius: 100,
                         }}
                     >
-                        <select
-                            style={input}
-                            value={form.data.kategori}
-                            onChange={(e) =>
-                                form.setData('kategori', e.target.value)
-                            }
-                        >
-                            <option value="">Kategori —</option>
-                            {mappingOptions.kategori.map((k) => (
-                                <option key={k} value={k}>
-                                    {k}
-                                </option>
-                            ))}
-                        </select>
-                        <select
-                            style={input}
-                            value={form.data.employment_status}
-                            onChange={(e) =>
-                                form.setData(
-                                    'employment_status',
-                                    e.target.value,
-                                )
-                            }
-                        >
-                            <option value="">Status —</option>
-                            {mappingOptions.statuses.map((s) => (
-                                <option key={s} value={s}>
-                                    {s}
-                                </option>
-                            ))}
-                        </select>
-                        <select
-                            style={input}
-                            value={form.data.position_id}
-                            onChange={(e) =>
-                                form.setData('position_id', e.target.value)
-                            }
-                        >
-                            <option value="">Posisi —</option>
-                            {mappingOptions.positions.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                    {p.name}
-                                </option>
-                            ))}
-                        </select>
-                        <select
-                            style={input}
-                            value={form.data.job_level_id}
-                            onChange={(e) =>
-                                form.setData('job_level_id', e.target.value)
-                            }
-                        >
-                            <option value="">Pangkat —</option>
-                            {mappingOptions.jobLevels.map((j) => (
-                                <option key={j.id} value={j.id}>
-                                    {j.name}
-                                </option>
-                            ))}
-                        </select>
-                        <select
-                            style={input}
-                            value={form.data.branch_id}
-                            onChange={(e) =>
-                                form.setData('branch_id', e.target.value)
-                            }
-                        >
-                            <option value="">Cabang —</option>
-                            {mappingOptions.branches.map((b) => (
-                                <option key={b.id} value={b.id}>
-                                    {b.name}
-                                </option>
-                            ))}
-                        </select>
-                        <input
-                            style={input}
-                            type="number"
-                            placeholder="Nilai"
-                            value={form.data.value}
-                            onChange={(e) =>
-                                form.setData('value', e.target.value)
-                            }
-                        />
-                        <button
-                            style={primaryBtn}
-                            disabled={form.processing}
-                            onClick={add}
-                        >
-                            + Nilai
-                        </button>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-}
-
-function FormulaTab({
-    formulas,
-    componentOptions,
-}: {
-    formulas: Formula[];
-    componentOptions: { id: number; name: string }[];
-}) {
-    const newForm = useForm({ name: '', note: '' });
-
-    const createFormula = () => {
-        newForm.post(PayrollKomponenController.storeFormula().url, {
-            preserveScroll: true,
-            onSuccess: () => {
-                toast.success('Master Formula dibuat');
-                newForm.reset();
-            },
-            onError: () => toast.error('Periksa isian formula'),
-        });
-    };
-
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <div style={{ ...card, padding: 18 }}>
-                <div
-                    style={{
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: C.navy,
-                        marginBottom: 14,
-                    }}
-                >
-                    Buat Master Formula
-                </div>
-                <div style={{ display: 'flex', gap: 12 }}>
-                    <input
-                        style={{ ...input, flex: 1 }}
-                        placeholder="Nama formula (mis. Gaji Kotor)"
-                        value={newForm.data.name}
-                        onChange={(e) =>
-                            newForm.setData('name', e.target.value)
-                        }
-                    />
-                    <input
-                        style={{ ...input, flex: 1 }}
-                        placeholder="Keterangan (opsional)"
-                        value={newForm.data.note}
-                        onChange={(e) =>
-                            newForm.setData('note', e.target.value)
-                        }
-                    />
-                    <button
-                        style={primaryBtn}
-                        disabled={newForm.processing}
-                        onClick={createFormula}
-                    >
-                        Buat
-                    </button>
-                </div>
+                        Aktif: {active}
+                    </span>
+                )}
             </div>
+            <div style={{ fontSize: 12, color: C.faint, marginTop: 6 }}>
+                {hint}
+            </div>
+        </div>
+    );
+}
 
-            {formulas.length === 0 ? (
+function CatBadge({ category }: { category: Category }) {
+    const s = CAT_STYLE[category];
+    return (
+        <span
+            style={{
+                fontSize: 11.5,
+                fontWeight: 600,
+                padding: '3px 10px',
+                borderRadius: 6,
+                color: s.c,
+                background: s.bg,
+            }}
+        >
+            {s.label}
+        </span>
+    );
+}
+
+function StatusPill({ active }: { active: boolean }) {
+    return (
+        <span
+            style={{
+                fontSize: 11.5,
+                fontWeight: 600,
+                padding: '3px 10px',
+                borderRadius: 100,
+                color: active ? C.green : C.muted,
+                background: active
+                    ? 'rgba(22,163,74,.1)'
+                    : 'rgba(107,114,128,.12)',
+            }}
+        >
+            {active ? 'Aktif' : 'Nonaktif'}
+        </span>
+    );
+}
+
+function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
+    return (
+        <button
+            onClick={onClick}
+            title={on ? 'Nonaktifkan' : 'Aktifkan'}
+            style={{
+                width: 40,
+                height: 22,
+                borderRadius: 100,
+                border: 'none',
+                background: on ? C.primary : C.border,
+                position: 'relative',
+                cursor: 'pointer',
+            }}
+        >
+            <span
+                style={{
+                    position: 'absolute',
+                    top: 2,
+                    left: on ? 20 : 2,
+                    width: 18,
+                    height: 18,
+                    borderRadius: 100,
+                    background: '#fff',
+                    transition: '.15s',
+                    boxShadow: '0 1px 2px rgba(0,0,0,.2)',
+                }}
+            />
+        </button>
+    );
+}
+
+function Legend() {
+    return (
+        <>
+            <div
+                style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: C.faint,
+                    textTransform: 'uppercase',
+                    letterSpacing: '.04em',
+                    margin: '4px 0 10px',
+                }}
+            >
+                Tipe Perhitungan
+            </div>
+            {(
+                Object.entries(CALC_LABEL) as [
+                    CalcType,
+                    { label: string; icon: string },
+                ][]
+            ).map(([k, v]) => (
                 <div
+                    key={k}
                     style={{
-                        ...card,
-                        padding: 40,
-                        textAlign: 'center',
-                        color: C.faint,
-                        fontSize: 14,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 9,
+                        marginBottom: 10,
                     }}
                 >
-                    Belum ada Master Formula.
+                    <AIcon name={v.icon} size={16} color={C.primary} />
+                    <span style={{ fontSize: 13, color: C.text }}>
+                        {v.label}
+                    </span>
                 </div>
-            ) : (
-                formulas.map((f) => (
-                    <FormulaCard
-                        key={f.id}
-                        formula={f}
-                        componentOptions={componentOptions}
-                    />
-                ))
+            ))}
+        </>
+    );
+}
+
+function ComponentDetail({
+    component,
+    calcLabel,
+}: {
+    component: Component;
+    calcLabel: string;
+}) {
+    const rowsInfo: [string, string][] = [
+        ['Kode', component.code ?? '—'],
+        ['Kategori', CAT_STYLE[component.category].label],
+        ['Tipe Perhitungan', calcLabel],
+        [
+            'Nilai',
+            component.basis_value != null ? rp(component.basis_value) : '—',
+        ],
+        ['Kena PPh 21', component.is_taxable ? 'Ya' : 'Tidak'],
+        ['Tampil di slip', component.show_on_slip ? 'Ya' : 'Tidak'],
+        ['Status', component.status === 'active' ? 'Aktif' : 'Nonaktif'],
+    ];
+    return (
+        <div style={{ marginTop: 10 }}>
+            <div
+                style={{
+                    fontSize: 15,
+                    fontWeight: 600,
+                    color: C.navy,
+                    marginBottom: 12,
+                }}
+            >
+                {component.name}
+            </div>
+            {rowsInfo.map(([k, v]) => (
+                <div
+                    key={k}
+                    style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        fontSize: 12.5,
+                        padding: '7px 0',
+                        borderBottom: `1px solid ${C.line}`,
+                    }}
+                >
+                    <span style={{ color: C.muted }}>{k}</span>
+                    <span style={{ color: C.text, fontWeight: 500 }}>{v}</span>
+                </div>
+            ))}
+            {component.values.length > 0 && (
+                <div style={{ marginTop: 14 }}>
+                    <div
+                        style={{
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: C.faint,
+                            textTransform: 'uppercase',
+                            marginBottom: 8,
+                        }}
+                    >
+                        Nilai per Kategori ({component.values.length})
+                    </div>
+                    {component.values.slice(0, 5).map((v) => (
+                        <div
+                            key={v.id}
+                            style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                fontSize: 12,
+                                padding: '4px 0',
+                            }}
+                        >
+                            <span style={{ color: C.muted }}>
+                                {v.kategori ??
+                                    v.position ??
+                                    v.job_level ??
+                                    v.employment_status ??
+                                    'Umum'}
+                            </span>
+                            <span style={{ color: C.text }}>{rp(v.value)}</span>
+                        </div>
+                    ))}
+                </div>
             )}
         </div>
     );
 }
 
-function FormulaCard({
-    formula,
-    componentOptions,
-}: {
-    formula: Formula;
-    componentOptions: { id: number; name: string }[];
-}) {
-    const itemForm = useForm({
-        tipe: 'penerimaan',
-        payroll_component_id: '',
-        operator: '*',
-        nilai: '1',
-        prorate: false as boolean,
-    });
-
-    const addItem = () => {
-        itemForm.post(
-            PayrollKomponenController.storeFormulaItem(formula.id).url,
-            {
-                preserveScroll: true,
-                onSuccess: () => {
-                    toast.success('Item ditambahkan');
-                    itemForm.reset('payroll_component_id');
-                },
-                onError: () => toast.error('Periksa isian item'),
-            },
-        );
-    };
-
-    const delItem = (id: number) =>
-        router.delete(PayrollKomponenController.destroyFormulaItem(id).url, {
-            preserveScroll: true,
-            onSuccess: () => toast.success('Item dihapus'),
-        });
-
-    const delFormula = () =>
-        router.delete(
-            PayrollKomponenController.destroyFormula(formula.id).url,
-            {
-                preserveScroll: true,
-                onSuccess: () => toast.success('Formula dihapus'),
-            },
-        );
-
+function TaxBpjsPanel({ taxBpjs }: { taxBpjs: TaxBpjsRow[] }) {
     return (
         <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
             <div
@@ -1123,177 +1281,79 @@ function FormulaCard({
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    padding: '14px 18px',
+                    padding: '16px 18px',
                     borderBottom: `1px solid ${C.line}`,
+                    flexWrap: 'wrap',
+                    gap: 10,
                 }}
             >
-                <div>
-                    <div
-                        style={{
-                            fontSize: 15,
-                            fontWeight: 600,
-                            color: C.navy,
-                        }}
-                    >
-                        {formula.name}
-                    </div>
-                    {formula.note && (
-                        <div style={{ fontSize: 12.5, color: C.faint }}>
-                            {formula.note}
-                        </div>
-                    )}
+                <div style={{ fontSize: 15, fontWeight: 600, color: C.navy }}>
+                    Kategori Pajak & BPJS
                 </div>
-                <ActionBtn
-                    icon="trash-2"
-                    label="Hapus"
-                    variant="danger"
-                    onClick={delFormula}
-                />
+                <a
+                    href="/avana/payroll/konfigurasi"
+                    style={{ ...btnOut, textDecoration: 'none' }}
+                >
+                    <AIcon name="settings" size={15} />
+                    Kelola BPJS & Pajak
+                </a>
             </div>
-
-            {/* Items */}
-            <div style={{ padding: '4px 18px' }}>
-                {formula.items.length === 0 ? (
-                    <div
-                        style={{
-                            padding: '14px 0',
-                            fontSize: 13,
-                            color: C.faint,
-                        }}
-                    >
-                        Belum ada kombinasi komponen.
-                    </div>
-                ) : (
-                    formula.items.map((it) => (
-                        <div
-                            key={it.id}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 10,
-                                padding: '10px 0',
-                                borderBottom: `1px solid ${C.line}`,
-                                fontSize: 13.5,
-                            }}
-                        >
-                            <span
-                                style={{
-                                    fontSize: 11.5,
-                                    fontWeight: 700,
-                                    padding: '3px 8px',
-                                    borderRadius: 6,
-                                    background: C.surface,
-                                    color: C.muted,
-                                    textTransform: 'capitalize',
-                                }}
-                            >
-                                {it.tipe}
-                            </span>
-                            <span style={{ color: C.navy, fontWeight: 600 }}>
-                                {it.component ?? 'UMR'}
-                            </span>
-                            <span style={{ color: C.muted }}>
-                                {it.operator} {it.nilai}
-                            </span>
-                            {it.prorate && (
-                                <span
+            <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                        <tr style={{ background: '#FAFBFD' }}>
+                            {['Nama', 'Kode', 'Kategori', 'Status'].map((h) => (
+                                <th
+                                    key={h}
                                     style={{
-                                        fontSize: 11,
-                                        color: C.primary,
+                                        textAlign: 'left',
+                                        fontSize: 11.5,
+                                        fontWeight: 600,
+                                        color: C.faint,
+                                        padding: '11px 18px',
+                                        textTransform: 'uppercase',
                                     }}
                                 >
-                                    prorate
-                                </span>
-                            )}
-                            <button
-                                onClick={() => delItem(it.id)}
-                                style={{
-                                    marginLeft: 'auto',
-                                    border: 'none',
-                                    background: 'transparent',
-                                    cursor: 'pointer',
-                                }}
+                                    {h}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {taxBpjs.map((t) => (
+                            <tr
+                                key={`${t.category}-${t.id}`}
+                                style={{ borderTop: `1px solid ${C.line}` }}
                             >
-                                <AIcon name="x" size={14} color={C.faint} />
-                            </button>
-                        </div>
-                    ))
-                )}
-            </div>
-
-            {/* Add item row */}
-            <div
-                style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1.4fr 70px 90px auto auto',
-                    gap: 10,
-                    padding: 14,
-                    alignItems: 'center',
-                    background: C.surface,
-                }}
-            >
-                <select
-                    style={input}
-                    value={itemForm.data.tipe}
-                    onChange={(e) => itemForm.setData('tipe', e.target.value)}
-                >
-                    <option value="penerimaan">Penerimaan</option>
-                    <option value="potongan">Potongan</option>
-                    <option value="umr">UMR</option>
-                </select>
-                <select
-                    style={input}
-                    value={itemForm.data.payroll_component_id}
-                    onChange={(e) =>
-                        itemForm.setData('payroll_component_id', e.target.value)
-                    }
-                >
-                    <option value="">Komponen —</option>
-                    {componentOptions.map((c) => (
-                        <option key={c.id} value={c.id}>
-                            {c.name}
-                        </option>
-                    ))}
-                </select>
-                <select
-                    style={input}
-                    value={itemForm.data.operator}
-                    onChange={(e) =>
-                        itemForm.setData('operator', e.target.value)
-                    }
-                >
-                    <option value="*">×</option>
-                    <option value="+">+</option>
-                </select>
-                <input
-                    style={input}
-                    type="number"
-                    step="0.01"
-                    value={itemForm.data.nilai}
-                    onChange={(e) => itemForm.setData('nilai', e.target.value)}
-                />
-                <label
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        fontSize: 12.5,
-                        color: C.text,
-                        cursor: 'pointer',
-                    }}
-                >
-                    <input
-                        type="checkbox"
-                        checked={itemForm.data.prorate}
-                        onChange={(e) =>
-                            itemForm.setData('prorate', e.target.checked)
-                        }
-                    />
-                    prorate
-                </label>
-                <button style={primaryBtn} onClick={addItem}>
-                    + Item
-                </button>
+                                <td
+                                    style={{
+                                        ...cell,
+                                        fontWeight: 600,
+                                        color: C.navy,
+                                        padding: '12px 18px',
+                                    }}
+                                >
+                                    {t.name}
+                                </td>
+                                <td
+                                    style={{
+                                        ...cell,
+                                        color: C.muted,
+                                        padding: '12px 18px',
+                                    }}
+                                >
+                                    {t.code}
+                                </td>
+                                <td style={{ ...cell, padding: '12px 18px' }}>
+                                    <CatBadge category={t.category} />
+                                </td>
+                                <td style={{ ...cell, padding: '12px 18px' }}>
+                                    <StatusPill active={t.is_active} />
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
         </div>
     );
