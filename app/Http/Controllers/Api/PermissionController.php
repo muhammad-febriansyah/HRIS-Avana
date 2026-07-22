@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\PermissionRequest;
+use App\Services\ApprovalEngine;
 use Closure;
 use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
@@ -65,6 +66,9 @@ class PermissionController extends Controller
             'current_approver_id' => $employee->manager_id,
             'status' => 'pending',
         ]);
+
+        // Route through the configured approval workflow when one is active.
+        ApprovalEngine::start($permission, $employee);
 
         return response()->json(['message' => 'Pengajuan izin terkirim', 'data' => ['id' => $permission->id]], 201);
     }

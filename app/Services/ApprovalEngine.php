@@ -6,9 +6,11 @@ use App\Models\ApprovalLog;
 use App\Models\ApprovalRequest;
 use App\Models\ApprovalStep;
 use App\Models\ApprovalWorkflow;
+use App\Models\AttendanceCorrection;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
+use App\Models\PermissionRequest;
 use App\Models\Reimbursement;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -44,6 +46,8 @@ class ApprovalEngine
         LeaveRequest::class => 'leave',
         OvertimeRequest::class => 'overtime',
         Reimbursement::class => 'reimbursement',
+        PermissionRequest::class => 'permission',
+        AttendanceCorrection::class => 'attendance_correction',
     ];
 
     /**
@@ -445,6 +449,8 @@ class ApprovalEngine
             $approvable instanceof LeaveRequest => LeaveApproval::finalize($approvable, $actorUserId),
             $approvable instanceof OvertimeRequest => AutoApproval::overtime($approvable),
             $approvable instanceof Reimbursement => AutoApproval::reimbursement($approvable, $actorUserId),
+            $approvable instanceof PermissionRequest => $approvable->update(['status' => 'approved']),
+            $approvable instanceof AttendanceCorrection => AttendanceCorrectionApproval::finalize($approvable, $actorUserId),
             default => null,
         };
     }

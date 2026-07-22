@@ -27,11 +27,13 @@ final class AttendanceCorrection extends Model
         return $this->belongsTo(Tenant::class);
     }
 
+    /** @return BelongsTo<Attendance, $this> */
     public function attendance(): BelongsTo
     {
         return $this->belongsTo(Attendance::class);
     }
 
+    /** @return BelongsTo<Employee, $this> */
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);

@@ -9,6 +9,8 @@ use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
 use App\Models\Branch;
 use App\Models\Employee;
+use App\Services\ApprovalEngine;
+use App\Services\AttendanceCorrectionApproval;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -396,26 +398,10 @@ class AttendanceController extends Controller
         $this->ensureTenantOwnership($request, $correction);
         $this->authorize('approveCorrection', Attendance::class);
 
-        $correction->update([
-            'status' => 'approved',
-            'approver_id' => $request->user()->id,
-        ]);
-
-        $attendance = $correction->attendance;
-
-        if ($attendance !== null) {
-            $dateString = $correction->date->format('Y-m-d');
-            $updates = ['status' => 'present'];
-
-            if ($correction->requested_clock_in !== null) {
-                $updates['clock_in_at'] = $dateString.' '.$correction->requested_clock_in;
-            }
-
-            if ($correction->requested_clock_out !== null) {
-                $updates['clock_out_at'] = $dateString.' '.$correction->requested_clock_out;
-            }
-
-            $attendance->update($updates);
+        // A workflow instance advances step-by-step; without one, approve here
+        // writes the correction to the attendance record directly.
+        if (! ApprovalEngine::decide($correction, $request->user()->id, 'approve')) {
+            AttendanceCorrectionApproval::finalize($correction, $request->user()->id);
         }
 
         return back()->with('success', 'Koreksi absensi disetujui');
@@ -429,10 +415,12 @@ class AttendanceController extends Controller
         $this->ensureTenantOwnership($request, $correction);
         $this->authorize('rejectCorrection', Attendance::class);
 
-        $correction->update([
-            'status' => 'rejected',
-            'approver_id' => $request->user()->id,
-        ]);
+        if (! ApprovalEngine::decide($correction, $request->user()->id, 'reject')) {
+            $correction->update([
+                'status' => 'rejected',
+                'approver_id' => $request->user()->id,
+            ]);
+        }
 
         return back()->with('success', 'Koreksi absensi ditolak');
     }

@@ -39,6 +39,8 @@ class ApprovalWorkflowController extends Controller
         ['key' => 'leave', 'label' => 'Cuti (Leave)', 'description' => 'Pengajuan cuti karyawan', 'icon' => 'calendar', 'color' => '#2F54C9'],
         ['key' => 'overtime', 'label' => 'Lembur (Overtime)', 'description' => 'Pengajuan lembur', 'icon' => 'clock', 'color' => '#6E9BE6'],
         ['key' => 'reimbursement', 'label' => 'Klaim (Reimbursement)', 'description' => 'Pengajuan klaim biaya', 'icon' => 'receipt', 'color' => '#D97706'],
+        ['key' => 'permission', 'label' => 'Izin', 'description' => 'Pengajuan izin karyawan', 'icon' => 'clock', 'color' => '#0EA5E9'],
+        ['key' => 'attendance_correction', 'label' => 'Koreksi Absen', 'description' => 'Pengajuan koreksi absensi', 'icon' => 'calendar', 'color' => '#7C3AED'],
         ['key' => 'duty_travel', 'label' => 'Perjalanan Dinas', 'description' => 'Pengajuan perjalanan dinas', 'icon' => 'plane', 'color' => '#16A34A'],
         ['key' => 'document_request', 'label' => 'Permintaan Dokumen', 'description' => 'Permintaan dokumen HR', 'icon' => 'folder', 'color' => '#0E1A3A'],
         ['key' => 'data_change', 'label' => 'Perubahan Data Pribadi', 'description' => 'Pengajuan perubahan data', 'icon' => 'user-round-cog', 'color' => '#DC2626'],

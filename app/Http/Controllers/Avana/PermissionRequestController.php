@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\PermissionRequest;
+use App\Services\ApprovalEngine;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -36,9 +37,9 @@ class PermissionRequestController extends Controller
             'reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $employee = Employee::forTenant($tenantId)->findOrFail($data['employee_id']);
+        $employee = Employee::forTenant($tenantId)->findOrFail((int) $data['employee_id']);
 
-        PermissionRequest::create([
+        $permission = PermissionRequest::create([
             'tenant_id' => $tenantId,
             'employee_id' => $employee->id,
             'start_date' => $data['start_date'],
@@ -47,8 +48,12 @@ class PermissionRequestController extends Controller
             'start_time' => $data['start_time'] ?? null,
             'end_time' => $data['end_time'] ?? null,
             'reason' => $data['reason'] ?? null,
+            'current_approver_id' => $employee->manager_id,
             'status' => 'pending',
         ]);
+
+        // Route through the configured approval workflow when one is active.
+        ApprovalEngine::start($permission, $employee);
 
         return back()->with('success', 'Pengajuan izin dibuat');
     }
@@ -61,7 +66,9 @@ class PermissionRequestController extends Controller
         $this->ensureTenantOwnership($request, $permissionRequest);
         $this->authorize('approve', $permissionRequest);
 
-        $permissionRequest->update(['status' => 'approved']);
+        if (! ApprovalEngine::decide($permissionRequest, $request->user()->id, 'approve')) {
+            $permissionRequest->update(['status' => 'approved']);
+        }
 
         return back()->with('success', 'Izin disetujui');
     }
@@ -74,7 +81,9 @@ class PermissionRequestController extends Controller
         $this->ensureTenantOwnership($request, $permissionRequest);
         $this->authorize('reject', $permissionRequest);
 
-        $permissionRequest->update(['status' => 'rejected']);
+        if (! ApprovalEngine::decide($permissionRequest, $request->user()->id, 'reject')) {
+            $permissionRequest->update(['status' => 'rejected']);
+        }
 
         return back()->with('success', 'Izin ditolak');
     }

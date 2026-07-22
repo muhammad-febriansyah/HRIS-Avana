@@ -3,10 +3,13 @@
 use App\Models\ApprovalRequest;
 use App\Models\ApprovalStep;
 use App\Models\ApprovalWorkflow;
+use App\Models\Attendance;
+use App\Models\AttendanceCorrection;
 use App\Models\Employee;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Models\PermissionRequest;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -336,6 +339,90 @@ it('requires every step to approve a parallel workflow', function (): void {
 
     $balance->refresh();
     expect((float) $balance->used)->toBe($usedBefore + 3);
+});
+
+it('routes an izin (permission) request through its workflow', function (): void {
+    $workflow = ApprovalWorkflow::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Izin 2 Level',
+        'request_type' => 'permission',
+        'approval_mode' => 'sequential',
+        'is_active' => true,
+    ]);
+    ApprovalStep::create([
+        'tenant_id' => $this->tenant->id,
+        'approval_workflow_id' => $workflow->id,
+        'step_order' => 1,
+        'approver_type' => 'direct_manager',
+    ]);
+    ApprovalStep::create([
+        'tenant_id' => $this->tenant->id,
+        'approval_workflow_id' => $workflow->id,
+        'step_order' => 2,
+        'approver_type' => 'specific_user',
+        'approver_user_id' => $this->approver->id,
+    ]);
+
+    actingAs($this->admin)->post(route('avana.cuti.izin.store'), [
+        'employee_id' => $this->subject->id,
+        'start_date' => '2026-09-10',
+        'end_date' => '2026-09-10',
+        'type' => 'izin_jam',
+        'reason' => 'Keperluan',
+    ]);
+
+    $izin = PermissionRequest::where('employee_id', $this->subject->id)->latest('id')->firstOrFail();
+    expect((int) $izin->current_approver_id)->toBe($this->manager->id);
+
+    actingAs($this->admin)->post(route('avana.cuti.izin.approve', $izin));
+    $izin->refresh();
+    expect($izin->status)->toBe('pending');
+    expect((int) $izin->current_approver_id)->toBe($this->approver->id);
+
+    actingAs($this->admin)->post(route('avana.cuti.izin.approve', $izin));
+    expect($izin->fresh()->status)->toBe('approved');
+});
+
+it('routes an attendance correction through its workflow and applies it on finalize', function (): void {
+    $workflow = ApprovalWorkflow::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Koreksi 1 Level',
+        'request_type' => 'attendance_correction',
+        'approval_mode' => 'sequential',
+        'is_active' => true,
+    ]);
+    ApprovalStep::create([
+        'tenant_id' => $this->tenant->id,
+        'approval_workflow_id' => $workflow->id,
+        'step_order' => 1,
+        'approver_type' => 'specific_user',
+        'approver_user_id' => $this->approver->id,
+    ]);
+
+    $correction = AttendanceCorrection::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->subject->id,
+        'date' => '2026-09-10',
+        'correction_type' => 'manual',
+        'requested_clock_in' => '08:00',
+        'requested_clock_out' => '17:00',
+        'reason' => 'Lupa absen',
+        'current_approver_id' => $this->subject->manager_id,
+        'status' => 'pending',
+    ]);
+
+    expect(ApprovalEngine::start($correction, $this->subject))->toBeTrue();
+    expect((int) $correction->fresh()->current_approver_id)->toBe($this->approver->id);
+
+    // Single step → the first approval finalizes and writes the attendance row.
+    ApprovalEngine::decide($correction->fresh(), $this->admin->id, 'approve');
+
+    expect($correction->fresh()->status)->toBe('approved');
+    expect(
+        Attendance::where('employee_id', $this->subject->id)
+            ->where('status', 'present')
+            ->exists(),
+    )->toBeTrue();
 });
 
 it('keeps the legacy manager routing when no workflow is active', function (): void {
