@@ -7,8 +7,10 @@ use App\Models\Employee;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\ApprovalEngine;
 use Database\Seeders\AvanaDemoSeeder;
 
 use function Pest\Laravel\actingAs;
@@ -153,6 +155,52 @@ it('rejects at any step and terminates the workflow instance', function (): void
 
     expect($leave->status)->toBe('rejected');
     expect($instance->status)->toBe('rejected');
+});
+
+it('surfaces a role-group step to every holder of the role, not one representative', function (): void {
+    // Give the "approver" employee a login whose user holds a board role.
+    $role = Role::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Dewan Direksi',
+        'code' => 'dewan_direksi',
+    ]);
+    $holderUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $holderUser->roles()->attach($role->id);
+    $this->approver->update(['user_id' => $holderUser->id]);
+
+    // A single-step workflow whose approver is that role (a group step).
+    $workflow = ApprovalWorkflow::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Cuti Dewan',
+        'request_type' => 'leave',
+        'approval_mode' => 'sequential',
+        'is_active' => true,
+    ]);
+    ApprovalStep::create([
+        'tenant_id' => $this->tenant->id,
+        'approval_workflow_id' => $workflow->id,
+        'step_order' => 1,
+        'approver_type' => 'role',
+        'approver_role_id' => $role->id,
+    ]);
+
+    actingAs($this->admin)->post(route('avana.cuti.store'), [
+        'employee_id' => $this->subject->id,
+        'leave_type_id' => $this->leaveType->id,
+        'start_date' => '2026-09-10',
+        'end_date' => '2026-09-12',
+    ]);
+
+    $leave = LeaveRequest::where('employee_id', $this->subject->id)->latest('id')->firstOrFail();
+
+    // A group step has no single owner.
+    expect($leave->current_approver_id)->toBeNull();
+
+    // The request surfaces to any holder of the role, but not to a non-holder.
+    expect(ApprovalEngine::pendingApprovableIdsFor(LeaveRequest::class, $this->approver->fresh()))
+        ->toContain($leave->id);
+    expect(ApprovalEngine::pendingApprovableIdsFor(LeaveRequest::class, $this->manager->fresh()))
+        ->not->toContain($leave->id);
 });
 
 it('keeps the legacy manager routing when no workflow is active', function (): void {

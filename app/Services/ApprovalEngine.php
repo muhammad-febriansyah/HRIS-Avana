@@ -73,11 +73,17 @@ class ApprovalEngine
             return false;
         }
 
-        $approver = self::resolveStepApprover($firstStep, $subject);
+        $group = self::isGroupStep($firstStep);
+        $concrete = $group ? null : self::resolveConcreteApprover($firstStep, $subject);
 
-        DB::transaction(function () use ($approvable, $subject, $workflow, $approver): void {
+        DB::transaction(function () use ($approvable, $subject, $workflow, $group, $concrete): void {
+            // A group step (role/department/position) has no single owner — it is
+            // surfaced to every eligible holder via the MSS queue, so the request
+            // carries no `current_approver_id`.
             $approvable->update([
-                'current_approver_id' => $approver !== null ? $approver->getKey() : $subject->manager_id,
+                'current_approver_id' => $group
+                    ? null
+                    : ($concrete !== null ? $concrete->getKey() : $subject->manager_id),
             ]);
 
             ApprovalRequest::create([
@@ -85,7 +91,7 @@ class ApprovalEngine
                 'approvable_type' => $approvable::class,
                 'approvable_id' => $approvable->getKey(),
                 'requester_id' => $subject->user_id,
-                'current_approver_id' => $approver?->user_id,
+                'current_approver_id' => $concrete?->user_id,
                 'approval_workflow_id' => $workflow->id,
                 'current_step' => 1,
                 'status' => 'pending',
@@ -144,14 +150,17 @@ class ApprovalEngine
 
             // Advance to the next step and hand off to its approver.
             $nextStep = $steps->get($instance->current_step); // 0-indexed: current_step is 1-based
-            $nextApprover = $nextStep !== null ? self::resolveStepApprover($nextStep, $subject) : null;
+            $group = $nextStep !== null && self::isGroupStep($nextStep);
+            $concrete = ($nextStep !== null && ! $group) ? self::resolveConcreteApprover($nextStep, $subject) : null;
 
             $instance->update([
                 'current_step' => $instance->current_step + 1,
-                'current_approver_id' => $nextApprover?->user_id,
+                'current_approver_id' => $concrete?->user_id,
             ]);
             $approvable->update([
-                'current_approver_id' => $nextApprover !== null ? $nextApprover->getKey() : $subject?->manager_id,
+                'current_approver_id' => $group
+                    ? null
+                    : ($concrete !== null ? $concrete->getKey() : $subject?->manager_id),
             ]);
 
             return true;
@@ -159,11 +168,20 @@ class ApprovalEngine
     }
 
     /**
-     * Resolve the employee who approves a step for a given requester. Role,
-     * department, and position steps resolve to a single representative holder
-     * (whichever matches first) because `current_approver_id` is a single user.
+     * A step whose approver is a group (role / department / position) rather than
+     * one named person. Group steps are surfaced to every eligible holder via
+     * {@see pendingApprovableIdsFor} instead of owning a single `current_approver_id`.
      */
-    private static function resolveStepApprover(ApprovalStep $step, ?Employee $subject): ?Employee
+    private static function isGroupStep(ApprovalStep $step): bool
+    {
+        return in_array($step->approver_type, ['role', 'department', 'position'], true);
+    }
+
+    /**
+     * Resolve the single named approver for a concrete step (direct manager or a
+     * specific employee). Group steps have no single owner and return null.
+     */
+    private static function resolveConcreteApprover(ApprovalStep $step, ?Employee $subject): ?Employee
     {
         if ($subject === null) {
             return null;
@@ -178,26 +196,54 @@ class ApprovalEngine
             'specific_user' => $step->approver_user_id !== null
                 ? Employee::forTenant($tenantId)->find($step->approver_user_id)
                 : null,
-            'role' => $step->approver_role_id !== null
-                ? Employee::forTenant($tenantId)
-                    ->whereHas('user.roles', fn ($q) => $q->where('roles.id', $step->approver_role_id))
-                    ->orderBy('id')
-                    ->first()
-                : null,
-            'department' => $step->approver_department_id !== null
-                ? Employee::forTenant($tenantId)
-                    ->where('department_id', $step->approver_department_id)
-                    ->orderBy('id')
-                    ->first()
-                : null,
-            'position' => $step->approver_position_id !== null
-                ? Employee::forTenant($tenantId)
-                    ->where('position_id', $step->approver_position_id)
-                    ->orderBy('id')
-                    ->first()
-                : null,
             default => null,
         };
+    }
+
+    /**
+     * Approvable ids of pending, workflow-driven requests of the given type whose
+     * CURRENT step is a group (role/department/position) the manager belongs to.
+     * This is what lets every holder of a role — not just one representative —
+     * see and act on a group-step request in their approval queue.
+     *
+     * @param  class-string<Model>  $approvableType
+     * @return array<int, int>
+     */
+    public static function pendingApprovableIdsFor(string $approvableType, Employee $manager): array
+    {
+        $roleIds = $manager->user?->roles()->pluck('roles.id')->all() ?? [];
+
+        $instances = ApprovalRequest::query()
+            ->where('tenant_id', $manager->tenant_id)
+            ->where('approvable_type', $approvableType)
+            ->where('status', 'pending')
+            ->with('workflow.steps')
+            ->get();
+
+        $ids = [];
+
+        foreach ($instances as $instance) {
+            $step = $instance->workflow?->steps->firstWhere('step_order', $instance->current_step);
+
+            if ($step === null) {
+                continue;
+            }
+
+            $eligible = match ($step->approver_type) {
+                'role' => in_array($step->approver_role_id, $roleIds, true),
+                'department' => $step->approver_department_id !== null
+                    && (int) $manager->department_id === (int) $step->approver_department_id,
+                'position' => $step->approver_position_id !== null
+                    && (int) $manager->position_id === (int) $step->approver_position_id,
+                default => false,
+            };
+
+            if ($eligible) {
+                $ids[] = (int) $instance->approvable_id;
+            }
+        }
+
+        return $ids;
     }
 
     /**

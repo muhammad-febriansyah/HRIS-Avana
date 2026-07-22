@@ -508,9 +508,19 @@ class MssController extends Controller
      */
     private function itemsForType(string $type, string $modelClass, Employee $manager, array $statuses, bool $byDecidedAt)
     {
+        // Requests routed straight to this manager, plus workflow group-step
+        // requests (role/department/position) they are eligible to approve.
+        $eligibleIds = ApprovalEngine::pendingApprovableIdsFor($modelClass, $manager);
+
         $query = $modelClass::query()
             ->where('tenant_id', $manager->tenant_id)
-            ->where('current_approver_id', $manager->id)
+            ->where(function ($sub) use ($manager, $eligibleIds): void {
+                $sub->where('current_approver_id', $manager->id);
+
+                if ($eligibleIds !== []) {
+                    $sub->orWhereIn('id', $eligibleIds);
+                }
+            })
             ->whereIn('status', $this->statusesFor($type, $statuses))
             ->with('employee:id,full_name,employee_number');
 
@@ -544,10 +554,20 @@ class MssController extends Controller
         [$type, $id] = array_pad(explode('-', $key, 2), 2, null);
         $modelClass = self::TYPE_MODELS[$type] ?? null;
 
+        $eligibleIds = $modelClass !== null
+            ? ApprovalEngine::pendingApprovableIdsFor($modelClass, $manager)
+            : [];
+
         $model = ($modelClass !== null && is_numeric($id))
             ? $modelClass::query()
                 ->where('tenant_id', $manager->tenant_id)
-                ->where('current_approver_id', $manager->id)
+                ->where(function ($sub) use ($manager, $eligibleIds): void {
+                    $sub->where('current_approver_id', $manager->id);
+
+                    if ($eligibleIds !== []) {
+                        $sub->orWhereIn('id', $eligibleIds);
+                    }
+                })
                 ->whereIn('status', $this->statusesFor((string) $type, ['pending']))
                 ->find((int) $id)
             : null;
