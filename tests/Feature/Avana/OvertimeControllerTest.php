@@ -80,6 +80,24 @@ it('creates a pending overtime request scoped to the tenant and branch', functio
     expect((float) $overtime->hours)->toBe(3.0);
 });
 
+it('auto-approves overtime submitted by a top approver (director)', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $employee->update(['is_top_approver' => true]);
+
+    actingAs($this->admin)
+        ->post(route('avana.cuti.lembur.store'), [
+            'employee_id' => $employee->id,
+            'date' => '2026-07-10',
+            'hours' => 3,
+            'reason' => 'Lembur direksi',
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $overtime = OvertimeRequest::where('employee_id', $employee->id)->latest('id')->firstOrFail();
+    expect($overtime->status)->toBe('approved');
+});
+
 it('validates required fields when storing overtime', function (): void {
     actingAs($this->admin)
         ->post(route('avana.cuti.lembur.store'), [

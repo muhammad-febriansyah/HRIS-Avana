@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\Reimbursement;
 use App\Models\User;
+use App\Services\AutoApproval;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -176,9 +177,11 @@ class ReimbursementController extends Controller
             ? $request->file('receipt')->store('reimbursements', 'public')
             : null;
 
-        Reimbursement::create([
+        $employee = Employee::forTenant($tenantId)->findOrFail($data['employee_id']);
+
+        $reimbursement = Reimbursement::create([
             'tenant_id' => $tenantId,
-            'employee_id' => $data['employee_id'],
+            'employee_id' => $employee->id,
             'number' => $this->nextNumber($tenantId),
             'category' => $data['category'],
             'title' => $data['title'],
@@ -189,6 +192,15 @@ class ReimbursementController extends Controller
             'notes' => $data['notes'] ?? null,
             'status' => 'pending',
         ]);
+
+        // A top approver (director) has no manager above them, so their own
+        // claim is approved on the spot (self-approved) and moves to Finance.
+        if ($employee->is_top_approver) {
+            AutoApproval::reimbursement($reimbursement, $employee->user_id);
+
+            return redirect()->route('avana.reimbursement')
+                ->with('success', 'Reimbursement langsung disetujui (approver puncak)');
+        }
 
         return redirect()->route('avana.reimbursement')
             ->with('success', 'Reimbursement berhasil diajukan');

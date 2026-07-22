@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\OvertimeRequest;
+use App\Services\AutoApproval;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,7 +36,7 @@ class OvertimeController extends Controller
 
         $employee = Employee::forTenant($tenantId)->findOrFail($data['employee_id']);
 
-        OvertimeRequest::create([
+        $overtime = OvertimeRequest::create([
             'tenant_id' => $tenantId,
             'employee_id' => $employee->id,
             'branch_id' => $employee->branch_id,
@@ -44,6 +45,14 @@ class OvertimeController extends Controller
             'reason' => $data['reason'] ?? null,
             'status' => 'pending',
         ]);
+
+        // A top approver (director) has no manager above them, so their own
+        // request is approved on the spot rather than left waiting.
+        if ($employee->is_top_approver) {
+            AutoApproval::overtime($overtime);
+
+            return back()->with('success', 'Pengajuan lembur langsung disetujui (approver puncak)');
+        }
 
         return back()->with('success', 'Pengajuan lembur dibuat');
     }

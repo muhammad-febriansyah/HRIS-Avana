@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\WfhRequest;
+use App\Services\AutoApproval;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,7 +36,7 @@ class WfhController extends Controller
 
         $employee = Employee::forTenant($tenantId)->findOrFail($data['employee_id']);
 
-        WfhRequest::create([
+        $wfh = WfhRequest::create([
             'tenant_id' => $tenantId,
             'employee_id' => $employee->id,
             'start_date' => $data['start_date'],
@@ -43,6 +44,14 @@ class WfhController extends Controller
             'reason' => $data['reason'] ?? null,
             'status' => 'pending',
         ]);
+
+        // A top approver (director) has no manager above them, so their own
+        // request is approved on the spot rather than left waiting.
+        if ($employee->is_top_approver) {
+            AutoApproval::wfh($wfh);
+
+            return back()->with('success', 'Pengajuan WFH langsung disetujui (approver puncak)');
+        }
 
         return back()->with('success', 'Pengajuan WFH dibuat');
     }

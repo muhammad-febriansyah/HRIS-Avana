@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\Reimbursement;
+use App\Services\AutoApproval;
 use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -69,6 +70,17 @@ class ReimbursementController extends Controller
                 : null,
             'status' => 'pending',
         ]);
+
+        // A top approver (director) has no manager above them, so their own
+        // claim is approved on the spot (self-approved) and moves to Finance.
+        if ($employee->is_top_approver) {
+            AutoApproval::reimbursement($reimbursement, $employee->user_id);
+
+            return response()->json([
+                'message' => 'Reimbursement langsung disetujui (approver puncak)',
+                'data' => ['id' => $reimbursement->id, 'number' => $reimbursement->number, 'status' => 'approved'],
+            ], 201);
+        }
 
         return response()->json([
             'message' => 'Reimbursement terkirim',

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\OvertimeRequest;
+use App\Services\AutoApproval;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -53,6 +54,17 @@ class OvertimeController extends Controller
             'current_approver_id' => $employee->manager_id,
             'status' => 'pending',
         ]);
+
+        // A top approver (director) has no manager above them, so their own
+        // request is approved on the spot rather than left waiting.
+        if ($employee->is_top_approver) {
+            AutoApproval::overtime($overtime);
+
+            return response()->json([
+                'message' => 'Pengajuan lembur langsung disetujui (approver puncak)',
+                'data' => ['id' => $overtime->id, 'status' => 'approved'],
+            ], 201);
+        }
 
         return response()->json(['message' => 'Pengajuan lembur terkirim', 'data' => ['id' => $overtime->id]], 201);
     }

@@ -124,6 +124,28 @@ it('creates a pending reimbursement with a receipt and an allocated number', fun
     Storage::disk('public')->assertExists($reimbursement->receipt_path);
 });
 
+it('auto-approves a reimbursement submitted by a top approver (director)', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $employee->update(['is_top_approver' => true]);
+
+    actingAs($this->admin)
+        ->post(route('avana.reimbursement.store'), [
+            'employee_id' => $employee->id,
+            'category' => 'komunikasi',
+            'title' => 'Pulsa direksi',
+            'amount' => 300_000,
+            'expense_date' => '2026-07-05',
+        ])
+        ->assertRedirect(route('avana.reimbursement'))
+        ->assertSessionHas('success');
+
+    $reimbursement = Reimbursement::where('employee_id', $employee->id)->latest('id')->firstOrFail();
+
+    // Approved on submit and stamped, ready for Finance to pay.
+    expect($reimbursement->status)->toBe('approved');
+    expect($reimbursement->approved_at)->not->toBeNull();
+});
+
 it('allocates sequential numbers per tenant', function (): void {
     $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
 

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\WfhRequest;
+use App\Services\AutoApproval;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -52,6 +53,17 @@ class WfhController extends Controller
             'current_approver_id' => $employee->manager_id,
             'status' => 'pending',
         ]);
+
+        // A top approver (director) has no manager above them, so their own
+        // request is approved on the spot rather than left waiting.
+        if ($employee->is_top_approver) {
+            AutoApproval::wfh($wfh);
+
+            return response()->json([
+                'message' => 'Pengajuan WFH langsung disetujui (approver puncak)',
+                'data' => ['id' => $wfh->id, 'status' => 'approved'],
+            ], 201);
+        }
 
         return response()->json(['message' => 'Pengajuan WFH terkirim', 'data' => ['id' => $wfh->id]], 201);
     }

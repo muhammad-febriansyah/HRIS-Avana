@@ -256,6 +256,24 @@ it('validates required fields when storing wfh', function (): void {
         ->assertSessionHasErrors(['employee_id', 'end_date']);
 });
 
+it('auto-approves wfh submitted by a top approver (director)', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $employee->update(['is_top_approver' => true]);
+
+    actingAs($this->admin)
+        ->post(route('avana.cuti.wfh.store'), [
+            'employee_id' => $employee->id,
+            'start_date' => '2026-07-10',
+            'end_date' => '2026-07-12',
+            'reason' => 'WFH direksi',
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $wfh = WfhRequest::where('employee_id', $employee->id)->latest('id')->firstOrFail();
+    expect($wfh->status)->toBe('approved');
+});
+
 it('approves and rejects a wfh request', function (): void {
     $wfh = makeWfhRequest($this->tenant->id);
 
