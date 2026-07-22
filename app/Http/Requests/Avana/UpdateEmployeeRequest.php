@@ -66,6 +66,7 @@ class UpdateEmployeeRequest extends FormRequest
                 Rule::exists('employees', 'id')->where('tenant_id', $tenantId),
                 Rule::notIn([$employee?->getKey()]),
             ],
+            'role_id' => ['nullable', Rule::exists('roles', 'id')->where('tenant_id', $tenantId)],
             'password' => ['nullable', 'string', 'min:8'],
             'custom_data' => ['nullable', 'array'],
             'custom_data.*' => ['nullable'],

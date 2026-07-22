@@ -343,6 +343,85 @@ it('creates a mobile login account when a password is set on store', function ()
     ])->assertOk()->assertJsonStructure(['access_token']);
 });
 
+it('assigns the chosen role to the login account on store', function (): void {
+    $branch = Branch::forTenant($this->tenant->id)->first();
+    $itRole = Role::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Staff IT',
+        'code' => 'staff_it',
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), [
+            'full_name' => 'IT Person',
+            'email' => 'it.person@avanahr.test',
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'branch_id' => $branch->id,
+            'password' => 'rahasia123',
+            'role_id' => $itRole->id,
+        ])
+        ->assertRedirect(route('avana.employees.index'));
+
+    $employee = Employee::where('full_name', 'IT Person')->firstOrFail();
+    expect($employee->user->roles->pluck('code'))->toContain('staff_it');
+    // The chosen role replaces the default, it does not stack with 'employee'.
+    expect($employee->user->roles)->toHaveCount(1);
+});
+
+it('changes an existing account role on update without a password', function (): void {
+    $branch = Branch::forTenant($this->tenant->id)->first();
+    $itRole = Role::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Staff IT',
+        'code' => 'staff_it',
+    ]);
+
+    actingAs($this->admin)->post(route('avana.employees.store'), [
+        'full_name' => 'Role Switch',
+        'email' => 'role.switch@avanahr.test',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+        'branch_id' => $branch->id,
+        'password' => 'rahasia123',
+    ]);
+
+    $employee = Employee::where('full_name', 'Role Switch')->firstOrFail();
+    expect($employee->user->roles->pluck('code'))->toContain('employee');
+
+    actingAs($this->admin)->put(route('avana.employees.update', $employee), [
+        'full_name' => $employee->full_name,
+        'email' => $employee->email,
+        'employment_status' => $employee->employment_status,
+        'status' => 'active',
+        'role_id' => $itRole->id,
+    ])->assertRedirect(route('avana.employees.index'));
+
+    $roles = $employee->user->fresh()->roles->pluck('code');
+    expect($roles)->toContain('staff_it');
+    expect($roles)->not->toContain('employee');
+});
+
+it('rejects a role from another tenant on store', function (): void {
+    $otherTenant = Tenant::create(['name' => 'PT Lain', 'slug' => 'pt-lain-role']);
+    $foreignRole = Role::create([
+        'tenant_id' => $otherTenant->id,
+        'name' => 'Outsider',
+        'code' => 'outsider',
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), [
+            'full_name' => 'Cross Tenant',
+            'email' => 'cross.tenant@avanahr.test',
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'password' => 'rahasia123',
+            'role_id' => $foreignRole->id,
+        ])
+        ->assertSessionHasErrors('role_id');
+});
+
 it('requires an email to create a login on store', function (): void {
     actingAs($this->admin)
         ->post(route('avana.employees.store'), [

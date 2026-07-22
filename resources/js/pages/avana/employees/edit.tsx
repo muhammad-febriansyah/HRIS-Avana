@@ -55,6 +55,7 @@ export default function EmployeesEdit({
         manager_id: relationId(data.manager),
         status: data.status ?? 'active',
         password: '',
+        role_id: data.role_id ? String(data.role_id) : '',
         custom_data: data.custom_data ?? {},
     });
 

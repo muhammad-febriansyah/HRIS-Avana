@@ -44,6 +44,7 @@ export default function EmployeesCreate({
         manager_id: '',
         status: 'active',
         password: '',
+        role_id: '',
         custom_data: {},
     });
 

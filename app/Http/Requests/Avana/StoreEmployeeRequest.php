@@ -57,6 +57,7 @@ class StoreEmployeeRequest extends FormRequest
             'position_id' => ['nullable', Rule::exists('positions', 'id')->where('tenant_id', $tenantId)],
             'job_level_id' => ['nullable', Rule::exists('job_levels', 'id')->where('tenant_id', $tenantId)],
             'manager_id' => ['nullable', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
+            'role_id' => ['nullable', Rule::exists('roles', 'id')->where('tenant_id', $tenantId)],
             'password' => ['nullable', 'string', 'min:8'],
             'custom_data' => ['nullable', 'array'],
             'custom_data.*' => ['nullable'],

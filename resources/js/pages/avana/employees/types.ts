@@ -52,6 +52,7 @@ export type Employee = {
     status: string;
     status_label: string;
     has_login?: boolean;
+    role_id?: number | null;
     account_active?: boolean;
     device?: {
         label: string;
@@ -112,6 +113,7 @@ export type EmployeeFormOptions = {
     departments: NamedOption[];
     positions: NamedOption[];
     jobLevels: NamedOption[];
+    roles: NamedOption[];
     managers: ManagerRef[];
     genders: SelectOption[];
     statuses: SelectOption[];
@@ -140,6 +142,7 @@ export type EmployeeFormData = {
     manager_id: string;
     status: string;
     password: string;
+    role_id: string;
     custom_data?: Record<string, string>;
 };
 

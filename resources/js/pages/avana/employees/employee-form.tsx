@@ -357,11 +357,11 @@ export function EmployeeForm({
             <div style={card}>
                 <SectionHeader
                     icon="smartphone"
-                    title="Akun Aplikasi Mobile"
+                    title="Akun Aplikasi Mobile & Hak Akses"
                     desc={
                         hasLogin
-                            ? 'Karyawan sudah punya akun login. Isi untuk reset password.'
-                            : 'Isi password untuk membuatkan akun login aplikasi (pakai email di atas).'
+                            ? 'Karyawan sudah punya akun login. Isi password untuk reset, atau ganti role untuk mengubah hak aksesnya.'
+                            : 'Isi password untuk membuatkan akun login (pakai email di atas). Role menentukan hak akses menu — pilih agar karyawan langsung mewarisi akses role tersebut.'
                     }
                 />
                 <div className="avn-2col" style={sectionGrid}>
@@ -382,16 +382,40 @@ export function EmployeeForm({
                             style={styleFor(!!errors.password, inputStyle)}
                         />
                     </Field>
+                    <Field
+                        htmlFor="role_id"
+                        label="Role / Hak Akses"
+                        error={errors.role_id}
+                    >
+                        <select
+                            id="role_id"
+                            value={data.role_id}
+                            onChange={(event) =>
+                                setData('role_id', event.target.value)
+                            }
+                            style={styleFor(!!errors.role_id, selectStyle)}
+                        >
+                            <option value="">
+                                {hasLogin
+                                    ? '— Biarkan role saat ini —'
+                                    : '— Role default (Karyawan) —'}
+                            </option>
+                            {options.roles.map((role) => (
+                                <option key={role.id} value={String(role.id)}>
+                                    {role.name}
+                                </option>
+                            ))}
+                        </select>
+                    </Field>
                     {hasLogin ? (
                         <div
                             style={{
+                                gridColumn: '1/-1',
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: 8,
                                 fontSize: 12.5,
                                 color: '#059669',
-                                alignSelf: 'end',
-                                paddingBottom: 12,
                             }}
                         >
                             <AIcon

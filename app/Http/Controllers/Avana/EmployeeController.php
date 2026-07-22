@@ -135,7 +135,8 @@ class EmployeeController extends Controller
 
         $data = $request->validated();
         $password = $data['password'] ?? null;
-        unset($data['password']);
+        $roleId = $data['role_id'] ?? null;
+        unset($data['password'], $data['role_id']);
         $data['tenant_id'] = $tenantId;
 
         if (empty($data['employee_number'])) {
@@ -144,7 +145,7 @@ class EmployeeController extends Controller
 
         $employee = Employee::create($data);
 
-        $this->syncEmployeeLogin($employee, $password, $tenantId);
+        $this->syncEmployeeLogin($employee, $password, $tenantId, $roleId !== null ? (int) $roleId : null);
 
         return redirect()->route('avana.employees.index')
             ->with('success', 'Karyawan berhasil ditambahkan');
@@ -469,6 +470,8 @@ class EmployeeController extends Controller
             'jobLevel:id,name',
             'workLocation:id,name',
             'manager:id,full_name,employee_number',
+            'user:id,status',
+            'user.roles:id',
         ]);
 
         return Inertia::render('avana/employees/edit', [
@@ -488,11 +491,12 @@ class EmployeeController extends Controller
 
         $data = $request->validated();
         $password = $data['password'] ?? null;
-        unset($data['password']);
+        $roleId = $data['role_id'] ?? null;
+        unset($data['password'], $data['role_id']);
 
         $employee->update($data);
 
-        $this->syncEmployeeLogin($employee, $password, $request->user()->tenant_id);
+        $this->syncEmployeeLogin($employee, $password, $request->user()->tenant_id, $roleId !== null ? (int) $roleId : null);
 
         return redirect()->route('avana.employees.index')
             ->with('success', 'Karyawan berhasil diperbarui');
@@ -537,19 +541,37 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Create or reset the employee's mobile-app login account. A blank password
-     * is a no-op; an existing account has its password reset, otherwise a new
-     * user is created (email + employee role) and linked to the employee.
+     * Create or reset the employee's mobile-app login account and bind its
+     * access role. The role determines the employee's Hak Akses (menu/permission)
+     * — picking one on the form assigns it directly, so a whole team can inherit
+     * the same access just by being given the same role.
+     *
+     * Rules: an existing account keeps its login; a password resets it and a
+     * chosen role replaces its role. A brand-new account is only created when a
+     * password is set (a login needs one), and it takes the chosen role or falls
+     * back to the tenant's default "employee" role.
      */
-    private function syncEmployeeLogin(Employee $employee, ?string $password, int $tenantId): void
+    private function syncEmployeeLogin(Employee $employee, ?string $password, int $tenantId, ?int $roleId = null): void
     {
-        if (blank($password)) {
+        $role = $roleId !== null
+            ? Role::where('tenant_id', $tenantId)->whereKey($roleId)->first()
+            : null;
+
+        if ($employee->user_id !== null) {
+            if (filled($password)) {
+                $employee->user?->update(['password' => $password]);
+            }
+
+            // An explicit role choice replaces the account's role; leaving it
+            // blank keeps whatever role the account already has.
+            if ($role !== null) {
+                $employee->user?->roles()->sync([$role->id]);
+            }
+
             return;
         }
 
-        if ($employee->user_id !== null) {
-            $employee->user?->update(['password' => $password]);
-
+        if (blank($password)) {
             return;
         }
 
@@ -562,10 +584,10 @@ class EmployeeController extends Controller
             'email_verified_at' => now(),
         ]);
 
-        $role = Role::where('tenant_id', $tenantId)->where('code', 'employee')->first();
+        $role ??= Role::where('tenant_id', $tenantId)->where('code', 'employee')->first();
 
         if ($role !== null) {
-            $user->roles()->syncWithoutDetaching([$role->id]);
+            $user->roles()->sync([$role->id]);
         }
 
         $employee->forceFill(['user_id' => $user->id])->save();
@@ -681,6 +703,7 @@ class EmployeeController extends Controller
             'departments' => Department::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
             'positions' => Position::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
             'jobLevels' => JobLevel::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
+            'roles' => Role::where('tenant_id', $tenantId)->select('id', 'name')->orderBy('name')->get(),
             'managers' => Employee::forTenant($tenantId)
                 ->select('id', 'full_name', 'employee_number')
                 ->orderBy('full_name')

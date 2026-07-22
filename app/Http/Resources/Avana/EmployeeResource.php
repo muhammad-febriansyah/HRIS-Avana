@@ -90,6 +90,7 @@ final class EmployeeResource extends JsonResource
             'work_location_id' => $this->work_location_id,
             'attendance_scope' => $this->attendance_scope,
             'has_login' => $this->user_id !== null,
+            'role_id' => $this->whenLoaded('user', fn () => $this->user?->roles->first()?->id),
             'account_active' => $this->whenLoaded('user', fn () => $this->user?->status === 'active'),
             'device' => $this->whenLoaded('user', function () {
                 $device = $this->user?->activeDevice;
