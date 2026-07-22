@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Services\LeaveApproval;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -185,6 +186,17 @@ class LeaveController extends Controller
             'current_approver_id' => $employee->manager_id,
             'status' => 'pending',
         ]);
+
+        // A top approver (director) has no manager above them, so their own
+        // request is approved on the spot rather than left waiting.
+        if ($employee->is_top_approver) {
+            LeaveApproval::finalize($leave);
+
+            return response()->json([
+                'message' => 'Pengajuan cuti langsung disetujui (approver puncak)',
+                'data' => ['id' => $leave->id, 'status' => 'approved'],
+            ], 201);
+        }
 
         return response()->json(['message' => 'Pengajuan cuti terkirim', 'data' => ['id' => $leave->id]], 201);
     }

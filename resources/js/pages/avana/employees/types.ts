@@ -52,6 +52,7 @@ export type Employee = {
     status: string;
     status_label: string;
     has_login?: boolean;
+    is_top_approver?: boolean;
     role_id?: number | null;
     account_active?: boolean;
     device?: {
@@ -143,6 +144,7 @@ export type EmployeeFormData = {
     status: string;
     password: string;
     role_id: string;
+    is_top_approver: boolean;
     custom_data?: Record<string, string>;
 };
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
@@ -117,6 +118,47 @@ it('creates a pending leave request on behalf of an employee', function (): void
     expect($leave->branch_id)->toBe($employee->branch_id);
     expect($leave->status)->toBe('pending');
     expect((int) $leave->total_days)->toBe(3);
+});
+
+it('auto-approves a leave request submitted by a top approver (director)', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $employee->update(['is_top_approver' => true]);
+
+    $leaveType = LeaveType::forTenant($this->tenant->id)->firstOrFail();
+
+    $balance = LeaveBalance::query()
+        ->where('employee_id', $employee->id)
+        ->where('leave_type_id', $leaveType->id)
+        ->where('year', 2026)
+        ->firstOrFail();
+    $usedBefore = (float) $balance->used;
+
+    // Future dates with no seeded attendance, so every day is freshly locked
+    // (the marker deliberately skips days that already hold a real clock-in).
+    actingAs($this->admin)
+        ->post(route('avana.cuti.store'), [
+            'employee_id' => $employee->id,
+            'leave_type_id' => $leaveType->id,
+            'start_date' => '2026-08-10',
+            'end_date' => '2026-08-12',
+            'reason' => 'Dinas direksi',
+        ])
+        ->assertRedirect(route('avana.cuti'))
+        ->assertSessionHas('success');
+
+    $leave = LeaveRequest::where('employee_id', $employee->id)->latest('id')->firstOrFail();
+
+    // Approved on submit — no manager sits above a director.
+    expect($leave->status)->toBe('approved');
+
+    // Side effects run: balance drawn down and the 3 dates locked as "Cuti".
+    $balance->refresh();
+    expect((float) $balance->used)->toBe($usedBefore + 3);
+    expect(
+        Attendance::where('employee_id', $employee->id)
+            ->where('status', 'leave')
+            ->count(),
+    )->toBe(3);
 });
 
 it('validates required fields on store', function (): void {

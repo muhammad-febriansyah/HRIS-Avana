@@ -7,13 +7,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Avana\StoreLeaveRequest;
 use App\Http\Resources\Avana\LeaveRequestResource;
 use App\Models\Employee;
-use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
 use App\Models\WfhRequest;
-use App\Services\LeaveAttendanceMarker;
+use App\Services\LeaveApproval;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
@@ -237,7 +236,7 @@ class LeaveController extends Controller
         $start = Carbon::parse($data['start_date']);
         $end = Carbon::parse($data['end_date']);
 
-        LeaveRequest::create([
+        $leave = LeaveRequest::create([
             'tenant_id' => $tenantId,
             'employee_id' => $employee->id,
             'branch_id' => $employee->branch_id,
@@ -246,8 +245,18 @@ class LeaveController extends Controller
             'end_date' => $data['end_date'],
             'total_days' => (int) $start->diffInDays($end) + 1,
             'reason' => $data['reason'] ?? null,
+            'current_approver_id' => $employee->manager_id,
             'status' => 'pending',
         ]);
+
+        // A top approver (director) has no manager above them, so their own
+        // request is approved on the spot rather than left waiting.
+        if ($employee->is_top_approver) {
+            LeaveApproval::finalize($leave);
+
+            return redirect()->route('avana.cuti')
+                ->with('success', 'Pengajuan cuti langsung disetujui (approver puncak)');
+        }
 
         return redirect()->route('avana.cuti')
             ->with('success', 'Pengajuan cuti dibuat');
@@ -261,22 +270,7 @@ class LeaveController extends Controller
         $this->ensureTenantOwnership($request, $leave);
         $this->authorize('approve', $leave);
 
-        $leave->update(['status' => 'approved']);
-
-        LeaveAttendanceMarker::mark($leave);
-
-        $balance = LeaveBalance::query()
-            ->where('employee_id', $leave->employee_id)
-            ->where('leave_type_id', $leave->leave_type_id)
-            ->where('year', $leave->start_date->year)
-            ->first();
-
-        if ($balance !== null) {
-            $balance->update([
-                'used' => $balance->used + $leave->total_days,
-                'remaining' => max(0, $balance->remaining - $leave->total_days),
-            ]);
-        }
+        LeaveApproval::finalize($leave, $request->user()->id);
 
         return back()->with('success', 'Cuti disetujui');
     }

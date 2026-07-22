@@ -23,6 +23,7 @@ final class Employee extends Model
             'join_date' => 'date',
             'resign_date' => 'date',
             'custom_data' => 'array',
+            'is_top_approver' => 'boolean',
         ];
     }
 

@@ -531,6 +531,77 @@ export function EmployeeForm({
                         />
                     </Field>
 
+                    {/* Top approver (director): own requests auto-approve since
+                        no manager sits above them. */}
+                    <label
+                        htmlFor="is_top_approver"
+                        style={{
+                            gridColumn: '1/-1',
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 11,
+                            padding: '13px 15px',
+                            border: `1px solid ${data.is_top_approver ? C.primary : C.border}`,
+                            borderRadius: 10,
+                            background: data.is_top_approver
+                                ? 'rgba(47,84,201,.05)'
+                                : '#fff',
+                            cursor: 'pointer',
+                            transition: '.15s',
+                        }}
+                    >
+                        <input
+                            id="is_top_approver"
+                            type="checkbox"
+                            checked={data.is_top_approver}
+                            onChange={(event) =>
+                                setData(
+                                    'is_top_approver',
+                                    event.target.checked,
+                                )
+                            }
+                            style={{
+                                width: 17,
+                                height: 17,
+                                marginTop: 1,
+                                accentColor: C.primary,
+                                cursor: 'pointer',
+                                flex: 'none',
+                            }}
+                        />
+                        <div>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 7,
+                                    fontSize: 13.5,
+                                    fontWeight: 600,
+                                    color: C.navy,
+                                }}
+                            >
+                                <AIcon
+                                    name="shield-check"
+                                    size={15}
+                                    color={C.primary}
+                                />
+                                Approver Puncak (Direktur / Direksi)
+                            </div>
+                            <div
+                                style={{
+                                    fontSize: 12,
+                                    color: C.muted,
+                                    marginTop: 3,
+                                    lineHeight: 1.5,
+                                }}
+                            >
+                                Tidak punya atasan di atasnya. Pengajuan cuti/izin
+                                miliknya <strong>langsung disetujui</strong> tanpa
+                                menunggu persetujuan atasan.
+                            </div>
+                        </div>
+                    </label>
+
                     <Field
                         htmlFor="employment_status"
                         label="Status Kepegawaian"

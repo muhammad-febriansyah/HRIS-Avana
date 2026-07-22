@@ -45,6 +45,7 @@ export default function EmployeesCreate({
         status: 'active',
         password: '',
         role_id: '',
+        is_top_approver: false,
         custom_data: {},
     });
 

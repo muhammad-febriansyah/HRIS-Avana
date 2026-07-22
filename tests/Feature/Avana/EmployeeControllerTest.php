@@ -402,6 +402,20 @@ it('changes an existing account role on update without a password', function ():
     expect($roles)->not->toContain('employee');
 });
 
+it('persists the top-approver flag from the employee form', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), [
+            'full_name' => 'Direktur Utama',
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'is_top_approver' => true,
+        ])
+        ->assertRedirect(route('avana.employees.index'));
+
+    $employee = Employee::where('full_name', 'Direktur Utama')->firstOrFail();
+    expect($employee->is_top_approver)->toBeTrue();
+});
+
 it('rejects a role from another tenant on store', function (): void {
     $otherTenant = Tenant::create(['name' => 'PT Lain', 'slug' => 'pt-lain-role']);
     $foreignRole = Role::create([
