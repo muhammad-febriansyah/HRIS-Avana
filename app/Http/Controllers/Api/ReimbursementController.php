@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\Reimbursement;
+use App\Services\ApprovalEngine;
 use App\Services\AutoApproval;
 use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
@@ -81,6 +82,9 @@ class ReimbursementController extends Controller
                 'data' => ['id' => $reimbursement->id, 'number' => $reimbursement->number, 'status' => 'approved'],
             ], 201);
         }
+
+        // Route through the configured approval workflow when one is active.
+        ApprovalEngine::start($reimbursement, $employee);
 
         return response()->json([
             'message' => 'Reimbursement terkirim',

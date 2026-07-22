@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Services\ApprovalEngine;
 use App\Services\LeaveApproval;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -197,6 +198,10 @@ class LeaveController extends Controller
                 'data' => ['id' => $leave->id, 'status' => 'approved'],
             ], 201);
         }
+
+        // Route through the configured approval workflow when one is active;
+        // otherwise the request keeps its manager_id routing.
+        ApprovalEngine::start($leave, $employee);
 
         return response()->json(['message' => 'Pengajuan cuti terkirim', 'data' => ['id' => $leave->id]], 201);
     }

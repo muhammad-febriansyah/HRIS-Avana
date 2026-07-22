@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\OvertimeRequest;
+use App\Services\ApprovalEngine;
 use App\Services\AutoApproval;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -65,6 +66,9 @@ class OvertimeController extends Controller
                 'data' => ['id' => $overtime->id, 'status' => 'approved'],
             ], 201);
         }
+
+        // Route through the configured approval workflow when one is active.
+        ApprovalEngine::start($overtime, $employee);
 
         return response()->json(['message' => 'Pengajuan lembur terkirim', 'data' => ['id' => $overtime->id]], 201);
     }

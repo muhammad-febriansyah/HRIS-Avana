@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\Reimbursement;
 use App\Models\User;
+use App\Services\ApprovalEngine;
 use App\Services\AutoApproval;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -202,6 +203,9 @@ class ReimbursementController extends Controller
                 ->with('success', 'Reimbursement langsung disetujui (approver puncak)');
         }
 
+        // Route through the configured approval workflow when one is active.
+        ApprovalEngine::start($reimbursement, $employee);
+
         return redirect()->route('avana.reimbursement')
             ->with('success', 'Reimbursement berhasil diajukan');
     }
@@ -268,12 +272,16 @@ class ReimbursementController extends Controller
         $this->ensureTenantOwnership($request, $reimbursement);
         $this->ensureStatusIs($reimbursement, ['pending'], 'Hanya reimbursement berstatus menunggu yang bisa disetujui');
 
-        $reimbursement->update([
-            'status' => 'approved',
-            'approver_id' => $request->user()->id,
-            'approved_at' => now(),
-            'rejection_reason' => null,
-        ]);
+        // A workflow instance advances step-by-step; without one, approve here
+        // clears the claim for payment directly.
+        if (! ApprovalEngine::decide($reimbursement, $request->user()->id, 'approve')) {
+            $reimbursement->update([
+                'status' => 'approved',
+                'approver_id' => $request->user()->id,
+                'approved_at' => now(),
+                'rejection_reason' => null,
+            ]);
+        }
 
         return back()->with('success', 'Reimbursement disetujui, menunggu pembayaran');
     }
@@ -291,12 +299,19 @@ class ReimbursementController extends Controller
             'rejection_reason' => ['required', 'string', 'max:1000'],
         ]);
 
-        $reimbursement->update([
-            'status' => 'rejected',
-            'approver_id' => $request->user()->id,
-            'approved_at' => now(),
-            'rejection_reason' => $data['rejection_reason'],
-        ]);
+        if (! ApprovalEngine::decide($reimbursement, $request->user()->id, 'reject', $data['rejection_reason'])) {
+            $reimbursement->update([
+                'status' => 'rejected',
+                'approver_id' => $request->user()->id,
+                'approved_at' => now(),
+                'rejection_reason' => $data['rejection_reason'],
+            ]);
+
+            return back()->with('success', 'Reimbursement ditolak');
+        }
+
+        // Workflow rejection records the reason on the claim too.
+        $reimbursement->update(['rejection_reason' => $data['rejection_reason']]);
 
         return back()->with('success', 'Reimbursement ditolak');
     }

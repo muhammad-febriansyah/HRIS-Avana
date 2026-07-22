@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\OvertimeRequest;
+use App\Services\ApprovalEngine;
 use App\Services\AutoApproval;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
@@ -54,6 +55,9 @@ class OvertimeController extends Controller
             return back()->with('success', 'Pengajuan lembur langsung disetujui (approver puncak)');
         }
 
+        // Route through the configured approval workflow when one is active.
+        ApprovalEngine::start($overtime, $employee);
+
         return back()->with('success', 'Pengajuan lembur dibuat');
     }
 
@@ -65,7 +69,9 @@ class OvertimeController extends Controller
         $this->ensureTenantOwnership($request, $overtime);
         $this->authorize('approve', $overtime);
 
-        $overtime->update(['status' => 'approved']);
+        if (! ApprovalEngine::decide($overtime, $request->user()->id, 'approve')) {
+            $overtime->update(['status' => 'approved']);
+        }
 
         return back()->with('success', 'Lembur disetujui');
     }
@@ -78,7 +84,9 @@ class OvertimeController extends Controller
         $this->ensureTenantOwnership($request, $overtime);
         $this->authorize('reject', $overtime);
 
-        $overtime->update(['status' => 'rejected']);
+        if (! ApprovalEngine::decide($overtime, $request->user()->id, 'reject')) {
+            $overtime->update(['status' => 'rejected']);
+        }
 
         return back()->with('success', 'Lembur ditolak');
     }

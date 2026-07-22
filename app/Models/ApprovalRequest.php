@@ -37,6 +37,7 @@ final class ApprovalRequest extends Model
         return $this->belongsTo(User::class, 'current_approver_id');
     }
 
+    /** @return BelongsTo<ApprovalWorkflow, $this> */
     public function workflow(): BelongsTo
     {
         return $this->belongsTo(ApprovalWorkflow::class, 'approval_workflow_id');

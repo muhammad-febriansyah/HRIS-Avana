@@ -32,11 +32,13 @@ final class ApprovalWorkflow extends Model
         return $this->belongsTo(Tenant::class);
     }
 
+    /** @return HasMany<ApprovalStep, $this> */
     public function steps(): HasMany
     {
         return $this->hasMany(ApprovalStep::class)->orderBy('step_order');
     }
 
+    /** @return HasMany<ApprovalRequest, $this> */
     public function requests(): HasMany
     {
         return $this->hasMany(ApprovalRequest::class);

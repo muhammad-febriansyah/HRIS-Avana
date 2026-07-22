@@ -12,6 +12,7 @@ use App\Models\LeaveType;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
 use App\Models\WfhRequest;
+use App\Services\ApprovalEngine;
 use App\Services\LeaveApproval;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -258,6 +259,10 @@ class LeaveController extends Controller
                 ->with('success', 'Pengajuan cuti langsung disetujui (approver puncak)');
         }
 
+        // Route through the configured approval workflow when one is active;
+        // otherwise the request keeps its manager_id routing.
+        ApprovalEngine::start($leave, $employee);
+
         return redirect()->route('avana.cuti')
             ->with('success', 'Pengajuan cuti dibuat');
     }
@@ -270,7 +275,11 @@ class LeaveController extends Controller
         $this->ensureTenantOwnership($request, $leave);
         $this->authorize('approve', $leave);
 
-        LeaveApproval::finalize($leave, $request->user()->id);
+        // A workflow instance advances step-by-step; without one, approve here
+        // finalizes the leave directly.
+        if (! ApprovalEngine::decide($leave, $request->user()->id, 'approve')) {
+            LeaveApproval::finalize($leave, $request->user()->id);
+        }
 
         return back()->with('success', 'Cuti disetujui');
     }
@@ -283,7 +292,9 @@ class LeaveController extends Controller
         $this->ensureTenantOwnership($request, $leave);
         $this->authorize('reject', $leave);
 
-        $leave->update(['status' => 'rejected']);
+        if (! ApprovalEngine::decide($leave, $request->user()->id, 'reject')) {
+            $leave->update(['status' => 'rejected']);
+        }
 
         return back()->with('success', 'Cuti ditolak');
     }

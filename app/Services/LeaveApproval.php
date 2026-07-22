@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
+use Illuminate\Support\Carbon;
 
 class LeaveApproval
 {
@@ -25,7 +26,7 @@ class LeaveApproval
         $balance = LeaveBalance::query()
             ->where('employee_id', $leave->employee_id)
             ->where('leave_type_id', $leave->leave_type_id)
-            ->where('year', $leave->start_date->year)
+            ->where('year', Carbon::parse($leave->start_date)->year)
             ->first();
 
         if ($balance !== null) {

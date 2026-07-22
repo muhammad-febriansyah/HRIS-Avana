@@ -16,6 +16,7 @@ use App\Models\Settlement;
 use App\Models\Shift;
 use App\Models\ShiftSchedule;
 use App\Models\WfhRequest;
+use App\Services\ApprovalEngine;
 use App\Services\LeaveAttendanceMarker;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
@@ -576,6 +577,12 @@ class MssController extends Controller
 
     private function applyDecision(Model $model, string $action, Employee $manager): void
     {
+        // A workflow-driven request advances step-by-step (or finalizes on the
+        // last step) via the engine; when it handles the decision we are done.
+        if (ApprovalEngine::decide($model, $manager->user_id, $action, null)) {
+            return;
+        }
+
         $approved = $action === 'approve';
 
         if ($model instanceof Settlement) {
