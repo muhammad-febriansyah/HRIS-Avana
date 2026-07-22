@@ -11,6 +11,7 @@ use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
 use App\Models\Reimbursement;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -67,21 +68,26 @@ class ApprovalEngine
             ->orderByDesc('id')
             ->first();
 
-        $firstStep = $workflow?->steps->first();
-
-        if ($workflow === null || $firstStep === null) {
+        if ($workflow === null) {
             return false;
         }
 
-        $group = self::isGroupStep($firstStep);
-        $concrete = $group ? null : self::resolveConcreteApprover($firstStep, $subject);
+        $firstStep = self::effectiveSteps($workflow, $approvable)->first();
 
-        DB::transaction(function () use ($approvable, $subject, $workflow, $group, $concrete): void {
-            // A group step (role/department/position) has no single owner — it is
-            // surfaced to every eligible holder via the MSS queue, so the request
-            // carries no `current_approver_id`.
+        if ($firstStep === null) {
+            return false;
+        }
+
+        // A parallel workflow opens every step at once (no single current
+        // approver); a group step (role/department/position) has no single owner
+        // either. Both are surfaced to every eligible holder via the MSS queue,
+        // so the request carries no `current_approver_id`.
+        $spread = self::isParallel($workflow) || self::isGroupStep($firstStep);
+        $concrete = $spread ? null : self::resolveConcreteApprover($firstStep, $subject);
+
+        DB::transaction(function () use ($approvable, $subject, $workflow, $spread, $concrete): void {
             $approvable->update([
-                'current_approver_id' => $group
+                'current_approver_id' => $spread
                     ? null
                     : ($concrete !== null ? $concrete->getKey() : $subject->manager_id),
             ]);
@@ -113,6 +119,7 @@ class ApprovalEngine
             ->where('approvable_type', $approvable::class)
             ->where('approvable_id', $approvable->getKey())
             ->where('status', 'pending')
+            ->with('workflow.steps')
             ->first();
 
         if ($instance === null) {
@@ -120,36 +127,53 @@ class ApprovalEngine
         }
 
         $subject = Employee::find((int) $approvable->getAttribute('employee_id'));
+        $workflow = $instance->workflow;
+        $effective = $workflow !== null ? self::effectiveSteps($workflow, $approvable) : collect();
 
-        return DB::transaction(function () use ($instance, $approvable, $subject, $actorUserId, $action, $note): bool {
-            ApprovalLog::create([
-                'tenant_id' => $instance->tenant_id,
-                'approval_request_id' => $instance->id,
-                'approver_id' => $actorUserId,
-                'action' => $action,
-                'step_order' => $instance->current_step,
-                'note' => $note,
-            ]);
-
+        return DB::transaction(function () use ($instance, $approvable, $subject, $workflow, $effective, $actorUserId, $action, $note): bool {
             if ($action === 'reject') {
+                self::log($instance, $actorUserId, 'reject', $instance->current_step, $note);
                 $instance->update(['status' => 'rejected']);
                 $approvable->update(['status' => 'rejected']);
 
                 return true;
             }
 
-            $steps = $instance->workflow?->steps()->orderBy('step_order')->get() ?? collect();
+            // Parallel: the request is approved only once every step has been
+            // approved by a distinct approver.
+            if ($workflow !== null && self::isParallel($workflow)) {
+                $approvedBy = ApprovalLog::query()
+                    ->where('approval_request_id', $instance->id)
+                    ->where('action', 'approve')
+                    ->pluck('approver_id');
 
-            // Last step reached (or the workflow lost its steps): finalize.
-            if ($instance->current_step >= $steps->count()) {
+                if ($actorUserId !== null && $approvedBy->contains($actorUserId)) {
+                    return true; // already counted — idempotent
+                }
+
+                self::log($instance, $actorUserId, 'approve', null, $note);
+
+                $distinct = $approvedBy->push($actorUserId)->filter()->unique()->count();
+
+                if ($distinct >= max(1, $effective->count())) {
+                    $instance->update(['status' => 'approved']);
+                    self::finalize($approvable, $actorUserId);
+                }
+
+                return true;
+            }
+
+            // Sequential: record this step, then advance or finalize.
+            self::log($instance, $actorUserId, 'approve', $instance->current_step, $note);
+
+            if ($instance->current_step >= $effective->count()) {
                 $instance->update(['status' => 'approved']);
                 self::finalize($approvable, $actorUserId);
 
                 return true;
             }
 
-            // Advance to the next step and hand off to its approver.
-            $nextStep = $steps->get($instance->current_step); // 0-indexed: current_step is 1-based
+            $nextStep = $effective->get($instance->current_step); // 0-indexed: current_step is 1-based
             $group = $nextStep !== null && self::isGroupStep($nextStep);
             $concrete = ($nextStep !== null && ! $group) ? self::resolveConcreteApprover($nextStep, $subject) : null;
 
@@ -201,10 +225,12 @@ class ApprovalEngine
     }
 
     /**
-     * Approvable ids of pending, workflow-driven requests of the given type whose
-     * CURRENT step is a group (role/department/position) the manager belongs to.
-     * This is what lets every holder of a role — not just one representative —
-     * see and act on a group-step request in their approval queue.
+     * Approvable ids of pending, workflow-driven requests of the given type the
+     * manager may act on but which are not routed to them by `current_approver_id`.
+     * Sequential: the current step is a group (role/department/position) they
+     * belong to. Parallel: they match any step they have not already approved.
+     * This lets every holder of a role — not just one representative — see the
+     * request in their queue.
      *
      * @param  class-string<Model>  $approvableType
      * @return array<int, int>
@@ -223,20 +249,39 @@ class ApprovalEngine
         $ids = [];
 
         foreach ($instances as $instance) {
-            $step = $instance->workflow?->steps->firstWhere('step_order', $instance->current_step);
+            $workflow = $instance->workflow;
 
-            if ($step === null) {
+            if ($workflow === null) {
                 continue;
             }
 
-            $eligible = match ($step->approver_type) {
-                'role' => in_array($step->approver_role_id, $roleIds, true),
-                'department' => $step->approver_department_id !== null
-                    && (int) $manager->department_id === (int) $step->approver_department_id,
-                'position' => $step->approver_position_id !== null
-                    && (int) $manager->position_id === (int) $step->approver_position_id,
-                default => false,
-            };
+            $approvable = $approvableType::query()->find($instance->approvable_id);
+
+            if ($approvable === null) {
+                continue;
+            }
+
+            $subject = Employee::find((int) $approvable->getAttribute('employee_id'));
+            $subjectManagerId = $subject?->manager_id !== null ? (int) $subject->manager_id : null;
+            $effective = self::effectiveSteps($workflow, $approvable);
+
+            if (self::isParallel($workflow)) {
+                $alreadyApproved = $manager->user_id !== null && ApprovalLog::query()
+                    ->where('approval_request_id', $instance->id)
+                    ->where('approver_id', $manager->user_id)
+                    ->where('action', 'approve')
+                    ->exists();
+
+                $eligible = ! $alreadyApproved && $effective->contains(
+                    fn (ApprovalStep $step): bool => self::viewerMatchesStep($step, $manager, $roleIds, $subjectManagerId),
+                );
+            } else {
+                // The step currently awaiting approval (1-based current_step).
+                $step = $effective->get($instance->current_step - 1);
+                $eligible = $step !== null
+                    && self::isGroupStep($step)
+                    && self::viewerMatchesStep($step, $manager, $roleIds, $subjectManagerId);
+            }
 
             if ($eligible) {
                 $ids[] = (int) $instance->approvable_id;
@@ -244,6 +289,150 @@ class ApprovalEngine
         }
 
         return $ids;
+    }
+
+    /**
+     * Whether a workflow runs its steps in parallel (all must approve) rather
+     * than sequentially.
+     */
+    private static function isParallel(ApprovalWorkflow $workflow): bool
+    {
+        return $workflow->approval_mode === 'parallel';
+    }
+
+    /**
+     * Whether the viewing employee is one of a step's approvers.
+     *
+     * @param  array<int, mixed>  $roleIds
+     */
+    private static function viewerMatchesStep(ApprovalStep $step, Employee $manager, array $roleIds, ?int $subjectManagerId): bool
+    {
+        return match ($step->approver_type) {
+            'direct_manager' => $subjectManagerId !== null && (int) $manager->getKey() === $subjectManagerId,
+            'specific_user' => $step->approver_user_id !== null && (int) $manager->getKey() === (int) $step->approver_user_id,
+            'role' => in_array($step->approver_role_id, $roleIds, true),
+            'department' => $step->approver_department_id !== null
+                && (int) $manager->department_id === (int) $step->approver_department_id,
+            'position' => $step->approver_position_id !== null
+                && (int) $manager->position_id === (int) $step->approver_position_id,
+            default => false,
+        };
+    }
+
+    /**
+     * The workflow's base steps plus any extra approver step whose "Kondisi
+     * Tambahan" matches this request (e.g. amount > 5.000.000 → add Finance).
+     * The values a condition checks are fixed once the request is submitted, so
+     * this list is stable across every step of the approval.
+     *
+     * @return Collection<int, ApprovalStep>
+     */
+    private static function effectiveSteps(ApprovalWorkflow $workflow, Model $approvable): Collection
+    {
+        $steps = $workflow->steps->values();
+        $rawConditions = $workflow->getAttribute('conditions');
+        $conditions = is_array($rawConditions) ? $rawConditions : [];
+        $extra = [];
+
+        foreach ($conditions as $condition) {
+            if (is_array($condition) && self::conditionMatches($condition, $approvable)) {
+                $extra[] = self::syntheticStep($workflow, $condition);
+            }
+        }
+
+        return $steps->concat($extra)->values();
+    }
+
+    /**
+     * Evaluate one "Kondisi Tambahan" against the request's own values.
+     *
+     * @param  array<string, mixed>  $condition
+     */
+    private static function conditionMatches(array $condition, Model $approvable): bool
+    {
+        $field = $condition['field'] ?? null;
+        $operator = $condition['operator'] ?? null;
+        $value = $condition['value'] ?? null;
+
+        if (! is_string($field) || ! is_string($operator) || $value === null) {
+            return false;
+        }
+
+        if ($field === 'leave_type') {
+            $leaveTypeId = $approvable->getAttribute('leave_type_id');
+
+            return $leaveTypeId !== null && (int) $leaveTypeId === (int) $value;
+        }
+
+        $actual = match ($field) {
+            'days' => $approvable->getAttribute('total_days'),
+            'amount' => $approvable->getAttribute('amount'),
+            default => null,
+        };
+
+        if ($actual === null) {
+            return false;
+        }
+
+        $a = (float) $actual;
+        $b = (float) $value;
+
+        return match ($operator) {
+            '>' => $a > $b,
+            '>=' => $a >= $b,
+            '=' => $a === $b,
+            '<' => $a < $b,
+            '<=' => $a <= $b,
+            default => false,
+        };
+    }
+
+    /**
+     * Build an unsaved step from a matched condition's extra approver.
+     *
+     * @param  array<string, mixed>  $condition
+     */
+    private static function syntheticStep(ApprovalWorkflow $workflow, array $condition): ApprovalStep
+    {
+        $type = is_string($condition['extra_approver_type'] ?? null)
+            ? $condition['extra_approver_type']
+            : 'direct_manager';
+        $ref = isset($condition['extra_approver_ref']) ? (int) $condition['extra_approver_ref'] : null;
+
+        $refColumn = match ($type) {
+            'role' => 'approver_role_id',
+            'department' => 'approver_department_id',
+            'position' => 'approver_position_id',
+            'specific_user' => 'approver_user_id',
+            default => null,
+        };
+
+        $attributes = [
+            'tenant_id' => $workflow->tenant_id,
+            'approval_workflow_id' => $workflow->id,
+            'approver_type' => $type,
+        ];
+
+        if ($refColumn !== null) {
+            $attributes[$refColumn] = $ref;
+        }
+
+        return new ApprovalStep($attributes);
+    }
+
+    /**
+     * Append an approval-log entry for a decision.
+     */
+    private static function log(ApprovalRequest $instance, ?int $approverId, string $action, ?int $stepOrder, ?string $note): void
+    {
+        ApprovalLog::create([
+            'tenant_id' => $instance->tenant_id,
+            'approval_request_id' => $instance->id,
+            'approver_id' => $approverId,
+            'action' => $action,
+            'step_order' => $stepOrder,
+            'note' => $note,
+        ]);
     }
 
     /**

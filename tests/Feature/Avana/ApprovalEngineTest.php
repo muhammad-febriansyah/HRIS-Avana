@@ -203,6 +203,141 @@ it('surfaces a role-group step to every holder of the role, not one representati
         ->not->toContain($leave->id);
 });
 
+it('appends a conditional extra approver when the condition matches', function (): void {
+    // Base: direct manager. Condition: leave longer than 2 days needs the
+    // designated employee too.
+    $workflow = ApprovalWorkflow::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Cuti Bersyarat',
+        'request_type' => 'leave',
+        'approval_mode' => 'sequential',
+        'is_active' => true,
+        'conditions' => [[
+            'field' => 'days',
+            'operator' => '>',
+            'value' => '2',
+            'extra_approver_type' => 'specific_user',
+            'extra_approver_ref' => $this->approver->id,
+        ]],
+    ]);
+    ApprovalStep::create([
+        'tenant_id' => $this->tenant->id,
+        'approval_workflow_id' => $workflow->id,
+        'step_order' => 1,
+        'approver_type' => 'direct_manager',
+    ]);
+
+    // 3-day leave (> 2) → the extra approver step is appended.
+    actingAs($this->admin)->post(route('avana.cuti.store'), [
+        'employee_id' => $this->subject->id,
+        'leave_type_id' => $this->leaveType->id,
+        'start_date' => '2026-09-10',
+        'end_date' => '2026-09-12',
+    ]);
+
+    $leave = LeaveRequest::where('employee_id', $this->subject->id)->latest('id')->firstOrFail();
+    expect((int) $leave->current_approver_id)->toBe($this->manager->id);
+
+    // Manager approves → advances to the condition-added approver, still pending.
+    actingAs($this->admin)->post(route('avana.cuti.approve', $leave));
+    $leave->refresh();
+    expect($leave->status)->toBe('pending');
+    expect((int) $leave->current_approver_id)->toBe($this->approver->id);
+
+    // Extra approver approves → finalized.
+    actingAs($this->admin)->post(route('avana.cuti.approve', $leave));
+    expect($leave->fresh()->status)->toBe('approved');
+});
+
+it('does not append the extra approver when the condition fails', function (): void {
+    $workflow = ApprovalWorkflow::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Cuti Bersyarat',
+        'request_type' => 'leave',
+        'approval_mode' => 'sequential',
+        'is_active' => true,
+        'conditions' => [[
+            'field' => 'days',
+            'operator' => '>',
+            'value' => '2',
+            'extra_approver_type' => 'specific_user',
+            'extra_approver_ref' => $this->approver->id,
+        ]],
+    ]);
+    ApprovalStep::create([
+        'tenant_id' => $this->tenant->id,
+        'approval_workflow_id' => $workflow->id,
+        'step_order' => 1,
+        'approver_type' => 'direct_manager',
+    ]);
+
+    // 1-day leave (not > 2) → single-step workflow, one approval finalizes.
+    actingAs($this->admin)->post(route('avana.cuti.store'), [
+        'employee_id' => $this->subject->id,
+        'leave_type_id' => $this->leaveType->id,
+        'start_date' => '2026-09-10',
+        'end_date' => '2026-09-10',
+    ]);
+
+    $leave = LeaveRequest::where('employee_id', $this->subject->id)->latest('id')->firstOrFail();
+
+    actingAs($this->admin)->post(route('avana.cuti.approve', $leave));
+    expect($leave->fresh()->status)->toBe('approved');
+});
+
+it('requires every step to approve a parallel workflow', function (): void {
+    $workflow = ApprovalWorkflow::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Cuti Paralel',
+        'request_type' => 'leave',
+        'approval_mode' => 'parallel',
+        'is_active' => true,
+    ]);
+    foreach ([$this->manager->id, $this->approver->id] as $order => $employeeId) {
+        ApprovalStep::create([
+            'tenant_id' => $this->tenant->id,
+            'approval_workflow_id' => $workflow->id,
+            'step_order' => $order + 1,
+            'approver_type' => 'specific_user',
+            'approver_user_id' => $employeeId,
+        ]);
+    }
+
+    $balance = LeaveBalance::query()
+        ->where('employee_id', $this->subject->id)
+        ->where('leave_type_id', $this->leaveType->id)
+        ->where('year', 2026)
+        ->firstOrFail();
+    $usedBefore = (float) $balance->used;
+
+    actingAs($this->admin)->post(route('avana.cuti.store'), [
+        'employee_id' => $this->subject->id,
+        'leave_type_id' => $this->leaveType->id,
+        'start_date' => '2026-09-10',
+        'end_date' => '2026-09-12',
+    ]);
+
+    $leave = LeaveRequest::where('employee_id', $this->subject->id)->latest('id')->firstOrFail();
+
+    // Parallel: no single current approver.
+    expect($leave->current_approver_id)->toBeNull();
+
+    $approverOne = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $approverTwo = User::factory()->create(['tenant_id' => $this->tenant->id]);
+
+    // One approval (repeated by the same user) is not enough.
+    ApprovalEngine::decide($leave->fresh(), $approverOne->id, 'approve');
+    ApprovalEngine::decide($leave->fresh(), $approverOne->id, 'approve');
+    expect($leave->fresh()->status)->toBe('pending');
+
+    // A second distinct approver completes it and finalizes.
+    ApprovalEngine::decide($leave->fresh(), $approverTwo->id, 'approve');
+    expect($leave->fresh()->status)->toBe('approved');
+
+    $balance->refresh();
+    expect((float) $balance->used)->toBe($usedBefore + 3);
+});
+
 it('keeps the legacy manager routing when no workflow is active', function (): void {
     // No workflow created — the request must fall back to manager_id routing and
     // create no workflow instance.
