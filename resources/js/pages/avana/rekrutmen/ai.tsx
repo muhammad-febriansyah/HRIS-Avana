@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { AIcon, C, card } from '@/lib/avana';
 import { DataTable } from '@/pages/avana/pengumuman/data-table';
 import { makeAiColumns, type Rec, tierOf } from './ai-columns';
+import { CandidateDetailModal } from './ai-detail-modal';
 import { RecruitmentHeader } from './shell';
 
 /** Laravel's XSRF-TOKEN cookie, decoded, for the streaming fetch POST. */
@@ -66,10 +67,21 @@ export default function RecruitmentAi({
 }: {
     recommendations: Rec[];
 }) {
-    const columns = useMemo(() => makeAiColumns(), []);
     const [rows, setRows] = useState<Rec[]>(recommendations);
     const [analyzing, setAnalyzing] = useState(false);
     const [progress, setProgress] = useState({ done: 0, total: 0 });
+    const [detailId, setDetailId] = useState<number | null>(null);
+
+    const columns = useMemo(
+        () => makeAiColumns((rec) => setDetailId(rec.id), analyzing),
+        [analyzing],
+    );
+
+    // Look up the live row so the modal reflects streamed score updates.
+    const detailRec =
+        detailId !== null
+            ? (rows.find((r) => r.id === detailId) ?? null)
+            : null;
 
     const total = rows.length;
     const scored = rows.filter((r) => r.confidence !== null);
@@ -392,6 +404,13 @@ export default function RecruitmentAi({
                     </>
                 )}
             </div>
+
+            {detailRec && (
+                <CandidateDetailModal
+                    rec={detailRec}
+                    onClose={() => setDetailId(null)}
+                />
+            )}
         </>
     );
 }

@@ -14,7 +14,13 @@ export interface Rec {
     id: number;
     name: string;
     job_title: string | null;
+    position: string | null;
     stage: string | null;
+    email: string | null;
+    phone: string | null;
+    source: string | null;
+    applied_date: string | null;
+    interview_at: string | null;
     confidence: number | null;
     recommendation: string | null;
     reasoning: string | null;
@@ -136,7 +142,31 @@ function SortHeader<T>({
     );
 }
 
-export function makeAiColumns(): ColumnDef<Rec>[] {
+/** A small spinning loader shown on a candidate still awaiting its AI score. */
+function PendingLoader({ label }: { label: string }) {
+    return (
+        <span
+            style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 12,
+                color: '#7C3AED',
+                fontWeight: 600,
+            }}
+        >
+            <span className="animate-spin" style={{ display: 'inline-flex' }}>
+                <AIcon name="loader-2" size={13} color="#7C3AED" />
+            </span>
+            {label}
+        </span>
+    );
+}
+
+export function makeAiColumns(
+    onDetail: (rec: Rec) => void,
+    analyzing: boolean,
+): ColumnDef<Rec>[] {
     return [
         {
             id: 'rank',
@@ -249,8 +279,36 @@ export function makeAiColumns(): ColumnDef<Rec>[] {
             meta: { label: 'Rekomendasi & Alasan' },
             header: () => <span style={headerStyle}>Rekomendasi & Alasan</span>,
             cell: ({ row }) => {
-                const tier = badgeOf(row.original.confidence);
                 const reasoning = row.original.reasoning;
+
+                if (row.original.confidence === null) {
+                    return analyzing ? (
+                        <PendingLoader label="Menganalisa…" />
+                    ) : (
+                        <div style={{ maxWidth: 340, minWidth: 220 }}>
+                            <span
+                                style={{
+                                    ...pill,
+                                    color: NEUTRAL.color,
+                                    background: NEUTRAL.bg,
+                                }}
+                            >
+                                {NEUTRAL.label}
+                            </span>
+                            <div
+                                style={{
+                                    marginTop: 6,
+                                    fontSize: 12,
+                                    color: C.faint,
+                                }}
+                            >
+                                Belum dianalisa AI
+                            </div>
+                        </div>
+                    );
+                }
+
+                const tier = tierOf(row.original.confidence);
 
                 return (
                     <div style={{ maxWidth: 340, minWidth: 220 }}>
@@ -263,7 +321,7 @@ export function makeAiColumns(): ColumnDef<Rec>[] {
                         >
                             {tier.label}
                         </span>
-                        {reasoning ? (
+                        {reasoning && (
                             <div
                                 title={reasoning}
                                 style={{
@@ -279,16 +337,6 @@ export function makeAiColumns(): ColumnDef<Rec>[] {
                             >
                                 {reasoning}
                             </div>
-                        ) : (
-                            <div
-                                style={{
-                                    marginTop: 6,
-                                    fontSize: 12,
-                                    color: C.faint,
-                                }}
-                            >
-                                Belum dianalisa AI
-                            </div>
                         )}
                     </div>
                 );
@@ -302,7 +350,9 @@ export function makeAiColumns(): ColumnDef<Rec>[] {
             ),
             cell: ({ row }) => {
                 if (row.original.confidence === null) {
-                    return (
+                    return analyzing ? (
+                        <PendingLoader label="…" />
+                    ) : (
                         <span
                             style={{
                                 fontSize: 15,
@@ -368,6 +418,36 @@ export function makeAiColumns(): ColumnDef<Rec>[] {
                     </div>
                 );
             },
+        },
+        {
+            id: 'aksi',
+            enableSorting: false,
+            enableHiding: false,
+            meta: { label: 'Aksi' },
+            header: () => <span style={headerStyle}>Detail</span>,
+            cell: ({ row }) => (
+                <button
+                    type="button"
+                    onClick={() => onDetail(row.original)}
+                    style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        color: C.primary,
+                        background: 'rgba(47,84,201,.08)',
+                        border: 'none',
+                        borderRadius: 7,
+                        padding: '6px 11px',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                    }}
+                >
+                    <AIcon name="eye" size={13} color={C.primary} />
+                    Detail
+                </button>
+            ),
         },
     ];
 }
