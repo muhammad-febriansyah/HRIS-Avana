@@ -7,6 +7,7 @@ use App\Mail\BrandedNotification;
 use App\Models\Announcement;
 use App\Models\AttendanceCorrection;
 use App\Models\Employee;
+use App\Models\Invoice;
 use App\Models\LeaveRequest;
 use App\Models\Notification;
 use App\Models\OvertimeRequest;
@@ -14,6 +15,9 @@ use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
 use App\Models\PermissionRequest;
 use App\Models\Reimbursement;
+use App\Models\Subscription;
+use App\Models\Tenant;
+use App\Models\User;
 use App\Models\WfhRequest;
 use Illuminate\Database\Eloquent\Model;
 
@@ -208,6 +212,228 @@ final class Notifier
                 ),
             );
         }
+    }
+
+    // ── Platform (super admin) billing notifications ─────────────────────
+    //
+    // Tier 1: money + revenue-risk events. Recipients are every user holding
+    // the `super_admin` role, regardless of tenant — these are platform-level
+    // alerts, not tenant-scoped HR ones. The notification row's `tenant_id`
+    // carries the *subject* tenant so the bell can deep-link to that client.
+
+    /**
+     * Notify super admins (except the acting one) that a tenant invoice was
+     * paid. Fired the moment an invoice's status flips to `paid`.
+     */
+    public static function invoicePaid(Invoice $invoice, ?int $excludeUserId = null): void
+    {
+        $amount = 'Rp '.number_format((float) $invoice->total, 0, ',', '.');
+
+        self::platformNotify(
+            type: 'invoice',
+            tenantId: (int) $invoice->tenant_id,
+            title: 'Invoice dibayar',
+            body: 'Invoice '.$invoice->invoice_number.' ('.($invoice->tenant?->name ?? 'tenant').') '.$amount.' telah lunas.',
+            data: [
+                'link' => ['type' => 'invoice', 'id' => $invoice->id],
+                'invoice_id' => $invoice->id,
+                'event' => 'paid',
+            ],
+            excludeUserId: $excludeUserId,
+        );
+    }
+
+    /**
+     * Notify super admins that a tenant invoice is past its due date. At most
+     * one notification per invoice per super admin (safe to run daily).
+     */
+    public static function invoiceOverdue(Invoice $invoice): void
+    {
+        $amount = 'Rp '.number_format((float) $invoice->total, 0, ',', '.');
+
+        self::platformNotify(
+            type: 'invoice',
+            tenantId: (int) $invoice->tenant_id,
+            title: 'Invoice jatuh tempo',
+            body: 'Invoice '.$invoice->invoice_number.' ('.($invoice->tenant?->name ?? 'tenant').') '.$amount.' telah lewat jatuh tempo.',
+            data: [
+                'link' => ['type' => 'invoice', 'id' => $invoice->id],
+                'invoice_id' => $invoice->id,
+                'event' => 'overdue',
+            ],
+            dedupeColumn: 'invoice_id',
+            dedupeValue: $invoice->id,
+            dedupeEvent: 'overdue',
+        );
+    }
+
+    /**
+     * Notify super admins that a tenant subscription slipped to `past_due`.
+     */
+    public static function subscriptionPastDue(Subscription $subscription): void
+    {
+        self::platformNotify(
+            type: 'subscription',
+            tenantId: (int) $subscription->tenant_id,
+            title: 'Langganan menunggak',
+            body: 'Langganan '.($subscription->tenant?->name ?? 'tenant').' berstatus menunggak (past due).',
+            data: [
+                'link' => ['type' => 'subscription', 'id' => $subscription->id],
+                'subscription_id' => $subscription->id,
+                'event' => 'past_due',
+            ],
+        );
+    }
+
+    /**
+     * Notify super admins that a tenant subscription is nearing its end date.
+     * At most one notification per subscription per super admin.
+     */
+    public static function subscriptionExpiring(Subscription $subscription): void
+    {
+        $end = $subscription->end_date?->format('d M Y') ?? '-';
+
+        self::platformNotify(
+            type: 'subscription',
+            tenantId: (int) $subscription->tenant_id,
+            title: 'Langganan akan berakhir',
+            body: 'Langganan '.($subscription->tenant?->name ?? 'tenant')
+                .($subscription->package ? ' ('.$subscription->package->name.')' : '')
+                .' berakhir pada '.$end.'.',
+            data: [
+                'link' => ['type' => 'subscription', 'id' => $subscription->id],
+                'subscription_id' => $subscription->id,
+                'event' => 'expiring',
+            ],
+            dedupeColumn: 'subscription_id',
+            dedupeValue: $subscription->id,
+            dedupeEvent: 'expiring',
+        );
+    }
+
+    // ── Platform (super admin) tenant-lifecycle notifications ────────────
+    //
+    // Tier 2: client growth + churn signals. Same recipients/scoping as the
+    // billing alerts; the notification row's `tenant_id` is the tenant itself.
+
+    /**
+     * Notify super admins (except the acting one) that a new client tenant was
+     * added to the platform.
+     */
+    public static function tenantCreated(Tenant $tenant, ?int $excludeUserId = null): void
+    {
+        self::platformNotify(
+            type: 'tenant',
+            tenantId: (int) $tenant->id,
+            title: 'Klien baru',
+            body: 'Tenant baru '.$tenant->name.' telah ditambahkan ke platform.',
+            data: [
+                'link' => ['type' => 'tenant', 'id' => $tenant->id],
+                'tenant_ref' => $tenant->id,
+                'event' => 'created',
+            ],
+            excludeUserId: $excludeUserId,
+        );
+    }
+
+    /**
+     * Notify super admins (except the acting one) that a tenant converted from
+     * trial to a paying (active) subscription.
+     */
+    public static function tenantActivated(Tenant $tenant, ?int $excludeUserId = null): void
+    {
+        self::platformNotify(
+            type: 'tenant',
+            tenantId: (int) $tenant->id,
+            title: 'Konversi trial',
+            body: 'Tenant '.$tenant->name.' aktif — konversi dari trial.',
+            data: [
+                'link' => ['type' => 'tenant', 'id' => $tenant->id],
+                'tenant_ref' => $tenant->id,
+                'event' => 'activated',
+            ],
+            excludeUserId: $excludeUserId,
+        );
+    }
+
+    /**
+     * Notify super admins (except the acting one) that a tenant was suspended or
+     * deactivated — a churn signal. `$status` is `suspended` or `inactive`.
+     */
+    public static function tenantDeactivated(Tenant $tenant, string $status, ?int $excludeUserId = null): void
+    {
+        $label = $status === 'suspended' ? 'disuspend' : 'dinonaktifkan';
+
+        self::platformNotify(
+            type: 'tenant',
+            tenantId: (int) $tenant->id,
+            title: $status === 'suspended' ? 'Klien disuspend' : 'Klien nonaktif',
+            body: 'Tenant '.$tenant->name.' telah '.$label.'.',
+            data: [
+                'link' => ['type' => 'tenant', 'id' => $tenant->id],
+                'tenant_ref' => $tenant->id,
+                'event' => $status,
+            ],
+            excludeUserId: $excludeUserId,
+        );
+    }
+
+    /**
+     * Insert a platform notification for every super admin, optionally skipping
+     * the acting user and any super admin already notified for the same subject
+     * event (the dedupe guard keeps recurring scans from re-alerting).
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private static function platformNotify(
+        string $type,
+        int $tenantId,
+        string $title,
+        string $body,
+        array $data,
+        ?int $excludeUserId = null,
+        ?string $dedupeColumn = null,
+        int|string|null $dedupeValue = null,
+        ?string $dedupeEvent = null,
+    ): void {
+        $recipients = User::query()
+            ->whereHas('roles', fn ($query) => $query->where('code', 'super_admin'))
+            ->when($excludeUserId !== null, fn ($query) => $query->where('id', '!=', $excludeUserId))
+            ->pluck('id');
+
+        $rows = [];
+
+        foreach ($recipients as $userId) {
+            if ($dedupeColumn !== null
+                && self::platformAlreadyNotified((int) $userId, $type, $dedupeColumn, $dedupeValue, $dedupeEvent)) {
+                continue;
+            }
+
+            $rows[] = [
+                'tenant_id' => $tenantId,
+                'user_id' => (int) $userId,
+                'type' => $type,
+                'title' => $title,
+                'body' => $body,
+                'data' => $data,
+            ];
+        }
+
+        self::insertMany($rows);
+    }
+
+    /**
+     * Whether the given super admin already holds a notification for this
+     * subject event, keyed on a top-level `data` column plus the `event` tag.
+     */
+    private static function platformAlreadyNotified(int $userId, string $type, string $column, int|string|null $value, ?string $event): bool
+    {
+        return Notification::query()
+            ->where('user_id', $userId)
+            ->where('type', $type)
+            ->where('data->'.$column, $value)
+            ->when($event !== null, fn ($query) => $query->where('data->event', $event))
+            ->exists();
     }
 
     /**

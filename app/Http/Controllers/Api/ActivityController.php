@@ -49,6 +49,19 @@ class ActivityController extends Controller
                     'Masuk '.($in ?? '--:--').' · Pulang '.($out ?? '--:--'),
                     $a->status,
                     $a->clock_in_at ?? $a->date,
+                    detail: [
+                        'date' => $a->date instanceof Carbon ? $a->date->toDateString() : (string) $a->date,
+                        'clock_in' => $in,
+                        'clock_out' => $out,
+                        'work_mode' => $a->work_mode,
+                        'work_minutes' => (int) ($a->work_minutes ?? 0),
+                        'late_minutes' => (int) ($a->late_minutes ?? 0),
+                        'status' => $a->status,
+                        'location_status' => $a->location_status,
+                        'face_confidence' => $a->face_confidence !== null ? (float) $a->face_confidence : null,
+                        'latitude' => $a->clock_in_lat !== null ? (float) $a->clock_in_lat : null,
+                        'longitude' => $a->clock_in_lng !== null ? (float) $a->clock_in_lng : null,
+                    ],
                 ));
             });
 
@@ -122,9 +135,10 @@ class ActivityController extends Controller
     }
 
     /**
+     * @param  array<string, mixed>  $detail
      * @return array<string, mixed>
      */
-    private function shape(string $type, string $title, string $subtitle, ?string $status, mixed $occurredAt): array
+    private function shape(string $type, string $title, string $subtitle, ?string $status, mixed $occurredAt, array $detail = []): array
     {
         $at = $occurredAt instanceof Carbon
             ? $occurredAt
@@ -136,6 +150,7 @@ class ActivityController extends Controller
             'subtitle' => $subtitle,
             'status' => $status,
             'occurred_at' => $at?->toIso8601String(),
+            'detail' => $detail === [] ? null : $detail,
         ];
     }
 

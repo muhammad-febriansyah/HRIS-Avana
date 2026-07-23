@@ -401,7 +401,6 @@ export default function VisitingIndex({
                                     <th style={headThStyle}>Lokasi</th>
                                     <th style={headThStyle}>Klien</th>
                                     <th style={headThStyle}>Tugas</th>
-                                    <th style={headThStyle}>Foto</th>
                                     <th
                                         style={{
                                             ...headThStyle,
@@ -420,7 +419,7 @@ export default function VisitingIndex({
                                         }}
                                     >
                                         <td
-                                            colSpan={8}
+                                            colSpan={7}
                                             style={{
                                                 padding: '48px 18px',
                                                 textAlign: 'center',
@@ -519,51 +518,6 @@ export default function VisitingIndex({
                                                 tasks={row.tasks}
                                                 progress={row.task_progress}
                                             />
-                                        </td>
-                                        <td style={{ padding: '12px 16px' }}>
-                                            {row.photo_urls.length > 0 ? (
-                                                <div
-                                                    style={{
-                                                        display: 'flex',
-                                                        gap: 4,
-                                                        alignItems: 'center',
-                                                    }}
-                                                >
-                                                    {row.photo_urls.map(
-                                                        (url, index) => (
-                                                            <a
-                                                                key={url}
-                                                                href={url}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                title={`Foto ${index + 1} dari ${row.photo_urls.length}`}
-                                                            >
-                                                                <img
-                                                                    src={url}
-                                                                    alt={`Foto kunjungan ${index + 1}`}
-                                                                    style={{
-                                                                        width: 40,
-                                                                        height: 40,
-                                                                        borderRadius: 8,
-                                                                        objectFit:
-                                                                            'cover',
-                                                                        border: `1px solid ${C.border}`,
-                                                                    }}
-                                                                />
-                                                            </a>
-                                                        ),
-                                                    )}
-                                                </div>
-                                            ) : (
-                                                <span
-                                                    style={{
-                                                        fontSize: 12.5,
-                                                        color: C.faint,
-                                                    }}
-                                                >
-                                                    —
-                                                </span>
-                                            )}
                                         </td>
                                         <td
                                             style={{

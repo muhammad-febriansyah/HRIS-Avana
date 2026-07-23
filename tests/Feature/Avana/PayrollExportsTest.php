@@ -40,7 +40,7 @@ beforeEach(function (): void {
     $this->run->update(['status' => 'locked']);
 });
 
-it('streams a password-protected payslip PDF', function (): void {
+it('streams a payslip PDF', function (): void {
     $item = PayrollRunItem::where('payroll_run_id', $this->run->id)->where('employee_id', $this->employee->id)->firstOrFail();
 
     $response = actingAs($this->admin)->get("spec-export/payroll/payslip/{$item->id}/pdf");

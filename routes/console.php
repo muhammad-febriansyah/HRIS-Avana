@@ -14,6 +14,9 @@ Schedule::command('avana:flag-resigned-employees')->dailyAt('00:15');
 // Warn HR about employee contracts nearing their end date.
 Schedule::command('avana:remind-expiring-contracts')->dailyAt('06:00');
 
+// Alert super admins to overdue invoices and expiring subscriptions.
+Schedule::command('avana:remind-billing')->dailyAt('07:00');
+
 // Scan resign-risk scores and alert HR to high-risk employees (per-tenant config
 // decides on/off, threshold, recipient role, and daily vs weekly cadence).
 Schedule::command('avana:scan-attrition-alerts')->dailyAt('07:30');

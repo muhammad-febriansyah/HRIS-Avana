@@ -306,6 +306,51 @@ it('keeps a checklist task that carries no evidence', function (): void {
         ->and($tasks[0]['photo_note'])->toBeNull();
 });
 
+it('uploads an after photo for a task from the visit list', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/field-visits', [
+        'visit_date' => now()->toDateString(),
+        'location' => 'Toko Tanpa After',
+        'tasks' => ['Pasang display'],
+        'task_before' => [UploadedFile::fake()->image('before.jpg')],
+    ])->assertCreated();
+
+    $visit = ($this->auth)()->getJson('/api/v1/me/field-visits')->assertOk()->json('data.0');
+    $task = $visit['tasks'][0];
+    expect($task['after_photo_url'])->toBeNull();
+
+    ($this->auth)()->postJson(
+        "/api/v1/me/field-visits/{$visit['id']}/tasks/{$task['id']}/after",
+        ['after' => UploadedFile::fake()->image('after.jpg')],
+    )->assertOk()->assertJsonPath('data.id', $task['id']);
+
+    $updated = ($this->auth)()->getJson('/api/v1/me/field-visits')->assertOk()->json('data.0.tasks.0');
+    expect($updated['after_photo_url'])->not->toBeNull();
+});
+
+it('rejects an after upload when the task does not belong to the visit', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/field-visits', [
+        'visit_date' => now()->toDateString(),
+        'location' => 'Visit A',
+        'tasks' => ['Tugas A'],
+    ])->assertCreated();
+    ($this->auth)()->postJson('/api/v1/me/field-visits', [
+        'visit_date' => now()->toDateString(),
+        'location' => 'Visit B',
+        'tasks' => ['Tugas B'],
+    ])->assertCreated();
+
+    $list = ($this->auth)()->getJson('/api/v1/me/field-visits')->assertOk()->json('data');
+    $visitA = collect($list)->firstWhere('location', 'Visit A');
+    $visitB = collect($list)->firstWhere('location', 'Visit B');
+    $taskB = $visitB['tasks'][0];
+
+    // Task B is not on Visit A → the ownership guard must 404.
+    ($this->auth)()->postJson(
+        "/api/v1/me/field-visits/{$visitA['id']}/tasks/{$taskB['id']}/after",
+        ['after' => UploadedFile::fake()->image('after.jpg')],
+    )->assertNotFound();
+});
+
 it('records a field visit with no photo at all', function (): void {
     ($this->auth)()->postJson('/api/v1/me/field-visits', [
         'visit_date' => now()->toDateString(),
@@ -314,6 +359,24 @@ it('records a field visit with no photo at all', function (): void {
 
     ($this->auth)()->getJson('/api/v1/me/field-visits')->assertOk()
         ->assertJsonPath('data.0.photo_urls', []);
+});
+
+it('filters the field-visit list by date', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/field-visits', [
+        'visit_date' => '2026-07-20',
+        'location' => 'Kunjungan Kemarin',
+    ])->assertCreated();
+    ($this->auth)()->postJson('/api/v1/me/field-visits', [
+        'visit_date' => '2026-07-23',
+        'location' => 'Kunjungan Hari Ini',
+    ])->assertCreated();
+
+    $list = ($this->auth)()->getJson('/api/v1/me/field-visits?date=2026-07-23')
+        ->assertOk()
+        ->json('data');
+
+    expect($list)->toHaveCount(1)
+        ->and($list[0]['location'])->toBe('Kunjungan Hari Ini');
 });
 
 it('paginates and searches the field-visit list', function (): void {

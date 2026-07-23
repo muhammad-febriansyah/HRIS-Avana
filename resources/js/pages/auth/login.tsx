@@ -1,6 +1,7 @@
 import { Form, Head, Link, router } from '@inertiajs/react';
 import { usePasskeyVerify } from '@laravel/passkeys/react';
-import { KeyRound, Lock, LogIn, Mail } from 'lucide-react';
+import { Eye, EyeOff, KeyRound, Lock, LogIn, Mail } from 'lucide-react';
+import { useState } from 'react';
 import InputError from '@/components/input-error';
 import { Spinner } from '@/components/ui/spinner';
 import { register } from '@/routes';
@@ -17,6 +18,7 @@ const fieldClass =
 const labelClass = 'mb-1.5 block text-[13px] font-medium text-[#1A2333]';
 
 export default function Login({ status, canResetPassword }: Props) {
+    const [showPassword, setShowPassword] = useState(false);
     const {
         verify,
         isLoading: passkeyLoading,
@@ -85,14 +87,33 @@ export default function Login({ status, canResetPassword }: Props) {
                                 />
                                 <input
                                     id="password"
-                                    type="password"
+                                    type={showPassword ? 'text' : 'password'}
                                     name="password"
                                     required
                                     tabIndex={2}
                                     autoComplete="current-password"
                                     placeholder="Masukkan kata sandi"
-                                    className={fieldClass}
+                                    className={`${fieldClass} !pr-11`}
                                 />
+                                <button
+                                    type="button"
+                                    tabIndex={-1}
+                                    onClick={() =>
+                                        setShowPassword((prev) => !prev)
+                                    }
+                                    aria-label={
+                                        showPassword
+                                            ? 'Sembunyikan kata sandi'
+                                            : 'Tampilkan kata sandi'
+                                    }
+                                    className="absolute top-1/2 right-3 -translate-y-1/2 text-[#9CA3AF] transition hover:text-[#2F54C9]"
+                                >
+                                    {showPassword ? (
+                                        <EyeOff size={17} />
+                                    ) : (
+                                        <Eye size={17} />
+                                    )}
+                                </button>
                             </div>
                             <InputError
                                 message={errors.password}

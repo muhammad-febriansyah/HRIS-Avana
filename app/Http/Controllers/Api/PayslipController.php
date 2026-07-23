@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
-use App\Models\Employee;
 use App\Models\PayrollRunItem;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -52,8 +51,7 @@ class PayslipController extends Controller
     }
 
     /**
-     * Stream the employee's own payslip as a password-protected PDF (BR-11.4).
-     * The password defaults to the employee's birth date (ddmmyyyy).
+     * Stream the employee's own payslip as a PDF.
      */
     public function pdf(Request $request, PayrollRunItem $item): Response
     {
@@ -97,7 +95,6 @@ class PayslipController extends Controller
         }
 
         $mpdf = new Mpdf(['tempDir' => $tempDir]);
-        $mpdf->SetProtection(['print'], $this->payslipPassword($slipEmployee), '');
         $mpdf->WriteHTML($html);
 
         $filename = 'slip-'.$slipEmployee->employee_number.'-'.($item->period?->code ?? $item->id).'.pdf';
@@ -111,18 +108,6 @@ class PayslipController extends Controller
     private function rupiah(int|float|string $value): string
     {
         return 'Rp '.number_format((float) $value, 0, ',', '.');
-    }
-
-    /**
-     * Derive the payslip PDF password: birth date (ddmmyyyy), else NIK/number.
-     */
-    private function payslipPassword(Employee $employee): string
-    {
-        if ($employee->birth_date !== null) {
-            return $employee->birth_date->format('dmY');
-        }
-
-        return (string) ($employee->nik ?: $employee->employee_number ?: 'avanahr');
     }
 
     /**

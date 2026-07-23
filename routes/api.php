@@ -129,6 +129,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('field-visits', [FieldVisitController::class, 'index']);
             Route::post('field-visits', [FieldVisitController::class, 'store']);
             Route::post('field-visits/{visit}/tasks/{task}/toggle', [FieldVisitController::class, 'toggleTask']);
+            Route::post('field-visits/{visit}/tasks/{task}/after', [FieldVisitController::class, 'uploadTaskAfter']);
 
             Route::get('shift-swaps', [ShiftSwapController::class, 'index']);
             Route::post('shift-swaps', [ShiftSwapController::class, 'store']);

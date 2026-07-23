@@ -23,6 +23,12 @@ function visual(type: string | null): { icon: string; color: string; bg: string 
         case 'payslip':
         case 'reimburse':
             return { icon: 'wallet', color: '#7C3AED', bg: 'rgba(124,58,237,.1)' };
+        case 'invoice':
+            return { icon: 'receipt', color: '#0D9488', bg: 'rgba(13,148,136,.1)' };
+        case 'subscription':
+            return { icon: 'refresh-cw', color: '#2F54C9', bg: 'rgba(47,84,201,.1)' };
+        case 'tenant':
+            return { icon: 'building-2', color: '#DB2777', bg: 'rgba(219,39,119,.1)' };
         default:
             return { icon: 'bell', color: C.faint, bg: 'rgba(100,116,139,.1)' };
     }

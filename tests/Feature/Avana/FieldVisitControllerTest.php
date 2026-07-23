@@ -65,7 +65,6 @@ it('renders the visiting index with visits and employees scoped to the tenant', 
                 ->has('location')
                 ->has('client_name')
                 ->has('purpose')
-                ->has('photo_urls')
                 ->has('latitude')
                 ->has('longitude')
                 ->has('status')
@@ -538,8 +537,7 @@ it('renders the visit detail page with tasks, attendees and progress', function 
             ->has('visit.employees.0.name')
             ->has('visit.tasks', 1)
             ->where('visit.tasks.0.is_done', true)
-            ->has('visit.task_progress.done')
-            ->has('visit.photo_urls'));
+            ->has('visit.task_progress.done'));
 });
 
 it('does not show a visit from another tenant', function (): void {

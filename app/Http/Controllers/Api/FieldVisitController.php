@@ -29,12 +29,14 @@ class FieldVisitController extends Controller
 
         $data = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
+            'date' => ['nullable', 'date'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
         $page = FieldVisit::forTenant($employee->tenant_id)
             ->where('employee_id', $employee->id)
             ->with(['photos', 'tasks', 'branch:id,name'])
+            ->when($data['date'] ?? null, fn ($query, string $date) => $query->whereDate('visit_date', $date))
             ->when($data['search'] ?? null, fn ($query, string $search) => $query->where(fn ($group) => $group
                 ->where('location', 'like', "%{$search}%")
                 ->orWhere('client_name', 'like', "%{$search}%")
@@ -158,6 +160,36 @@ class FieldVisitController extends Controller
         FieldVisitPhotoStore::attach($visit, $request->file('photos') ?? []);
 
         return response()->json(['message' => 'Kunjungan tercatat', 'data' => ['id' => $visit->id]], 201);
+    }
+
+    /**
+     * Upload (or replace) the "after" evidence photo for a task on the
+     * employee's own visit — the before photo is captured when the report is
+     * filed, the after later once the work is actually done.
+     */
+    public function uploadTaskAfter(Request $request, FieldVisit $visit, FieldVisitTask $task): JsonResponse
+    {
+        $employee = $this->currentEmployee($request);
+
+        abort_if((int) $visit->tenant_id !== (int) $employee->tenant_id, 404);
+        abort_if((int) $visit->employee_id !== (int) $employee->id, 404);
+        abort_if((int) $task->field_visit_id !== (int) $visit->id, 404);
+
+        $request->validate([
+            'after' => ['required', 'image', 'max:4096'],
+        ]);
+
+        if ($task->after_photo_path !== null) {
+            Storage::disk('public')->delete($task->after_photo_path);
+        }
+
+        $path = $request->file('after')->store('visit-tasks', 'public');
+        $task->update(['after_photo_path' => $path]);
+
+        return response()->json(['data' => [
+            'id' => $task->id,
+            'after_photo_url' => Storage::disk('public')->url($path),
+        ]]);
     }
 
     /** Tick a task off the employee's own visit, or put it back. */

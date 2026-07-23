@@ -1,6 +1,6 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
-import type { ChangeEvent, FormEvent } from 'react';
+import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
@@ -29,10 +29,7 @@ interface VisitingFormProps {
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }
 
-/** How many photos one visit may carry; mirrors FieldVisitPhotoStore::MAX. */
-const MAX_PHOTOS = 5;
-
-/** Create form for a field visit: attendees, tasklist and photo evidence. */
+/** Create form for a field visit: attendees and tasklist evidence. */
 export function VisitingForm({
     form,
     employees,
@@ -48,13 +45,6 @@ export function VisitingForm({
     const [taskDraft, setTaskDraft] = useState('');
     const [locating, setLocating] = useState(false);
     const [locationError, setLocationError] = useState<string | null>(null);
-
-    const onPhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
-        setData(
-            'photos',
-            Array.from(event.target.files ?? []).slice(0, MAX_PHOTOS),
-        );
-    };
 
     const addEmployee = (value: string) => {
         if (value && !data.employee_ids.includes(value)) {
@@ -471,33 +461,6 @@ export function VisitingForm({
                             : 'Perbarui Lokasi Presisi'}
                     </button>
                     <FieldError message={locationError ?? undefined} />
-                </div>
-
-                <div>
-                    <label style={fieldLabelStyle}>Foto Kunjungan</label>
-                    <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={onPhotoChange}
-                        style={{
-                            width: '100%',
-                            fontSize: 12.5,
-                            color: C.muted,
-                        }}
-                    />
-                    <div
-                        style={{
-                            fontSize: 11,
-                            color: C.faint,
-                            marginTop: 4,
-                        }}
-                    >
-                        JPG / PNG · maks 4 MB · hingga {MAX_PHOTOS} foto
-                        {data.photos.length > 0 &&
-                            ` · ${data.photos.length} dipilih`}
-                    </div>
-                    <FieldError message={errors.photos} />
                 </div>
 
                 <div>

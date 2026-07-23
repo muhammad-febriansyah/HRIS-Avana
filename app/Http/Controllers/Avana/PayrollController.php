@@ -590,8 +590,7 @@ class PayrollController extends Controller
     }
 
     /**
-     * Stream a single employee's payslip as a password-protected PDF (BR-11.4).
-     * The password defaults to the employee's birth date (ddmmyyyy).
+     * Stream a single employee's payslip as a PDF.
      */
     public function payslipPdf(Request $request, PayrollRunItem $item): \Illuminate\Http\Response
     {
@@ -635,7 +634,6 @@ class PayrollController extends Controller
         }
 
         $mpdf = new Mpdf(['tempDir' => $tempDir]);
-        $mpdf->SetProtection(['print'], $this->payslipPassword($employee), '');
         $mpdf->WriteHTML($html);
 
         $filename = 'slip-'.$employee->employee_number.'-'.($item->period?->code ?? $item->id).'.pdf';
@@ -664,18 +662,6 @@ class PayrollController extends Controller
             ->setPaper('a4');
 
         return $pdf->download('1721-A1-'.$employee->employee_number.'-'.$year.'.pdf');
-    }
-
-    /**
-     * Derive the payslip PDF password: birth date (ddmmyyyy), else NIK/number.
-     */
-    private function payslipPassword(Employee $employee): string
-    {
-        if ($employee->birth_date !== null) {
-            return $employee->birth_date->format('dmY');
-        }
-
-        return (string) ($employee->nik ?: $employee->employee_number ?: 'avanahr');
     }
 
     /**

@@ -46,7 +46,7 @@ class FieldVisitController extends Controller
 
         $paginator = FieldVisit::query()
             ->forTenant($tenantId)
-            ->with(['employees:id,full_name,employee_number', 'branch:id,name', 'photos', 'tasks'])
+            ->with(['employees:id,full_name,employee_number', 'branch:id,name', 'tasks'])
             ->when($request->query('search'), function ($query, $search): void {
                 $query->where(function ($q) use ($search): void {
                     $q->where('location', 'like', "%{$search}%")
@@ -96,7 +96,6 @@ class FieldVisitController extends Controller
         $visit->load([
             'employees:id,full_name,employee_number',
             'branch:id,name',
-            'photos',
             'tasks',
         ]);
 
@@ -348,7 +347,6 @@ class FieldVisitController extends Controller
             'client_name' => $visit->client_name,
             'purpose' => $visit->purpose,
             'notes' => $visit->notes,
-            'photo_urls' => FieldVisitPhotoStore::urls($visit),
             'latitude' => $visit->latitude !== null ? (float) $visit->latitude : null,
             'longitude' => $visit->longitude !== null ? (float) $visit->longitude : null,
             'status' => $visit->status,
