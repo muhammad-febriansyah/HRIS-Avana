@@ -12,6 +12,7 @@ use App\Http\Controllers\Avana\AssetController;
 use App\Http\Controllers\Avana\AttendanceController;
 use App\Http\Controllers\Avana\AttendancePenaltyController;
 use App\Http\Controllers\Avana\AttendancePolicyController;
+use App\Http\Controllers\Avana\AttritionController;
 use App\Http\Controllers\Avana\AuditController;
 use App\Http\Controllers\Avana\BenefitController;
 use App\Http\Controllers\Avana\BillingController;
@@ -536,6 +537,8 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
 
     // HR Analytics + Dynamic Report
     Route::get('analytics', [AnalyticsController::class, 'index'])->name('analytics');
+    Route::get('attrition', [AttritionController::class, 'index'])->name('attrition');
+    Route::get('attrition/{employee}', [AttritionController::class, 'show'])->name('attrition.show');
     Route::get('dynamic-report', [DynamicReportController::class, 'index'])->name('dynamic-report');
     Route::post('dynamic-report', [DynamicReportController::class, 'store'])->name('dynamic-report.store');
     Route::get('dynamic-report/{report}/run', [DynamicReportController::class, 'run'])->name('dynamic-report.run');

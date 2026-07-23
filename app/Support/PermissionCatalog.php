@@ -47,7 +47,7 @@ final class PermissionCatalog
         'recruitment', 'onboarding',
         'performance', 'okr', 'competency', 'talent', 'learning',
         'helpdesk', 'announcement', 'survey', 'calendar', 'ai', 'asset', 'crm',
-        'report', 'dynamic_report', 'audit',
+        'report', 'dynamic_report', 'attrition', 'audit',
         'branch', 'department', 'position', 'organization',
         'user', 'settings', 'role', 'permission',
     ];

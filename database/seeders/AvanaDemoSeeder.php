@@ -9,22 +9,29 @@ use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\EmployeeSalaryComponent;
 use App\Models\Feature;
 use App\Models\FieldVisit;
 use App\Models\JobLevel;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Models\OvertimeRequest;
 use App\Models\Package;
 use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
+use App\Models\PerformanceCycle;
+use App\Models\PerformanceReview;
 use App\Models\Permission;
 use App\Models\PkpRate;
 use App\Models\Position;
 use App\Models\PtkpRate;
 use App\Models\Role;
 use App\Models\Shift;
+use App\Models\Survey;
+use App\Models\SurveyQuestion;
+use App\Models\SurveyResponse;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WorkLocation;
@@ -32,6 +39,7 @@ use App\Support\AvanaNav;
 use App\Support\PermissionCatalog;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 
@@ -96,6 +104,7 @@ final class AvanaDemoSeeder extends Seeder
         $this->seedFieldVisits($tenant, $employees);
         $this->seedPayroll($tenant, $branches);
         $this->seedStatutory();
+        $this->seedAttritionInputs($tenant, $employees);
     }
 
     /**
@@ -188,6 +197,154 @@ final class AvanaDemoSeeder extends Seeder
                 'face_enforcement' => 'block',
             ],
         );
+    }
+
+    /**
+     * Seed the inputs the attrition (resign-risk) scorer reads — engagement
+     * survey, overtime, performance history, extra late days, stale salary and
+     * a manager change — so the Prediksi Resign dashboard shows a realistic
+     * spread of low/medium/high risk instead of empty factors.
+     *
+     * Skipped under tests: the attendance/payroll/analytics suites assume the
+     * baseline demo data and would break on the extra rows; the scorer's own
+     * tests craft their inputs directly.
+     *
+     * @param  array<int, Employee>  $employees
+     */
+    private function seedAttritionInputs(Tenant $tenant, array $employees): void
+    {
+        if (app()->runningUnitTests()) {
+            return;
+        }
+
+        $now = Carbon::today();
+
+        // emp no => engagement rating, heavy overtime, [prev, latest] perf
+        // scores (null = skip), late days in the last month, stale salary
+        // (no raise > 2y), manager changed recently.
+        $plan = [
+            1 => ['eng' => 3, 'ot' => false, 'perf' => [80, 78], 'late' => 1, 'stale_salary' => false, 'mgr' => false],
+            2 => ['eng' => 4, 'ot' => true, 'perf' => [75, 80], 'late' => 2, 'stale_salary' => false, 'mgr' => true],
+            3 => ['eng' => 4, 'ot' => false, 'perf' => [82, 85], 'late' => 0, 'stale_salary' => false, 'mgr' => false],
+            4 => ['eng' => 2, 'ot' => false, 'perf' => null, 'late' => 3, 'stale_salary' => false, 'mgr' => false],
+            5 => ['eng' => 2, 'ot' => true, 'perf' => [85, 70], 'late' => 4, 'stale_salary' => true, 'mgr' => true],
+            6 => ['eng' => 2, 'ot' => true, 'perf' => [80, 68], 'late' => 7, 'stale_salary' => true, 'mgr' => false],
+            7 => ['eng' => 5, 'ot' => false, 'perf' => [78, 80], 'late' => 6, 'stale_salary' => false, 'mgr' => false],
+            8 => ['eng' => 3, 'ot' => false, 'perf' => [75, 74], 'late' => 1, 'stale_salary' => false, 'mgr' => false],
+            10 => ['eng' => 4, 'ot' => false, 'perf' => [80, 82], 'late' => 0, 'stale_salary' => false, 'mgr' => false],
+        ];
+
+        // Engagement survey (non-anonymous so responses tie to an employee).
+        $survey = Survey::firstOrCreate(
+            ['tenant_id' => $tenant->id, 'title' => 'Employee Engagement 2026'],
+            ['description' => 'Survei kepuasan & keterikatan karyawan', 'status' => 'closed', 'is_anonymous' => false],
+        );
+        $question = SurveyQuestion::firstOrCreate(
+            ['survey_id' => $survey->id, 'question' => 'Seberapa puas Anda bekerja di perusahaan ini?'],
+            ['tenant_id' => $tenant->id, 'type' => 'rating', 'options' => null],
+        );
+
+        // Two closed cycles so a performance trend is computable.
+        $cyclePrev = PerformanceCycle::firstOrCreate(
+            ['tenant_id' => $tenant->id, 'name' => 'Penilaian Semester 1 2025'],
+            ['period_start' => '2025-01-01', 'period_end' => '2025-06-30', 'status' => 'closed'],
+        );
+        $cycleLatest = PerformanceCycle::firstOrCreate(
+            ['tenant_id' => $tenant->id, 'name' => 'Penilaian Semester 2 2025'],
+            ['period_start' => '2025-07-01', 'period_end' => '2025-12-31', 'status' => 'closed'],
+        );
+
+        $shift = Shift::forTenant($tenant->id)->where('code', 'PAGI')->first();
+        $admin = User::where('email', 'rina.a@nusantara.co.id')->first();
+
+        foreach ($plan as $no => $cfg) {
+            $employee = $employees[$no] ?? null;
+
+            if ($employee === null) {
+                continue;
+            }
+
+            // Engagement rating.
+            SurveyResponse::updateOrCreate(
+                ['survey_id' => $survey->id, 'survey_question_id' => $question->id, 'employee_id' => $employee->id],
+                ['tenant_id' => $tenant->id, 'answer' => (string) $cfg['eng']],
+            );
+
+            // Heavy overtime across the last three months.
+            if ($cfg['ot']) {
+                for ($i = 1; $i <= 3; $i++) {
+                    OvertimeRequest::firstOrCreate(
+                        [
+                            'tenant_id' => $tenant->id,
+                            'employee_id' => $employee->id,
+                            'date' => $now->copy()->subMonthsNoOverflow($i)->day(15)->toDateString(),
+                        ],
+                        ['branch_id' => $employee->branch_id, 'hours' => 52, 'reason' => 'Lembur proyek', 'status' => 'approved'],
+                    );
+                }
+            }
+
+            // Performance scores across the two cycles.
+            if (is_array($cfg['perf'])) {
+                [$prev, $latest] = $cfg['perf'];
+                PerformanceReview::firstOrCreate(
+                    ['tenant_id' => $tenant->id, 'cycle_id' => $cyclePrev->id, 'employee_id' => $employee->id],
+                    ['final_score' => $prev, 'status' => 'completed', 'review_date' => '2025-06-30'],
+                );
+                PerformanceReview::firstOrCreate(
+                    ['tenant_id' => $tenant->id, 'cycle_id' => $cycleLatest->id, 'employee_id' => $employee->id],
+                    ['final_score' => $latest, 'status' => 'completed', 'review_date' => '2025-12-31'],
+                );
+            }
+
+            // Extra late days within the trailing month.
+            for ($k = 1; $k <= $cfg['late']; $k++) {
+                $date = $now->copy()->subDays($k * 3);
+                Attendance::firstOrCreate(
+                    ['tenant_id' => $tenant->id, 'employee_id' => $employee->id, 'date' => $date->toDateString(), 'shift_id' => $shift?->id],
+                    [
+                        'branch_id' => $employee->branch_id,
+                        'clock_in_at' => $date->copy()->setTime(8, 25)->toDateTimeString(),
+                        'clock_out_at' => $date->copy()->setTime(17, 5)->toDateTimeString(),
+                        'late_minutes' => 25,
+                        'work_minutes' => 520,
+                        'status' => 'late',
+                    ],
+                );
+            }
+
+            // A salary set > 2 years ago with no later raise.
+            if ($cfg['stale_salary']) {
+                EmployeeSalaryComponent::firstOrCreate(
+                    ['employee_id' => $employee->id, 'payroll_component_id' => 1],
+                    ['tenant_id' => $tenant->id, 'amount' => 8000000, 'effective_start_date' => '2022-06-01'],
+                );
+            }
+
+            // A recent manager change, recorded on the audit trail.
+            if ($cfg['mgr'] && $admin !== null) {
+                $exists = DB::table('audit_logs')
+                    ->where('auditable_type', Employee::class)
+                    ->where('auditable_id', $employee->id)
+                    ->whereJsonContains('new_values->manager_id', $employee->manager_id ?? 1)
+                    ->exists();
+
+                if (! $exists) {
+                    DB::table('audit_logs')->insert([
+                        'tenant_id' => $tenant->id,
+                        'user_id' => $admin->id,
+                        'auditable_type' => Employee::class,
+                        'auditable_id' => $employee->id,
+                        'action' => 'updated',
+                        'old_values' => json_encode(['manager_id' => 2]),
+                        'new_values' => json_encode(['manager_id' => $employee->manager_id ?? 1]),
+                        'ip_address' => null,
+                        'created_at' => $now->copy()->subMonthsNoOverflow(2),
+                        'updated_at' => $now->copy()->subMonthsNoOverflow(2),
+                    ]);
+                }
+            }
+        }
     }
 
     /**
@@ -485,7 +642,7 @@ final class AvanaDemoSeeder extends Seeder
             'recruitment.view', 'onboarding.view',
             'performance.view', 'okr.view', 'competency.view', 'talent.view', 'learning.view',
             'helpdesk.view', 'announcement.view', 'survey.view', 'calendar.view', 'ai.view',
-            'asset.view', 'crm.view', 'dynamic_report.view',
+            'asset.view', 'crm.view', 'dynamic_report.view', 'attrition.view',
         ];
         $permModels = collect($perms)->map(function (string $code) {
             [$module, $action] = array_pad(explode('.', $code, 2), 2, '');
