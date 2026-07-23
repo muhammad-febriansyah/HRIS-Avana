@@ -1,11 +1,28 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { LocationMap } from '@/components/map/location-map';
 import type { MapPoint } from '@/components/map/location-map';
-import { AIcon, C, card } from '@/lib/avana';
+import { AIcon, btnOut, C, card } from '@/lib/avana';
+
+/** Header date/branch selector control (mirrors the Absensi index filters). */
+const filterControl: CSSProperties = {
+    height: 40,
+    padding: '0 12px',
+    background: '#fff',
+    border: `1px solid ${C.border}`,
+    borderRadius: 8,
+    fontSize: 13.5,
+    color: C.text,
+    outline: 'none',
+};
 
 interface MonitorPoint extends MapPoint {
     status: string;
+}
+
+interface Branch {
+    id: number;
+    name: string;
 }
 
 interface ActivityRow {
@@ -20,6 +37,8 @@ interface ActivityRow {
 
 interface MonitorProps {
     date: { value: string; display: string };
+    filters: { date: string; branch_id: number | null };
+    branches: Branch[];
     kpis: {
         total_personnel: number;
         on_time: number;
@@ -104,6 +123,8 @@ function KpiTile({
 
 export default function AbsensiMonitor({
     date,
+    filters,
+    branches,
     kpis,
     points,
     activity,
@@ -113,6 +134,22 @@ export default function AbsensiMonitor({
         gap: 12,
         padding: '12px 0',
         borderBottom: `1px solid ${C.line}`,
+    };
+
+    const changeFilter = (key: 'date' | 'branch_id', value: string) => {
+        router.get(
+            window.location.pathname,
+            { ...filters, [key]: value || undefined },
+            { preserveState: true, preserveScroll: true, replace: true },
+        );
+    };
+
+    const goToday = () => {
+        router.get(
+            window.location.pathname,
+            { ...filters, date: undefined },
+            { preserveState: true, preserveScroll: true, replace: true },
+        );
     };
 
     return (
@@ -177,26 +214,64 @@ export default function AbsensiMonitor({
                     </div>
                     <div
                         style={{
-                            display: 'inline-flex',
+                            display: 'flex',
                             alignItems: 'center',
-                            gap: 7,
-                            fontSize: 12.5,
-                            fontWeight: 600,
-                            color: C.green,
-                            padding: '7px 13px',
-                            borderRadius: 100,
-                            background: 'rgba(22,163,74,.09)',
+                            gap: 10,
+                            flexWrap: 'wrap',
                         }}
                     >
-                        <span
-                            style={{
-                                width: 8,
-                                height: 8,
-                                borderRadius: '50%',
-                                background: C.green,
-                            }}
+                        <select
+                            value={filters.branch_id ?? ''}
+                            onChange={(event) =>
+                                changeFilter('branch_id', event.target.value)
+                            }
+                            style={filterControl}
+                        >
+                            <option value="">Semua cabang</option>
+                            {branches.map((branch) => (
+                                <option
+                                    key={branch.id}
+                                    value={String(branch.id)}
+                                >
+                                    {branch.name}
+                                </option>
+                            ))}
+                        </select>
+                        <input
+                            type="date"
+                            value={filters.date}
+                            onChange={(event) =>
+                                changeFilter('date', event.target.value)
+                            }
+                            style={{ ...filterControl, cursor: 'pointer' }}
                         />
-                        Pelacakan Aktif
+                        <button onClick={goToday} style={btnOut} type="button">
+                            <AIcon name="calendar-check" size={16} />
+                            Hari ini
+                        </button>
+                        <div
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 7,
+                                fontSize: 12.5,
+                                fontWeight: 600,
+                                color: C.green,
+                                padding: '7px 13px',
+                                borderRadius: 100,
+                                background: 'rgba(22,163,74,.09)',
+                            }}
+                        >
+                            <span
+                                style={{
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: '50%',
+                                    background: C.green,
+                                }}
+                            />
+                            Pelacakan Aktif
+                        </div>
                     </div>
                 </div>
 

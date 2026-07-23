@@ -142,9 +142,13 @@ class AttendanceController extends Controller
         $date = $this->resolveDate($request->query('date'));
         $dateString = $date->format('Y-m-d');
 
+        $branchId = $request->query('branch_id');
+        $branchId = is_numeric($branchId) ? (int) $branchId : null;
+
         $query = Attendance::query()
             ->forTenant($tenantId)
             ->whereDate('date', $dateString)
+            ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
             ->with([
                 'employee:id,full_name,employee_number,branch_id',
                 'employee.branch:id,name',
@@ -192,7 +196,10 @@ class AttendanceController extends Controller
         $late = (int) ($statusCounts['late'] ?? 0);
         $leave = (int) ($statusCounts['leave'] ?? 0);
 
-        $totalPersonnel = Employee::forTenant($tenantId)->where('status', 'active')->count();
+        $totalPersonnel = Employee::forTenant($tenantId)
+            ->where('status', 'active')
+            ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
+            ->count();
         $checkedIn = $onTime + $late;
         $noShow = max($totalPersonnel - $checkedIn - $leave, 0);
 
@@ -201,6 +208,13 @@ class AttendanceController extends Controller
                 'value' => $dateString,
                 'display' => $date->format('d M Y'),
             ],
+            'filters' => [
+                'date' => $dateString,
+                'branch_id' => $branchId,
+            ],
+            'branches' => Branch::forTenant($tenantId)
+                ->orderBy('name')
+                ->get(['id', 'name']),
             'kpis' => [
                 'total_personnel' => $totalPersonnel,
                 'on_time' => $onTime,
