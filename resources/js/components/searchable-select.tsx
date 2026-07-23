@@ -75,26 +75,36 @@ export function SearchableSelect({
     };
 
     return (
-        <div ref={boxRef} style={{ position: 'relative', ...style }}>
+        <div ref={boxRef} style={{ position: 'relative', width: '100%' }}>
             <button
                 type="button"
                 disabled={disabled}
                 onClick={() => setOpen((o) => !o)}
                 style={{
                     width: '100%',
-                    height: 40,
-                    padding: '0 34px 0 12px',
-                    border: `1px solid ${open ? C.primary : C.border}`,
+                    height: 42,
+                    border: `1px solid ${C.border}`,
                     borderRadius: 8,
                     background: disabled ? '#F1F5F9' : '#fff',
-                    fontSize: 13,
-                    color: selected ? C.text : C.faint,
+                    fontSize: 13.5,
                     textAlign: 'left',
                     cursor: disabled ? 'not-allowed' : 'pointer',
-                    position: 'relative',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
+                    // The caller's field style (border, height, error state) is
+                    // applied to the control itself, not a wrapper, so it never
+                    // double-borders. Padding/color/open-border are forced last.
+                    ...style,
+                    position: 'relative',
+                    paddingTop: 0,
+                    paddingBottom: 0,
+                    paddingRight: 34,
+                    paddingLeft: 13,
+                    color: selected
+                        ? ((style?.color as string | undefined) ?? C.text)
+                        : C.faint,
+                    ...(open ? { borderColor: C.primary } : {}),
                 }}
             >
                 {selected ? selected.label : placeholder}
@@ -119,7 +129,7 @@ export function SearchableSelect({
                             <AIcon name="x" size={14} color={C.faint} />
                         </span>
                     )}
-                    <AIcon name="chevrons-up-down" size={14} color={C.faint} />
+                    <AIcon name="chevron-down" size={15} color={C.faint} />
                 </span>
             </button>
 
