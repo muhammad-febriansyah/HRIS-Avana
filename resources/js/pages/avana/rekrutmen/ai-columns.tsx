@@ -17,6 +17,7 @@ export interface Rec {
     stage: string | null;
     confidence: number | null;
     recommendation: string | null;
+    reasoning: string | null;
 }
 
 export interface Tier {
@@ -234,21 +235,51 @@ export function makeAiColumns(): ColumnDef<Rec>[] {
         {
             id: 'rekomendasi',
             enableSorting: false,
-            meta: { label: 'Rekomendasi' },
-            header: () => <span style={headerStyle}>Rekomendasi</span>,
+            meta: { label: 'Rekomendasi & Alasan' },
+            header: () => <span style={headerStyle}>Rekomendasi & Alasan</span>,
             cell: ({ row }) => {
                 const tier = tierOf(row.original.confidence);
+                const reasoning = row.original.reasoning;
 
                 return (
-                    <span
-                        style={{
-                            ...pill,
-                            color: tier.color,
-                            background: tier.bg,
-                        }}
-                    >
-                        {tier.label}
-                    </span>
+                    <div style={{ maxWidth: 340, minWidth: 220 }}>
+                        <span
+                            style={{
+                                ...pill,
+                                color: tier.color,
+                                background: tier.bg,
+                            }}
+                        >
+                            {tier.label}
+                        </span>
+                        {reasoning ? (
+                            <div
+                                title={reasoning}
+                                style={{
+                                    marginTop: 6,
+                                    fontSize: 12,
+                                    lineHeight: 1.45,
+                                    color: C.muted,
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                }}
+                            >
+                                {reasoning}
+                            </div>
+                        ) : (
+                            <div
+                                style={{
+                                    marginTop: 6,
+                                    fontSize: 12,
+                                    color: C.faint,
+                                }}
+                            >
+                                Belum dianalisa AI
+                            </div>
+                        )}
+                    </div>
                 );
             },
         },

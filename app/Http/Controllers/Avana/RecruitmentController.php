@@ -30,6 +30,7 @@ use Prism\Prism\Facades\Prism;
 use Prism\Prism\Schema\NumberSchema;
 use Prism\Prism\Schema\ObjectSchema;
 use Prism\Prism\Schema\StringSchema;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class RecruitmentController extends Controller
 {
@@ -332,27 +333,27 @@ class RecruitmentController extends Controller
                     'stage' => $a->stage,
                     'confidence' => $a->ai_confidence,
                     'recommendation' => $a->ai_recommendation,
+                    'reasoning' => $a->ai_reasoning,
                 ])
                 ->all(),
         ]);
     }
 
     /**
-     * Score every applicant against the job they applied for using the
-     * configured AI provider, storing a 0-100 match score and a short
-     * recommendation. Failures per candidate are skipped, not fatal.
+     * Stream an AI analysis of every applicant against the job they applied
+     * for, emitting one NDJSON line per candidate as it is scored so the UI can
+     * update live. Each line: {id, score, recommendation, reasoning}. The score
+     * (0-100), recommendation and reasoning are also persisted. Per-candidate
+     * failures are skipped, not fatal.
      */
-    public function analyzeAiIntelligence(Request $request): RedirectResponse
+    public function analyzeAiIntelligence(Request $request): StreamedResponse
     {
         $this->ensureCan($request, 'update');
 
         $tenantId = (int) $request->user()->tenant_id;
-
         $ai = AiSetting::current()->resolved();
 
-        if ($ai['api_key'] === '' && $ai['provider'] !== 'ollama') {
-            return back()->withErrors(['ai' => 'API key AI belum dikonfigurasi. Atur di Pengaturan AI.']);
-        }
+        $hasKey = $ai['api_key'] !== '' || $ai['provider'] === 'ollama';
 
         if ($ai['api_key'] !== '') {
             config(["prism.providers.{$ai['provider']}.api_key" => $ai['api_key']]);
@@ -364,57 +365,92 @@ class RecruitmentController extends Controller
             [
                 new NumberSchema('score', 'Skor kecocokan 0 sampai 100 (bilangan bulat)'),
                 new StringSchema('recommendation', 'Rekomendasi singkat satu kalimat dalam Bahasa Indonesia'),
+                new StringSchema('reasoning', 'Alasan penilaian: kekuatan dan kelemahan kandidat terhadap lowongan, 2-3 kalimat dalam Bahasa Indonesia'),
             ],
-            ['score', 'recommendation'],
+            ['score', 'recommendation', 'reasoning'],
         );
 
         $applicants = Applicant::forTenant($tenantId)
             ->with('jobPosting:id,title,description')
             ->get();
 
-        $analyzed = 0;
+        $provider = $ai['provider'];
+        $model = $ai['model'];
 
-        foreach ($applicants as $applicant) {
-            try {
-                $job = $applicant->jobPosting;
+        return response()->stream(function () use ($applicants, $schema, $provider, $model, $hasKey): void {
+            $emit = static function (array $payload): void {
+                echo json_encode($payload)."\n";
 
-                $prompt = "Nilai kecocokan kandidat berikut untuk lowongan yang dilamar.\n\n"
-                    ."KANDIDAT\n"
-                    ."Nama: {$applicant->name}\n"
-                    .'Posisi dilamar: '.($applicant->position ?? '-')."\n"
-                    .'Sumber lamaran: '.($applicant->source ?? '-')."\n"
-                    .'Tahap saat ini: '.($applicant->stage ?? '-')."\n\n"
-                    ."LOWONGAN\n"
-                    .'Judul: '.($job?->title ?? '-')."\n"
-                    .'Deskripsi: '.Str::limit((string) ($job?->description ?? '-'), 600)."\n\n"
-                    .'Beri skor kecocokan 0-100 dan rekomendasi singkat.';
-
-                $response = Prism::structured()
-                    ->using($ai['provider'], $ai['model'])
-                    ->withSchema($schema)
-                    ->withSystemPrompt('Kamu asisten rekrutmen yang menilai kecocokan kandidat secara objektif berdasarkan posisi yang dilamar dan deskripsi lowongan. Jawab ringkas dalam Bahasa Indonesia.')
-                    ->withPrompt($prompt)
-                    ->asStructured();
-
-                $data = $response->structured;
-
-                if (is_array($data) && isset($data['score'])) {
-                    $applicant->update([
-                        'ai_confidence' => max(0, min(100, (int) round((float) $data['score']))),
-                        'ai_recommendation' => (string) ($data['recommendation'] ?? 'Analisa AI selesai.'),
-                    ]);
-                    $analyzed++;
+                if (ob_get_level() > 0) {
+                    @ob_flush();
                 }
-            } catch (\Throwable $e) {
-                report($e);
+
+                flush();
+            };
+
+            if (! $hasKey) {
+                $emit(['error' => 'API key AI belum dikonfigurasi. Atur di Pengaturan AI.', 'done' => true, 'analyzed' => 0]);
+
+                return;
             }
-        }
 
-        if ($analyzed === 0) {
-            return back()->withErrors(['ai' => 'Analisa AI gagal. Periksa provider, model, dan API key di Pengaturan AI.']);
-        }
+            $emit(['total' => $applicants->count()]);
+            $analyzed = 0;
 
-        return back()->with('success', "AI selesai menganalisa {$analyzed} kandidat.");
+            foreach ($applicants as $applicant) {
+                try {
+                    $job = $applicant->jobPosting;
+
+                    $prompt = "Nilai kecocokan kandidat berikut untuk lowongan yang dilamar.\n\n"
+                        ."KANDIDAT\n"
+                        ."Nama: {$applicant->name}\n"
+                        .'Posisi dilamar: '.($applicant->position ?? '-')."\n"
+                        .'Sumber lamaran: '.($applicant->source ?? '-')."\n"
+                        .'Tahap saat ini: '.($applicant->stage ?? '-')."\n\n"
+                        ."LOWONGAN\n"
+                        .'Judul: '.($job?->title ?? '-')."\n"
+                        .'Deskripsi: '.Str::limit((string) ($job?->description ?? '-'), 600)."\n\n"
+                        .'Beri skor kecocokan 0-100, rekomendasi singkat, dan alasan penilaian.';
+
+                    $response = Prism::structured()
+                        ->using($provider, $model)
+                        ->withSchema($schema)
+                        ->withSystemPrompt('Kamu asisten rekrutmen yang menilai kecocokan kandidat secara objektif berdasarkan posisi yang dilamar dan deskripsi lowongan. Selalu sertakan alasan yang konkret, bukan tebakan. Jawab ringkas dalam Bahasa Indonesia.')
+                        ->withPrompt($prompt)
+                        ->asStructured();
+
+                    $data = $response->structured;
+
+                    if (is_array($data) && isset($data['score'])) {
+                        $score = max(0, min(100, (int) round((float) $data['score'])));
+                        $recommendation = (string) ($data['recommendation'] ?? 'Analisa AI selesai.');
+                        $reasoning = (string) ($data['reasoning'] ?? '');
+
+                        $applicant->update([
+                            'ai_confidence' => $score,
+                            'ai_recommendation' => $recommendation,
+                            'ai_reasoning' => $reasoning,
+                        ]);
+                        $analyzed++;
+
+                        $emit(['id' => $applicant->id, 'score' => $score, 'recommendation' => $recommendation, 'reasoning' => $reasoning]);
+
+                        continue;
+                    }
+
+                    $emit(['id' => $applicant->id, 'skipped' => true]);
+                } catch (\Throwable $e) {
+                    report($e);
+                    $emit(['id' => $applicant->id, 'skipped' => true]);
+                }
+            }
+
+            $emit(['done' => true, 'analyzed' => $analyzed]);
+        }, 200, [
+            'Content-Type' => 'application/x-ndjson',
+            'Cache-Control' => 'no-cache',
+            'X-Accel-Buffering' => 'no',
+        ]);
     }
 
     /**

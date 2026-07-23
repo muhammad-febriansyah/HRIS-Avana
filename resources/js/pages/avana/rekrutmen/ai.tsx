@@ -1,10 +1,17 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { AIcon, C, card } from '@/lib/avana';
 import { DataTable } from '@/pages/avana/pengumuman/data-table';
 import { makeAiColumns, type Rec, tierOf } from './ai-columns';
 import { RecruitmentHeader } from './shell';
+
+/** Laravel's XSRF-TOKEN cookie, decoded, for the streaming fetch POST. */
+function xsrfToken(): string {
+    const match = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]+)/);
+
+    return match ? decodeURIComponent(match[1]) : '';
+}
 
 function Stat({
     label,
@@ -60,40 +67,120 @@ export default function RecruitmentAi({
     recommendations: Rec[];
 }) {
     const columns = useMemo(() => makeAiColumns(), []);
+    const [rows, setRows] = useState<Rec[]>(recommendations);
     const [analyzing, setAnalyzing] = useState(false);
+    const [progress, setProgress] = useState({ done: 0, total: 0 });
 
-    const analyze = () => {
-        router.post(
-            '/avana/rekrutmen/ai/analyze',
-            {},
-            {
-                preserveScroll: true,
-                onStart: () => setAnalyzing(true),
-                onFinish: () => setAnalyzing(false),
-                onSuccess: () =>
-                    toast.success('Analisa AI selesai. Skor diperbarui.'),
-                onError: (errors) =>
-                    toast.error(errors.ai ?? 'Analisa AI gagal.'),
-            },
-        );
-    };
-
-    const total = recommendations.length;
+    const total = rows.length;
     const avg =
         total > 0
             ? Math.round(
-                  recommendations.reduce(
-                      (sum, r) => sum + (r.confidence ?? 0),
-                      0,
-                  ) / total,
+                  rows.reduce((sum, r) => sum + (r.confidence ?? 0), 0) / total,
               )
             : 0;
-    const strong = recommendations.filter(
-        (r) => (r.confidence ?? 0) >= 80,
-    ).length;
-    const review = recommendations.filter(
-        (r) => (r.confidence ?? 0) < 60,
-    ).length;
+    const strong = rows.filter((r) => (r.confidence ?? 0) >= 80).length;
+    const review = rows.filter((r) => (r.confidence ?? 0) < 60).length;
+
+    const analyze = async () => {
+        if (analyzing) {
+            return;
+        }
+
+        setAnalyzing(true);
+        setProgress({ done: 0, total: rows.length });
+
+        try {
+            const response = await fetch('/avana/rekrutmen/ai/analyze', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'X-XSRF-TOKEN': xsrfToken(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                    Accept: 'application/x-ndjson',
+                },
+            });
+
+            if (!response.ok || !response.body) {
+                throw new Error('request failed');
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let processed = 0;
+
+            const handle = (message: Record<string, unknown>) => {
+                if (message.error) {
+                    toast.error(String(message.error));
+                    return;
+                }
+
+                if (typeof message.total === 'number') {
+                    setProgress({ done: 0, total: message.total });
+                    return;
+                }
+
+                if (message.done) {
+                    toast.success(
+                        `Analisa AI selesai: ${message.analyzed ?? 0} kandidat.`,
+                    );
+                    return;
+                }
+
+                if (typeof message.id === 'number') {
+                    processed += 1;
+                    setProgress((prev) => ({ ...prev, done: processed }));
+
+                    if (!message.skipped) {
+                        setRows((prev) =>
+                            prev.map((row) =>
+                                row.id === message.id
+                                    ? {
+                                          ...row,
+                                          confidence: message.score as number,
+                                          recommendation:
+                                              message.recommendation as string,
+                                          reasoning:
+                                              message.reasoning as string,
+                                      }
+                                    : row,
+                            ),
+                        );
+                    }
+                }
+            };
+
+            for (;;) {
+                const { value, done } = await reader.read();
+
+                if (done) {
+                    break;
+                }
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() ?? '';
+
+                for (const line of lines) {
+                    const trimmed = line.trim();
+
+                    if (!trimmed) {
+                        continue;
+                    }
+
+                    try {
+                        handle(JSON.parse(trimmed));
+                    } catch {
+                        // ignore a malformed/partial chunk
+                    }
+                }
+            }
+        } catch {
+            toast.error('Analisa AI gagal. Periksa Pengaturan AI.');
+        } finally {
+            setAnalyzing(false);
+        }
+    };
 
     const headerActions = (
         <div
@@ -138,11 +225,13 @@ export default function RecruitmentAi({
                     border: 'none',
                     background: '#7C3AED',
                     cursor: analyzing ? 'default' : 'pointer',
-                    opacity: analyzing ? 0.7 : 1,
+                    opacity: analyzing ? 0.85 : 1,
                 }}
             >
                 <AIcon name="sparkles" size={15} color="#fff" />
-                {analyzing ? 'Menganalisa…' : 'Analisa dengan AI'}
+                {analyzing
+                    ? `Menganalisa ${progress.done}/${progress.total || rows.length}…`
+                    : 'Analisa dengan AI'}
             </button>
         </div>
     );
@@ -187,7 +276,7 @@ export default function RecruitmentAi({
                                 color: C.navy,
                             }}
                         >
-                            Belum Ada Rekomendasi AI
+                            Belum Ada Kandidat
                         </div>
                         <div
                             style={{
@@ -197,14 +286,61 @@ export default function RecruitmentAi({
                                 margin: '8px auto 0',
                             }}
                         >
-                            Fitur pencocokan AI belum diaktifkan. Rekomendasi
-                            akan muncul di sini saat kandidat dicocokkan dengan
-                            posisi terbuka berdasarkan skill, pengalaman, dan
-                            ketersediaan.
+                            Tambahkan kandidat pada lowongan terbuka, lalu
+                            jalankan analisa AI untuk menilai kecocokan mereka.
                         </div>
                     </div>
                 ) : (
                     <>
+                        {analyzing && (
+                            <div
+                                style={{
+                                    ...card,
+                                    padding: '12px 16px',
+                                    marginBottom: 16,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 12,
+                                }}
+                            >
+                                <AIcon
+                                    name="sparkles"
+                                    size={16}
+                                    color="#7C3AED"
+                                />
+                                <div style={{ flex: 1 }}>
+                                    <div
+                                        style={{
+                                            fontSize: 12.5,
+                                            color: C.muted,
+                                            marginBottom: 6,
+                                        }}
+                                    >
+                                        AI menganalisa kandidat… {progress.done}
+                                        /{progress.total || rows.length}
+                                    </div>
+                                    <div
+                                        style={{
+                                            height: 6,
+                                            borderRadius: 6,
+                                            background: C.line,
+                                            overflow: 'hidden',
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                width: `${progress.total ? Math.round((progress.done / progress.total) * 100) : 0}%`,
+                                                height: '100%',
+                                                background: '#7C3AED',
+                                                borderRadius: 6,
+                                                transition: 'width .3s',
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         <div
                             style={{
                                 display: 'grid',
@@ -239,7 +375,7 @@ export default function RecruitmentAi({
 
                         <DataTable
                             columns={columns}
-                            data={recommendations}
+                            data={rows}
                             searchPlaceholder="Cari kandidat atau posisi…"
                             pageSize={10}
                         />

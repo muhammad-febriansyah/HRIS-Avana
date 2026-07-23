@@ -38,33 +38,37 @@ function makeAiApplicant(int $tenantId): Applicant
     ]);
 }
 
-it('refuses to analyse when no AI key is configured', function (): void {
+it('streams an error when no AI key is configured', function (): void {
     AiSetting::query()->updateOrCreate(['id' => 1], ['provider' => 'openai', 'api_key' => null, 'model' => 'gpt-5', 'is_enabled' => true]);
 
-    actingAs($this->admin)
-        ->post('/avana/rekrutmen/ai/analyze')
-        ->assertRedirect()
-        ->assertSessionHasErrors('ai');
+    $response = actingAs($this->admin)->post('/avana/rekrutmen/ai/analyze');
+
+    $response->assertOk();
+    expect($response->streamedContent())->toContain('belum dikonfigurasi');
 });
 
-it('scores applicants using the configured AI provider', function (): void {
+it('streams a score for each applicant and persists it', function (): void {
     Applicant::where('tenant_id', $this->tenantId)->delete();
     AiSetting::query()->updateOrCreate(['id' => 1], ['provider' => 'openai', 'api_key' => 'sk-test', 'model' => 'gpt-4o-mini', 'is_enabled' => true]);
     $applicant = makeAiApplicant($this->tenantId);
 
     Prism::fake([
-        StructuredResponseFake::make()->withStructured(['score' => 88, 'recommendation' => 'Kandidat kuat, lanjutkan ke wawancara.']),
+        StructuredResponseFake::make()->withStructured([
+            'score' => 88,
+            'recommendation' => 'Kandidat kuat, lanjutkan ke wawancara.',
+            'reasoning' => 'Pengalaman backend relevan dengan kebutuhan lowongan.',
+        ]),
     ]);
 
-    actingAs($this->admin)
-        ->post('/avana/rekrutmen/ai/analyze')
-        ->assertRedirect()
-        ->assertSessionHas('success');
+    $response = actingAs($this->admin)->post('/avana/rekrutmen/ai/analyze');
+
+    $response->assertOk();
+    expect($response->streamedContent())->toContain('"score":88');
 
     $applicant->refresh();
-
     expect($applicant->ai_confidence)->toBe(88);
     expect($applicant->ai_recommendation)->toBe('Kandidat kuat, lanjutkan ke wawancara.');
+    expect($applicant->ai_reasoning)->toBe('Pengalaman backend relevan dengan kebutuhan lowongan.');
 });
 
 it('clamps an out-of-range AI score into 0-100', function (): void {
@@ -73,10 +77,11 @@ it('clamps an out-of-range AI score into 0-100', function (): void {
     $applicant = makeAiApplicant($this->tenantId);
 
     Prism::fake([
-        StructuredResponseFake::make()->withStructured(['score' => 140, 'recommendation' => 'Sangat cocok.']),
+        StructuredResponseFake::make()->withStructured(['score' => 140, 'recommendation' => 'Sangat cocok.', 'reasoning' => 'Semua kriteria terpenuhi.']),
     ]);
 
-    actingAs($this->admin)->post('/avana/rekrutmen/ai/analyze')->assertRedirect();
+    $response = actingAs($this->admin)->post('/avana/rekrutmen/ai/analyze');
+    $response->streamedContent();
 
     expect($applicant->refresh()->ai_confidence)->toBe(100);
 });
