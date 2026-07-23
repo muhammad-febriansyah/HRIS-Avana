@@ -50,10 +50,13 @@ trait ResolvesApiEmployee
                 'job_grade' => $employee->jobLevel?->name,
                 'employment_type' => $employee->employment_status,
             ],
-            // Drives the Manager Self-Service entry in the mobile app.
-            'is_manager' => Employee::where('tenant_id', $employee->tenant_id)
-                ->where('manager_id', $employee->id)
-                ->exists(),
+            // Drives the Manager Self-Service entry in the mobile app. A top
+            // approver (director) always qualifies — they sit at the head of the
+            // approval chain even when no one reports to them directly.
+            'is_manager' => $employee->is_top_approver
+                || Employee::where('tenant_id', $employee->tenant_id)
+                    ->where('manager_id', $employee->id)
+                    ->exists(),
         ];
     }
 }

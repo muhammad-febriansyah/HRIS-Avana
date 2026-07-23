@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Employee;
 use Database\Seeders\AvanaDemoSeeder;
 
 beforeEach(function (): void {
@@ -46,4 +47,42 @@ it('returns the profile (enveloped) for a valid token', function (): void {
 
 it('blocks /auth/me without a token', function (): void {
     $this->getJson('/api/v1/auth/me')->assertUnauthorized();
+});
+
+it('marks the director (top approver) as a manager for the mobile Manager mode', function (): void {
+    $token = $this->postJson('/api/v1/auth/login', ['email' => 'direktur@nusantara.co.id', 'password' => 'password'])->json('access_token');
+
+    $this->withHeader('Authorization', 'Bearer '.$token)
+        ->getJson('/api/v1/auth/me')
+        ->assertOk()
+        ->assertJsonPath('data.employee.employment.position', 'Direktur Utama')
+        ->assertJsonPath('data.employee.is_manager', true);
+});
+
+it('keeps a top approver a manager even with no direct reports', function (): void {
+    // Strip the director's only report; the is_top_approver flag alone must
+    // still unlock Manager mode.
+    $directorId = Employee::where('employee_number', 'EMP-0000')->value('id');
+    Employee::where('tenant_id', 1)->where('manager_id', $directorId)->update(['manager_id' => null]);
+
+    $token = $this->postJson('/api/v1/auth/login', ['email' => 'direktur@nusantara.co.id', 'password' => 'password'])->json('access_token');
+
+    $this->withHeader('Authorization', 'Bearer '.$token)
+        ->getJson('/api/v1/auth/me')
+        ->assertOk()
+        ->assertJsonPath('data.employee.is_manager', true);
+});
+
+it('does not mark a rank-and-file employee as a manager', function (): void {
+    // Bagus is not a top approver; with his reports removed he has no elevated
+    // access, so Manager mode stays hidden.
+    $bagusId = Employee::where('employee_number', 'EMP-0002')->value('id');
+    Employee::where('tenant_id', 1)->where('manager_id', $bagusId)->update(['manager_id' => null]);
+
+    $token = $this->postJson('/api/v1/auth/login', ['email' => 'bagus.p@nusantara.co.id', 'password' => 'password'])->json('access_token');
+
+    $this->withHeader('Authorization', 'Bearer '.$token)
+        ->getJson('/api/v1/auth/me')
+        ->assertOk()
+        ->assertJsonPath('data.employee.is_manager', false);
 });

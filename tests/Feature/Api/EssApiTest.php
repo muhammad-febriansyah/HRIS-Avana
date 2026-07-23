@@ -316,6 +316,37 @@ it('records a field visit with no photo at all', function (): void {
         ->assertJsonPath('data.0.photo_urls', []);
 });
 
+it('paginates and searches the field-visit list', function (): void {
+    // A unique token scopes every assertion to just these three, so the demo
+    // seeder's own visits don't skew the counts.
+    foreach (['ZZQA Alpha', 'ZZQA Beta', 'ZZQA Gamma'] as $location) {
+        ($this->auth)()->postJson('/api/v1/me/field-visits', [
+            'visit_date' => now()->toDateString(),
+            'location' => $location,
+        ])->assertCreated();
+    }
+
+    // A page caps the payload; meta reports the true total.
+    ($this->auth)()->getJson('/api/v1/me/field-visits?search=ZZQA&per_page=2')
+        ->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('meta.total', 3)
+        ->assertJsonPath('meta.per_page', 2)
+        ->assertJsonPath('meta.last_page', 2);
+
+    // The next page carries the remainder.
+    ($this->auth)()->getJson('/api/v1/me/field-visits?search=ZZQA&per_page=2&page=2')
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('meta.current_page', 2);
+
+    // Search narrows by location (also matches client / purpose).
+    ($this->auth)()->getJson('/api/v1/me/field-visits?search=ZZQA Beta')
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.location', 'ZZQA Beta');
+});
+
 it('rejects more field-visit photos than allowed', function (): void {
     ($this->auth)()->postJson('/api/v1/me/field-visits', [
         'visit_date' => now()->toDateString(),

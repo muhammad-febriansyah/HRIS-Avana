@@ -18,45 +18,78 @@ class FieldVisitController extends Controller
 {
     use ResolvesApiEmployee;
 
+    /**
+     * Paginated, searchable list of the employee's own field visits. Paging
+     * keeps the payload bounded so the mobile list stays fast with thousands of
+     * rows (the app loads a page at a time via infinite scroll).
+     */
     public function index(Request $request): JsonResponse
     {
         $employee = $this->currentEmployee($request);
 
-        $data = FieldVisit::forTenant($employee->tenant_id)
+        $data = $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $page = FieldVisit::forTenant($employee->tenant_id)
             ->where('employee_id', $employee->id)
             ->with(['photos', 'tasks', 'branch:id,name'])
+            ->when($data['search'] ?? null, fn ($query, string $search) => $query->where(fn ($group) => $group
+                ->where('location', 'like', "%{$search}%")
+                ->orWhere('client_name', 'like', "%{$search}%")
+                ->orWhere('purpose', 'like', "%{$search}%")))
             ->orderByDesc('visit_date')
             ->orderByDesc('id')
-            ->get()
-            ->map(fn (FieldVisit $visit): array => [
-                'id' => $visit->id,
-                'visit_date' => self::dateString($visit->visit_date),
-                'branch' => $visit->branch?->name,
-                'location' => $visit->location,
-                'client_name' => $visit->client_name,
-                'purpose' => $visit->purpose,
-                'notes' => $visit->notes,
-                'photo_urls' => FieldVisitPhotoStore::urls($visit),
-                'status' => $visit->status,
-                'tasks' => $visit->tasks
-                    ->map(fn (FieldVisitTask $task): array => [
-                        'id' => $task->id,
-                        'title' => $task->title,
-                        'is_done' => $task->is_done,
-                        'photo_note' => $task->photo_note,
-                        'before_photo_url' => $task->before_photo_path !== null
-                            ? Storage::disk('public')->url($task->before_photo_path)
-                            : null,
-                        'after_photo_url' => $task->after_photo_path !== null
-                            ? Storage::disk('public')->url($task->after_photo_path)
-                            : null,
-                    ])
-                    ->values()
-                    ->all(),
-                'task_progress' => $visit->taskProgress(),
-            ]);
+            ->paginate($data['per_page'] ?? 20);
 
-        return response()->json(['data' => $data]);
+        return response()->json([
+            'data' => collect($page->items())
+                ->map(fn (FieldVisit $visit): array => $this->shapeVisit($visit))
+                ->all(),
+            'meta' => [
+                'current_page' => $page->currentPage(),
+                'last_page' => $page->lastPage(),
+                'per_page' => $page->perPage(),
+                'total' => $page->total(),
+            ],
+        ]);
+    }
+
+    /**
+     * Shape a field visit for the mobile list payload.
+     *
+     * @return array<string, mixed>
+     */
+    private function shapeVisit(FieldVisit $visit): array
+    {
+        return [
+            'id' => $visit->id,
+            'visit_date' => self::dateString($visit->visit_date),
+            'branch' => $visit->branch?->name,
+            'location' => $visit->location,
+            'client_name' => $visit->client_name,
+            'purpose' => $visit->purpose,
+            'notes' => $visit->notes,
+            'photo_urls' => FieldVisitPhotoStore::urls($visit),
+            'status' => $visit->status,
+            'tasks' => $visit->tasks
+                ->map(fn (FieldVisitTask $task): array => [
+                    'id' => $task->id,
+                    'title' => $task->title,
+                    'is_done' => $task->is_done,
+                    'photo_note' => $task->photo_note,
+                    'before_photo_url' => $task->before_photo_path !== null
+                        ? Storage::disk('public')->url($task->before_photo_path)
+                        : null,
+                    'after_photo_url' => $task->after_photo_path !== null
+                        ? Storage::disk('public')->url($task->after_photo_path)
+                        : null,
+                ])
+                ->values()
+                ->all(),
+            'task_progress' => $visit->taskProgress(),
+        ];
     }
 
     public function store(Request $request): JsonResponse

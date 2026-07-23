@@ -213,13 +213,16 @@ it('rejects a branch from another tenant', function (): void {
 
 it('filters the list by branch', function (): void {
     $branch = Branch::forTenant($this->tenant->id)->firstOrFail();
+    // The demo seeder ships some field visits, so measure against the branch's
+    // existing count rather than assuming an empty table.
+    $baseline = FieldVisit::forTenant($this->tenant->id)->where('branch_id', $branch->id)->count();
     makeFieldVisit($this->tenant->id, ['branch_id' => $branch->id]);
     makeFieldVisit($this->tenant->id, ['branch_id' => null]);
 
     actingAs($this->admin)
         ->get(route('avana.visiting', ['branch_id' => $branch->id]))
         ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page->where('visits.meta.total', 1));
+        ->assertInertia(fn (Assert $page) => $page->where('visits.meta.total', $baseline + 1));
 });
 
 it('saves the tasklist in the order it was entered', function (): void {

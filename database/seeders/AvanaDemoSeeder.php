@@ -3,12 +3,14 @@
 namespace Database\Seeders;
 
 use App\Models\Attendance;
+use App\Models\AttendancePolicy;
 use App\Models\BpjsProgram;
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Feature;
+use App\Models\FieldVisit;
 use App\Models\JobLevel;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
@@ -31,6 +33,7 @@ use App\Support\PermissionCatalog;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Seeds the AvanaHR demo tenant (PT Nusantara Jaya) that backs the
@@ -84,10 +87,13 @@ final class AvanaDemoSeeder extends Seeder
 
         $employees = $this->seedEmployees($tenant, $branches, $departments, $jobLevel, $admin);
         $this->seedEmployeeUser($tenant, $employees);
+        $this->seedDirectorUser($tenant, $employees);
         $leaveTypes = $this->seedLeaveTypes($tenant);
         $this->seedLeaveBalances($tenant, $employees, $leaveTypes);
         $this->seedLeaveRequests($tenant, $employees, $leaveTypes, $admin);
         $this->seedAttendance($tenant, $employees);
+        $this->seedAttendancePolicy($tenant);
+        $this->seedFieldVisits($tenant, $employees);
         $this->seedPayroll($tenant, $branches);
         $this->seedStatutory();
     }
@@ -159,6 +165,200 @@ final class AvanaDemoSeeder extends Seeder
                 ],
             );
         }
+    }
+
+    /**
+     * Lock down attendance face verification for the demo tenant: enrollment is
+     * mandatory and a face mismatch hard-blocks the clock-in (rather than only
+     * flagging it), so the MobileFaceNet 1:1 match actually gates every punch.
+     */
+    private function seedAttendancePolicy(Tenant $tenant): void
+    {
+        // Skip under tests: the attendance suites assume the default policy
+        // (enrollment not required) and set a stricter one themselves when
+        // needed. Forcing enrollment here would 422 every clock-in test.
+        if (app()->runningUnitTests()) {
+            return;
+        }
+
+        AttendancePolicy::updateOrCreate(
+            ['tenant_id' => $tenant->id],
+            [
+                'require_face_enrollment' => true,
+                'face_enforcement' => 'block',
+            ],
+        );
+    }
+
+    /**
+     * Seed a handful of field visits (Visiting Pekerjaan) for the demo, each
+     * with a worked-through tasklist and photo evidence so the TUGAS and FOTO
+     * columns render populated rather than empty.
+     *
+     * @param  array<int, Employee>  $employees
+     */
+    private function seedFieldVisits(Tenant $tenant, array $employees): void
+    {
+        $today = Carbon::today();
+
+        // Each visit: filing employee no., days ago, place, tasks (title=>done),
+        // photos (label + RGB tint), and a Jakarta-area GPS pin.
+        $visits = [
+            [
+                'emp' => 2, 'days_ago' => 1, 'attendees' => [2, 5],
+                'location' => 'Jakarta', 'client' => 'PT Smart Solusi',
+                'purpose' => 'Demo produk & negosiasi kontrak',
+                'notes' => 'Klien tertarik paket enterprise, tindak lanjut minggu depan.',
+                'lat' => -6.19510, 'lng' => 106.82330,
+                'tasks' => [
+                    'Presentasi demo produk' => true,
+                    'Diskusi kebutuhan integrasi' => true,
+                    'Susun proposal harga' => false,
+                    'Jadwalkan follow-up call' => false,
+                ],
+                'photos' => [
+                    ['Demo Produk', [37, 99, 235]],
+                    ['Ruang Meeting Klien', [22, 163, 74]],
+                ],
+            ],
+            [
+                'emp' => 3, 'days_ago' => 3, 'attendees' => [3],
+                'location' => 'Bekasi', 'client' => 'CV Maju Bersama',
+                'purpose' => 'Survei lokasi & pemasangan perangkat',
+                'notes' => 'Instalasi selesai, unit berjalan normal.',
+                'lat' => -6.23880, 'lng' => 106.99270,
+                'tasks' => [
+                    'Survei titik pemasangan' => true,
+                    'Pasang perangkat' => true,
+                    'Uji koneksi jaringan' => true,
+                    'Serah terima ke klien' => true,
+                ],
+                'photos' => [
+                    ['Instalasi Perangkat', [217, 119, 6]],
+                    ['Uji Koneksi', [139, 92, 246]],
+                    ['Serah Terima', [14, 165, 233]],
+                ],
+            ],
+            [
+                'emp' => 5, 'days_ago' => 5, 'attendees' => [5, 8],
+                'location' => 'Tangerang', 'client' => 'PT Cahaya Abadi',
+                'purpose' => 'Maintenance rutin & training operator',
+                'notes' => 'Training 4 operator, materi tersampaikan.',
+                'lat' => -6.17830, 'lng' => 106.63190,
+                'tasks' => [
+                    'Cek kondisi perangkat' => true,
+                    'Ganti sparepart aus' => true,
+                    'Training operator baru' => false,
+                ],
+                'photos' => [
+                    ['Maintenance', [236, 72, 153]],
+                    ['Sesi Training', [244, 63, 94]],
+                ],
+            ],
+            [
+                'emp' => 8, 'days_ago' => 8, 'attendees' => [8],
+                'location' => 'Depok', 'client' => 'Toko Sinar Jaya',
+                'purpose' => 'Penagihan & pengambilan dokumen',
+                'notes' => 'Invoice lunas, dokumen lengkap diterima.',
+                'lat' => -6.40250, 'lng' => 106.79420,
+                'tasks' => [
+                    'Serahkan invoice' => true,
+                    'Terima pembayaran' => true,
+                    'Ambil dokumen kontrak' => true,
+                ],
+                'photos' => [
+                    ['Bukti Penagihan', [16, 185, 129]],
+                ],
+            ],
+        ];
+
+        foreach ($visits as $data) {
+            $employee = $employees[$data['emp']];
+            $visitDate = $today->copy()->subDays($data['days_ago']);
+
+            $visit = FieldVisit::firstOrCreate(
+                [
+                    'tenant_id' => $tenant->id,
+                    'employee_id' => $employee->id,
+                    'visit_date' => $visitDate->toDateString(),
+                    'location' => $data['location'],
+                ],
+                [
+                    'branch_id' => $employee->branch_id,
+                    'client_name' => $data['client'],
+                    'purpose' => $data['purpose'],
+                    'notes' => $data['notes'],
+                    'latitude' => $data['lat'],
+                    'longitude' => $data['lng'],
+                    'status' => 'submitted',
+                ],
+            );
+
+            if (! $visit->wasRecentlyCreated) {
+                continue;
+            }
+
+            $visit->syncAttendees(array_map(
+                fn (int $no): int => $employees[$no]->id,
+                $data['attendees'],
+            ));
+
+            $order = 0;
+            foreach ($data['tasks'] as $title => $done) {
+                $visit->tasks()->create([
+                    'tenant_id' => $tenant->id,
+                    'title' => $title,
+                    'sort_order' => $order++,
+                    'is_done' => $done,
+                    'done_at' => $done ? $visitDate->copy()->setTime(14, 0) : null,
+                ]);
+            }
+
+            foreach ($data['photos'] as $index => [$label, $rgb]) {
+                $path = 'field-visits/demo-'.$visit->id.'-'.($index + 1).'.jpg';
+                $this->makeVisitPhoto($path, $data['client'], $label, $rgb);
+
+                $visit->photos()->create([
+                    'tenant_id' => $tenant->id,
+                    'employee_id' => $employee->id,
+                    'file_path' => $path,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Render a labelled placeholder JPEG onto the public disk so a seeded field
+     * visit has real photo evidence to link to.
+     *
+     * @param  array{0: int, 1: int, 2: int}  $rgb
+     */
+    private function makeVisitPhoto(string $relativePath, string $topLabel, string $bottomLabel, array $rgb): void
+    {
+        $width = 480;
+        $height = 360;
+        $image = imagecreatetruecolor($width, $height);
+
+        // Vertical gradient from the tint down to a darker shade.
+        [$r, $g, $b] = $rgb;
+        for ($y = 0; $y < $height; $y++) {
+            $factor = 1 - ($y / $height) * 0.55;
+            $color = imagecolorallocate(
+                $image,
+                (int) ($r * $factor),
+                (int) ($g * $factor),
+                (int) ($b * $factor),
+            );
+            imagefilledrectangle($image, 0, $y, $width, $y, $color);
+        }
+
+        $white = imagecolorallocate($image, 255, 255, 255);
+        imagestring($image, 5, 24, 150, $topLabel, $white);
+        imagestring($image, 4, 24, 178, $bottomLabel, $white);
+
+        Storage::disk('public')->makeDirectory('field-visits');
+        imagejpeg($image, Storage::disk('public')->path($relativePath), 85);
+        imagedestroy($image);
     }
 
     /**
@@ -404,6 +604,50 @@ final class AvanaDemoSeeder extends Seeder
         ])->save();
     }
 
+    /**
+     * Seed the Director's login, linked to the top-approver employee, so the
+     * mobile app can be demoed as a director: ESS features plus Manager mode.
+     *
+     * @param  array<int, Employee>  $employees
+     */
+    private function seedDirectorUser(Tenant $tenant, array $employees): void
+    {
+        $employee = $employees[0] ?? null;
+
+        if (! $employee) {
+            return;
+        }
+
+        $user = User::firstOrCreate(
+            ['email' => $employee->email ?? 'direktur@nusantara.co.id'],
+            [
+                'name' => $employee->full_name,
+                'tenant_id' => $tenant->id,
+                'password' => Hash::make('password'),
+                'status' => 'active',
+                'email_verified_at' => now(),
+            ],
+        );
+        $user->forceFill(['tenant_id' => $tenant->id])->save();
+
+        $roleIds = Role::where('tenant_id', $tenant->id)
+            ->whereIn('code', ['employee', 'manager'])
+            ->pluck('id');
+        if ($roleIds->isNotEmpty()) {
+            $user->roles()->syncWithoutDetaching($roleIds->all());
+        }
+
+        $workLocation = WorkLocation::forTenant($tenant->id)
+            ->where('name', 'Kantor Pusat Jakarta')
+            ->first();
+
+        $employee->forceFill([
+            'user_id' => $user->id,
+            'work_location_id' => $workLocation?->id,
+            'branch_id' => $workLocation?->branch_id ?? $employee->branch_id,
+        ])->save();
+    }
+
     /** Seed a Manager user (team approvals + limited read scope). */
     private function seedManager(Tenant $tenant): void
     {
@@ -580,6 +824,45 @@ final class AvanaDemoSeeder extends Seeder
                 $employees[$no]->update(['manager_id' => $employees[$managerNo]->id]);
             }
         }
+
+        // The director tops the org chart: a real employee (uses the ESS app
+        // like anyone) flagged as top approver. is_top_approver auto-approves
+        // their own requests and — via ResolvesApiEmployee — unlocks Manager
+        // mode in the mobile app even without direct reports. They are left at
+        // the head of the chart (manager_id null) rather than made the HR
+        // Manager's boss, because current_approver_id carries an *employee* id
+        // yet is FK-constrained to users; routing a request to an employee with
+        // no matching user id would fail the insert.
+        $direksi = Department::firstOrCreate(
+            ['tenant_id' => $tenant->id, 'code' => 'DIR'],
+            ['name' => 'Direksi', 'status' => 'active'],
+        );
+        $execLevel = JobLevel::firstOrCreate(
+            ['tenant_id' => $tenant->id, 'code' => 'EXEC'],
+            ['name' => 'Direktur', 'level_order' => 10],
+        );
+        $direkturPosition = Position::firstOrCreate(
+            ['tenant_id' => $tenant->id, 'code' => 'DIRUT-DIR'],
+            ['department_id' => $direksi->id, 'name' => 'Direktur Utama', 'status' => 'active'],
+        );
+        $employees[0] = Employee::firstOrCreate(
+            ['tenant_id' => $tenant->id, 'employee_number' => 'EMP-0000'],
+            [
+                'branch_id' => $branches['Jakarta Pusat']->id,
+                'department_id' => $direksi->id,
+                'position_id' => $direkturPosition->id,
+                'job_level_id' => $execLevel->id,
+                'full_name' => 'Hendra Wijaya',
+                'email' => 'direktur@nusantara.co.id',
+                'gender' => 'unspecified',
+                'birth_date' => $this->parseIndoDate('11 Mar 1978'),
+                'employment_status' => 'permanent',
+                'join_date' => $this->parseIndoDate('02 Jan 2018'),
+                'status' => 'active',
+                'is_top_approver' => true,
+            ],
+        );
+        $employees[0]->forceFill(['is_top_approver' => true])->save();
 
         return $employees;
     }
