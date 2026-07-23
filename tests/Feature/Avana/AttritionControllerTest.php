@@ -2,6 +2,7 @@
 
 use App\Models\AttritionSetting;
 use App\Models\Employee;
+use App\Models\Notification;
 use App\Models\Permission;
 use App\Models\Tenant;
 use App\Models\User;
@@ -94,7 +95,7 @@ it('renders the settings page with factor weights and bands', function (): void 
             ->has('defaults.weights'));
 });
 
-it('saves tuned weights and risk bands', function (): void {
+it('saves the full Setup Master configuration', function (): void {
     $weights = collect(AttritionScorer::FACTOR_LABELS)->mapWithKeys(fn ($l, $k) => [$k => 10])->all();
 
     actingAs($this->admin)
@@ -102,6 +103,12 @@ it('saves tuned weights and risk bands', function (): void {
             'weights' => $weights,
             'band_low' => 20,
             'band_medium' => 50,
+            'alerts_enabled' => true,
+            'alert_threshold' => 70,
+            'weekly_summary' => true,
+            'scan_frequency' => 'weekly',
+            'notify_roles' => ['high' => 'admin_tenant_hr', 'medium' => 'manager', 'low' => null],
+            'disabled_factors' => ['manager_change'],
         ])
         ->assertRedirect(route('avana.attrition'))
         ->assertSessionHas('success');
@@ -109,8 +116,12 @@ it('saves tuned weights and risk bands', function (): void {
     $settings = AttritionSetting::forTenant($this->tenant->id)->firstOrFail();
 
     expect($settings->band_low)->toBe(20)
-        ->and($settings->band_medium)->toBe(50)
-        ->and($settings->weights['tenure'])->toBe(10);
+        ->and($settings->weights['tenure'])->toBe(10)
+        ->and($settings->alert_threshold)->toBe(70)
+        ->and($settings->weekly_summary)->toBeTrue()
+        ->and($settings->scan_frequency)->toBe('weekly')
+        ->and($settings->notify_roles['high'])->toBe('admin_tenant_hr')
+        ->and($settings->disabled_factors)->toBe(['manager_change']);
 });
 
 it('rejects a medium band not greater than the low band', function (): void {
@@ -119,11 +130,13 @@ it('rejects a medium band not greater than the low band', function (): void {
             'weights' => ['tenure' => 10],
             'band_low' => 50,
             'band_medium' => 40,
+            'alert_threshold' => 75,
+            'scan_frequency' => 'daily',
         ])
         ->assertSessionHasErrors('band_medium');
 });
 
-it('rejects an all-zero weight configuration', function (): void {
+it('rejects when no active factor carries weight', function (): void {
     $weights = collect(AttritionScorer::FACTOR_LABELS)->mapWithKeys(fn ($l, $k) => [$k => 0])->all();
 
     actingAs($this->admin)
@@ -131,8 +144,28 @@ it('rejects an all-zero weight configuration', function (): void {
             'weights' => $weights,
             'band_low' => 20,
             'band_medium' => 50,
+            'alert_threshold' => 75,
+            'scan_frequency' => 'daily',
         ])
         ->assertSessionHasErrors('weights');
+});
+
+it('excludes a disabled factor from the score', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->where('status', 'active')->firstOrFail();
+    $employee->update(['join_date' => now()->subMonths(3)]); // tenure would otherwise trigger
+
+    $weights = collect(AttritionScorer::FACTOR_LABELS)->mapWithKeys(fn ($l, $k) => [$k => 10])->all();
+    AttritionSetting::updateOrCreate(
+        ['tenant_id' => $this->tenant->id],
+        ['weights' => $weights, 'band_low' => 29, 'band_medium' => 59, 'disabled_factors' => ['tenure']],
+    );
+
+    $tenure = collect(app(AttritionScorer::class)->score($employee->fresh())['factors'])
+        ->firstWhere('key', 'tenure');
+
+    expect($tenure['disabled'])->toBeTrue()
+        ->and($tenure['available'])->toBeFalse()
+        ->and($tenure['points'])->toBe(0);
 });
 
 it('applies the tenant tuned bands to the score category', function (): void {
@@ -151,4 +184,47 @@ it('applies the tenant tuned bands to the score category', function (): void {
 
     expect($result['score'])->toBe(100)
         ->and($result['category'])->toBe('high');
+});
+
+it('notifies the routed role about high-risk employees via the scan command', function (): void {
+    $weights = collect(AttritionScorer::FACTOR_LABELS)
+        ->mapWithKeys(fn ($l, $k) => [$k => $k === 'tenure' ? 100 : 0])
+        ->all();
+    AttritionSetting::updateOrCreate(
+        ['tenant_id' => $this->tenant->id],
+        [
+            'weights' => $weights,
+            'band_low' => 29,
+            'band_medium' => 59,
+            'alerts_enabled' => true,
+            'alert_threshold' => 50,
+            'scan_frequency' => 'daily',
+            'notify_roles' => ['high' => 'admin_tenant_hr'],
+        ],
+    );
+    // Short tenure for everyone → score 100 → high risk.
+    Employee::forTenant($this->tenant->id)->where('status', 'active')
+        ->update(['join_date' => now()->subMonths(3)]);
+
+    $this->artisan('avana:scan-attrition-alerts')->assertSuccessful();
+
+    expect(
+        Notification::where('tenant_id', $this->tenant->id)
+            ->where('user_id', $this->admin->id)
+            ->where('type', 'attrition_high_risk')
+            ->exists()
+    )->toBeTrue();
+});
+
+it('sends no alert when alerts are disabled', function (): void {
+    $weights = collect(AttritionScorer::FACTOR_LABELS)->mapWithKeys(fn ($l, $k) => [$k => 10])->all();
+    AttritionSetting::updateOrCreate(
+        ['tenant_id' => $this->tenant->id],
+        ['weights' => $weights, 'band_low' => 29, 'band_medium' => 59, 'alerts_enabled' => false, 'alert_threshold' => 1, 'scan_frequency' => 'daily'],
+    );
+
+    $this->artisan('avana:scan-attrition-alerts')->assertSuccessful();
+
+    expect(Notification::where('tenant_id', $this->tenant->id)->where('type', 'attrition_high_risk')->exists())
+        ->toBeFalse();
 });

@@ -24,6 +24,11 @@ final class AttritionSetting extends Model
             'weights' => 'array',
             'band_low' => 'integer',
             'band_medium' => 'integer',
+            'alerts_enabled' => 'boolean',
+            'alert_threshold' => 'integer',
+            'weekly_summary' => 'boolean',
+            'notify_roles' => 'array',
+            'disabled_factors' => 'array',
         ];
     }
 
@@ -49,13 +54,30 @@ final class AttritionSetting extends Model
         if (! $settings->exists) {
             $settings->band_low = (int) config('attrition.bands.low');
             $settings->band_medium = (int) config('attrition.bands.medium');
+            $settings->alerts_enabled = true;
+            $settings->alert_threshold = 75;
+            $settings->weekly_summary = false;
+            $settings->scan_frequency = 'daily';
         }
 
         $settings->weights = array_merge(
             config('attrition.weights'),
             $settings->weights ?? [],
         );
+        $settings->notify_roles = array_merge(
+            ['high' => 'admin_tenant_hr', 'medium' => null, 'low' => null],
+            $settings->notify_roles ?? [],
+        );
+        $settings->disabled_factors = $settings->disabled_factors ?? [];
 
         return $settings;
+    }
+
+    /**
+     * Whether a factor is switched off in the Indicators panel.
+     */
+    public function factorDisabled(string $key): bool
+    {
+        return in_array($key, $this->disabled_factors ?? [], true);
     }
 }

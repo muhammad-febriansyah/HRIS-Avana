@@ -43,6 +43,24 @@ final class AttritionScorer
         'no_promotion' => 'Tidak dipromosikan > 3 tahun',
     ];
 
+    /**
+     * The data source (table/column) each factor reads — shown in the Indicators
+     * panel so admins can see where a factor's signal comes from.
+     *
+     * @var array<string, string>
+     */
+    public const FACTOR_SOURCES = [
+        'tenure' => 'employees.join_date',
+        'no_raise' => 'employee_salary_components',
+        'lateness' => 'attendances',
+        'overtime' => 'overtime_requests',
+        'performance' => 'performance_reviews',
+        'engagement' => 'survey_responses',
+        'leave_spike' => 'leave_requests',
+        'manager_change' => 'audit_logs',
+        'no_promotion' => 'employee_career_histories',
+    ];
+
     /** @var array<string, mixed> */
     private array $rules;
 
@@ -81,8 +99,26 @@ final class AttritionScorer
         $maxEvaluable = 0;
 
         foreach ($defs as $key => $evaluate) {
-            [$available, $triggered, $detail] = $evaluate();
             $weight = (int) ($weights[$key] ?? 0);
+
+            // A factor switched off in the Indicators panel is not evaluated and
+            // does not count toward the score at all.
+            if ($settings->factorDisabled($key)) {
+                $factors[] = [
+                    'key' => $key,
+                    'label' => self::FACTOR_LABELS[$key] ?? $key,
+                    'weight' => $weight,
+                    'available' => false,
+                    'triggered' => false,
+                    'points' => 0,
+                    'detail' => 'Dinonaktifkan',
+                    'disabled' => true,
+                ];
+
+                continue;
+            }
+
+            [$available, $triggered, $detail] = $evaluate();
             $points = $triggered ? $weight : 0;
 
             if ($available) {
@@ -98,6 +134,7 @@ final class AttritionScorer
                 'triggered' => $triggered,
                 'points' => $points,
                 'detail' => $detail,
+                'disabled' => false,
             ];
         }
 

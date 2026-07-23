@@ -10,6 +10,7 @@ interface Factor {
     triggered: boolean;
     points: number;
     detail: string;
+    disabled?: boolean;
 }
 
 interface AttritionShowProps {
@@ -176,8 +177,13 @@ export default function AttritionShow({ employee, result }: AttritionShowProps) 
 
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                             {result.factors.map((f) => {
-                                const state = !f.available ? 'na' : f.triggered ? 'on' : 'off';
+                                const state = f.disabled ? 'off_disabled' : !f.available ? 'na' : f.triggered ? 'on' : 'off';
                                 const dot = state === 'on' ? C.red : state === 'off' ? C.green : C.faint;
+                                const detailText = f.disabled
+                                    ? 'Dinonaktifkan di pengaturan'
+                                    : state === 'na'
+                                      ? 'Data belum tersedia'
+                                      : f.detail;
 
                                 return (
                                     <div
@@ -204,18 +210,20 @@ export default function AttritionShow({ employee, result }: AttritionShowProps) 
                                                 style={{
                                                     fontSize: 13.5,
                                                     fontWeight: 600,
-                                                    color: state === 'na' ? C.faint : C.text,
+                                                    color: state === 'on' || state === 'off' ? C.text : C.faint,
                                                 }}
                                             >
                                                 {f.label}
                                             </div>
                                             <div style={{ fontSize: 12, color: C.faint, marginTop: 1 }}>
-                                                {state === 'na' ? 'Data belum tersedia' : f.detail}
+                                                {detailText}
                                             </div>
                                         </div>
                                         <div style={{ textAlign: 'right', flex: 'none' }}>
-                                            {state === 'na' ? (
-                                                <span style={{ fontSize: 12, color: C.faint }}>N/A</span>
+                                            {state === 'na' || state === 'off_disabled' ? (
+                                                <span style={{ fontSize: 12, color: C.faint }}>
+                                                    {state === 'off_disabled' ? 'Off' : 'N/A'}
+                                                </span>
                                             ) : (
                                                 <span
                                                     style={{

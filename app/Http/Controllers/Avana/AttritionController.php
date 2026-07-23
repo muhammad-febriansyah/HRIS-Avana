@@ -4,13 +4,22 @@ namespace App\Http\Controllers\Avana;
 
 use App\Concerns\AppliesBranchScope;
 use App\Http\Controllers\Controller;
+use App\Models\Attendance;
 use App\Models\AttritionSetting;
 use App\Models\Employee;
+use App\Models\EmployeeCareerHistory;
+use App\Models\EmployeeSalaryComponent;
+use App\Models\LeaveRequest;
+use App\Models\OvertimeRequest;
+use App\Models\PerformanceReview;
+use App\Models\SurveyResponse;
 use App\Models\User;
 use App\Services\AttritionScorer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -33,6 +42,17 @@ class AttritionController extends Controller
     private const AVATAR_PALETTE = [
         '#0ea5e9', '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e',
         '#f97316', '#f59e0b', '#10b981', '#14b8a6', '#3b82f6',
+    ];
+
+    /**
+     * Roles that can be routed an attrition alert (code => label).
+     *
+     * @var array<string, string>
+     */
+    private const ROLE_OPTIONS = [
+        'admin_tenant_hr' => 'Admin / HR',
+        'manager' => 'Manager',
+        'finance' => 'Finance',
     ];
 
     public function __construct(private AttritionScorer $scorer) {}
@@ -119,7 +139,9 @@ class AttritionController extends Controller
     {
         $this->ensureCan($request, 'update');
 
-        $settings = AttritionSetting::resolve((int) ($request->user()->tenant_id ?? 0));
+        $tenantId = (int) ($request->user()->tenant_id ?? 0);
+        $settings = AttritionSetting::resolve($tenantId);
+        $readiness = $this->dataReadiness($tenantId);
 
         return Inertia::render('avana/attrition/settings', [
             'factors' => collect(AttritionScorer::FACTOR_LABELS)
@@ -127,6 +149,9 @@ class AttritionController extends Controller
                     'key' => $key,
                     'label' => $label,
                     'weight' => (int) ($settings->weights[$key] ?? 0),
+                    'source' => AttritionScorer::FACTOR_SOURCES[$key] ?? '',
+                    'active' => ! $settings->factorDisabled($key),
+                    'has_data' => (bool) ($readiness[$key] ?? false),
                 ])
                 ->values()
                 ->all(),
@@ -134,6 +159,21 @@ class AttritionController extends Controller
                 'low' => $settings->band_low,
                 'medium' => $settings->band_medium,
             ],
+            'alerts' => [
+                'enabled' => $settings->alerts_enabled,
+                'threshold' => $settings->alert_threshold,
+                'weekly_summary' => $settings->weekly_summary,
+            ],
+            'routing' => [
+                'high' => $settings->notify_roles['high'] ?? null,
+                'medium' => $settings->notify_roles['medium'] ?? null,
+                'low' => $settings->notify_roles['low'] ?? null,
+            ],
+            'frequency' => $settings->scan_frequency,
+            'roleOptions' => collect(self::ROLE_OPTIONS)
+                ->map(fn (string $label, string $code): array => ['code' => $code, 'label' => $label])
+                ->values()
+                ->all(),
             'defaults' => [
                 'weights' => config('attrition.weights'),
                 'bands' => config('attrition.bands'),
@@ -142,34 +182,88 @@ class AttritionController extends Controller
     }
 
     /**
-     * Persist the tenant's weight/band configuration.
+     * Persist the tenant's full Setup Master configuration.
      */
     public function updateSettings(Request $request): RedirectResponse
     {
         $this->ensureCan($request, 'update');
+
+        $roleCodes = array_keys(self::ROLE_OPTIONS);
+        $factorKeys = array_keys(AttritionScorer::FACTOR_LABELS);
 
         $data = $request->validate([
             'weights' => ['required', 'array'],
             'weights.*' => ['integer', 'min:0', 'max:100'],
             'band_low' => ['required', 'integer', 'min:0', 'max:98'],
             'band_medium' => ['required', 'integer', 'gt:band_low', 'max:99'],
+            'alerts_enabled' => ['boolean'],
+            'alert_threshold' => ['required', 'integer', 'min:0', 'max:100'],
+            'weekly_summary' => ['boolean'],
+            'scan_frequency' => ['required', Rule::in(['daily', 'weekly', 'off'])],
+            'notify_roles' => ['array'],
+            'notify_roles.high' => ['nullable', Rule::in($roleCodes)],
+            'notify_roles.medium' => ['nullable', Rule::in($roleCodes)],
+            'notify_roles.low' => ['nullable', Rule::in($roleCodes)],
+            'disabled_factors' => ['array'],
+            'disabled_factors.*' => [Rule::in($factorKeys)],
         ]);
 
         $weights = [];
-        foreach (array_keys(AttritionScorer::FACTOR_LABELS) as $key) {
+        foreach ($factorKeys as $key) {
             $weights[$key] = (int) ($data['weights'][$key] ?? 0);
         }
 
-        if (array_sum($weights) === 0) {
-            return back()->withErrors(['weights' => 'Minimal satu faktor harus punya bobot lebih dari 0.']);
+        // At least one enabled factor must carry weight, else nothing is scored.
+        $disabled = array_values($data['disabled_factors'] ?? []);
+        $activeWeight = collect($weights)->reject(fn ($w, $k) => in_array($k, $disabled, true))->sum();
+        if ($activeWeight === 0) {
+            return back()->withErrors(['weights' => 'Minimal satu faktor aktif harus punya bobot lebih dari 0.']);
         }
 
         AttritionSetting::updateOrCreate(
             ['tenant_id' => $request->user()->tenant_id],
-            ['weights' => $weights, 'band_low' => $data['band_low'], 'band_medium' => $data['band_medium']],
+            [
+                'weights' => $weights,
+                'band_low' => $data['band_low'],
+                'band_medium' => $data['band_medium'],
+                'alerts_enabled' => $data['alerts_enabled'] ?? false,
+                'alert_threshold' => $data['alert_threshold'],
+                'weekly_summary' => $data['weekly_summary'] ?? false,
+                'scan_frequency' => $data['scan_frequency'],
+                'notify_roles' => array_intersect_key(
+                    $data['notify_roles'] ?? [],
+                    array_flip(['high', 'medium', 'low']),
+                ),
+                'disabled_factors' => $disabled,
+            ],
         );
 
         return redirect()->route('avana.attrition')->with('success', 'Konfigurasi risiko resign disimpan');
+    }
+
+    /**
+     * Whether the tenant has any data behind each factor (drives the "Kesiapan
+     * Data" indicators — the real, honest replacement for the mockup's external
+     * data-source panel).
+     *
+     * @return array<string, bool>
+     */
+    private function dataReadiness(int $tenantId): array
+    {
+        return [
+            'tenure' => Employee::forTenant($tenantId)->whereNotNull('join_date')->exists(),
+            'no_raise' => EmployeeSalaryComponent::whereHas('employee', fn ($q) => $q->where('tenant_id', $tenantId))
+                ->whereNotNull('effective_start_date')->exists(),
+            'lateness' => Attendance::forTenant($tenantId)->where('late_minutes', '>', 0)->exists(),
+            'overtime' => OvertimeRequest::forTenant($tenantId)->where('status', 'approved')->exists(),
+            'performance' => PerformanceReview::forTenant($tenantId)->whereNotNull('final_score')->exists(),
+            'engagement' => SurveyResponse::forTenant($tenantId)->whereNotNull('employee_id')
+                ->whereHas('question', fn ($q) => $q->where('type', 'rating'))->exists(),
+            'leave_spike' => LeaveRequest::forTenant($tenantId)->exists(),
+            'manager_change' => DB::table('audit_logs')->where('tenant_id', $tenantId)
+                ->where('auditable_type', Employee::class)->exists(),
+            'no_promotion' => EmployeeCareerHistory::forTenant($tenantId)->where('movement_type', 'promotion')->exists(),
+        ];
     }
 
     /**
