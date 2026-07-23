@@ -22,8 +22,13 @@ use App\Models\CustomField;
 use App\Models\Department;
 use App\Models\DutyTravel;
 use App\Models\Employee;
+use App\Models\EmployeeBankAccount;
 use App\Models\EmployeeBenefit;
+use App\Models\EmployeeCareerHistory;
 use App\Models\EmployeeCompetency;
+use App\Models\EmployeeContract;
+use App\Models\EmployeeDependent;
+use App\Models\EmployeeEmergencyContact;
 use App\Models\JobPosting;
 use App\Models\KeyResult;
 use App\Models\LeaveBalance;
@@ -31,6 +36,8 @@ use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\Loan;
 use App\Models\Objective;
+use App\Models\OnboardingProgram;
+use App\Models\OnboardingTask;
 use App\Models\OvertimeRequest;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
@@ -45,6 +52,8 @@ use App\Models\Shift;
 use App\Models\Survey;
 use App\Models\SurveyQuestion;
 use App\Models\SurveyResponse;
+use App\Models\TalentAssessment;
+use App\Models\TalentPool;
 use App\Models\Tenant;
 use App\Models\Ticket;
 use App\Models\TicketReply;
@@ -72,11 +81,14 @@ class ClientModuleDataSeeder extends Seeder
 {
     public function run(): void
     {
+        // Primary demo tenant (PT Nusantara Jaya, id 1) is created by
+        // AvanaDemoSeeder; enrich it here with the module data that seeder does
+        // not cover, so no showcase page is left empty.
+        $this->seedPrimaryDemoTenant();
+
         $tenants = Tenant::query()->where('id', '!=', 1)->get();
 
         if ($tenants->isEmpty()) {
-            $this->command?->warn('No client tenants found. Run ClientTenantsSeeder first.');
-
             return;
         }
 
@@ -108,6 +120,238 @@ class ClientModuleDataSeeder extends Seeder
         }
 
         $this->command?->info('Client module data seeded for '.$tenants->count().' tenants.');
+    }
+
+    /**
+     * Enrich the primary demo tenant (id 1) with the modules AvanaDemoSeeder
+     * leaves empty. Reuses the per-module seeders (attendance/leave/payroll/
+     * recruitment are already handled elsewhere, so they are skipped) plus a
+     * few demo-only fillers. Each module is guarded so re-seeding is idempotent.
+     */
+    private function seedPrimaryDemoTenant(): void
+    {
+        if (app()->runningUnitTests()) {
+            return;
+        }
+
+        $tenant = Tenant::find(1);
+
+        if ($tenant === null) {
+            return;
+        }
+
+        $employees = Employee::where('tenant_id', $tenant->id)->get()->all();
+
+        if (count($employees) === 0) {
+            return;
+        }
+
+        $ctx = [
+            'employees' => $employees,
+            'branches' => Branch::where('tenant_id', $tenant->id)->get()->all(),
+            'departments' => Department::where('tenant_id', $tenant->id)->get()->all(),
+            'admin' => User::where('tenant_id', $tenant->id)->orderBy('id')->first(),
+        ];
+
+        // sentinel model => seeder closure. The sentinel's presence for the
+        // tenant means the module is already seeded, so it is skipped.
+        $modules = [
+            [Benefit::class, fn () => $this->seedBenefits($tenant, $ctx)],
+            [Claim::class, fn () => $this->seedClaims($tenant, $ctx)],
+            [DutyTravel::class, fn () => $this->seedDutyTravels($tenant, $ctx)],
+            [CalendarEvent::class, fn () => $this->seedCalendar($tenant, $ctx)],
+            [CustomField::class, fn () => $this->seedCustomFields($tenant, $ctx)],
+            [WfhRequest::class, fn () => $this->seedWfh($tenant, $ctx)],
+            [Ticket::class, fn () => $this->seedHelpdesk($tenant, $ctx)],
+            [Competency::class, fn () => $this->seedCompetencies($tenant, $ctx)],
+            [Training::class, fn () => $this->seedLearning($tenant, $ctx)],
+            [Asset::class, fn () => $this->seedAssets($tenant, $ctx)],
+            [CrmContact::class, fn () => $this->seedCrm($tenant, $ctx)],
+            [SavedReport::class, fn () => $this->seedSavedReports($tenant, $ctx)],
+            [Objective::class, fn () => $this->seedDemoOkr($tenant, $ctx)],
+            [TalentPool::class, fn () => $this->seedDemoTalent($tenant, $ctx)],
+            [OnboardingProgram::class, fn () => $this->seedDemoOnboarding($tenant, $ctx)],
+            [EmployeeContract::class, fn () => $this->seedDemoEmployeeDetails($tenant, $ctx)],
+        ];
+
+        foreach ($modules as [$sentinel, $seed]) {
+            try {
+                if ($sentinel::where('tenant_id', $tenant->id)->exists()) {
+                    continue;
+                }
+
+                $seed();
+            } catch (\Throwable $e) {
+                $this->command?->warn('  [demo tenant 1] '.class_basename($sentinel).' skipped: '.$e->getMessage());
+            }
+        }
+
+        $this->command?->info('Enriched primary demo tenant.');
+    }
+
+    /**
+     * OKR: a company/team/individual objective, each with two key results.
+     *
+     * @param  array{employees: array<int, Employee>, admin: ?User, branches: array<int, Branch>, departments: array<int, Department>}  $ctx
+     */
+    private function seedDemoOkr(Tenant $tenant, array $ctx): void
+    {
+        $employees = collect($ctx['employees']);
+
+        $objectives = [
+            ['company', 'financial', 'Tingkatkan pendapatan tahunan sebesar 20%', null],
+            ['team', 'customer', 'Naikkan skor kepuasan pelanggan ke 90%', $employees->get(1)?->id],
+            ['individual', 'learning', 'Selesaikan sertifikasi teknis inti', $employees->get(2)?->id],
+        ];
+
+        foreach ($objectives as [$level, $perspective, $title, $employeeId]) {
+            $objective = Objective::create([
+                'tenant_id' => $tenant->id,
+                'title' => $title,
+                'level' => $level,
+                'perspective' => $perspective,
+                'status' => 'active',
+                'progress' => 45,
+                'employee_id' => $employeeId,
+            ]);
+
+            foreach ([['Capaian utama', 100, 45], ['Indikator pendukung', 100, 60]] as [$krTitle, $target, $current]) {
+                KeyResult::create([
+                    'tenant_id' => $tenant->id,
+                    'objective_id' => $objective->id,
+                    'title' => $krTitle,
+                    'target_value' => $target,
+                    'current_value' => $current,
+                    'progress' => $current,
+                    'unit' => '%',
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Talent: 3 pools + a 9-box assessment for the first handful of employees.
+     *
+     * @param  array{employees: array<int, Employee>, admin: ?User, branches: array<int, Branch>, departments: array<int, Department>}  $ctx
+     */
+    private function seedDemoTalent(Tenant $tenant, array $ctx): void
+    {
+        foreach (['High Potential', 'Future Leaders', 'Critical Talent'] as $name) {
+            TalentPool::firstOrCreate(
+                ['tenant_id' => $tenant->id, 'name' => $name],
+                ['description' => 'Kumpulan talenta: '.$name, 'is_auto' => false],
+            );
+        }
+
+        $grid = [['high', 'high'], ['high', 'medium'], ['medium', 'high'], ['medium', 'medium'], ['low', 'medium']];
+
+        foreach (collect($ctx['employees'])->take(count($grid))->values() as $index => $employee) {
+            [$performance, $potential] = $grid[$index];
+
+            TalentAssessment::firstOrCreate(
+                ['tenant_id' => $tenant->id, 'employee_id' => $employee->id],
+                ['performance_level' => $performance, 'potential_level' => $potential, 'note' => 'Asesmen 9-box (demo)'],
+            );
+        }
+    }
+
+    /**
+     * Onboarding: an in-progress program with a checklist for two employees.
+     *
+     * @param  array{employees: array<int, Employee>, admin: ?User, branches: array<int, Branch>, departments: array<int, Department>}  $ctx
+     */
+    private function seedDemoOnboarding(Tenant $tenant, array $ctx): void
+    {
+        $tasks = [
+            'Tanda tangan kontrak kerja',
+            'Setup akun & email perusahaan',
+            'Orientasi & pengenalan perusahaan',
+            'Pengenalan tim & mentor',
+            'Pelatihan tools internal',
+        ];
+
+        foreach (collect($ctx['employees'])->take(2) as $employee) {
+            $program = OnboardingProgram::create([
+                'tenant_id' => $tenant->id,
+                'employee_id' => $employee->id,
+                'start_date' => $employee->join_date,
+                'status' => 'in_progress',
+            ]);
+
+            foreach ($tasks as $index => $title) {
+                OnboardingTask::create([
+                    'tenant_id' => $tenant->id,
+                    'onboarding_program_id' => $program->id,
+                    'title' => $title,
+                    'category' => 'Umum',
+                    'due_date' => Carbon::parse($employee->join_date)->addDays($index * 2),
+                    'is_done' => $index < 2,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Employee detail tabs: contract, bank account, emergency contact,
+     * dependent and a joining career-history row for every employee.
+     *
+     * @param  array{employees: array<int, Employee>, admin: ?User, branches: array<int, Branch>, departments: array<int, Department>}  $ctx
+     */
+    private function seedDemoEmployeeDetails(Tenant $tenant, array $ctx): void
+    {
+        $banks = ['BCA', 'Mandiri', 'BNI', 'BRI'];
+
+        foreach (collect($ctx['employees'])->values() as $index => $employee) {
+            $isPermanent = $employee->employment_status === 'permanent';
+
+            EmployeeContract::create([
+                'tenant_id' => $tenant->id,
+                'employee_id' => $employee->id,
+                'contract_number' => 'KTR-'.str_pad((string) ($index + 1), 4, '0', STR_PAD_LEFT),
+                'contract_type' => $isPermanent ? 'PKWTT' : 'PKWT',
+                'start_date' => $employee->join_date,
+                'end_date' => $isPermanent ? null : Carbon::parse($employee->join_date)->addYear(),
+                'status' => 'active',
+            ]);
+
+            EmployeeBankAccount::firstOrCreate(
+                ['tenant_id' => $tenant->id, 'employee_id' => $employee->id],
+                [
+                    'bank_name' => $banks[$index % count($banks)],
+                    'account_number' => '1'.str_pad((string) mt_rand(0, 999999999), 9, '0', STR_PAD_LEFT),
+                    'account_holder' => $employee->full_name,
+                    'is_primary' => true,
+                ],
+            );
+
+            EmployeeEmergencyContact::create([
+                'tenant_id' => $tenant->id,
+                'employee_id' => $employee->id,
+                'name' => 'Kontak Darurat '.$employee->full_name,
+                'relationship' => 'Keluarga',
+                'phone' => '0812'.mt_rand(1000000, 9999999),
+            ]);
+
+            EmployeeDependent::create([
+                'tenant_id' => $tenant->id,
+                'employee_id' => $employee->id,
+                'name' => 'Tanggungan '.$employee->full_name,
+                'relationship' => 'Anak',
+                'birth_date' => Carbon::parse('2016-01-01')->addDays($index * 45),
+            ]);
+
+            EmployeeCareerHistory::create([
+                'tenant_id' => $tenant->id,
+                'employee_id' => $employee->id,
+                'movement_type' => 'mutation',
+                'effective_date' => $employee->join_date,
+                'position_id' => $employee->position_id,
+                'department_id' => $employee->department_id,
+                'branch_id' => $employee->branch_id,
+                'employment_status' => $employee->employment_status,
+                'notes' => 'Bergabung dengan perusahaan',
+            ]);
+        }
     }
 
     /**
