@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Applicant;
+use App\Models\ApprovalWorkflow;
 use App\Models\Attendance;
 use App\Models\AttendancePolicy;
 use App\Models\BpjsProgram;
@@ -109,6 +110,7 @@ final class AvanaDemoSeeder extends Seeder
         $this->seedAttritionInputs($tenant, $employees);
         $this->seedSalaries($tenant, $employees);
         $this->seedRecruitment($tenant, $departments);
+        $this->seedApprovalWorkflows($tenant, $admin);
     }
 
     /**
@@ -516,6 +518,47 @@ final class AvanaDemoSeeder extends Seeder
                         : ($ai >= 60 ? 'Layak dipertimbangkan.' : 'Kurang sesuai kualifikasi.'),
                 ],
             );
+        }
+    }
+
+    /**
+     * Seed ready-made approval flows (Cuti, Izin, Koreksi Absen) so the Setup
+     * Alur Persetujuan screen and the approval engine have working examples for
+     * the demo. The final approver is the HR admin.
+     *
+     * Skipped under tests, which build their own approval fixtures.
+     */
+    private function seedApprovalWorkflows(Tenant $tenant, User $admin): void
+    {
+        if (app()->runningUnitTests()) {
+            return;
+        }
+
+        // name => [request_type, [step approver types in order]]
+        $workflows = [
+            'Cuti 2 Level (Demo)' => ['leave', ['direct_manager', 'specific_user']],
+            'Izin 2 Level (Demo)' => ['permission', ['direct_manager', 'specific_user']],
+            'Koreksi 1 Level (Demo)' => ['attendance_correction', ['specific_user']],
+        ];
+
+        foreach ($workflows as $name => [$requestType, $steps]) {
+            $workflow = ApprovalWorkflow::firstOrCreate(
+                ['tenant_id' => $tenant->id, 'name' => $name],
+                ['request_type' => $requestType, 'approval_mode' => 'sequential', 'is_active' => true],
+            );
+
+            if ($workflow->steps()->exists()) {
+                continue;
+            }
+
+            foreach ($steps as $index => $approverType) {
+                $workflow->steps()->create([
+                    'tenant_id' => $tenant->id,
+                    'step_order' => $index + 1,
+                    'approver_type' => $approverType,
+                    'approver_user_id' => $approverType === 'specific_user' ? $admin->id : null,
+                ]);
+            }
         }
     }
 
