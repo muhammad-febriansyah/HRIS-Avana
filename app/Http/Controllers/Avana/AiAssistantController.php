@@ -7,6 +7,7 @@ use App\Models\AiConversation;
 use App\Models\AiMessage;
 use App\Models\AiSetting;
 use App\Models\User;
+use App\Services\AiToolkit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -34,7 +35,11 @@ class AiAssistantController extends Controller
     private const SYSTEM_PROMPT = 'Kamu adalah asisten HR untuk AvanaHR, sebuah aplikasi HRIS & Payroll. '
         .'Jawab dalam Bahasa Indonesia yang ringkas, jelas, dan profesional. Bantu seputar payroll, absensi, '
         .'cuti & lembur, data karyawan, rekrutmen, kinerja, dan modul HR lainnya. Gunakan format markdown bila perlu '
-        .'(list, bold). Jika pertanyaan di luar konteks HR, tetap bantu dengan sopan.';
+        .'(list, bold). Jika pertanyaan di luar konteks HR, tetap bantu dengan sopan. '
+        .'Kamu memiliki akses ke data nyata pengguna dan perusahaan lewat tools. Untuk pertanyaan yang butuh data '
+        .'(mis. sisa cuti, slip gaji, rekap kehadiran, status pengajuan, statistik karyawan, payroll, rekrutmen), '
+        .'WAJIB panggil tool yang sesuai dan jawab hanya berdasarkan hasilnya. Jangan mengarang angka atau data. '
+        .'Jika tool tidak tersedia atau tidak mengembalikan data, katakan dengan jujur. Sebutkan nominal dalam Rupiah.';
 
     /**
      * Render the GPT-style chat with the conversation history sidebar.
@@ -126,12 +131,16 @@ class AiAssistantController extends Controller
         $model = $ai['model'];
         $conversationId = $conversation->id;
 
+        // Data-access tools scoped to this user & tenant so the assistant can
+        // answer questions about real HR data (leave, payslip, requests, ...).
+        $tools = AiToolkit::forUser($user);
+
         // Feed the stored key into the Prism provider config for this request.
         if ($apiKey !== '') {
             config(["prism.providers.{$provider}.api_key" => $apiKey]);
         }
 
-        return response()->stream(function () use ($history, $user, $provider, $apiKey, $model, $conversationId): void {
+        return response()->stream(function () use ($history, $user, $provider, $apiKey, $model, $conversationId, $tools): void {
             $emit = static function (string $text): void {
                 echo $text;
                 if (ob_get_level() > 0) {
@@ -149,13 +158,17 @@ class AiAssistantController extends Controller
                 $emit($full);
             } else {
                 try {
-                    $stream = Prism::text()
+                    $request = Prism::text()
                         ->using($provider, $model)
                         ->withSystemPrompt(self::SYSTEM_PROMPT)
-                        ->withMessages($history)
-                        ->asStream();
+                        ->withMessages($history);
 
-                    foreach ($stream as $event) {
+                    // Let the model call data tools and loop back with results.
+                    if ($tools !== []) {
+                        $request = $request->withTools($tools)->withMaxSteps(6);
+                    }
+
+                    foreach ($request->asStream() as $event) {
                         if ($event instanceof TextDeltaEvent && $event->delta !== '') {
                             $full .= $event->delta;
                             $emit($event->delta);
