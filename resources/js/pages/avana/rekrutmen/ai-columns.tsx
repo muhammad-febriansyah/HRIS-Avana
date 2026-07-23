@@ -59,6 +59,17 @@ export function tierOf(confidence: number | null): Tier {
     return { label: 'Kurang Sesuai', color: C.red, bg: 'rgba(220,38,38,.1)' };
 }
 
+const NEUTRAL: Tier = {
+    label: 'Belum dinilai',
+    color: C.muted,
+    bg: 'rgba(107,114,128,.12)',
+};
+
+/** Tier for display: neutral grey until the candidate has been scored by AI. */
+export function badgeOf(confidence: number | null): Tier {
+    return confidence === null ? NEUTRAL : tierOf(confidence);
+}
+
 export function initials(name: string): string {
     return name
         .split(' ')
@@ -147,7 +158,7 @@ export function makeAiColumns(): ColumnDef<Rec>[] {
             ),
             cell: ({ row }) => {
                 const r = row.original;
-                const tier = tierOf(r.confidence);
+                const tier = badgeOf(r.confidence);
 
                 return (
                     <div
@@ -238,7 +249,7 @@ export function makeAiColumns(): ColumnDef<Rec>[] {
             meta: { label: 'Rekomendasi & Alasan' },
             header: () => <span style={headerStyle}>Rekomendasi & Alasan</span>,
             cell: ({ row }) => {
-                const tier = tierOf(row.original.confidence);
+                const tier = badgeOf(row.original.confidence);
                 const reasoning = row.original.reasoning;
 
                 return (
@@ -290,8 +301,22 @@ export function makeAiColumns(): ColumnDef<Rec>[] {
                 <SortHeader column={column} label="Skor Kecocokan" />
             ),
             cell: ({ row }) => {
-                const score = row.original.confidence ?? 0;
-                const tier = tierOf(row.original.confidence);
+                if (row.original.confidence === null) {
+                    return (
+                        <span
+                            style={{
+                                fontSize: 15,
+                                fontWeight: 600,
+                                color: C.faint,
+                            }}
+                        >
+                            —
+                        </span>
+                    );
+                }
+
+                const score = row.original.confidence;
+                const tier = tierOf(score);
 
                 return (
                     <div style={{ minWidth: 120 }}>

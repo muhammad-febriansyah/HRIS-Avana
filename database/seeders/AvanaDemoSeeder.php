@@ -469,7 +469,8 @@ final class AvanaDemoSeeder extends Seeder
         }
 
         // [name, job title, stage, source, applied days-ago, interview offset
-        // days (null=none, negative=past), ai confidence].
+        // days (null=none, negative=past)]. The trailing number is unused now
+        // that AI scores come from a real analysis run.
         $applicants = [
             ['Budi Santoso', 'Backend Engineer', 'applied', 'LinkedIn', 2, null, 72],
             ['Sari Melati', 'Backend Engineer', 'applied', 'JobStreet', 4, null, 65],
@@ -488,7 +489,7 @@ final class AvanaDemoSeeder extends Seeder
             ['Arif Setiawan', 'Backend Engineer', 'rejected', 'Website Karier', 25, -8, 44],
         ];
 
-        foreach ($applicants as [$name, $jobTitle, $stage, $source, $daysAgo, $interviewIn, $ai]) {
+        foreach ($applicants as [$name, $jobTitle, $stage, $source, $daysAgo, $interviewIn]) {
             $job = $jobs[$jobTitle] ?? null;
 
             if ($job === null) {
@@ -512,10 +513,9 @@ final class AvanaDemoSeeder extends Seeder
                     'interview_status' => $interviewIn !== null ? ($interviewIn >= 0 ? 'scheduled' : 'done') : null,
                     'offered_at' => in_array($stage, ['offer', 'hired'], true) ? $applied->copy()->addDays(18) : null,
                     'offer_status' => $stage === 'offer' ? 'sent' : ($stage === 'hired' ? 'accepted' : null),
-                    'ai_confidence' => $ai,
-                    'ai_recommendation' => $ai >= 80
-                        ? 'Rekomendasi kuat untuk lanjut ke tahap berikutnya.'
-                        : ($ai >= 60 ? 'Layak dipertimbangkan.' : 'Kurang sesuai kualifikasi.'),
+                    // AI match score/recommendation are intentionally left null:
+                    // they are produced by the real "Analisa dengan AI" run, not
+                    // seeded, so a fresh install shows no fake scores.
                 ],
             );
         }

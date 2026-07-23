@@ -321,8 +321,8 @@ class RecruitmentController extends Controller
 
         return Inertia::render('avana/rekrutmen/ai', [
             'recommendations' => Applicant::forTenant($tenantId)
-                ->whereNotNull('ai_recommendation')
                 ->with('jobPosting:id,title')
+                ->orderByRaw('ai_confidence IS NULL')
                 ->orderByDesc('ai_confidence')
                 ->orderBy('name')
                 ->get()

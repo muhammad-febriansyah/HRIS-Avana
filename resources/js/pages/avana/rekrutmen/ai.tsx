@@ -72,14 +72,16 @@ export default function RecruitmentAi({
     const [progress, setProgress] = useState({ done: 0, total: 0 });
 
     const total = rows.length;
+    const scored = rows.filter((r) => r.confidence !== null);
+    const scoredCount = scored.length;
     const avg =
-        total > 0
+        scoredCount > 0
             ? Math.round(
-                  rows.reduce((sum, r) => sum + (r.confidence ?? 0), 0) / total,
+                  scored.reduce((sum, r) => sum + (r.confidence ?? 0), 0) /
+                      scoredCount,
               )
             : 0;
-    const strong = rows.filter((r) => (r.confidence ?? 0) >= 80).length;
-    const review = rows.filter((r) => (r.confidence ?? 0) < 60).length;
+    const strong = scored.filter((r) => (r.confidence ?? 0) >= 80).length;
 
     const analyze = async () => {
         if (analyzing) {
@@ -355,21 +357,29 @@ export default function RecruitmentAi({
                                 value={String(total)}
                             />
                             <Stat
+                                label="Sudah Dianalisa"
+                                value={`${scoredCount}/${total}`}
+                                hint={
+                                    scoredCount < total
+                                        ? 'klik Analisa dengan AI'
+                                        : 'lengkap'
+                                }
+                                color={scoredCount > 0 ? C.navy : C.faint}
+                            />
+                            <Stat
                                 label="Rata-rata Skor"
-                                value={`${avg}%`}
-                                color={tierOf(avg).color}
+                                value={scoredCount > 0 ? `${avg}%` : '—'}
+                                color={
+                                    scoredCount > 0
+                                        ? tierOf(avg).color
+                                        : C.faint
+                                }
                             />
                             <Stat
                                 label="Rekomendasi Kuat"
                                 value={String(strong)}
                                 hint="skor ≥ 80%"
                                 color={C.green}
-                            />
-                            <Stat
-                                label="Perlu Ditinjau"
-                                value={String(review)}
-                                hint="skor < 60%"
-                                color={C.red}
                             />
                         </div>
 
