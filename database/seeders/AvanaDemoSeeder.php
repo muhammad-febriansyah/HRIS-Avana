@@ -943,38 +943,43 @@ final class AvanaDemoSeeder extends Seeder
      */
     private function seedEmployeeUser(Tenant $tenant, array $employees): void
     {
-        $employee = $employees[2] ?? reset($employees);
-
-        if (! $employee) {
-            return;
-        }
-
-        $user = User::firstOrCreate(
-            ['email' => $employee->email ?? 'karyawan@nusantara.co.id'],
-            [
-                'name' => $employee->full_name,
-                'tenant_id' => $tenant->id,
-                'password' => Hash::make('password'),
-                'status' => 'active',
-                'email_verified_at' => now(),
-            ],
-        );
-        $user->forceFill(['tenant_id' => $tenant->id])->save();
-
         $role = Role::where('tenant_id', $tenant->id)->where('code', 'employee')->first();
-        if ($role) {
-            $user->roles()->syncWithoutDetaching([$role->id]);
-        }
 
         $workLocation = WorkLocation::forTenant($tenant->id)
             ->where('name', 'Kantor Pusat Jakarta')
             ->first();
 
-        $employee->forceFill([
-            'user_id' => $user->id,
-            'work_location_id' => $workLocation?->id,
-            'branch_id' => $workLocation?->branch_id ?? $employee->branch_id,
-        ])->save();
+        // ESS (employee self-service) test logins — Bagus plus three more so the
+        // employee view can be demoed from several people. Password: password.
+        foreach ([2, 3, 4, 7] as $index) {
+            $employee = $employees[$index] ?? null;
+
+            if ($employee === null) {
+                continue;
+            }
+
+            $user = User::firstOrCreate(
+                ['email' => $employee->email ?? "karyawan{$index}@nusantara.co.id"],
+                [
+                    'name' => $employee->full_name,
+                    'tenant_id' => $tenant->id,
+                    'password' => Hash::make('password'),
+                    'status' => 'active',
+                    'email_verified_at' => now(),
+                ],
+            );
+            $user->forceFill(['tenant_id' => $tenant->id])->save();
+
+            if ($role) {
+                $user->roles()->syncWithoutDetaching([$role->id]);
+            }
+
+            $employee->forceFill([
+                'user_id' => $user->id,
+                'work_location_id' => $workLocation?->id,
+                'branch_id' => $workLocation?->branch_id ?? $employee->branch_id,
+            ])->save();
+        }
     }
 
     /**
