@@ -1,7 +1,7 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { AIcon, C, card } from '@/lib/avana';
+import { AIcon, btnOut, C, card } from '@/lib/avana';
 import { type Category, CategoryChip, KpiCard, ScoreBar } from './components';
 
 interface Row {
@@ -80,36 +80,51 @@ export default function AttritionIndex({ rows, kpis, filters }: AttritionProps) 
         <>
             <Head title="Prediksi Risiko Resign" />
             <div style={{ padding: '28px 32px' }}>
-                <div style={{ marginBottom: 22 }}>
-                    <div
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 7,
-                            fontSize: 12.5,
-                            color: C.faint,
-                            marginBottom: 7,
-                        }}
-                    >
-                        <span>Beranda</span>
-                        <AIcon name="chevron-right" size={13} />
-                        <span style={{ color: C.muted }}>Prediksi Resign</span>
+                <div
+                    style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-end',
+                        flexWrap: 'wrap',
+                        gap: 12,
+                        marginBottom: 22,
+                    }}
+                >
+                    <div>
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 7,
+                                fontSize: 12.5,
+                                color: C.faint,
+                                marginBottom: 7,
+                            }}
+                        >
+                            <span>Beranda</span>
+                            <AIcon name="chevron-right" size={13} />
+                            <span style={{ color: C.muted }}>Prediksi Resign</span>
+                        </div>
+                        <h1
+                            style={{
+                                fontSize: 24,
+                                fontWeight: 600,
+                                color: C.navy,
+                                margin: 0,
+                                letterSpacing: '-.01em',
+                            }}
+                        >
+                            Prediksi Risiko Resign
+                        </h1>
+                        <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
+                            Skor risiko keluar tiap karyawan dari 9 faktor · model
+                            scoring
+                        </div>
                     </div>
-                    <h1
-                        style={{
-                            fontSize: 24,
-                            fontWeight: 600,
-                            color: C.navy,
-                            margin: 0,
-                            letterSpacing: '-.01em',
-                        }}
-                    >
-                        Prediksi Risiko Resign
-                    </h1>
-                    <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
-                        Skor risiko keluar tiap karyawan dari 9 faktor · model
-                        scoring
-                    </div>
+                    <Link href="/avana/attrition/settings" style={{ ...btnOut, textDecoration: 'none' }}>
+                        <AIcon name="settings" size={16} />
+                        Pengaturan
+                    </Link>
                 </div>
 
                 <div

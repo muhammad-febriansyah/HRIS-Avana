@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Attendance;
+use App\Models\AttritionSetting;
 use App\Models\Employee;
 use App\Models\EmployeeCareerHistory;
 use App\Models\EmployeeSalaryComponent;
@@ -25,51 +26,63 @@ use Illuminate\Support\Facades\DB;
  */
 final class AttritionScorer
 {
-    /** @var array<string, int> */
-    private array $weights;
-
-    /** @var array{low: int, medium: int} */
-    private array $bands;
+    /**
+     * The factor keys and their human labels, in display order.
+     *
+     * @var array<string, string>
+     */
+    public const FACTOR_LABELS = [
+        'tenure' => 'Masa kerja < 1 tahun',
+        'no_raise' => 'Tidak naik gaji > 2 tahun',
+        'lateness' => 'Sering terlambat',
+        'overtime' => 'Lembur berlebih',
+        'performance' => 'Kinerja menurun',
+        'engagement' => 'Engagement rendah',
+        'leave_spike' => 'Pengajuan cuti meningkat',
+        'manager_change' => 'Pergantian atasan',
+        'no_promotion' => 'Tidak dipromosikan > 3 tahun',
+    ];
 
     /** @var array<string, mixed> */
     private array $rules;
 
     public function __construct()
     {
-        $this->weights = config('attrition.weights');
-        $this->bands = config('attrition.bands');
         $this->rules = config('attrition.rules');
     }
 
     /**
-     * Score one employee.
+     * Score one employee. Weights and risk bands come from the tenant's
+     * {@see AttritionSetting}; pass one in to avoid re-resolving it per row.
      *
      * @return array{employee_id: int, score: int, category: string, coverage: int, factors: list<FactorResult>, top_factors: list<string>}
      */
-    public function score(Employee $employee): array
+    public function score(Employee $employee, ?AttritionSetting $settings = null): array
     {
+        $settings ??= AttritionSetting::resolve($employee->tenant_id);
+        $weights = $settings->weights;
         $now = Carbon::today();
 
-        /** @var array<string, array{0: string, 1: callable():array{0: bool, 1: bool, 2: string}}> $defs */
+        /** @var array<string, callable():array{0: bool, 1: bool, 2: string}> $defs */
         $defs = [
-            'tenure' => ['Masa kerja < 1 tahun', fn (): array => $this->tenure($employee, $now)],
-            'no_raise' => ['Tidak naik gaji > 2 tahun', fn (): array => $this->noRaise($employee, $now)],
-            'lateness' => ['Sering terlambat', fn (): array => $this->lateness($employee, $now)],
-            'overtime' => ['Lembur berlebih', fn (): array => $this->overtime($employee, $now)],
-            'performance' => ['Kinerja menurun', fn (): array => $this->performance($employee)],
-            'engagement' => ['Engagement rendah', fn (): array => $this->engagement($employee)],
-            'leave_spike' => ['Pengajuan cuti meningkat', fn (): array => $this->leaveSpike($employee, $now)],
-            'manager_change' => ['Pergantian atasan', fn (): array => $this->managerChange($employee, $now)],
-            'no_promotion' => ['Tidak dipromosikan > 3 tahun', fn (): array => $this->noPromotion($employee, $now)],
+            'tenure' => fn (): array => $this->tenure($employee, $now),
+            'no_raise' => fn (): array => $this->noRaise($employee, $now),
+            'lateness' => fn (): array => $this->lateness($employee, $now),
+            'overtime' => fn (): array => $this->overtime($employee, $now),
+            'performance' => fn (): array => $this->performance($employee),
+            'engagement' => fn (): array => $this->engagement($employee),
+            'leave_spike' => fn (): array => $this->leaveSpike($employee, $now),
+            'manager_change' => fn (): array => $this->managerChange($employee, $now),
+            'no_promotion' => fn (): array => $this->noPromotion($employee, $now),
         ];
 
         $factors = [];
         $gotPoints = 0;
         $maxEvaluable = 0;
 
-        foreach ($defs as $key => [$label, $evaluate]) {
+        foreach ($defs as $key => $evaluate) {
             [$available, $triggered, $detail] = $evaluate();
-            $weight = (int) ($this->weights[$key] ?? 0);
+            $weight = (int) ($weights[$key] ?? 0);
             $points = $triggered ? $weight : 0;
 
             if ($available) {
@@ -79,7 +92,7 @@ final class AttritionScorer
 
             $factors[] = [
                 'key' => $key,
-                'label' => $label,
+                'label' => self::FACTOR_LABELS[$key] ?? $key,
                 'weight' => $weight,
                 'available' => $available,
                 'triggered' => $triggered,
@@ -89,6 +102,9 @@ final class AttritionScorer
         }
 
         $score = $maxEvaluable > 0 ? (int) round($gotPoints / $maxEvaluable * 100) : 0;
+
+        $totalWeight = array_sum(array_map('intval', $weights));
+        $coverage = $totalWeight > 0 ? (int) round($maxEvaluable / $totalWeight * 100) : 0;
 
         $topFactors = collect($factors)
             ->filter(fn (array $f): bool => $f['triggered'])
@@ -101,23 +117,23 @@ final class AttritionScorer
         return [
             'employee_id' => (int) $employee->id,
             'score' => $score,
-            'category' => $this->band($score),
-            'coverage' => $maxEvaluable, // share of the 100-pt model backed by data
+            'category' => $this->band($score, $settings),
+            'coverage' => $coverage, // % of the model's weight backed by data
             'factors' => $factors,
             'top_factors' => $topFactors,
         ];
     }
 
     /**
-     * Map a 0-100 score onto a risk band.
+     * Map a 0-100 score onto a risk band using the tenant's cut-offs.
      */
-    public function band(int $score): string
+    public function band(int $score, AttritionSetting $settings): string
     {
-        if ($score <= $this->bands['low']) {
+        if ($score <= $settings->band_low) {
             return 'low';
         }
 
-        if ($score <= $this->bands['medium']) {
+        if ($score <= $settings->band_medium) {
             return 'medium';
         }
 

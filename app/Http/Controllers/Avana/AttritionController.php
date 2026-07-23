@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Avana;
 
 use App\Concerns\AppliesBranchScope;
 use App\Http\Controllers\Controller;
+use App\Models\AttritionSetting;
 use App\Models\Employee;
 use App\Models\User;
 use App\Services\AttritionScorer;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -47,7 +49,8 @@ class AttritionController extends Controller
 
         $this->applyBranchScope($query, $request->user());
 
-        $scored = $query->get()->map(fn (Employee $employee): array => $this->shape($employee));
+        $settings = AttritionSetting::resolve($tenantId);
+        $scored = $query->get()->map(fn (Employee $employee): array => $this->shape($employee, $settings));
 
         $kpis = [
             'total' => $scored->count(),
@@ -109,13 +112,74 @@ class AttritionController extends Controller
     }
 
     /**
+     * The "Setup Master" config page — tune per-factor weights and the risk
+     * band cut-offs for the tenant.
+     */
+    public function settings(Request $request): Response
+    {
+        $this->ensureCan($request, 'update');
+
+        $settings = AttritionSetting::resolve((int) ($request->user()->tenant_id ?? 0));
+
+        return Inertia::render('avana/attrition/settings', [
+            'factors' => collect(AttritionScorer::FACTOR_LABELS)
+                ->map(fn (string $label, string $key): array => [
+                    'key' => $key,
+                    'label' => $label,
+                    'weight' => (int) ($settings->weights[$key] ?? 0),
+                ])
+                ->values()
+                ->all(),
+            'bands' => [
+                'low' => $settings->band_low,
+                'medium' => $settings->band_medium,
+            ],
+            'defaults' => [
+                'weights' => config('attrition.weights'),
+                'bands' => config('attrition.bands'),
+            ],
+        ]);
+    }
+
+    /**
+     * Persist the tenant's weight/band configuration.
+     */
+    public function updateSettings(Request $request): RedirectResponse
+    {
+        $this->ensureCan($request, 'update');
+
+        $data = $request->validate([
+            'weights' => ['required', 'array'],
+            'weights.*' => ['integer', 'min:0', 'max:100'],
+            'band_low' => ['required', 'integer', 'min:0', 'max:98'],
+            'band_medium' => ['required', 'integer', 'gt:band_low', 'max:99'],
+        ]);
+
+        $weights = [];
+        foreach (array_keys(AttritionScorer::FACTOR_LABELS) as $key) {
+            $weights[$key] = (int) ($data['weights'][$key] ?? 0);
+        }
+
+        if (array_sum($weights) === 0) {
+            return back()->withErrors(['weights' => 'Minimal satu faktor harus punya bobot lebih dari 0.']);
+        }
+
+        AttritionSetting::updateOrCreate(
+            ['tenant_id' => $request->user()->tenant_id],
+            ['weights' => $weights, 'band_low' => $data['band_low'], 'band_medium' => $data['band_medium']],
+        );
+
+        return redirect()->route('avana.attrition')->with('success', 'Konfigurasi risiko resign disimpan');
+    }
+
+    /**
      * Shape one employee's scored row for the list.
      *
      * @return array<string, mixed>
      */
-    private function shape(Employee $employee): array
+    private function shape(Employee $employee, AttritionSetting $settings): array
     {
-        $result = $this->scorer->score($employee);
+        $result = $this->scorer->score($employee, $settings);
 
         return [
             'id' => $employee->id,

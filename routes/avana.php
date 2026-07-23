@@ -538,6 +538,8 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     // HR Analytics + Dynamic Report
     Route::get('analytics', [AnalyticsController::class, 'index'])->name('analytics');
     Route::get('attrition', [AttritionController::class, 'index'])->name('attrition');
+    Route::get('attrition/settings', [AttritionController::class, 'settings'])->name('attrition.settings');
+    Route::put('attrition/settings', [AttritionController::class, 'updateSettings'])->name('attrition.settings.update');
     Route::get('attrition/{employee}', [AttritionController::class, 'show'])->name('attrition.show');
     Route::get('dynamic-report', [DynamicReportController::class, 'index'])->name('dynamic-report');
     Route::post('dynamic-report', [DynamicReportController::class, 'store'])->name('dynamic-report.store');
