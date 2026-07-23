@@ -143,7 +143,7 @@ final class AvanaNav
             ['title' => 'ANALITIK', 'items' => [
                 self::leaf('laporan', 'Laporan', 'chart-column', '/avana/laporan', 'analytics', ['report']),
                 self::leaf('analytics', 'HR Analytics', 'chart-pie', '/avana/analytics', 'dynamic_report', ['dynamic_report']),
-                self::leaf('attrition', 'Prediksi Resign', 'trending-down', '/avana/attrition', 'dynamic_report', ['attrition']),
+                self::leaf('attrition', 'Prediksi Resign', 'trending-down', '/avana/attrition', 'attrition', ['attrition']),
                 self::leaf('dynamic-report', 'Dynamic Report', 'table', '/avana/dynamic-report', 'dynamic_report', ['dynamic_report']),
             ]],
             ['title' => 'SISTEM', 'items' => [

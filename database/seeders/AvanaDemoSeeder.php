@@ -606,6 +606,7 @@ final class AvanaDemoSeeder extends Seeder
             // Analytics
             'analytics' => ['Analytics & Laporan', 'analytics', ['report']],
             'dynamic_report' => ['Dynamic Report', 'analytics', ['dynamic_report']],
+            'attrition' => ['Prediksi Resign', 'analytics', ['attrition']],
             // Asset & CRM
             'asset' => ['Manajemen Aset', 'asset', ['asset']],
             'crm' => ['CRM', 'crm', ['crm']],
