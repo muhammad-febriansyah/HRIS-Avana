@@ -539,6 +539,39 @@ it('resets an employee bound device so a new phone can sign in', function (): vo
     expect($device->fresh()->status)->toBe('reset');
 });
 
+it('resets a device bound to the email-matched login even without a direct user link', function (): void {
+    // The mobile app binds by email; the employee row may not point at that
+    // exact users row. Reset must still release the device.
+    $user = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'email' => 'seam.device@nusantara.test',
+        'status' => 'active',
+    ]);
+    $employee = Employee::create([
+        'tenant_id' => $this->tenant->id,
+        'user_id' => null,
+        'email' => 'seam.device@nusantara.test',
+        'employee_number' => 'EMP-SEAM-1',
+        'full_name' => 'Seam Device',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+    ]);
+    $device = UserDevice::create([
+        'tenant_id' => $this->tenant->id,
+        'user_id' => $user->id,
+        'device_id' => 'seam-device-xyz',
+        'status' => 'active',
+        'bound_at' => now(),
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.reset-device', $employee))
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    expect($device->fresh()->status)->toBe('reset');
+});
+
 it('toggles an employee login account between active and inactive', function (): void {
     $user = User::factory()->create(['tenant_id' => $this->tenant->id, 'status' => 'active']);
     $employee = makeEmployeeWithLogin($this->tenant->id, 'EMP-TA-1', $user);

@@ -17,6 +17,7 @@ use App\Models\JobLevel;
 use App\Models\Position;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\UserDevice;
 use App\Models\WorkLocation;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
@@ -615,20 +616,34 @@ class EmployeeController extends Controller
         $this->ensureTenantOwnership($request, $employee);
         $this->authorize('update', $employee);
 
-        if ($employee->user_id === null) {
+        // The mobile app binds the device to the login it authenticates by
+        // EMAIL, which is not always the same users row as employees.user_id.
+        // Reset the device for the linked login AND any login sharing the
+        // employee's email, so a mismatched link can never leave an account
+        // device-locked with no way to reset it.
+        $userIds = User::where('tenant_id', $employee->tenant_id)
+            ->where(function ($query) use ($employee): void {
+                $query->where('id', $employee->user_id)
+                    ->when($employee->email !== null, fn ($q) => $q->orWhere('email', $employee->email));
+            })
+            ->pluck('id');
+
+        if ($userIds->isEmpty()) {
             return back()->with('error', 'Karyawan ini belum punya akun login.');
         }
 
-        $employee->user->devices()->where('status', 'active')->update([
-            'status' => 'reset',
-            'reset_by' => $request->user()->id,
-            'reset_at' => now(),
-        ]);
+        UserDevice::whereIn('user_id', $userIds)
+            ->where('status', 'active')
+            ->update([
+                'status' => 'reset',
+                'reset_by' => $request->user()->id,
+                'reset_at' => now(),
+            ]);
 
         // Freeing the binding slot is not the same as revoking access: the old
         // phone still holds a valid token and could refresh it for weeks. Bump
         // the token version so every token it issued stops working now.
-        $employee->user->increment('token_version');
+        User::whereIn('id', $userIds)->increment('token_version');
 
         return back()->with('success', 'Perangkat direset. HP lama otomatis keluar, karyawan dapat login dari HP baru.');
     }

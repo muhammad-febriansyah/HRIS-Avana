@@ -761,19 +761,18 @@ export default function EmployeesIndex({
                                                             )
                                                         }
                                                     />
-                                                    {e.has_login &&
-                                                        e.device && (
-                                                            <ActionBtn
-                                                                icon="smartphone"
-                                                                label="Reset HP"
-                                                                variant="neutral"
-                                                                onClick={() =>
-                                                                    setResetTarget(
-                                                                        e,
-                                                                    )
-                                                                }
-                                                            />
-                                                        )}
+                                                    {e.has_login && (
+                                                        <ActionBtn
+                                                            icon="smartphone"
+                                                            label="Reset HP"
+                                                            variant="neutral"
+                                                            onClick={() =>
+                                                                setResetTarget(
+                                                                    e,
+                                                                )
+                                                            }
+                                                        />
+                                                    )}
                                                     {e.has_login && (
                                                         <ActionBtn
                                                             icon={
