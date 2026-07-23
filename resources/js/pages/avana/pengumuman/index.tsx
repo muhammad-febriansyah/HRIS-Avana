@@ -1,24 +1,17 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import type { CSSProperties, FormEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import AnnouncementController from '@/actions/App/Http/Controllers/Avana/AnnouncementController';
-import { AIcon, ActionBtn, btnOut, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import { type Announcement, makeColumns } from './columns';
+import { DataTable } from './data-table';
 
 /* ============================================================
- * Announcement feed: pinned first, then published, then draft.
+ * Announcement list — a sortable/searchable/paginated data table.
  * ============================================================ */
 
-interface AnnouncementCard {
-    id: number;
-    title: string;
-    body: string;
-    category: string | null;
-    status: string;
-    pinned: boolean;
-    published_at: string | null;
-    created_at: string | null;
-}
+type AnnouncementCard = Announcement;
 
 interface AnnouncementKpis {
     total: number;
@@ -162,6 +155,12 @@ export default function PengumumanIndex({
         });
     };
 
+    const columns = useMemo(
+        () => makeColumns({ onEdit: openEdit, onPublish: publish, onDelete: setConfirm }),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [],
+    );
+
     const kpiItems = [
         {
             label: 'Total Pengumuman',
@@ -293,193 +292,11 @@ export default function PengumumanIndex({
                     ))}
                 </div>
 
-                {announcements.length === 0 && (
-                    <div
-                        style={{
-                            ...card,
-                            padding: '48px 18px',
-                            textAlign: 'center',
-                            color: C.muted,
-                            fontSize: 13.5,
-                        }}
-                    >
-                        <div
-                            style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                gap: 10,
-                            }}
-                        >
-                            <AIcon name="megaphone" size={28} color={C.faint} />
-                            <div>Belum ada pengumuman.</div>
-                        </div>
-                    </div>
-                )}
-
-                <div
-                    style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 14,
-                    }}
-                >
-                    {announcements.map((item) => {
-                        const published = item.status === 'published';
-
-                        return (
-                            <div
-                                key={item.id}
-                                style={{
-                                    ...card,
-                                    padding: '18px 20px',
-                                    borderLeft: item.pinned
-                                        ? `3px solid ${C.primary}`
-                                        : `1px solid ${C.border}`,
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'flex-start',
-                                        justifyContent: 'space-between',
-                                        gap: 16,
-                                        flexWrap: 'wrap',
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            flex: '1 1 320px',
-                                            minWidth: 0,
-                                        }}
-                                    >
-                                        <div
-                                            style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: 8,
-                                                flexWrap: 'wrap',
-                                                marginBottom: 6,
-                                            }}
-                                        >
-                                            {item.pinned && (
-                                                <span
-                                                    style={{
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        gap: 4,
-                                                        fontSize: 11.5,
-                                                        fontWeight: 600,
-                                                        color: C.primary,
-                                                    }}
-                                                >
-                                                    <AIcon
-                                                        name="pin"
-                                                        size={13}
-                                                        color={C.primary}
-                                                    />
-                                                    Disematkan
-                                                </span>
-                                            )}
-                                            <span
-                                                style={{
-                                                    display: 'inline-block',
-                                                    padding: '3px 10px',
-                                                    borderRadius: 100,
-                                                    fontSize: 11.5,
-                                                    fontWeight: 600,
-                                                    color: published
-                                                        ? C.green
-                                                        : C.muted,
-                                                    background: published
-                                                        ? 'rgba(22,163,74,.1)'
-                                                        : 'rgba(107,114,128,.12)',
-                                                }}
-                                            >
-                                                {published ? 'Terbit' : 'Draft'}
-                                            </span>
-                                            {item.category && (
-                                                <span
-                                                    style={{
-                                                        display: 'inline-block',
-                                                        padding: '3px 10px',
-                                                        borderRadius: 100,
-                                                        fontSize: 11.5,
-                                                        fontWeight: 600,
-                                                        color: C.sky,
-                                                        background:
-                                                            'rgba(110,155,230,.15)',
-                                                    }}
-                                                >
-                                                    {item.category}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div
-                                            style={{
-                                                fontSize: 16,
-                                                fontWeight: 600,
-                                                color: C.navy,
-                                            }}
-                                        >
-                                            {item.title}
-                                        </div>
-                                        <div
-                                            style={{
-                                                fontSize: 13.5,
-                                                color: C.text,
-                                                marginTop: 6,
-                                                lineHeight: 1.55,
-                                                whiteSpace: 'pre-wrap',
-                                            }}
-                                        >
-                                            {item.body}
-                                        </div>
-                                        <div
-                                            style={{
-                                                fontSize: 11.5,
-                                                color: C.faint,
-                                                marginTop: 10,
-                                            }}
-                                        >
-                                            {published && item.published_at
-                                                ? `Terbit ${item.published_at}`
-                                                : `Dibuat ${item.created_at ?? ''}`}
-                                        </div>
-                                    </div>
-                                    <div
-                                        style={{
-                                            display: 'inline-flex',
-                                            gap: 6,
-                                            flexWrap: 'wrap',
-                                        }}
-                                    >
-                                        {!published && (
-                                            <ActionBtn
-                                                icon="send"
-                                                label="Terbitkan"
-                                                variant="primary"
-                                                onClick={() => publish(item)}
-                                            />
-                                        )}
-                                        <ActionBtn
-                                            icon="pencil"
-                                            label="Ubah"
-                                            variant="success"
-                                            onClick={() => openEdit(item)}
-                                        />
-                                        <ActionBtn
-                                            icon="trash-2"
-                                            label="Hapus"
-                                            variant="danger"
-                                            onClick={() => setConfirm(item)}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
+                <DataTable
+                    columns={columns}
+                    data={announcements}
+                    searchPlaceholder="Cari judul, kategori…"
+                />
             </div>
 
             {modalOpen && (
