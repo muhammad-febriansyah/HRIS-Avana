@@ -571,6 +571,16 @@ export default function VisitingIndex({
                                                 textAlign: 'right',
                                             }}
                                         >
+                                            <ActionBtn
+                                                icon="eye"
+                                                label="Detail"
+                                                variant="primary"
+                                                onClick={() =>
+                                                    router.visit(
+                                                        `/avana/visiting/${row.id}`,
+                                                    )
+                                                }
+                                            />
                                             {row.status === 'draft' && (
                                                 <ActionBtn
                                                     icon="pencil"

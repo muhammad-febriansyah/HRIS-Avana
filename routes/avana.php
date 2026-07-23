@@ -384,6 +384,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     // Visiting pekerjaan (field visits)
     Route::get('visiting', [FieldVisitController::class, 'index'])->name('visiting');
     Route::get('visiting/create', [FieldVisitController::class, 'create'])->name('visiting.create');
+    Route::get('visiting/{visit}', [FieldVisitController::class, 'show'])->name('visiting.show');
     Route::post('visiting', [FieldVisitController::class, 'store'])->name('visiting.store');
     Route::get('visiting/{visit}/edit', [FieldVisitController::class, 'edit'])->name('visiting.edit');
     Route::post('visiting/{visit}', [FieldVisitController::class, 'update'])->name('visiting.update');

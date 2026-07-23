@@ -12,6 +12,7 @@ use App\Services\FieldVisitPhotoStore;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -80,6 +81,27 @@ class FieldVisitController extends Controller
             'filters' => $request->only(['search', 'date', 'branch_id', 'per_page']),
             'employees' => $this->employeeOptions($tenantId),
             'branches' => $this->branchOptions($tenantId),
+        ]);
+    }
+
+    /**
+     * A read-only detail page for one field visit — full attendee list, the
+     * tasklist with before/after evidence, GPS point, and photo gallery.
+     */
+    public function show(Request $request, FieldVisit $visit): Response
+    {
+        $this->ensureCan($request, 'view');
+        $this->ensureTenantOwnership($request, $visit);
+
+        $visit->load([
+            'employees:id,full_name,employee_number',
+            'branch:id,name',
+            'photos',
+            'tasks',
+        ]);
+
+        return Inertia::render('avana/visiting/show', [
+            'visit' => $this->shapeDetail($visit),
         ]);
     }
 
@@ -340,6 +362,35 @@ class FieldVisitController extends Controller
                 ->all(),
             'task_progress' => $progress,
         ];
+    }
+
+    /**
+     * Shape one field visit for the detail page — richer than the list row:
+     * per-task evidence + notes, timestamps, and full attendee info.
+     *
+     * @return array<string, mixed>
+     */
+    private function shapeDetail(FieldVisit $visit): array
+    {
+        return array_merge($this->shapeVisit($visit), [
+            'created_at' => $visit->created_at?->format('d M Y H:i'),
+            'tasks' => $visit->tasks
+                ->map(fn (FieldVisitTask $task): array => [
+                    'id' => $task->id,
+                    'title' => $task->title,
+                    'is_done' => $task->is_done,
+                    'done_at' => $task->done_at?->format('d M Y H:i'),
+                    'photo_note' => $task->photo_note,
+                    'before_photo_url' => $task->before_photo_path !== null
+                        ? Storage::disk('public')->url($task->before_photo_path)
+                        : null,
+                    'after_photo_url' => $task->after_photo_path !== null
+                        ? Storage::disk('public')->url($task->after_photo_path)
+                        : null,
+                ])
+                ->values()
+                ->all(),
+        ]);
     }
 
     /**

@@ -517,3 +517,43 @@ it('will not reopen a visit that was already filed', function (): void {
 
     expect($visit->refresh()->location)->toBe('Toko Mitra Senayan');
 });
+
+it('renders the visit detail page with tasks, attendees and progress', function (): void {
+    $visit = makeFieldVisit($this->tenant->id, ['client_name' => 'PT Detail', 'location' => 'Bandung']);
+    $visit->tasks()->create([
+        'tenant_id' => $this->tenant->id,
+        'title' => 'Cek stok',
+        'sort_order' => 0,
+        'is_done' => true,
+        'done_at' => now(),
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.visiting.show', $visit))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/visiting/show', false)
+            ->where('visit.client_name', 'PT Detail')
+            ->where('visit.location', 'Bandung')
+            ->has('visit.employees.0.name')
+            ->has('visit.tasks', 1)
+            ->where('visit.tasks.0.is_done', true)
+            ->has('visit.task_progress.done')
+            ->has('visit.photo_urls'));
+});
+
+it('does not show a visit from another tenant', function (): void {
+    $otherTenant = Tenant::create(['name' => 'PT Lain Detail', 'slug' => 'pt-lain-detail']);
+    $foreignEmployee = Employee::create([
+        'tenant_id' => $otherTenant->id,
+        'employee_number' => 'EMP-8888',
+        'full_name' => 'Karyawan Lain',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+    ]);
+    $foreign = makeFieldVisit($otherTenant->id, ['employee_id' => $foreignEmployee->id]);
+
+    actingAs($this->admin)
+        ->get(route('avana.visiting.show', $foreign))
+        ->assertNotFound();
+});
