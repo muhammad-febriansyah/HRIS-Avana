@@ -246,7 +246,9 @@ it('deletes a posting', function (): void {
 });
 
 it('adds an applicant to a posting', function (): void {
-    $posting = makeJobPosting($this->tenant->id);
+    // Applicants can only be attached to an active posting; the factory
+    // randomises status, so pin it open to keep this deterministic.
+    $posting = makeJobPosting($this->tenant->id, ['status' => 'open']);
 
     actingAs($this->admin)
         ->post(route('avana.rekrutmen.pelamar.store'), [
