@@ -316,12 +316,14 @@ class RecruitmentController extends Controller
             'recommendations' => Applicant::forTenant($tenantId)
                 ->whereNotNull('ai_recommendation')
                 ->with('jobPosting:id,title')
-                ->latest('id')
+                ->orderByDesc('ai_confidence')
+                ->orderBy('name')
                 ->get()
                 ->map(fn (Applicant $a): array => [
                     'id' => $a->id,
                     'name' => $a->name,
                     'job_title' => $a->jobPosting?->title,
+                    'stage' => $a->stage,
                     'confidence' => $a->ai_confidence,
                     'recommendation' => $a->ai_recommendation,
                 ])
