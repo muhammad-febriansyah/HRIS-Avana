@@ -326,6 +326,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::get('rekrutmen/pipeline', [RecruitmentController::class, 'pipeline'])->name('rekrutmen.pipeline');
     Route::get('rekrutmen/candidates', [RecruitmentController::class, 'candidates'])->name('rekrutmen.candidates');
     Route::get('rekrutmen/ai', [RecruitmentController::class, 'aiIntelligence'])->name('rekrutmen.ai');
+    Route::post('rekrutmen/ai/analyze', [RecruitmentController::class, 'analyzeAiIntelligence'])->name('rekrutmen.ai.analyze');
     Route::get('rekrutmen/pools', [RecruitmentController::class, 'pools'])->name('rekrutmen.pools');
     Route::post('rekrutmen/pools', [RecruitmentController::class, 'storePool'])->name('rekrutmen.pools.store');
     Route::get('rekrutmen/interviews', [RecruitmentController::class, 'interviews'])->name('rekrutmen.interviews');

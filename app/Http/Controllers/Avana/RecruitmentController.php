@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
+use App\Models\AiSetting;
 use App\Models\Applicant;
 use App\Models\ApplicantBackgroundCheck;
 use App\Models\ApplicantMedicalCheck;
@@ -21,9 +22,14 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use Prism\Prism\Facades\Prism;
+use Prism\Prism\Schema\NumberSchema;
+use Prism\Prism\Schema\ObjectSchema;
+use Prism\Prism\Schema\StringSchema;
 
 class RecruitmentController extends Controller
 {
@@ -329,6 +335,86 @@ class RecruitmentController extends Controller
                 ])
                 ->all(),
         ]);
+    }
+
+    /**
+     * Score every applicant against the job they applied for using the
+     * configured AI provider, storing a 0-100 match score and a short
+     * recommendation. Failures per candidate are skipped, not fatal.
+     */
+    public function analyzeAiIntelligence(Request $request): RedirectResponse
+    {
+        $this->ensureCan($request, 'update');
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $ai = AiSetting::current()->resolved();
+
+        if ($ai['api_key'] === '' && $ai['provider'] !== 'ollama') {
+            return back()->withErrors(['ai' => 'API key AI belum dikonfigurasi. Atur di Pengaturan AI.']);
+        }
+
+        if ($ai['api_key'] !== '') {
+            config(["prism.providers.{$ai['provider']}.api_key" => $ai['api_key']]);
+        }
+
+        $schema = new ObjectSchema(
+            'analisa_kandidat',
+            'Hasil analisa kecocokan kandidat terhadap lowongan',
+            [
+                new NumberSchema('score', 'Skor kecocokan 0 sampai 100 (bilangan bulat)'),
+                new StringSchema('recommendation', 'Rekomendasi singkat satu kalimat dalam Bahasa Indonesia'),
+            ],
+            ['score', 'recommendation'],
+        );
+
+        $applicants = Applicant::forTenant($tenantId)
+            ->with('jobPosting:id,title,description')
+            ->get();
+
+        $analyzed = 0;
+
+        foreach ($applicants as $applicant) {
+            try {
+                $job = $applicant->jobPosting;
+
+                $prompt = "Nilai kecocokan kandidat berikut untuk lowongan yang dilamar.\n\n"
+                    ."KANDIDAT\n"
+                    ."Nama: {$applicant->name}\n"
+                    .'Posisi dilamar: '.($applicant->position ?? '-')."\n"
+                    .'Sumber lamaran: '.($applicant->source ?? '-')."\n"
+                    .'Tahap saat ini: '.($applicant->stage ?? '-')."\n\n"
+                    ."LOWONGAN\n"
+                    .'Judul: '.($job?->title ?? '-')."\n"
+                    .'Deskripsi: '.Str::limit((string) ($job?->description ?? '-'), 600)."\n\n"
+                    .'Beri skor kecocokan 0-100 dan rekomendasi singkat.';
+
+                $response = Prism::structured()
+                    ->using($ai['provider'], $ai['model'])
+                    ->withSchema($schema)
+                    ->withSystemPrompt('Kamu asisten rekrutmen yang menilai kecocokan kandidat secara objektif berdasarkan posisi yang dilamar dan deskripsi lowongan. Jawab ringkas dalam Bahasa Indonesia.')
+                    ->withPrompt($prompt)
+                    ->asStructured();
+
+                $data = $response->structured;
+
+                if (is_array($data) && isset($data['score'])) {
+                    $applicant->update([
+                        'ai_confidence' => max(0, min(100, (int) round((float) $data['score']))),
+                        'ai_recommendation' => (string) ($data['recommendation'] ?? 'Analisa AI selesai.'),
+                    ]);
+                    $analyzed++;
+                }
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        if ($analyzed === 0) {
+            return back()->withErrors(['ai' => 'Analisa AI gagal. Periksa provider, model, dan API key di Pengaturan AI.']);
+        }
+
+        return back()->with('success', "AI selesai menganalisa {$analyzed} kandidat.");
     }
 
     /**

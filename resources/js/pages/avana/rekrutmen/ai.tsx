@@ -1,5 +1,6 @@
-import { Head, Link } from '@inertiajs/react';
-import { useMemo } from 'react';
+import { Head, Link, router } from '@inertiajs/react';
+import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { AIcon, C, card } from '@/lib/avana';
 import { DataTable } from '@/pages/avana/pengumuman/data-table';
 import { makeAiColumns, type Rec, tierOf } from './ai-columns';
@@ -59,6 +60,23 @@ export default function RecruitmentAi({
     recommendations: Rec[];
 }) {
     const columns = useMemo(() => makeAiColumns(), []);
+    const [analyzing, setAnalyzing] = useState(false);
+
+    const analyze = () => {
+        router.post(
+            '/avana/rekrutmen/ai/analyze',
+            {},
+            {
+                preserveScroll: true,
+                onStart: () => setAnalyzing(true),
+                onFinish: () => setAnalyzing(false),
+                onSuccess: () =>
+                    toast.success('Analisa AI selesai. Skor diperbarui.'),
+                onError: (errors) =>
+                    toast.error(errors.ai ?? 'Analisa AI gagal.'),
+            },
+        );
+    };
 
     const total = recommendations.length;
     const avg =
@@ -77,25 +95,56 @@ export default function RecruitmentAi({
         (r) => (r.confidence ?? 0) < 60,
     ).length;
 
-    const backLink = (
-        <Link
-            href="/avana/rekrutmen/candidates"
+    const headerActions = (
+        <div
             style={{
-                display: 'inline-flex',
+                display: 'flex',
                 alignItems: 'center',
-                gap: 7,
-                fontSize: 13.5,
-                fontWeight: 600,
-                color: C.navy,
-                padding: '9px 15px',
-                borderRadius: 8,
-                border: `1px solid ${C.line}`,
-                textDecoration: 'none',
+                gap: 10,
+                flexWrap: 'wrap',
             }}
         >
-            <AIcon name="arrow-left" size={15} color={C.navy} />
-            Ke Kandidat
-        </Link>
+            <Link
+                href="/avana/rekrutmen/candidates"
+                style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    fontSize: 13.5,
+                    fontWeight: 600,
+                    color: C.navy,
+                    padding: '9px 15px',
+                    borderRadius: 8,
+                    border: `1px solid ${C.line}`,
+                    textDecoration: 'none',
+                }}
+            >
+                <AIcon name="arrow-left" size={15} color={C.navy} />
+                Ke Kandidat
+            </Link>
+            <button
+                type="button"
+                onClick={analyze}
+                disabled={analyzing}
+                style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    fontSize: 13.5,
+                    fontWeight: 600,
+                    color: '#fff',
+                    padding: '9px 16px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: '#7C3AED',
+                    cursor: analyzing ? 'default' : 'pointer',
+                    opacity: analyzing ? 0.7 : 1,
+                }}
+            >
+                <AIcon name="sparkles" size={15} color="#fff" />
+                {analyzing ? 'Menganalisa…' : 'Analisa dengan AI'}
+            </button>
+        </div>
     );
 
     return (
@@ -105,7 +154,7 @@ export default function RecruitmentAi({
                 <RecruitmentHeader
                     title="AI Intelligence"
                     subtitle="Peringkat kandidat berdasarkan skor kecocokan AI, dari yang paling sesuai."
-                    action={backLink}
+                    action={headerActions}
                 />
 
                 {total === 0 ? (
