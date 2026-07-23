@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
+use App\Models\AttendancePolicy;
 use App\Models\User;
 use App\Models\UserDevice;
 use Illuminate\Http\JsonResponse;
@@ -126,6 +127,12 @@ class AuthController extends Controller
         $deviceId = $data['device_id'] ?? null;
 
         if (blank($deviceId)) {
+            return null;
+        }
+
+        // Tenants can turn off "1 perangkat 1 akun" in Setup Absensi; then we
+        // neither bind nor reject on a device mismatch.
+        if (! AttendancePolicy::resolve($user->tenant_id)->device_binding_enabled) {
             return null;
         }
 

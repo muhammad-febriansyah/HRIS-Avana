@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AttendancePolicy;
 use App\Models\User;
 use App\Models\UserDevice;
 use Database\Seeders\AvanaDemoSeeder;
@@ -64,6 +65,21 @@ it('allows login without device info for non-mobile clients', function (): void 
     login()->assertOk()->assertJsonStructure(['access_token']);
 
     expect(UserDevice::count())->toBe(0);
+});
+
+it('skips device binding entirely when the tenant disables it', function (): void {
+    AttendancePolicy::updateOrCreate(
+        ['tenant_id' => $this->employee->tenant_id],
+        ['device_binding_enabled' => false],
+    );
+
+    login(['device_id' => 'DEV-AAA'])->assertOk();
+
+    // A different device is NOT rejected when "1 device 1 account" is off...
+    login(['device_id' => 'DEV-ZZZ'])->assertOk()->assertJsonStructure(['access_token']);
+
+    // ...and nothing is bound.
+    expect(UserDevice::where('user_id', $this->employee->id)->count())->toBe(0);
 });
 
 it('locks the old phone out the moment an admin resets the device', function (): void {

@@ -42,6 +42,9 @@ class AttendanceController extends Controller
             // Lets the app decide up front whether to force face enrollment or
             // fetch a liveness challenge before showing the clock button.
             'requirements' => [
+                // recognition | detection | off — drives the app's face flow.
+                'face_mode' => $policy->face_mode ?? AttendancePolicy::FACE_MODE_RECOGNITION,
+                'device_binding_enabled' => (bool) ($policy->device_binding_enabled ?? true),
                 'require_face_enrollment' => (bool) $policy->require_face_enrollment,
                 'require_liveness_challenge' => (bool) $policy->require_liveness_challenge,
                 'face_enrolled' => EmployeeFaceEmbedding::where('employee_id', $employee->id)->exists(),
@@ -195,18 +198,51 @@ class AttendanceController extends Controller
             }
         }
 
-        // 3) Face verification.
+        // 3) Face verification — mode driven by the tenant policy:
+        //    recognition = 1:1 identity match; detection = live face only, no
+        //    match; off = no face check at all.
         $data['face_confidence'] = null;
         $faceFlags = [];
-        $enrolled = EmployeeFaceEmbedding::where('employee_id', $employee->id)->first();
 
-        if ($enrolled === null && $policy->require_face_enrollment) {
-            return response()->json([
-                'message' => 'Anda wajib mendaftarkan wajah terlebih dahulu sebelum absen. Buka menu Daftar Wajah.',
-            ], 422);
-        }
+        if ($policy->usesFaceRecognition()) {
+            // Recognition: 1:1 identity match against the enrolled template.
+            $enrolled = EmployeeFaceEmbedding::where('employee_id', $employee->id)->first();
 
-        if ($enrolled !== null) {
+            if ($enrolled === null && $policy->require_face_enrollment) {
+                return response()->json([
+                    'message' => 'Anda wajib mendaftarkan wajah terlebih dahulu sebelum absen. Buka menu Daftar Wajah.',
+                ], 422);
+            }
+
+            if ($enrolled !== null) {
+                $submitted = $data['face_embedding'] ?? null;
+
+                if (! is_array($submitted) || $submitted === []) {
+                    if ($policy->blocksFace()) {
+                        return response()->json([
+                            'message' => 'Verifikasi wajah diperlukan. Aktifkan kamera lalu coba lagi.',
+                        ], 422);
+                    }
+
+                    $faceFlags[] = 'face_missing';
+                } else {
+                    $score = FaceMatcher::cosine($enrolled->embedding, $submitted);
+
+                    if ($score < FaceMatcher::THRESHOLD) {
+                        if ($policy->blocksFace()) {
+                            return response()->json([
+                                'message' => 'Wajah tidak cocok dengan data terdaftar. Coba lagi.',
+                            ], 422);
+                        }
+
+                        $faceFlags[] = 'face_mismatch';
+                    }
+
+                    $data['face_confidence'] = round($score, 4);
+                }
+            }
+        } elseif ($policy->usesFace()) {
+            // Detection: only prove a live face was captured; no identity match.
             $submitted = $data['face_embedding'] ?? null;
 
             if (! is_array($submitted) || $submitted === []) {
@@ -217,22 +253,9 @@ class AttendanceController extends Controller
                 }
 
                 $faceFlags[] = 'face_missing';
-            } else {
-                $score = FaceMatcher::cosine($enrolled->embedding, $submitted);
-
-                if ($score < FaceMatcher::THRESHOLD) {
-                    if ($policy->blocksFace()) {
-                        return response()->json([
-                            'message' => 'Wajah tidak cocok dengan data terdaftar. Coba lagi.',
-                        ], 422);
-                    }
-
-                    $faceFlags[] = 'face_mismatch';
-                }
-
-                $data['face_confidence'] = round($score, 4);
             }
         }
+        // face_mode 'off' → no face check at all.
 
         $data['integrity_verdict'] = $integrity['verdict'];
         $data['risk_flags'] = array_values(array_unique([...$integrity['flags'], ...$faceFlags]));

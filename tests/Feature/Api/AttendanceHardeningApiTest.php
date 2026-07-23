@@ -117,3 +117,43 @@ it('records a mismatched face as a flag when face enforcement is flag', function
     $att = Attendance::whereNotNull('clock_in_at')->latest('id')->firstOrFail();
     expect($att->risk_flags)->toContain('face_mismatch');
 });
+
+it('exposes face_mode and device binding in today status', function (): void {
+    ($this->setPolicy)(['face_mode' => 'detection', 'device_binding_enabled' => false]);
+
+    ($this->auth)()->getJson('/api/v1/me/attendance/today')
+        ->assertOk()
+        ->assertJsonPath('requirements.face_mode', 'detection')
+        ->assertJsonPath('requirements.device_binding_enabled', false);
+});
+
+it('skips the face check entirely when face_mode is off', function (): void {
+    $enrolled = array_fill(0, 128, 0.0);
+    $enrolled[0] = 1.0;
+    ($this->auth)()->postJson('/api/v1/me/face/enroll', ['embedding' => $enrolled])->assertOk();
+
+    ($this->setPolicy)(['face_mode' => 'off', 'face_enforcement' => 'block']);
+
+    // Enrolled + strict block would normally demand a matching face, but with
+    // face off, clocking in with no face at all succeeds.
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', ['type' => 'in', ...$this->at])
+        ->assertOk();
+});
+
+it('accepts any live face without matching when face_mode is detection', function (): void {
+    $enrolled = array_fill(0, 128, 0.0);
+    $enrolled[0] = 1.0;
+    ($this->auth)()->postJson('/api/v1/me/face/enroll', ['embedding' => $enrolled])->assertOk();
+
+    ($this->setPolicy)(['face_mode' => 'detection', 'face_enforcement' => 'block']);
+
+    // An orthogonal (non-matching) face is accepted — detection never matches.
+    $incoming = array_fill(0, 128, 0.0);
+    $incoming[1] = 1.0;
+
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', ['type' => 'in', 'face_embedding' => $incoming, ...$this->at])
+        ->assertOk();
+
+    $att = Attendance::whereNotNull('clock_in_at')->latest('id')->firstOrFail();
+    expect($att->risk_flags ?? [])->not->toContain('face_mismatch');
+});

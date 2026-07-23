@@ -23,8 +23,29 @@ const SCOPE_OPTIONS = [
     },
 ] as const;
 
+/** Mirrors AttendancePolicy::FACE_MODES, strictest first. */
+const FACE_MODE_OPTIONS = [
+    {
+        value: 'recognition',
+        label: 'Face Recognition',
+        hint: 'Cocokkan wajah dengan data terdaftar (verifikasi identitas 1:1).',
+    },
+    {
+        value: 'detection',
+        label: 'Face Detection',
+        hint: 'Cukup deteksi wajah asli (selfie), tanpa mencocokkan identitas.',
+    },
+    {
+        value: 'off',
+        label: 'Tanpa Wajah',
+        hint: 'Absen tanpa verifikasi wajah sama sekali.',
+    },
+] as const;
+
 interface Policy {
     attendance_scope: string;
+    device_binding_enabled: boolean;
+    face_mode: string;
     require_face_enrollment: boolean;
     require_liveness_challenge: boolean;
     face_enforcement: string;
@@ -339,38 +360,134 @@ export default function AbsensiKebijakan({
                     </Section>
 
                     <Section>
-                        <div style={sectionTitle}>Verifikasi Wajah</div>
+                        <div style={sectionTitle}>Keamanan Login</div>
                         <div style={sectionHint}>
-                            Cocokkan wajah karyawan dengan data terdaftar saat
-                            absen.
+                            Atur pengikatan akun ke perangkat mobile.
                         </div>
 
                         <Toggle
-                            on={form.data.require_face_enrollment}
+                            on={form.data.device_binding_enabled}
                             onChange={(v) =>
-                                form.setData('require_face_enrollment', v)
+                                form.setData('device_binding_enabled', v)
                             }
-                            label="Wajib daftar wajah"
-                            hint="Karyawan tidak bisa absen sebelum mendaftarkan wajah."
+                            label="1 Perangkat 1 Akun"
+                            hint="Akun terkunci ke HP pertama yang login. Ganti HP butuh reset perangkat oleh admin. Matikan agar bisa login dari HP mana pun."
                         />
+                    </Section>
 
-                        <div style={{ marginTop: 8 }}>
-                            <span
+                    <Section>
+                        <div style={sectionTitle}>Verifikasi Wajah</div>
+                        <div style={sectionHint}>
+                            Pilih tingkat verifikasi wajah saat karyawan absen.
+                        </div>
+
+                        <div
+                            style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 8,
+                                marginTop: 4,
+                            }}
+                        >
+                            {FACE_MODE_OPTIONS.map((option) => (
+                                <label
+                                    key={option.value}
+                                    style={{
+                                        display: 'flex',
+                                        gap: 10,
+                                        alignItems: 'flex-start',
+                                        cursor: 'pointer',
+                                        padding: '10px 12px',
+                                        borderRadius: 10,
+                                        border: `1px solid ${
+                                            form.data.face_mode === option.value
+                                                ? C.primary
+                                                : C.border
+                                        }`,
+                                        background:
+                                            form.data.face_mode === option.value
+                                                ? 'rgba(37,71,249,.04)'
+                                                : 'transparent',
+                                    }}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="face_mode"
+                                        checked={
+                                            form.data.face_mode === option.value
+                                        }
+                                        onChange={() =>
+                                            form.setData(
+                                                'face_mode',
+                                                option.value,
+                                            )
+                                        }
+                                        style={{ marginTop: 3 }}
+                                    />
+                                    <span>
+                                        <span
+                                            style={{
+                                                display: 'block',
+                                                fontSize: 13.5,
+                                                fontWeight: 600,
+                                                color: C.text,
+                                            }}
+                                        >
+                                            {option.label}
+                                        </span>
+                                        <span
+                                            style={{
+                                                display: 'block',
+                                                fontSize: 12,
+                                                color: C.muted,
+                                            }}
+                                        >
+                                            {option.hint}
+                                        </span>
+                                    </span>
+                                </label>
+                            ))}
+                        </div>
+
+                        {form.data.face_mode === 'recognition' && (
+                            <div
                                 style={{
-                                    fontSize: 13,
-                                    fontWeight: 600,
-                                    color: C.text,
+                                    marginTop: 16,
+                                    paddingTop: 16,
+                                    borderTop: `1px solid ${C.line}`,
                                 }}
                             >
-                                Saat wajah tidak cocok
-                            </span>
-                            <EnforcementChoice
-                                value={form.data.face_enforcement}
-                                onChange={(v) =>
-                                    form.setData('face_enforcement', v)
-                                }
-                            />
-                        </div>
+                                <Toggle
+                                    on={form.data.require_face_enrollment}
+                                    onChange={(v) =>
+                                        form.setData(
+                                            'require_face_enrollment',
+                                            v,
+                                        )
+                                    }
+                                    label="Wajib daftar wajah"
+                                    hint="Karyawan tidak bisa absen sebelum mendaftarkan wajah."
+                                />
+
+                                <div style={{ marginTop: 8 }}>
+                                    <span
+                                        style={{
+                                            fontSize: 13,
+                                            fontWeight: 600,
+                                            color: C.text,
+                                        }}
+                                    >
+                                        Saat wajah tidak cocok
+                                    </span>
+                                    <EnforcementChoice
+                                        value={form.data.face_enforcement}
+                                        onChange={(v) =>
+                                            form.setData('face_enforcement', v)
+                                        }
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </Section>
 
                     <Section>

@@ -29,11 +29,28 @@ final class AttendancePolicy extends Model
      */
     public const SCOPES = [self::SCOPE_ASSIGNED, self::SCOPE_ANY_BRANCH, self::SCOPE_ANYWHERE];
 
+    /** 1:1 identity match of the captured face against the enrolled template. */
+    public const FACE_MODE_RECOGNITION = 'recognition';
+
+    /** Only prove a live face is present; no identity match. */
+    public const FACE_MODE_DETECTION = 'detection';
+
+    /** No face check at all. */
+    public const FACE_MODE_OFF = 'off';
+
+    /**
+     * Every selectable face mode, strictest first.
+     *
+     * @var array<int, string>
+     */
+    public const FACE_MODES = [self::FACE_MODE_RECOGNITION, self::FACE_MODE_DETECTION, self::FACE_MODE_OFF];
+
     protected $guarded = [];
 
     protected function casts(): array
     {
         return [
+            'device_binding_enabled' => 'boolean',
             'require_face_enrollment' => 'boolean',
             'require_liveness_challenge' => 'boolean',
             'block_mock_location' => 'boolean',
@@ -52,7 +69,9 @@ final class AttendancePolicy extends Model
             ['tenant_id' => $tenantId],
             [
                 'attendance_scope' => self::SCOPE_ASSIGNED,
+                'device_binding_enabled' => true,
                 'require_face_enrollment' => false,
+                'face_mode' => self::FACE_MODE_RECOGNITION,
                 'require_liveness_challenge' => false,
                 'face_enforcement' => 'block',
                 'integrity_enforcement' => 'block',
@@ -66,6 +85,18 @@ final class AttendancePolicy extends Model
     public function blocksFace(): bool
     {
         return $this->face_enforcement === 'block';
+    }
+
+    /** Whether any face capture is required at clock-in. */
+    public function usesFace(): bool
+    {
+        return ($this->face_mode ?? self::FACE_MODE_RECOGNITION) !== self::FACE_MODE_OFF;
+    }
+
+    /** Whether the captured face is identity-matched against the template. */
+    public function usesFaceRecognition(): bool
+    {
+        return ($this->face_mode ?? self::FACE_MODE_RECOGNITION) === self::FACE_MODE_RECOGNITION;
     }
 
     public function blocksIntegrity(): bool
