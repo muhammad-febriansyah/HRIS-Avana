@@ -1,64 +1,9 @@
 import { Head, Link } from '@inertiajs/react';
-import type { CSSProperties } from 'react';
+import { useMemo } from 'react';
 import { AIcon, C, card } from '@/lib/avana';
+import { DataTable } from '@/pages/avana/pengumuman/data-table';
+import { makeAiColumns, type Rec, tierOf } from './ai-columns';
 import { RecruitmentHeader } from './shell';
-
-interface Rec {
-    id: number;
-    name: string;
-    job_title: string | null;
-    stage: string | null;
-    confidence: number | null;
-    recommendation: string | null;
-}
-
-interface Tier {
-    label: string;
-    color: string;
-    bg: string;
-}
-
-const STAGE_LABELS: Record<string, string> = {
-    applied: 'Melamar',
-    screening: 'Screening',
-    shortlisted: 'Shortlist',
-    interview: 'Wawancara',
-    offer: 'Penawaran',
-    hired: 'Diterima',
-    rejected: 'Ditolak',
-};
-
-/** Classify a match score into a colour-coded recommendation tier. */
-function tierOf(confidence: number | null): Tier {
-    const score = confidence ?? 0;
-
-    if (score >= 80) {
-        return {
-            label: 'Rekomendasi Kuat',
-            color: C.green,
-            bg: 'rgba(22,163,74,.1)',
-        };
-    }
-
-    if (score >= 60) {
-        return {
-            label: 'Layak Dipertimbangkan',
-            color: C.amber,
-            bg: 'rgba(217,119,6,.1)',
-        };
-    }
-
-    return { label: 'Kurang Sesuai', color: C.red, bg: 'rgba(220,38,38,.1)' };
-}
-
-function initials(name: string): string {
-    return name
-        .split(' ')
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((part) => part[0]?.toUpperCase() ?? '')
-        .join('');
-}
 
 function Stat({
     label,
@@ -113,11 +58,17 @@ export default function RecruitmentAi({
 }: {
     recommendations: Rec[];
 }) {
+    const columns = useMemo(() => makeAiColumns(), []);
+
     const total = recommendations.length;
-    const scores = recommendations.map((r) => r.confidence ?? 0);
     const avg =
         total > 0
-            ? Math.round(scores.reduce((sum, value) => sum + value, 0) / total)
+            ? Math.round(
+                  recommendations.reduce(
+                      (sum, r) => sum + (r.confidence ?? 0),
+                      0,
+                  ) / total,
+              )
             : 0;
     const strong = recommendations.filter(
         (r) => (r.confidence ?? 0) >= 80,
@@ -146,18 +97,6 @@ export default function RecruitmentAi({
             Ke Kandidat
         </Link>
     );
-
-    const chip: CSSProperties = {
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 5,
-        fontSize: 11.5,
-        color: C.muted,
-        background: C.surface,
-        border: `1px solid ${C.line}`,
-        padding: '2px 9px',
-        borderRadius: 100,
-    };
 
     return (
         <>
@@ -249,177 +188,12 @@ export default function RecruitmentAi({
                             />
                         </div>
 
-                        <div
-                            style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: 10,
-                            }}
-                        >
-                            {recommendations.map((r, index) => {
-                                const tier = tierOf(r.confidence);
-                                const score = r.confidence ?? 0;
-
-                                return (
-                                    <div
-                                        key={r.id}
-                                        style={{
-                                            ...card,
-                                            padding: '14px 18px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 16,
-                                        }}
-                                    >
-                                        <div
-                                            style={{
-                                                width: 22,
-                                                textAlign: 'center',
-                                                fontSize: 13,
-                                                fontWeight: 700,
-                                                color: C.faint,
-                                                flex: 'none',
-                                            }}
-                                        >
-                                            {index + 1}
-                                        </div>
-
-                                        <div
-                                            style={{
-                                                width: 42,
-                                                height: 42,
-                                                borderRadius: 11,
-                                                flex: 'none',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                background: tier.bg,
-                                                color: tier.color,
-                                                fontSize: 14,
-                                                fontWeight: 700,
-                                            }}
-                                        >
-                                            {initials(r.name)}
-                                        </div>
-
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                            <div
-                                                style={{
-                                                    fontSize: 14.5,
-                                                    fontWeight: 600,
-                                                    color: C.navy,
-                                                    whiteSpace: 'nowrap',
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                }}
-                                            >
-                                                {r.name}
-                                            </div>
-                                            <div
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: 7,
-                                                    marginTop: 5,
-                                                    flexWrap: 'wrap',
-                                                }}
-                                            >
-                                                <span style={chip}>
-                                                    <AIcon
-                                                        name="briefcase"
-                                                        size={11}
-                                                        color={C.faint}
-                                                    />
-                                                    {r.job_title ?? '—'}
-                                                </span>
-                                                {r.stage && (
-                                                    <span style={chip}>
-                                                        {STAGE_LABELS[
-                                                            r.stage
-                                                        ] ?? r.stage}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <span
-                                            style={{
-                                                fontSize: 11.5,
-                                                fontWeight: 700,
-                                                padding: '5px 12px',
-                                                borderRadius: 100,
-                                                color: tier.color,
-                                                background: tier.bg,
-                                                whiteSpace: 'nowrap',
-                                                flex: 'none',
-                                            }}
-                                        >
-                                            {tier.label}
-                                        </span>
-
-                                        <div
-                                            style={{ width: 128, flex: 'none' }}
-                                        >
-                                            <div
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'baseline',
-                                                    justifyContent: 'flex-end',
-                                                    gap: 1,
-                                                }}
-                                            >
-                                                <span
-                                                    style={{
-                                                        fontSize: 22,
-                                                        fontWeight: 700,
-                                                        color: tier.color,
-                                                    }}
-                                                >
-                                                    {score}
-                                                </span>
-                                                <span
-                                                    style={{
-                                                        fontSize: 12,
-                                                        fontWeight: 600,
-                                                        color: tier.color,
-                                                    }}
-                                                >
-                                                    %
-                                                </span>
-                                            </div>
-                                            <div
-                                                style={{
-                                                    height: 6,
-                                                    borderRadius: 6,
-                                                    background: C.line,
-                                                    marginTop: 5,
-                                                    overflow: 'hidden',
-                                                }}
-                                            >
-                                                <div
-                                                    style={{
-                                                        width: `${score}%`,
-                                                        height: '100%',
-                                                        background: tier.color,
-                                                        borderRadius: 6,
-                                                    }}
-                                                />
-                                            </div>
-                                            <div
-                                                style={{
-                                                    fontSize: 10.5,
-                                                    color: C.faint,
-                                                    textAlign: 'right',
-                                                    marginTop: 4,
-                                                }}
-                                            >
-                                                Skor kecocokan
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                        <DataTable
+                            columns={columns}
+                            data={recommendations}
+                            searchPlaceholder="Cari kandidat atau posisi…"
+                            pageSize={10}
+                        />
                     </>
                 )}
             </div>
