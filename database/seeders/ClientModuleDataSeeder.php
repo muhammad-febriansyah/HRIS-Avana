@@ -186,7 +186,76 @@ class ClientModuleDataSeeder extends Seeder
             }
         }
 
+        // Resign-risk signals so every attrition factor has data: a few
+        // promotions and logged manager changes. Guarded on the promotion rows
+        // (the base career history already exists from seedDemoEmployeeDetails).
+        try {
+            if (! EmployeeCareerHistory::where('tenant_id', $tenant->id)->where('movement_type', 'promotion')->exists()) {
+                $this->seedDemoAttritionSignals($tenant, $ctx);
+            }
+        } catch (\Throwable $e) {
+            $this->command?->warn('  [demo tenant 1] attrition signals skipped: '.$e->getMessage());
+        }
+
         $this->command?->info('Enriched primary demo tenant.');
+    }
+
+    /**
+     * Feed the resign-risk model's two thin factors: promotion history (so
+     * "Tidak dipromosikan" is realistic) and manager-change audit logs (so
+     * "Pergantian atasan" has data). Mixes recent and old events.
+     *
+     * @param  array{employees: array<int, Employee>, admin: ?User, branches: array<int, Branch>, departments: array<int, Department>}  $ctx
+     */
+    private function seedDemoAttritionSignals(Tenant $tenant, array $ctx): void
+    {
+        $employees = collect($ctx['employees'])->values();
+        $now = Carbon::now();
+
+        // [employee index, months since promotion]. Recent = low risk; old = high.
+        foreach ([[0, 8], [1, 42], [4, 3], [6, 50]] as [$index, $monthsAgo]) {
+            $employee = $employees->get($index);
+
+            if ($employee === null) {
+                continue;
+            }
+
+            EmployeeCareerHistory::create([
+                'tenant_id' => $tenant->id,
+                'employee_id' => $employee->id,
+                'movement_type' => 'promotion',
+                'effective_date' => $now->copy()->subMonthsNoOverflow($monthsAgo)->toDateString(),
+                'position_id' => $employee->position_id,
+                'department_id' => $employee->department_id,
+                'branch_id' => $employee->branch_id,
+                'employment_status' => $employee->employment_status,
+                'notes' => 'Promosi jabatan',
+            ]);
+        }
+
+        // Logged manager changes. Recent (< 6 bln) triggers the factor.
+        foreach ([[2, 2], [3, 4], [7, 20]] as [$index, $monthsAgo]) {
+            $employee = $employees->get($index);
+
+            if ($employee === null) {
+                continue;
+            }
+
+            $at = $now->copy()->subMonthsNoOverflow($monthsAgo);
+
+            DB::table('audit_logs')->insert([
+                'tenant_id' => $tenant->id,
+                'user_id' => $ctx['admin']?->id,
+                'auditable_type' => Employee::class,
+                'auditable_id' => $employee->id,
+                'action' => 'updated',
+                'old_values' => json_encode(['manager_id' => null]),
+                'new_values' => json_encode(['manager_id' => $employee->manager_id]),
+                'ip_address' => '127.0.0.1',
+                'created_at' => $at,
+                'updated_at' => $at,
+            ]);
+        }
     }
 
     /**
