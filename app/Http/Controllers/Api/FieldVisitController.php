@@ -139,18 +139,22 @@ class FieldVisitController extends Controller
 
             $visit->syncAttendees([]);
 
-            $notes = array_values($data['task_notes'] ?? []);
-            $before = array_values($request->file('task_before') ?? []);
-            $after = array_values($request->file('task_after') ?? []);
+            // Keep the per-task evidence keyed by the task's own index so a task
+            // without a photo does not shift the following tasks' photos.
+            $notes = $data['task_notes'] ?? [];
+            $before = $request->file('task_before') ?? [];
+            $after = $request->file('task_after') ?? [];
 
-            foreach (array_values($data['tasks'] ?? []) as $order => $title) {
+            $order = 0;
+
+            foreach ($data['tasks'] ?? [] as $index => $title) {
                 $visit->tasks()->create([
                     'tenant_id' => $employee->tenant_id,
                     'title' => $title,
-                    'sort_order' => $order,
-                    'photo_note' => $notes[$order] ?? null,
-                    'before_photo_path' => ($before[$order] ?? null)?->store('visit-tasks', 'public'),
-                    'after_photo_path' => ($after[$order] ?? null)?->store('visit-tasks', 'public'),
+                    'sort_order' => $order++,
+                    'photo_note' => $notes[$index] ?? null,
+                    'before_photo_path' => ($before[$index] ?? null)?->store('visit-tasks', 'public'),
+                    'after_photo_path' => ($after[$index] ?? null)?->store('visit-tasks', 'public'),
                 ]);
             }
 

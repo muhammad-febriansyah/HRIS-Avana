@@ -306,6 +306,21 @@ it('keeps a checklist task that carries no evidence', function (): void {
         ->and($tasks[0]['photo_note'])->toBeNull();
 });
 
+it('aligns task evidence by index so a photo-less task does not shift others', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/field-visits', [
+        'visit_date' => now()->toDateString(),
+        'location' => 'Toko Sparse',
+        'tasks' => ['Tugas tanpa foto', 'Tugas dengan foto'],
+        // Only the second task (index 1) carries a before photo.
+        'task_before' => [1 => UploadedFile::fake()->image('before-2.jpg')],
+    ])->assertCreated();
+
+    $tasks = ($this->auth)()->getJson('/api/v1/me/field-visits')->assertOk()->json('data.0.tasks');
+
+    expect($tasks[0]['before_photo_url'])->toBeNull()
+        ->and($tasks[1]['before_photo_url'])->not->toBeNull();
+});
+
 it('uploads an after photo for a task from the visit list', function (): void {
     ($this->auth)()->postJson('/api/v1/me/field-visits', [
         'visit_date' => now()->toDateString(),
