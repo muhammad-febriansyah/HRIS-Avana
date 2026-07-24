@@ -219,6 +219,16 @@ export default function TampilanTema({
 
     const applyPreset = (preset: Preset) => setColors({ ...preset.colors });
 
+    // The preset whose colours match the current selection (highlighted active).
+    const activePreset =
+        presets.find((p) =>
+            tokens.every(
+                (t) =>
+                    (colors[t.key] ?? '').toUpperCase() ===
+                    (p.colors[t.key] ?? '').toUpperCase(),
+            ),
+        )?.key ?? null;
+
     const isValid = tokens.every((t) => HEX.test(colors[t.key] ?? ''));
 
     const save = () => {
@@ -300,46 +310,73 @@ export default function TampilanTema({
                                     marginTop: 12,
                                 }}
                             >
-                                {presets.map((p) => (
-                                    <button
-                                        key={p.key}
-                                        onClick={() => applyPreset(p)}
-                                        style={{
-                                            border: `1px solid ${C.border}`,
-                                            borderRadius: 10,
-                                            padding: 10,
-                                            background: '#fff',
-                                            cursor: 'pointer',
-                                            textAlign: 'left',
-                                        }}
-                                    >
-                                        <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-                                            {['sidebar_bg', 'sidebar_accent', 'topbar_bg', 'topbar_text'].map(
-                                                (k) => (
-                                                    <span
-                                                        key={k}
-                                                        style={{
-                                                            width: 18,
-                                                            height: 18,
-                                                            borderRadius: 5,
-                                                            background: p.colors[k],
-                                                            border: `1px solid ${C.border}`,
-                                                        }}
-                                                    />
-                                                ),
-                                            )}
-                                        </div>
-                                        <div
+                                {presets.map((p) => {
+                                    const active = p.key === activePreset;
+
+                                    return (
+                                        <button
+                                            key={p.key}
+                                            onClick={() => applyPreset(p)}
                                             style={{
-                                                fontSize: 12.5,
-                                                fontWeight: 600,
-                                                color: C.text,
+                                                position: 'relative',
+                                                border: `1.5px solid ${active ? C.primary : C.border}`,
+                                                borderRadius: 10,
+                                                padding: 10,
+                                                background: active
+                                                    ? 'rgba(47,84,201,.05)'
+                                                    : '#fff',
+                                                cursor: 'pointer',
+                                                textAlign: 'left',
+                                                boxShadow: active
+                                                    ? '0 0 0 3px rgba(47,84,201,.08)'
+                                                    : 'none',
                                             }}
                                         >
-                                            {p.name}
-                                        </div>
-                                    </button>
-                                ))}
+                                            <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+                                                {['sidebar_bg', 'sidebar_accent', 'topbar_bg', 'topbar_text'].map(
+                                                    (k) => (
+                                                        <span
+                                                            key={k}
+                                                            style={{
+                                                                width: 18,
+                                                                height: 18,
+                                                                borderRadius: 5,
+                                                                background: p.colors[k],
+                                                                border: `1px solid ${C.border}`,
+                                                            }}
+                                                        />
+                                                    ),
+                                                )}
+                                            </div>
+                                            <div
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 6,
+                                                    fontSize: 12.5,
+                                                    fontWeight: 600,
+                                                    color: active ? C.primary : C.text,
+                                                }}
+                                            >
+                                                {p.name}
+                                                {active ? (
+                                                    <span
+                                                        style={{
+                                                            fontSize: 10.5,
+                                                            fontWeight: 700,
+                                                            color: C.primary,
+                                                            background: 'rgba(47,84,201,.12)',
+                                                            borderRadius: 5,
+                                                            padding: '1px 6px',
+                                                        }}
+                                                    >
+                                                        Aktif
+                                                    </span>
+                                                ) : null}
+                                            </div>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
 

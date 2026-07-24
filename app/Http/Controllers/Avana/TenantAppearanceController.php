@@ -76,16 +76,22 @@ class TenantAppearanceController extends Controller
     }
 
     /**
-     * The model that owns the acting user's theme: their tenant, or — for a
-     * super admin with no tenant — the platform (website settings) singleton.
+     * The model that owns the theme being edited: the platform (website
+     * settings) singleton when a super admin is in platform scope, otherwise the
+     * effective tenant (the one being impersonated, or the user's own).
      */
     private function themeSource(Request $request): Model
     {
-        $tenantId = $request->user()->tenant_id;
+        $user = $request->user();
+        $viewTenantId = (int) ($request->session()->get('view_tenant_id') ?? 0);
 
-        return $tenantId !== null
-            ? Tenant::query()->findOrFail($tenantId)
-            : WebsiteSetting::current();
+        if ($user->isSuperAdmin() && $viewTenantId === 0) {
+            return WebsiteSetting::current();
+        }
+
+        $tenantId = $viewTenantId > 0 ? $viewTenantId : $user->tenant_id;
+
+        return Tenant::query()->findOrFail($tenantId);
     }
 
     /**

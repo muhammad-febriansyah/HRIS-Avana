@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AttendancePolicy;
 use App\Models\User;
 use App\Models\UserDevice;
+use App\Support\TenantTheme;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -199,6 +200,9 @@ class AuthController extends Controller
                 'logo_url' => $tenant->company?->logo_path !== null
                     ? Storage::disk('public')->url($tenant->company->logo_path)
                     : null,
+                // Per-tenant appearance colours so the mobile app can match the
+                // brand set on the web "Tampilan & Tema" screen.
+                'theme' => TenantTheme::resolve($tenant->theme),
             ] : null,
         ];
     }

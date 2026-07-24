@@ -63,7 +63,20 @@ class HandleInertiaRequests extends Middleware
                     : null,
             ],
             'nav' => fn () => AvanaNav::forUser($user, $this->isPlatformScope($request, $user)),
-            'theme' => fn (): array => TenantTheme::resolve($user?->tenant?->theme),
+            'theme' => function () use ($request, $user): array {
+                if ($user === null) {
+                    return TenantTheme::resolve(null);
+                }
+
+                if ($this->isPlatformScope($request, $user)) {
+                    return TenantTheme::resolve(WebsiteSetting::cached()->theme);
+                }
+
+                $viewTenantId = (int) ($request->session()->get('view_tenant_id') ?? 0);
+                $tenant = $viewTenantId > 0 ? Tenant::find($viewTenantId) : $user->tenant;
+
+                return TenantTheme::resolve($tenant?->theme);
+            },
             'notifications' => fn (): array => $this->notifications($user),
             'superAdminView' => fn (): array => $this->superAdminView($request, $user),
             'flash' => [

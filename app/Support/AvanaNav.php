@@ -551,6 +551,7 @@ final class AvanaNav
                 self::leaf('website-settings', 'Pengaturan Website', 'globe', '/avana/website-settings', null, [], false, true),
                 self::leaf('ai-settings', 'Pengaturan AI', 'sparkles', '/avana/ai-settings', null, [], false, true),
                 self::leaf('email-settings', 'Pengaturan Email', 'mail', '/avana/email-settings', null, [], false, true),
+                self::leaf('tampilan', 'Tampilan & Tema', 'palette', '/avana/tampilan', null, [], false, true),
                 self::leaf('onboarding-slides', 'Onboarding App', 'smartphone', '/avana/onboarding-slides', null, [], false, true),
                 self::leaf('audit', 'Audit Trail', 'history', '/avana/audit', null, [], false, true),
             ]],

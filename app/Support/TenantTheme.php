@@ -92,6 +92,61 @@ final class TenantTheme
                 'topbar_text' => '#1A2333',
             ],
         ],
+        [
+            'key' => 'ocean',
+            'name' => 'Ocean',
+            'colors' => [
+                'sidebar_bg' => '#0B2942',
+                'sidebar_text' => '#9FC0D8',
+                'sidebar_accent' => '#22D3EE',
+                'topbar_bg' => '#0B2942',
+                'topbar_text' => '#EAF4FA',
+            ],
+        ],
+        [
+            'key' => 'slate',
+            'name' => 'Slate',
+            'colors' => [
+                'sidebar_bg' => '#1E293B',
+                'sidebar_text' => '#94A3B8',
+                'sidebar_accent' => '#38BDF8',
+                'topbar_bg' => '#1E293B',
+                'topbar_text' => '#F1F5F9',
+            ],
+        ],
+        [
+            'key' => 'indigo',
+            'name' => 'Indigo',
+            'colors' => [
+                'sidebar_bg' => '#1E1B4B',
+                'sidebar_text' => '#B0B2E8',
+                'sidebar_accent' => '#818CF8',
+                'topbar_bg' => '#1E1B4B',
+                'topbar_text' => '#EEF0FF',
+            ],
+        ],
+        [
+            'key' => 'graphite',
+            'name' => 'Graphite',
+            'colors' => [
+                'sidebar_bg' => '#18181B',
+                'sidebar_text' => '#A1A1AA',
+                'sidebar_accent' => '#2DD4BF',
+                'topbar_bg' => '#18181B',
+                'topbar_text' => '#FAFAFA',
+            ],
+        ],
+        [
+            'key' => 'rose',
+            'name' => 'Rose',
+            'colors' => [
+                'sidebar_bg' => '#FFF5F7',
+                'sidebar_text' => '#7C5661',
+                'sidebar_accent' => '#F43F5E',
+                'topbar_bg' => '#FFFFFF',
+                'topbar_text' => '#1A2333',
+            ],
+        ],
     ];
 
     /**
