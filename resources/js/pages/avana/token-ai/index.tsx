@@ -422,7 +422,7 @@ export default function TokenAi({
                         Beli Token
                     </div>
                     <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>
-                        Pembayaran diproses aman lewat Pakasir (QRIS / VA).
+                        Pembayaran diproses aman lewat payment gateway (QRIS / VA).
                     </div>
                 </div>
                 {packs.length === 0 ? (
