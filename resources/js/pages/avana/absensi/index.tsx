@@ -2,6 +2,7 @@ import { Head, router, usePage } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { DatePicker } from '@/components/avana/date-picker';
 import { AIcon, btnOut, C } from '@/lib/avana';
 import { KpiStrip } from './components';
 import { RekapTable } from './rekap-table';
@@ -186,12 +187,7 @@ export default function AvanaAbsensi({
                                 </option>
                             ))}
                         </select>
-                        <input
-                            type="date"
-                            value={filters.date}
-                            onChange={(event) => changeDate(event.target.value)}
-                            style={{ ...filterControl, cursor: 'pointer' }}
-                        />
+                        <DatePicker value={filters.date} onChange={changeDate} />
                         <button onClick={goToday} style={btnOut} type="button">
                             <AIcon name="calendar-check" size={16} />
                             Hari ini
