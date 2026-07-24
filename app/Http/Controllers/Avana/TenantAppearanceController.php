@@ -54,21 +54,29 @@ class TenantAppearanceController extends Controller
         $this->ensureCan($request, 'update');
 
         $request->validate([
-            'logo' => ['required', 'image', 'max:1024'],
+            'logo' => ['required', 'image', 'max:2048'],
         ], [
             'logo.image' => 'Berkas harus berupa gambar (PNG, JPG, atau WEBP).',
-            'logo.max' => 'Ukuran logo maksimal 1 MB.',
+            'logo.max' => 'Ukuran logo maksimal 2 MB.',
         ]);
 
         $source = $this->logoSource($request);
+        $previous = $source->logo_path;
 
-        // Drop the previous file so replaced logos don't accumulate.
-        if (! empty($source->logo_path)) {
-            Storage::disk('public')->delete($source->logo_path);
-        }
-
+        // Store the new file and point the record at it FIRST, so replacing a
+        // logo can never fail on the cleanup of the old file (e.g. a stale path
+        // or a filesystem hiccup) and leave the tenant without any logo.
         $path = $request->file('logo')->store('company-logos', 'public');
         $source->update(['logo_path' => $path]);
+
+        // Best-effort removal of the replaced file; never fail the request.
+        if (! empty($previous) && $previous !== $path) {
+            try {
+                Storage::disk('public')->delete($previous);
+            } catch (\Throwable) {
+                // The new logo is already saved; a leftover old file is harmless.
+            }
+        }
 
         return back()->with('success', 'Logo berhasil diperbarui');
     }
@@ -81,12 +89,17 @@ class TenantAppearanceController extends Controller
         $this->ensureCan($request, 'update');
 
         $source = $this->logoSource($request);
-
-        if (! empty($source->logo_path)) {
-            Storage::disk('public')->delete($source->logo_path);
-        }
+        $previous = $source->logo_path;
 
         $source->update(['logo_path' => null]);
+
+        if (! empty($previous)) {
+            try {
+                Storage::disk('public')->delete($previous);
+            } catch (\Throwable) {
+                // Record is already cleared; a leftover file is harmless.
+            }
+        }
 
         return back()->with('success', 'Logo dihapus');
     }

@@ -272,6 +272,11 @@ export default function TampilanTema({
             {
                 forceFormData: true,
                 preserveScroll: true,
+                onError: (errors) => {
+                    toast.error(
+                        errors.logo || 'Gagal mengunggah logo. Coba lagi.',
+                    );
+                },
                 onFinish: () => {
                     setUploadingLogo(false);
                     if (logoInput.current) {
@@ -439,7 +444,7 @@ export default function TampilanTema({
                                             color: C.faint,
                                         }}
                                     >
-                                        PNG, JPG, atau WEBP · maks 1 MB
+                                        PNG, JPG, atau WEBP · maks 2 MB
                                     </div>
                                 </div>
                             </div>
