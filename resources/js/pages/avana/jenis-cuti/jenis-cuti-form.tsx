@@ -90,27 +90,6 @@ export function JenisCutiForm({
                 >
                     <div>
                         <label style={fieldLabelStyle}>
-                            Kuota Default (hari){' '}
-                            <span style={{ color: C.red }}>*</span>
-                        </label>
-                        <input
-                            type="number"
-                            min={0}
-                            value={data.default_quota}
-                            onChange={(event) =>
-                                setData('default_quota', event.target.value)
-                            }
-                            placeholder="0"
-                            style={withError(
-                                inputStyle,
-                                !!errors.default_quota,
-                            )}
-                        />
-                        <FieldError message={errors.default_quota} />
-                    </div>
-
-                    <div>
-                        <label style={fieldLabelStyle}>
                             Status <span style={{ color: C.red }}>*</span>
                         </label>
                         <select

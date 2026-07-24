@@ -37,6 +37,12 @@ trait ResolvesApiEmployee
             'email' => $employee->email,
             'phone' => $employee->phone,
             'address' => $employee->address,
+            'nik' => $employee->nik,
+            'gender' => $employee->gender,
+            'birth_place' => $employee->birth_place,
+            'birth_date' => $employee->birth_date?->toDateString(),
+            'religion' => $employee->religion,
+            'marital_status' => $employee->marital_status,
             'status' => $employee->status,
             'join_date' => $employee->join_date?->toDateString(),
             'photo_url' => $employee->photo_path !== null

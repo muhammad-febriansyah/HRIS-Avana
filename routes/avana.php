@@ -3,6 +3,7 @@
 use App\Http\Controllers\Avana\AccessController;
 use App\Http\Controllers\Avana\AiAssistantController;
 use App\Http\Controllers\Avana\AiSettingController;
+use App\Http\Controllers\Avana\AiTokenPackController;
 use App\Http\Controllers\Avana\AnalyticsController;
 use App\Http\Controllers\Avana\AnnouncementController;
 use App\Http\Controllers\Avana\ApprovalController;
@@ -75,6 +76,7 @@ use App\Http\Controllers\Avana\SettlementController;
 use App\Http\Controllers\Avana\ShiftSwapController;
 use App\Http\Controllers\Avana\SurveyController;
 use App\Http\Controllers\Avana\TalentController;
+use App\Http\Controllers\Avana\TenantAiTokenController;
 use App\Http\Controllers\Avana\TenantController;
 use App\Http\Controllers\Avana\TimesheetController;
 use App\Http\Controllers\Avana\UserController;
@@ -442,6 +444,12 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::get('ai-settings', [AiSettingController::class, 'edit'])->name('ai-settings');
     Route::post('ai-settings', [AiSettingController::class, 'update'])->name('ai-settings.update');
 
+    // Paket Token AI (super admin) — pricing catalogue + tenant purchase overview
+    Route::get('token-packs', [AiTokenPackController::class, 'index'])->name('token-packs');
+    Route::post('token-packs', [AiTokenPackController::class, 'store'])->name('token-packs.store');
+    Route::put('token-packs/{pack}', [AiTokenPackController::class, 'update'])->name('token-packs.update');
+    Route::delete('token-packs/{pack}', [AiTokenPackController::class, 'destroy'])->name('token-packs.destroy');
+
     // Pengaturan Email (super admin = platform default, admin tenant = override)
     Route::get('email-settings', [EmailSettingController::class, 'edit'])->name('email-settings');
     Route::post('email-settings', [EmailSettingController::class, 'update'])->name('email-settings.update');
@@ -551,7 +559,9 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::delete('dynamic-report/{report}', [DynamicReportController::class, 'destroy'])->name('dynamic-report.destroy');
     Route::get('report-studio', [ReportStudioController::class, 'index'])->name('report-studio');
     Route::post('report-studio/run', [ReportStudioController::class, 'run'])->name('report-studio.run');
-    Route::post('report-studio/export', [ReportStudioController::class, 'export'])->name('report-studio.export');
+    Route::get('report-studio/export', [ReportStudioController::class, 'export'])->name('report-studio.export');
+    Route::post('report-studio/reports', [ReportStudioController::class, 'store'])->name('report-studio.store');
+    Route::delete('report-studio/reports/{report}', [ReportStudioController::class, 'destroy'])->name('report-studio.destroy');
 
     // Manajemen aset
     Route::get('aset', [AssetController::class, 'index'])->name('aset');
@@ -686,4 +696,10 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::get('ai', [AiAssistantController::class, 'index'])->name('ai');
     Route::post('ai/stream', [AiAssistantController::class, 'stream'])->name('ai.stream');
     Route::delete('ai/conversation/{conversation}', [AiAssistantController::class, 'destroyConversation'])->name('ai.conversation.destroy');
+
+    // Token AI (tenant admin/HR) — top up wallet via Pakasir + per-user caps
+    Route::get('token-ai', [TenantAiTokenController::class, 'index'])->name('token-ai');
+    Route::post('token-ai/purchase', [TenantAiTokenController::class, 'purchase'])->name('token-ai.purchase');
+    Route::get('token-ai/callback', [TenantAiTokenController::class, 'callback'])->name('token-ai.callback');
+    Route::put('token-ai/allocation', [TenantAiTokenController::class, 'updateAllocation'])->name('token-ai.allocation');
 });

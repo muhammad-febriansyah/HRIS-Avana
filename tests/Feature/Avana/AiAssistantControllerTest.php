@@ -2,9 +2,11 @@
 
 use App\Models\AiConversation;
 use App\Models\AiMessage;
+use App\Models\AiTokenLedger;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\AiTokenService;
 use Database\Seeders\AvanaDemoSeeder;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -62,18 +64,22 @@ it('shows an empty active conversation when none is selected', function (): void
 });
 
 it('reports monthly token usage against the tenant quota', function (): void {
-    $conversation = AiConversation::create([
+    // Usage is sourced from the append-only ledger (not ai_messages, which the
+    // user can erase by deleting a conversation).
+    $service = app(AiTokenService::class);
+    $service->debit($this->admin, 2000);
+    $service->debit($this->admin, 800);
+
+    // Excluded: a debit logged in a previous month.
+    AiTokenLedger::create([
         'tenant_id' => $this->tenant->id,
         'user_id' => $this->admin->id,
-        'title' => 'Pemakaian token',
+        'type' => AiTokenLedger::TYPE_DEBIT,
+        'source' => 'chat',
+        'tokens' => 9999,
+        'wallet_delta' => 0,
+        'period' => now()->subMonthNoOverflow()->format('Y-m'),
     ]);
-
-    // Counted: assistant replies this month.
-    AiMessage::create(['conversation_id' => $conversation->id, 'tenant_id' => $this->tenant->id, 'user_id' => $this->admin->id, 'role' => 'assistant', 'content' => 'A', 'prompt_tokens' => 1200, 'completion_tokens' => 800, 'total_tokens' => 2000]);
-    AiMessage::create(['conversation_id' => $conversation->id, 'tenant_id' => $this->tenant->id, 'user_id' => $this->admin->id, 'role' => 'assistant', 'content' => 'B', 'prompt_tokens' => 500, 'completion_tokens' => 300, 'total_tokens' => 800]);
-
-    // Excluded: a reply logged in a previous month.
-    AiMessage::create(['conversation_id' => $conversation->id, 'tenant_id' => $this->tenant->id, 'user_id' => $this->admin->id, 'role' => 'assistant', 'content' => 'Lama', 'total_tokens' => 9999, 'created_at' => now()->subMonthNoOverflow()->startOfMonth()]);
 
     actingAs($this->admin)
         ->get(route('avana.ai'))

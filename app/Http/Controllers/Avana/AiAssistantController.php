@@ -7,6 +7,7 @@ use App\Models\AiConversation;
 use App\Models\AiMessage;
 use App\Models\AiSetting;
 use App\Models\User;
+use App\Services\AiTokenService;
 use App\Services\AiToolkit;
 use App\Support\AiPersona;
 use Illuminate\Http\RedirectResponse;
@@ -77,30 +78,14 @@ class AiAssistantController extends Controller
     }
 
     /**
-     * Monthly AI token allowance and consumption for the user's tenant.
+     * Monthly AI token allowance, wallet balance and per-user cap for the meter.
+     * Sourced from the ledger via {@see AiTokenService::remainingForUser()}.
      *
-     * `quota` is null when no tenant/package quota is configured (treated as
-     * unlimited). `used` sums the tokens logged on assistant replies for the
-     * current calendar month.
-     *
-     * @return array{used: int, quota: int|null, period: string}
+     * @return array<string, mixed>
      */
     private function tokenUsage(User $user): array
     {
-        $tenant = $user->tenant_id !== null
-            ? $user->tenant()->with('package:id,ai_token_quota')->first()
-            : null;
-
-        $used = (int) AiMessage::query()
-            ->where('tenant_id', $user->tenant_id)
-            ->where('created_at', '>=', now()->startOfMonth())
-            ->sum('total_tokens');
-
-        return [
-            'used' => $used,
-            'quota' => $tenant?->ai_token_quota ?? $tenant?->package?->ai_token_quota,
-            'period' => now()->locale('id')->translatedFormat('F Y'),
-        ];
+        return app(AiTokenService::class)->remainingForUser($user);
     }
 
     /**
@@ -116,6 +101,25 @@ class AiAssistantController extends Controller
         ]);
 
         $user = $request->user();
+
+        $gate = app(AiTokenService::class)->canChat($user);
+
+        if (! $gate->allowed) {
+            $blockMessage = (string) $gate->message;
+
+            return response()->stream(function () use ($blockMessage): void {
+                echo $blockMessage;
+                if (ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                flush();
+            }, 200, [
+                'Content-Type' => 'text/plain; charset=utf-8',
+                'Cache-Control' => 'no-cache',
+                'X-Accel-Buffering' => 'no',
+                'X-Token-Blocked' => $gate->reason ?? '1',
+            ]);
+        }
 
         $conversation = ! empty($data['conversation_id'])
             ? AiConversation::forUser($user->id)->find($data['conversation_id'])
@@ -209,6 +213,10 @@ class AiAssistantController extends Controller
             $totalTokens = $promptTokens !== null || $completionTokens !== null
                 ? (int) $promptTokens + (int) $completionTokens
                 : null;
+
+            if ($totalTokens !== null && $totalTokens > 0) {
+                app(AiTokenService::class)->debit($user, $totalTokens);
+            }
 
             AiMessage::create([
                 'conversation_id' => $conversationId,

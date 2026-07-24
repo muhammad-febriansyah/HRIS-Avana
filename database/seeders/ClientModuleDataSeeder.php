@@ -1442,6 +1442,20 @@ class ClientModuleDataSeeder extends Seeder
                 'status' => 'active',
             ]);
         }
+
+        // Populate demo employees' custom_data so the custom fields show real
+        // values (e.g. in Report Studio) rather than empty groups.
+        $golongan = ['A', 'B', 'AB', 'O'];
+        $ukuran = ['M', 'L', 'XL', 'M', 'L'];
+        foreach (array_values($ctx['employees']) as $i => $employee) {
+            $employee->forceFill(['custom_data' => array_merge((array) $employee->custom_data, [
+                'ukuran_seragam' => $ukuran[$i % count($ukuran)],
+                'golongan_darah' => $golongan[$i % count($golongan)],
+                'jumlah_tanggungan' => $i % 4,
+                'nomor_darurat' => '0812'.str_pad((string) ($i + 1), 8, '0', STR_PAD_LEFT),
+                'nama_kontak_darurat' => 'Kontak Darurat '.($i + 1),
+            ])])->save();
+        }
     }
 
     /**

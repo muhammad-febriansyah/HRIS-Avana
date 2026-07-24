@@ -14,8 +14,46 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { AIcon, C, NAV } from '@/lib/avana';
+import { AIcon, C, hexA, NAV } from '@/lib/avana';
 import type { NavGroup, NavItem } from '@/lib/avana';
+import type { CSSProperties } from 'react';
+
+/** The five configurable theme colours (per-tenant). */
+type ThemeColors = {
+    sidebar_bg: string;
+    sidebar_text: string;
+    sidebar_accent: string;
+    topbar_bg: string;
+    topbar_text: string;
+};
+
+const THEME_FALLBACK: ThemeColors = {
+    sidebar_bg: '#FFFFFF',
+    sidebar_text: '#5B6472',
+    sidebar_accent: '#2F54C9',
+    topbar_bg: '#FFFFFF',
+    topbar_text: '#1A2333',
+};
+
+/** Build the CSS custom properties (colours + derived tints) from a theme. */
+function themeVars(theme?: Partial<ThemeColors>): CSSProperties {
+    const t = { ...THEME_FALLBACK, ...(theme ?? {}) };
+
+    return {
+        '--avn-sidebar-bg': t.sidebar_bg,
+        '--avn-sidebar-text': t.sidebar_text,
+        '--avn-sidebar-muted': hexA(t.sidebar_text, 0.7),
+        '--avn-sidebar-border': hexA(t.sidebar_text, 0.16),
+        '--avn-sidebar-soft': hexA(t.sidebar_text, 0.07),
+        '--avn-sidebar-accent': t.sidebar_accent,
+        '--avn-sidebar-active-bg': hexA(t.sidebar_accent, 0.14),
+        '--avn-topbar-bg': t.topbar_bg,
+        '--avn-topbar-text': t.topbar_text,
+        '--avn-topbar-muted': hexA(t.topbar_text, 0.65),
+        '--avn-topbar-border': hexA(t.topbar_text, 0.14),
+        '--avn-topbar-soft': hexA(t.topbar_text, 0.06),
+    } as CSSProperties;
+}
 import { logout } from '@/routes';
 import { edit as editProfile } from '@/routes/profile';
 
@@ -46,10 +84,10 @@ function HelpRow({
                 padding: '6px 6px',
                 borderRadius: 8,
                 textDecoration: 'none',
-                color: C.text,
+                color: 'var(--avn-sidebar-text)',
             }}
             onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#fff';
+                e.currentTarget.style.background = 'var(--avn-sidebar-active-bg)';
             }}
             onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'transparent';
@@ -63,11 +101,11 @@ function HelpRow({
                     width: 28,
                     height: 28,
                     borderRadius: 8,
-                    background: 'rgba(47,84,201,.08)',
+                    background: 'var(--avn-sidebar-active-bg)',
                     flex: 'none',
                 }}
             >
-                <AIcon name={icon} size={14} color={C.primary} />
+                <AIcon name={icon} size={14} color="var(--avn-sidebar-accent)" />
             </span>
             <span
                 style={{
@@ -81,7 +119,7 @@ function HelpRow({
                     style={{
                         fontSize: 10,
                         fontWeight: 600,
-                        color: C.faint,
+                        color: 'var(--avn-sidebar-muted)',
                         letterSpacing: '.03em',
                         textTransform: 'uppercase',
                     }}
@@ -92,7 +130,7 @@ function HelpRow({
                     style={{
                         fontSize: 12.5,
                         fontWeight: 500,
-                        color: C.text,
+                        color: 'var(--avn-sidebar-text)',
                         overflowWrap: 'anywhere',
                     }}
                 >
@@ -125,9 +163,17 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
         auth?: {
             user?: AuthUser;
             avatar?: string | null;
-            tenant?: { id: number; name: string };
+            isSuperAdmin?: boolean;
+            tenant?: {
+                id: number;
+                name: string;
+                company_name?: string | null;
+                logo_url?: string | null;
+            };
         };
         nav?: NavGroup[];
+        theme?: Partial<ThemeColors>;
+        website?: { contact?: { phone?: string; whatsapp?: string } };
         superAdminView?: {
             is_super: boolean;
             view_tenant_id: string;
@@ -135,6 +181,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
         };
         notifications?: { items: NotificationItem[]; unread: number };
     }>();
+    const vars = themeVars(page.props.theme);
     const url = page.url;
     const user = page.props.auth?.user;
     const avatar = page.props.auth?.avatar;
@@ -161,6 +208,12 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
             .slice(0, 2)
             .map((w) => w[0]?.toUpperCase())
             .join('') || 'A';
+    // White-label: a non-platform tenant with an uploaded company logo shows
+    // their own brand in the sidebar; super admins keep the AvanaHR mark.
+    const tenantLogo = page.props.auth?.tenant?.logo_url;
+    const useTenantLogo =
+        !page.props.auth?.isSuperAdmin && Boolean(tenantLogo);
+    const brandName = page.props.auth?.tenant?.company_name || 'AvanaHR';
     const notif = page.props.notifications ?? { items: [], unread: 0 };
     const [notifOpen, setNotifOpen] = useState(false);
     const [collapsed, setCollapsed] = useState(false);
@@ -205,6 +258,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
     return (
         <div
             style={{
+                ...vars,
                 display: 'flex',
                 minHeight: '100vh',
                 background: C.surface,
@@ -242,7 +296,18 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                         flex: 'none',
                     }}
                 >
-                    {collapsed ? (
+                    {useTenantLogo ? (
+                        <img
+                            src={tenantLogo ?? undefined}
+                            alt={brandName}
+                            style={{
+                                height: collapsed ? 32 : 34,
+                                width: 'auto',
+                                maxWidth: collapsed ? 44 : 168,
+                                objectFit: 'contain',
+                            }}
+                        />
+                    ) : collapsed ? (
                         <img
                             src="/avana/logo-mark.png"
                             alt="AvanaHR"

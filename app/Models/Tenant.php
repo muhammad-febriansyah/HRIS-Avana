@@ -21,6 +21,7 @@ final class Tenant extends Model
             'start_date' => 'date',
             'end_date' => 'date',
             'enforce_payroll_segregation' => 'boolean',
+            'theme' => 'array',
         ];
     }
 

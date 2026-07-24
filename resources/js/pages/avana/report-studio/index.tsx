@@ -7,9 +7,21 @@ import {
     useSensor,
     useSensors,
 } from '@dnd-kit/core';
-import { Head } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
+import type { ApexOptions } from 'apexcharts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AIcon, C } from '@/lib/avana';
+
+const CHART_COLORS = [
+    '#2547F9',
+    '#7c3aed',
+    '#0891b2',
+    '#16a34a',
+    '#d97706',
+    '#db2777',
+    '#0d9488',
+    '#dc2626',
+];
 
 type ZoneId = 'rows' | 'columns' | 'values';
 
@@ -60,10 +72,18 @@ interface PivotResult {
     meta: { empty?: boolean; truncated?: boolean; row_fields?: string[] };
 }
 
+interface SavedReport {
+    id: number;
+    name: string;
+    config: { rows: string[]; columns: string[]; values: ValueField[] };
+}
+
 interface Props {
     dimensions: Dimension[];
     measures: Measure[];
     templates: Template[];
+    savedReports: SavedReport[];
+    canManageFields: boolean;
 }
 
 const GROUP_DOT: Record<string, string> = {
@@ -71,6 +91,7 @@ const GROUP_DOT: Record<string, string> = {
     Ringkasan: '#2547F9',
     'Absensi & Cuti': '#16a34a',
     Payroll: '#7c3aed',
+    'Field Kustom': '#0d9488',
 };
 
 const AGG_LABEL: Record<string, string> = { avg: 'Rata-rata', sum: 'Total' };
@@ -105,6 +126,8 @@ export default function ReportStudio({
     dimensions,
     measures,
     templates,
+    savedReports,
+    canManageFields,
 }: Props) {
     const [rows, setRows] = useState<string[]>([]);
     const [columns, setColumns] = useState<string[]>([]);
@@ -112,6 +135,16 @@ export default function ReportStudio({
     const [view, setView] = useState<'table' | 'chart'>('table');
     const [result, setResult] = useState<PivotResult | null>(null);
     const [loading, setLoading] = useState(false);
+    const [saveOpen, setSaveOpen] = useState(false);
+    const [reportName, setReportName] = useState('');
+    const [saving, setSaving] = useState(false);
+    const [fieldOpen, setFieldOpen] = useState(false);
+    const [fieldLabel, setFieldLabel] = useState('');
+    const [fieldType, setFieldType] = useState<
+        'text' | 'number' | 'date' | 'select'
+    >('number');
+    const [fieldOptions, setFieldOptions] = useState('');
+    const [savingField, setSavingField] = useState(false);
 
     const dimById = Object.fromEntries(dimensions.map((d) => [d.key, d]));
     const measureById = Object.fromEntries(measures.map((m) => [m.key, m]));
@@ -211,10 +244,14 @@ export default function ReportStudio({
     const changeAgg = (field: string, agg: string) =>
         setValues((p) => p.map((v) => (v.field === field ? { ...v, agg } : v)));
 
-    const applyTemplate = (template: Template) => {
-        setRows(template.config.rows);
-        setColumns(template.config.columns);
-        setValues(template.config.values);
+    const applyConfig = (config: {
+        rows: string[];
+        columns: string[];
+        values: ValueField[];
+    }) => {
+        setRows(config.rows);
+        setColumns(config.columns);
+        setValues(config.values);
     };
 
     const reset = () => {
@@ -224,30 +261,84 @@ export default function ReportStudio({
         setResult(null);
     };
 
-    const exportCsv = async () => {
-        const res = await fetch('/avana/report-studio/export', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-XSRF-TOKEN': cookie('XSRF-TOKEN'),
-                Accept: 'text/csv',
+    const saveReport = () => {
+        const name = reportName.trim();
+        if (!name || configEmpty || saving) {
+            return;
+        }
+        setSaving(true);
+        router.post(
+            '/avana/report-studio/reports',
+            { name, payload: JSON.stringify({ rows, columns, values }) },
+            {
+                preserveScroll: true,
+                preserveState: true,
+                only: ['savedReports'],
+                onSuccess: () => {
+                    setSaveOpen(false);
+                    setReportName('');
+                },
+                onFinish: () => setSaving(false),
             },
-            credentials: 'same-origin',
-            body: JSON.stringify({
-                payload: JSON.stringify({ rows, columns, values }),
-            }),
+        );
+    };
+
+    const deleteReport = (id: number) => {
+        router.delete(`/avana/report-studio/reports/${id}`, {
+            preserveScroll: true,
+            preserveState: true,
+            only: ['savedReports'],
         });
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'report-studio.csv';
-        link.click();
-        URL.revokeObjectURL(url);
+    };
+
+    // Create a tenant custom field (master data) inline; the palette refreshes
+    // via a partial reload of the dimensions/measures props.
+    const createField = () => {
+        const label = fieldLabel.trim();
+        if (!label || savingField) {
+            return;
+        }
+        setSavingField(true);
+        router.post(
+            '/avana/custom-fields',
+            {
+                label,
+                type: fieldType,
+                options: fieldType === 'select' ? fieldOptions : null,
+            },
+            {
+                preserveScroll: true,
+                preserveState: true,
+                only: ['dimensions', 'measures'],
+                onSuccess: () => {
+                    setFieldOpen(false);
+                    setFieldLabel('');
+                    setFieldOptions('');
+                    setFieldType('number');
+                },
+                onFinish: () => setSavingField(false),
+            },
+        );
+    };
+
+    const exportExcel = () => {
+        // Navigate to the download endpoint so the server's Content-Disposition
+        // names the .xlsx file — a blob download loses the filename/extension.
+        const payload = encodeURIComponent(
+            JSON.stringify({ rows, columns, values }),
+        );
+        window.location.href = `/avana/report-studio/export?payload=${payload}`;
     };
 
     const dimensionGroups = groupBy(dimensions, (d) => d.group);
     const measureGroups = groupBy(measures, (m) => m.group);
+
+    // Highlight the template whose config matches the current builder state, so
+    // it stays visibly "active" until the user edits a field away from it.
+    const activeTemplate =
+        templates.find((template) =>
+            sameConfig(template.config, { rows, columns, values }),
+        )?.key ?? null;
 
     return (
         <>
@@ -289,7 +380,26 @@ export default function ReportStudio({
                             Reset
                         </button>
                         <button
-                            onClick={exportCsv}
+                            onClick={() => setSaveOpen(true)}
+                            disabled={configEmpty}
+                            style={{
+                                ...btnGhost,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 7,
+                                opacity: configEmpty ? 0.5 : 1,
+                                cursor: configEmpty ? 'not-allowed' : 'pointer',
+                            }}
+                        >
+                            <AIcon
+                                name="bookmark"
+                                size={15}
+                                color={C.text}
+                            />
+                            Simpan
+                        </button>
+                        <button
+                            onClick={exportExcel}
                             disabled={configEmpty}
                             style={{
                                 ...btnPrimary,
@@ -298,7 +408,7 @@ export default function ReportStudio({
                             }}
                         >
                             <AIcon name="download" size={15} color="#fff" />
-                            Export CSV
+                            Export Excel
                         </button>
                     </div>
                 </div>
@@ -312,29 +422,169 @@ export default function ReportStudio({
                         marginBottom: 18,
                     }}
                 >
-                    {templates.map((template) => (
-                        <button
-                            key={template.key}
-                            onClick={() => applyTemplate(template)}
-                            style={templateCard}
-                        >
-                            <span style={categoryTag}>{template.category}</span>
-                            <span
+                    {templates.map((template) => {
+                        const active = template.key === activeTemplate;
+
+                        return (
+                            <button
+                                key={template.key}
+                                onClick={() => applyConfig(template.config)}
                                 style={{
-                                    fontSize: 14.5,
-                                    fontWeight: 700,
-                                    color: C.navy,
-                                    lineHeight: 1.3,
+                                    ...templateCard,
+                                    ...(active
+                                        ? {
+                                              border: `1.5px solid ${C.primary}`,
+                                              background: 'rgba(47,84,201,.05)',
+                                              boxShadow:
+                                                  '0 0 0 3px rgba(47,84,201,.08)',
+                                          }
+                                        : {}),
                                 }}
                             >
-                                {template.title}
-                            </span>
-                            <span style={{ fontSize: 12, color: C.muted }}>
-                                {template.subtitle}
-                            </span>
-                        </button>
-                    ))}
+                                <span
+                                    style={{
+                                        ...categoryTag,
+                                        ...(active
+                                            ? {
+                                                  color: C.primary,
+                                                  background:
+                                                      'rgba(47,84,201,.12)',
+                                              }
+                                            : {}),
+                                    }}
+                                >
+                                    {template.category}
+                                    {active ? ' · aktif' : ''}
+                                </span>
+                                <span
+                                    style={{
+                                        fontSize: 14.5,
+                                        fontWeight: 700,
+                                        color: active ? C.primary : C.navy,
+                                        lineHeight: 1.3,
+                                    }}
+                                >
+                                    {template.title}
+                                </span>
+                                <span style={{ fontSize: 12, color: C.muted }}>
+                                    {template.subtitle}
+                                </span>
+                            </button>
+                        );
+                    })}
                 </div>
+
+                {savedReports.length > 0 ? (
+                    <div style={{ marginBottom: 18 }}>
+                        <div
+                            style={{
+                                fontSize: 11.5,
+                                fontWeight: 700,
+                                color: C.faint,
+                                textTransform: 'uppercase',
+                                letterSpacing: '.05em',
+                                marginBottom: 10,
+                            }}
+                        >
+                            Laporan Tersimpan
+                        </div>
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(4, 1fr)',
+                                gap: 12,
+                            }}
+                        >
+                            {savedReports.map((report) => {
+                                const active = sameConfig(report.config, {
+                                    rows,
+                                    columns,
+                                    values,
+                                });
+
+                                return (
+                                    <div
+                                        key={report.id}
+                                        style={{
+                                            ...templateCard,
+                                            gap: 6,
+                                            position: 'relative',
+                                            ...(active
+                                                ? {
+                                                      border: `1.5px solid ${C.primary}`,
+                                                      background:
+                                                          'rgba(47,84,201,.05)',
+                                                  }
+                                                : {}),
+                                        }}
+                                        onClick={() =>
+                                            applyConfig(report.config)
+                                        }
+                                    >
+                                        <span
+                                            style={{
+                                                ...categoryTag,
+                                                color: '#0891b2',
+                                                background:
+                                                    'rgba(8,145,178,.1)',
+                                            }}
+                                        >
+                                            Tersimpan
+                                        </span>
+                                        <span
+                                            style={{
+                                                fontSize: 14,
+                                                fontWeight: 700,
+                                                color: active
+                                                    ? C.primary
+                                                    : C.navy,
+                                                lineHeight: 1.3,
+                                                paddingRight: 18,
+                                            }}
+                                        >
+                                            {report.name}
+                                        </span>
+                                        <span
+                                            style={{
+                                                fontSize: 11.5,
+                                                color: C.muted,
+                                            }}
+                                        >
+                                            {summariseConfig(
+                                                report.config,
+                                                dimensions,
+                                                measures,
+                                            )}
+                                        </span>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                deleteReport(report.id);
+                                            }}
+                                            title="Hapus"
+                                            style={{
+                                                position: 'absolute',
+                                                top: 12,
+                                                right: 12,
+                                                border: 'none',
+                                                background: 'transparent',
+                                                cursor: 'pointer',
+                                                padding: 2,
+                                                display: 'inline-flex',
+                                            }}
+                                        >
+                                            <AIcon
+                                                name="trash-2"
+                                                size={14}
+                                                color={C.faint}
+                                            />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ) : null}
 
                 <DndContext sensors={sensors} onDragEnd={onDragEnd}>
                     <div
@@ -350,6 +600,30 @@ export default function ReportStudio({
                     >
                         {/* palette */}
                         <div>
+                            {canManageFields ? (
+                            <button
+                                onClick={() => setFieldOpen(true)}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 6,
+                                    width: '100%',
+                                    padding: '9px 12px',
+                                    marginBottom: 16,
+                                    border: `1px dashed ${C.primary}`,
+                                    borderRadius: 9,
+                                    background: 'rgba(47,84,201,.04)',
+                                    color: C.primary,
+                                    fontSize: 12.5,
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <AIcon name="plus" size={14} color={C.primary} />
+                                Tambah Field
+                            </button>
+                            ) : null}
                             {Object.entries(dimensionGroups).map(
                                 ([group, items]) => (
                                     <PaletteGroup key={group} title={group}>
@@ -534,6 +808,232 @@ export default function ReportStudio({
                     Data dihitung langsung dari data karyawan tenant Anda.
                 </p>
             </div>
+
+            {saveOpen ? (
+                <div
+                    onClick={() => setSaveOpen(false)}
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(15,23,42,.35)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 50,
+                    }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            background: '#fff',
+                            borderRadius: 16,
+                            padding: 22,
+                            width: 400,
+                            maxWidth: '90vw',
+                            boxShadow: '0 20px 50px rgba(15,23,42,.25)',
+                        }}
+                    >
+                        <div
+                            style={{
+                                fontSize: 16,
+                                fontWeight: 700,
+                                color: C.navy,
+                                marginBottom: 4,
+                            }}
+                        >
+                            Simpan Laporan
+                        </div>
+                        <div
+                            style={{
+                                fontSize: 12.5,
+                                color: C.muted,
+                                marginBottom: 16,
+                            }}
+                        >
+                            Simpan susunan ini agar bisa dibuka lagi kapan saja.
+                        </div>
+                        <input
+                            autoFocus
+                            value={reportName}
+                            onChange={(e) => setReportName(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    saveReport();
+                                }
+                            }}
+                            placeholder="Nama laporan, mis. Headcount Divisi"
+                            style={{
+                                width: '100%',
+                                border: `1px solid ${C.border}`,
+                                borderRadius: 10,
+                                padding: '11px 14px',
+                                fontSize: 14,
+                                color: C.text,
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                            }}
+                        />
+                        <div
+                            style={{
+                                display: 'flex',
+                                justifyContent: 'flex-end',
+                                gap: 10,
+                                marginTop: 18,
+                            }}
+                        >
+                            <button
+                                onClick={() => setSaveOpen(false)}
+                                style={btnGhost}
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={saveReport}
+                                disabled={reportName.trim() === '' || saving}
+                                style={{
+                                    ...btnPrimary,
+                                    opacity:
+                                        reportName.trim() === '' || saving
+                                            ? 0.5
+                                            : 1,
+                                    cursor:
+                                        reportName.trim() === '' || saving
+                                            ? 'not-allowed'
+                                            : 'pointer',
+                                }}
+                            >
+                                {saving ? 'Menyimpan…' : 'Simpan'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
+            {fieldOpen ? (
+                <div
+                    onClick={() => setFieldOpen(false)}
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(15,23,42,.35)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 50,
+                    }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            background: '#fff',
+                            borderRadius: 16,
+                            padding: 22,
+                            width: 420,
+                            maxWidth: '90vw',
+                            boxShadow: '0 20px 50px rgba(15,23,42,.25)',
+                        }}
+                    >
+                        <div
+                            style={{
+                                fontSize: 16,
+                                fontWeight: 700,
+                                color: C.navy,
+                                marginBottom: 4,
+                            }}
+                        >
+                            Tambah Field
+                        </div>
+                        <div
+                            style={{
+                                fontSize: 12.5,
+                                color: C.muted,
+                                marginBottom: 16,
+                            }}
+                        >
+                            Buat field data karyawan baru. Field langsung tersedia
+                            di palette laporan.
+                        </div>
+                        <label style={fieldFormLabel}>Nama Field</label>
+                        <input
+                            autoFocus
+                            value={fieldLabel}
+                            onChange={(e) => setFieldLabel(e.target.value)}
+                            placeholder="mis. Skor Loyalitas"
+                            style={fieldFormInput}
+                        />
+                        <label style={{ ...fieldFormLabel, marginTop: 14 }}>
+                            Tipe
+                        </label>
+                        <select
+                            value={fieldType}
+                            onChange={(e) =>
+                                setFieldType(
+                                    e.target.value as
+                                        | 'text'
+                                        | 'number'
+                                        | 'date'
+                                        | 'select',
+                                )
+                            }
+                            style={fieldFormInput}
+                        >
+                            <option value="number">Angka (bisa dihitung)</option>
+                            <option value="text">Teks</option>
+                            <option value="date">Tanggal</option>
+                            <option value="select">Pilihan</option>
+                        </select>
+                        {fieldType === 'select' ? (
+                            <>
+                                <label
+                                    style={{ ...fieldFormLabel, marginTop: 14 }}
+                                >
+                                    Opsi (pisah dengan koma)
+                                </label>
+                                <input
+                                    value={fieldOptions}
+                                    onChange={(e) =>
+                                        setFieldOptions(e.target.value)
+                                    }
+                                    placeholder="mis. Rendah, Sedang, Tinggi"
+                                    style={fieldFormInput}
+                                />
+                            </>
+                        ) : null}
+                        <div
+                            style={{
+                                display: 'flex',
+                                justifyContent: 'flex-end',
+                                gap: 10,
+                                marginTop: 20,
+                            }}
+                        >
+                            <button
+                                onClick={() => setFieldOpen(false)}
+                                style={btnGhost}
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={createField}
+                                disabled={fieldLabel.trim() === '' || savingField}
+                                style={{
+                                    ...btnPrimary,
+                                    opacity:
+                                        fieldLabel.trim() === '' || savingField
+                                            ? 0.5
+                                            : 1,
+                                    cursor:
+                                        fieldLabel.trim() === '' || savingField
+                                            ? 'not-allowed'
+                                            : 'pointer',
+                                }}
+                            >
+                                {savingField ? 'Menyimpan…' : 'Tambah Field'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
         </>
     );
 }
@@ -547,6 +1047,52 @@ function badgeFor(measure: Measure): string {
     }
 
     return 'angka';
+}
+
+/** True when two pivot configs describe the same report. */
+function sameConfig(
+    a: { rows: string[]; columns: string[]; values: ValueField[] },
+    b: { rows: string[]; columns: string[]; values: ValueField[] },
+): boolean {
+    const key = (c: {
+        rows: string[];
+        columns: string[];
+        values: ValueField[];
+    }) =>
+        JSON.stringify([
+            c.rows,
+            c.columns,
+            c.values.map((v) => [v.field, v.agg]),
+        ]);
+
+    return key(a) === key(b);
+}
+
+/** A one-line "Departemen × Status → Rata-rata Gaji" summary of a config. */
+function summariseConfig(
+    config: { rows: string[]; columns: string[]; values: ValueField[] },
+    dimensions: Dimension[],
+    measures: Measure[],
+): string {
+    const dimLabel = (key: string) =>
+        dimensions.find((d) => d.key === key)?.label ?? key;
+    const valueLabel = (value: ValueField) => {
+        const measure = measures.find((m) => m.key === value.field);
+        const name = measure?.label ?? value.field;
+        if (value.field === 'count' || value.field === 'resign') {
+            return name;
+        }
+
+        return (value.agg === 'avg' ? 'Rata-rata ' : 'Total ') + name;
+    };
+
+    const left = config.rows.map(dimLabel).join(', ');
+    const cols = config.columns.length
+        ? ' × ' + config.columns.map(dimLabel).join(', ')
+        : '';
+    const vals = config.values.map(valueLabel).join(', ');
+
+    return `${left}${cols} → ${vals}`;
 }
 
 function groupBy<T>(items: T[], key: (item: T) => string): Record<string, T[]> {
@@ -843,7 +1389,7 @@ function Preview({
     }
 
     if (view === 'chart') {
-        return <PreviewChart data={result.chart} />;
+        return <PreviewChart result={result} />;
     }
 
     return <PreviewTable result={result} />;
@@ -903,87 +1449,151 @@ function PreviewTable({ result }: { result: PivotResult }) {
     );
 }
 
-function PreviewChart({ data }: { data: { label: string; value: number }[] }) {
-    if (data.length === 0) {
-        return null;
+/** Compact axis label (e.g. "Rp 8,5jt", "1,2rb", "12"). */
+function formatAxis(value: number, format: string): string {
+    const abs = Math.abs(value);
+    if (format === 'currency') {
+        if (abs >= 1_000_000) {
+            return (
+                'Rp ' +
+                (value / 1_000_000).toLocaleString('id-ID', {
+                    maximumFractionDigits: 1,
+                }) +
+                'jt'
+            );
+        }
+        if (abs >= 1000) {
+            return (
+                'Rp ' +
+                (value / 1000).toLocaleString('id-ID', {
+                    maximumFractionDigits: 0,
+                }) +
+                'rb'
+            );
+        }
+
+        return 'Rp ' + value.toLocaleString('id-ID');
     }
-    const max = Math.max(...data.map((d) => d.value), 1);
-    const height = 200;
+
+    return value.toLocaleString('id-ID', {
+        maximumFractionDigits: format === 'decimal' ? 1 : 0,
+    });
+}
+
+/**
+ * ApexCharts grouped bar chart built from the pivot's Rows × (Columns × Values).
+ * Loaded via a client-only dynamic import so it never runs during Inertia SSR.
+ */
+function PreviewChart({ result }: { result: PivotResult }) {
+    const [ApexChart, setApexChart] =
+        useState<React.ComponentType<Record<string, unknown>> | null>(null);
+
+    useEffect(() => {
+        let active = true;
+        import('react-apexcharts').then((module) => {
+            if (active) {
+                setApexChart(
+                    () =>
+                        module.default as React.ComponentType<
+                            Record<string, unknown>
+                        >,
+                );
+            }
+        });
+
+        return () => {
+            active = false;
+        };
+    }, []);
+
+    const categories = result.rows.map((row) => row.label);
+    const series = result.columns.map((column, ci) => ({
+        name: column.label,
+        data: result.rows.map((row) => row.cells[ci] ?? 0),
+    }));
+    const format = result.columns[0]?.format ?? 'integer';
+    const horizontal = categories.length > 7;
+    const height = horizontal ? Math.max(260, categories.length * 34) : 320;
+
+    const options: ApexOptions = {
+        chart: {
+            type: 'bar',
+            toolbar: { show: false },
+            fontFamily: 'inherit',
+            animations: { speed: 300 },
+        },
+        colors: CHART_COLORS,
+        plotOptions: {
+            bar: {
+                horizontal,
+                borderRadius: 5,
+                borderRadiusApplication: 'end',
+                columnWidth: '58%',
+                barHeight: '62%',
+            },
+        },
+        dataLabels: { enabled: false },
+        stroke: { show: false },
+        grid: { borderColor: C.line, strokeDashArray: 4 },
+        xaxis: {
+            categories,
+            labels: {
+                style: { colors: C.muted, fontSize: '11px' },
+                formatter: horizontal
+                    ? (value: string) => formatAxis(Number(value), format)
+                    : undefined,
+            },
+            axisBorder: { color: C.border },
+            axisTicks: { color: C.border },
+        },
+        yaxis: {
+            labels: {
+                style: { colors: C.muted, fontSize: '11px' },
+                formatter: horizontal
+                    ? undefined
+                    : (value: number) => formatAxis(value, format),
+            },
+        },
+        legend: {
+            show: series.length > 1,
+            position: 'top',
+            horizontalAlign: 'left',
+            fontSize: '12px',
+            markers: { size: 6 },
+        },
+        tooltip: {
+            y: { formatter: (value: number) => formatCell(value, format) },
+        },
+        fill: { opacity: 1 },
+    };
 
     return (
         <div
             style={{
                 border: `1px solid ${C.border}`,
                 borderRadius: 12,
-                padding: '22px 18px 14px',
+                padding: '16px 12px 8px',
+                minHeight: 340,
             }}
         >
-            <div
-                style={{
-                    display: 'flex',
-                    alignItems: 'flex-end',
-                    gap: 10,
-                    height,
-                    borderBottom: `2px solid ${C.border}`,
-                }}
-            >
-                {data.map((row, i) => {
-                    const barH = Math.max((row.value / max) * (height - 24), 3);
-
-                    return (
-                        <div
-                            key={i}
-                            title={`${row.label}: ${row.value.toLocaleString('id-ID')}`}
-                            style={{
-                                flex: 1,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'flex-end',
-                                minWidth: 0,
-                            }}
-                        >
-                            <span
-                                style={{
-                                    fontSize: 12,
-                                    fontWeight: 700,
-                                    color: C.navy,
-                                    marginBottom: 5,
-                                    fontVariantNumeric: 'tabular-nums',
-                                }}
-                            >
-                                {row.value.toLocaleString('id-ID')}
-                            </span>
-                            <div
-                                style={{
-                                    width: '100%',
-                                    maxWidth: 54,
-                                    height: barH,
-                                    background: C.primary,
-                                    borderRadius: '6px 6px 0 0',
-                                }}
-                            />
-                        </div>
-                    );
-                })}
-            </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-                {data.map((row, i) => (
-                    <div
-                        key={i}
-                        style={{
-                            flex: 1,
-                            minWidth: 0,
-                            textAlign: 'center',
-                            fontSize: 11,
-                            color: C.muted,
-                            wordBreak: 'break-word',
-                        }}
-                    >
-                        {row.label}
-                    </div>
-                ))}
-            </div>
+            {ApexChart ? (
+                <ApexChart
+                    type="bar"
+                    height={height}
+                    options={options}
+                    series={series}
+                />
+            ) : (
+                <div
+                    style={{
+                        height: 320,
+                        borderRadius: 10,
+                        background:
+                            'linear-gradient(90deg,#f1f5f9,#f8fafc,#f1f5f9)',
+                        animation: 'pulse 1.5s ease-in-out infinite',
+                    }}
+                />
+            )}
         </div>
     );
 }
@@ -1011,6 +1621,26 @@ const btnGhost: React.CSSProperties = {
     fontSize: 13.5,
     fontWeight: 600,
     cursor: 'pointer',
+};
+
+const fieldFormLabel: React.CSSProperties = {
+    display: 'block',
+    fontSize: 12,
+    fontWeight: 600,
+    color: C.muted,
+    marginBottom: 6,
+};
+
+const fieldFormInput: React.CSSProperties = {
+    width: '100%',
+    border: `1px solid ${C.border}`,
+    borderRadius: 10,
+    padding: '10px 13px',
+    fontSize: 14,
+    color: C.text,
+    outline: 'none',
+    boxSizing: 'border-box',
+    background: '#fff',
 };
 
 const templateCard: React.CSSProperties = {

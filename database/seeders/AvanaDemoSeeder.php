@@ -861,7 +861,7 @@ final class AvanaDemoSeeder extends Seeder
             'recruitment.view', 'onboarding.view',
             'performance.view', 'okr.view', 'competency.view', 'talent.view', 'learning.view',
             'helpdesk.view', 'announcement.view', 'survey.view', 'calendar.view', 'ai.view',
-            'asset.view', 'crm.view', 'dynamic_report.view', 'attrition.view',
+            'ai_topup.view', 'asset.view', 'crm.view', 'dynamic_report.view', 'attrition.view',
         ];
         $permModels = collect($perms)->map(function (string $code) {
             [$module, $action] = array_pad(explode('.', $code, 2), 2, '');

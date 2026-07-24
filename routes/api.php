@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\SettlementController;
 use App\Http\Controllers\Api\ShiftSwapController;
 use App\Http\Controllers\Api\TaxController;
 use App\Http\Controllers\Api\WfhController;
+use App\Http\Controllers\PakasirWebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -41,6 +42,10 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->group(function (): void {
     Route::get('app-config', [AppConfigController::class, 'show']);
     Route::get('onboarding-slides', [OnboardingSlideController::class, 'index']);
+
+    // Public Pakasir payment callback for AI token top-ups (tenant resolved from
+    // the order; verified server-to-server before crediting).
+    Route::post('pakasir/webhook', [PakasirWebhookController::class, 'handle'])->middleware('throttle:60,1');
 
     Route::prefix('auth')->group(function (): void {
         Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
@@ -57,6 +62,7 @@ Route::prefix('v1')->group(function (): void {
         Route::prefix('me')->group(function (): void {
             Route::get('profile', [ProfileController::class, 'show']);
             Route::put('profile', [ProfileController::class, 'update']);
+            Route::post('profile/photo', [ProfileController::class, 'updatePhoto']);
 
             Route::get('dashboard', [DashboardController::class, 'summary']);
 

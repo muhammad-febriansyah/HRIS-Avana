@@ -2,19 +2,25 @@
 
 namespace App\Http\Controllers\Avana;
 
+use App\Exports\ReportStudioExport;
 use App\Http\Controllers\Controller;
+use App\Models\CustomField;
 use App\Models\Employee;
 use App\Models\EmployeeSalaryComponent;
 use App\Models\LeaveBalance;
 use App\Models\PayrollComponent;
 use App\Models\PerformanceReview;
+use App\Models\ReportStudioReport;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Drag-and-drop pivot report builder for the AvanaHR tenant ("Report Studio").
@@ -33,18 +39,97 @@ class ReportStudioController extends Controller
     /** Hard cap on distinct row groups returned for one pivot. */
     private const MAX_ROWS = 300;
 
+    /** Palette-key prefix for tenant custom fields (Field Kustom). */
+    private const CUSTOM_PREFIX = 'cf_';
+
+    /** Palette group label for tenant custom fields. */
+    private const CUSTOM_GROUP = 'Field Kustom';
+
+    /** Tenant whose schema (incl. custom fields) is being resolved this request. */
+    private ?int $schemaTenantId = null;
+
+    /** @var array<int, array{key: string, label: string, type: string}>|null */
+    private ?array $customFieldsCache = null;
+
+    /** @var array<string, array{label: string, group: string}>|null */
+    private ?array $dimensionsCache = null;
+
+    /** @var array<string, array{label: string, group: string, format: string, aggs: array<int, string>, default_agg: string}>|null */
+    private ?array $measuresCache = null;
+
     /**
      * Render the builder shell: field palette, measures, and starter templates.
      */
     public function index(Request $request): Response
     {
         $this->ensureCan($request, 'view');
+        $this->schemaTenantId = (int) $request->user()->tenant_id;
+
+        $saved = ReportStudioReport::forTenant((int) $request->user()->tenant_id)
+            ->latest('id')
+            ->get(['id', 'name', 'config'])
+            ->map(fn (ReportStudioReport $report): array => [
+                'id' => $report->id,
+                'name' => $report->name,
+                'config' => $report->config,
+            ])
+            ->all();
+
+        $user = $request->user();
+        $user->loadMissing('roles');
+        $canManageFields = $user->isSuperAdmin()
+            || $user->roles->whereIn('code', ['super_admin', 'admin_tenant_hr'])->isNotEmpty();
 
         return Inertia::render('avana/report-studio/index', [
             'dimensions' => $this->dimensionOptions(),
             'measures' => $this->measureOptions(),
             'templates' => $this->templates(),
+            'savedReports' => $saved,
+            'canManageFields' => $canManageFields,
         ]);
+    }
+
+    /**
+     * Save the current pivot as a reusable report for the tenant.
+     */
+    public function store(Request $request): RedirectResponse
+    {
+        $this->ensureCan($request, 'create');
+        $this->schemaTenantId = (int) $request->user()->tenant_id;
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+        ]);
+
+        $config = $this->extractConfig($request);
+
+        if ($config['rows'] === [] || $config['values'] === []) {
+            throw ValidationException::withMessages([
+                'name' => 'Tambahkan minimal satu field Baris dan satu Nilai sebelum menyimpan.',
+            ]);
+        }
+
+        ReportStudioReport::create([
+            'tenant_id' => (int) $request->user()->tenant_id,
+            'name' => $validated['name'],
+            'config' => $config,
+            'created_by' => $request->user()->id,
+        ]);
+
+        return back()->with('success', 'Laporan disimpan.');
+    }
+
+    /**
+     * Delete one of the tenant's saved reports.
+     */
+    public function destroy(Request $request, ReportStudioReport $report): RedirectResponse
+    {
+        $this->ensureCan($request, 'archive');
+        abort_if((int) $report->tenant_id !== (int) $request->user()->tenant_id, 404);
+
+        $report->delete();
+
+        return back()->with('success', 'Laporan dihapus.');
     }
 
     /**
@@ -53,6 +138,7 @@ class ReportStudioController extends Controller
     public function run(Request $request): JsonResponse
     {
         $this->ensureCan($request, 'view');
+        $this->schemaTenantId = (int) $request->user()->tenant_id;
 
         $config = $this->extractConfig($request);
 
@@ -71,42 +157,43 @@ class ReportStudioController extends Controller
     }
 
     /**
-     * Stream the current pivot as a CSV download.
+     * Download the current pivot as a styled .xlsx workbook.
      */
-    public function export(Request $request): StreamedResponse
+    public function export(Request $request): BinaryFileResponse
     {
         $this->ensureCan($request, 'export');
+        $this->schemaTenantId = (int) $request->user()->tenant_id;
 
         $config = $this->extractConfig($request);
         $result = ($config['rows'] === [] || $config['values'] === [])
             ? ['columns' => [], 'rows' => []]
             : $this->pivot($this->buildDataset((int) $request->user()->tenant_id), $config);
 
-        $rowFieldLabels = array_map(
+        $rowFields = array_map(
             fn (string $key): string => $this->dimensions()[$key]['label'],
             $config['rows'],
         );
 
-        $filename = 'report-studio-'.Carbon::today()->format('Y-m-d').'.csv';
+        $tenant = $request->user()->tenant;
+        $subtitle = $tenant?->company_name ?? $tenant?->name ?? 'AvanaHR';
 
-        return response()->streamDownload(function () use ($result, $rowFieldLabels): void {
-            $out = fopen('php://output', 'w');
+        $meta = 'Dibuat '.Carbon::now()->locale('id')->translatedFormat('d F Y, H:i');
+        if ($rowFields !== []) {
+            $meta = 'Baris: '.implode(', ', $rowFields).'   •   '.$meta;
+        }
 
-            $header = array_merge(
-                $rowFieldLabels !== [] ? $rowFieldLabels : ['Baris'],
-                array_map(fn (array $c): string => $c['label'], $result['columns']),
-            );
-            fputcsv($out, $header);
+        $filename = 'report-studio-'.Carbon::today()->format('Y-m-d').'.xlsx';
 
-            foreach ($result['rows'] as $row) {
-                fputcsv($out, array_merge([$row['label']], array_map(
-                    static fn ($cell) => $cell ?? '',
-                    $row['cells'],
-                )));
-            }
-
-            fclose($out);
-        }, $filename, ['Content-Type' => 'text/csv']);
+        return Excel::download(
+            new ReportStudioExport(
+                $result['columns'],
+                $result['rows'],
+                $rowFields !== [] ? implode(' / ', $rowFields) : 'Baris',
+                $subtitle,
+                $meta,
+            ),
+            $filename,
+        );
     }
 
     /**
@@ -200,9 +287,14 @@ class ReportStudioController extends Controller
             ->groupBy('employee_id')
             ->map(fn ($group): float => (float) $group->first()->final_score);
 
+        // Split the tenant's custom fields into group-by dimensions (text/
+        // select/date) and numeric measures (number), read from custom_data.
+        $customDims = array_filter($this->customFields(), fn (array $f): bool => $f['type'] !== 'number');
+        $customMeasures = array_filter($this->customFields(), fn (array $f): bool => $f['type'] === 'number');
+
         $employees = Employee::forTenant($tenantId)
             ->with(['department:id,name', 'branch:id,name', 'position:id,name'])
-            ->get(['id', 'department_id', 'branch_id', 'position_id', 'employment_status', 'status', 'join_date', 'resign_date']);
+            ->get(['id', 'department_id', 'branch_id', 'position_id', 'employment_status', 'status', 'join_date', 'resign_date', 'custom_data']);
 
         $dataset = [];
         foreach ($employees as $employee) {
@@ -211,22 +303,33 @@ class ReportStudioController extends Controller
                 || $employee->status === 'inactive'
                 || $employee->employment_status === 'resigned';
 
-            $dataset[] = [
-                'dims' => [
-                    'department' => $employee->department?->name ?? '—',
-                    'branch' => $employee->branch?->name ?? '—',
-                    'employment_status' => $this->employmentLabel($employee->employment_status),
-                    'position' => $employee->position?->name ?? '—',
-                ],
-                'measures' => [
-                    'count' => $isActive ? 1 : 0,
-                    'resign' => $isResign ? 1 : 0,
-                    'sisa_cuti' => isset($sisaCuti[$employee->id]) ? (float) $sisaCuti[$employee->id] : null,
-                    'masa_kerja' => $employee->join_date !== null ? $employee->join_date->diffInYears($today) : null,
-                    'gaji_pokok' => isset($gajiPokok[$employee->id]) ? (float) $gajiPokok[$employee->id] : null,
-                    'skor_kinerja' => $skor[$employee->id] ?? null,
-                ],
+            $custom = is_array($employee->custom_data) ? $employee->custom_data : [];
+
+            $dims = [
+                'department' => $employee->department?->name ?? '—',
+                'branch' => $employee->branch?->name ?? '—',
+                'employment_status' => $this->employmentLabel($employee->employment_status),
+                'position' => $employee->position?->name ?? '—',
             ];
+            foreach ($customDims as $field) {
+                $value = $custom[$field['key']] ?? null;
+                $dims[self::CUSTOM_PREFIX.$field['key']] = ($value === null || $value === '') ? '—' : (string) $value;
+            }
+
+            $measures = [
+                'count' => $isActive ? 1 : 0,
+                'resign' => $isResign ? 1 : 0,
+                'sisa_cuti' => isset($sisaCuti[$employee->id]) ? (float) $sisaCuti[$employee->id] : null,
+                'masa_kerja' => $employee->join_date !== null ? $employee->join_date->diffInYears($today) : null,
+                'gaji_pokok' => isset($gajiPokok[$employee->id]) ? (float) $gajiPokok[$employee->id] : null,
+                'skor_kinerja' => $skor[$employee->id] ?? null,
+            ];
+            foreach ($customMeasures as $field) {
+                $value = $custom[$field['key']] ?? null;
+                $measures[self::CUSTOM_PREFIX.$field['key']] = is_numeric($value) ? (float) $value : null;
+            }
+
+            $dataset[] = ['dims' => $dims, 'measures' => $measures];
         }
 
         return $dataset;
@@ -418,28 +521,51 @@ class ReportStudioController extends Controller
     }
 
     /**
-     * Allowlisted Row/Column dimensions.
+     * Allowlisted Row/Column dimensions: the fixed employee attributes plus the
+     * tenant's own text/select/date custom fields (Field Kustom). Cached per
+     * request. Custom-field keys are validated slugs read from a JSON map by
+     * key — never concatenated into SQL — so the allowlist stays injection-safe.
      *
      * @return array<string, array{label: string, group: string}>
      */
     private function dimensions(): array
     {
-        return [
+        if ($this->dimensionsCache !== null) {
+            return $this->dimensionsCache;
+        }
+
+        $dimensions = [
             'department' => ['label' => 'Departemen', 'group' => 'Data Karyawan'],
             'branch' => ['label' => 'Cabang', 'group' => 'Data Karyawan'],
             'employment_status' => ['label' => 'Status Kerja', 'group' => 'Data Karyawan'],
             'position' => ['label' => 'Jabatan', 'group' => 'Data Karyawan'],
         ];
+
+        foreach ($this->customFields() as $field) {
+            if ($field['type'] !== 'number') {
+                $dimensions[self::CUSTOM_PREFIX.$field['key']] = [
+                    'label' => $field['label'],
+                    'group' => self::CUSTOM_GROUP,
+                ];
+            }
+        }
+
+        return $this->dimensionsCache = $dimensions;
     }
 
     /**
-     * Allowlisted Value measures.
+     * Allowlisted Value measures: the fixed numeric measures plus the tenant's
+     * own number-type custom fields. Cached per request.
      *
      * @return array<string, array{label: string, group: string, format: string, aggs: array<int, string>, default_agg: string}>
      */
     private function measures(): array
     {
-        return [
+        if ($this->measuresCache !== null) {
+            return $this->measuresCache;
+        }
+
+        $measures = [
             'count' => ['label' => 'Jumlah Karyawan', 'group' => 'Ringkasan', 'format' => 'integer', 'aggs' => ['sum'], 'default_agg' => 'sum'],
             'resign' => ['label' => 'Jumlah Resign', 'group' => 'Absensi & Cuti', 'format' => 'integer', 'aggs' => ['sum'], 'default_agg' => 'sum'],
             'sisa_cuti' => ['label' => 'Sisa Cuti', 'group' => 'Absensi & Cuti', 'format' => 'decimal', 'aggs' => ['avg', 'sum'], 'default_agg' => 'avg'],
@@ -447,6 +573,48 @@ class ReportStudioController extends Controller
             'gaji_pokok' => ['label' => 'Gaji Pokok', 'group' => 'Payroll', 'format' => 'currency', 'aggs' => ['avg', 'sum'], 'default_agg' => 'avg'],
             'skor_kinerja' => ['label' => 'Skor Kinerja', 'group' => 'Payroll', 'format' => 'decimal', 'aggs' => ['avg'], 'default_agg' => 'avg'],
         ];
+
+        foreach ($this->customFields() as $field) {
+            if ($field['type'] === 'number') {
+                $measures[self::CUSTOM_PREFIX.$field['key']] = [
+                    'label' => $field['label'],
+                    'group' => self::CUSTOM_GROUP,
+                    'format' => 'decimal',
+                    'aggs' => ['avg', 'sum'],
+                    'default_agg' => 'avg',
+                ];
+            }
+        }
+
+        return $this->measuresCache = $measures;
+    }
+
+    /**
+     * The tenant's active employee custom fields (Field Kustom), cached.
+     *
+     * @return array<int, array{key: string, label: string, type: string}>
+     */
+    private function customFields(): array
+    {
+        if ($this->customFieldsCache !== null) {
+            return $this->customFieldsCache;
+        }
+
+        if ($this->schemaTenantId === null) {
+            return $this->customFieldsCache = [];
+        }
+
+        return $this->customFieldsCache = CustomField::forTenant($this->schemaTenantId)
+            ->where('entity', 'employee')
+            ->where('status', 'active')
+            ->orderBy('sort_order')
+            ->get(['key', 'label', 'type'])
+            ->map(fn (CustomField $field): array => [
+                'key' => (string) $field->key,
+                'label' => (string) $field->label,
+                'type' => (string) $field->type,
+            ])
+            ->all();
     }
 
     /**

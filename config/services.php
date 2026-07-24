@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'pakasir' => [
+        'base_url' => env('PAKASIR_BASE_URL', 'https://app.pakasir.com'),
+        'slug' => env('PAKASIR_SLUG', 'avanahr'),
+        'api_key' => env('PAKASIR_API_KEY'),
+    ],
+
 ];

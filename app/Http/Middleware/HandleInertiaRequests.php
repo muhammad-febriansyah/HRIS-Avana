@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\WebsiteSetting;
 use App\Support\Access;
 use App\Support\AvanaNav;
+use App\Support\TenantTheme;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Middleware;
@@ -53,7 +54,7 @@ class HandleInertiaRequests extends Middleware
                 'avatar' => fn () => $this->resolveAvatarUrl($user),
                 'roles' => fn () => $user?->roles()->pluck('code')->all() ?? [],
                 'isSuperAdmin' => fn () => (bool) $user?->roles()->where('code', 'super_admin')->exists(),
-                'tenant' => fn () => $user?->tenant?->only('id', 'name', 'company_name'),
+                'tenant' => fn () => $this->tenantBranding($user),
                 // Effective {module}.{action} codes for action-level UI gating
                 // (usePermission). A super admin resolves to every code; null
                 // when enforcement is disabled so the UI gates nothing.
@@ -62,6 +63,7 @@ class HandleInertiaRequests extends Middleware
                     : null,
             ],
             'nav' => fn () => AvanaNav::forUser($user, $this->isPlatformScope($request, $user)),
+            'theme' => fn (): array => TenantTheme::resolve($user?->tenant?->theme),
             'notifications' => fn (): array => $this->notifications($user),
             'superAdminView' => fn (): array => $this->superAdminView($request, $user),
             'flash' => [
@@ -69,6 +71,31 @@ class HandleInertiaRequests extends Middleware
                 'error' => fn () => $request->session()->get('error'),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+        ];
+    }
+
+    /**
+     * The user's tenant identity + branding for the sidebar. `logo_url` is the
+     * tenant's own company logo, so a non-platform tenant is white-labelled
+     * with their own brand instead of AvanaHR.
+     *
+     * @return array{id: int, name: string, company_name: string|null, logo_url: string|null}|null
+     */
+    private function tenantBranding(?User $user): ?array
+    {
+        $tenant = $user?->tenant;
+
+        if ($tenant === null) {
+            return null;
+        }
+
+        $logoPath = $tenant->company?->logo_path;
+
+        return [
+            'id' => $tenant->id,
+            'name' => $tenant->name,
+            'company_name' => $tenant->company_name,
+            'logo_url' => $logoPath !== null ? Storage::disk('public')->url($logoPath) : null,
         ];
     }
 

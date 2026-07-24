@@ -8,6 +8,7 @@ use App\Models\AiConversation;
 use App\Models\AiMessage;
 use App\Models\AiSetting;
 use App\Models\User;
+use App\Services\AiTokenService;
 use App\Services\AiToolkit;
 use App\Support\AiPersona;
 use Illuminate\Http\JsonResponse;
@@ -85,6 +86,17 @@ class AiAssistantController extends Controller
 
         $user = $request->user();
 
+        $gate = app(AiTokenService::class)->canChat($user);
+
+        if (! $gate->allowed) {
+            return response()->json([
+                'blocked' => true,
+                'reason' => $gate->reason,
+                'message' => $gate->message,
+                'usage' => app(AiTokenService::class)->remainingForUser($user),
+            ], 402);
+        }
+
         $conversation = ! empty($data['conversation_id'])
             ? AiConversation::forUser($user->id)->find($data['conversation_id'])
             : null;
@@ -110,6 +122,10 @@ class AiAssistantController extends Controller
         $totalTokens = $promptTokens !== null || $completionTokens !== null
             ? (int) $promptTokens + (int) $completionTokens
             : null;
+
+        if ($totalTokens !== null && $totalTokens > 0) {
+            app(AiTokenService::class)->debit($user, $totalTokens);
+        }
 
         $assistant = AiMessage::create([
             'conversation_id' => $conversation->id,
@@ -236,25 +252,13 @@ class AiAssistantController extends Controller
     }
 
     /**
-     * Monthly AI token allowance and consumption for the caller's tenant.
+     * Monthly AI token allowance and consumption for the caller's tenant, plus
+     * the wallet and per-user cap breakdown. Sourced from the ledger.
      *
-     * @return array{used: int, quota: int|null, period: string}
+     * @return array<string, mixed>
      */
     private function tokenUsage(User $user): array
     {
-        $tenant = $user->tenant_id !== null
-            ? $user->tenant()->with('package:id,ai_token_quota')->first()
-            : null;
-
-        $used = (int) AiMessage::query()
-            ->where('tenant_id', $user->tenant_id)
-            ->where('created_at', '>=', now()->startOfMonth())
-            ->sum('total_tokens');
-
-        return [
-            'used' => $used,
-            'quota' => $tenant?->ai_token_quota ?? $tenant?->package?->ai_token_quota,
-            'period' => now()->locale('id')->translatedFormat('F Y'),
-        ];
+        return app(AiTokenService::class)->remainingForUser($user);
     }
 }

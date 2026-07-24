@@ -92,6 +92,22 @@ export function rp(n: number): string {
     return 'Rp ' + Number(n).toLocaleString('id-ID');
 }
 
+/** Translucent tint of a #RGB or #RRGGBB colour (alpha 0..1). */
+export function hexA(hex: string, a: number): string {
+    let h = hex.replace('#', '');
+    if (h.length === 3) {
+        h = h
+            .split('')
+            .map((c) => c + c)
+            .join('');
+    }
+    const r = parseInt(h.slice(0, 2), 16) || 0;
+    const g = parseInt(h.slice(2, 4), 16) || 0;
+    const b = parseInt(h.slice(4, 6), 16) || 0;
+
+    return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
 export interface Badge {
     label: string;
     color: string;
@@ -145,6 +161,8 @@ interface RupiahInputProps {
     placeholder?: string;
     disabled?: boolean;
     invalid?: boolean;
+    /** Left prefix label. Defaults to "Rp"; pass "" for a plain thousand-separated number (e.g. token counts). */
+    prefix?: string;
 }
 
 /**
@@ -158,25 +176,29 @@ export function RupiahInput({
     placeholder,
     disabled,
     invalid,
+    prefix = 'Rp',
 }: RupiahInputProps) {
     const raw = digitsOnly(value);
     const display = raw === '' ? '' : Number(raw).toLocaleString('id-ID');
+    const hasPrefix = prefix !== '';
 
     return (
         <div style={{ position: 'relative' }}>
-            <span
-                style={{
-                    position: 'absolute',
-                    left: 13,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    fontSize: 13.5,
-                    color: C.faint,
-                    pointerEvents: 'none',
-                }}
-            >
-                Rp
-            </span>
+            {hasPrefix && (
+                <span
+                    style={{
+                        position: 'absolute',
+                        left: 13,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        fontSize: 13.5,
+                        color: C.faint,
+                        pointerEvents: 'none',
+                    }}
+                >
+                    {prefix}
+                </span>
+            )}
             <input
                 type="text"
                 inputMode="numeric"
@@ -187,7 +209,7 @@ export function RupiahInput({
                 style={{
                     width: '100%',
                     height: 42,
-                    padding: '0 13px 0 36px',
+                    padding: hasPrefix ? '0 13px 0 36px' : '0 13px',
                     border: `1px solid ${invalid ? C.red : C.border}`,
                     borderRadius: 8,
                     fontSize: 13.5,

@@ -138,7 +138,6 @@ export default function JenisCutiIndex({ leaveTypes }: JenisCutiIndexProps) {
                                 <tr style={{ background: '#FAFBFD' }}>
                                     <th style={thCell}>Kode</th>
                                     <th style={thCell}>Nama</th>
-                                    <th style={thCell}>Kuota Default (hari)</th>
                                     <th style={thCell}>Saldo Minus</th>
                                     <th style={thCell}>Wajib Lampiran</th>
                                     <th style={thCell}>Status</th>
@@ -161,7 +160,7 @@ export default function JenisCutiIndex({ leaveTypes }: JenisCutiIndexProps) {
                                         }}
                                     >
                                         <td
-                                            colSpan={7}
+                                            colSpan={6}
                                             style={{
                                                 padding: '48px 18px',
                                                 textAlign: 'center',
@@ -212,15 +211,6 @@ export default function JenisCutiIndex({ leaveTypes }: JenisCutiIndexProps) {
                                             }}
                                         >
                                             {row.name}
-                                        </td>
-                                        <td
-                                            style={{
-                                                padding: '13px 16px',
-                                                fontSize: 13,
-                                                color: C.text,
-                                            }}
-                                        >
-                                            {row.default_quota} hari
                                         </td>
                                         <td style={{ padding: '13px 16px' }}>
                                             <YesNoPill

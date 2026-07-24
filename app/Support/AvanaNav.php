@@ -157,6 +157,7 @@ final class AvanaNav
                 self::leaf('hak-akses', 'Hak Akses', 'shield-check', '/avana/hak-akses', null, self::MANAGE_MODULES, true),
                 self::leaf('approval-workflow', 'Alur Persetujuan', 'git-branch', '/avana/approval-workflow', null, self::MANAGE_MODULES, true),
                 self::leaf('email-settings', 'Pengaturan Email', 'mail', '/avana/email-settings', null, self::MANAGE_MODULES, true),
+                self::leaf('token-ai', 'Token AI', 'coins', '/avana/token-ai', null, ['ai_topup'], false),
                 self::leaf('audit', 'Audit Trail', 'history', '/avana/audit', null, ['audit']),
             ]],
             ['title' => 'PLATFORM', 'items' => [
@@ -540,6 +541,7 @@ final class AvanaNav
             ['title' => 'PLATFORM', 'items' => [
                 self::leaf('klien', 'Klien / Tenant', 'building-2', '/avana/klien', null, [], false, true),
                 self::leaf('billing', 'Billing & Invoice', 'receipt-text', '/avana/billing', null, [], false, true),
+                self::leaf('token-packs', 'Paket Token AI', 'coins', '/avana/token-packs', null, [], false, true),
                 self::leaf('dynamic-report', 'Laporan Platform', 'table', '/avana/dynamic-report', null, [], false, true),
             ]],
             ['title' => 'PENGATURAN PLATFORM', 'items' => [
