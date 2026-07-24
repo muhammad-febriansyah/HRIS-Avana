@@ -76,9 +76,11 @@ it('renders the paginated absensi index with the expected props', function (): v
                 ->has('status')
                 ->has('status_label')
                 ->etc())
-            ->where('filters.date', TEST_DATE)
-            ->where('date.value', TEST_DATE)
-            ->has('date.display')
+            ->where('filters.date_from', TEST_DATE)
+            ->where('filters.date_to', TEST_DATE)
+            ->where('range.from', TEST_DATE)
+            ->where('range.to', TEST_DATE)
+            ->has('range.display')
             ->has('kpis.hadir')
             ->has('kpis.terlambat')
             ->has('kpis.izin')
@@ -92,7 +94,32 @@ it('defaults to today when no date filter is supplied', function (): void {
     actingAs($this->admin)
         ->get(route('avana.absensi'))
         ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page->where('date.value', $today));
+        ->assertInertia(fn (Assert $page) => $page->where('range.from', $today));
+});
+
+it('aggregates the absensi index across a date_from..date_to range', function (): void {
+    makeAttendance($this->tenant->id, $this->shift->id, [
+        'date' => '2026-08-15', 'clock_in_at' => '2026-08-15 08:00:00', 'status' => 'present',
+    ]);
+    makeAttendance($this->tenant->id, $this->shift->id, [
+        'date' => '2026-08-16', 'clock_in_at' => '2026-08-16 09:30:00', 'status' => 'late',
+    ]);
+    // Outside the range — excluded.
+    makeAttendance($this->tenant->id, $this->shift->id, [
+        'date' => '2026-08-20', 'clock_in_at' => '2026-08-20 08:00:00', 'status' => 'present',
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.absensi', ['date_from' => '2026-08-15', 'date_to' => '2026-08-16']))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('range.from', '2026-08-15')
+            ->where('range.to', '2026-08-16')
+            ->where('range.is_range', true)
+            ->where('kpis.hadir', 1)
+            ->where('kpis.terlambat', 1)
+            ->has('attendances.data', 2)
+            ->etc());
 });
 
 it('only lists attendances that belong to the current tenant', function (): void {

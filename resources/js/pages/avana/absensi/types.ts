@@ -67,7 +67,8 @@ export interface AbsensiFilters {
     sort?: string;
     direction?: string;
     per_page?: string;
-    date: string;
+    date_from: string;
+    date_to: string;
 }
 
 export interface AbsensiProps {
@@ -77,7 +78,7 @@ export interface AbsensiProps {
         links: Record<string, string | null>;
     };
     filters: AbsensiFilters;
-    date: { value: string; display: string };
+    range: { from: string; to: string; display: string; is_range: boolean };
     kpis: { hadir: number; terlambat: number; izin: number; alpa: number };
     branches: BranchOption[];
 }

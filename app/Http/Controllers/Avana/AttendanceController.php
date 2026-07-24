@@ -64,8 +64,17 @@ class AttendanceController extends Controller
 
         $tenantId = $request->user()->tenant_id;
 
-        $date = $this->resolveDate($request->query('date'));
-        $dateString = $date->format('Y-m-d');
+        // Date range: `date_from`..`date_to`; a lone `date` sets both ends
+        // (back-compat with the single-day URLs). Normalised so from <= to.
+        $single = $request->query('date');
+        $from = $this->resolveDate($request->query('date_from') ?? $single);
+        $to = $this->resolveDate($request->query('date_to') ?? $single);
+        if ($to->lt($from)) {
+            [$from, $to] = [$to, $from];
+        }
+        $fromString = $from->format('Y-m-d');
+        $toString = $to->format('Y-m-d');
+        $isRange = $fromString !== $toString;
 
         $sort = in_array($request->query('sort'), self::SORTABLE, true)
             ? $request->query('sort')
@@ -75,7 +84,8 @@ class AttendanceController extends Controller
 
         $query = Attendance::query()
             ->forTenant($tenantId)
-            ->whereDate('date', $dateString)
+            ->whereDate('date', '>=', $fromString)
+            ->whereDate('date', '<=', $toString)
             ->with([
                 'employee:id,full_name,employee_number,branch_id',
                 'employee.branch:id,name',
@@ -99,7 +109,8 @@ class AttendanceController extends Controller
             ->withQueryString();
 
         $statusCountQuery = Attendance::forTenant($tenantId)
-            ->whereDate('date', $dateString);
+            ->whereDate('date', '>=', $fromString)
+            ->whereDate('date', '<=', $toString);
 
         $this->applyBranchScope($statusCountQuery, $request->user());
 
@@ -112,11 +123,15 @@ class AttendanceController extends Controller
             'attendances' => AttendanceResource::collection($attendances),
             'filters' => array_merge(
                 $request->only(['search', 'status', 'branch_id', 'sort', 'direction', 'per_page']),
-                ['date' => $dateString],
+                ['date_from' => $fromString, 'date_to' => $toString],
             ),
-            'date' => [
-                'value' => $dateString,
-                'display' => $date->format('d M Y'),
+            'range' => [
+                'from' => $fromString,
+                'to' => $toString,
+                'display' => $isRange
+                    ? $from->format('d M').' – '.$to->format('d M Y')
+                    : $from->format('d M Y'),
+                'is_range' => $isRange,
             ],
             'kpis' => [
                 'hadir' => (int) ($statusCounts['present'] ?? 0),

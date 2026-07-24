@@ -30,7 +30,7 @@ const filterControl: CSSProperties = {
 export default function AvanaAbsensi({
     attendances,
     filters,
-    date,
+    range,
     kpis,
     branches,
 }: AbsensiProps) {
@@ -65,15 +65,10 @@ export default function AvanaAbsensi({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [search]);
 
-    const changeDate = (value: string) => {
-        router.get(
-            window.location.pathname,
-            { ...filters, date: value },
-            { preserveState: true, preserveScroll: true, replace: true },
-        );
-    };
-
-    const changeFilter = (key: 'branch_id' | 'status', value: string) => {
+    const changeFilter = (
+        key: 'branch_id' | 'status' | 'date_from' | 'date_to',
+        value: string,
+    ) => {
         router.get(
             window.location.pathname,
             { ...filters, [key]: value || undefined, page: 1 },
@@ -84,7 +79,12 @@ export default function AvanaAbsensi({
     const goToday = () => {
         router.get(
             window.location.pathname,
-            { ...filters, date: undefined, page: 1 },
+            {
+                ...filters,
+                date_from: undefined,
+                date_to: undefined,
+                page: 1,
+            },
             { preserveState: true, preserveScroll: true, replace: true },
         );
     };
@@ -148,7 +148,8 @@ export default function AvanaAbsensi({
                                 marginTop: 4,
                             }}
                         >
-                            {date.display} · Periode harian
+                            {range.display} ·{' '}
+                            {range.is_range ? 'Rekap periode' : 'Periode harian'}
                         </div>
                     </div>
                     <div
@@ -187,13 +188,24 @@ export default function AvanaAbsensi({
                                 </option>
                             ))}
                         </select>
-                        <DatePicker value={filters.date} onChange={changeDate} />
+                        <DatePicker
+                            label="Dari"
+                            value={filters.date_from}
+                            onChange={(value) =>
+                                changeFilter('date_from', value)
+                            }
+                        />
+                        <DatePicker
+                            label="Sampai"
+                            value={filters.date_to}
+                            onChange={(value) => changeFilter('date_to', value)}
+                        />
                         <button onClick={goToday} style={btnOut} type="button">
                             <AIcon name="calendar-check" size={16} />
                             Hari ini
                         </button>
                         <a
-                            href="/avana/laporan/export/absensi"
+                            href={`/avana/laporan/export/absensi?date_from=${filters.date_from}&date_to=${filters.date_to}`}
                             style={{ ...btnOut, textDecoration: 'none' }}
                         >
                             <AIcon name="download" size={16} />
