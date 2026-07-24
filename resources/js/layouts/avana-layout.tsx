@@ -240,8 +240,13 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                 }
             }
         }
+        // Match on the pathname only — a query string (e.g. the monitor's
+        // ?date_from=…) must not stop /avana/absensi/monitor from matching and
+        // let the shorter /avana/absensi parent win instead.
+        const path = url.split('?')[0];
+
         return hrefs
-            .filter((h) => url === h || url.startsWith(h + '/'))
+            .filter((h) => path === h || path.startsWith(h + '/'))
             .sort((a, b) => b.length - a.length)[0];
     }, [url, navGroups]);
 
