@@ -324,50 +324,29 @@ export default function AbsensiMonitor({
                     />
                 </div>
 
-                {/* Map + Activity */}
+                {/* Map + Activity. The map only appears once someone has
+                    checked in with GPS; otherwise the activity feed takes the
+                    full width so an empty day never shows a blank map box. */}
                 <div
-                    className="avn-2col"
+                    className={points.length > 0 ? 'avn-2col' : undefined}
                     style={{
                         display: 'grid',
-                        gridTemplateColumns: '1.6fr 1fr',
+                        gridTemplateColumns:
+                            points.length > 0 ? '1.6fr 1fr' : '1fr',
                         gap: 18,
                         alignItems: 'start',
                     }}
                 >
-                    <div style={{ ...card, padding: 14 }}>
-                        {points.length > 0 ? (
+                    {points.length > 0 && (
+                        <div style={{ ...card, padding: 14 }}>
                             <LocationMap
                                 points={points}
                                 height={MAP_HEIGHT}
                                 fit
                                 labels
                             />
-                        ) : (
-                            <div
-                                style={{
-                                    height: MAP_HEIGHT,
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: 8,
-                                    color: C.faint,
-                                    background: C.surface,
-                                    borderRadius: 10,
-                                }}
-                            >
-                                <AIcon
-                                    name="map-pin-off"
-                                    size={30}
-                                    color={C.faint}
-                                />
-                                <span style={{ fontSize: 13 }}>
-                                    Belum ada titik check-in GPS untuk tanggal
-                                    ini
-                                </span>
-                            </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
 
                     <div
                         style={{
