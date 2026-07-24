@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\ActivityController;
+use App\Http\Controllers\Api\AiAssistantController;
 use App\Http\Controllers\Api\AnnouncementController;
 use App\Http\Controllers\Api\AppConfigController;
 use App\Http\Controllers\Api\AttendanceController;
@@ -137,6 +138,12 @@ Route::prefix('v1')->group(function (): void {
 
             Route::get('face', [FaceController::class, 'status']);
             Route::post('face/enroll', [FaceController::class, 'enroll']);
+
+            // AI assistant — own-data scoped chat (single-shot JSON replies).
+            Route::get('ai', [AiAssistantController::class, 'session']);
+            Route::post('ai/chat', [AiAssistantController::class, 'chat']);
+            Route::get('ai/conversations/{conversation}', [AiAssistantController::class, 'conversation'])->whereNumber('conversation');
+            Route::delete('ai/conversations/{conversation}', [AiAssistantController::class, 'destroyConversation'])->whereNumber('conversation');
         });
 
         // Finance/payroll: reimbursement disbursement (role-gated in-controller).
