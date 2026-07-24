@@ -1,6 +1,6 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import TenantController from '@/actions/App/Http/Controllers/Avana/TenantController';
 import { AIcon, ActionBtn, btnP, C, card, thCell } from '@/lib/avana';
@@ -43,6 +43,21 @@ export default function KlienIndex({
 
     const featureTenant =
         tenants.data.find((tenant) => tenant.id === featureTenantId) ?? null;
+
+    // Features grouped by section (in server order) for the Kelola Fitur modal.
+    const groupedFeatures = useMemo(() => {
+        const out: { group: string; items: FeatureOption[] }[] = [];
+        for (const feature of features) {
+            const last = out[out.length - 1];
+            if (!last || last.group !== feature.group) {
+                out.push({ group: feature.group, items: [feature] });
+            } else {
+                last.items.push(feature);
+            }
+        }
+
+        return out;
+    }, [features]);
 
     useEffect(() => {
         if (flash?.success) {
@@ -599,7 +614,7 @@ export default function KlienIndex({
                         style={{
                             position: 'relative',
                             width: '100%',
-                            maxWidth: 520,
+                            maxWidth: 780,
                             maxHeight: '90vh',
                             overflowY: 'auto',
                             background: '#fff',
@@ -659,122 +674,194 @@ export default function KlienIndex({
                             </button>
                         </div>
 
-                        <div style={{ padding: '8px 24px 20px' }}>
-                            {features.map((feature, index) => {
-                                const enabled =
-                                    featureTenant.feature_codes.includes(
-                                        feature.code,
-                                    );
-
-                                return (
+                        <div style={{ padding: '8px 24px 22px' }}>
+                            {groupedFeatures.map((section) => (
+                                <div key={section.group}>
                                     <div
-                                        key={feature.id}
                                         style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'space-between',
-                                            padding: '14px 0',
-                                            borderTop:
-                                                index === 0
-                                                    ? 'none'
-                                                    : `1px solid ${C.line}`,
+                                            fontSize: 11,
+                                            fontWeight: 600,
+                                            letterSpacing: '.06em',
+                                            color: C.faint,
+                                            textTransform: 'uppercase',
+                                            padding: '16px 0 8px',
                                         }}
                                     >
-                                        <div
-                                            style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: 13,
-                                            }}
-                                        >
-                                            <div
-                                                style={{
-                                                    width: 36,
-                                                    height: 36,
-                                                    borderRadius: 10,
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    background: enabled
-                                                        ? 'rgba(47,84,201,.1)'
-                                                        : '#F1F3F9',
-                                                    color: enabled
-                                                        ? C.primary
-                                                        : C.faint,
-                                                }}
-                                            >
-                                                <AIcon
-                                                    name="layout-grid"
-                                                    size={17}
-                                                    color={
-                                                        enabled
-                                                            ? C.primary
-                                                            : C.faint
-                                                    }
-                                                />
-                                            </div>
-                                            <div>
-                                                <div
-                                                    style={{
-                                                        fontSize: 14,
-                                                        fontWeight: 600,
-                                                        color: C.navy,
-                                                    }}
-                                                >
-                                                    {feature.name}
-                                                </div>
-                                                <div
-                                                    style={{
-                                                        fontSize: 12,
-                                                        color: C.faint,
-                                                    }}
-                                                >
-                                                    {feature.code}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            role="switch"
-                                            aria-checked={enabled}
-                                            onClick={() =>
-                                                toggleFeature(
-                                                    featureTenant.id,
-                                                    feature.id,
-                                                )
-                                            }
-                                            style={{
-                                                width: 46,
-                                                height: 26,
-                                                borderRadius: 100,
-                                                border: 'none',
-                                                cursor: 'pointer',
-                                                position: 'relative',
-                                                transition: 'background .15s',
-                                                background: enabled
-                                                    ? C.primary
-                                                    : '#D5DCEA',
-                                                flex: 'none',
-                                            }}
-                                        >
-                                            <span
-                                                style={{
-                                                    position: 'absolute',
-                                                    top: 3,
-                                                    left: enabled ? 23 : 3,
-                                                    width: 20,
-                                                    height: 20,
-                                                    borderRadius: '50%',
-                                                    background: '#fff',
-                                                    transition: 'left .15s',
-                                                    boxShadow:
-                                                        '0 1px 3px rgba(15,23,42,.2)',
-                                                }}
-                                            />
-                                        </button>
+                                        {section.group}
                                     </div>
-                                );
-                            })}
+                                    <div
+                                        style={{
+                                            display: 'grid',
+                                            gridTemplateColumns:
+                                                'repeat(auto-fill, minmax(300px, 1fr))',
+                                            gap: '8px 18px',
+                                        }}
+                                    >
+                                        {section.items.map((feature) => {
+                                            const enabled =
+                                                feature.core ||
+                                                (feature.code !== null &&
+                                                    featureTenant.feature_codes.includes(
+                                                        feature.code,
+                                                    ));
+
+                                            return (
+                                                <div
+                                                    key={feature.key}
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent:
+                                                            'space-between',
+                                                        gap: 12,
+                                                        padding: '10px 12px',
+                                                        border: `1px solid ${C.line}`,
+                                                        borderRadius: 10,
+                                                        background: enabled
+                                                            ? '#fff'
+                                                            : '#FAFBFD',
+                                                    }}
+                                                >
+                                                    <div
+                                                        style={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: 12,
+                                                            minWidth: 0,
+                                                        }}
+                                                    >
+                                                        <div
+                                                            style={{
+                                                                width: 34,
+                                                                height: 34,
+                                                                borderRadius: 9,
+                                                                flex: 'none',
+                                                                display: 'flex',
+                                                                alignItems:
+                                                                    'center',
+                                                                justifyContent:
+                                                                    'center',
+                                                                background: enabled
+                                                                    ? 'rgba(47,84,201,.1)'
+                                                                    : '#F1F3F9',
+                                                                color: enabled
+                                                                    ? C.primary
+                                                                    : C.faint,
+                                                            }}
+                                                        >
+                                                            <AIcon
+                                                                name="layout-grid"
+                                                                size={16}
+                                                                color={
+                                                                    enabled
+                                                                        ? C.primary
+                                                                        : C.faint
+                                                                }
+                                                            />
+                                                        </div>
+                                                        <div
+                                                            style={{ minWidth: 0 }}
+                                                        >
+                                                            <div
+                                                                style={{
+                                                                    fontSize: 13.5,
+                                                                    fontWeight: 600,
+                                                                    color: C.navy,
+                                                                    whiteSpace:
+                                                                        'nowrap',
+                                                                    overflow:
+                                                                        'hidden',
+                                                                    textOverflow:
+                                                                        'ellipsis',
+                                                                }}
+                                                            >
+                                                                {feature.name}
+                                                            </div>
+                                                            {feature.code && (
+                                                                <div
+                                                                    style={{
+                                                                        fontSize: 11.5,
+                                                                        color: C.faint,
+                                                                    }}
+                                                                >
+                                                                    {feature.code}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    {feature.core ? (
+                                                        <span
+                                                            style={{
+                                                                fontSize: 11,
+                                                                fontWeight: 600,
+                                                                color: C.green,
+                                                                background:
+                                                                    'rgba(22,163,74,.1)',
+                                                                padding: '4px 10px',
+                                                                borderRadius: 999,
+                                                                flex: 'none',
+                                                                whiteSpace: 'nowrap',
+                                                            }}
+                                                        >
+                                                            Selalu aktif
+                                                        </span>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            role="switch"
+                                                            aria-checked={enabled}
+                                                            onClick={() =>
+                                                                feature.id !==
+                                                                    null &&
+                                                                toggleFeature(
+                                                                    featureTenant.id,
+                                                                    feature.id,
+                                                                )
+                                                            }
+                                                            style={{
+                                                                width: 44,
+                                                                height: 25,
+                                                                borderRadius: 100,
+                                                                border: 'none',
+                                                                cursor: 'pointer',
+                                                                position:
+                                                                    'relative',
+                                                                transition:
+                                                                    'background .15s',
+                                                                background: enabled
+                                                                    ? C.primary
+                                                                    : '#D5DCEA',
+                                                                flex: 'none',
+                                                            }}
+                                                        >
+                                                            <span
+                                                                style={{
+                                                                    position:
+                                                                        'absolute',
+                                                                    top: 3,
+                                                                    left: enabled
+                                                                        ? 22
+                                                                        : 3,
+                                                                    width: 19,
+                                                                    height: 19,
+                                                                    borderRadius:
+                                                                        '50%',
+                                                                    background:
+                                                                        '#fff',
+                                                                    transition:
+                                                                        'left .15s',
+                                                                    boxShadow:
+                                                                        '0 1px 3px rgba(15,23,42,.2)',
+                                                                }}
+                                                            />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>

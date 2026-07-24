@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\CalendarEvent;
+use App\Models\Department;
+use App\Models\Employee;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -35,16 +37,60 @@ it('renders the calendar index with month-grid props', function (): void {
             ->where('month', Carbon::now()->format('Y-m'))
             ->has('monthLabel')
             ->has('types')
+            ->has('employees')
+            ->has('departments')
             ->has('kpis')
             ->has('events', 1, fn (Assert $event) => $event
                 ->has('id')
                 ->has('title')
                 ->has('type')
+                ->has('employee_id')
+                ->has('department_id')
+                ->has('assignee')
                 ->has('start_date')
                 ->has('end_date')
                 ->has('all_day')
                 ->has('color')
                 ->has('description')));
+});
+
+it('assigns an event to an employee or a department', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $department = Department::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.kalender.store'), [
+            'title' => 'Rapat Tim Engineering',
+            'type' => 'meeting',
+            'start_date' => Carbon::now()->startOfMonth()->addDays(2)->toDateString(),
+            'employee_id' => $employee->id,
+            'department_id' => $department->id,
+        ])
+        ->assertSessionHas('success');
+
+    $event = CalendarEvent::where('title', 'Rapat Tim Engineering')->firstOrFail();
+    expect($event->employee_id)->toBe($employee->id)
+        ->and($event->department_id)->toBe($department->id);
+
+    // The transformed row exposes the employee name as the assignee (wins over dept).
+    actingAs($this->admin)
+        ->get(route('avana.kalender', ['month' => Carbon::now()->format('Y-m')]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->where(
+            'events.0.assignee',
+            $employee->full_name,
+        ));
+});
+
+it('rejects an assignee outside the tenant', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.kalender.store'), [
+            'title' => 'Coba',
+            'type' => 'event',
+            'start_date' => '2026-07-10',
+            'employee_id' => 999999,
+        ])
+        ->assertSessionHasErrors('employee_id');
 });
 
 it('filters events by the requested month', function (): void {

@@ -31,4 +31,14 @@ final class CalendarEvent extends Model
     {
         return $this->belongsTo(Tenant::class);
     }
+
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class);
+    }
+
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
+    }
 }

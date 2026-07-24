@@ -38,9 +38,12 @@ export interface PackageOption {
 
 /** A toggleable feature module option. */
 export interface FeatureOption {
-    id: number;
-    code: string;
+    key: string;
+    id: number | null;
+    code: string | null;
     name: string;
+    group: string;
+    core: boolean;
 }
 
 /** Active filter values carried on the list page. */

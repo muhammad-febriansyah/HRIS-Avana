@@ -11,6 +11,7 @@ use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\AvanaNav;
+use App\Support\FeatureGroups;
 use App\Support\PermissionCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -66,16 +67,7 @@ class AccessController extends Controller
      *
      * @var array<string, string>
      */
-    private const GROUP_LABELS = [
-        'core' => 'INTI HR',
-        'time' => 'WAKTU & KEHADIRAN',
-        'payroll' => 'PAYROLL & KEUANGAN',
-        'talent' => 'TALENTA',
-        'engagement' => 'ENGAGEMENT',
-        'analytics' => 'ANALITIK',
-        'asset' => 'ASET',
-        'crm' => 'CRM',
-    ];
+    private const GROUP_LABELS = FeatureGroups::LABELS;
 
     /**
      * Fixed core/system rows that are NOT tenant features (always available, no

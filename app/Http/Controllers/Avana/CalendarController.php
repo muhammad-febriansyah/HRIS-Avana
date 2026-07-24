@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
 use App\Models\CalendarEvent;
+use App\Models\Department;
+use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -53,6 +55,7 @@ class CalendarController extends Controller
         $monthEnd = $month->copy()->endOfMonth();
 
         $events = CalendarEvent::forTenant($tenantId)
+            ->with(['employee:id,full_name', 'department:id,name'])
             ->where('start_date', '<=', $monthEnd->toDateString())
             ->where(function ($query) use ($monthStart): void {
                 $query->where('end_date', '>=', $monthStart->toDateString())
@@ -70,6 +73,17 @@ class CalendarController extends Controller
             'monthLabel' => self::MONTHS_ID[$month->month].' '.$month->year,
             'events' => $events,
             'types' => $this->typeOptions(),
+            'employees' => Employee::forTenant($tenantId)
+                ->where('status', 'active')
+                ->orderBy('full_name')
+                ->get(['id', 'full_name'])
+                ->map(fn (Employee $e): array => ['value' => (string) $e->id, 'label' => $e->full_name])
+                ->all(),
+            'departments' => Department::forTenant($tenantId)
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->map(fn (Department $d): array => ['value' => (string) $d->id, 'label' => $d->name])
+                ->all(),
             'kpis' => [
                 'this_month' => $events->count(),
             ],
@@ -142,9 +156,13 @@ class CalendarController extends Controller
      */
     private function validateEvent(Request $request): array
     {
+        $tenantId = (int) $request->user()->tenant_id;
+
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'type' => ['required', Rule::in(self::TYPES)],
+            'employee_id' => ['nullable', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
+            'department_id' => ['nullable', Rule::exists('departments', 'id')->where('tenant_id', $tenantId)],
             'start_date' => ['required', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
             'all_day' => ['nullable', 'boolean'],
@@ -168,6 +186,10 @@ class CalendarController extends Controller
             'id' => $event->id,
             'title' => $event->title,
             'type' => $event->type,
+            'employee_id' => $event->employee_id,
+            'department_id' => $event->department_id,
+            // Who the agenda is for: a named employee wins, else a department.
+            'assignee' => $event->employee?->full_name ?? $event->department?->name,
             'start_date' => $event->start_date?->toDateString(),
             'end_date' => $event->end_date?->toDateString(),
             'all_day' => (bool) $event->all_day,

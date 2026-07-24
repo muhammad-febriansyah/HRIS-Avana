@@ -10,6 +10,9 @@ interface CalendarEventRow {
     id: number;
     title: string;
     type: string;
+    employee_id: number | null;
+    department_id: number | null;
+    assignee: string | null;
     start_date: string | null;
     end_date: string | null;
     all_day: boolean;
@@ -27,12 +30,16 @@ interface KalenderIndexProps {
     monthLabel: string;
     events: CalendarEventRow[];
     types: SelectOption[];
+    employees: SelectOption[];
+    departments: SelectOption[];
     kpis: { this_month: number };
 }
 
 interface EventFormData {
     title: string;
     type: string;
+    employee_id: string;
+    department_id: string;
     start_date: string;
     end_date: string;
     description: string;
@@ -41,6 +48,8 @@ interface EventFormData {
 const emptyForm: EventFormData = {
     title: '',
     type: 'event',
+    employee_id: '',
+    department_id: '',
     start_date: '',
     end_date: '',
     description: '',
@@ -161,6 +170,8 @@ export default function KalenderIndex({
     monthLabel,
     events,
     types,
+    employees,
+    departments,
     kpis,
 }: KalenderIndexProps) {
     const { flash } = usePage<FlashProps>().props;
@@ -211,6 +222,10 @@ export default function KalenderIndex({
         form.setData({
             title: event.title,
             type: event.type,
+            employee_id: event.employee_id ? String(event.employee_id) : '',
+            department_id: event.department_id
+                ? String(event.department_id)
+                : '',
             start_date: event.start_date ?? '',
             end_date: event.end_date ?? '',
             description: event.description ?? '',
@@ -439,7 +454,11 @@ export default function KalenderIndex({
                                                         e.stopPropagation();
                                                         openEdit(event);
                                                     }}
-                                                    title={event.title}
+                                                    title={
+                                                        event.assignee
+                                                            ? `${event.title} · ${event.assignee}`
+                                                            : event.title
+                                                    }
                                                     style={{
                                                         display: 'block',
                                                         width: '100%',
@@ -453,13 +472,38 @@ export default function KalenderIndex({
                                                         fontSize: 11,
                                                         fontWeight: 600,
                                                         cursor: 'pointer',
-                                                        whiteSpace: 'nowrap',
                                                         overflow: 'hidden',
-                                                        textOverflow:
-                                                            'ellipsis',
                                                     }}
                                                 >
-                                                    {event.title}
+                                                    <span
+                                                        style={{
+                                                            display: 'block',
+                                                            whiteSpace: 'nowrap',
+                                                            overflow: 'hidden',
+                                                            textOverflow:
+                                                                'ellipsis',
+                                                        }}
+                                                    >
+                                                        {event.title}
+                                                    </span>
+                                                    {event.assignee && (
+                                                        <span
+                                                            style={{
+                                                                display: 'block',
+                                                                fontSize: 9.5,
+                                                                fontWeight: 500,
+                                                                opacity: 0.75,
+                                                                whiteSpace:
+                                                                    'nowrap',
+                                                                overflow:
+                                                                    'hidden',
+                                                                textOverflow:
+                                                                    'ellipsis',
+                                                            }}
+                                                        >
+                                                            {event.assignee}
+                                                        </span>
+                                                    )}
                                                 </button>
                                             );
                                         })}
@@ -711,6 +755,65 @@ export default function KalenderIndex({
                                             {form.errors.end_date}
                                         </div>
                                     )}
+                                </div>
+                            </div>
+                            <div
+                                style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '1fr 1fr',
+                                    gap: 14,
+                                }}
+                            >
+                                <div>
+                                    <label style={labelStyle}>
+                                        Divisi / Departemen
+                                    </label>
+                                    <select
+                                        value={form.data.department_id}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'department_id',
+                                                e.target.value,
+                                            )
+                                        }
+                                        style={inputStyle}
+                                    >
+                                        <option value="">
+                                            — Semua divisi —
+                                        </option>
+                                        {departments.map((d) => (
+                                            <option key={d.value} value={d.value}>
+                                                {d.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style={labelStyle}>
+                                        Penanggung Jawab
+                                    </label>
+                                    <select
+                                        value={form.data.employee_id}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'employee_id',
+                                                e.target.value,
+                                            )
+                                        }
+                                        style={inputStyle}
+                                    >
+                                        <option value="">
+                                            — Tidak spesifik —
+                                        </option>
+                                        {employees.map((emp) => (
+                                            <option
+                                                key={emp.value}
+                                                value={emp.value}
+                                            >
+                                                {emp.label}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
                             <div>

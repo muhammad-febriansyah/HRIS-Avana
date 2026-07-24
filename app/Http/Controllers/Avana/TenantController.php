@@ -11,6 +11,7 @@ use App\Models\Invoice;
 use App\Models\Package;
 use App\Models\Subscription;
 use App\Models\Tenant;
+use App\Support\FeatureGroups;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
@@ -105,12 +106,48 @@ class TenantController extends Controller
                 ],
             ],
             'packages' => $this->packageOptions(),
-            'features' => Feature::query()
-                ->select('id', 'code', 'name')
-                ->orderBy('name')
-                ->get(),
+            'features' => $this->featureCatalog(),
             'filters' => $request->only(['search', 'status']),
         ]);
+    }
+
+    /**
+     * The feature toggle catalog for the Kelola Fitur modal: fixed core rows
+     * (always active, no switch) bookending the grouped, per-tenant-togglable
+     * features. Mirrors the Hak Akses matrix so both screens list the same menus.
+     *
+     * @return array<int, array{key: string, id: int|null, code: string|null, name: string, group: string, core: bool}>
+     */
+    private function featureCatalog(): array
+    {
+        $core = fn (array $row): array => [
+            'key' => 'core:'.$row['label'],
+            'id' => null,
+            'code' => null,
+            'name' => $row['label'],
+            'group' => $row['group'],
+            'core' => true,
+        ];
+
+        $features = Feature::query()
+            ->get(['id', 'code', 'name', 'module_group'])
+            ->sortBy(fn (Feature $feature): string => sprintf('%02d-%s', FeatureGroups::sortIndex($feature->module_group), $feature->name))
+            ->values()
+            ->map(fn (Feature $feature): array => [
+                'key' => $feature->code,
+                'id' => $feature->id,
+                'code' => $feature->code,
+                'name' => $feature->name,
+                'group' => FeatureGroups::label($feature->module_group),
+                'core' => false,
+            ])
+            ->all();
+
+        return [
+            ...array_map($core, FeatureGroups::CORE_HEAD),
+            ...$features,
+            ...array_map($core, FeatureGroups::CORE_TAIL),
+        ];
     }
 
     /**
