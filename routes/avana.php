@@ -77,6 +77,7 @@ use App\Http\Controllers\Avana\ShiftSwapController;
 use App\Http\Controllers\Avana\SurveyController;
 use App\Http\Controllers\Avana\TalentController;
 use App\Http\Controllers\Avana\TenantAiTokenController;
+use App\Http\Controllers\Avana\TenantAppearanceController;
 use App\Http\Controllers\Avana\TenantController;
 use App\Http\Controllers\Avana\TimesheetController;
 use App\Http\Controllers\Avana\UserController;
@@ -696,6 +697,11 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::get('ai', [AiAssistantController::class, 'index'])->name('ai');
     Route::post('ai/stream', [AiAssistantController::class, 'stream'])->name('ai.stream');
     Route::delete('ai/conversation/{conversation}', [AiAssistantController::class, 'destroyConversation'])->name('ai.conversation.destroy');
+
+    // Tampilan & Tema (tenant admin/HR) — recolour sidebar & topbar
+    Route::get('tampilan', [TenantAppearanceController::class, 'edit'])->name('tampilan');
+    Route::post('tampilan', [TenantAppearanceController::class, 'update'])->name('tampilan.update');
+    Route::post('tampilan/reset', [TenantAppearanceController::class, 'reset'])->name('tampilan.reset');
 
     // Token AI (tenant admin/HR) — top up wallet via Pakasir + per-user caps
     Route::get('token-ai', [TenantAiTokenController::class, 'index'])->name('token-ai');

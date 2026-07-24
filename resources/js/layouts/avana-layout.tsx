@@ -273,8 +273,8 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                 className={`avn-sidebar ${mobileNav ? 'avn-open' : ''}`}
                 style={{
                     width: collapsed ? 76 : 248,
-                    background: '#fff',
-                    borderRight: `1px solid ${C.border}`,
+                    background: 'var(--avn-sidebar-bg)',
+                    borderRight: '1px solid var(--avn-sidebar-border)',
                     display: 'flex',
                     flexDirection: 'column',
                     flex: 'none',
@@ -291,7 +291,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                         display: 'flex',
                         alignItems: 'center',
                         padding: '0 18px',
-                        borderBottom: `1px solid ${C.border}`,
+                        borderBottom: '1px solid var(--avn-sidebar-border)',
                         gap: 10,
                         flex: 'none',
                     }}
@@ -333,7 +333,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                                         fontSize: 10.5,
                                         fontWeight: 600,
                                         letterSpacing: '.06em',
-                                        color: C.faint,
+                                        color: 'var(--avn-sidebar-muted)',
                                         padding: collapsed
                                             ? '8px 0 4px'
                                             : '10px 12px 4px',
@@ -379,10 +379,10 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                                                 textDecoration: 'none',
                                                 fontWeight: active ? 600 : 500,
                                                 color: active
-                                                    ? C.primary
-                                                    : '#5B6472',
+                                                    ? 'var(--avn-sidebar-accent)'
+                                                    : 'var(--avn-sidebar-text)',
                                                 background: active
-                                                    ? 'rgba(47,84,201,.09)'
+                                                    ? 'var(--avn-sidebar-active-bg)'
                                                     : 'transparent',
                                             }}
                                         >
@@ -396,8 +396,8 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                                                         fontSize: 16,
                                                         lineHeight: 1,
                                                         color: active
-                                                            ? C.primary
-                                                            : C.faint,
+                                                            ? 'var(--avn-sidebar-accent)'
+                                                            : 'var(--avn-sidebar-muted)',
                                                     }}
                                                 >
                                                     ›
@@ -468,8 +468,8 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                                                     ? 600
                                                     : 500,
                                                 color: hasActiveChild
-                                                    ? C.primary
-                                                    : '#5B6472',
+                                                    ? 'var(--avn-sidebar-accent)'
+                                                    : 'var(--avn-sidebar-text)',
                                                 background: 'transparent',
                                             }}
                                         >
@@ -506,7 +506,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                 <div
                     style={{
                         padding: '14px 12px',
-                        borderTop: `1px solid ${C.border}`,
+                        borderTop: '1px solid var(--avn-sidebar-border)',
                         flex: 'none',
                     }}
                 >
@@ -522,9 +522,9 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                background: C.surface,
+                                background: 'var(--avn-sidebar-soft)',
                                 borderRadius: 9,
-                                color: C.primary,
+                                color: 'var(--avn-sidebar-accent)',
                                 textDecoration: 'none',
                             }}
                         >
@@ -533,8 +533,8 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                     ) : (
                         <div
                             style={{
-                                background: C.surface,
-                                border: `1px solid ${C.border}`,
+                                background: 'var(--avn-sidebar-soft)',
+                                border: '1px solid var(--avn-sidebar-border)',
                                 borderRadius: 12,
                                 padding: 12,
                             }}
@@ -555,21 +555,21 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                                         width: 26,
                                         height: 26,
                                         borderRadius: 8,
-                                        background: 'rgba(47,84,201,.10)',
+                                        background: 'var(--avn-sidebar-active-bg)',
                                         flex: 'none',
                                     }}
                                 >
                                     <AIcon
                                         name="life-buoy"
                                         size={15}
-                                        color={C.primary}
+                                        color="var(--avn-sidebar-accent)"
                                     />
                                 </span>
                                 <span
                                     style={{
                                         fontSize: 12.5,
                                         fontWeight: 700,
-                                        color: C.text,
+                                        color: 'var(--avn-sidebar-text)',
                                         letterSpacing: '.01em',
                                     }}
                                 >
@@ -621,8 +621,8 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                 <header
                     style={{
                         height: 64,
-                        background: '#fff',
-                        borderBottom: `1px solid ${C.border}`,
+                        background: 'var(--avn-topbar-bg)',
+                        borderBottom: '1px solid var(--avn-topbar-border)',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 16,
@@ -637,14 +637,14 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                         style={{
                             width: 38,
                             height: 38,
-                            border: `1px solid ${C.border}`,
-                            background: '#fff',
+                            border: '1px solid var(--avn-topbar-border)',
+                            background: 'var(--avn-topbar-soft)',
                             borderRadius: 8,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             cursor: 'pointer',
-                            color: C.text,
+                            color: 'var(--avn-topbar-text)',
                             flex: 'none',
                         }}
                     >
@@ -695,14 +695,14 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                             position: 'relative',
                             width: 40,
                             height: 40,
-                            border: `1px solid ${C.border}`,
-                            background: '#fff',
+                            border: '1px solid var(--avn-topbar-border)',
+                            background: 'var(--avn-topbar-soft)',
                             borderRadius: 8,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             cursor: 'pointer',
-                            color: C.text,
+                            color: 'var(--avn-topbar-text)',
                         }}
                     >
                         <AIcon name="bell" size={18} />
@@ -734,7 +734,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                         style={{
                             width: 1,
                             height: 30,
-                            background: C.border,
+                            background: 'var(--avn-topbar-border)',
                             margin: '0 2px',
                         }}
                     />
@@ -794,7 +794,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                                         style={{
                                             fontSize: 13,
                                             fontWeight: 600,
-                                            color: C.navy,
+                                            color: 'var(--avn-topbar-text)',
                                         }}
                                     >
                                         {userName}
@@ -802,7 +802,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                                     <div
                                         style={{
                                             fontSize: 11.5,
-                                            color: C.muted,
+                                            color: 'var(--avn-topbar-muted)',
                                         }}
                                     >
                                         {page.props.auth?.tenant?.name ??
@@ -812,7 +812,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                                 <AIcon
                                     name="chevron-down"
                                     size={16}
-                                    color={C.faint}
+                                    color="var(--avn-topbar-muted)"
                                 />
                             </button>
                         </DropdownMenuTrigger>

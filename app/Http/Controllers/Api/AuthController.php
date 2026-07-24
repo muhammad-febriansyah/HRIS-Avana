@@ -177,9 +177,10 @@ class AuthController extends Controller
      */
     private function userPayload(User $user): array
     {
-        $user->loadMissing('roles:id,code', 'employee');
+        $user->loadMissing('roles:id,code', 'employee', 'tenant.company:id,tenant_id,logo_path');
 
         $employee = $user->employee;
+        $tenant = $user->tenant;
 
         return [
             'id' => $user->id,
@@ -190,6 +191,15 @@ class AuthController extends Controller
                 ? Storage::disk('public')->url($user->avatar_path)
                 : ($employee?->photo_path !== null ? Storage::disk('public')->url($employee->photo_path) : null),
             'employee' => $employee !== null ? $this->employeeProfile($employee) : null,
+            // Tenant branding for the mobile splash / white-label after login.
+            'tenant' => $tenant !== null ? [
+                'id' => $tenant->id,
+                'name' => $tenant->name,
+                'company_name' => $tenant->company_name,
+                'logo_url' => $tenant->company?->logo_path !== null
+                    ? Storage::disk('public')->url($tenant->company->logo_path)
+                    : null,
+            ] : null,
         ];
     }
 }

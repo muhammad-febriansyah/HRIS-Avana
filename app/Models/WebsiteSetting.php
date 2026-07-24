@@ -20,6 +20,16 @@ final class WebsiteSetting extends Model
     private const DISK = 'public';
 
     /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'theme' => 'array',
+        ];
+    }
+
+    /**
      * The singleton settings row, created on first access.
      */
     public static function current(): self

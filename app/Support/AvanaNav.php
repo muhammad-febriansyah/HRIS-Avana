@@ -157,6 +157,7 @@ final class AvanaNav
                 self::leaf('hak-akses', 'Hak Akses', 'shield-check', '/avana/hak-akses', null, self::MANAGE_MODULES, true),
                 self::leaf('approval-workflow', 'Alur Persetujuan', 'git-branch', '/avana/approval-workflow', null, self::MANAGE_MODULES, true),
                 self::leaf('email-settings', 'Pengaturan Email', 'mail', '/avana/email-settings', null, self::MANAGE_MODULES, true),
+                self::leaf('tampilan', 'Tampilan & Tema', 'palette', '/avana/tampilan', null, ['appearance'], false),
                 self::leaf('token-ai', 'Token AI', 'coins', '/avana/token-ai', null, ['ai_topup'], false),
                 self::leaf('audit', 'Audit Trail', 'history', '/avana/audit', null, ['audit']),
             ]],

@@ -49,7 +49,7 @@ final class PermissionCatalog
         'helpdesk', 'announcement', 'survey', 'calendar', 'ai', 'ai_topup', 'asset', 'crm',
         'report', 'dynamic_report', 'attrition', 'audit',
         'branch', 'department', 'position', 'organization',
-        'user', 'settings', 'role', 'permission',
+        'user', 'settings', 'role', 'permission', 'appearance',
     ];
 
     /**

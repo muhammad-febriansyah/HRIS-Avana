@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Company;
 use App\Models\Employee;
 use Database\Seeders\AvanaDemoSeeder;
 
@@ -29,6 +30,20 @@ it('logs an employee in and returns access_token + user', function (): void {
 
     expect($response->json('user.roles'))->toContain('employee');
     expect($response->json('user.employee'))->not->toBeNull();
+});
+
+it('returns tenant branding (logo) in the login payload for the splash', function (): void {
+    Company::where('tenant_id', 1)->update(['logo_path' => 'company-logos/nusantara.png']);
+
+    $response = $this->postJson('/api/v1/auth/login', [
+        'email' => 'bagus.p@nusantara.co.id',
+        'password' => 'password',
+    ])
+        ->assertOk()
+        ->assertJsonStructure(['user' => ['tenant' => ['id', 'name', 'company_name', 'logo_url']]]);
+
+    expect($response->json('user.tenant.company_name'))->toBe('PT Nusantara Jaya')
+        ->and($response->json('user.tenant.logo_url'))->toContain('company-logos/nusantara.png');
 });
 
 it('rejects a wrong password', function (): void {
