@@ -145,6 +145,7 @@ final class AvanaNav
                 self::leaf('analytics', 'HR Analytics', 'chart-pie', '/avana/analytics', 'dynamic_report', ['dynamic_report']),
                 self::leaf('attrition', 'Prediksi Resign', 'trending-down', '/avana/attrition', 'attrition', ['attrition']),
                 self::leaf('dynamic-report', 'Dynamic Report', 'table', '/avana/dynamic-report', 'dynamic_report', ['dynamic_report']),
+                self::leaf('report-studio', 'Report Studio', 'table-2', '/avana/report-studio', 'dynamic_report', ['dynamic_report']),
             ]],
             ['title' => 'SISTEM', 'items' => [
                 self::leaf('perusahaan', 'Perusahaan', 'building-2', '/avana/perusahaan', 'organization', ['branch', 'department', 'position', 'organization']),

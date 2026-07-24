@@ -63,6 +63,7 @@ use App\Http\Controllers\Avana\PermissionRequestController;
 use App\Http\Controllers\Avana\RecruitmentController;
 use App\Http\Controllers\Avana\RecruitmentRequisitionController;
 use App\Http\Controllers\Avana\ReimbursementController;
+use App\Http\Controllers\Avana\ReportStudioController;
 use App\Http\Controllers\Avana\RosterController;
 use App\Http\Controllers\Avana\SalaryGradeStepController;
 use App\Http\Controllers\Avana\SalaryMasterController;
@@ -548,6 +549,9 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::get('dynamic-report/{report}/run', [DynamicReportController::class, 'run'])->name('dynamic-report.run');
     Route::get('dynamic-report/{report}/export', [DynamicReportController::class, 'export'])->name('dynamic-report.export');
     Route::delete('dynamic-report/{report}', [DynamicReportController::class, 'destroy'])->name('dynamic-report.destroy');
+    Route::get('report-studio', [ReportStudioController::class, 'index'])->name('report-studio');
+    Route::post('report-studio/run', [ReportStudioController::class, 'run'])->name('report-studio.run');
+    Route::post('report-studio/export', [ReportStudioController::class, 'export'])->name('report-studio.export');
 
     // Manajemen aset
     Route::get('aset', [AssetController::class, 'index'])->name('aset');
