@@ -5,6 +5,8 @@ use App\Models\User;
 use App\Models\WebsiteSetting;
 use App\Support\TenantTheme;
 use Database\Seeders\AvanaDemoSeeder;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 
 use function Pest\Laravel\actingAs;
@@ -126,6 +128,78 @@ it('resets the platform theme for a super admin', function (): void {
         ->assertRedirect();
 
     expect(WebsiteSetting::current()->theme)->toBeNull();
+});
+
+it('uploads a company logo for the tenant', function (): void {
+    Storage::fake('public');
+
+    actingAs($this->admin)
+        ->post(route('avana.tampilan.logo'), [
+            'logo' => UploadedFile::fake()->image('logo.png', 200, 200),
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $company = $this->tenant->fresh()->company;
+    expect($company->logo_path)->not->toBeNull();
+    Storage::disk('public')->assertExists($company->logo_path);
+});
+
+it('exposes the uploaded logo url on the editor', function (): void {
+    Storage::fake('public');
+    $path = UploadedFile::fake()->image('logo.png')->store('company-logos', 'public');
+    $this->tenant->company->update(['logo_path' => $path]);
+
+    actingAs($this->admin)
+        ->get(route('avana.tampilan'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('is_platform', false)
+            ->where('logo_url', fn ($url) => is_string($url) && str_contains($url, 'company-logos')));
+});
+
+it('rejects a non-image logo upload', function (): void {
+    Storage::fake('public');
+
+    actingAs($this->admin)
+        ->post(route('avana.tampilan.logo'), [
+            'logo' => UploadedFile::fake()->create('logo.pdf', 100, 'application/pdf'),
+        ])
+        ->assertSessionHasErrors('logo');
+});
+
+it('removes the company logo and deletes the file', function (): void {
+    Storage::fake('public');
+    $path = UploadedFile::fake()->image('old.png')->store('company-logos', 'public');
+    $this->tenant->company->update(['logo_path' => $path]);
+
+    actingAs($this->admin)
+        ->delete(route('avana.tampilan.logo.remove'))
+        ->assertRedirect();
+
+    expect($this->tenant->fresh()->company->logo_path)->toBeNull();
+    Storage::disk('public')->assertMissing($path);
+});
+
+it('forbids a user without permission from uploading a logo', function (): void {
+    actingAs($this->employee)
+        ->post(route('avana.tampilan.logo'), [
+            'logo' => UploadedFile::fake()->image('logo.png'),
+        ])
+        ->assertForbidden();
+});
+
+it('uploads the platform logo to website settings for a super admin', function (): void {
+    Storage::fake('public');
+
+    actingAs($this->superAdmin)
+        ->post(route('avana.tampilan.logo'), [
+            'logo' => UploadedFile::fake()->image('platform.png'),
+        ])
+        ->assertRedirect();
+
+    expect(WebsiteSetting::current()->logo_path)->not->toBeNull();
+    // The tenant's own company logo is untouched.
+    expect($this->tenant->fresh()->company->logo_path)->toBeNull();
 });
 
 it('drops invalid colours and merges defaults when resolving', function (): void {

@@ -709,6 +709,8 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::get('tampilan', [TenantAppearanceController::class, 'edit'])->name('tampilan');
     Route::post('tampilan', [TenantAppearanceController::class, 'update'])->name('tampilan.update');
     Route::post('tampilan/reset', [TenantAppearanceController::class, 'reset'])->name('tampilan.reset');
+    Route::post('tampilan/logo', [TenantAppearanceController::class, 'updateLogo'])->name('tampilan.logo');
+    Route::delete('tampilan/logo', [TenantAppearanceController::class, 'removeLogo'])->name('tampilan.logo.remove');
 
     // Token AI (tenant admin/HR) — top up wallet via Pakasir + per-user caps
     Route::get('token-ai', [TenantAiTokenController::class, 'index'])->name('token-ai');

@@ -10,6 +10,7 @@ use App\Support\TenantTheme;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -31,12 +32,63 @@ class TenantAppearanceController extends Controller
         $this->ensureCan($request, 'view');
         $source = $this->themeSource($request);
 
+        $logoPath = $this->currentLogoPath($request);
+
         return Inertia::render('avana/tampilan/index', [
             'theme' => TenantTheme::resolve($source->theme),
             'defaults' => TenantTheme::DEFAULTS,
             'tokens' => TenantTheme::TOKENS,
             'presets' => TenantTheme::PRESETS,
+            'logo_url' => $logoPath !== null ? Storage::disk('public')->url($logoPath) : null,
+            'is_platform' => $source instanceof WebsiteSetting,
         ]);
+    }
+
+    /**
+     * Upload (replace) the company logo shown in the sidebar. For the platform
+     * scope it updates the website-settings logo; for a tenant it updates that
+     * tenant's company logo, which white-labels the sidebar for its users.
+     */
+    public function updateLogo(Request $request): RedirectResponse
+    {
+        $this->ensureCan($request, 'update');
+
+        $request->validate([
+            'logo' => ['required', 'image', 'max:1024'],
+        ], [
+            'logo.image' => 'Berkas harus berupa gambar (PNG, JPG, atau WEBP).',
+            'logo.max' => 'Ukuran logo maksimal 1 MB.',
+        ]);
+
+        $source = $this->logoSource($request);
+
+        // Drop the previous file so replaced logos don't accumulate.
+        if (! empty($source->logo_path)) {
+            Storage::disk('public')->delete($source->logo_path);
+        }
+
+        $path = $request->file('logo')->store('company-logos', 'public');
+        $source->update(['logo_path' => $path]);
+
+        return back()->with('success', 'Logo berhasil diperbarui');
+    }
+
+    /**
+     * Remove the company logo and fall back to the AvanaHR mark.
+     */
+    public function removeLogo(Request $request): RedirectResponse
+    {
+        $this->ensureCan($request, 'update');
+
+        $source = $this->logoSource($request);
+
+        if (! empty($source->logo_path)) {
+            Storage::disk('public')->delete($source->logo_path);
+        }
+
+        $source->update(['logo_path' => null]);
+
+        return back()->with('success', 'Logo dihapus');
     }
 
     /**
@@ -97,6 +149,41 @@ class TenantAppearanceController extends Controller
         $tenantId = $viewTenantId > 0 ? $viewTenantId : $user->tenant_id;
 
         return Tenant::query()->findOrFail($tenantId);
+    }
+
+    /**
+     * The current logo path for the active scope, read-only (never creates a
+     * company row on a GET request). Null when no logo has been uploaded.
+     */
+    private function currentLogoPath(Request $request): ?string
+    {
+        $source = $this->themeSource($request);
+
+        if ($source instanceof WebsiteSetting) {
+            return $source->logo_path;
+        }
+
+        /** @var Tenant $source */
+        return $source->company?->logo_path;
+    }
+
+    /**
+     * The model that carries the logo for the active scope: the website-settings
+     * singleton for the platform, otherwise the active tenant's company row
+     * (created on demand so a tenant without one can still set a logo).
+     */
+    private function logoSource(Request $request): Model
+    {
+        $source = $this->themeSource($request);
+
+        if ($source instanceof WebsiteSetting) {
+            return $source;
+        }
+
+        /** @var Tenant $source */
+        return $source->company()->firstOrCreate([], [
+            'name' => $source->company_name ?? $source->name,
+        ]);
     }
 
     /**

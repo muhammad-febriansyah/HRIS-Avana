@@ -1,6 +1,6 @@
 import { Head, router, usePage } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import TenantAppearanceController from '@/actions/App/Http/Controllers/Avana/TenantAppearanceController';
 import { AIcon, btnOut, btnP, C, card, hexA } from '@/lib/avana';
@@ -28,6 +28,8 @@ interface PageProps {
     defaults: Colors;
     tokens: Token[];
     presets: Preset[];
+    logo_url: string | null;
+    is_platform: boolean;
 }
 
 type FlashProps = { flash?: { success?: string; error?: string } };
@@ -194,6 +196,8 @@ export default function TampilanTema({
     defaults,
     tokens,
     presets,
+    logo_url,
+    is_platform,
 }: PageProps) {
     const page = usePage<
         FlashProps & {
@@ -253,6 +257,37 @@ export default function TampilanTema({
         );
     };
 
+    const logoInput = useRef<HTMLInputElement>(null);
+    const [uploadingLogo, setUploadingLogo] = useState(false);
+
+    const onPickLogo = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) {
+            return;
+        }
+        setUploadingLogo(true);
+        router.post(
+            TenantAppearanceController.updateLogo().url,
+            { logo: file },
+            {
+                forceFormData: true,
+                preserveScroll: true,
+                onFinish: () => {
+                    setUploadingLogo(false);
+                    if (logoInput.current) {
+                        logoInput.current.value = '';
+                    }
+                },
+            },
+        );
+    };
+
+    const removeLogo = () => {
+        router.delete(TenantAppearanceController.removeLogo().url, {
+            preserveScroll: true,
+        });
+    };
+
     return (
         <>
             <Head title="Tampilan & Tema" />
@@ -299,6 +334,117 @@ export default function TampilanTema({
                 >
                     {/* editor */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                        <div style={{ ...card, padding: 20 }}>
+                            <div style={sectionTitle}>Logo</div>
+                            <div
+                                style={{
+                                    fontSize: 12.5,
+                                    color: C.muted,
+                                    marginTop: 2,
+                                }}
+                            >
+                                {is_platform
+                                    ? 'Logo platform (AvanaHR).'
+                                    : 'Logo perusahaan yang tampil di sidebar panel Anda. Tanpa logo, sidebar memakai lambang AvanaHR.'}
+                            </div>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 16,
+                                    marginTop: 14,
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        width: 96,
+                                        height: 96,
+                                        borderRadius: 12,
+                                        border: `1px solid ${C.border}`,
+                                        background: '#fff',
+                                        display: 'grid',
+                                        placeItems: 'center',
+                                        overflow: 'hidden',
+                                        flex: 'none',
+                                    }}
+                                >
+                                    {logo_url ? (
+                                        <img
+                                            src={logo_url}
+                                            alt="Logo"
+                                            style={{
+                                                maxWidth: '80%',
+                                                maxHeight: '80%',
+                                                objectFit: 'contain',
+                                            }}
+                                        />
+                                    ) : (
+                                        <span
+                                            style={{
+                                                fontSize: 11.5,
+                                                color: C.faint,
+                                                textAlign: 'center',
+                                                padding: 8,
+                                            }}
+                                        >
+                                            Belum ada logo
+                                        </span>
+                                    )}
+                                </div>
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 8,
+                                    }}
+                                >
+                                    <input
+                                        ref={logoInput}
+                                        type="file"
+                                        accept="image/png,image/jpeg,image/webp"
+                                        onChange={onPickLogo}
+                                        style={{ display: 'none' }}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => logoInput.current?.click()}
+                                        disabled={uploadingLogo}
+                                        style={{
+                                            ...btnP,
+                                            opacity: uploadingLogo ? 0.6 : 1,
+                                        }}
+                                    >
+                                        <AIcon
+                                            name="upload"
+                                            size={16}
+                                            color="#fff"
+                                        />
+                                        {uploadingLogo
+                                            ? 'Mengunggah…'
+                                            : 'Unggah Logo'}
+                                    </button>
+                                    {logo_url ? (
+                                        <button
+                                            type="button"
+                                            onClick={removeLogo}
+                                            style={btnOut}
+                                        >
+                                            <AIcon name="trash-2" size={15} />
+                                            Hapus Logo
+                                        </button>
+                                    ) : null}
+                                    <div
+                                        style={{
+                                            fontSize: 11,
+                                            color: C.faint,
+                                        }}
+                                    >
+                                        PNG, JPG, atau WEBP · maks 1 MB
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div style={{ ...card, padding: 20 }}>
                             <div style={sectionTitle}>Preset</div>
                             <div
