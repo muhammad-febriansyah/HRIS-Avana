@@ -24,6 +24,7 @@ beforeEach(function (): void {
     // wired by the orchestrator and must not be edited here).
     Route::middleware('web')->group(function (): void {
         Route::get('spec-perusahaan', [CompanySetupController::class, 'index']);
+        Route::put('spec-perusahaan-profile', [CompanySetupController::class, 'updateProfile']);
         Route::post('spec-perusahaan/{entity}', [CompanySetupController::class, 'store']);
         Route::put('spec-perusahaan/{entity}/{record}', [CompanySetupController::class, 'update']);
         Route::delete('spec-perusahaan/{entity}/{record}', [CompanySetupController::class, 'destroy']);
@@ -43,7 +44,35 @@ it('renders the company setup screen with the expected props', function (): void
             ->has('workLocations')
             ->has('shifts')
             ->has('options.departments')
-            ->has('options.branches'));
+            ->has('options.branches')
+            ->has('company.name'));
+});
+
+it('updates the company profile and syncs the tenant display name', function (): void {
+    actingAs($this->admin)
+        ->put('spec-perusahaan-profile', [
+            'name' => 'PT Nusantara Jaya Abadi',
+            'legal_name' => 'PT Nusantara Jaya Abadi Tbk',
+            'npwp' => '01.234.567.8-901.000',
+            'email' => 'info@nusantara.co.id',
+            'phone' => '021-5550000',
+            'address' => 'Jl. Sudirman No. 1, Jakarta',
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $company = App\Models\Company::forTenant($this->tenant->id)->firstOrFail();
+    expect($company->name)->toBe('PT Nusantara Jaya Abadi')
+        ->and($company->npwp)->toBe('01.234.567.8-901.000')
+        ->and($company->email)->toBe('info@nusantara.co.id');
+    // The tenant display name (topbar / white-label) follows the profile name.
+    expect($this->tenant->fresh()->company_name)->toBe('PT Nusantara Jaya Abadi');
+});
+
+it('requires a company name on the profile', function (): void {
+    actingAs($this->admin)
+        ->put('spec-perusahaan-profile', ['name' => ''])
+        ->assertSessionHasErrors('name');
 });
 
 it('creates, updates and deletes a branch', function (): void {

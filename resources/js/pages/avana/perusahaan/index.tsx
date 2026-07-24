@@ -5,6 +5,7 @@ import { AIcon, C } from '@/lib/avana';
 import { ConfirmModal } from './components';
 import { EntityModal } from './entity-modal';
 import { EntityTable } from './entity-table';
+import { ProfileForm } from './profile-form';
 import { TABS } from './types';
 import type { EntityRecord, FlashProps, PerusahaanProps } from './types';
 
@@ -12,7 +13,8 @@ export default function Perusahaan(props: PerusahaanProps) {
     const { flash } = usePage<FlashProps>().props;
     const { options } = props;
 
-    const [activeKey, setActiveKey] = useState<string>('branches');
+    // 'profile' is a single-record form; the rest are entity list tabs.
+    const [activeKey, setActiveKey] = useState<string>('profile');
     const [editing, setEditing] = useState<EntityRecord | null>(null);
     const [modalOpen, setModalOpen] = useState(false);
     const [confirm, setConfirm] = useState<EntityRecord | null>(null);
@@ -108,7 +110,14 @@ export default function Perusahaan(props: PerusahaanProps) {
                         marginBottom: 18,
                     }}
                 >
-                    {TABS.map((item) => {
+                    {[
+                        {
+                            key: 'profile',
+                            label: 'Profil Perusahaan',
+                            icon: 'building',
+                        },
+                        ...TABS,
+                    ].map((item) => {
                         const active = item.key === activeKey;
 
                         return (
@@ -144,16 +153,20 @@ export default function Perusahaan(props: PerusahaanProps) {
                     })}
                 </div>
 
-                {/* Entity card */}
-                <EntityTable
-                    tab={tab}
-                    rows={rows}
-                    onCreate={openCreate}
-                    onEdit={openEdit}
-                    onDelete={(row) => {
-                        setConfirm(row);
-                    }}
-                />
+                {/* Profile form or entity card */}
+                {activeKey === 'profile' ? (
+                    <ProfileForm company={props.company} />
+                ) : (
+                    <EntityTable
+                        tab={tab}
+                        rows={rows}
+                        onCreate={openCreate}
+                        onEdit={openEdit}
+                        onDelete={(row) => {
+                            setConfirm(row);
+                        }}
+                    />
+                )}
             </div>
 
             {/* Create / edit modal */}

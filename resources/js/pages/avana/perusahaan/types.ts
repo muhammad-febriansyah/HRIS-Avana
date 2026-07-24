@@ -23,8 +23,19 @@ export interface SetupOptions {
     branches: NamedOption[];
 }
 
+/** The tenant's editable company profile (identity + contact). */
+export interface CompanyProfile {
+    name: string;
+    legal_name: string | null;
+    npwp: string | null;
+    email: string | null;
+    phone: string | null;
+    address: string | null;
+}
+
 /** Props for the company setup page (`index.tsx`). */
 export interface PerusahaanProps {
+    company: CompanyProfile;
     branches: EntityRecord[];
     departments: EntityRecord[];
     positions: EntityRecord[];

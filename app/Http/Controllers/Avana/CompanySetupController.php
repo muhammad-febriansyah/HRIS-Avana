@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
+use App\Models\Company;
 use App\Models\Department;
 use App\Models\JobLevel;
 use App\Models\Position;
@@ -77,8 +78,17 @@ class CompanySetupController extends Controller
         $this->ensureCanManageCompany($request);
 
         $tenantId = $request->user()->tenant_id;
+        $company = Company::forTenant($tenantId)->first();
 
         return Inertia::render('avana/perusahaan/index', [
+            'company' => [
+                'name' => $company?->name ?? $request->user()->tenant?->company_name ?? '',
+                'legal_name' => $company?->legal_name,
+                'npwp' => $company?->npwp,
+                'email' => $company?->email,
+                'phone' => $company?->phone,
+                'address' => $company?->address,
+            ],
             'branches' => Branch::forTenant($tenantId)
                 ->orderBy('name')
                 ->get(['id', 'company_id', 'code', 'name', 'phone', 'address', 'timezone', 'status']),
@@ -128,6 +138,35 @@ class CompanySetupController extends Controller
                     ->get(['id', 'name']),
             ],
         ]);
+    }
+
+    /**
+     * Update the tenant's company profile (legal identity + contact details).
+     * The logo is managed separately on the appearance page.
+     */
+    public function updateProfile(Request $request): RedirectResponse
+    {
+        $this->ensureCanManageCompany($request);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:150'],
+            'legal_name' => ['nullable', 'string', 'max:150'],
+            'npwp' => ['nullable', 'string', 'max:40'],
+            'email' => ['nullable', 'email', 'max:150'],
+            'phone' => ['nullable', 'string', 'max:40'],
+            'address' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $company = Company::forTenant($tenantId)->first() ?? new Company(['tenant_id' => $tenantId]);
+        $company->tenant_id = $tenantId;
+        $company->fill($data)->save();
+
+        // Keep the tenant's display name (topbar / white-label) in step.
+        $request->user()->tenant?->update(['company_name' => $data['name']]);
+
+        return back()->with('success', 'Profil perusahaan disimpan');
     }
 
     /**

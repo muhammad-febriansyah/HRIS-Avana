@@ -250,6 +250,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('fitur/toggle', [FeatureController::class, 'toggle'])->name('fitur.toggle');
 
     Route::get('perusahaan', [CompanySetupController::class, 'index'])->name('perusahaan');
+    Route::put('perusahaan/profile', [CompanySetupController::class, 'updateProfile'])->name('perusahaan.profile');
     Route::post('perusahaan/{entity}', [CompanySetupController::class, 'store'])->name('perusahaan.store');
     Route::put('perusahaan/{entity}/{record}', [CompanySetupController::class, 'update'])->name('perusahaan.update');
     Route::delete('perusahaan/{entity}/{record}', [CompanySetupController::class, 'destroy'])->name('perusahaan.destroy');
