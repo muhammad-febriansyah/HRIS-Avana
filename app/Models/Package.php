@@ -18,6 +18,8 @@ final class Package extends Model
         return [
             'price' => 'decimal:2',
             'is_active' => 'boolean',
+            'is_popular' => 'boolean',
+            'feature_list' => 'array',
         ];
     }
 

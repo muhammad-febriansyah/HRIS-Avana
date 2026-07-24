@@ -542,6 +542,7 @@ final class AvanaNav
             ['title' => 'PLATFORM', 'items' => [
                 self::leaf('klien', 'Klien / Tenant', 'building-2', '/avana/klien', null, [], false, true),
                 self::leaf('billing', 'Billing & Invoice', 'receipt-text', '/avana/billing', null, [], false, true),
+                self::leaf('paket', 'Paket Langganan', 'layers', '/avana/paket', null, [], false, true),
                 self::leaf('token-packs', 'Paket Token AI', 'coins', '/avana/token-packs', null, [], false, true),
                 self::leaf('dynamic-report', 'Laporan Platform', 'table', '/avana/dynamic-report', null, [], false, true),
             ]],

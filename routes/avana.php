@@ -53,6 +53,7 @@ use App\Http\Controllers\Avana\OkrController;
 use App\Http\Controllers\Avana\OnboardingController;
 use App\Http\Controllers\Avana\OnboardingSlideController;
 use App\Http\Controllers\Avana\OvertimeController;
+use App\Http\Controllers\Avana\PackageController;
 use App\Http\Controllers\Avana\PaydayController;
 use App\Http\Controllers\Avana\PayrollConfigController;
 use App\Http\Controllers\Avana\PayrollController;
@@ -450,6 +451,12 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('token-packs', [AiTokenPackController::class, 'store'])->name('token-packs.store');
     Route::put('token-packs/{pack}', [AiTokenPackController::class, 'update'])->name('token-packs.update');
     Route::delete('token-packs/{pack}', [AiTokenPackController::class, 'destroy'])->name('token-packs.destroy');
+
+    // Subscription packages / pricing tiers (super admin)
+    Route::get('paket', [PackageController::class, 'index'])->name('paket');
+    Route::post('paket', [PackageController::class, 'store'])->name('paket.store');
+    Route::put('paket/{package}', [PackageController::class, 'update'])->name('paket.update');
+    Route::delete('paket/{package}', [PackageController::class, 'destroy'])->name('paket.destroy');
 
     // Pengaturan Email (super admin = platform default, admin tenant = override)
     Route::get('email-settings', [EmailSettingController::class, 'edit'])->name('email-settings');
