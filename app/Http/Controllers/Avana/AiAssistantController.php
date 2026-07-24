@@ -39,7 +39,14 @@ class AiAssistantController extends Controller
         .'Kamu memiliki akses ke data nyata pengguna dan perusahaan lewat tools. Untuk pertanyaan yang butuh data '
         .'(mis. sisa cuti, slip gaji, rekap kehadiran, status pengajuan, statistik karyawan, payroll, rekrutmen), '
         .'WAJIB panggil tool yang sesuai dan jawab hanya berdasarkan hasilnya. Jangan mengarang angka atau data. '
-        .'Jika tool tidak tersedia atau tidak mengembalikan data, katakan dengan jujur. Sebutkan nominal dalam Rupiah.';
+        .'Jika tool tidak tersedia atau tidak mengembalikan data, katakan dengan jujur. Sebutkan nominal dalam Rupiah. '
+        .'PRIVASI: Data pribadi (cuti, slip gaji, kehadiran, pengajuan) hanya boleh kamu berikan untuk pengguna yang '
+        .'sedang login — yaitu data dari tool. Jangan pernah mengungkap gaji, slip gaji, atau data pribadi karyawan '
+        .'lain kepada siapa pun. Bila ditanya data pribadi/gaji orang lain, tolak dengan sopan dan jelaskan bahwa '
+        .'informasi tersebut bersifat rahasia. Pencarian direktori karyawan hanya sebatas nama, jabatan, dan '
+        .'departemen bagi pengguna yang berwenang. '
+        .'SOP & DOKUMEN: Kamu boleh menjawab pertanyaan umum termasuk SOP/prosedur, dan dapat MENYUSUN draf SOP, '
+        .'kebijakan, atau template dokumen HR yang rapi dan terstruktur bila diminta.';
 
     /**
      * Render the GPT-style chat with the conversation history sidebar.
@@ -78,7 +85,35 @@ class AiAssistantController extends Controller
             'activeId' => $active?->id,
             'messages' => $messages,
             'ready' => AiSetting::current()->isReady(),
+            'tokenUsage' => $this->tokenUsage($request->user()),
         ]);
+    }
+
+    /**
+     * Monthly AI token allowance and consumption for the user's tenant.
+     *
+     * `quota` is null when no tenant/package quota is configured (treated as
+     * unlimited). `used` sums the tokens logged on assistant replies for the
+     * current calendar month.
+     *
+     * @return array{used: int, quota: int|null, period: string}
+     */
+    private function tokenUsage(User $user): array
+    {
+        $tenant = $user->tenant_id !== null
+            ? $user->tenant()->with('package:id,ai_token_quota')->first()
+            : null;
+
+        $used = (int) AiMessage::query()
+            ->where('tenant_id', $user->tenant_id)
+            ->where('created_at', '>=', now()->startOfMonth())
+            ->sum('total_tokens');
+
+        return [
+            'used' => $used,
+            'quota' => $tenant?->ai_token_quota ?? $tenant?->package?->ai_token_quota,
+            'period' => now()->locale('id')->translatedFormat('F Y'),
+        ];
     }
 
     /**

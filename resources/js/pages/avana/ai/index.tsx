@@ -15,18 +15,27 @@ interface Conversation {
     updated_at: string | null;
 }
 
+interface TokenUsage {
+    used: number;
+    quota: number | null;
+    period: string;
+}
+
 interface AiProps {
     conversations: Conversation[];
     activeId: number | null;
     messages: ChatMessage[];
     ready: boolean;
+    tokenUsage: TokenUsage;
 }
 
+const numberFormatter = new Intl.NumberFormat('id-ID');
+
 const SUGGESTIONS = [
-    'Bagaimana cara menjalankan payroll bulanan?',
+    'Berapa sisa cuti saya tahun ini?',
     'Jelaskan alur pengajuan cuti karyawan',
-    'Apa saja modul absensi yang tersedia?',
-    'Ringkas cara membuat slip gaji',
+    'Buatkan draf SOP pengajuan cuti karyawan',
+    'Bagaimana cara menjalankan payroll bulanan?',
 ];
 
 /** Read a cookie value by name. */
@@ -54,11 +63,97 @@ function renderMarkdown(text: string): string {
         .replace(/\n/g, '<br/>');
 }
 
+/**
+ * Compact monthly AI token meter shown in the chat header: used vs quota with
+ * a progress bar that shifts to amber then red as the allowance runs low.
+ */
+function TokenMeter({ usage }: { usage: TokenUsage }) {
+    const { used, quota, period } = usage;
+    const hasQuota = quota !== null && quota > 0;
+    const percent = hasQuota
+        ? Math.min(100, Math.round((used / (quota as number)) * 100))
+        : 0;
+
+    const barColor =
+        percent >= 90 ? '#dc2626' : percent >= 70 ? '#f59e0b' : C.primary;
+
+    return (
+        <div
+            style={{
+                marginLeft: 'auto',
+                width: 210,
+                flexShrink: 0,
+            }}
+            title={`Token AI terpakai bulan ${period}`}
+        >
+            <div
+                style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 11,
+                    color: C.faint,
+                    marginBottom: 5,
+                }}
+            >
+                <span
+                    style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                    }}
+                >
+                    <AIcon name="zap" size={12} color={C.faint} />
+                    Token AI · {period}
+                </span>
+                <span style={{ color: C.muted, fontWeight: 600 }}>
+                    {numberFormatter.format(used)}
+                    {hasQuota
+                        ? ` / ${numberFormatter.format(quota as number)}`
+                        : ''}
+                </span>
+            </div>
+            <div
+                style={{
+                    height: 6,
+                    borderRadius: 99,
+                    background: 'rgba(15,23,42,.07)',
+                    overflow: 'hidden',
+                }}
+            >
+                <div
+                    style={{
+                        height: '100%',
+                        width: hasQuota ? `${percent}%` : '0%',
+                        borderRadius: 99,
+                        background: barColor,
+                        transition: 'width .4s ease',
+                    }}
+                />
+            </div>
+            <div
+                style={{
+                    fontSize: 10,
+                    color: C.faint,
+                    marginTop: 4,
+                    textAlign: 'right',
+                }}
+            >
+                {hasQuota
+                    ? `Sisa ${numberFormatter.format(Math.max(0, (quota as number) - used))} token`
+                    : 'Kuota tak terbatas'}
+            </div>
+        </div>
+    );
+}
+
 export default function AiAssistant({
     conversations: propConversations,
     activeId: propActiveId,
     messages: propMessages,
     ready,
+    tokenUsage,
 }: AiProps) {
     const [conversations, setConversations] =
         useState<Conversation[]>(propConversations);
@@ -195,6 +290,8 @@ export default function AiAssistant({
             });
         } finally {
             setStreaming(false);
+            // Refresh only the token meter; local chat state is preserved.
+            router.reload({ only: ['tokenUsage'] });
         }
     };
 
@@ -394,6 +491,8 @@ export default function AiAssistant({
                                     : 'Asisten belum aktif'}
                             </div>
                         </div>
+
+                        <TokenMeter usage={tokenUsage} />
                     </div>
 
                     <div

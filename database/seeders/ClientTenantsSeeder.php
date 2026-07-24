@@ -268,10 +268,10 @@ class ClientTenantsSeeder extends Seeder
     private function packages(): mixed
     {
         $defs = [
-            ['name' => 'Starter', 'code' => 'starter', 'price' => 500000, 'max_users' => 15, 'max_employees' => 25, 'max_branches' => 1],
-            ['name' => 'Business', 'code' => 'business', 'price' => 1500000, 'max_users' => 60, 'max_employees' => 100, 'max_branches' => 3],
-            ['name' => 'Pro', 'code' => 'pro', 'price' => 3000000, 'max_users' => 150, 'max_employees' => 300, 'max_branches' => 8],
-            ['name' => 'Enterprise', 'code' => 'enterprise', 'price' => 7500000, 'max_users' => 500, 'max_employees' => 1000, 'max_branches' => 25],
+            ['name' => 'Starter', 'code' => 'starter', 'price' => 500000, 'max_users' => 15, 'max_employees' => 25, 'max_branches' => 1, 'ai_token_quota' => 500_000],
+            ['name' => 'Business', 'code' => 'business', 'price' => 1500000, 'max_users' => 60, 'max_employees' => 100, 'max_branches' => 3, 'ai_token_quota' => 2_000_000],
+            ['name' => 'Pro', 'code' => 'pro', 'price' => 3000000, 'max_users' => 150, 'max_employees' => 300, 'max_branches' => 8, 'ai_token_quota' => 5_000_000],
+            ['name' => 'Enterprise', 'code' => 'enterprise', 'price' => 7500000, 'max_users' => 500, 'max_employees' => 1000, 'max_branches' => 25, 'ai_token_quota' => 20_000_000],
         ];
 
         foreach ($defs as $def) {

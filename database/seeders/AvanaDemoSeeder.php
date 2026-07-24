@@ -58,7 +58,7 @@ final class AvanaDemoSeeder extends Seeder
         $features = $this->seedFeatures();
         $package = Package::firstOrCreate(
             ['code' => 'pro'],
-            ['name' => 'Pro', 'price' => 1500000, 'billing_cycle' => 'monthly', 'max_users' => 100, 'max_employees' => 2000, 'max_branches' => 20],
+            ['name' => 'Pro', 'price' => 1500000, 'billing_cycle' => 'monthly', 'max_users' => 100, 'max_employees' => 2000, 'max_branches' => 20, 'ai_token_quota' => 5_000_000],
         );
         $package->features()->syncWithoutDetaching($features->pluck('id'));
 
@@ -72,6 +72,9 @@ final class AvanaDemoSeeder extends Seeder
                 'max_users' => 100,
                 'max_employees' => 2000,
                 'max_branches' => 20,
+                // AI add-on allocation for this tenant; overrides the plan-level
+                // quota so the assistant token meter shows a realistic bar.
+                'ai_token_quota' => 500_000,
                 'billing_status' => 'active',
                 'start_date' => '2026-01-01',
             ],

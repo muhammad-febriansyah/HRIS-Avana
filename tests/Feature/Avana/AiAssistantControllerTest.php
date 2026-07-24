@@ -61,6 +61,29 @@ it('shows an empty active conversation when none is selected', function (): void
             ->has('conversations', 1));
 });
 
+it('reports monthly token usage against the tenant quota', function (): void {
+    $conversation = AiConversation::create([
+        'tenant_id' => $this->tenant->id,
+        'user_id' => $this->admin->id,
+        'title' => 'Pemakaian token',
+    ]);
+
+    // Counted: assistant replies this month.
+    AiMessage::create(['conversation_id' => $conversation->id, 'tenant_id' => $this->tenant->id, 'user_id' => $this->admin->id, 'role' => 'assistant', 'content' => 'A', 'prompt_tokens' => 1200, 'completion_tokens' => 800, 'total_tokens' => 2000]);
+    AiMessage::create(['conversation_id' => $conversation->id, 'tenant_id' => $this->tenant->id, 'user_id' => $this->admin->id, 'role' => 'assistant', 'content' => 'B', 'prompt_tokens' => 500, 'completion_tokens' => 300, 'total_tokens' => 800]);
+
+    // Excluded: a reply logged in a previous month.
+    AiMessage::create(['conversation_id' => $conversation->id, 'tenant_id' => $this->tenant->id, 'user_id' => $this->admin->id, 'role' => 'assistant', 'content' => 'Lama', 'total_tokens' => 9999, 'created_at' => now()->subMonthNoOverflow()->startOfMonth()]);
+
+    actingAs($this->admin)
+        ->get(route('avana.ai'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('tokenUsage.used', 2800)
+            ->where('tokenUsage.quota', 500000)
+            ->has('tokenUsage.period'));
+});
+
 it('validates that a message is required to stream', function (): void {
     actingAs($this->admin)
         ->post(route('avana.ai.stream'), ['message' => ''])
