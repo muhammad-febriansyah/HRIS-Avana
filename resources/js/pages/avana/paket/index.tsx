@@ -2,7 +2,7 @@ import { Head, router, useForm, usePage } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { AIcon, C, card, rp } from '@/lib/avana';
+import { AIcon, C, card, rp, RupiahInput } from '@/lib/avana';
 
 interface Package {
     id: number;
@@ -129,6 +129,19 @@ export default function PaketIndex({ packages, cycles }: PageProps) {
             onFinish: () => setConfirm(null),
         });
     };
+
+    const setFeature = (index: number, value: string) =>
+        form.setData(
+            'feature_list',
+            form.data.feature_list.map((f, i) => (i === index ? value : f)),
+        );
+    const addFeature = () =>
+        form.setData('feature_list', [...form.data.feature_list, '']);
+    const removeFeature = (index: number) =>
+        form.setData(
+            'feature_list',
+            form.data.feature_list.filter((_, i) => i !== index),
+        );
 
     return (
         <>
@@ -359,20 +372,20 @@ export default function PaketIndex({ packages, cycles }: PageProps) {
                         </Row>
                         <Row>
                             <Field
-                                label="Harga (Rp)"
+                                label="Harga"
                                 error={form.errors.price}
                                 flex={2}
                             >
-                                <input
-                                    type="number"
+                                <RupiahInput
                                     value={form.data.price}
-                                    onChange={(e) =>
+                                    onChange={(raw) =>
                                         form.setData(
                                             'price',
-                                            Number(e.target.value),
+                                            raw === '' ? 0 : Number(raw),
                                         )
                                     }
                                     style={inputStyle}
+                                    placeholder="0"
                                 />
                             </Field>
                             <Field label="Siklus" flex={1}>
@@ -462,25 +475,73 @@ export default function PaketIndex({ packages, cycles }: PageProps) {
                                 />
                             </Field>
                         </Row>
-                        <Field label="Fitur (satu per baris)">
-                            <textarea
-                                value={form.data.feature_list.join('\n')}
-                                onChange={(e) =>
-                                    form.setData(
-                                        'feature_list',
-                                        e.target.value.split('\n'),
-                                    )
-                                }
-                                placeholder={
-                                    'Organization Structure\nDatabase Employee\nPayroll Management'
-                                }
-                                rows={7}
+                        <Field label="Fitur">
+                            <div
                                 style={{
-                                    ...inputStyle,
-                                    resize: 'vertical',
-                                    lineHeight: 1.6,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 8,
                                 }}
-                            />
+                            >
+                                {form.data.feature_list.map((feature, i) => (
+                                    <div
+                                        key={i}
+                                        style={{
+                                            display: 'flex',
+                                            gap: 8,
+                                            alignItems: 'center',
+                                        }}
+                                    >
+                                        <span
+                                            style={{
+                                                fontSize: 12,
+                                                color: C.faint,
+                                                width: 16,
+                                                textAlign: 'right',
+                                                flexShrink: 0,
+                                            }}
+                                        >
+                                            {i + 1}
+                                        </span>
+                                        <input
+                                            value={feature}
+                                            onChange={(e) =>
+                                                setFeature(i, e.target.value)
+                                            }
+                                            placeholder="Nama fitur"
+                                            style={{ ...inputStyle, flex: 1 }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => removeFeature(i)}
+                                            style={btnDanger}
+                                            title="Hapus fitur"
+                                        >
+                                            <AIcon
+                                                name="x"
+                                                size={14}
+                                                color={C.red}
+                                            />
+                                        </button>
+                                    </div>
+                                ))}
+                                <button
+                                    type="button"
+                                    onClick={addFeature}
+                                    style={{
+                                        ...btnGhost,
+                                        alignSelf: 'flex-start',
+                                        padding: '7px 14px',
+                                    }}
+                                >
+                                    <AIcon
+                                        name="plus"
+                                        size={14}
+                                        color={C.text}
+                                    />
+                                    Tambah Fitur
+                                </button>
+                            </div>
                         </Field>
                         <div style={{ display: 'flex', gap: 20 }}>
                             <Checkbox

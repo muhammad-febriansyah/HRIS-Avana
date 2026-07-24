@@ -122,6 +122,7 @@ Route::prefix('v1')->group(function (): void {
             Route::post('settlements', [SettlementController::class, 'store']);
             Route::get('settlements/{settlement}', [SettlementController::class, 'show']);
 
+            Route::post('security/fcm-token', [SecurityController::class, 'registerFcmToken']);
             Route::get('security/devices', [SecurityController::class, 'devices']);
             Route::post('security/password', [SecurityController::class, 'changePassword']);
             Route::post('security/logout-all', [SecurityController::class, 'logoutAll']);

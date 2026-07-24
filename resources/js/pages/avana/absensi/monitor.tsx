@@ -1,5 +1,6 @@
 import { Head, Link, router } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
+import { DatePicker } from '@/components/avana/date-picker';
 import { LocationMap } from '@/components/map/location-map';
 import type { MapPoint } from '@/components/map/location-map';
 import { AIcon, btnOut, C, card } from '@/lib/avana';
@@ -237,13 +238,9 @@ export default function AbsensiMonitor({
                                 </option>
                             ))}
                         </select>
-                        <input
-                            type="date"
+                        <DatePicker
                             value={filters.date}
-                            onChange={(event) =>
-                                changeFilter('date', event.target.value)
-                            }
-                            style={{ ...filterControl, cursor: 'pointer' }}
+                            onChange={(value) => changeFilter('date', value)}
                         />
                         <button onClick={goToday} style={btnOut} type="button">
                             <AIcon name="calendar-check" size={16} />

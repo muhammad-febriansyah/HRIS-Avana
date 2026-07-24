@@ -46,6 +46,35 @@ class SecurityController extends Controller
         ]);
     }
 
+    /**
+     * Store the Firebase (FCM) push token for the caller's current device so the
+     * backend can send notifications to it. Updates the already-bound device row.
+     */
+    public function registerFcmToken(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'device_id' => ['required', 'string'],
+            'fcm_token' => ['required', 'string'],
+        ]);
+
+        $userId = $request->user()->id;
+
+        $updated = UserDevice::where('user_id', $userId)
+            ->where('device_id', $data['device_id'])
+            ->update(['fcm_token' => $data['fcm_token']]);
+
+        // The exact device may not be bound (e.g. single-device binding kept the
+        // previous device). Fall back to the user's active device so pushes still
+        // reach them.
+        if ($updated === 0) {
+            UserDevice::where('user_id', $userId)
+                ->where('status', 'active')
+                ->update(['fcm_token' => $data['fcm_token']]);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
     /** The devices bound to this account (active first). */
     public function devices(Request $request): JsonResponse
     {

@@ -20,3 +20,6 @@ Schedule::command('avana:remind-billing')->dailyAt('07:00');
 // Scan resign-risk scores and alert HR to high-risk employees (per-tenant config
 // decides on/off, threshold, recipient role, and daily vs weekly cadence).
 Schedule::command('avana:scan-attrition-alerts')->dailyAt('07:30');
+
+// Push a clock-in reminder to employees who haven't clocked in yet (weekdays).
+Schedule::command('avana:remind-attendance')->weekdays()->at('08:30');

@@ -41,4 +41,12 @@ return [
         'api_key' => env('PAKASIR_API_KEY'),
     ],
 
+    'firebase' => [
+        // Path to the FCM service-account JSON (Firebase → Project settings →
+        // Service accounts → Generate new private key). Defaults to the
+        // git-ignored storage path; push is a no-op until the file exists.
+        'credentials' => env('FIREBASE_CREDENTIALS', storage_path('app/firebase/service-account.json')),
+        'project_id' => env('FIREBASE_PROJECT_ID', 'febrinogen-learn'),
+    ],
+
 ];

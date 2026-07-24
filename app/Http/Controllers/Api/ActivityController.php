@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
+use App\Models\AttendancePolicy;
+use App\Models\AttendanceSelfie;
 use App\Models\Claim;
 use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
@@ -14,6 +16,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Unified activity feed for the mobile "Riwayat" tab: recent attendance and
@@ -37,33 +40,50 @@ class ActivityController extends Controller
         /** @var Collection<int, array<string, mixed>> $items */
         $items = collect();
 
-        Attendance::forTenant($tenantId)->where('employee_id', $employeeId)
+        $attendances = Attendance::forTenant($tenantId)->where('employee_id', $employeeId)
             ->whereNotNull('clock_in_at')
-            ->orderByDesc('date')->limit(self::PER_SOURCE)->get()
-            ->each(function (Attendance $a) use ($items): void {
-                $in = $a->clock_in_at?->format('H:i');
-                $out = $a->clock_out_at?->format('H:i');
-                $items->push($this->shape(
-                    'attendance',
-                    'Absensi',
-                    'Masuk '.($in ?? '--:--').' · Pulang '.($out ?? '--:--'),
-                    $a->status,
-                    $a->clock_in_at ?? $a->date,
-                    detail: [
-                        'date' => $a->date instanceof Carbon ? $a->date->toDateString() : (string) $a->date,
-                        'clock_in' => $in,
-                        'clock_out' => $out,
-                        'work_mode' => $a->work_mode,
-                        'work_minutes' => (int) ($a->work_minutes ?? 0),
-                        'late_minutes' => (int) ($a->late_minutes ?? 0),
-                        'status' => $a->status,
-                        'location_status' => $a->location_status,
-                        'face_confidence' => $a->face_confidence !== null ? (float) $a->face_confidence : null,
-                        'latitude' => $a->clock_in_lat !== null ? (float) $a->clock_in_lat : null,
-                        'longitude' => $a->clock_in_lng !== null ? (float) $a->clock_in_lng : null,
-                    ],
-                ));
-            });
+            ->orderByDesc('date')->limit(self::PER_SOURCE)->get();
+
+        // The clock-in selfie (earliest per attendance), keyed by attendance id.
+        $selfiePathByAttendance = AttendanceSelfie::whereIn('attendance_id', $attendances->pluck('id'))
+            ->orderBy('id')
+            ->get(['attendance_id', 'file_path'])
+            ->groupBy('attendance_id')
+            ->map(fn ($group): ?string => $group->first()->file_path);
+
+        // Current face policy — the app hides "Akurasi Wajah" unless it is 1:1
+        // recognition (detection/off have no confidence score to show).
+        $faceMode = AttendancePolicy::where('tenant_id', $tenantId)->value('face_mode')
+            ?? AttendancePolicy::FACE_MODE_RECOGNITION;
+
+        $attendances->each(function (Attendance $a) use ($items, $selfiePathByAttendance, $faceMode): void {
+            $in = $a->clock_in_at?->format('H:i');
+            $out = $a->clock_out_at?->format('H:i');
+            $selfiePath = $selfiePathByAttendance->get($a->id);
+
+            $items->push($this->shape(
+                'attendance',
+                'Absensi',
+                'Masuk '.($in ?? '--:--').' · Pulang '.($out ?? '--:--'),
+                $a->status,
+                $a->clock_in_at ?? $a->date,
+                detail: [
+                    'date' => $a->date instanceof Carbon ? $a->date->toDateString() : (string) $a->date,
+                    'clock_in' => $in,
+                    'clock_out' => $out,
+                    'work_mode' => $a->work_mode,
+                    'work_minutes' => (int) ($a->work_minutes ?? 0),
+                    'late_minutes' => (int) ($a->late_minutes ?? 0),
+                    'status' => $a->status,
+                    'location_status' => $a->location_status,
+                    'face_mode' => $faceMode,
+                    'face_confidence' => $a->face_confidence !== null ? (float) $a->face_confidence : null,
+                    'latitude' => $a->clock_in_lat !== null ? (float) $a->clock_in_lat : null,
+                    'longitude' => $a->clock_in_lng !== null ? (float) $a->clock_in_lng : null,
+                    'selfie_url' => $selfiePath !== null ? Storage::disk('public')->url($selfiePath) : null,
+                ],
+            ));
+        });
 
         LeaveRequest::forTenant($tenantId)->where('employee_id', $employeeId)
             ->with('leaveType:id,name')

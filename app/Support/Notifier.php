@@ -19,6 +19,7 @@ use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WfhRequest;
+use App\Services\FcmService;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -63,18 +64,28 @@ final class Notifier
         $userId = self::userIdFor($request->employee_id);
 
         if ($userId !== null) {
+            $title = $meta['label'].' '.($approved ? 'disetujui' : 'ditolak');
+            $body = 'Pengajuan '.$meta['label'].' Anda telah '
+                .($approved ? 'disetujui' : 'ditolak').' oleh manajer.';
+
             self::insertMany([[
                 'tenant_id' => $request->tenant_id,
                 'user_id' => $userId,
                 'type' => 'approval',
-                'title' => $meta['label'].' '.($approved ? 'disetujui' : 'ditolak'),
-                'body' => 'Pengajuan '.$meta['label'].' Anda telah '
-                    .($approved ? 'disetujui' : 'ditolak').' oleh manajer.',
+                'title' => $title,
+                'body' => $body,
                 'data' => [
                     'link' => ['type' => $meta['type'], 'id' => $request->id],
                     'status' => $status,
                 ],
             ]]);
+
+            app(FcmService::class)->pushToUsers(
+                [$userId],
+                $title,
+                $body,
+                ['type' => $meta['type'], 'id' => $request->id],
+            );
         }
 
         self::emailEmployee(
@@ -123,17 +134,26 @@ final class Notifier
         $userId = self::userIdFor($claim->employee_id);
 
         if ($userId !== null) {
+            $body = 'Reimbursement '.($claim->title ?: 'Anda').' sebesar '.$amount.' telah dibayar.';
+
             self::insertMany([[
                 'tenant_id' => $claim->tenant_id,
                 'user_id' => $userId,
                 'type' => 'reimburse',
                 'title' => 'Reimbursement dibayar',
-                'body' => 'Reimbursement '.($claim->title ?: 'Anda').' sebesar '.$amount.' telah dibayar.',
+                'body' => $body,
                 'data' => [
                     'link' => ['type' => 'reimburse', 'id' => $claim->id],
                     'status' => 'paid',
                 ],
             ]]);
+
+            app(FcmService::class)->pushToUsers(
+                [$userId],
+                'Reimbursement dibayar',
+                $body,
+                ['type' => 'reimburse', 'id' => $claim->id],
+            );
         }
 
         self::emailEmployee(
@@ -191,6 +211,15 @@ final class Notifier
             ->all();
 
         self::insertMany($rows);
+
+        if ($rows !== []) {
+            app(FcmService::class)->pushToUsers(
+                array_column($rows, 'user_id'),
+                'Slip gaji tersedia',
+                'Slip gaji Anda sudah dapat dilihat dan diunduh.',
+                ['type' => 'payslip', 'id' => 0],
+            );
+        }
 
         foreach ($items as $item) {
             $employee = $item->employee;
