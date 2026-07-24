@@ -141,7 +141,7 @@ final class AiToolkit
                     return 'Belum ada slip gaji yang tersedia.';
                 }
 
-                $period = PayrollPeriod::find($item->payroll_period_id);
+                $period = PayrollPeriod::forTenant($this->tenantId())->find($item->payroll_period_id);
 
                 return sprintf(
                     'Slip %s — Gaji kotor: %s, Potongan: %s, PPh21: %s, Gaji bersih: %s. Status: %s.',
@@ -338,7 +338,7 @@ final class AiToolkit
                     return 'Belum ada proses payroll.';
                 }
 
-                $period = PayrollPeriod::find($run->payroll_period_id);
+                $period = PayrollPeriod::forTenant($this->tenantId())->find($run->payroll_period_id);
 
                 return sprintf(
                     'Payroll %s (status: %s) — %d karyawan. Total kotor: %s, potongan: %s, pajak: %s, total bersih: %s.',

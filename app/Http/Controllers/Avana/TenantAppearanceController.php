@@ -83,7 +83,12 @@ class TenantAppearanceController extends Controller
     private function themeSource(Request $request): Model
     {
         $user = $request->user();
-        $viewTenantId = (int) ($request->session()->get('view_tenant_id') ?? 0);
+        // Only a super admin's "view as tenant" session may point the theme
+        // source at another tenant; a normal user always edits their own, even
+        // if a stale view_tenant_id somehow ends up in their session.
+        $viewTenantId = $user->isSuperAdmin()
+            ? (int) ($request->session()->get('view_tenant_id') ?? 0)
+            : 0;
 
         if ($user->isSuperAdmin() && $viewTenantId === 0) {
             return WebsiteSetting::current();

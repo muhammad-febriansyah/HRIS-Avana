@@ -347,6 +347,7 @@ final class AttritionScorer
     private function managerChange(Employee $employee, Carbon $now): array
     {
         $changes = DB::table('audit_logs')
+            ->where('tenant_id', $employee->tenant_id)
             ->where('auditable_type', Employee::class)
             ->where('auditable_id', $employee->id)
             ->where('action', 'updated')

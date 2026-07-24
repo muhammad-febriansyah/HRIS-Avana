@@ -130,7 +130,8 @@ class ApprovalEngine
             return false;
         }
 
-        $subject = Employee::find((int) $approvable->getAttribute('employee_id'));
+        $subject = Employee::forTenant((int) $approvable->getAttribute('tenant_id'))
+            ->find((int) $approvable->getAttribute('employee_id'));
         $workflow = $instance->workflow;
         $effective = $workflow !== null ? self::effectiveSteps($workflow, $approvable) : collect();
 
@@ -259,13 +260,16 @@ class ApprovalEngine
                 continue;
             }
 
-            $approvable = $approvableType::query()->find($instance->approvable_id);
+            $approvable = $approvableType::query()
+                ->where('tenant_id', $instance->tenant_id)
+                ->find($instance->approvable_id);
 
             if ($approvable === null) {
                 continue;
             }
 
-            $subject = Employee::find((int) $approvable->getAttribute('employee_id'));
+            $subject = Employee::forTenant((int) $approvable->getAttribute('tenant_id'))
+                ->find((int) $approvable->getAttribute('employee_id'));
             $subjectManagerId = $subject?->manager_id !== null ? (int) $subject->manager_id : null;
             $effective = self::effectiveSteps($workflow, $approvable);
 

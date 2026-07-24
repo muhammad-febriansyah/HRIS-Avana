@@ -273,6 +273,7 @@ class SettlementController extends Controller
     private function primaryBankAccount(Employee $employee): array
     {
         $account = DB::table('employee_bank_accounts')
+            ->where('tenant_id', $employee->tenant_id)
             ->where('employee_id', $employee->id)
             ->orderByDesc('is_primary')
             ->orderBy('id')

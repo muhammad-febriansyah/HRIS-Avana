@@ -193,7 +193,8 @@ final class Notifier
      */
     public static function payrollLocked(PayrollRun $run): void
     {
-        $items = PayrollRunItem::where('payroll_run_id', $run->id)
+        $items = PayrollRunItem::where('tenant_id', $run->tenant_id)
+            ->where('payroll_run_id', $run->id)
             ->with('employee:id,user_id,tenant_id,email,full_name')
             ->get(['id', 'tenant_id', 'employee_id', 'payroll_period_id']);
 
