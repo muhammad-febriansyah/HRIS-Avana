@@ -139,15 +139,27 @@ class AttendanceController extends Controller
         $this->authorize('viewAny', Attendance::class);
 
         $tenantId = $request->user()->tenant_id;
-        $date = $this->resolveDate($request->query('date'));
-        $dateString = $date->format('Y-m-d');
+
+        // Date range: `date_from`..`date_to`. A lone `date` sets both ends
+        // (keeps the single-day URLs and older callers working). The range is
+        // normalised so `from` never comes after `to`.
+        $single = $request->query('date');
+        $from = $this->resolveDate($request->query('date_from') ?? $single);
+        $to = $this->resolveDate($request->query('date_to') ?? $single);
+        if ($to->lt($from)) {
+            [$from, $to] = [$to, $from];
+        }
+        $fromString = $from->format('Y-m-d');
+        $toString = $to->format('Y-m-d');
+        $isRange = $fromString !== $toString;
 
         $branchId = $request->query('branch_id');
         $branchId = is_numeric($branchId) ? (int) $branchId : null;
 
         $query = Attendance::query()
             ->forTenant($tenantId)
-            ->whereDate('date', $dateString)
+            ->whereDate('date', '>=', $fromString)
+            ->whereDate('date', '<=', $toString)
             ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
             ->with([
                 'employee:id,full_name,employee_number,branch_id',
@@ -172,7 +184,7 @@ class AttendanceController extends Controller
 
         $activity = $records
             ->take(15)
-            ->map(function (Attendance $a): array {
+            ->map(function (Attendance $a) use ($isRange): array {
                 $workLocation = $a->workLocation?->name;
                 $branch = $a->employee?->branch?->name;
 
@@ -184,6 +196,8 @@ class AttendanceController extends Controller
                     // location above, so it never renders twice in one row.
                     'branch' => $workLocation !== null ? $branch : null,
                     'time' => $a->clock_in_at?->format('H:i'),
+                    // Day tag, shown only when the feed spans multiple days.
+                    'date' => $isRange ? $a->date?->format('d M') : null,
                     'status' => (string) $a->status,
                     'status_label' => self::STATUS_LABELS[$a->status] ?? ucfirst((string) $a->status),
                 ];
@@ -191,25 +205,39 @@ class AttendanceController extends Controller
             ->values()
             ->all();
 
-        $statusCounts = $records->groupBy('status')->map->count();
-        $onTime = (int) ($statusCounts['present'] ?? 0);
-        $late = (int) ($statusCounts['late'] ?? 0);
-        $leave = (int) ($statusCounts['leave'] ?? 0);
+        // On-time / late are cumulative check-in counts across the range; the
+        // no-show is the active head-count minus everyone who checked in or was
+        // on leave at least once (distinct employees, so a range never double
+        // counts and a single day still matches one row per person).
+        $onTime = $records->where('status', 'present')->count();
+        $late = $records->where('status', 'late')->count();
+        $checkedInIds = $records
+            ->whereIn('status', ['present', 'late'])
+            ->pluck('employee_id')
+            ->unique();
+        $leaveIds = $records
+            ->where('status', 'leave')
+            ->pluck('employee_id')
+            ->unique()
+            ->diff($checkedInIds);
 
         $totalPersonnel = Employee::forTenant($tenantId)
             ->where('status', 'active')
             ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
             ->count();
-        $checkedIn = $onTime + $late;
-        $noShow = max($totalPersonnel - $checkedIn - $leave, 0);
+        $noShow = max($totalPersonnel - $checkedInIds->count() - $leaveIds->count(), 0);
 
         return Inertia::render('avana/absensi/monitor', [
-            'date' => [
-                'value' => $dateString,
-                'display' => $date->format('d M Y'),
+            'range' => [
+                'from' => $fromString,
+                'to' => $toString,
+                'display' => $isRange
+                    ? $from->format('d M').' – '.$to->format('d M Y')
+                    : $from->format('d M Y'),
             ],
             'filters' => [
-                'date' => $dateString,
+                'date_from' => $fromString,
+                'date_to' => $toString,
                 'branch_id' => $branchId,
             ],
             'branches' => Branch::forTenant($tenantId)

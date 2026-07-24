@@ -56,11 +56,13 @@ function sameDay(a: Date, b: Date): boolean {
 export function DatePicker({
     value,
     onChange,
-    width = 168,
+    label,
+    width = 'auto',
 }: {
     value: string;
     onChange: (value: string) => void;
-    width?: number;
+    label?: string;
+    width?: number | 'auto';
 }) {
     const [open, setOpen] = useState(false);
     const selected = useMemo(() => parseYmd(value), [value]);
@@ -114,7 +116,7 @@ export function DatePicker({
         return out;
     }, [view]);
 
-    const label = `${selected.getDate()} ${MONTHS[selected.getMonth()]} ${selected.getFullYear()}`;
+    const buttonLabel = `${selected.getDate()} ${MONTHS[selected.getMonth()]} ${selected.getFullYear()}`;
 
     const navBtn: CSSProperties = {
         width: 28,
@@ -136,9 +138,10 @@ export function DatePicker({
                 style={{
                     width,
                     height: 40,
-                    padding: '0 12px',
+                    padding: '0 14px',
                     display: 'flex',
                     alignItems: 'center',
+                    whiteSpace: 'nowrap',
                     gap: 8,
                     background: '#fff',
                     border: `1px solid ${open ? C.primary : C.border}`,
@@ -153,7 +156,12 @@ export function DatePicker({
                 }}
             >
                 <AIcon name="calendar" size={16} color={C.muted} />
-                <span style={{ fontWeight: 500 }}>{label}</span>
+                {label && (
+                    <span style={{ color: C.faint, fontWeight: 600 }}>
+                        {label}
+                    </span>
+                )}
+                <span style={{ fontWeight: 500 }}>{buttonLabel}</span>
             </button>
 
             {open && (

@@ -32,13 +32,14 @@ interface ActivityRow {
     location: string;
     branch: string | null;
     time: string | null;
+    date: string | null;
     status: string;
     status_label: string;
 }
 
 interface MonitorProps {
-    date: { value: string; display: string };
-    filters: { date: string; branch_id: number | null };
+    range: { from: string; to: string; display: string };
+    filters: { date_from: string; date_to: string; branch_id: number | null };
     branches: Branch[];
     kpis: {
         total_personnel: number;
@@ -123,7 +124,7 @@ function KpiTile({
 }
 
 export default function AbsensiMonitor({
-    date,
+    range,
     filters,
     branches,
     kpis,
@@ -137,7 +138,10 @@ export default function AbsensiMonitor({
         borderBottom: `1px solid ${C.line}`,
     };
 
-    const changeFilter = (key: 'date' | 'branch_id', value: string) => {
+    const changeFilter = (
+        key: 'date_from' | 'date_to' | 'branch_id',
+        value: string,
+    ) => {
         router.get(
             window.location.pathname,
             { ...filters, [key]: value || undefined },
@@ -148,7 +152,7 @@ export default function AbsensiMonitor({
     const goToday = () => {
         router.get(
             window.location.pathname,
-            { ...filters, date: undefined },
+            { ...filters, date_from: undefined, date_to: undefined },
             { preserveState: true, preserveScroll: true, replace: true },
         );
     };
@@ -210,7 +214,7 @@ export default function AbsensiMonitor({
                             }}
                         >
                             Pelacakan kehadiran langsung lintas cabang ·{' '}
-                            {date.display}
+                            {range.display}
                         </div>
                     </div>
                     <div
@@ -239,8 +243,16 @@ export default function AbsensiMonitor({
                             ))}
                         </select>
                         <DatePicker
-                            value={filters.date}
-                            onChange={(value) => changeFilter('date', value)}
+                            label="Dari"
+                            value={filters.date_from}
+                            onChange={(value) =>
+                                changeFilter('date_from', value)
+                            }
+                        />
+                        <DatePicker
+                            label="Sampai"
+                            value={filters.date_to}
+                            onChange={(value) => changeFilter('date_to', value)}
                         />
                         <button onClick={goToday} style={btnOut} type="button">
                             <AIcon name="calendar-check" size={16} />
@@ -481,6 +493,17 @@ export default function AbsensiMonitor({
                                                         'tabular-nums',
                                                 }}
                                             >
+                                                {row.date ? (
+                                                    <span
+                                                        style={{
+                                                            color: C.muted,
+                                                            fontWeight: 500,
+                                                            marginRight: 5,
+                                                        }}
+                                                    >
+                                                        {row.date}
+                                                    </span>
+                                                ) : null}
                                                 {row.time ?? '—'}
                                             </div>
                                             <div

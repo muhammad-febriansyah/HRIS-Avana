@@ -312,8 +312,47 @@ it('renders the live monitor with map points, KPIs, and recent activity', functi
                 ->has('location')
                 ->has('branch')
                 ->has('time')
+                ->has('date')
                 ->has('status')
                 ->has('status_label')));
+});
+
+it('aggregates the monitor across a date_from..date_to range', function (): void {
+    // Two check-ins on different days within the range.
+    makeAttendance($this->tenant->id, $this->shift->id, [
+        'date' => '2026-08-15',
+        'clock_in_at' => '2026-08-15 08:00:00',
+        'status' => 'present',
+    ]);
+    makeAttendance($this->tenant->id, $this->shift->id, [
+        'date' => '2026-08-16',
+        'clock_in_at' => '2026-08-16 09:30:00',
+        'status' => 'late',
+    ]);
+    // Outside the range — must be excluded.
+    makeAttendance($this->tenant->id, $this->shift->id, [
+        'date' => '2026-08-20',
+        'clock_in_at' => '2026-08-20 08:00:00',
+        'status' => 'present',
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.absensi.monitor', [
+            'date_from' => '2026-08-15',
+            'date_to' => '2026-08-16',
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('range.from', '2026-08-15')
+            ->where('range.to', '2026-08-16')
+            ->where('filters.date_from', '2026-08-15')
+            ->where('filters.date_to', '2026-08-16')
+            ->where('kpis.on_time', 1)
+            ->where('kpis.late', 1)
+            // Feed rows carry a day tag when the range spans multiple days.
+            ->where('activity.0.date', '16 Aug')
+            ->has('activity', 2)
+            ->etc());
 });
 
 it('shows the branch name alongside the work location in the activity feed', function (): void {
