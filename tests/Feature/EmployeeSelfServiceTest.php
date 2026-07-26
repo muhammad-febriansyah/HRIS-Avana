@@ -1,0 +1,270 @@
+<?php
+
+use App\Models\Attendance;
+use App\Models\AttendanceCorrection;
+use App\Models\Employee;
+use App\Models\LeaveRequest;
+use App\Models\LeaveType;
+use App\Models\OvertimeRequest;
+use App\Models\PayrollRun;
+use App\Models\PayrollRunItem;
+use App\Models\PermissionRequest;
+use App\Models\User;
+use App\Support\AvanaNav;
+use Database\Seeders\AvanaDemoSeeder;
+
+beforeEach(function (): void {
+    $this->seed(AvanaDemoSeeder::class);
+
+    $this->user = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail();
+    $this->employee = $this->user->employee;
+});
+
+it('shows the self-service group in an employee sidebar', function (): void {
+    $nav = AvanaNav::forUser($this->user->fresh());
+
+    $group = collect($nav)->firstWhere('title', 'LAYANAN SAYA');
+
+    expect($group)->not->toBeNull()
+        ->and(collect($group['items'])->pluck('label'))
+        ->toContain('Profil Saya', 'Absensi Saya', 'Cuti Saya', 'Slip Gaji Saya');
+});
+
+it('hides the self-service group from an account with no employee record', function (): void {
+    $hrAdmin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
+
+    expect($hrAdmin->employee)->toBeNull();
+
+    $titles = collect(AvanaNav::forUser($hrAdmin))->pluck('title');
+
+    expect($titles)->not->toContain('LAYANAN SAYA');
+});
+
+it('renders every self-service page for an employee', function (string $path, string $component): void {
+    $this->actingAs($this->user)
+        ->get($path)
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->component($component));
+})->with([
+    'profil' => ['/avana/saya/profil', 'avana/saya/profil'],
+    'absensi' => ['/avana/saya/absensi', 'avana/saya/absensi'],
+    'koreksi absensi' => ['/avana/saya/koreksi-absensi', 'avana/saya/koreksi-absensi'],
+    'jadwal' => ['/avana/saya/jadwal', 'avana/saya/jadwal'],
+    'struktur organisasi' => ['/avana/saya/organisasi', 'avana/employees/org-chart'],
+    'cuti' => ['/avana/saya/cuti', 'avana/saya/cuti'],
+    'lembur' => ['/avana/saya/lembur', 'avana/saya/lembur'],
+    'izin' => ['/avana/saya/izin', 'avana/saya/izin'],
+    'slip gaji' => ['/avana/saya/slip-gaji', 'avana/saya/slip-gaji'],
+    'dokumen' => ['/avana/saya/dokumen', 'avana/saya/dokumen'],
+    'onboarding' => ['/avana/saya/onboarding', 'avana/saya/onboarding'],
+]);
+
+it('gives an employee their own dashboard instead of the HR one', function (): void {
+    $this->actingAs($this->user)
+        ->get('/dashboard')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->component('avana/saya/dashboard'));
+});
+
+it('keeps the HR dashboard for an HR admin', function (): void {
+    $this->actingAs(User::where('email', 'rina.a@nusantara.co.id')->firstOrFail())
+        ->get('/dashboard')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->component('dashboard'));
+});
+
+it('lists only the signed-in employee attendance', function (): void {
+    $colleague = Employee::forTenant($this->employee->tenant_id)
+        ->where('id', '!=', $this->employee->id)
+        ->firstOrFail();
+
+    Attendance::where('employee_id', $this->employee->id)->delete();
+
+    Attendance::create([
+        'tenant_id' => $this->employee->tenant_id,
+        'employee_id' => $this->employee->id,
+        'date' => now()->startOfMonth()->toDateString(),
+        'work_minutes' => 480,
+        'late_minutes' => 0,
+        'status' => 'present',
+    ]);
+
+    Attendance::create([
+        'tenant_id' => $colleague->tenant_id,
+        'employee_id' => $colleague->id,
+        'date' => now()->startOfMonth()->toDateString(),
+        'work_minutes' => 480,
+        'late_minutes' => 0,
+        'status' => 'present',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get('/avana/saya/absensi')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('avana/saya/absensi')
+            ->has('records', 1)
+            ->where('summary.present', 1)
+        );
+});
+
+it('files a leave request against the signed-in employee', function (): void {
+    $type = LeaveType::forTenant($this->employee->tenant_id)->where('code', 'TAHUNAN')->firstOrFail();
+
+    $this->actingAs($this->user)
+        ->post('/avana/saya/cuti', [
+            'leave_type_id' => $type->id,
+            'start_date' => now()->addWeek()->toDateString(),
+            'end_date' => now()->addWeek()->toDateString(),
+            'reason' => 'Acara keluarga',
+        ])
+        ->assertSessionHasNoErrors()
+        ->assertRedirect();
+
+    $leave = LeaveRequest::forTenant($this->employee->tenant_id)
+        ->where('reason', 'Acara keluarga')
+        ->firstOrFail();
+
+    expect((int) $leave->employee_id)->toBe((int) $this->employee->id)
+        ->and($leave->status)->toBe('pending');
+});
+
+it('rejects a leave request that exceeds the remaining balance', function (): void {
+    $type = LeaveType::forTenant($this->employee->tenant_id)->where('code', 'TAHUNAN')->firstOrFail();
+    $type->update(['allow_negative' => false]);
+
+    $this->actingAs($this->user)
+        ->post('/avana/saya/cuti', [
+            'leave_type_id' => $type->id,
+            'start_date' => now()->addWeek()->toDateString(),
+            'end_date' => now()->addWeek()->addDays(400)->toDateString(),
+            'reason' => 'Terlalu panjang',
+        ])
+        ->assertSessionHasErrors('leave_type_id');
+
+    expect(LeaveRequest::forTenant($this->employee->tenant_id)->where('reason', 'Terlalu panjang')->exists())->toBeFalse();
+});
+
+it('files overtime, izin, and an attendance correction for the employee', function (): void {
+    $this->actingAs($this->user)
+        ->post('/avana/saya/lembur', [
+            'date' => now()->subDay()->toDateString(),
+            'hours' => 2,
+            'reason' => 'Rilis fitur',
+        ])
+        ->assertSessionHasNoErrors();
+
+    $this->actingAs($this->user)
+        ->post('/avana/saya/izin', [
+            'start_date' => now()->addDay()->toDateString(),
+            'end_date' => now()->addDay()->toDateString(),
+            'type' => 'sakit',
+            'reason' => 'Demam',
+        ])
+        ->assertSessionHasNoErrors();
+
+    $this->actingAs($this->user)
+        ->post('/avana/saya/koreksi-absensi', [
+            'date' => now()->subDay()->toDateString(),
+            'requested_clock_in' => '08:00',
+            'requested_clock_out' => '17:00',
+            'reason' => 'Lupa absen pulang',
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect(OvertimeRequest::where('employee_id', $this->employee->id)->where('reason', 'Rilis fitur')->exists())->toBeTrue()
+        ->and(PermissionRequest::where('employee_id', $this->employee->id)->where('reason', 'Demam')->exists())->toBeTrue()
+        ->and(AttendanceCorrection::where('employee_id', $this->employee->id)->where('reason', 'Lupa absen pulang')->exists())->toBeTrue();
+});
+
+it('rejects a correction whose clock out precedes its clock in', function (): void {
+    $this->actingAs($this->user)
+        ->post('/avana/saya/koreksi-absensi', [
+            'date' => now()->subDay()->toDateString(),
+            'requested_clock_in' => '17:00',
+            'requested_clock_out' => '08:00',
+            'reason' => 'Terbalik',
+        ])
+        ->assertSessionHasErrors('requested_clock_out');
+
+    expect(AttendanceCorrection::where('reason', 'Terbalik')->exists())->toBeFalse();
+});
+
+it('rejects an izin clock time spanning more than one day', function (): void {
+    $this->actingAs($this->user)
+        ->post('/avana/saya/izin', [
+            'start_date' => now()->addDay()->toDateString(),
+            'end_date' => now()->addDays(3)->toDateString(),
+            'type' => 'pribadi',
+            'start_time' => '09:00',
+            'end_time' => '11:00',
+            'reason' => 'Multi hari berjam',
+        ])
+        ->assertSessionHasErrors('start_time');
+
+    expect(PermissionRequest::where('reason', 'Multi hari berjam')->exists())->toBeFalse();
+});
+
+it('blocks an employee from opening another employee payslip', function (): void {
+    $colleague = Employee::forTenant($this->employee->tenant_id)
+        ->where('id', '!=', $this->employee->id)
+        ->firstOrFail();
+
+    $run = PayrollRun::forTenant($this->employee->tenant_id)->firstOrFail();
+
+    // A payslip in the same tenant belonging to somebody else — the only thing
+    // keeping it out of reach is the ownership check.
+    $foreignPayslip = PayrollRunItem::create([
+        'tenant_id' => $this->employee->tenant_id,
+        'payroll_run_id' => $run->id,
+        'payroll_period_id' => $run->payroll_period_id,
+        'employee_id' => $colleague->id,
+        'gross_salary' => 10_000_000,
+        'total_allowance' => 0,
+        'total_deduction' => 500_000,
+        'bpjs_employee_total' => 0,
+        'bpjs_company_total' => 0,
+        'pph21_total' => 0,
+        'net_salary' => 9_500_000,
+        'status' => 'final',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get("/avana/saya/slip-gaji/{$foreignPayslip->id}")
+        ->assertNotFound();
+});
+
+it('keeps the admin employee console shut to a plain employee', function (): void {
+    // The self-service org chart is open, but the admin screens behind
+    // EmployeePolicy stay closed.
+    $this->actingAs($this->user)->get('/avana/saya/organisasi')->assertOk();
+    $this->actingAs($this->user)->get('/avana/organisasi')->assertForbidden();
+    $this->actingAs($this->user)->get('/avana/employees')->assertForbidden();
+});
+
+it('refuses self-service to an account with no employee record', function (): void {
+    $this->actingAs(User::where('email', 'rina.a@nusantara.co.id')->firstOrFail())
+        ->get('/avana/saya/profil')
+        ->assertForbidden();
+});
+
+it('updates only the personal fields an employee owns', function (): void {
+    $originalName = $this->employee->full_name;
+
+    $this->actingAs($this->user)
+        ->put('/avana/saya/profil', [
+            'phone' => '081234567890',
+            'address' => 'Jl. Merdeka 10',
+            'email' => 'bagus.p@nusantara.co.id',
+            'full_name' => 'Nama Palsu',
+        ])
+        ->assertSessionHasNoErrors()
+        ->assertRedirect();
+
+    $this->employee->refresh();
+
+    expect($this->employee->phone)->toBe('081234567890')
+        ->and($this->employee->address)->toBe('Jl. Merdeka 10')
+        // full_name is org-owned: the mass-assignment must not have taken it.
+        ->and($this->employee->full_name)->toBe($originalName);
+});

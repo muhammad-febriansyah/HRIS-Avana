@@ -21,6 +21,9 @@ function avanaPageUris(): array
         ->map(fn ($route) => $route->uri())
         ->filter(fn (string $uri) => str_starts_with($uri, 'avana/'))
         ->reject(fn (string $uri) => str_contains($uri, '{'))
+        // Layanan Saya resolves the caller's own employee record; super admin
+        // and HR logins have none, so a 403 there is the designed behaviour.
+        ->reject(fn (string $uri) => str_starts_with($uri, 'avana/saya/'))
         ->reject(fn (string $uri) => str_contains($uri, 'export')
             || str_contains($uri, 'transfer')
             || str_contains($uri, 'bpjs-export')

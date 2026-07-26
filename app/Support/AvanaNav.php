@@ -41,6 +41,22 @@ final class AvanaNav
             ['title' => null, 'items' => [
                 self::leaf('dashboard', 'Dashboard', 'layout-dashboard', '/dashboard'),
             ]],
+            // Employee self-service. Gated on the `own` permission module, which
+            // is all a plain karyawan role carries — so this is the one group
+            // they see, and privileged roles see it alongside the admin menus.
+            ['title' => 'LAYANAN SAYA', 'items' => [
+                self::leaf('saya-profil', 'Profil Saya', 'user', '/avana/saya/profil', 'ess', ['own']),
+                self::leaf('saya-absensi', 'Absensi Saya', 'fingerprint', '/avana/saya/absensi', 'ess', ['own']),
+                self::leaf('saya-koreksi', 'Koreksi Absensi', 'clock-alert', '/avana/saya/koreksi-absensi', 'ess', ['own']),
+                self::leaf('saya-jadwal', 'Jadwal Saya', 'calendar-clock', '/avana/saya/jadwal', 'ess', ['own']),
+                self::leaf('saya-organisasi', 'Struktur Organisasi', 'network', '/avana/saya/organisasi', 'ess', ['own']),
+                self::leaf('saya-cuti', 'Cuti Saya', 'palmtree', '/avana/saya/cuti', 'ess', ['own']),
+                self::leaf('saya-lembur', 'Lembur Saya', 'timer', '/avana/saya/lembur', 'ess', ['own']),
+                self::leaf('saya-izin', 'Izin Saya', 'file-clock', '/avana/saya/izin', 'ess', ['own']),
+                self::leaf('saya-slip', 'Slip Gaji Saya', 'receipt', '/avana/saya/slip-gaji', 'ess', ['own']),
+                self::leaf('saya-dokumen', 'Dokumen Saya', 'folder', '/avana/saya/dokumen', 'ess', ['own']),
+                self::leaf('saya-onboarding', 'Onboarding Saya', 'clipboard-check', '/avana/saya/onboarding', 'ess', ['own']),
+            ]],
             ['title' => 'MANAJEMEN', 'items' => [
                 self::parent('hr', 'Karyawan', 'users', [
                     self::leaf('karyawan', 'Data Karyawan', 'users', '/avana/employees', 'hr_core', ['employee']),
@@ -226,8 +242,15 @@ final class AvanaNav
 
         $canManage = $isSuperAdmin || $userModules->intersect(self::MANAGE_MODULES)->isNotEmpty();
 
-        $visible = function (array $leaf) use ($isSuperAdmin, $enabledCodes, $userModules, $canManage): bool {
+        // Self-service screens resolve the caller's own employee record, so an
+        // account without one (a bare HR/admin login) would only reach a 403.
+        $hasEmployee = $user->employee !== null;
+
+        $visible = function (array $leaf) use ($isSuperAdmin, $enabledCodes, $userModules, $canManage, $hasEmployee): bool {
             if (($leaf['superAdminOnly'] ?? false) && ! $isSuperAdmin) {
+                return false;
+            }
+            if (($leaf['modules'] ?? []) === ['own'] && ! $hasEmployee) {
                 return false;
             }
             if (($leaf['feature'] ?? null) !== null && ! $enabledCodes->contains($leaf['feature'])) {

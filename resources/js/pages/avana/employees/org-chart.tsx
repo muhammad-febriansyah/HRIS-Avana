@@ -28,6 +28,11 @@ interface OrgNode {
 
 interface OrgChartProps {
     nodes: OrgNode[];
+    /**
+     * False on the employee self-service copy of this chart: the full profile
+     * lives behind EmployeePolicy, so linking there would only 403.
+     */
+    canOpenProfile?: boolean;
 }
 
 const COL_WIDTH = 220;
@@ -47,11 +52,7 @@ const DEPT_PALETTE = [
 
 /** Up to two uppercase initials from a full name. */
 function initials(name: string): string {
-    const parts = name
-        .trim()
-        .split(/\s+/)
-        .filter(Boolean)
-        .slice(0, 2);
+    const parts = name.trim().split(/\s+/).filter(Boolean).slice(0, 2);
 
     return parts.map((word) => word.charAt(0).toUpperCase()).join('') || '?';
 }
@@ -233,7 +234,10 @@ function DetailRow({ label, value }: { label: string; value: string | null }) {
     );
 }
 
-export default function OrgChart({ nodes }: OrgChartProps) {
+export default function OrgChart({
+    nodes,
+    canOpenProfile = true,
+}: OrgChartProps) {
     const { nodes: flowNodes, edges } = useMemo(() => layout(nodes), [nodes]);
     const [selected, setSelected] = useState<OrgNode | null>(null);
     const chartRef = useRef<HTMLDivElement>(null);
@@ -244,8 +248,7 @@ export default function OrgChart({ nodes }: OrgChartProps) {
             setIsFullscreen(document.fullscreenElement === chartRef.current);
         document.addEventListener('fullscreenchange', onChange);
 
-        return () =>
-            document.removeEventListener('fullscreenchange', onChange);
+        return () => document.removeEventListener('fullscreenchange', onChange);
     }, []);
 
     const toggleFullscreen = () => {
@@ -399,7 +402,8 @@ export default function OrgChart({ nodes }: OrgChartProps) {
                                         borderRadius: '50%',
                                         flex: 'none',
                                         background: hashColor(
-                                            selected.department ?? selected.name,
+                                            selected.department ??
+                                                selected.name,
                                         ),
                                         color: '#fff',
                                         display: 'flex',
@@ -454,32 +458,34 @@ export default function OrgChart({ nodes }: OrgChartProps) {
                                 />
                             </div>
 
-                            <SheetFooter className="border-t">
-                                <Link
-                                    href={`/avana/employees/${selected.id}`}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: 7,
-                                        width: '100%',
-                                        padding: '9px 0',
-                                        borderRadius: 8,
-                                        background: C.primary,
-                                        color: '#fff',
-                                        fontSize: 13,
-                                        fontWeight: 500,
-                                        textDecoration: 'none',
-                                    }}
-                                >
-                                    <AIcon
-                                        name="external-link"
-                                        size={15}
-                                        color="#fff"
-                                    />
-                                    Lihat Profil Lengkap
-                                </Link>
-                            </SheetFooter>
+                            {canOpenProfile && (
+                                <SheetFooter className="border-t">
+                                    <Link
+                                        href={`/avana/employees/${selected.id}`}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: 7,
+                                            width: '100%',
+                                            padding: '9px 0',
+                                            borderRadius: 8,
+                                            background: C.primary,
+                                            color: '#fff',
+                                            fontSize: 13,
+                                            fontWeight: 500,
+                                            textDecoration: 'none',
+                                        }}
+                                    >
+                                        <AIcon
+                                            name="external-link"
+                                            size={15}
+                                            color="#fff"
+                                        />
+                                        Lihat Profil Lengkap
+                                    </Link>
+                                </SheetFooter>
+                            )}
                         </>
                     )}
                 </SheetContent>

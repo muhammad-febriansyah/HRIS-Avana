@@ -6,10 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\Invoice;
+use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
+use App\Models\OvertimeRequest;
 use App\Models\PayrollPeriod;
+use App\Models\Permission;
+use App\Models\PermissionRequest;
 use App\Models\Subscription;
 use App\Models\Tenant;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -69,6 +74,13 @@ class DashboardController extends Controller
             return $this->superAdminDashboard($request);
         }
 
+        // A plain karyawan carries only the `own` permission module, so the
+        // HR-wide figures below are neither visible nor useful to them: give
+        // them their own self-service home instead.
+        if ($this->isSelfServiceOnly($user)) {
+            return $this->employeeDashboard($request);
+        }
+
         $tenantId = $request->user()->tenant_id ?? 0;
         $today = Carbon::today();
 
@@ -97,6 +109,133 @@ class DashboardController extends Controller
             'userName' => explode(' ', trim((string) $request->user()->name))[0],
             'today' => $today->copy()->locale('id')->translatedFormat('l, d M Y'),
         ]);
+    }
+
+    /**
+     * Whether the user only holds self-service (`own`) permissions — a plain
+     * karyawan, as opposed to HR, a manager, or finance.
+     */
+    private function isSelfServiceOnly(User $user): bool
+    {
+        if ($user->employee === null) {
+            return false;
+        }
+
+        $modules = Permission::query()
+            ->whereHas('roles', fn ($query) => $query->whereIn('roles.id', $user->roles->pluck('id')))
+            ->distinct()
+            ->pluck('module');
+
+        return $modules->isNotEmpty() && $modules->diff(['own'])->isEmpty();
+    }
+
+    /**
+     * Render the employee's own home screen: today's attendance, this month's
+     * hours, remaining leave, pending requests, and the week around them.
+     */
+    private function employeeDashboard(Request $request): Response
+    {
+        $employee = $request->user()->employee;
+        $tenantId = (int) $employee->tenant_id;
+        $today = Carbon::today();
+
+        $todayRecord = Attendance::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->whereDate('date', $today)
+            ->first();
+
+        $monthMinutes = (int) Attendance::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->whereYear('date', $today->year)
+            ->whereMonth('date', $today->month)
+            ->sum('work_minutes');
+
+        $leaveAvailable = (float) LeaveBalance::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->where('year', $today->year)
+            ->sum('remaining');
+
+        $pending = 0;
+        foreach ([LeaveRequest::class, OvertimeRequest::class, PermissionRequest::class] as $model) {
+            $pending += $model::forTenant($tenantId)
+                ->where('employee_id', $employee->id)
+                ->where('status', 'pending')
+                ->count();
+        }
+
+        return Inertia::render('avana/saya/dashboard', [
+            'userName' => explode(' ', trim((string) $request->user()->name))[0],
+            'today' => $today->copy()->locale('id')->translatedFormat('l, d M Y'),
+            'todayAttendance' => [
+                'clock_in' => $todayRecord?->clock_in_at?->format('H:i'),
+                'clock_out' => $todayRecord?->clock_out_at?->format('H:i'),
+                'status' => $todayRecord?->status,
+            ],
+            'stats' => [
+                'work_hours_month' => round($monthMinutes / 60, 1),
+                'leave_available' => $leaveAvailable,
+                'pending_requests' => $pending,
+            ],
+            'attendanceWeek' => $this->ownAttendanceWeek($tenantId, (int) $employee->id, $today),
+            'awayToday' => $this->awayToday($tenantId, $employee->department_id, $today),
+        ]);
+    }
+
+    /**
+     * Hours worked on each of the last seven days, oldest first.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function ownAttendanceWeek(int $tenantId, int $employeeId, Carbon $today): array
+    {
+        $start = $today->copy()->subDays(6);
+
+        $byDate = Attendance::forTenant($tenantId)
+            ->where('employee_id', $employeeId)
+            ->whereBetween('date', [$start, $today])
+            ->get(['date', 'work_minutes', 'status'])
+            ->keyBy(fn (Attendance $record): string => $record->date->toDateString());
+
+        $days = [];
+        for ($offset = 0; $offset < 7; $offset++) {
+            $date = $start->copy()->addDays($offset);
+            $record = $byDate->get($date->toDateString());
+
+            $days[] = [
+                'date' => $date->toDateString(),
+                'label' => $date->copy()->locale('id')->translatedFormat('D'),
+                'hours' => round(((int) ($record->work_minutes ?? 0)) / 60, 1),
+                'status' => $record->status ?? null,
+            ];
+        }
+
+        return $days;
+    }
+
+    /**
+     * Colleagues in the employee's own department on approved leave today.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function awayToday(int $tenantId, ?int $departmentId, Carbon $today): array
+    {
+        return LeaveRequest::forTenant($tenantId)
+            ->where('status', 'approved')
+            ->whereDate('start_date', '<=', $today->toDateString())
+            ->whereDate('end_date', '>=', $today->toDateString())
+            ->when($departmentId, fn ($query, $id) => $query->whereHas(
+                'employee',
+                fn ($employeeQuery) => $employeeQuery->where('department_id', $id),
+            ))
+            ->with(['employee:id,full_name', 'leaveType:id,name'])
+            ->limit(10)
+            ->get()
+            ->map(fn (LeaveRequest $leave): array => [
+                'id' => $leave->id,
+                'name' => $leave->employee?->full_name,
+                'leave_type' => $leave->leaveType?->name,
+                'end_date' => $leave->end_date?->toDateString(),
+            ])->values()->all();
     }
 
     /**

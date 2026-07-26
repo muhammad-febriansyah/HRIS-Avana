@@ -32,6 +32,16 @@ use App\Http\Controllers\Avana\DutyTravelController;
 use App\Http\Controllers\Avana\DynamicReportController;
 use App\Http\Controllers\Avana\EmailSettingController;
 use App\Http\Controllers\Avana\EmployeeController;
+use App\Http\Controllers\Avana\EssAttendanceController;
+use App\Http\Controllers\Avana\EssDirectoryController;
+use App\Http\Controllers\Avana\EssDocumentController;
+use App\Http\Controllers\Avana\EssLeaveController;
+use App\Http\Controllers\Avana\EssOnboardingController;
+use App\Http\Controllers\Avana\EssOvertimeController;
+use App\Http\Controllers\Avana\EssPayslipController;
+use App\Http\Controllers\Avana\EssPermissionController;
+use App\Http\Controllers\Avana\EssProfileController;
+use App\Http\Controllers\Avana\EssScheduleController;
 use App\Http\Controllers\Avana\FeatureCatalogController;
 use App\Http\Controllers\Avana\FeatureController;
 use App\Http\Controllers\Avana\FieldVisitController;
@@ -712,6 +722,42 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('tampilan/reset', [TenantAppearanceController::class, 'reset'])->name('tampilan.reset');
     Route::post('tampilan/logo', [TenantAppearanceController::class, 'updateLogo'])->name('tampilan.logo');
     Route::delete('tampilan/logo', [TenantAppearanceController::class, 'removeLogo'])->name('tampilan.logo.remove');
+
+    // Layanan Saya (employee self-service) — every route is scoped to the
+    // signed-in user's own employee record, mirroring the /api/v1/me endpoints
+    // the mobile app uses.
+    Route::prefix('saya')->name('saya.')->group(function () {
+        Route::get('profil', [EssProfileController::class, 'edit'])->name('profil');
+        Route::put('profil', [EssProfileController::class, 'update'])->name('profil.update');
+        Route::post('profil/foto', [EssProfileController::class, 'updatePhoto'])->name('profil.foto');
+
+        Route::get('absensi', [EssAttendanceController::class, 'index'])->name('absensi');
+
+        Route::get('koreksi-absensi', [EssAttendanceController::class, 'corrections'])->name('koreksi-absensi');
+        Route::post('koreksi-absensi', [EssAttendanceController::class, 'storeCorrection'])->name('koreksi-absensi.store');
+
+        Route::get('jadwal', [EssScheduleController::class, 'index'])->name('jadwal');
+
+        Route::get('organisasi', [EssDirectoryController::class, 'index'])->name('organisasi');
+
+        Route::get('cuti', [EssLeaveController::class, 'index'])->name('cuti');
+        Route::post('cuti', [EssLeaveController::class, 'store'])->name('cuti.store');
+
+        Route::get('lembur', [EssOvertimeController::class, 'index'])->name('lembur');
+        Route::post('lembur', [EssOvertimeController::class, 'store'])->name('lembur.store');
+
+        Route::get('izin', [EssPermissionController::class, 'index'])->name('izin');
+        Route::post('izin', [EssPermissionController::class, 'store'])->name('izin.store');
+
+        Route::get('slip-gaji', [EssPayslipController::class, 'index'])->name('slip-gaji');
+        Route::get('slip-gaji/{item}', [EssPayslipController::class, 'show'])->name('slip-gaji.show');
+
+        Route::get('dokumen', [EssDocumentController::class, 'index'])->name('dokumen');
+        Route::post('dokumen', [EssDocumentController::class, 'store'])->name('dokumen.store');
+
+        Route::get('onboarding', [EssOnboardingController::class, 'index'])->name('onboarding');
+        Route::patch('onboarding/tugas/{task}', [EssOnboardingController::class, 'toggleTask'])->name('onboarding.task');
+    });
 
     // Token AI (tenant admin/HR) — top up wallet via Pakasir + per-user caps
     Route::get('token-ai', [TenantAiTokenController::class, 'index'])->name('token-ai');
