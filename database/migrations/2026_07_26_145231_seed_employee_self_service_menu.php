@@ -29,6 +29,8 @@ return new class extends Migration
         ['key' => 'saya-cuti', 'label' => 'Cuti Saya', 'icon' => 'palmtree', 'href' => '/avana/saya/cuti'],
         ['key' => 'saya-lembur', 'label' => 'Lembur Saya', 'icon' => 'timer', 'href' => '/avana/saya/lembur'],
         ['key' => 'saya-izin', 'label' => 'Izin Saya', 'icon' => 'file-clock', 'href' => '/avana/saya/izin'],
+        ['key' => 'saya-kontrak', 'label' => 'Kontrak Saya', 'icon' => 'file-text', 'href' => '/avana/saya/kontrak'],
+        ['key' => 'saya-kinerja', 'label' => 'Kinerja Saya', 'icon' => 'trending-up', 'href' => '/avana/saya/kinerja'],
         ['key' => 'saya-slip', 'label' => 'Slip Gaji Saya', 'icon' => 'receipt', 'href' => '/avana/saya/slip-gaji'],
         ['key' => 'saya-dokumen', 'label' => 'Dokumen Saya', 'icon' => 'folder', 'href' => '/avana/saya/dokumen'],
         ['key' => 'saya-onboarding', 'label' => 'Onboarding Saya', 'icon' => 'clipboard-check', 'href' => '/avana/saya/onboarding'],

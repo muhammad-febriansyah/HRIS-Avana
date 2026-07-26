@@ -33,12 +33,14 @@ use App\Http\Controllers\Avana\DynamicReportController;
 use App\Http\Controllers\Avana\EmailSettingController;
 use App\Http\Controllers\Avana\EmployeeController;
 use App\Http\Controllers\Avana\EssAttendanceController;
+use App\Http\Controllers\Avana\EssContractController;
 use App\Http\Controllers\Avana\EssDirectoryController;
 use App\Http\Controllers\Avana\EssDocumentController;
 use App\Http\Controllers\Avana\EssLeaveController;
 use App\Http\Controllers\Avana\EssOnboardingController;
 use App\Http\Controllers\Avana\EssOvertimeController;
 use App\Http\Controllers\Avana\EssPayslipController;
+use App\Http\Controllers\Avana\EssPerformanceController;
 use App\Http\Controllers\Avana\EssPermissionController;
 use App\Http\Controllers\Avana\EssProfileController;
 use App\Http\Controllers\Avana\EssScheduleController;
@@ -748,6 +750,11 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
 
         Route::get('izin', [EssPermissionController::class, 'index'])->name('izin');
         Route::post('izin', [EssPermissionController::class, 'store'])->name('izin.store');
+
+        Route::get('kontrak', [EssContractController::class, 'index'])->name('kontrak');
+
+        Route::get('kinerja', [EssPerformanceController::class, 'index'])->name('kinerja');
+        Route::post('kinerja/{review}/nilai-mandiri', [EssPerformanceController::class, 'submitSelfScore'])->name('kinerja.self-score');
 
         Route::get('slip-gaji', [EssPayslipController::class, 'index'])->name('slip-gaji');
         Route::get('slip-gaji/{item}', [EssPayslipController::class, 'show'])->name('slip-gaji.show');

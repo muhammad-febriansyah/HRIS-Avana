@@ -54,6 +54,8 @@ it('renders every self-service page for an employee', function (string $path, st
     'cuti' => ['/avana/saya/cuti', 'avana/saya/cuti'],
     'lembur' => ['/avana/saya/lembur', 'avana/saya/lembur'],
     'izin' => ['/avana/saya/izin', 'avana/saya/izin'],
+    'kontrak' => ['/avana/saya/kontrak', 'avana/saya/kontrak'],
+    'kinerja' => ['/avana/saya/kinerja', 'avana/saya/kinerja'],
     'slip gaji' => ['/avana/saya/slip-gaji', 'avana/saya/slip-gaji'],
     'dokumen' => ['/avana/saya/dokumen', 'avana/saya/dokumen'],
     'onboarding' => ['/avana/saya/onboarding', 'avana/saya/onboarding'],

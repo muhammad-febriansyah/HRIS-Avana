@@ -53,6 +53,8 @@ final class AvanaNav
                 self::leaf('saya-cuti', 'Cuti Saya', 'palmtree', '/avana/saya/cuti', 'ess', ['own']),
                 self::leaf('saya-lembur', 'Lembur Saya', 'timer', '/avana/saya/lembur', 'ess', ['own']),
                 self::leaf('saya-izin', 'Izin Saya', 'file-clock', '/avana/saya/izin', 'ess', ['own']),
+                self::leaf('saya-kontrak', 'Kontrak Saya', 'file-text', '/avana/saya/kontrak', 'ess', ['own']),
+                self::leaf('saya-kinerja', 'Kinerja Saya', 'trending-up', '/avana/saya/kinerja', 'ess', ['own']),
                 self::leaf('saya-slip', 'Slip Gaji Saya', 'receipt', '/avana/saya/slip-gaji', 'ess', ['own']),
                 self::leaf('saya-dokumen', 'Dokumen Saya', 'folder', '/avana/saya/dokumen', 'ess', ['own']),
                 self::leaf('saya-onboarding', 'Onboarding Saya', 'clipboard-check', '/avana/saya/onboarding', 'ess', ['own']),
