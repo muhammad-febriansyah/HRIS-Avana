@@ -66,14 +66,28 @@ export default function KlienCreate({ packages }: KlienCreateProps) {
                 >
                     Tambah Klien Baru
                 </h1>
+                <p
+                    style={{
+                        fontSize: 13,
+                        color: C.muted,
+                        margin: '-16px 0 24px',
+                        lineHeight: 1.6,
+                        maxWidth: 640,
+                    }}
+                >
+                    Sekali simpan: klien dibuat, seluruh modul diaktifkan, role
+                    &amp; menu bawaan disiapkan, dan akun admin-nya langsung
+                    bisa login. Kredensialnya ditampilkan setelah ini.
+                </p>
 
                 <KlienForm
                     form={form}
                     packages={packages}
-                    submitLabel="Tambah Klien"
+                    submitLabel="Buat Klien & Akun Admin"
                     submitIcon="plus"
                     cancelHref={TenantController.index().url}
                     onSubmit={handleSubmit}
+                    withAdminAccount
                 />
             </div>
         </>

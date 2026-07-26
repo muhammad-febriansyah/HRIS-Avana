@@ -1,9 +1,12 @@
 <?php
 
 use App\Models\Feature;
+use App\Models\MenuItem;
+use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
+use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
 
 use function Pest\Laravel\actingAs;
@@ -68,6 +71,8 @@ it('lets a super admin create a tenant and enables every feature by default', fu
             'max_users' => 25,
             'max_employees' => 500,
             'max_branches' => 5,
+            'admin_name' => 'Admin Maju',
+            'admin_email' => 'admin@maju-bersama.co.id',
         ])
         ->assertSessionHas('success');
 
@@ -88,6 +93,8 @@ it('auto-derives a unique slug from the name when none is given', function (): v
         ->post(route('avana.klien.store'), [
             'name' => 'PT Cahaya Abadi',
             'status' => 'active',
+            'admin_name' => 'Admin Cahaya',
+            'admin_email' => 'admin@cahaya-abadi.co.id',
         ])
         ->assertSessionHas('success');
 
@@ -107,6 +114,8 @@ it('rejects a duplicate slug', function (): void {
         ->post(route('avana.klien.store'), [
             'name' => 'PT Duplikat',
             'slug' => $this->tenant->slug,
+            'admin_name' => 'Admin Duplikat',
+            'admin_email' => 'admin@duplikat.co.id',
         ])
         ->assertSessionHasErrors('slug');
 });
@@ -203,4 +212,128 @@ it('forbids an admin_tenant_hr from viewing the tenant detail page', function ()
     actingAs($this->admin)
         ->get(route('avana.klien.show', $this->tenant))
         ->assertForbidden();
+});
+
+it('provisions roles, menu and a working admin login with the new tenant', function (): void {
+    actingAs($this->superAdmin)
+        ->post(route('avana.klien.store'), [
+            'name' => 'PT Sinar Baru',
+            'slug' => 'sinar-baru',
+            'status' => 'active',
+            'admin_name' => 'Sari Admin',
+            'admin_email' => 'sari@sinar-baru.co.id',
+            'admin_password' => 'rahasia123',
+        ])
+        ->assertSessionHas('success')
+        ->assertSessionHas('credentials');
+
+    $tenant = Tenant::where('slug', 'sinar-baru')->firstOrFail();
+
+    // The four system roles, so the user form has something to assign.
+    expect(Role::where('tenant_id', $tenant->id)->pluck('code')->sort()->values()->all())
+        ->toBe(['admin_tenant_hr', 'employee', 'finance', 'manager']);
+
+    // The sidebar the tenant admin will actually see.
+    expect(MenuItem::where('tenant_id', $tenant->id)->count())->toBeGreaterThan(0);
+
+    $admin = User::where('email', 'sari@sinar-baru.co.id')->firstOrFail();
+
+    expect((int) $admin->tenant_id)->toBe($tenant->id);
+    expect($admin->roles->pluck('code')->all())->toBe(['admin_tenant_hr']);
+    expect(Hash::check('rahasia123', $admin->password))->toBeTrue();
+
+    // And that account can really get in and load its own dashboard.
+    actingAs($admin)->get(route('avana.employees.index'))->assertOk();
+});
+
+it('generates a password when none is given and returns it once', function (): void {
+    $response = actingAs($this->superAdmin)
+        ->post(route('avana.klien.store'), [
+            'name' => 'PT Tanpa Password',
+            'slug' => 'tanpa-password',
+            'admin_name' => 'Admin Otomatis',
+            'admin_email' => 'admin@tanpa-password.co.id',
+        ]);
+
+    $credentials = session('credentials');
+
+    expect($credentials['email'])->toBe('admin@tanpa-password.co.id');
+    expect(strlen((string) $credentials['password']))->toBeGreaterThanOrEqual(8);
+
+    $admin = User::where('email', 'admin@tanpa-password.co.id')->firstOrFail();
+
+    expect(Hash::check($credentials['password'], $admin->password))->toBeTrue();
+    $response->assertRedirect(route('avana.klien.show', Tenant::where('slug', 'tanpa-password')->firstOrFail()));
+});
+
+it('requires the admin account fields when creating a tenant', function (): void {
+    actingAs($this->superAdmin)
+        ->post(route('avana.klien.store'), ['name' => 'PT Tanpa Admin'])
+        ->assertSessionHasErrors(['admin_name', 'admin_email']);
+
+    expect(Tenant::where('name', 'PT Tanpa Admin')->exists())->toBeFalse();
+});
+
+it('rejects an admin email that already belongs to another account', function (): void {
+    actingAs($this->superAdmin)
+        ->post(route('avana.klien.store'), [
+            'name' => 'PT Email Kembar',
+            'admin_name' => 'Admin Kembar',
+            'admin_email' => $this->admin->email,
+        ])
+        ->assertSessionHasErrors('admin_email');
+});
+
+it('lists the tenant admins on the klien detail page', function (): void {
+    actingAs($this->superAdmin)
+        ->get(route('avana.klien.show', $this->tenant))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/klien/show', false)
+            ->has('admins')
+            ->where('admins.0.email', 'rina.a@nusantara.co.id')
+            ->etc());
+});
+
+it('adds another admin to an existing tenant', function (): void {
+    actingAs($this->superAdmin)
+        ->post(route('avana.klien.admin.store', $this->tenant), [
+            'admin_name' => 'Admin Kedua',
+            'admin_email' => 'kedua@nusantara.co.id',
+        ])
+        ->assertSessionHas('credentials');
+
+    $admin = User::where('email', 'kedua@nusantara.co.id')->firstOrFail();
+
+    expect((int) $admin->tenant_id)->toBe($this->tenant->id);
+    expect($admin->roles->pluck('code')->all())->toBe(['admin_tenant_hr']);
+});
+
+it('resets a tenant admin password and hands it back once', function (): void {
+    actingAs($this->superAdmin)
+        ->post(route('avana.klien.admin.password', [$this->tenant, $this->admin]), [
+            'admin_password' => 'passwordbaru1',
+        ])
+        ->assertSessionHas('success');
+
+    expect(Hash::check('passwordbaru1', $this->admin->fresh()->password))->toBeTrue();
+});
+
+it('refuses to reset a password for a user outside the tenant', function (): void {
+    $other = Tenant::create(['name' => 'PT Lain', 'slug' => 'pt-lain', 'status' => 'active']);
+
+    actingAs($this->superAdmin)
+        ->post(route('avana.klien.admin.password', [$other, $this->admin]), [])
+        ->assertNotFound();
+});
+
+it('forbids a tenant admin from adding admins to a tenant', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.klien.admin.store', $this->tenant), [
+            'admin_name' => 'Admin Selundupan',
+            'admin_email' => 'selundupan@nusantara.co.id',
+        ])
+        ->assertForbidden();
+
+    expect(User::where('email', 'selundupan@nusantara.co.id')->exists())->toBeFalse();
 });

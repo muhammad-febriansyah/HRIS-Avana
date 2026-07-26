@@ -20,6 +20,8 @@ interface KlienFormProps {
     submitIcon: string;
     cancelHref: string;
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+    /** Create only: the client also needs its first Admin Tenant / HR login. */
+    withAdminAccount?: boolean;
 }
 
 /** Shared create/edit form for a client tenant. */
@@ -30,12 +32,25 @@ export function KlienForm({
     submitIcon,
     cancelHref,
     onSubmit,
+    withAdminAccount = false,
 }: KlienFormProps) {
     const { data, setData, errors, processing } = form;
 
     return (
         <form onSubmit={onSubmit} style={{ ...card }}>
             <div style={{ padding: '22px 24px' }}>
+                {withAdminAccount && (
+                    <div
+                        style={{
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: C.navy,
+                            marginBottom: 14,
+                        }}
+                    >
+                        1. Data Klien
+                    </div>
+                )}
                 <div
                     style={{
                         display: 'grid',
@@ -204,6 +219,104 @@ export function KlienForm({
                     </div>
                 </div>
             </div>
+
+            {withAdminAccount && (
+                <div
+                    style={{
+                        padding: '22px 24px',
+                        borderTop: `1px solid ${C.line}`,
+                        background: '#F8FAFF',
+                    }}
+                >
+                    <div
+                        style={{
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: C.navy,
+                            marginBottom: 4,
+                        }}
+                    >
+                        2. Akun Admin Tenant
+                    </div>
+                    <p
+                        style={{
+                            fontSize: 12.5,
+                            color: C.muted,
+                            margin: '0 0 16px',
+                            lineHeight: 1.55,
+                        }}
+                    >
+                        Login pertama untuk klien ini, otomatis dapat role{' '}
+                        <strong>Admin Tenant / HR</strong> beserta seluruh menu
+                        dan hak aksesnya. Password ditampilkan sekali setelah
+                        klien dibuat.
+                    </p>
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr',
+                            gap: 16,
+                        }}
+                    >
+                        <div>
+                            <label style={fieldLabelStyle}>
+                                Nama Admin{' '}
+                                <span style={{ color: C.red }}>*</span>
+                            </label>
+                            <input
+                                value={data.admin_name}
+                                onChange={(event) =>
+                                    setData('admin_name', event.target.value)
+                                }
+                                placeholder="cth. Rina Anggraeni"
+                                style={withError(
+                                    inputStyle,
+                                    !!errors.admin_name,
+                                )}
+                            />
+                            <FieldError message={errors.admin_name} />
+                        </div>
+                        <div>
+                            <label style={fieldLabelStyle}>
+                                Email Admin{' '}
+                                <span style={{ color: C.red }}>*</span>
+                            </label>
+                            <input
+                                type="email"
+                                value={data.admin_email}
+                                onChange={(event) =>
+                                    setData('admin_email', event.target.value)
+                                }
+                                placeholder="admin@klien.co.id"
+                                style={withError(
+                                    inputStyle,
+                                    !!errors.admin_email,
+                                )}
+                            />
+                            <FieldError message={errors.admin_email} />
+                        </div>
+                        <div>
+                            <label style={fieldLabelStyle}>Password</label>
+                            <input
+                                type="text"
+                                value={data.admin_password}
+                                onChange={(event) =>
+                                    setData(
+                                        'admin_password',
+                                        event.target.value,
+                                    )
+                                }
+                                placeholder="kosongkan = dibuat otomatis"
+                                style={withError(
+                                    inputStyle,
+                                    !!errors.admin_password,
+                                )}
+                            />
+                            <FieldError message={errors.admin_password} />
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div
                 style={{

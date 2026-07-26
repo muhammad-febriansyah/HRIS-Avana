@@ -11,6 +11,8 @@ use App\Models\Invoice;
 use App\Models\Package;
 use App\Models\Subscription;
 use App\Models\Tenant;
+use App\Models\User;
+use App\Services\TenantProvisioner;
 use App\Support\FeatureGroups;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -36,6 +38,8 @@ class TenantController extends Controller
      * @var array<int, string>
      */
     private const STATUSES = ['trial', 'active', 'suspended', 'inactive'];
+
+    public function __construct(private readonly TenantProvisioner $provisioner) {}
 
     /**
      * Display a paginated, searchable list of all client tenants.
@@ -318,7 +322,31 @@ class TenantController extends Controller
                     'join_date' => $employee->join_date?->toDateString(),
                 ])->all(),
             ],
+            'admins' => $this->adminAccounts($tenant),
         ]);
+    }
+
+    /**
+     * The tenant's Admin Tenant / HR logins — the accounts that actually run
+     * the client's AvanaHR. Surfaced on the tenant page so a super admin can
+     * see at a glance whether the client can log in at all.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function adminAccounts(Tenant $tenant): array
+    {
+        return User::where('tenant_id', $tenant->id)
+            ->whereHas('roles', fn ($query) => $query->where('code', 'admin_tenant_hr'))
+            ->orderBy('id')
+            ->get(['id', 'name', 'email', 'status', 'created_at'])
+            ->map(fn (User $user): array => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'status' => $user->status,
+                'created_at' => $user->created_at?->translatedFormat('d M Y'),
+            ])
+            ->all();
     }
 
     /**
@@ -328,7 +356,7 @@ class TenantController extends Controller
     {
         $this->authorize('create', Tenant::class);
 
-        $validated = $request->validate($this->rules());
+        $validated = $request->validate($this->rules() + $this->adminRules());
 
         $slug = filled($validated['slug'] ?? null)
             ? $validated['slug']
@@ -350,7 +378,90 @@ class TenantController extends Controller
 
         $this->enableAllFeatures($tenant);
 
-        return back()->with('success', 'Klien berhasil ditambahkan');
+        // Roles, menu, and the first login — without these the client has no way
+        // into their own AvanaHR.
+        $this->provisioner->provision($tenant);
+
+        $admin = $this->provisioner->createAdmin(
+            $tenant,
+            $validated['admin_name'],
+            $validated['admin_email'],
+            $validated['admin_password'] ?? null,
+        );
+
+        return redirect()->route('avana.klien.show', $tenant)
+            ->with('success', 'Klien '.$tenant->name.' dibuat beserta akun admin-nya')
+            ->with('credentials', [
+                'name' => $admin['user']->name,
+                'email' => $admin['user']->email,
+                'password' => $admin['password'],
+            ]);
+    }
+
+    /**
+     * Add another Admin Tenant / HR login to an existing client — used when the
+     * first admin leaves, or the client wants a second HR account.
+     */
+    public function storeAdmin(Request $request, Tenant $tenant): RedirectResponse
+    {
+        $this->authorize('update', $tenant);
+
+        $validated = $request->validate($this->adminRules());
+
+        $admin = $this->provisioner->createAdmin(
+            $tenant,
+            $validated['admin_name'],
+            $validated['admin_email'],
+            $validated['admin_password'] ?? null,
+        );
+
+        return back()
+            ->with('success', 'Akun admin ditambahkan')
+            ->with('credentials', [
+                'name' => $admin['user']->name,
+                'email' => $admin['user']->email,
+                'password' => $admin['password'],
+            ]);
+    }
+
+    /**
+     * Issue a fresh password for one of the tenant's admin accounts and show it
+     * once, so the super admin can hand it over.
+     */
+    public function resetAdminPassword(Request $request, Tenant $tenant, User $user): RedirectResponse
+    {
+        $this->authorize('update', $tenant);
+
+        abort_if((int) $user->tenant_id !== (int) $tenant->id, 404);
+
+        $validated = $request->validate([
+            'admin_password' => ['nullable', 'string', 'min:8', 'max:255'],
+        ]);
+
+        $password = $this->provisioner->resetPassword($user, $validated['admin_password'] ?? null);
+
+        return back()
+            ->with('success', 'Password admin diperbarui')
+            ->with('credentials', [
+                'name' => $user->name,
+                'email' => $user->email,
+                'password' => $password,
+            ]);
+    }
+
+    /**
+     * Validation for the Admin Tenant / HR account fields.
+     *
+     * @return array<string, array<int, mixed>>
+     */
+    private function adminRules(): array
+    {
+        return [
+            'admin_name' => ['required', 'string', 'max:255'],
+            'admin_email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            // Left blank on purpose = generate one and show it once.
+            'admin_password' => ['nullable', 'string', 'min:8', 'max:255'],
+        ];
     }
 
     /**

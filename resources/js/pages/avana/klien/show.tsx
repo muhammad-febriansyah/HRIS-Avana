@@ -1,7 +1,9 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, FormEvent, ReactNode } from 'react';
 import { AIcon, btnOut, btnP, C, card, rp } from '@/lib/avana';
+import { FieldError, fieldLabelStyle, inputStyle, withError } from './components';
+import type { TenantAdmin, TenantCredentials } from './types';
 
 type Pkg = {
     name: string;
@@ -60,6 +62,7 @@ type ShowProps = {
         recent: Invoice[];
     };
     features: string[];
+    admins: TenantAdmin[];
     branches: { name: string; employees_count: number }[];
     departments: { name: string; employees_count: number }[];
     employees: {
@@ -127,6 +130,7 @@ const EMPLOYMENT_META: Record<string, { label: string; color: string }> = {
 
 const TABS = [
     { id: 'ringkasan', label: 'Ringkasan', icon: 'layout-dashboard' },
+    { id: 'admin', label: 'Akun Admin', icon: 'shield' },
     { id: 'tagihan', label: 'Langganan & Tagihan', icon: 'receipt' },
     { id: 'fitur', label: 'Fitur Aktif', icon: 'layers' },
     { id: 'organisasi', label: 'Organisasi', icon: 'building-2' },
@@ -262,6 +266,430 @@ function QuotaBar({
     );
 }
 
+/**
+ * The client's own logins. A tenant with no Admin Tenant / HR account cannot be
+ * used at all, so this tab both shows the state and fixes it in one place.
+ */
+function AdminAccountsTab({
+    tenantId,
+    admins,
+}: {
+    tenantId: number;
+    admins: TenantAdmin[];
+}) {
+    const { flash } = usePage<{ flash?: { credentials?: TenantCredentials } }>()
+        .props;
+    const [adding, setAdding] = useState(admins.length === 0);
+    const [resetting, setResetting] = useState<number | null>(null);
+
+    const addForm = useForm({
+        admin_name: '',
+        admin_email: '',
+        admin_password: '',
+    });
+    const resetForm = useForm({ admin_password: '' });
+
+    const submitAdd = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        addForm.post(`/avana/klien/${tenantId}/admin`, {
+            preserveScroll: true,
+            onSuccess: () => {
+                addForm.reset();
+                setAdding(false);
+            },
+        });
+    };
+
+    const submitReset = (event: FormEvent<HTMLFormElement>, userId: number) => {
+        event.preventDefault();
+        resetForm.post(`/avana/klien/${tenantId}/admin/${userId}/password`, {
+            preserveScroll: true,
+            onSuccess: () => {
+                resetForm.reset();
+                setResetting(null);
+            },
+        });
+    };
+
+    return (
+        <div style={{ display: 'grid', gap: 16 }}>
+            {flash?.credentials && (
+                <div
+                    style={{
+                        ...card,
+                        padding: '16px 18px',
+                        borderLeft: `3px solid ${C.green}`,
+                        background: '#F0FDF4',
+                    }}
+                >
+                    <div
+                        style={{
+                            fontSize: 13.5,
+                            fontWeight: 600,
+                            color: C.navy,
+                            marginBottom: 4,
+                        }}
+                    >
+                        Kredensial login — catat sekarang
+                    </div>
+                    <div
+                        style={{
+                            fontSize: 12.5,
+                            color: C.muted,
+                            marginBottom: 12,
+                        }}
+                    >
+                        Password hanya ditampilkan sekali. Setelah halaman ini
+                        ditinggalkan, satu-satunya cara adalah reset ulang.
+                    </div>
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns:
+                                'repeat(auto-fit, minmax(200px, 1fr))',
+                            gap: 12,
+                        }}
+                    >
+                        <KeyValue
+                            label="Nama"
+                            value={flash.credentials.name}
+                        />
+                        <KeyValue
+                            label="Email"
+                            value={flash.credentials.email}
+                        />
+                        <KeyValue
+                            label="Password"
+                            value={
+                                <code
+                                    style={{
+                                        fontSize: 13.5,
+                                        fontWeight: 600,
+                                        background: '#fff',
+                                        border: `1px solid ${C.line}`,
+                                        borderRadius: 6,
+                                        padding: '3px 8px',
+                                    }}
+                                >
+                                    {flash.credentials.password}
+                                </code>
+                            }
+                        />
+                    </div>
+                </div>
+            )}
+
+            <SectionCard
+                title="Admin Tenant / HR"
+                action={
+                    <button
+                        type="button"
+                        onClick={() => setAdding((open) => !open)}
+                        style={{ ...btnOut, height: 34 }}
+                    >
+                        <AIcon
+                            name={adding ? 'x' : 'plus'}
+                            size={14}
+                            color={C.text}
+                        />
+                        {adding ? 'Batal' : 'Tambah Admin'}
+                    </button>
+                }
+            >
+                <p
+                    style={{
+                        fontSize: 12.5,
+                        color: C.muted,
+                        margin: '0 0 14px',
+                        lineHeight: 1.55,
+                    }}
+                >
+                    Akun ini yang dipakai klien untuk masuk ke AvanaHR mereka
+                    sendiri — otomatis memegang role Admin Tenant / HR beserta
+                    seluruh menunya.
+                </p>
+
+                {adding && (
+                    <form
+                        onSubmit={submitAdd}
+                        style={{
+                            border: `1px solid ${C.line}`,
+                            borderRadius: 10,
+                            padding: 16,
+                            marginBottom: 16,
+                            background: '#F8FAFF',
+                            display: 'grid',
+                            gap: 12,
+                        }}
+                    >
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns:
+                                    'repeat(auto-fit, minmax(200px, 1fr))',
+                                gap: 12,
+                            }}
+                        >
+                            <div>
+                                <label style={fieldLabelStyle}>
+                                    Nama Admin{' '}
+                                    <span style={{ color: C.red }}>*</span>
+                                </label>
+                                <input
+                                    value={addForm.data.admin_name}
+                                    onChange={(event) =>
+                                        addForm.setData(
+                                            'admin_name',
+                                            event.target.value,
+                                        )
+                                    }
+                                    placeholder="cth. Rina Anggraeni"
+                                    style={withError(
+                                        inputStyle,
+                                        !!addForm.errors.admin_name,
+                                    )}
+                                />
+                                <FieldError
+                                    message={addForm.errors.admin_name}
+                                />
+                            </div>
+                            <div>
+                                <label style={fieldLabelStyle}>
+                                    Email Admin{' '}
+                                    <span style={{ color: C.red }}>*</span>
+                                </label>
+                                <input
+                                    type="email"
+                                    value={addForm.data.admin_email}
+                                    onChange={(event) =>
+                                        addForm.setData(
+                                            'admin_email',
+                                            event.target.value,
+                                        )
+                                    }
+                                    placeholder="admin@klien.co.id"
+                                    style={withError(
+                                        inputStyle,
+                                        !!addForm.errors.admin_email,
+                                    )}
+                                />
+                                <FieldError
+                                    message={addForm.errors.admin_email}
+                                />
+                            </div>
+                            <div>
+                                <label style={fieldLabelStyle}>Password</label>
+                                <input
+                                    type="text"
+                                    value={addForm.data.admin_password}
+                                    onChange={(event) =>
+                                        addForm.setData(
+                                            'admin_password',
+                                            event.target.value,
+                                        )
+                                    }
+                                    placeholder="kosongkan = otomatis"
+                                    style={withError(
+                                        inputStyle,
+                                        !!addForm.errors.admin_password,
+                                    )}
+                                />
+                                <FieldError
+                                    message={addForm.errors.admin_password}
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <button
+                                type="submit"
+                                disabled={addForm.processing}
+                                style={{
+                                    ...btnP,
+                                    height: 38,
+                                    opacity: addForm.processing ? 0.7 : 1,
+                                }}
+                            >
+                                <AIcon name="plus" size={15} color="#fff" />
+                                Buat Akun Admin
+                            </button>
+                        </div>
+                    </form>
+                )}
+
+                {admins.length === 0 ? (
+                    <div
+                        style={{
+                            fontSize: 13,
+                            color: C.red,
+                            background: '#FEF2F2',
+                            border: `1px solid #FECACA`,
+                            borderRadius: 8,
+                            padding: '11px 13px',
+                        }}
+                    >
+                        Klien ini belum punya akun admin — belum ada yang bisa
+                        login ke tenant-nya.
+                    </div>
+                ) : (
+                    <div style={{ display: 'grid', gap: 10 }}>
+                        {admins.map((admin) => (
+                            <div
+                                key={admin.id}
+                                style={{
+                                    border: `1px solid ${C.line}`,
+                                    borderRadius: 10,
+                                    padding: '12px 14px',
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: 12,
+                                        flexWrap: 'wrap',
+                                    }}
+                                >
+                                    <div>
+                                        <div
+                                            style={{
+                                                fontSize: 13.5,
+                                                fontWeight: 600,
+                                                color: C.text,
+                                            }}
+                                        >
+                                            {admin.name}
+                                        </div>
+                                        <div
+                                            style={{
+                                                fontSize: 12.5,
+                                                color: C.faint,
+                                                marginTop: 2,
+                                            }}
+                                        >
+                                            {admin.email}
+                                            {admin.created_at
+                                                ? ` · dibuat ${admin.created_at}`
+                                                : ''}
+                                        </div>
+                                    </div>
+                                    <div
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 10,
+                                        }}
+                                    >
+                                        <span
+                                            style={{
+                                                fontSize: 12,
+                                                fontWeight: 600,
+                                                color:
+                                                    admin.status === 'active'
+                                                        ? '#16A34A'
+                                                        : C.faint,
+                                                background:
+                                                    admin.status === 'active'
+                                                        ? '#F0FDF4'
+                                                        : C.surface,
+                                                padding: '3px 10px',
+                                                borderRadius: 100,
+                                            }}
+                                        >
+                                            {admin.status === 'active'
+                                                ? 'Aktif'
+                                                : 'Nonaktif'}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setResetting((current) =>
+                                                    current === admin.id
+                                                        ? null
+                                                        : admin.id,
+                                                )
+                                            }
+                                            style={{ ...btnOut, height: 32 }}
+                                        >
+                                            <AIcon
+                                                name="key-round"
+                                                size={14}
+                                                color={C.text}
+                                            />
+                                            Reset Password
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {resetting === admin.id && (
+                                    <form
+                                        onSubmit={(event) =>
+                                            submitReset(event, admin.id)
+                                        }
+                                        style={{
+                                            display: 'flex',
+                                            gap: 10,
+                                            marginTop: 12,
+                                            alignItems: 'flex-start',
+                                            flexWrap: 'wrap',
+                                        }}
+                                    >
+                                        <div style={{ flex: '1 1 220px' }}>
+                                            <input
+                                                type="text"
+                                                value={
+                                                    resetForm.data
+                                                        .admin_password
+                                                }
+                                                onChange={(event) =>
+                                                    resetForm.setData(
+                                                        'admin_password',
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                placeholder="kosongkan = dibuat otomatis"
+                                                style={withError(
+                                                    inputStyle,
+                                                    !!resetForm.errors
+                                                        .admin_password,
+                                                )}
+                                            />
+                                            <FieldError
+                                                message={
+                                                    resetForm.errors
+                                                        .admin_password
+                                                }
+                                            />
+                                        </div>
+                                        <button
+                                            type="submit"
+                                            disabled={resetForm.processing}
+                                            style={{
+                                                ...btnP,
+                                                height: 42,
+                                                opacity: resetForm.processing
+                                                    ? 0.7
+                                                    : 1,
+                                            }}
+                                        >
+                                            <AIcon
+                                                name="check"
+                                                size={15}
+                                                color="#fff"
+                                            />
+                                            Simpan Password
+                                        </button>
+                                    </form>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </SectionCard>
+        </div>
+    );
+}
+
 function KeyValue({ label, value }: { label: string; value: ReactNode }) {
     return (
         <div>
@@ -276,11 +704,17 @@ export default function KlienShow({
     subscription,
     billing,
     features,
+    admins,
     branches,
     departments,
     employees,
 }: ShowProps) {
-    const [activeTab, setActiveTab] = useState('ringkasan');
+    const { flash } = usePage<{ flash?: { credentials?: TenantCredentials } }>()
+        .props;
+    // Landing here straight after creating the client: show the credentials.
+    const [activeTab, setActiveTab] = useState(
+        flash?.credentials ? 'admin' : 'ringkasan',
+    );
     const status = STATUS_META[tenant.status] ?? STATUS_META.inactive;
     const initials = tenant.name
         .trim()
@@ -1114,6 +1548,10 @@ export default function KlienShow({
                             </SectionCard>
                         </div>
                     </div>
+                )}
+
+                {activeTab === 'admin' && (
+                    <AdminAccountsTab tenantId={tenant.id} admins={admins} />
                 )}
             </div>
         </>

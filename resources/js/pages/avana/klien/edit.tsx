@@ -32,6 +32,10 @@ export default function KlienEdit({ tenant, packages }: KlienEditProps) {
         billing_status: tenant.billing_status ?? '',
         start_date: tenant.start_date ?? '',
         end_date: tenant.end_date ?? '',
+        // Admin accounts are managed on the tenant page, not here.
+        admin_name: '',
+        admin_email: '',
+        admin_password: '',
     });
 
     useEffect(() => {

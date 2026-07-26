@@ -81,6 +81,10 @@ export interface TenantFormData {
     billing_status: string;
     start_date: string;
     end_date: string;
+    /** Admin Tenant / HR login created together with the client (create only). */
+    admin_name: string;
+    admin_email: string;
+    admin_password: string;
 }
 
 /** Empty defaults for the create form. */
@@ -96,7 +100,26 @@ export const emptyTenantForm: TenantFormData = {
     billing_status: '',
     start_date: '',
     end_date: '',
+    admin_name: '',
+    admin_email: '',
+    admin_password: '',
 };
+
+/** One Admin Tenant / HR account of a client, as listed on the tenant page. */
+export interface TenantAdmin {
+    id: number;
+    name: string;
+    email: string;
+    status: string;
+    created_at: string | null;
+}
+
+/** One-time credential hand-off flashed after creating or resetting an admin. */
+export interface TenantCredentials {
+    name: string;
+    email: string;
+    password: string;
+}
 
 /** Selectable tenant status enum options. */
 export const STATUS_OPTIONS: { value: string; label: string }[] = [

@@ -435,6 +435,8 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::put('klien/{tenant}', [TenantController::class, 'update'])->name('klien.update');
     Route::delete('klien/{tenant}', [TenantController::class, 'destroy'])->name('klien.destroy');
     Route::post('klien/{tenant}/feature', [TenantController::class, 'toggleFeature'])->name('klien.feature.toggle');
+    Route::post('klien/{tenant}/admin', [TenantController::class, 'storeAdmin'])->name('klien.admin.store');
+    Route::post('klien/{tenant}/admin/{user}/password', [TenantController::class, 'resetAdminPassword'])->name('klien.admin.password');
 
     // Billing & Invoice (super admin) — client subscriptions + invoices
     Route::get('billing', [BillingController::class, 'index'])->name('billing');
