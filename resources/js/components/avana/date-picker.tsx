@@ -1,11 +1,17 @@
 import {
+    useCallback,
     useEffect,
     useMemo,
     useRef,
     useState,
     type CSSProperties,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { AIcon, C, hexA } from '@/lib/avana';
+
+const PANEL_WIDTH = 268;
+/** Roughly the panel's height; only used to decide whether to flip upward. */
+const PANEL_HEIGHT = 330;
 
 const MONTHS = [
     'Januari',
@@ -77,7 +83,51 @@ export function DatePicker({
     const selected = useMemo(() => parseYmd(value), [value]);
     const [view, setView] = useState(() => parseYmd(value));
     const rootRef = useRef<HTMLDivElement>(null);
+    const panelRef = useRef<HTMLDivElement>(null);
+    const [anchor, setAnchor] = useState({ top: 0, left: 0 });
     const today = new Date();
+
+    /**
+     * Pin the panel to the trigger in viewport coordinates. It renders in a
+     * portal because any ancestor with `overflow: hidden` — a card, a table
+     * wrapper — would otherwise clip it.
+     */
+    const positionPanel = useCallback(() => {
+        const trigger = rootRef.current?.getBoundingClientRect();
+
+        if (!trigger) {
+            return;
+        }
+
+        // Measured once the panel exists; the constant only covers the first
+        // paint, before there is anything to measure.
+        const height = panelRef.current?.offsetHeight ?? PANEL_HEIGHT;
+
+        const flipUp =
+            trigger.bottom + height > window.innerHeight &&
+            trigger.top > height;
+
+        setAnchor({
+            top: flipUp
+                ? Math.max(8, trigger.top - height - 6)
+                : Math.min(
+                      trigger.bottom + 6,
+                      Math.max(8, window.innerHeight - height - 8),
+                  ),
+            // Keep it on screen when the trigger sits near the right edge.
+            left: Math.max(
+                8,
+                Math.min(trigger.left, window.innerWidth - PANEL_WIDTH - 8),
+            ),
+        });
+    }, []);
+
+    // Re-run once the panel has rendered, now that its real height is known.
+    useEffect(() => {
+        if (open) {
+            positionPanel();
+        }
+    }, [open, positionPanel]);
 
     // Re-anchor the visible month whenever the picker opens or the value moves.
     useEffect(() => {
@@ -86,13 +136,20 @@ export function DatePicker({
         }
     }, [open, value]);
 
-    // Close on outside click or Escape.
+    // Close on outside click or Escape, and follow the trigger while open.
     useEffect(() => {
         if (!open) {
             return;
         }
+
         const onDown = (event: MouseEvent) => {
-            if (!rootRef.current?.contains(event.target as Node)) {
+            const target = event.target as Node;
+
+            // The panel lives in a portal, so it is not inside rootRef.
+            if (
+                !rootRef.current?.contains(target) &&
+                !panelRef.current?.contains(target)
+            ) {
                 setOpen(false);
             }
         };
@@ -101,13 +158,19 @@ export function DatePicker({
                 setOpen(false);
             }
         };
+
         document.addEventListener('mousedown', onDown);
         document.addEventListener('keydown', onKey);
+        window.addEventListener('scroll', positionPanel, true);
+        window.addEventListener('resize', positionPanel);
+
         return () => {
+            window.removeEventListener('scroll', positionPanel, true);
+            window.removeEventListener('resize', positionPanel);
             document.removeEventListener('mousedown', onDown);
             document.removeEventListener('keydown', onKey);
         };
-    }, [open]);
+    }, [open, positionPanel]);
 
     // Build the month grid: leading blanks (Mon-start) then day cells.
     const cells = useMemo(() => {
@@ -146,7 +209,10 @@ export function DatePicker({
         <div ref={rootRef} style={{ position: 'relative' }}>
             <button
                 type="button"
-                onClick={() => setOpen((o) => !o)}
+                onClick={() => {
+                    positionPanel();
+                    setOpen((o) => !o);
+                }}
                 style={{
                     width,
                     height: 40,
@@ -185,172 +251,175 @@ export function DatePicker({
                 </span>
             </button>
 
-            {open && (
-                <div
-                    style={{
-                        position: 'absolute',
-                        top: 46,
-                        right: 0,
-                        zIndex: 50,
-                        width: 268,
-                        padding: 12,
-                        background: '#fff',
-                        border: `1px solid ${C.border}`,
-                        borderRadius: 12,
-                        boxShadow: '0 12px 32px rgba(15,23,42,.14)',
-                    }}
-                >
-                    {/* Month nav */}
+            {open &&
+                createPortal(
                     <div
+                        ref={panelRef}
                         style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            marginBottom: 10,
+                            position: 'fixed',
+                            top: anchor.top,
+                            left: anchor.left,
+                            zIndex: 90,
+                            width: PANEL_WIDTH,
+                            padding: 12,
+                            background: '#fff',
+                            border: `1px solid ${C.border}`,
+                            borderRadius: 12,
+                            boxShadow: '0 12px 32px rgba(15,23,42,.14)',
                         }}
                     >
-                        <button
-                            type="button"
-                            style={navBtn}
-                            onClick={() =>
-                                setView(
-                                    (v) =>
-                                        new Date(
-                                            v.getFullYear(),
-                                            v.getMonth() - 1,
-                                            1,
-                                        ),
-                                )
-                            }
-                        >
-                            <AIcon name="chevron-left" size={16} />
-                        </button>
-                        <span
+                        {/* Month nav */}
+                        <div
                             style={{
-                                fontSize: 13.5,
-                                fontWeight: 700,
-                                color: C.navy,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                marginBottom: 10,
                             }}
                         >
-                            {MONTHS[view.getMonth()]} {view.getFullYear()}
-                        </span>
-                        <button
-                            type="button"
-                            style={navBtn}
-                            onClick={() =>
-                                setView(
-                                    (v) =>
-                                        new Date(
-                                            v.getFullYear(),
-                                            v.getMonth() + 1,
-                                            1,
-                                        ),
-                                )
-                            }
-                        >
-                            <AIcon name="chevron-right" size={16} />
-                        </button>
-                    </div>
-
-                    {/* Day-of-week header */}
-                    <div
-                        style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(7, 1fr)',
-                            gap: 2,
-                            marginBottom: 4,
-                        }}
-                    >
-                        {DOW.map((d) => (
-                            <div
-                                key={d}
+                            <button
+                                type="button"
+                                style={navBtn}
+                                onClick={() =>
+                                    setView(
+                                        (v) =>
+                                            new Date(
+                                                v.getFullYear(),
+                                                v.getMonth() - 1,
+                                                1,
+                                            ),
+                                    )
+                                }
+                            >
+                                <AIcon name="chevron-left" size={16} />
+                            </button>
+                            <span
                                 style={{
-                                    textAlign: 'center',
-                                    fontSize: 10.5,
-                                    fontWeight: 600,
-                                    color: C.faint,
-                                    padding: '4px 0',
+                                    fontSize: 13.5,
+                                    fontWeight: 700,
+                                    color: C.navy,
                                 }}
                             >
-                                {d}
-                            </div>
-                        ))}
-                    </div>
+                                {MONTHS[view.getMonth()]} {view.getFullYear()}
+                            </span>
+                            <button
+                                type="button"
+                                style={navBtn}
+                                onClick={() =>
+                                    setView(
+                                        (v) =>
+                                            new Date(
+                                                v.getFullYear(),
+                                                v.getMonth() + 1,
+                                                1,
+                                            ),
+                                    )
+                                }
+                            >
+                                <AIcon name="chevron-right" size={16} />
+                            </button>
+                        </div>
 
-                    {/* Day grid */}
-                    <div
-                        style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(7, 1fr)',
-                            gap: 2,
-                        }}
-                    >
-                        {cells.map((cell, i) => {
-                            if (!cell) {
-                                return <div key={`b${i}`} />;
-                            }
-                            const isSel = sameDay(cell, selected);
-                            const isToday = sameDay(cell, today);
-                            return (
-                                <button
-                                    key={toYmd(cell)}
-                                    type="button"
-                                    onClick={() => {
-                                        onChange(toYmd(cell));
-                                        setOpen(false);
-                                    }}
+                        {/* Day-of-week header */}
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(7, 1fr)',
+                                gap: 2,
+                                marginBottom: 4,
+                            }}
+                        >
+                            {DOW.map((d) => (
+                                <div
+                                    key={d}
                                     style={{
-                                        height: 32,
-                                        border: 'none',
-                                        borderRadius: 8,
-                                        cursor: 'pointer',
-                                        fontSize: 12.5,
-                                        fontWeight:
-                                            isSel || isToday ? 700 : 500,
-                                        background: isSel
-                                            ? C.primary
-                                            : 'transparent',
-                                        color: isSel
-                                            ? '#fff'
-                                            : isToday
-                                              ? C.primary
-                                              : C.text,
-                                        outline:
-                                            isToday && !isSel
-                                                ? `1px solid ${hexA(C.primary, 0.4)}`
-                                                : 'none',
+                                        textAlign: 'center',
+                                        fontSize: 10.5,
+                                        fontWeight: 600,
+                                        color: C.faint,
+                                        padding: '4px 0',
                                     }}
                                 >
-                                    {cell.getDate()}
-                                </button>
-                            );
-                        })}
-                    </div>
+                                    {d}
+                                </div>
+                            ))}
+                        </div>
 
-                    {/* Footer: quick "today" */}
-                    <button
-                        type="button"
-                        onClick={() => {
-                            onChange(toYmd(today));
-                            setOpen(false);
-                        }}
-                        style={{
-                            marginTop: 10,
-                            width: '100%',
-                            height: 34,
-                            border: `1px solid ${C.border}`,
-                            borderRadius: 8,
-                            background: '#fff',
-                            fontSize: 12.5,
-                            fontWeight: 600,
-                            color: C.primary,
-                            cursor: 'pointer',
-                        }}
-                    >
-                        Hari ini
-                    </button>
-                </div>
-            )}
+                        {/* Day grid */}
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(7, 1fr)',
+                                gap: 2,
+                            }}
+                        >
+                            {cells.map((cell, i) => {
+                                if (!cell) {
+                                    return <div key={`b${i}`} />;
+                                }
+                                const isSel = sameDay(cell, selected);
+                                const isToday = sameDay(cell, today);
+                                return (
+                                    <button
+                                        key={toYmd(cell)}
+                                        type="button"
+                                        onClick={() => {
+                                            onChange(toYmd(cell));
+                                            setOpen(false);
+                                        }}
+                                        style={{
+                                            height: 32,
+                                            border: 'none',
+                                            borderRadius: 8,
+                                            cursor: 'pointer',
+                                            fontSize: 12.5,
+                                            fontWeight:
+                                                isSel || isToday ? 700 : 500,
+                                            background: isSel
+                                                ? C.primary
+                                                : 'transparent',
+                                            color: isSel
+                                                ? '#fff'
+                                                : isToday
+                                                  ? C.primary
+                                                  : C.text,
+                                            outline:
+                                                isToday && !isSel
+                                                    ? `1px solid ${hexA(C.primary, 0.4)}`
+                                                    : 'none',
+                                        }}
+                                    >
+                                        {cell.getDate()}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Footer: quick "today" */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                onChange(toYmd(today));
+                                setOpen(false);
+                            }}
+                            style={{
+                                marginTop: 10,
+                                width: '100%',
+                                height: 34,
+                                border: `1px solid ${C.border}`,
+                                borderRadius: 8,
+                                background: '#fff',
+                                fontSize: 12.5,
+                                fontWeight: 600,
+                                color: C.primary,
+                                cursor: 'pointer',
+                            }}
+                        >
+                            Hari ini
+                        </button>
+                    </div>,
+                    document.body,
+                )}
         </div>
     );
 }
