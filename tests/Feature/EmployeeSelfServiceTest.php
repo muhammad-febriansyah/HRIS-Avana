@@ -64,6 +64,7 @@ it('renders every self-service page for an employee', function (string $path, st
     'pembelajaran' => ['/avana/saya/pembelajaran', 'avana/saya/pembelajaran'],
     'benefit' => ['/avana/saya/benefit', 'avana/saya/benefit'],
     'perjalanan dinas' => ['/avana/saya/perjalanan-dinas', 'avana/saya/perjalanan-dinas'],
+    'ajukan perjalanan dinas' => ['/avana/saya/perjalanan-dinas/ajukan', 'avana/saya/perjalanan-dinas-ajukan'],
 ]);
 
 it('covers every self-service menu with a reachable page', function (): void {

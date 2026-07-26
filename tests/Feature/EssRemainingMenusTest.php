@@ -187,6 +187,105 @@ it('lists only the signed-in employee duty travel', function (): void {
         );
 });
 
+it('files a duty travel request against the signed-in employee', function (): void {
+    DutyTravel::query()->delete();
+
+    $this->actingAs($this->user)
+        ->post('/avana/saya/perjalanan-dinas', [
+            'destination' => 'Kantor Cabang Bandung',
+            'purpose' => 'Audit cabang',
+            'start_date' => now()->addWeek()->toDateString(),
+            'end_date' => now()->addWeek()->addDays(2)->toDateString(),
+            'transport' => 'Kereta Api',
+            'estimated_cost' => 2_500_000,
+        ])
+        ->assertSessionHasNoErrors()
+        ->assertRedirect();
+
+    $travel = DutyTravel::forTenant($this->tenantId)
+        ->where('destination', 'Kantor Cabang Bandung')
+        ->firstOrFail();
+
+    expect((int) $travel->employee_id)->toBe((int) $this->employee->id)
+        ->and($travel->status)->toBe('pending')
+        ->and((int) $travel->estimated_cost)->toBe(2_500_000)
+        // The allowance is left at the column default for whoever approves the
+        // trip to set; the employee never prices their own.
+        ->and((float) $travel->per_diem)->toBe(0.0);
+});
+
+it('rejects a duty travel request that returns before it departs', function (): void {
+    DutyTravel::query()->delete();
+
+    $this->actingAs($this->user)
+        ->post('/avana/saya/perjalanan-dinas', [
+            'destination' => 'Terbalik',
+            'start_date' => now()->addWeek()->addDays(2)->toDateString(),
+            'end_date' => now()->addWeek()->toDateString(),
+        ])
+        ->assertSessionHasErrors('end_date');
+
+    expect(DutyTravel::where('destination', 'Terbalik')->exists())->toBeFalse();
+});
+
+it('rejects a duty travel request with no destination', function (): void {
+    $this->actingAs($this->user)
+        ->post('/avana/saya/perjalanan-dinas', [
+            'start_date' => now()->addWeek()->toDateString(),
+            'end_date' => now()->addWeek()->toDateString(),
+        ])
+        ->assertSessionHasErrors('destination');
+});
+
+it('filters duty travel by status without rewriting the totals', function (): void {
+    DutyTravel::query()->delete();
+
+    foreach (['pending', 'approved'] as $status) {
+        DutyTravel::create([
+            'tenant_id' => $this->tenantId,
+            'employee_id' => $this->employee->id,
+            'destination' => 'Tujuan '.$status,
+            'start_date' => now()->addWeek()->toDateString(),
+            'end_date' => now()->addWeek()->toDateString(),
+            'per_diem' => 500_000,
+            'status' => $status,
+        ]);
+    }
+
+    $this->actingAs($this->user)
+        ->get('/avana/saya/perjalanan-dinas?status=pending')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('travels', 1)
+            ->where('travels.0.status', 'pending')
+            ->where('status', 'pending')
+            // Totals still describe the whole history, not the filtered slice.
+            ->where('summary.total', 2)
+            ->where('summary.total_per_diem', 500_000)
+        );
+});
+
+it('ignores a status filter it does not recognise', function (): void {
+    DutyTravel::query()->delete();
+
+    DutyTravel::create([
+        'tenant_id' => $this->tenantId,
+        'employee_id' => $this->employee->id,
+        'destination' => 'Tetap Tampil',
+        'start_date' => now()->addWeek()->toDateString(),
+        'end_date' => now()->addWeek()->toDateString(),
+        'status' => 'approved',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get('/avana/saya/perjalanan-dinas?status=makan-siang')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('travels', 1)
+            ->where('status', null)
+        );
+});
+
 it('shows company, department, and personal events but not another department', function (): void {
     CalendarEvent::query()->delete();
 

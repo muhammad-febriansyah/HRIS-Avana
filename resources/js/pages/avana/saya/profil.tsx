@@ -2,6 +2,7 @@ import { Head, useForm, usePage } from '@inertiajs/react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
+import { DatePicker } from '@/components/avana/date-picker';
 import { AIcon, btnP, C, card } from '@/lib/avana';
 import {
     Field,
@@ -364,19 +365,14 @@ export default function SayaProfil({ profile }: { profile: Profile }) {
                                     label="Tanggal Lahir"
                                     error={form.errors.birth_date}
                                 >
-                                    <input
-                                        type="date"
+                                    <DatePicker
                                         value={form.data.birth_date}
-                                        onChange={(event) =>
-                                            form.setData(
-                                                'birth_date',
-                                                event.target.value,
-                                            )
+                                        onChange={(value) =>
+                                            form.setData('birth_date', value)
                                         }
-                                        style={withError(
-                                            inputStyle,
-                                            !!form.errors.birth_date,
-                                        )}
+                                        placeholder="Pilih tanggal lahir"
+                                        hasError={!!form.errors.birth_date}
+                                        width="100%"
                                     />
                                 </Field>
                                 <Field

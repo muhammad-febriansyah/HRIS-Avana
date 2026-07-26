@@ -2,6 +2,7 @@ import { Head, useForm, usePage } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
+import { DatePicker } from '@/components/avana/date-picker';
 import { AIcon, btnP, C, thCell } from '@/lib/avana';
 import {
     EmptyState,
@@ -86,19 +87,14 @@ export default function SayaKoreksiAbsensi({
                                     required
                                     error={form.errors.date}
                                 >
-                                    <input
-                                        type="date"
+                                    <DatePicker
                                         value={form.data.date}
-                                        onChange={(event) =>
-                                            form.setData(
-                                                'date',
-                                                event.target.value,
-                                            )
+                                        onChange={(value) =>
+                                            form.setData('date', value)
                                         }
-                                        style={withError(
-                                            inputStyle,
-                                            !!form.errors.date,
-                                        )}
+                                        placeholder="Pilih tanggal"
+                                        hasError={!!form.errors.date}
+                                        width="100%"
                                     />
                                 </Field>
 

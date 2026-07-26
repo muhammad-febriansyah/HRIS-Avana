@@ -763,6 +763,8 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
         Route::get('pembelajaran', [EssLearningController::class, 'index'])->name('pembelajaran');
         Route::get('benefit', [EssBenefitController::class, 'index'])->name('benefit');
         Route::get('perjalanan-dinas', [EssTravelController::class, 'index'])->name('perjalanan-dinas');
+        Route::get('perjalanan-dinas/ajukan', [EssTravelController::class, 'create'])->name('perjalanan-dinas.create');
+        Route::post('perjalanan-dinas', [EssTravelController::class, 'store'])->name('perjalanan-dinas.store');
 
         Route::get('kinerja', [EssPerformanceController::class, 'index'])->name('kinerja');
         Route::post('kinerja/{review}/nilai-mandiri', [EssPerformanceController::class, 'submitSelfScore'])->name('kinerja.self-score');

@@ -2,6 +2,7 @@ import { Head, useForm, usePage } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
+import { DatePicker } from '@/components/avana/date-picker';
 import { AIcon, btnP, C, thCell } from '@/lib/avana';
 import {
     EmptyState,
@@ -136,19 +137,17 @@ export default function SayaIzin({ requests, types }: Props) {
                                         required
                                         error={form.errors.start_date}
                                     >
-                                        <input
-                                            type="date"
+                                        <DatePicker
                                             value={form.data.start_date}
-                                            onChange={(event) =>
+                                            onChange={(value) =>
                                                 form.setData(
                                                     'start_date',
-                                                    event.target.value,
+                                                    value,
                                                 )
                                             }
-                                            style={withError(
-                                                inputStyle,
-                                                !!form.errors.start_date,
-                                            )}
+                                            placeholder="Pilih tanggal mulai"
+                                            hasError={!!form.errors.start_date}
+                                            width="100%"
                                         />
                                     </Field>
                                     <Field
@@ -156,19 +155,14 @@ export default function SayaIzin({ requests, types }: Props) {
                                         required
                                         error={form.errors.end_date}
                                     >
-                                        <input
-                                            type="date"
+                                        <DatePicker
                                             value={form.data.end_date}
-                                            onChange={(event) =>
-                                                form.setData(
-                                                    'end_date',
-                                                    event.target.value,
-                                                )
+                                            onChange={(value) =>
+                                                form.setData('end_date', value)
                                             }
-                                            style={withError(
-                                                inputStyle,
-                                                !!form.errors.end_date,
-                                            )}
+                                            placeholder="Pilih tanggal selesai"
+                                            hasError={!!form.errors.end_date}
+                                            width="100%"
                                         />
                                     </Field>
                                 </div>

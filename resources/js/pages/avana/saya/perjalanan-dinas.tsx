@@ -1,5 +1,7 @@
-import { Head } from '@inertiajs/react';
-import { C, rp, thCell } from '@/lib/avana';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { useEffect } from 'react';
+import { toast } from 'sonner';
+import { AIcon, btnP, C, rp, thCell } from '@/lib/avana';
 import {
     EmptyState,
     formatDate,
@@ -7,6 +9,7 @@ import {
     PageShell,
     Panel,
     Pill,
+    selectStyle,
     StatCard,
 } from './components';
 
@@ -26,6 +29,8 @@ interface Travel {
 
 interface Props {
     travels: Travel[];
+    status: string | null;
+    statusOptions: { value: string; label: string }[];
     summary: {
         total: number;
         approved: number;
@@ -33,6 +38,8 @@ interface Props {
         total_per_diem: number;
     };
 }
+
+type FlashProps = { flash?: { success?: string } };
 
 /** Colour per duty travel status. */
 const STATUS_TONE: Record<string, string> = {
@@ -45,14 +52,43 @@ const STATUS_TONE: Record<string, string> = {
     cancelled: C.muted,
 };
 
-export default function SayaPerjalananDinas({ travels, summary }: Props) {
+export default function SayaPerjalananDinas({
+    travels,
+    status,
+    statusOptions,
+    summary,
+}: Props) {
+    const { flash } = usePage<FlashProps>().props;
+
+    useEffect(() => {
+        if (flash?.success) {
+            toast.success(flash.success, { id: flash.success });
+        }
+    }, [flash?.success]);
+
+    const filterByStatus = (value: string) =>
+        router.get(
+            '/avana/saya/perjalanan-dinas',
+            value === '' ? {} : { status: value },
+            { preserveScroll: true, preserveState: true },
+        );
+
     return (
         <>
             <Head title="Perjalanan Dinas Saya" />
             <PageShell>
                 <PageHeader
                     title="Perjalanan Dinas Saya"
-                    subtitle="Penugasan dinas atas namamu. Pengajuan dan persetujuan dilakukan HR atau atasan."
+                    subtitle="Ajukan perjalanan dinas dan pantau persetujuannya."
+                    action={
+                        <Link
+                            href="/avana/saya/perjalanan-dinas/ajukan"
+                            style={{ ...btnP, textDecoration: 'none' }}
+                        >
+                            <AIcon name="plus" size={16} color="#fff" />
+                            Ajukan Perjalanan
+                        </Link>
+                    }
                 />
 
                 <div
@@ -97,11 +133,31 @@ export default function SayaPerjalananDinas({ travels, summary }: Props) {
                     title="Riwayat Perjalanan"
                     subtitle={`${travels.length.toLocaleString('id-ID')} penugasan`}
                     padded={false}
+                    action={
+                        <select
+                            value={status ?? ''}
+                            onChange={(event) =>
+                                filterByStatus(event.target.value)
+                            }
+                            style={{ ...selectStyle, width: 190, height: 38 }}
+                        >
+                            <option value="">Semua Status</option>
+                            {statusOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
+                    }
                 >
                     {travels.length === 0 ? (
                         <EmptyState
                             icon="plane"
-                            message="Belum ada perjalanan dinas atas namamu."
+                            message={
+                                status === null
+                                    ? 'Belum ada perjalanan dinas atas namamu.'
+                                    : 'Tidak ada perjalanan dengan status ini.'
+                            }
                         />
                     ) : (
                         <div style={{ overflowX: 'auto' }}>

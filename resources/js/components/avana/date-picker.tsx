@@ -58,11 +58,20 @@ export function DatePicker({
     onChange,
     label,
     width = 'auto',
+    placeholder,
+    hasError = false,
 }: {
     value: string;
     onChange: (value: string) => void;
     label?: string;
-    width?: number | 'auto';
+    /** Any CSS width: a number of pixels, 'auto', or '100%' inside a form grid. */
+    width?: number | string;
+    /**
+     * Shown instead of a date while `value` is empty. Without it an unfilled
+     * required field reads as though today were already chosen.
+     */
+    placeholder?: string;
+    hasError?: boolean;
 }) {
     const [open, setOpen] = useState(false);
     const selected = useMemo(() => parseYmd(value), [value]);
@@ -116,7 +125,10 @@ export function DatePicker({
         return out;
     }, [view]);
 
-    const buttonLabel = `${selected.getDate()} ${MONTHS[selected.getMonth()]} ${selected.getFullYear()}`;
+    const isEmpty = value === '';
+    const buttonLabel = isEmpty
+        ? (placeholder ?? 'Pilih tanggal')
+        : `${selected.getDate()} ${MONTHS[selected.getMonth()]} ${selected.getFullYear()}`;
 
     const navBtn: CSSProperties = {
         width: 28,
@@ -144,15 +156,17 @@ export function DatePicker({
                     whiteSpace: 'nowrap',
                     gap: 8,
                     background: '#fff',
-                    border: `1px solid ${open ? C.primary : C.border}`,
+                    border: `1px solid ${hasError ? C.red : open ? C.primary : C.border}`,
                     borderRadius: 8,
                     fontSize: 13.5,
                     color: C.text,
                     cursor: 'pointer',
                     outline: 'none',
-                    boxShadow: open
-                        ? `0 0 0 3px ${hexA(C.primary, 0.14)}`
-                        : 'none',
+                    boxShadow: hasError
+                        ? `0 0 0 3px ${hexA(C.red, 0.08)}`
+                        : open
+                          ? `0 0 0 3px ${hexA(C.primary, 0.14)}`
+                          : 'none',
                 }}
             >
                 <AIcon name="calendar" size={16} color={C.muted} />
@@ -161,7 +175,14 @@ export function DatePicker({
                         {label}
                     </span>
                 )}
-                <span style={{ fontWeight: 500 }}>{buttonLabel}</span>
+                <span
+                    style={{
+                        fontWeight: isEmpty ? 400 : 500,
+                        color: isEmpty ? C.faint : C.text,
+                    }}
+                >
+                    {buttonLabel}
+                </span>
             </button>
 
             {open && (
@@ -284,7 +305,8 @@ export function DatePicker({
                                         borderRadius: 8,
                                         cursor: 'pointer',
                                         fontSize: 12.5,
-                                        fontWeight: isSel || isToday ? 700 : 500,
+                                        fontWeight:
+                                            isSel || isToday ? 700 : 500,
                                         background: isSel
                                             ? C.primary
                                             : 'transparent',
@@ -293,9 +315,10 @@ export function DatePicker({
                                             : isToday
                                               ? C.primary
                                               : C.text,
-                                        outline: isToday && !isSel
-                                            ? `1px solid ${hexA(C.primary, 0.4)}`
-                                            : 'none',
+                                        outline:
+                                            isToday && !isSel
+                                                ? `1px solid ${hexA(C.primary, 0.4)}`
+                                                : 'none',
                                     }}
                                 >
                                     {cell.getDate()}
