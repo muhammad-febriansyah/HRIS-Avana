@@ -58,9 +58,16 @@ class EssCalendarController extends Controller
             })
             ->whereDate('start_date', '<=', $month->copy()->endOfMonth()->toDateString())
             ->where(function ($query) use ($month) {
+                $monthStart = $month->copy()->startOfMonth()->toDateString();
+
+                // A one-day event stores no end date, so it overlaps the month
+                // only through its start — checking end_date alone would drag
+                // in every open-ended event from earlier months.
                 $query
-                    ->whereDate('end_date', '>=', $month->copy()->startOfMonth()->toDateString())
-                    ->orWhereNull('end_date');
+                    ->whereDate('end_date', '>=', $monthStart)
+                    ->orWhere(fn ($openEnded) => $openEnded
+                        ->whereNull('end_date')
+                        ->whereDate('start_date', '>=', $monthStart));
             })
             ->orderBy('start_date')
             ->get();

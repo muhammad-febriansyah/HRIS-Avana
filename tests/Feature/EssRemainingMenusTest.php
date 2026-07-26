@@ -286,6 +286,41 @@ it('ignores a status filter it does not recognise', function (): void {
         );
 });
 
+it('keeps an open-ended event from an earlier month out of this month', function (): void {
+    CalendarEvent::query()->delete();
+
+    CalendarEvent::create([
+        'tenant_id' => $this->tenantId,
+        'title' => 'Agenda Bulan Lalu',
+        'type' => 'event',
+        'start_date' => now()->subMonth()->startOfMonth()->toDateString(),
+        // No end date: a one-day event, and it belongs to last month only.
+        'end_date' => null,
+    ]);
+
+    CalendarEvent::create([
+        'tenant_id' => $this->tenantId,
+        'title' => 'Agenda Bulan Ini',
+        'type' => 'event',
+        'start_date' => now()->startOfMonth()->addDays(2)->toDateString(),
+        'end_date' => null,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get('/avana/saya/kalender')
+        ->assertOk()
+        ->assertInertia(function ($page) {
+            $props = $page->toArray()['props'];
+            $titles = collect([...$props['upcoming'], ...$props['past']])->pluck('title');
+
+            expect($titles)
+                ->toContain('Agenda Bulan Ini')
+                ->not->toContain('Agenda Bulan Lalu');
+
+            return $page;
+        });
+});
+
 it('shows company, department, and personal events but not another department', function (): void {
     CalendarEvent::query()->delete();
 
