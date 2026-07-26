@@ -85,8 +85,11 @@ class MenuBuilderController extends Controller
         $parentId = $data['parent_id'] ?? null;
 
         if ($parentId !== null) {
-            // Ensure the parent belongs to the same tenant.
-            MenuItem::forTenant($tenantId)->whereKey($parentId)->firstOrFail();
+            // Ensure the parent belongs to the same tenant and is itself a
+            // top-level row — the sidebar only renders two levels.
+            $parent = MenuItem::forTenant($tenantId)->whereKey($parentId)->firstOrFail();
+
+            abort_if($parent->parent_id !== null, 422, 'Menu hanya mendukung dua tingkat.');
         }
 
         $maxOrder = (int) MenuItem::forTenant($tenantId)
@@ -114,7 +117,9 @@ class MenuBuilderController extends Controller
     }
 
     /**
-     * Update an existing menu item (label/icon/href/gating; not its key).
+     * Update an existing menu item (label/icon/href/gating/placement; not its
+     * key). Passing a different `parent_id` moves the item between the sidebar
+     * groups, including in and out of the top level.
      */
     public function update(Request $request, MenuItem $menuItem): RedirectResponse
     {
@@ -124,8 +129,16 @@ class MenuBuilderController extends Controller
 
         $data = $this->validated($request);
 
+        $parentId = $this->resolveNewParent($menuItem, $data);
+        $moved = $parentId !== $menuItem->parent_id;
+
         $menuItem->update([
-            'section' => $menuItem->parent_id === null ? ($data['section'] ?? $menuItem->section) : null,
+            'parent_id' => $parentId,
+            // A child carries no section; a row promoted to the top level keeps
+            // the submitted section, else inherits the group it came from.
+            'section' => $parentId === null
+                ? ($data['section'] ?? $this->inheritedSection($menuItem))
+                : null,
             'label' => $data['label'],
             'icon' => $data['icon'] ?? null,
             'href' => $data['href'] ?? null,
@@ -133,9 +146,70 @@ class MenuBuilderController extends Controller
             'modules' => $data['modules'] ?? [],
             'admin_only' => $data['admin_only'] ?? false,
             'super_admin_only' => $this->isSuperAdmin($request) ? ($data['super_admin_only'] ?? false) : $menuItem->super_admin_only,
+            // Land at the end of the destination level so it never collides
+            // with a sibling's sort_order.
+            'sort_order' => $moved ? $this->nextSortOrder($menuItem->tenant_id, $parentId) : $menuItem->sort_order,
         ]);
 
-        return back()->with('success', 'Menu diperbarui');
+        return back()->with('success', $moved ? 'Menu dipindahkan' : 'Menu diperbarui');
+    }
+
+    /**
+     * The parent the item should end up under, rejecting placements the
+     * two-level sidebar cannot render.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function resolveNewParent(MenuItem $menuItem, array $data): ?int
+    {
+        $parentId = $data['parent_id'] ?? null;
+
+        if ($parentId === null) {
+            return null;
+        }
+
+        $parentId = (int) $parentId;
+
+        if ($parentId === (int) $menuItem->getKey()) {
+            abort(422, 'Menu tidak bisa menjadi induk dirinya sendiri.');
+        }
+
+        $parent = MenuItem::forTenant($menuItem->tenant_id)->whereKey($parentId)->firstOrFail();
+
+        abort_if($parent->parent_id !== null, 422, 'Menu hanya mendukung dua tingkat.');
+
+        abort_if(
+            MenuItem::forTenant($menuItem->tenant_id)->where('parent_id', $menuItem->getKey())->exists(),
+            422,
+            'Menu yang punya sub-menu tidak bisa dijadikan sub-menu.',
+        );
+
+        return $parentId;
+    }
+
+    /**
+     * The section a promoted child lands in when none was submitted: the one
+     * its old parent belongs to, falling back to the first defined section.
+     */
+    private function inheritedSection(MenuItem $menuItem): ?string
+    {
+        $oldParent = $menuItem->parent_id === null
+            ? null
+            : MenuItem::forTenant($menuItem->tenant_id)->whereKey($menuItem->parent_id)->first();
+
+        return $oldParent?->section
+            ?? $menuItem->section
+            ?? MenuItem::forTenant($menuItem->tenant_id)->whereNull('parent_id')->whereNotNull('section')->value('section');
+    }
+
+    /**
+     * The next free sort_order among the given level's rows.
+     */
+    private function nextSortOrder(?int $tenantId, ?int $parentId): int
+    {
+        return (int) MenuItem::forTenant($tenantId)
+            ->where('parent_id', $parentId)
+            ->max('sort_order') + 1;
     }
 
     /**
@@ -234,6 +308,19 @@ class MenuBuilderController extends Controller
      */
     private function validated(Request $request): array
     {
+        // The modal submits `modules` as a comma-separated string ("crm, report")
+        // while the column stores an array. Normalise before validating, else
+        // every save with a module filled in fails the `array` rule.
+        if (is_string($request->input('modules'))) {
+            $request->merge([
+                'modules' => collect(explode(',', $request->input('modules')))
+                    ->map(fn (string $module): string => trim($module))
+                    ->filter()
+                    ->values()
+                    ->all(),
+            ]);
+        }
+
         return $request->validate([
             'label' => ['required', 'string', 'max:255'],
             'icon' => ['nullable', 'string', 'max:64'],

@@ -139,6 +139,16 @@ export default function MenuBuilder({
 
     const moduleHint = useMemo(() => modules.join(', '), [modules]);
 
+    // A group that already has sub-menus cannot become a sub-menu itself — the
+    // sidebar only renders two levels. Nor can an item parent itself.
+    const editingHasChildren =
+        form.data.id !== null &&
+        (tree.find((t) => t.id === form.data.id)?.children.length ?? 0) > 0;
+    const parentOptions = useMemo(
+        () => parents.filter((p) => p.id !== form.data.id),
+        [parents, form.data.id],
+    );
+
     const openAdd = () => {
         form.clearErrors();
         form.setData({ ...emptyForm, tenant_id: selectedTenant });
@@ -451,27 +461,53 @@ export default function MenuBuilder({
                                     placeholder="Masukkan nama menu"
                                 />
                             </Field>
-                            <Field label="Induk (kosongkan untuk grup utama)">
+                            <Field
+                                label="Induk (kosongkan untuk grup utama)"
+                                error={form.errors.parent_id}
+                            >
                                 <select
                                     value={form.data.parent_id}
+                                    disabled={editingHasChildren}
                                     onChange={(e) =>
                                         form.setData(
                                             'parent_id',
                                             e.target.value,
                                         )
                                     }
-                                    style={inp}
+                                    style={{
+                                        ...inp,
+                                        background: editingHasChildren
+                                            ? '#F8FAFC'
+                                            : '#fff',
+                                        cursor: editingHasChildren
+                                            ? 'not-allowed'
+                                            : 'pointer',
+                                    }}
                                 >
                                     <option value="">— Grup utama —</option>
-                                    {parents.map((p) => (
+                                    {parentOptions.map((p) => (
                                         <option key={p.id} value={String(p.id)}>
                                             {p.label}
                                         </option>
                                     ))}
                                 </select>
+                                <div
+                                    style={{
+                                        fontSize: 10.5,
+                                        color: C.faint,
+                                        marginTop: 4,
+                                    }}
+                                >
+                                    {editingHasChildren
+                                        ? 'Menu ini punya sub-menu, jadi harus tetap jadi grup utama.'
+                                        : 'Ubah induk untuk memindahkan menu ke grup lain, atau kosongkan agar tampil di level utama sidebar.'}
+                                </div>
                             </Field>
                             {form.data.parent_id === '' && (
-                                <Field label="Judul Grup (section)">
+                                <Field
+                                    label="Judul Grup (section)"
+                                    error={form.errors.section}
+                                >
                                     <input
                                         list="sections"
                                         value={form.data.section}
@@ -504,7 +540,10 @@ export default function MenuBuilder({
                                     placeholder="/avana/..."
                                 />
                             </Field>
-                            <Field label="Ikon (nama lucide)">
+                            <Field
+                                label="Ikon (nama lucide)"
+                                error={form.errors.icon}
+                            >
                                 <input
                                     value={form.data.icon}
                                     onChange={(e) =>
@@ -532,7 +571,15 @@ export default function MenuBuilder({
                                     ))}
                                 </select>
                             </Field>
-                            <Field label="Modul akses (pisah koma)">
+                            <Field
+                                label="Modul akses (pisah koma)"
+                                error={
+                                    form.errors.modules ??
+                                    (
+                                        form.errors as Record<string, string>
+                                    )['modules.0']
+                                }
+                            >
                                 <input
                                     value={form.data.modules}
                                     onChange={(e) =>
