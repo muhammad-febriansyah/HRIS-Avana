@@ -66,12 +66,12 @@ it('only lists leave types that belong to the current tenant', function (): void
         ->assertInertia(fn (Assert $page) => $page->has('leaveTypes', $tenantTotal));
 });
 
-it('creates a leave type scoped to the current tenant, ignoring any submitted quota', function (): void {
+it('creates a leave type scoped to the current tenant with its annual quota', function (): void {
     actingAs($this->admin)
         ->post(route('avana.cuti.jenis.store'), [
             'code' => 'MELAHIRKAN',
             'name' => 'Cuti Melahirkan',
-            'default_quota' => 90, // no longer editable — must be ignored
+            'default_quota' => 90,
             'allow_negative' => false,
             'requires_attachment' => true,
             'status' => 'active',
@@ -84,8 +84,7 @@ it('creates a leave type scoped to the current tenant, ignoring any submitted qu
         ->firstOrFail();
 
     expect($leaveType->name)->toBe('Cuti Melahirkan');
-    // Quota falls back to the uniform column default (12), not the submitted 90.
-    expect($leaveType->default_quota)->toBe(12);
+    expect($leaveType->default_quota)->toBe(90);
     expect($leaveType->requires_attachment)->toBeTrue();
     expect($leaveType->allow_negative)->toBeFalse();
     expect($leaveType->status)->toBe('active');
@@ -114,15 +113,14 @@ it('rejects a duplicate code within the same tenant', function (): void {
         ->assertSessionHasErrors('code');
 });
 
-it('updates a leave type belonging to the tenant, leaving the quota untouched', function (): void {
+it('updates a leave type belonging to the tenant, quota included', function (): void {
     $leaveType = LeaveType::forTenant($this->tenant->id)->firstOrFail();
-    $originalQuota = $leaveType->default_quota;
 
     actingAs($this->admin)
         ->put(route('avana.cuti.jenis.update', $leaveType), [
             'code' => $leaveType->code,
             'name' => 'Nama Diperbarui',
-            'default_quota' => 20, // no longer editable — must be ignored
+            'default_quota' => 20,
             'allow_negative' => true,
             'requires_attachment' => false,
             'status' => 'inactive',
@@ -132,7 +130,7 @@ it('updates a leave type belonging to the tenant, leaving the quota untouched', 
 
     $leaveType->refresh();
     expect($leaveType->name)->toBe('Nama Diperbarui');
-    expect($leaveType->default_quota)->toBe($originalQuota);
+    expect($leaveType->default_quota)->toBe(20);
     expect($leaveType->allow_negative)->toBeTrue();
     expect($leaveType->status)->toBe('inactive');
 });
