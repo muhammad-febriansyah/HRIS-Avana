@@ -20,6 +20,19 @@ class EssDocumentController extends Controller
     use ResolvesApiEmployee;
 
     /**
+     * Display labels for the stored category slugs, matching the form's picker.
+     *
+     * @var array<string, string>
+     */
+    private const TYPE_LABELS = [
+        'kontrak' => 'Kontrak',
+        'sertifikat' => 'Sertifikat',
+        'identitas' => 'Identitas',
+        'medis' => 'Medis',
+        'lainnya' => 'Lainnya',
+    ];
+
+    /**
      * List the employee's documents, newest upload first.
      */
     public function index(Request $request): Response
@@ -36,7 +49,9 @@ class EssDocumentController extends Controller
             'documents' => $documents->map(fn (EmployeeDocument $document): array => [
                 'id' => $document->id,
                 'name' => $document->name,
-                'type' => $document->type,
+                // Fall back to the raw slug for anything HR uploaded under a
+                // category this screen does not offer.
+                'type' => self::TYPE_LABELS[$document->type] ?? $document->type,
                 'size' => (int) $document->file_size,
                 'uploaded_at' => $document->uploaded_at?->toDateString(),
                 'url' => $document->file_path !== null

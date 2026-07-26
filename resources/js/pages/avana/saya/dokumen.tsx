@@ -1,7 +1,8 @@
 import { Head, useForm, usePage } from '@inertiajs/react';
-import type { ChangeEvent, FormEvent } from 'react';
+import type { FormEvent } from 'react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
+import { FileDropzone, formatFileSize } from '@/components/avana/file-dropzone';
 import { AIcon, btnP, C, thCell } from '@/lib/avana';
 import {
     EmptyState,
@@ -53,14 +54,18 @@ export default function SayaDokumen({
         }
     }, [flash?.success]);
 
-    const pickFile = (event: ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0] ?? null;
-        form.setData('file', file);
-
-        // Prefill the name from the file so the common case is one click.
-        if (file && form.data.name === '') {
-            form.setData('name', file.name.replace(/\.[^.]+$/, ''));
-        }
+    const pickFile = (file: File | null) => {
+        // Prefill the name from the file so the common case is one click. Set
+        // both in a single update: two setData calls in a row would race and
+        // the second would overwrite the first.
+        form.setData((current) => ({
+            ...current,
+            file,
+            name:
+                file !== null && current.name === ''
+                    ? file.name.replace(/\.[^.]+$/, '')
+                    : current.name,
+        }));
     };
 
     const submit = (event: FormEvent) => {
@@ -102,20 +107,14 @@ export default function SayaDokumen({
                                     label="Berkas"
                                     required
                                     error={form.errors.file}
-                                    hint="PDF atau gambar, maksimal 10 MB."
                                 >
-                                    <input
-                                        type="file"
-                                        accept=".pdf,image/*"
+                                    <FileDropzone
+                                        value={form.data.file}
                                         onChange={pickFile}
-                                        style={{
-                                            ...withError(
-                                                inputStyle,
-                                                !!form.errors.file,
-                                            ),
-                                            height: 'auto',
-                                            padding: '10px 12px',
-                                        }}
+                                        accept=".pdf,image/*"
+                                        hint="PDF, JPG, PNG, atau WEBP · maksimal 10 MB"
+                                        hasError={!!form.errors.file}
+                                        disabled={form.processing}
                                     />
                                 </Field>
 
@@ -168,6 +167,40 @@ export default function SayaDokumen({
                                     </select>
                                 </Field>
 
+                                {/* A document can run to 10 MB, so show how far
+                                    along the upload is rather than a spinner. */}
+                                {form.progress && (
+                                    <div>
+                                        <div
+                                            style={{
+                                                height: 6,
+                                                borderRadius: 999,
+                                                background: C.line,
+                                                overflow: 'hidden',
+                                            }}
+                                        >
+                                            <div
+                                                style={{
+                                                    width: `${form.progress.percentage ?? 0}%`,
+                                                    height: '100%',
+                                                    background: C.primary,
+                                                    transition: 'width .2s',
+                                                }}
+                                            />
+                                        </div>
+                                        <div
+                                            style={{
+                                                fontSize: 11.5,
+                                                color: C.faint,
+                                                marginTop: 5,
+                                            }}
+                                        >
+                                            Mengunggah{' '}
+                                            {form.progress.percentage ?? 0}%
+                                        </div>
+                                    </div>
+                                )}
+
                                 <button
                                     type="submit"
                                     disabled={form.processing}
@@ -176,6 +209,9 @@ export default function SayaDokumen({
                                         height: 44,
                                         justifyContent: 'center',
                                         opacity: form.processing ? 0.7 : 1,
+                                        cursor: form.processing
+                                            ? 'not-allowed'
+                                            : 'pointer',
                                     }}
                                 >
                                     <AIcon
@@ -245,7 +281,7 @@ export default function SayaDokumen({
                                                     {row.type ?? '—'}
                                                 </td>
                                                 <td style={cell}>
-                                                    {formatSize(row.size)}
+                                                    {formatFileSize(row.size)}
                                                 </td>
                                                 <td style={cell}>
                                                     {formatDate(
@@ -298,19 +334,6 @@ export default function SayaDokumen({
             </PageShell>
         </>
     );
-}
-
-/** Bytes as a short human-readable size. */
-function formatSize(bytes: number): string {
-    if (bytes <= 0) {
-        return '—';
-    }
-
-    if (bytes < 1024 * 1024) {
-        return `${Math.round(bytes / 1024).toLocaleString('id-ID')} KB`;
-    }
-
-    return `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`;
 }
 
 const cell = {
