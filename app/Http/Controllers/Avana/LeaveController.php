@@ -281,7 +281,11 @@ class LeaveController extends Controller
             LeaveApproval::finalize($leave, $request->user()->id);
         }
 
-        return back()->with('success', 'Cuti disetujui');
+        // A multi-step workflow only advances here; say so instead of claiming
+        // the leave is already approved.
+        return back()->with('success', $leave->fresh()?->status === 'approved'
+            ? 'Cuti disetujui'
+            : 'Persetujuan tercatat, menunggu tahap berikutnya');
     }
 
     /**

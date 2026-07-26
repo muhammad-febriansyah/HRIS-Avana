@@ -12,6 +12,7 @@ use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
 use App\Models\Reimbursement;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -134,6 +135,13 @@ class ApprovalEngine
             ->find((int) $approvable->getAttribute('employee_id'));
         $workflow = $instance->workflow;
         $effective = $workflow !== null ? self::effectiveSteps($workflow, $approvable) : collect();
+
+        // Only the approver the step routes to may decide it. HR/super admin may
+        // still step in, but the log records that it was an override.
+        $override = self::guardActor($instance, $effective, $subject, $actorUserId, $workflow);
+        $note = $override
+            ? trim(($note ?? '').' [override admin]')
+            : $note;
 
         return DB::transaction(function () use ($instance, $approvable, $subject, $workflow, $effective, $actorUserId, $action, $note): bool {
             if ($action === 'reject') {
@@ -297,6 +305,98 @@ class ApprovalEngine
         }
 
         return $ids;
+    }
+
+    /**
+     * Make sure the person acting on this step is the one it is routed to.
+     *
+     * Returns true when the actor is not that approver but is allowed to step in
+     * anyway (HR or super admin), so the caller can mark the log as an override.
+     * Anyone else is refused — otherwise a single holder of the module's approve
+     * permission could click through every level of a multi-step workflow alone.
+     */
+    private static function guardActor(
+        ApprovalRequest $instance,
+        Collection $effective,
+        ?Employee $subject,
+        ?int $actorUserId,
+        ?ApprovalWorkflow $workflow,
+    ): bool {
+        // System-driven decisions (a top approver's auto-approval) carry no actor.
+        if ($actorUserId === null) {
+            return false;
+        }
+
+        $actor = User::find($actorUserId);
+
+        abort_if($actor === null, 403, 'Penyetuju tidak dikenali.');
+
+        if (self::actorMatchesInstance($instance, $effective, $subject, $actor, $workflow)) {
+            return false;
+        }
+
+        abort_unless(
+            $actor->roles()->whereIn('code', ['super_admin', 'admin_tenant_hr'])->exists(),
+            403,
+            'Anda bukan penyetuju untuk tahap ini.',
+        );
+
+        return true;
+    }
+
+    /**
+     * Whether the acting user is the approver the instance currently awaits —
+     * by the engine's own user-id cursor, or by matching the step's approver
+     * definition (direct manager / specific employee / role / department / position).
+     */
+    private static function actorMatchesInstance(
+        ApprovalRequest $instance,
+        Collection $effective,
+        ?Employee $subject,
+        User $actor,
+        ?ApprovalWorkflow $workflow,
+    ): bool {
+        if ($instance->current_approver_id !== null
+            && (int) $instance->current_approver_id === (int) $actor->id) {
+            return true;
+        }
+
+        $employee = Employee::forTenant((int) $instance->tenant_id)
+            ->where('user_id', $actor->id)
+            ->first();
+
+        if ($employee === null) {
+            return false;
+        }
+
+        $roleIds = $actor->roles()->pluck('roles.id')->all();
+        $subjectManagerId = $subject?->manager_id !== null ? (int) $subject->manager_id : null;
+
+        if ($workflow !== null && self::isParallel($workflow)) {
+            return $effective->contains(
+                fn (ApprovalStep $step): bool => self::viewerMatchesStep($step, $employee, $roleIds, $subjectManagerId),
+            );
+        }
+
+        $step = $effective->get($instance->current_step - 1);
+
+        // Nothing left to match against (a workflow whose steps were removed):
+        // fall back to letting the decision through rather than deadlocking it.
+        if ($step === null) {
+            return true;
+        }
+
+        if (self::viewerMatchesStep($step, $employee, $roleIds, $subjectManagerId)) {
+            return true;
+        }
+
+        // A concrete step whose approver cannot be resolved is routed to the
+        // subject's manager by `start()`/`decide()` — honour that same fallback.
+        if (! self::isGroupStep($step) && self::resolveConcreteApprover($step, $subject) === null) {
+            return $subjectManagerId !== null && (int) $employee->getKey() === $subjectManagerId;
+        }
+
+        return false;
     }
 
     /**

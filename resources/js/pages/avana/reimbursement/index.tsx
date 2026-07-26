@@ -662,7 +662,9 @@ export default function ReimbursementIndex({
                                                             }
                                                         />
                                                     ))}
-                                                {row.status !== 'paid' && (
+                                                {(row.status === 'pending' ||
+                                                    row.status ===
+                                                        'rejected') && (
                                                     <>
                                                         <ActionBtn
                                                             icon="pencil"

@@ -461,7 +461,9 @@ class AttendanceController extends Controller
             AttendanceCorrectionApproval::finalize($correction, $request->user()->id);
         }
 
-        return back()->with('success', 'Koreksi absensi disetujui');
+        return back()->with('success', $correction->fresh()?->status === 'approved'
+            ? 'Koreksi absensi disetujui'
+            : 'Persetujuan tercatat, menunggu tahap berikutnya');
     }
 
     /**

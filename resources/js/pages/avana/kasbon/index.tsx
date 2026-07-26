@@ -568,16 +568,42 @@ export default function KasbonIndex({
                                                         />
                                                     </>
                                                 )}
-                                                {row.status === 'approved' && (
-                                                    <ActionBtn
-                                                        icon="hand-coins"
-                                                        label="Cairkan"
-                                                        variant="primary"
-                                                        onClick={() =>
-                                                            setDisbursing(row)
-                                                        }
-                                                    />
-                                                )}
+                                                {row.status === 'approved' &&
+                                                    (row.approved_by ===
+                                                    authUserId ? (
+                                                        <span
+                                                            title="Anda yang menyetujui uang muka ini — pencairan harus dilakukan orang lain."
+                                                            style={{
+                                                                display:
+                                                                    'inline-flex',
+                                                                alignItems:
+                                                                    'center',
+                                                                gap: 5,
+                                                                fontSize: 12,
+                                                                color: C.faint,
+                                                                whiteSpace:
+                                                                    'nowrap',
+                                                            }}
+                                                        >
+                                                            <AIcon
+                                                                name="user-x"
+                                                                size={14}
+                                                                color={C.faint}
+                                                            />
+                                                            Menunggu orang lain
+                                                        </span>
+                                                    ) : (
+                                                        <ActionBtn
+                                                            icon="hand-coins"
+                                                            label="Cairkan"
+                                                            variant="primary"
+                                                            onClick={() =>
+                                                                setDisbursing(
+                                                                    row,
+                                                                )
+                                                            }
+                                                        />
+                                                    ))}
                                                 {row.status === 'disbursed' &&
                                                     (row.disbursed_by ===
                                                     authUserId ? (

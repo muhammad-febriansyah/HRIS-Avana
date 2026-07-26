@@ -71,6 +71,7 @@ export default function KasbonShow({
 
     const isSettled = advance.status === 'settled';
     const releasedByViewer = advance.disbursed_by === authUserId;
+    const approvedByViewer = advance.approved_by === authUserId;
 
     return (
         <>
@@ -378,24 +379,28 @@ export default function KasbonShow({
                                             lineHeight: 1.55,
                                         }}
                                     >
-                                        Catat penyerahan uang muka ke karyawan.
+                                        {approvedByViewer
+                                            ? 'Anda yang menyetujui uang muka ini. Pencairan harus dilakukan orang lain.'
+                                            : 'Catat penyerahan uang muka ke karyawan.'}
                                     </p>
-                                    <button
-                                        type="button"
-                                        onClick={() => setDisbursing(true)}
-                                        style={{
-                                            ...btnP,
-                                            width: '100%',
-                                            justifyContent: 'center',
-                                        }}
-                                    >
-                                        <AIcon
-                                            name="hand-coins"
-                                            size={16}
-                                            color="#fff"
-                                        />
-                                        Cairkan
-                                    </button>
+                                    {!approvedByViewer && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setDisbursing(true)}
+                                            style={{
+                                                ...btnP,
+                                                width: '100%',
+                                                justifyContent: 'center',
+                                            }}
+                                        >
+                                            <AIcon
+                                                name="hand-coins"
+                                                size={16}
+                                                color="#fff"
+                                            />
+                                            Cairkan
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         )}

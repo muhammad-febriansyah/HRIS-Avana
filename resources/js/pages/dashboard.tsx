@@ -1,7 +1,7 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
-import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnOut, btnP, C, card, type NavGroup } from '@/lib/avana';
 
 type Kpi = {
     label: string;
@@ -47,6 +47,7 @@ type DashboardProps = {
     userName: string;
     today: string;
     flash?: { success?: string };
+    nav?: NavGroup[];
 };
 
 function HeadcountChart({ data }: { data: Series }) {
@@ -182,7 +183,30 @@ export default function Dashboard() {
         userName,
         today,
         flash,
+        nav,
     } = props;
+
+    // The header shortcuts must not offer pages this role cannot open: the
+    // shared nav is already filtered per role, so read the allowed hrefs off it.
+    const allowedHrefs = useMemo(() => {
+        const hrefs = new Set<string>();
+        const walk = (items: NavGroup['items']) => {
+            items.forEach((item) => {
+                if (typeof item.href === 'string') {
+                    hrefs.add(item.href);
+                }
+                if (item.children) {
+                    walk(item.children);
+                }
+            });
+        };
+        (nav ?? []).forEach((group) => walk(group.items));
+
+        return hrefs;
+    }, [nav]);
+    const canOpenEmployees = allowedHrefs.has('/avana/employees');
+    const canOpenReports = allowedHrefs.has('/avana/laporan');
+    const canOpenAudit = allowedHrefs.has('/avana/audit');
 
     useEffect(() => {
         if (flash?.success) {
@@ -250,20 +274,24 @@ export default function Dashboard() {
                         </div>
                     </div>
                     <div style={{ display: 'flex', gap: 10 }}>
-                        <Link
-                            href="/avana/laporan"
-                            style={{ ...btnOut, textDecoration: 'none' }}
-                        >
-                            <AIcon name="download" size={16} />
-                            Export
-                        </Link>
-                        <Link
-                            href="/avana/employees/create"
-                            style={{ ...btnP, textDecoration: 'none' }}
-                        >
-                            <AIcon name="plus" size={16} />
-                            Tambah Karyawan
-                        </Link>
+                        {canOpenReports && (
+                            <Link
+                                href="/avana/laporan"
+                                style={{ ...btnOut, textDecoration: 'none' }}
+                            >
+                                <AIcon name="download" size={16} />
+                                Export
+                            </Link>
+                        )}
+                        {canOpenEmployees && (
+                            <Link
+                                href="/avana/employees/create"
+                                style={{ ...btnP, textDecoration: 'none' }}
+                            >
+                                <AIcon name="plus" size={16} />
+                                Tambah Karyawan
+                            </Link>
+                        )}
                     </div>
                 </div>
 
@@ -469,17 +497,19 @@ export default function Dashboard() {
                             >
                                 Aktivitas Terbaru
                             </div>
-                            <a
-                                href="#"
-                                style={{
-                                    fontSize: 12.5,
-                                    color: C.primary,
-                                    textDecoration: 'none',
-                                    fontWeight: 500,
-                                }}
-                            >
-                                Lihat semua
-                            </a>
+                            {canOpenAudit && (
+                                <Link
+                                    href="/avana/audit"
+                                    style={{
+                                        fontSize: 12.5,
+                                        color: C.primary,
+                                        textDecoration: 'none',
+                                        fontWeight: 500,
+                                    }}
+                                >
+                                    Lihat semua
+                                </Link>
+                            )}
                         </div>
                         <div style={{ padding: '6px 20px 14px' }}>
                             {activities.length === 0 && (

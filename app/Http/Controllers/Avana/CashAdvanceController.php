@@ -297,6 +297,15 @@ class CashAdvanceController extends Controller
         $this->ensureTenantOwnership($request, $cashAdvance);
         $this->ensureStatusIs($cashAdvance, ['approved'], 'Hanya uang muka yang sudah disetujui yang bisa dicairkan');
 
+        // Whoever approved the advance may not also release the money — the same
+        // four-eyes rule the reimbursement, settlement and kasbon-settlement
+        // payouts carry.
+        abort_if(
+            (int) $cashAdvance->approved_by === (int) $request->user()->id,
+            403,
+            'Anda yang menyetujui uang muka ini. Pencairan harus dilakukan orang lain.',
+        );
+
         $data = $request->validate([
             'disbursement_method' => ['required', 'in:'.implode(',', array_keys(self::DISBURSEMENT_METHODS))],
             'disbursement_reference' => ['nullable', 'string', 'max:255'],
@@ -455,6 +464,7 @@ class CashAdvanceController extends Controller
                 ? null
                 : (self::DISBURSEMENT_METHODS[$advance->disbursement_method] ?? $advance->disbursement_method),
             'disbursement_reference' => $advance->disbursement_reference,
+            'approved_by' => $advance->approved_by,
             'disbursed_by' => $advance->disbursed_by,
             'settled_at' => $advance->settled_at?->format('d M Y'),
             'settled_by_name' => $advance->settledBy?->name,

@@ -70,7 +70,9 @@ class PermissionRequestController extends Controller
             $permissionRequest->update(['status' => 'approved']);
         }
 
-        return back()->with('success', 'Izin disetujui');
+        return back()->with('success', $permissionRequest->fresh()?->status === 'approved'
+            ? 'Izin disetujui'
+            : 'Persetujuan tercatat, menunggu tahap berikutnya');
     }
 
     /**

@@ -283,7 +283,9 @@ class ReimbursementController extends Controller
             ]);
         }
 
-        return back()->with('success', 'Reimbursement disetujui, menunggu pembayaran');
+        return back()->with('success', $reimbursement->fresh()?->status === 'approved'
+            ? 'Reimbursement disetujui, menunggu pembayaran'
+            : 'Persetujuan tercatat, menunggu tahap berikutnya');
     }
 
     /**
@@ -534,14 +536,16 @@ class ReimbursementController extends Controller
     }
 
     /**
-     * A reimbursement already paid out is a financial record, not a draft.
+     * Editing stops at approval: changing the amount of an approved claim would
+     * put a number in front of Finance that nobody signed off on. Same rule the
+     * settlement flow carries.
      */
     private function ensureEditable(Reimbursement $reimbursement): void
     {
         $this->ensureStatusIs(
             $reimbursement,
-            ['pending', 'approved', 'rejected'],
-            'Reimbursement yang sudah dibayar tidak bisa diubah',
+            ['pending', 'rejected'],
+            'Reimbursement yang sudah disetujui tidak bisa diubah',
         );
     }
 

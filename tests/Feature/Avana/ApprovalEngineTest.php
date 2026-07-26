@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ApprovalLog;
 use App\Models\ApprovalRequest;
 use App\Models\ApprovalStep;
 use App\Models\ApprovalWorkflow;
@@ -15,6 +16,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Services\ApprovalEngine;
 use Database\Seeders\AvanaDemoSeeder;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 use function Pest\Laravel\actingAs;
 
@@ -325,8 +327,12 @@ it('requires every step to approve a parallel workflow', function (): void {
     // Parallel: no single current approver.
     expect($leave->current_approver_id)->toBeNull();
 
+    // Logins for the two employees the steps name as approvers — anyone else is
+    // refused by the engine.
     $approverOne = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $approverTwo = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $this->manager->update(['user_id' => $approverOne->id]);
+    $this->approver->update(['user_id' => $approverTwo->id]);
 
     // One approval (repeated by the same user) is not enough.
     ApprovalEngine::decide($leave->fresh(), $approverOne->id, 'approve');
@@ -440,4 +446,92 @@ it('keeps the legacy manager routing when no workflow is active', function (): v
     expect((int) $leave->current_approver_id)->toBe($this->manager->id);
     expect(ApprovalRequest::where('approvable_id', $leave->id)
         ->where('approvable_type', LeaveRequest::class)->exists())->toBeFalse();
+});
+
+it('refuses a decision from someone the current step is not routed to', function (): void {
+    twoStepLeaveWorkflow($this->tenant->id, $this->approver->id);
+
+    actingAs($this->admin)->post(route('avana.cuti.store'), [
+        'employee_id' => $this->subject->id,
+        'leave_type_id' => $this->leaveType->id,
+        'start_date' => '2026-09-10',
+        'end_date' => '2026-09-12',
+    ]);
+
+    $leave = LeaveRequest::where('employee_id', $this->subject->id)->latest('id')->firstOrFail();
+
+    // A colleague with a login but no stake in this workflow: step 1 is routed
+    // to the subject's direct manager, not to them.
+    $outsiderUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $this->approver->update(['user_id' => $outsiderUser->id]);
+
+    expect(fn (): bool => ApprovalEngine::decide($leave->fresh(), $outsiderUser->id, 'approve'))
+        ->toThrow(HttpException::class);
+
+    expect($leave->fresh()->status)->toBe('pending');
+    expect(ApprovalLog::where('approver_id', $outsiderUser->id)->count())->toBe(0);
+});
+
+it('lets the approver the step is routed to decide it', function (): void {
+    twoStepLeaveWorkflow($this->tenant->id, $this->approver->id);
+
+    $managerUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $this->manager->update(['user_id' => $managerUser->id]);
+
+    actingAs($this->admin)->post(route('avana.cuti.store'), [
+        'employee_id' => $this->subject->id,
+        'leave_type_id' => $this->leaveType->id,
+        'start_date' => '2026-09-10',
+        'end_date' => '2026-09-12',
+    ]);
+
+    $leave = LeaveRequest::where('employee_id', $this->subject->id)->latest('id')->firstOrFail();
+
+    expect(ApprovalEngine::decide($leave->fresh(), $managerUser->id, 'approve'))->toBeTrue();
+
+    $leave->refresh();
+    expect($leave->status)->toBe('pending');
+    expect((int) $leave->current_approver_id)->toBe($this->approver->id);
+});
+
+it('marks an HR admin decision on someone else’s step as an override', function (): void {
+    twoStepLeaveWorkflow($this->tenant->id, $this->approver->id);
+
+    actingAs($this->admin)->post(route('avana.cuti.store'), [
+        'employee_id' => $this->subject->id,
+        'leave_type_id' => $this->leaveType->id,
+        'start_date' => '2026-09-10',
+        'end_date' => '2026-09-12',
+    ]);
+
+    $leave = LeaveRequest::where('employee_id', $this->subject->id)->latest('id')->firstOrFail();
+
+    // Rina is admin_tenant_hr: allowed to step in, but the log says so.
+    actingAs($this->admin)->post(route('avana.cuti.approve', $leave))->assertSessionHas('success');
+
+    $instance = ApprovalRequest::where('approvable_id', $leave->id)
+        ->where('approvable_type', LeaveRequest::class)->firstOrFail();
+
+    expect(ApprovalLog::where('approval_request_id', $instance->id)
+        ->where('approver_id', $this->admin->id)
+        ->value('note'))->toContain('[override admin]');
+});
+
+it('tells the approver the request only advanced when more steps remain', function (): void {
+    twoStepLeaveWorkflow($this->tenant->id, $this->approver->id);
+
+    actingAs($this->admin)->post(route('avana.cuti.store'), [
+        'employee_id' => $this->subject->id,
+        'leave_type_id' => $this->leaveType->id,
+        'start_date' => '2026-09-10',
+        'end_date' => '2026-09-12',
+    ]);
+
+    $leave = LeaveRequest::where('employee_id', $this->subject->id)->latest('id')->firstOrFail();
+
+    actingAs($this->admin)->post(route('avana.cuti.approve', $leave))
+        ->assertSessionHas('success', 'Persetujuan tercatat, menunggu tahap berikutnya');
+
+    actingAs($this->admin)->post(route('avana.cuti.approve', $leave))
+        ->assertSessionHas('success', 'Cuti disetujui');
 });

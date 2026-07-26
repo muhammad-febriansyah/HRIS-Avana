@@ -32,6 +32,8 @@ export interface CashAdvanceRow {
     disbursement_method: string | null;
     disbursement_method_label: string | null;
     disbursement_reference: string | null;
+    /** Who approved it — they may not also release the money. */
+    approved_by: number | null;
     /** Who released the money — they may not also sign off on the spend. */
     disbursed_by: number | null;
     settled_at: string | null;

@@ -73,7 +73,9 @@ class OvertimeController extends Controller
             $overtime->update(['status' => 'approved']);
         }
 
-        return back()->with('success', 'Lembur disetujui');
+        return back()->with('success', $overtime->fresh()?->status === 'approved'
+            ? 'Lembur disetujui'
+            : 'Persetujuan tercatat, menunggu tahap berikutnya');
     }
 
     /**
