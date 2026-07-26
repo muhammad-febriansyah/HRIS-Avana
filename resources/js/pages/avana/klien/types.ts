@@ -26,14 +26,19 @@ export interface TenantRow {
     feature_codes: string[];
 }
 
-/** A selectable subscription package option. */
+/** A selectable subscription package option, with the pricing behind it. */
 export interface PackageOption {
     id: number;
     name: string;
+    tagline?: string | null;
     code: string;
+    price?: number;
+    billing_cycle?: string;
     max_users: number;
     max_employees: number;
     max_branches: number;
+    ai_token_quota?: number;
+    is_popular?: boolean;
 }
 
 /** A toggleable feature module option. */
@@ -81,6 +86,9 @@ export interface TenantFormData {
     billing_status: string;
     start_date: string;
     end_date: string;
+    /** Subscription period inputs the wizard derives `end_date` from. */
+    billing_cycle: string;
+    trial_days: string;
     /** Admin Tenant / HR login created together with the client (create only). */
     admin_name: string;
     admin_email: string;
@@ -97,13 +105,22 @@ export const emptyTenantForm: TenantFormData = {
     max_users: '',
     max_employees: '',
     max_branches: '',
-    billing_status: '',
+    billing_status: 'active',
     start_date: '',
     end_date: '',
+    billing_cycle: 'monthly',
+    trial_days: '14',
     admin_name: '',
     admin_email: '',
     admin_password: '',
 };
+
+/** Billing status options for a client's account standing. */
+export const BILLING_STATUS_OPTIONS: { value: string; label: string }[] = [
+    { value: 'active', label: 'Lancar' },
+    { value: 'pending', label: 'Menunggu Pembayaran' },
+    { value: 'overdue', label: 'Menunggak' },
+];
 
 /** One Admin Tenant / HR account of a client, as listed on the tenant page. */
 export interface TenantAdmin {

@@ -2,7 +2,9 @@
 
 use App\Models\Feature;
 use App\Models\MenuItem;
+use App\Models\Package;
 use App\Models\Role;
+use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
@@ -355,4 +357,93 @@ it('back-fills features, roles and menu when an admin is added to a bare tenant'
     expect(Role::where('tenant_id', $bare->id)->count())->toBe(4);
     expect(MenuItem::where('tenant_id', $bare->id)->count())->toBeGreaterThan(0);
     expect($bare->features()->where('is_enabled', true)->count())->toBe(Feature::count());
+});
+
+it('derives the trial period and quota from the chosen package', function (): void {
+    $package = Package::firstOrFail();
+
+    actingAs($this->superAdmin)
+        ->post(route('avana.klien.store'), [
+            'name' => 'PT Coba Dulu',
+            'package_id' => $package->id,
+            'status' => 'trial',
+            'trial_days' => 30,
+            'start_date' => '2026-08-01',
+            'admin_name' => 'Admin Coba',
+            'admin_email' => 'admin@coba-dulu.co.id',
+        ])
+        ->assertSessionHas('success');
+
+    $tenant = Tenant::where('name', 'PT Coba Dulu')->firstOrFail();
+
+    // Quota copied from the pricing, period counted from the trial length.
+    expect((int) $tenant->max_users)->toBe((int) $package->max_users);
+    expect((int) $tenant->max_employees)->toBe((int) $package->max_employees);
+    expect((int) $tenant->max_branches)->toBe((int) $package->max_branches);
+    expect($tenant->start_date->toDateString())->toBe('2026-08-01');
+    expect($tenant->end_date->toDateString())->toBe('2026-08-31');
+
+    // And the client shows up in Billing straight away, at trial price.
+    $subscription = Subscription::where('tenant_id', $tenant->id)->firstOrFail();
+
+    expect($subscription->status)->toBe('trial');
+    expect((float) $subscription->price)->toBe(0.0);
+    expect($subscription->end_date->toDateString())->toBe('2026-08-31');
+});
+
+it('counts a paid period by the billing cycle instead', function (): void {
+    $package = Package::firstOrFail();
+
+    actingAs($this->superAdmin)
+        ->post(route('avana.klien.store'), [
+            'name' => 'PT Bayar Tahunan',
+            'package_id' => $package->id,
+            'status' => 'active',
+            'billing_cycle' => 'yearly',
+            'start_date' => '2026-08-01',
+            'admin_name' => 'Admin Tahunan',
+            'admin_email' => 'admin@bayar-tahunan.co.id',
+        ])
+        ->assertSessionHas('success');
+
+    $tenant = Tenant::where('name', 'PT Bayar Tahunan')->firstOrFail();
+
+    expect($tenant->end_date->toDateString())->toBe('2027-08-01');
+
+    $subscription = Subscription::where('tenant_id', $tenant->id)->firstOrFail();
+
+    expect($subscription->status)->toBe('active');
+    expect($subscription->billing_cycle)->toBe('yearly');
+    expect((float) $subscription->price)->toBe((float) $package->price);
+});
+
+it('defaults the period to a two-week trial starting today', function (): void {
+    actingAs($this->superAdmin)
+        ->post(route('avana.klien.store'), [
+            'name' => 'PT Tanpa Tanggal',
+            'admin_name' => 'Admin Tanggal',
+            'admin_email' => 'admin@tanpa-tanggal.co.id',
+        ])
+        ->assertSessionHas('success');
+
+    $tenant = Tenant::where('name', 'PT Tanpa Tanggal')->firstOrFail();
+
+    expect($tenant->start_date->toDateString())->toBe(now()->toDateString());
+    expect($tenant->end_date->toDateString())->toBe(now()->addDays(14)->toDateString());
+});
+
+it('keeps an explicit end date over the derived one', function (): void {
+    actingAs($this->superAdmin)
+        ->post(route('avana.klien.store'), [
+            'name' => 'PT Periode Khusus',
+            'status' => 'active',
+            'start_date' => '2026-08-01',
+            'end_date' => '2026-12-31',
+            'admin_name' => 'Admin Khusus',
+            'admin_email' => 'admin@periode-khusus.co.id',
+        ])
+        ->assertSessionHas('success');
+
+    expect(Tenant::where('name', 'PT Periode Khusus')->firstOrFail()->end_date->toDateString())
+        ->toBe('2026-12-31');
 });

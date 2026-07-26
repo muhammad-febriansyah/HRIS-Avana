@@ -32,7 +32,10 @@ export default function KlienEdit({ tenant, packages }: KlienEditProps) {
         billing_status: tenant.billing_status ?? '',
         start_date: tenant.start_date ?? '',
         end_date: tenant.end_date ?? '',
-        // Admin accounts are managed on the tenant page, not here.
+        // Period maths and admin accounts live in the create wizard and the
+        // tenant page; editing keeps to the tenant's own columns.
+        billing_cycle: 'monthly',
+        trial_days: '',
         admin_name: '',
         admin_email: '',
         admin_password: '',

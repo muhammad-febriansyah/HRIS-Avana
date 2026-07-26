@@ -14,10 +14,11 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Services\TenantProvisioner;
 use App\Support\FeatureGroups;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -38,6 +39,18 @@ class TenantController extends Controller
      * @var array<int, string>
      */
     private const STATUSES = ['trial', 'active', 'suspended', 'inactive'];
+
+    /**
+     * Billing cycles a subscription period can run on.
+     *
+     * @var array<int, string>
+     */
+    private const BILLING_CYCLES = ['monthly', 'quarterly', 'yearly'];
+
+    /**
+     * How long a trial lasts when the wizard does not say otherwise.
+     */
+    private const DEFAULT_TRIAL_DAYS = 14;
 
     public function __construct(private readonly TenantProvisioner $provisioner) {}
 
@@ -362,19 +375,48 @@ class TenantController extends Controller
             ? $validated['slug']
             : $this->uniqueSlug($validated['name']);
 
+        $package = filled($validated['package_id'] ?? null)
+            ? Package::find($validated['package_id'])
+            : null;
+
+        $status = $validated['status'] ?? 'trial';
+        $cycle = $validated['billing_cycle'] ?? $package?->billing_cycle ?? 'monthly';
+        $start = filled($validated['start_date'] ?? null)
+            ? Carbon::parse($validated['start_date'])
+            : Carbon::today();
+        $end = filled($validated['end_date'] ?? null)
+            ? Carbon::parse($validated['end_date'])
+            : $this->periodEnd($start, $status, $cycle, $validated['trial_days'] ?? null);
+
         $tenant = Tenant::create([
             'name' => $validated['name'],
             'company_name' => $validated['company_name'] ?? null,
             'slug' => $slug,
-            'package_id' => $validated['package_id'] ?? null,
-            'status' => $validated['status'] ?? 'trial',
-            'max_users' => $validated['max_users'] ?? 0,
-            'max_employees' => $validated['max_employees'] ?? 0,
-            'max_branches' => $validated['max_branches'] ?? 0,
+            'package_id' => $package?->id,
+            'status' => $status,
+            // Quotas follow the package unless the super admin typed their own.
+            'max_users' => $validated['max_users'] ?? $package?->max_users ?? 0,
+            'max_employees' => $validated['max_employees'] ?? $package?->max_employees ?? 0,
+            'max_branches' => $validated['max_branches'] ?? $package?->max_branches ?? 0,
             'billing_status' => $validated['billing_status'] ?? 'active',
-            'start_date' => $validated['start_date'] ?? null,
-            'end_date' => $validated['end_date'] ?? null,
+            'start_date' => $start->toDateString(),
+            'end_date' => $end->toDateString(),
         ]);
+
+        // The tenant's period is also its subscription, so Billing shows the
+        // client from day one instead of waiting for a second manual entry.
+        if ($package !== null) {
+            Subscription::create([
+                'tenant_id' => $tenant->id,
+                'package_id' => $package->id,
+                'status' => $status === 'trial' ? 'trial' : 'active',
+                'billing_cycle' => $cycle,
+                // A trial bills nothing until it converts.
+                'price' => $status === 'trial' ? 0 : (float) $package->price,
+                'start_date' => $start->toDateString(),
+                'end_date' => $end->toDateString(),
+            ]);
+        }
 
         // Features, roles, menu, and the first login — without these the client
         // has no way into their own AvanaHR.
@@ -445,6 +487,23 @@ class TenantController extends Controller
                 'email' => $user->email,
                 'password' => $password,
             ]);
+    }
+
+    /**
+     * When the subscription period runs out: a trial ends after its own day
+     * count, a paid tenant at the end of one billing cycle.
+     */
+    private function periodEnd(Carbon $start, string $status, string $cycle, ?int $trialDays): Carbon
+    {
+        if ($status === 'trial') {
+            return $start->copy()->addDays($trialDays !== null && $trialDays > 0 ? $trialDays : self::DEFAULT_TRIAL_DAYS);
+        }
+
+        return match ($cycle) {
+            'yearly' => $start->copy()->addYearNoOverflow(),
+            'quarterly' => $start->copy()->addMonthsNoOverflow(3),
+            default => $start->copy()->addMonthNoOverflow(),
+        };
     }
 
     /**
@@ -541,20 +600,41 @@ class TenantController extends Controller
             'billing_status' => ['nullable', 'string', 'max:50'],
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            // Drive the period from the pricing when no explicit end date is given.
+            'billing_cycle' => ['nullable', Rule::in(self::BILLING_CYCLES)],
+            'trial_days' => ['nullable', 'integer', 'min:1', 'max:365'],
         ];
     }
 
     /**
-     * Selectable subscription packages for the create/edit forms.
+     * Selectable subscription packages for the create/edit forms, carrying the
+     * pricing the wizard derives the tenant's quota and period from.
      *
-     * @return Collection<int, Package>
+     * @return SupportCollection<int, array<string, mixed>>
      */
-    private function packageOptions(): Collection
+    private function packageOptions(): SupportCollection
     {
         return Package::query()
-            ->select('id', 'name', 'code', 'max_users', 'max_employees', 'max_branches')
-            ->orderBy('name')
-            ->get();
+            ->select(
+                'id', 'name', 'tagline', 'code', 'price', 'billing_cycle',
+                'max_users', 'max_employees', 'max_branches', 'ai_token_quota', 'is_popular',
+            )
+            ->orderBy('price')
+            ->get()
+            ->map(fn (Package $package): array => [
+                'id' => $package->id,
+                'name' => $package->name,
+                'tagline' => $package->tagline,
+                'code' => $package->code,
+                'price' => (float) $package->price,
+                'billing_cycle' => $package->billing_cycle ?? 'monthly',
+                'max_users' => (int) $package->max_users,
+                'max_employees' => (int) $package->max_employees,
+                'max_branches' => (int) $package->max_branches,
+                'ai_token_quota' => (int) $package->ai_token_quota,
+                'is_popular' => (bool) $package->is_popular,
+            ])
+            ->values();
     }
 
     /**
