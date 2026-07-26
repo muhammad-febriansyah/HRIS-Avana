@@ -138,6 +138,7 @@ export default function JenisCutiIndex({ leaveTypes }: JenisCutiIndexProps) {
                                 <tr style={{ background: '#FAFBFD' }}>
                                     <th style={thCell}>Kode</th>
                                     <th style={thCell}>Nama</th>
+                                    <th style={thCell}>Jatah / Tahun</th>
                                     <th style={thCell}>Saldo Minus</th>
                                     <th style={thCell}>Wajib Lampiran</th>
                                     <th style={thCell}>Status</th>
@@ -160,7 +161,7 @@ export default function JenisCutiIndex({ leaveTypes }: JenisCutiIndexProps) {
                                         }}
                                     >
                                         <td
-                                            colSpan={6}
+                                            colSpan={7}
                                             style={{
                                                 padding: '48px 18px',
                                                 textAlign: 'center',
@@ -211,6 +212,18 @@ export default function JenisCutiIndex({ leaveTypes }: JenisCutiIndexProps) {
                                             }}
                                         >
                                             {row.name}
+                                        </td>
+                                        <td
+                                            style={{
+                                                padding: '13px 16px',
+                                                fontSize: 13,
+                                                color: C.text,
+                                            }}
+                                        >
+                                            {row.default_quota.toLocaleString(
+                                                'id-ID',
+                                            )}{' '}
+                                            hari
                                         </td>
                                         <td style={{ padding: '13px 16px' }}>
                                             <YesNoPill

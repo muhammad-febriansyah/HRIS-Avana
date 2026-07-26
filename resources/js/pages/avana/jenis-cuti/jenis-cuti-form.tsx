@@ -107,6 +107,38 @@ export function JenisCutiForm({
                         </select>
                         <FieldError message={errors.status} />
                     </div>
+
+                    <div>
+                        <label style={fieldLabelStyle}>
+                            Jatah Cuti / Tahun{' '}
+                            <span style={{ color: C.red }}>*</span>
+                        </label>
+                        <input
+                            type="number"
+                            min={0}
+                            max={365}
+                            value={data.default_quota}
+                            onChange={(event) =>
+                                setData('default_quota', event.target.value)
+                            }
+                            placeholder="12"
+                            style={withError(
+                                inputStyle,
+                                !!errors.default_quota,
+                            )}
+                        />
+                        <FieldError message={errors.default_quota} />
+                        <div
+                            style={{
+                                fontSize: 12,
+                                color: C.muted,
+                                marginTop: 6,
+                            }}
+                        >
+                            Jumlah hari per tahun. Dipakai sebagai saldo awal
+                            karyawan yang belum punya saldo khusus.
+                        </div>
+                    </div>
                 </div>
 
                 <ToggleField

@@ -17,6 +17,7 @@ export default function JenisCutiEdit({ leaveType }: JenisCutiEditProps) {
     const form = useForm<LeaveTypeFormData>({
         code: leaveType.code,
         name: leaveType.name,
+        default_quota: String(leaveType.default_quota),
         allow_negative: leaveType.allow_negative,
         requires_attachment: leaveType.requires_attachment,
         status: leaveType.status,

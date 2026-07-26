@@ -34,11 +34,12 @@ class LeaveTypeController extends Controller
         $leaveTypes = LeaveType::forTenant($tenantId)
             ->withCount('leaveRequests')
             ->orderBy('name')
-            ->get(['id', 'code', 'name', 'allow_negative', 'requires_attachment', 'status'])
+            ->get(['id', 'code', 'name', 'default_quota', 'allow_negative', 'requires_attachment', 'status'])
             ->map(fn (LeaveType $leaveType): array => [
                 'id' => $leaveType->id,
                 'code' => $leaveType->code,
                 'name' => $leaveType->name,
+                'default_quota' => $leaveType->default_quota,
                 'allow_negative' => $leaveType->allow_negative,
                 'requires_attachment' => $leaveType->requires_attachment,
                 'status' => $leaveType->status,
@@ -73,6 +74,7 @@ class LeaveTypeController extends Controller
                 'id' => $leaveType->id,
                 'code' => $leaveType->code,
                 'name' => $leaveType->name,
+                'default_quota' => $leaveType->default_quota,
                 'allow_negative' => $leaveType->allow_negative,
                 'requires_attachment' => $leaveType->requires_attachment,
                 'status' => $leaveType->status,
@@ -91,13 +93,11 @@ class LeaveTypeController extends Controller
 
         $data = $request->validate($this->rules($tenantId), $this->messages());
 
-        // default_quota is intentionally not set here: it is uniform across the
-        // tenant and falls back to the column default. The balance flow
-        // (StoreLeaveRequest, LeaveController) still reads it as the entitlement.
         LeaveType::create([
             'tenant_id' => $tenantId,
             'code' => $data['code'],
             'name' => $data['name'],
+            'default_quota' => (int) $data['default_quota'],
             'allow_negative' => $request->boolean('allow_negative'),
             'requires_attachment' => $request->boolean('requires_attachment'),
             'status' => $data['status'],
@@ -119,10 +119,10 @@ class LeaveTypeController extends Controller
 
         $data = $request->validate($this->rules($tenantId, (int) $leaveType->getKey()), $this->messages());
 
-        // default_quota left untouched — kept uniform via the column default.
         $leaveType->update([
             'code' => $data['code'],
             'name' => $data['name'],
+            'default_quota' => (int) $data['default_quota'],
             'allow_negative' => $request->boolean('allow_negative'),
             'requires_attachment' => $request->boolean('requires_attachment'),
             'status' => $data['status'],
@@ -162,6 +162,7 @@ class LeaveTypeController extends Controller
         return [
             'code' => ['required', 'string', 'max:255', $code],
             'name' => ['required', 'string', 'max:255'],
+            'default_quota' => ['required', 'integer', 'min:0', 'max:365'],
             'allow_negative' => ['boolean'],
             'requires_attachment' => ['boolean'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
@@ -179,6 +180,10 @@ class LeaveTypeController extends Controller
             'code.required' => 'Kode wajib diisi.',
             'code.unique' => 'Kode sudah digunakan.',
             'name.required' => 'Nama wajib diisi.',
+            'default_quota.required' => 'Jatah cuti wajib diisi.',
+            'default_quota.integer' => 'Jatah cuti harus berupa angka.',
+            'default_quota.min' => 'Jatah cuti minimal 0 hari.',
+            'default_quota.max' => 'Jatah cuti maksimal 365 hari.',
             'status.required' => 'Status wajib dipilih.',
             'status.in' => 'Status tidak valid.',
         ];

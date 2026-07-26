@@ -10,6 +10,7 @@ export interface LeaveTypeRow {
     id: number;
     code: string;
     name: string;
+    default_quota: number;
     allow_negative: boolean;
     requires_attachment: boolean;
     status: string;
@@ -25,6 +26,7 @@ export interface JenisCutiIndexProps {
 export interface LeaveTypeFormData {
     code: string;
     name: string;
+    default_quota: string;
     allow_negative: boolean;
     requires_attachment: boolean;
     status: string;
@@ -34,6 +36,7 @@ export interface LeaveTypeFormData {
 export const emptyLeaveTypeForm: LeaveTypeFormData = {
     code: '',
     name: '',
+    default_quota: '12',
     allow_negative: false,
     requires_attachment: false,
     status: 'active',
