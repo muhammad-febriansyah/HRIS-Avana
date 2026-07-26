@@ -376,10 +376,8 @@ class TenantController extends Controller
             'end_date' => $validated['end_date'] ?? null,
         ]);
 
-        $this->enableAllFeatures($tenant);
-
-        // Roles, menu, and the first login — without these the client has no way
-        // into their own AvanaHR.
+        // Features, roles, menu, and the first login — without these the client
+        // has no way into their own AvanaHR.
         $this->provisioner->provision($tenant);
 
         $admin = $this->provisioner->createAdmin(
@@ -557,19 +555,6 @@ class TenantController extends Controller
             ->select('id', 'name', 'code', 'max_users', 'max_employees', 'max_branches')
             ->orderBy('name')
             ->get();
-    }
-
-    /**
-     * Enable every feature module for a freshly created tenant.
-     */
-    private function enableAllFeatures(Tenant $tenant): void
-    {
-        foreach (Feature::query()->pluck('id') as $featureId) {
-            $tenant->features()->firstOrCreate(
-                ['feature_id' => $featureId],
-                ['is_enabled' => true],
-            );
-        }
     }
 
     /**

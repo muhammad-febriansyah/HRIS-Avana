@@ -337,3 +337,22 @@ it('forbids a tenant admin from adding admins to a tenant', function (): void {
 
     expect(User::where('email', 'selundupan@nusantara.co.id')->exists())->toBeFalse();
 });
+
+it('back-fills features, roles and menu when an admin is added to a bare tenant', function (): void {
+    // A client created before the provisioner existed: no roles, no menu, no
+    // features — adding an admin has to make it usable, not just log-in-able.
+    $bare = Tenant::create(['name' => 'PT Warisan', 'slug' => 'pt-warisan', 'status' => 'active']);
+
+    expect(Role::where('tenant_id', $bare->id)->count())->toBe(0);
+
+    actingAs($this->superAdmin)
+        ->post(route('avana.klien.admin.store', $bare), [
+            'admin_name' => 'Admin Warisan',
+            'admin_email' => 'admin@warisan.co.id',
+        ])
+        ->assertSessionHas('credentials');
+
+    expect(Role::where('tenant_id', $bare->id)->count())->toBe(4);
+    expect(MenuItem::where('tenant_id', $bare->id)->count())->toBeGreaterThan(0);
+    expect($bare->features()->where('is_enabled', true)->count())->toBe(Feature::count());
+});

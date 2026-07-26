@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Feature;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Tenant;
@@ -35,12 +36,13 @@ class TenantProvisioner
     ];
 
     /**
-     * Give the tenant its roles and menu. Safe to re-run: every write is a
-     * firstOrCreate / syncWithoutDetaching.
+     * Give the tenant its feature modules, roles, and menu. Safe to re-run:
+     * every write is a firstOrCreate / syncWithoutDetaching.
      */
     public function provision(Tenant $tenant): void
     {
         DB::transaction(function () use ($tenant): void {
+            $this->enableAllFeatures($tenant);
             $this->provisionRoles($tenant);
             AvanaNav::seedDefaultsFor($tenant->id);
         });
@@ -59,9 +61,12 @@ class TenantProvisioner
 
         $user = DB::transaction(function () use ($tenant, $name, $email, $plain): User {
             // A tenant created before this service existed may still have no
-            // roles — provision on demand rather than making a role-less admin.
+            // roles, features or menu — provision on demand, otherwise the new
+            // admin logs into a near-empty sidebar.
             if (Role::where('tenant_id', $tenant->id)->where('code', 'admin_tenant_hr')->doesntExist()) {
+                $this->enableAllFeatures($tenant);
                 $this->provisionRoles($tenant);
+                AvanaNav::seedDefaultsFor($tenant->id);
             }
 
             $user = User::create([
@@ -96,6 +101,20 @@ class TenantProvisioner
         $user->forceFill(['password' => $plain])->save();
 
         return $plain;
+    }
+
+    /**
+     * Turn on every feature module for the tenant. The sidebar is filtered by
+     * these, so a tenant with none sees almost nothing regardless of its roles.
+     */
+    private function enableAllFeatures(Tenant $tenant): void
+    {
+        foreach (Feature::query()->pluck('id') as $featureId) {
+            $tenant->features()->firstOrCreate(
+                ['feature_id' => $featureId],
+                ['is_enabled' => true],
+            );
+        }
     }
 
     /**
