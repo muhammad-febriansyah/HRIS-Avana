@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import RecruitmentRequisitionController from '@/actions/App/Http/Controllers/Avana/RecruitmentRequisitionController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { usePermission } from '@/hooks/use-permission';
 import { AIcon, ActionBtn, btnP, C, card } from '@/lib/avana';
 import { Field, Modal } from './hiring-request';
@@ -152,6 +153,7 @@ export default function RequisitionPage({
             },
             onError: () => toast.error('Periksa kembali isian'),
         };
+
         if (editId) {
             form.put(RecruitmentRequisitionController.update(editId).url, opts);
         } else {
@@ -163,6 +165,7 @@ export default function RequisitionPage({
         if (!publishId) {
             return;
         }
+
         pubForm.post(RecruitmentRequisitionController.publish(publishId).url, {
             preserveScroll: true,
             onSuccess: () => {
@@ -266,6 +269,7 @@ export default function RequisitionPage({
                                     {requisitions.map((r) => {
                                         const st =
                                             STATUS[r.status] ?? STATUS.draft;
+
                                         return (
                                             <tr key={r.id}>
                                                 <td
@@ -565,32 +569,26 @@ export default function RequisitionPage({
                             label="Tanggal Publish"
                             error={pubForm.errors.publish_date}
                         >
-                            <input
-                                type="date"
-                                style={input}
+                            <DatePicker
                                 value={pubForm.data.publish_date}
-                                onChange={(e) =>
-                                    pubForm.setData(
-                                        'publish_date',
-                                        e.target.value,
-                                    )
+                                onChange={(nextValue) =>
+                                    pubForm.setData('publish_date', nextValue)
                                 }
+                                placeholder="Pilih tanggal"
+                                width="100%"
                             />
                         </Field>
                         <Field
                             label="Closing Date"
                             error={pubForm.errors.closing_date}
                         >
-                            <input
-                                type="date"
-                                style={input}
+                            <DatePicker
                                 value={pubForm.data.closing_date}
-                                onChange={(e) =>
-                                    pubForm.setData(
-                                        'closing_date',
-                                        e.target.value,
-                                    )
+                                onChange={(nextValue) =>
+                                    pubForm.setData('closing_date', nextValue)
                                 }
+                                placeholder="Pilih tanggal"
+                                width="100%"
                             />
                         </Field>
                     </div>

@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import TimesheetController from '@/actions/App/Http/Controllers/Avana/TimesheetController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import { ActionBtn, AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
 import {
@@ -642,19 +643,14 @@ export default function TimesheetIndex({
                             <label style={fieldLabelStyle}>
                                 Tanggal <span style={{ color: C.red }}>*</span>
                             </label>
-                            <input
-                                type="date"
+                            <DatePicker
                                 value={entryForm.data.date}
-                                onChange={(event) =>
-                                    entryForm.setData(
-                                        'date',
-                                        event.target.value,
-                                    )
+                                onChange={(nextValue) =>
+                                    entryForm.setData('date', nextValue)
                                 }
-                                style={withError(
-                                    inputStyle,
-                                    !!entryForm.errors.date,
-                                )}
+                                placeholder="Pilih tanggal"
+                                hasError={!!entryForm.errors.date}
+                                width="100%"
                             />
                             <FieldError message={entryForm.errors.date} />
                         </div>

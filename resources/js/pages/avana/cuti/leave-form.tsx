@@ -1,5 +1,6 @@
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, C, card } from '@/lib/avana';
 import {
@@ -83,9 +84,7 @@ export function LeaveRequestForm({
                     </label>
                     <SearchableSelect
                         value={form.data.employee_id}
-                        onChange={(value) =>
-                            form.setData('employee_id', value)
-                        }
+                        onChange={(value) => form.setData('employee_id', value)}
                         options={employees.map((employee) => ({
                             value: String(employee.id),
                             label: `${employee.name} (${employee.employee_number})`,
@@ -137,16 +136,14 @@ export function LeaveRequestForm({
                         <label style={fieldLabelStyle}>
                             Mulai <span style={{ color: C.red }}>*</span>
                         </label>
-                        <input
-                            type="date"
+                        <DatePicker
                             value={form.data.start_date}
-                            onChange={(event) =>
-                                form.setData('start_date', event.target.value)
+                            onChange={(nextValue) =>
+                                form.setData('start_date', nextValue)
                             }
-                            style={withError(
-                                dateInputStyle,
-                                !!form.errors.start_date,
-                            )}
+                            placeholder="Pilih tanggal"
+                            hasError={!!form.errors.start_date}
+                            width="100%"
                         />
                         <FieldError message={form.errors.start_date} />
                     </div>
@@ -154,16 +151,14 @@ export function LeaveRequestForm({
                         <label style={fieldLabelStyle}>
                             Selesai <span style={{ color: C.red }}>*</span>
                         </label>
-                        <input
-                            type="date"
+                        <DatePicker
                             value={form.data.end_date}
-                            onChange={(event) =>
-                                form.setData('end_date', event.target.value)
+                            onChange={(nextValue) =>
+                                form.setData('end_date', nextValue)
                             }
-                            style={withError(
-                                dateInputStyle,
-                                !!form.errors.end_date,
-                            )}
+                            placeholder="Pilih tanggal"
+                            hasError={!!form.errors.end_date}
+                            width="100%"
                         />
                         <FieldError message={form.errors.end_date} />
                     </div>

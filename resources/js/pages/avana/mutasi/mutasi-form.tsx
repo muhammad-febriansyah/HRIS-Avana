@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
 import {
@@ -11,14 +12,8 @@ import {
     textareaStyle,
     withError,
 } from './components';
-import {
-    employmentStatusOptions,
-    movementOptions
-    
-    
-    
-} from './types';
-import type {EmployeeOption, MovementFormData, NamedOption} from './types';
+import { employmentStatusOptions, movementOptions } from './types';
+import type { EmployeeOption, MovementFormData, NamedOption } from './types';
 
 interface MutasiFormProps {
     form: InertiaFormProps<MovementFormData>;
@@ -115,13 +110,14 @@ export function MutasiForm({
                     <label style={fieldLabelStyle}>
                         Tanggal Efektif <span style={{ color: C.red }}>*</span>
                     </label>
-                    <input
-                        type="date"
+                    <DatePicker
                         value={data.effective_date}
-                        onChange={(event) =>
-                            setData('effective_date', event.target.value)
+                        onChange={(nextValue) =>
+                            setData('effective_date', nextValue)
                         }
-                        style={withError(inputStyle, !!errors.effective_date)}
+                        placeholder="Pilih tanggal"
+                        hasError={!!errors.effective_date}
+                        width="100%"
                     />
                     <FieldError message={errors.effective_date} />
                 </div>

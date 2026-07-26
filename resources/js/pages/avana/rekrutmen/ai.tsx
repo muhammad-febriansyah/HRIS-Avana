@@ -3,7 +3,8 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { AIcon, C, card } from '@/lib/avana';
 import { DataTable } from '@/pages/avana/pengumuman/data-table';
-import { makeAiColumns, type Rec, tierOf } from './ai-columns';
+import { makeAiColumns, tierOf } from './ai-columns';
+import type { Rec } from './ai-columns';
 import { CandidateDetailModal } from './ai-detail-modal';
 import { RecruitmentHeader } from './shell';
 
@@ -126,11 +127,13 @@ export default function RecruitmentAi({
             const handle = (message: Record<string, unknown>) => {
                 if (message.error) {
                     toast.error(String(message.error));
+
                     return;
                 }
 
                 if (typeof message.total === 'number') {
                     setProgress({ done: 0, total: message.total });
+
                     return;
                 }
 
@@ -138,6 +141,7 @@ export default function RecruitmentAi({
                     toast.success(
                         `Analisa AI selesai: ${message.analyzed ?? 0} kandidat.`,
                     );
+
                     return;
                 }
 

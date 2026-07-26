@@ -83,6 +83,7 @@ function SourceDonut({ data }: { data: Series[] }) {
                 pct: Math.round(frac * 100),
             };
             offset += len;
+
             return seg;
         });
 

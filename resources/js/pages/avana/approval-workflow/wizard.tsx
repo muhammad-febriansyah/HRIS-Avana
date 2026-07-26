@@ -54,6 +54,7 @@ const FIELD_LABELS: Record<ConditionField, string> = {
 let uidSeq = 0;
 function uid(): string {
     uidSeq += 1;
+
     return `d${uidSeq}`;
 }
 
@@ -115,6 +116,7 @@ export default function Wizard({
                 condition: null,
             }));
         }
+
         return [emptyStep(firstApproverType)];
     });
 
@@ -156,12 +158,15 @@ export default function Wizard({
             if (count === prev.length) {
                 return prev;
             }
+
             if (count < prev.length) {
                 return prev.slice(0, count);
             }
+
             const extra = Array.from({ length: count - prev.length }, () =>
                 emptyStep(firstApproverType),
             );
+
             return [...prev, ...extra];
         });
 
@@ -201,6 +206,7 @@ export default function Wizard({
 
     const refOptions = (approverType: string): Option[] => {
         const def = approverTypes.find((a) => a.key === approverType);
+
         switch (def?.ref) {
             case 'role':
                 return options.roles;
@@ -217,6 +223,7 @@ export default function Wizard({
 
     const refValueOf = (step: StepDraft): number | null => {
         const def = approverTypes.find((a) => a.key === step.approver_type);
+
         switch (def?.ref) {
             case 'role':
                 return step.approver_role_id;
@@ -233,6 +240,7 @@ export default function Wizard({
 
     const setRefValue = (step: StepDraft, value: number | null) => {
         const def = approverTypes.find((a) => a.key === step.approver_type);
+
         switch (def?.ref) {
             case 'role':
                 return patchStep(step.uid, { approver_role_id: value });
@@ -249,12 +257,15 @@ export default function Wizard({
 
     const approverText = (step: StepDraft): string => {
         const def = approverTypes.find((a) => a.key === step.approver_type);
+
         if (!def || def.ref === null) {
             return def?.label ?? '—';
         }
+
         const opt = refOptions(step.approver_type).find(
             (o) => o.value === refValueOf(step),
         );
+
         return opt?.label ?? def.label;
     };
 
@@ -263,20 +274,26 @@ export default function Wizard({
     const canLeaveStep = (step: number): boolean => {
         if (step === 1 && !requestType) {
             toast.error('Pilih modul terlebih dahulu');
+
             return false;
         }
+
         if (step === 3) {
             const bad = steps.find((s) => {
                 const def = approverTypes.find(
                     (a) => a.key === s.approver_type,
                 );
+
                 return def?.ref != null && refValueOf(s) == null;
             });
+
             if (bad) {
                 toast.error('Lengkapi approver untuk setiap step');
+
                 return false;
             }
         }
+
         return true;
     };
 
@@ -284,6 +301,7 @@ export default function Wizard({
         if (!canLeaveStep(current)) {
             return;
         }
+
         setCurrent((c) => Math.min(4, c + 1));
     };
     const goBack = () => setCurrent((c) => Math.max(1, c - 1));
@@ -292,6 +310,7 @@ export default function Wizard({
         for (const step of [1, 3]) {
             if (!canLeaveStep(step)) {
                 setCurrent(step);
+
                 return;
             }
         }
@@ -500,6 +519,7 @@ function Stepper({ current }: { current: number }) {
                 const done = current > s.n;
                 const active = current === s.n;
                 const color = done || active ? C.primary : C.faint;
+
                 return (
                     <div
                         key={s.n}
@@ -588,6 +608,7 @@ function ModuleStep({
         >
             {modules.map((m) => {
                 const selected = value === m.key;
+
                 return (
                     <button
                         key={m.key}
@@ -685,6 +706,7 @@ function FlowStep({
             desc: 'Disetujui oleh beberapa approver secara bersamaan',
         },
     ];
+
     return (
         <div>
             <div
@@ -706,6 +728,7 @@ function FlowStep({
             >
                 {modeCards.map((m) => {
                     const selected = approvalMode === m.key;
+
                     return (
                         <button
                             key={m.key}
@@ -826,6 +849,7 @@ function ApproverStep({
                         (a) => a.key === s.approver_type,
                     );
                     const needsRef = def?.ref != null;
+
                     return (
                         <div
                             key={s.uid}
@@ -1034,6 +1058,7 @@ function FinishStep({
 
     const extraRefOptions = (approverType: string): Option[] => {
         const def = approverTypes.find((a) => a.key === approverType);
+
         switch (def?.ref) {
             case 'role':
                 return options.roles;
@@ -1059,6 +1084,7 @@ function FinishStep({
         const refLabel = extraRefOptions(c.extra_approver_type).find(
             (o) => o.value === c.extra_approver_ref,
         )?.label;
+
         return `Jika ${fieldText} → tambah approver ${refLabel ?? typeLabel}`;
     };
 
@@ -1089,6 +1115,7 @@ function FinishStep({
                         approverTypes.find(
                             (a) => a.key === c.extra_approver_type,
                         )?.ref != null;
+
                     return (
                         <div
                             key={c.uid}

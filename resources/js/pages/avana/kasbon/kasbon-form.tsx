@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
 import {
@@ -83,24 +84,26 @@ export function KasbonForm({
                     required
                     error={errors.request_date}
                 >
-                    <input
-                        type="date"
+                    <DatePicker
                         value={data.request_date}
-                        onChange={(event) =>
-                            setData('request_date', event.target.value)
+                        onChange={(nextValue) =>
+                            setData('request_date', nextValue)
                         }
-                        style={withError(dateInputStyle, !!errors.request_date)}
+                        placeholder="Pilih tanggal"
+                        hasError={!!errors.request_date}
+                        width="100%"
                     />
                 </Field>
 
                 <Field label="Tanggal Dibutuhkan" error={errors.needed_date}>
-                    <input
-                        type="date"
+                    <DatePicker
                         value={data.needed_date}
-                        onChange={(event) =>
-                            setData('needed_date', event.target.value)
+                        onChange={(nextValue) =>
+                            setData('needed_date', nextValue)
                         }
-                        style={withError(dateInputStyle, !!errors.needed_date)}
+                        placeholder="Pilih tanggal"
+                        hasError={!!errors.needed_date}
+                        width="100%"
                     />
                 </Field>
 

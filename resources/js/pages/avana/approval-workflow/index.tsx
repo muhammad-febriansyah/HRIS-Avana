@@ -77,6 +77,7 @@ export default function ApprovalWorkflowIndex({
         if (!confirmDelete) {
             return;
         }
+
         router.delete(
             ApprovalWorkflowController.destroy(confirmDelete.id).url,
             {
@@ -332,8 +333,10 @@ export default function ApprovalWorkflowIndex({
                                                             row.id
                                                         ) {
                                                             setMenuOpen(null);
+
                                                             return;
                                                         }
+
                                                         const r =
                                                             e.currentTarget.getBoundingClientRect();
                                                         setMenuOpen({
@@ -374,9 +377,11 @@ export default function ApprovalWorkflowIndex({
             {menuOpen &&
                 (() => {
                     const row = workflows.find((w) => w.id === menuOpen.id);
+
                     if (!row) {
                         return null;
                     }
+
                     return (
                         <>
                             <div
@@ -467,6 +472,7 @@ function KebabItem({
     danger?: boolean;
 }) {
     const color = danger ? C.red : C.text;
+
     return (
         <button
             onClick={onClick}
@@ -500,6 +506,7 @@ function KebabItem({
 function StatusPill({ active }: { active: boolean }) {
     const color = active ? C.green : C.muted;
     const bg = active ? 'rgba(22,163,74,.1)' : 'rgba(107,114,128,.12)';
+
     return (
         <span
             style={{
@@ -545,6 +552,7 @@ function PreviewModal({
                     : ref === 'employee'
                       ? options.employees
                       : [];
+
         return list.find((o) => o.value === id)?.label;
     };
 
@@ -558,6 +566,7 @@ function PreviewModal({
             c.extra_approver_type;
         const approver =
             refName(c.extra_approver_type, c.extra_approver_ref) ?? typeLabel;
+
         return `Jika ${fieldPart} → tambah approver ${approver}`;
     };
 

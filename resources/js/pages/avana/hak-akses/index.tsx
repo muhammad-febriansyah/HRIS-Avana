@@ -5,11 +5,8 @@ import AccessController from '@/actions/App/Http/Controllers/Avana/AccessControl
 import FeatureCatalogController from '@/actions/App/Http/Controllers/Avana/FeatureCatalogController';
 import { AIcon, btnP, C } from '@/lib/avana';
 import MenuBuilder from '../menu-builder';
-import {
-    blankFeatureForm,
-    FeatureModal,
-    type FeatureForm,
-} from './feature-modal';
+import { blankFeatureForm, FeatureModal } from './feature-modal';
+import type { FeatureForm } from './feature-modal';
 import { PermissionMatrix } from './permission-matrix';
 import { RoleCards } from './role-cards';
 import { RoleModal } from './role-modal';
@@ -41,11 +38,13 @@ export default function AvanaHakAkses({
     const selectTab = (next: Tab) => {
         setTab(next);
         const url = new URL(window.location.href);
+
         if (next === 'akses') {
             url.searchParams.delete('tab');
         } else {
             url.searchParams.set('tab', next);
         }
+
         window.history.replaceState({}, '', url.toString());
     };
     const [roleModalOpen, setRoleModalOpen] = useState(false);
@@ -136,6 +135,7 @@ export default function AvanaHakAkses({
             onError: (e: Record<string, string>) => setFeatureErrors(e),
             onSuccess: () => setFeatureOpen(null),
         };
+
         if (featureOpen?.mode === 'edit' && featureOpen.id) {
             router.put(
                 FeatureCatalogController.update(featureOpen.id).url,
@@ -156,6 +156,7 @@ export default function AvanaHakAkses({
         ) {
             return;
         }
+
         router.delete(FeatureCatalogController.destroy(module.featureId).url, {
             preserveScroll: true,
         });
@@ -191,9 +192,7 @@ export default function AvanaHakAkses({
                     >
                         Hak Akses &amp; Peran
                     </h1>
-                    <div
-                        style={{ fontSize: 14, color: C.muted, marginTop: 4 }}
-                    >
+                    <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
                         Fitur, izin per-peran &amp; struktur menu dalam satu
                         layar.
                     </div>
@@ -268,8 +267,8 @@ export default function AvanaHakAkses({
                                     </b>{' '}
                                     = daftarkan modul baru (otomatis dapat izin
                                     per-peran + baris di matriks). Ini{' '}
-                                    <b>belum</b> jadi menu di sidebar — untuk itu
-                                    pakai tab <b>Struktur Menu</b> →{' '}
+                                    <b>belum</b> jadi menu di sidebar — untuk
+                                    itu pakai tab <b>Struktur Menu</b> →{' '}
                                     <b>Tambah Menu</b>.
                                 </span>
                             </div>
@@ -349,10 +348,11 @@ export default function AvanaHakAkses({
                             <span>
                                 <b style={{ color: C.navy }}>Tambah Menu</b> =
                                 item yang tampil di sidebar &amp; menunjuk ke
-                                sebuah halaman/route. Atur urutan, nesting, ikon,
-                                sembunyikan, dan fitur/izin yang menggerbanginya.
-                                Beda dari <b>Tambah Fitur</b> (yang bikin
-                                modul&nbsp;+&nbsp;izin, bukan tampilan sidebar).
+                                sebuah halaman/route. Atur urutan, nesting,
+                                ikon, sembunyikan, dan fitur/izin yang
+                                menggerbanginya. Beda dari <b>Tambah Fitur</b>{' '}
+                                (yang bikin modul&nbsp;+&nbsp;izin, bukan
+                                tampilan sidebar).
                             </span>
                         </div>
                         <div style={{ margin: '10px -32px 0' }}>

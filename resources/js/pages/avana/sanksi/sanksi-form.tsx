@@ -1,8 +1,9 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
-import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
 import {
     FieldError,
     fieldLabelStyle,
@@ -68,13 +69,12 @@ export function SanksiForm({
                     <label style={fieldLabelStyle}>
                         Tanggal <span style={{ color: C.red }}>*</span>
                     </label>
-                    <input
-                        type="date"
+                    <DatePicker
                         value={data.date}
-                        onChange={(event) =>
-                            setData('date', event.target.value)
-                        }
-                        style={withError(inputStyle, !!errors.date)}
+                        onChange={(nextValue) => setData('date', nextValue)}
+                        placeholder="Pilih tanggal"
+                        hasError={!!errors.date}
+                        width="100%"
                     />
                     <FieldError message={errors.date} />
                 </div>
@@ -135,19 +135,10 @@ export function SanksiForm({
                         Nominal Potongan{' '}
                         {isDeduction && <span style={{ color: C.red }}>*</span>}
                     </label>
-                    <input
-                        type="number"
-                        min={0}
+                    <RupiahInput
                         value={data.amount}
-                        onChange={(event) =>
-                            setData('amount', event.target.value)
-                        }
-                        placeholder="0"
-                        disabled={!isDeduction}
-                        style={{
-                            ...withError(inputStyle, !!errors.amount),
-                            background: isDeduction ? '#fff' : C.surface,
-                        }}
+                        onChange={(raw) => setData('amount', raw)}
+                        invalid={!!errors.amount}
                     />
                     <FieldError message={errors.amount} />
                 </div>

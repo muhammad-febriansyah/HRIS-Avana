@@ -265,8 +265,7 @@ export default function SettlementShow({
                                     Informasi Perjalanan
                                 </div>
                                 <div style={{ padding: 20 }}>
-                                    {settlement.destination_latitude !==
-                                        null &&
+                                    {settlement.destination_latitude !== null &&
                                         settlement.destination_longitude !==
                                             null && (
                                             <div style={{ marginBottom: 18 }}>
@@ -608,180 +607,217 @@ export default function SettlementShow({
                             </ActionCard>
                         )}
 
-                        {settlement.status === 'manager_approved' && canManage && (
-                            <ActionCard title="Verifikasi Finance">
-                                {selfApproved ? (
-                                    <div
-                                        style={{
-                                            background: '#FFFBEB',
-                                            border: `1px solid ${C.amber}55`,
-                                            borderRadius: 8,
-                                            padding: '12px 13px',
-                                            fontSize: 12.5,
-                                            color: '#92400E',
-                                            display: 'flex',
-                                            gap: 9,
-                                            lineHeight: 1.55,
-                                        }}
-                                    >
-                                        <AIcon
-                                            name="user-x"
-                                            size={16}
-                                            color={C.amber}
-                                        />
-                                        <span>
-                                            Anda yang menyetujui settlement ini
-                                            sebagai manager. Verifikasi &amp;
-                                            pembayaran harus dilakukan orang
-                                            lain.
-                                        </span>
-                                    </div>
-                                ) : (
-                                  <>
-                                <p style={helpText}>
-                                    Verifikasi akan memicu pembayaran ke
-                                    rekening karyawan. Tindakan ini final.
-                                </p>
-                                {settlement.fraud_level === 'high' && (
-                                    <div
-                                        style={{
-                                            background: '#FEF2F2',
-                                            border: `1px solid ${C.red}55`,
-                                            borderRadius: 8,
-                                            padding: '10px 12px',
-                                            fontSize: 12,
-                                            color: '#B91C1C',
-                                            display: 'flex',
-                                            gap: 8,
-                                            lineHeight: 1.5,
-                                        }}
-                                    >
-                                        <AIcon
-                                            name="triangle-alert"
-                                            size={15}
-                                            color={C.red}
-                                        />
-                                        <span>
-                                            Bukti berisiko tinggi dimanipulasi —
-                                            tinjau panel Pemeriksaan Keaslian
-                                            sebelum membayar.
-                                        </span>
-                                    </div>
-                                )}
-                                <Field label="Metode Pembayaran" required>
-                                    <select
-                                        value={verify.data.payment_method}
-                                        onChange={(event) =>
-                                            verify.setData(
-                                                'payment_method',
-                                                event.target.value,
-                                            )
-                                        }
-                                        style={selectStyle}
-                                    >
-                                        {paymentMethods.map((method) => (
-                                            <option
-                                                key={method.value}
-                                                value={method.value}
+                        {settlement.status === 'manager_approved' &&
+                            canManage && (
+                                <ActionCard title="Verifikasi Finance">
+                                    {selfApproved ? (
+                                        <div
+                                            style={{
+                                                background: '#FFFBEB',
+                                                border: `1px solid ${C.amber}55`,
+                                                borderRadius: 8,
+                                                padding: '12px 13px',
+                                                fontSize: 12.5,
+                                                color: '#92400E',
+                                                display: 'flex',
+                                                gap: 9,
+                                                lineHeight: 1.55,
+                                            }}
+                                        >
+                                            <AIcon
+                                                name="user-x"
+                                                size={16}
+                                                color={C.amber}
+                                            />
+                                            <span>
+                                                Anda yang menyetujui settlement
+                                                ini sebagai manager. Verifikasi
+                                                &amp; pembayaran harus dilakukan
+                                                orang lain.
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <p style={helpText}>
+                                                Verifikasi akan memicu
+                                                pembayaran ke rekening karyawan.
+                                                Tindakan ini final.
+                                            </p>
+                                            {settlement.fraud_level ===
+                                                'high' && (
+                                                <div
+                                                    style={{
+                                                        background: '#FEF2F2',
+                                                        border: `1px solid ${C.red}55`,
+                                                        borderRadius: 8,
+                                                        padding: '10px 12px',
+                                                        fontSize: 12,
+                                                        color: '#B91C1C',
+                                                        display: 'flex',
+                                                        gap: 8,
+                                                        lineHeight: 1.5,
+                                                    }}
+                                                >
+                                                    <AIcon
+                                                        name="triangle-alert"
+                                                        size={15}
+                                                        color={C.red}
+                                                    />
+                                                    <span>
+                                                        Bukti berisiko tinggi
+                                                        dimanipulasi — tinjau
+                                                        panel Pemeriksaan
+                                                        Keaslian sebelum
+                                                        membayar.
+                                                    </span>
+                                                </div>
+                                            )}
+                                            <Field
+                                                label="Metode Pembayaran"
+                                                required
                                             >
-                                                {method.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </Field>
-                                <Field label="Nomor Referensi">
-                                    <input
-                                        type="text"
-                                        placeholder="Nomor transaksi / bukti transfer"
-                                        value={verify.data.payment_reference}
-                                        onChange={(event) =>
-                                            verify.setData(
-                                                'payment_reference',
-                                                event.target.value,
+                                                <select
+                                                    value={
+                                                        verify.data
+                                                            .payment_method
+                                                    }
+                                                    onChange={(event) =>
+                                                        verify.setData(
+                                                            'payment_method',
+                                                            event.target.value,
+                                                        )
+                                                    }
+                                                    style={selectStyle}
+                                                >
+                                                    {paymentMethods.map(
+                                                        (method) => (
+                                                            <option
+                                                                key={
+                                                                    method.value
+                                                                }
+                                                                value={
+                                                                    method.value
+                                                                }
+                                                            >
+                                                                {method.label}
+                                                            </option>
+                                                        ),
+                                                    )}
+                                                </select>
+                                            </Field>
+                                            <Field label="Nomor Referensi">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Nomor transaksi / bukti transfer"
+                                                    value={
+                                                        verify.data
+                                                            .payment_reference
+                                                    }
+                                                    onChange={(event) =>
+                                                        verify.setData(
+                                                            'payment_reference',
+                                                            event.target.value,
+                                                        )
+                                                    }
+                                                    style={{
+                                                        width: '100%',
+                                                        height: 42,
+                                                        padding: '0 13px',
+                                                        border: `1px solid ${C.border}`,
+                                                        borderRadius: 8,
+                                                        fontSize: 13.5,
+                                                        outline: 'none',
+                                                    }}
+                                                />
+                                            </Field>
+                                            <CheckRow
+                                                checked={
+                                                    verify.data.confirm_bank
+                                                }
+                                                onChange={(v) =>
+                                                    verify.setData(
+                                                        'confirm_bank',
+                                                        v,
+                                                    )
+                                                }
+                                                label="Rekening tujuan sudah diverifikasi"
+                                            />
+                                            <CheckRow
+                                                checked={
+                                                    verify.data.confirm_receipts
+                                                }
+                                                onChange={(v) =>
+                                                    verify.setData(
+                                                        'confirm_receipts',
+                                                        v,
+                                                    )
+                                                }
+                                                label="Bukti sesuai & taat pajak"
+                                            />
+                                            <button
+                                                type="button"
+                                                disabled={
+                                                    !verify.data.confirm_bank ||
+                                                    !verify.data
+                                                        .confirm_receipts ||
+                                                    verify.processing
+                                                }
+                                                onClick={() =>
+                                                    verify.post(
+                                                        SettlementController.financeVerify(
+                                                            settlement.id,
+                                                        ).url,
+                                                        {
+                                                            preserveScroll: true,
+                                                        },
+                                                    )
+                                                }
+                                                style={{
+                                                    ...fullPrimary,
+                                                    opacity:
+                                                        !verify.data
+                                                            .confirm_bank ||
+                                                        !verify.data
+                                                            .confirm_receipts
+                                                            ? 0.5
+                                                            : 1,
+                                                    cursor:
+                                                        !verify.data
+                                                            .confirm_bank ||
+                                                        !verify.data
+                                                            .confirm_receipts
+                                                            ? 'not-allowed'
+                                                            : 'pointer',
+                                                }}
+                                            >
+                                                <AIcon
+                                                    name="badge-check"
+                                                    size={16}
+                                                    color="#fff"
+                                                />
+                                                Verifikasi &amp; Bayar
+                                            </button>
+                                        </>
+                                    )}
+                                    <RejectAction
+                                        open={rejecting}
+                                        setOpen={setRejecting}
+                                        form={rejectForm}
+                                        onSubmit={() =>
+                                            rejectForm.post(
+                                                SettlementController.reject(
+                                                    settlement.id,
+                                                ).url,
+                                                {
+                                                    preserveScroll: true,
+                                                    onSuccess: () =>
+                                                        setRejecting(false),
+                                                },
                                             )
                                         }
-                                        style={{
-                                            width: '100%',
-                                            height: 42,
-                                            padding: '0 13px',
-                                            border: `1px solid ${C.border}`,
-                                            borderRadius: 8,
-                                            fontSize: 13.5,
-                                            outline: 'none',
-                                        }}
                                     />
-                                </Field>
-                                <CheckRow
-                                    checked={verify.data.confirm_bank}
-                                    onChange={(v) =>
-                                        verify.setData('confirm_bank', v)
-                                    }
-                                    label="Rekening tujuan sudah diverifikasi"
-                                />
-                                <CheckRow
-                                    checked={verify.data.confirm_receipts}
-                                    onChange={(v) =>
-                                        verify.setData('confirm_receipts', v)
-                                    }
-                                    label="Bukti sesuai & taat pajak"
-                                />
-                                <button
-                                    type="button"
-                                    disabled={
-                                        !verify.data.confirm_bank ||
-                                        !verify.data.confirm_receipts ||
-                                        verify.processing
-                                    }
-                                    onClick={() =>
-                                        verify.post(
-                                            SettlementController.financeVerify(
-                                                settlement.id,
-                                            ).url,
-                                            { preserveScroll: true },
-                                        )
-                                    }
-                                    style={{
-                                        ...fullPrimary,
-                                        opacity:
-                                            !verify.data.confirm_bank ||
-                                            !verify.data.confirm_receipts
-                                                ? 0.5
-                                                : 1,
-                                        cursor:
-                                            !verify.data.confirm_bank ||
-                                            !verify.data.confirm_receipts
-                                                ? 'not-allowed'
-                                                : 'pointer',
-                                    }}
-                                >
-                                    <AIcon
-                                        name="badge-check"
-                                        size={16}
-                                        color="#fff"
-                                    />
-                                    Verifikasi &amp; Bayar
-                                </button>
-                                  </>
-                                )}
-                                <RejectAction
-                                    open={rejecting}
-                                    setOpen={setRejecting}
-                                    form={rejectForm}
-                                    onSubmit={() =>
-                                        rejectForm.post(
-                                            SettlementController.reject(
-                                                settlement.id,
-                                            ).url,
-                                            {
-                                                preserveScroll: true,
-                                                onSuccess: () =>
-                                                    setRejecting(false),
-                                            },
-                                        )
-                                    }
-                                />
-                            </ActionCard>
-                        )}
+                                </ActionCard>
+                            )}
 
                         {settlement.status === 'paid' && (
                             <ActionCard title="Pembayaran Selesai">
@@ -789,9 +825,7 @@ export default function SettlementShow({
                                     Dibayar {settlement.paid_at} oleh{' '}
                                     {settlement.finance_verified_by ?? '—'}.
                                 </p>
-                                <div
-                                    style={{ fontSize: 12.5, color: C.muted }}
-                                >
+                                <div style={{ fontSize: 12.5, color: C.muted }}>
                                     Metode:{' '}
                                     <strong style={{ color: C.text }}>
                                         {settlement.payment_method_label ?? '—'}
@@ -834,8 +868,11 @@ const fullPrimary = {
  * trip is known, since both dates are optional.
  */
 function tripDuration(settlement: SettlementDetail): string {
-    const { trip_start_date: start, trip_end_date: end, trip_days: days } =
-        settlement;
+    const {
+        trip_start_date: start,
+        trip_end_date: end,
+        trip_days: days,
+    } = settlement;
 
     if (!start && !end) {
         return '—';
@@ -1044,6 +1081,7 @@ function Timeline({
         if (done[index]) {
             return 'done';
         }
+
         return index === currentIndex ? 'current' : 'pending';
     };
 
@@ -1079,11 +1117,7 @@ function Timeline({
     return (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
             {steps.map((step, index) => (
-                <div
-                    // eslint-disable-next-line react/no-array-index-key
-                    key={index}
-                    style={{ display: 'flex', gap: 12 }}
-                >
+                <div key={index} style={{ display: 'flex', gap: 12 }}>
                     <div
                         style={{
                             display: 'flex',
@@ -1112,9 +1146,7 @@ function Timeline({
                                 fontSize: 13,
                                 fontWeight: 600,
                                 color:
-                                    step.state === 'pending'
-                                        ? C.faint
-                                        : C.navy,
+                                    step.state === 'pending' ? C.faint : C.navy,
                             }}
                         >
                             {step.title}
@@ -1215,7 +1247,11 @@ function fraudMeta(level: 'low' | 'medium' | 'high' | null): {
 } {
     switch (level) {
         case 'high':
-            return { label: 'Berisiko Tinggi', color: '#B91C1C', bg: '#FEF2F2' };
+            return {
+                label: 'Berisiko Tinggi',
+                color: '#B91C1C',
+                bg: '#FEF2F2',
+            };
         case 'medium':
             return { label: 'Perlu Ditinjau', color: '#B45309', bg: '#FFFBEB' };
         case 'low':
@@ -1322,6 +1358,7 @@ function FraudPanel({
             >
                 {settlement.attachments.map((attachment) => {
                     const meta = fraudMeta(attachment.fraud_level ?? null);
+
                     return (
                         <div
                             key={attachment.id}
@@ -1393,7 +1430,6 @@ function FraudPanel({
                                     {(attachment.fraud_flags ?? []).map(
                                         (flag, index) => (
                                             <li
-                                                // eslint-disable-next-line react/no-array-index-key
                                                 key={index}
                                                 style={{
                                                     display: 'flex',

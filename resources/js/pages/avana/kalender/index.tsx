@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import CalendarController from '@/actions/App/Http/Controllers/Avana/CalendarController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
 import type { FlashProps } from '../employees/types';
 
@@ -478,7 +479,8 @@ export default function KalenderIndex({
                                                     <span
                                                         style={{
                                                             display: 'block',
-                                                            whiteSpace: 'nowrap',
+                                                            whiteSpace:
+                                                                'nowrap',
                                                             overflow: 'hidden',
                                                             textOverflow:
                                                                 'ellipsis',
@@ -489,7 +491,8 @@ export default function KalenderIndex({
                                                     {event.assignee && (
                                                         <span
                                                             style={{
-                                                                display: 'block',
+                                                                display:
+                                                                    'block',
                                                                 fontSize: 9.5,
                                                                 fontWeight: 500,
                                                                 opacity: 0.75,
@@ -698,21 +701,16 @@ export default function KalenderIndex({
                                         Mulai{' '}
                                         <span style={{ color: C.red }}>*</span>
                                     </label>
-                                    <input
-                                        type="date"
+                                    <DatePicker
                                         value={form.data.start_date}
-                                        onChange={(e) =>
+                                        onChange={(nextValue) =>
                                             form.setData(
                                                 'start_date',
-                                                e.target.value,
+                                                nextValue,
                                             )
                                         }
-                                        style={{
-                                            ...inputStyle,
-                                            ...(form.errors.start_date
-                                                ? { borderColor: C.red }
-                                                : {}),
-                                        }}
+                                        placeholder="Pilih tanggal"
+                                        width="100%"
                                     />
                                     {form.errors.start_date && (
                                         <div
@@ -728,21 +726,13 @@ export default function KalenderIndex({
                                 </div>
                                 <div>
                                     <label style={labelStyle}>Selesai</label>
-                                    <input
-                                        type="date"
+                                    <DatePicker
                                         value={form.data.end_date}
-                                        onChange={(e) =>
-                                            form.setData(
-                                                'end_date',
-                                                e.target.value,
-                                            )
+                                        onChange={(nextValue) =>
+                                            form.setData('end_date', nextValue)
                                         }
-                                        style={{
-                                            ...inputStyle,
-                                            ...(form.errors.end_date
-                                                ? { borderColor: C.red }
-                                                : {}),
-                                        }}
+                                        placeholder="Pilih tanggal"
+                                        width="100%"
                                     />
                                     {form.errors.end_date && (
                                         <div
@@ -782,7 +772,10 @@ export default function KalenderIndex({
                                             — Semua divisi —
                                         </option>
                                         {departments.map((d) => (
-                                            <option key={d.value} value={d.value}>
+                                            <option
+                                                key={d.value}
+                                                value={d.value}
+                                            >
                                                 {d.label}
                                             </option>
                                         ))}

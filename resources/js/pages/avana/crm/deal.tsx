@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import CrmController from '@/actions/App/Http/Controllers/Avana/CrmController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, ActionBtn, btnP, C, card, rp } from '@/lib/avana';
 import {
@@ -12,14 +13,13 @@ import {
     StageBadge,
     textareaStyle,
 } from './components';
-import {
-    ACTIVITY_TYPE_ICONS,
-    ACTIVITY_TYPE_LABELS,
-    type CrmActivity,
-    type CrmDealProps,
-    type CrmMember,
-    type CrmTask,
-    type FlashProps,
+import { ACTIVITY_TYPE_ICONS, ACTIVITY_TYPE_LABELS } from './types';
+import type {
+    CrmActivity,
+    CrmDealProps,
+    CrmMember,
+    CrmTask,
+    FlashProps,
 } from './types';
 
 const sectionTitle = {
@@ -325,16 +325,16 @@ export default function CrmDealDetail({
                                     <label style={fieldLabelStyle}>
                                         Tanggal
                                     </label>
-                                    <input
-                                        type="date"
+                                    <DatePicker
                                         value={activityForm.data.activity_date}
-                                        onChange={(e) =>
+                                        onChange={(nextValue) =>
                                             activityForm.setData(
                                                 'activity_date',
-                                                e.target.value,
+                                                nextValue,
                                             )
                                         }
-                                        style={inputStyle}
+                                        placeholder="Pilih tanggal"
+                                        width="100%"
                                     />
                                 </div>
                                 <div style={{ gridColumn: '1/-1' }}>
@@ -452,16 +452,16 @@ export default function CrmDealDetail({
                                     <label style={fieldLabelStyle}>
                                         Jatuh tempo
                                     </label>
-                                    <input
-                                        type="date"
+                                    <DatePicker
                                         value={taskForm.data.due_date}
-                                        onChange={(e) =>
+                                        onChange={(nextValue) =>
                                             taskForm.setData(
                                                 'due_date',
-                                                e.target.value,
+                                                nextValue,
                                             )
                                         }
-                                        style={inputStyle}
+                                        placeholder="Pilih tanggal"
+                                        width="100%"
                                     />
                                 </div>
                                 <div>

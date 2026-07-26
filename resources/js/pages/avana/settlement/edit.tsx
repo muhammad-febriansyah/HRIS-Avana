@@ -4,11 +4,11 @@ import { toast } from 'sonner';
 import SettlementController from '@/actions/App/Http/Controllers/Avana/SettlementController';
 import { AIcon, C } from '@/lib/avana';
 import { SettlementForm } from './settlement-form';
-import {
-    emptySettlementLine,
-    type FlashProps,
-    type SettlementEditProps,
-    type SettlementFormData,
+import { emptySettlementLine } from './types';
+import type {
+    FlashProps,
+    SettlementEditProps,
+    SettlementFormData,
 } from './types';
 
 export default function SettlementEdit({

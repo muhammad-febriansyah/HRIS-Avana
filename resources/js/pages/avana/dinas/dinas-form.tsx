@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
 import {
@@ -90,26 +91,25 @@ export function DinasForm({
                     }}
                 >
                     <Field label="Mulai" required error={errors.start_date}>
-                        <input
-                            type="date"
+                        <DatePicker
                             value={data.start_date}
-                            onChange={(event) =>
-                                setData('start_date', event.target.value)
+                            onChange={(nextValue) =>
+                                setData('start_date', nextValue)
                             }
-                            style={withError(
-                                dateInputStyle,
-                                !!errors.start_date,
-                            )}
+                            placeholder="Pilih tanggal"
+                            hasError={!!errors.start_date}
+                            width="100%"
                         />
                     </Field>
                     <Field label="Selesai" required error={errors.end_date}>
-                        <input
-                            type="date"
+                        <DatePicker
                             value={data.end_date}
-                            onChange={(event) =>
-                                setData('end_date', event.target.value)
+                            onChange={(nextValue) =>
+                                setData('end_date', nextValue)
                             }
-                            style={withError(dateInputStyle, !!errors.end_date)}
+                            placeholder="Pilih tanggal"
+                            hasError={!!errors.end_date}
+                            width="100%"
                         />
                     </Field>
                 </div>

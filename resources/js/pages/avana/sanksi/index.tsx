@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import AttendancePenaltyController from '@/actions/App/Http/Controllers/Avana/AttendancePenaltyController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { ActionBtn, AIcon, btnOut, btnP, C, rp, thCell } from '@/lib/avana';
 import {
     ConfirmModal,
@@ -642,19 +643,17 @@ export default function SanksiIndex({ penalties, filters }: SanksiIndexProps) {
                                     Tanggal Mulai{' '}
                                     <span style={{ color: C.red }}>*</span>
                                 </label>
-                                <input
-                                    type="date"
+                                <DatePicker
                                     value={generateForm.data.start_date}
-                                    onChange={(event) =>
+                                    onChange={(nextValue) =>
                                         generateForm.setData(
                                             'start_date',
-                                            event.target.value,
+                                            nextValue,
                                         )
                                     }
-                                    style={withError(
-                                        inputStyle,
-                                        !!generateForm.errors.start_date,
-                                    )}
+                                    placeholder="Pilih tanggal"
+                                    hasError={!!generateForm.errors.start_date}
+                                    width="100%"
                                 />
                                 <FieldError
                                     message={generateForm.errors.start_date}
@@ -666,19 +665,17 @@ export default function SanksiIndex({ penalties, filters }: SanksiIndexProps) {
                                     Tanggal Akhir{' '}
                                     <span style={{ color: C.red }}>*</span>
                                 </label>
-                                <input
-                                    type="date"
+                                <DatePicker
                                     value={generateForm.data.end_date}
-                                    onChange={(event) =>
+                                    onChange={(nextValue) =>
                                         generateForm.setData(
                                             'end_date',
-                                            event.target.value,
+                                            nextValue,
                                         )
                                     }
-                                    style={withError(
-                                        inputStyle,
-                                        !!generateForm.errors.end_date,
-                                    )}
+                                    placeholder="Pilih tanggal"
+                                    hasError={!!generateForm.errors.end_date}
+                                    width="100%"
                                 />
                                 <FieldError
                                     message={generateForm.errors.end_date}

@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import AnnouncementController from '@/actions/App/Http/Controllers/Avana/AnnouncementController';
 import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
-import { type Announcement, makeColumns } from './columns';
+import { makeColumns } from './columns';
+import type { Announcement } from './columns';
 import { DataTable } from './data-table';
 
 /* ============================================================
@@ -156,7 +157,12 @@ export default function PengumumanIndex({
     };
 
     const columns = useMemo(
-        () => makeColumns({ onEdit: openEdit, onPublish: publish, onDelete: setConfirm }),
+        () =>
+            makeColumns({
+                onEdit: openEdit,
+                onPublish: publish,
+                onDelete: setConfirm,
+            }),
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [],
     );

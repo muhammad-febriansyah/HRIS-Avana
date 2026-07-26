@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import ApprovalDelegationController from '@/actions/App/Http/Controllers/Avana/ApprovalDelegationController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, ActionBtn, btnOut, btnP, C, card, thCell } from '@/lib/avana';
 
@@ -721,19 +722,17 @@ export default function DelegasiIndex({
                                         Mulai{' '}
                                         <span style={{ color: C.red }}>*</span>
                                     </label>
-                                    <input
-                                        type="date"
+                                    <DatePicker
                                         value={form.data.start_date}
-                                        onChange={(event) =>
+                                        onChange={(nextValue) =>
                                             form.setData(
                                                 'start_date',
-                                                event.target.value,
+                                                nextValue,
                                             )
                                         }
-                                        style={withError(
-                                            inputStyle,
-                                            !!form.errors.start_date,
-                                        )}
+                                        placeholder="Pilih tanggal"
+                                        hasError={!!form.errors.start_date}
+                                        width="100%"
                                     />
                                     <FieldError
                                         message={form.errors.start_date}
@@ -744,19 +743,14 @@ export default function DelegasiIndex({
                                         Selesai{' '}
                                         <span style={{ color: C.red }}>*</span>
                                     </label>
-                                    <input
-                                        type="date"
+                                    <DatePicker
                                         value={form.data.end_date}
-                                        onChange={(event) =>
-                                            form.setData(
-                                                'end_date',
-                                                event.target.value,
-                                            )
+                                        onChange={(nextValue) =>
+                                            form.setData('end_date', nextValue)
                                         }
-                                        style={withError(
-                                            inputStyle,
-                                            !!form.errors.end_date,
-                                        )}
+                                        placeholder="Pilih tanggal"
+                                        hasError={!!form.errors.end_date}
+                                        width="100%"
                                     />
                                     <FieldError
                                         message={form.errors.end_date}

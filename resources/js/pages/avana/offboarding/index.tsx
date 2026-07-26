@@ -3,8 +3,17 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import OffboardingController from '@/actions/App/Http/Controllers/Avana/OffboardingController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
-import { AIcon, ActionBtn, btnOut, btnP, C, card } from '@/lib/avana';
+import {
+    ActionBtn,
+    AIcon,
+    btnOut,
+    btnP,
+    C,
+    card,
+    RupiahInput,
+} from '@/lib/avana';
 
 /* ============================================================
  * Offboarding board: resignation cases with clearance checklist.
@@ -651,16 +660,13 @@ export default function OffboardingIndex({
                             </div>
                             <div>
                                 <label style={labelStyle}>Hari Terakhir</label>
-                                <input
-                                    type="date"
+                                <DatePicker
                                     value={caseForm.data.last_day}
-                                    onChange={(e) =>
-                                        caseForm.setData(
-                                            'last_day',
-                                            e.target.value,
-                                        )
+                                    onChange={(nextValue) =>
+                                        caseForm.setData('last_day', nextValue)
                                     }
-                                    style={inputStyle}
+                                    placeholder="Pilih tanggal"
+                                    width="100%"
                                 />
                                 {caseForm.errors.last_day && (
                                     <FieldError
@@ -758,15 +764,10 @@ export default function OffboardingIndex({
                                 <label style={labelStyle}>
                                     Uang Penggantian Hak (UPH)
                                 </label>
-                                <input
-                                    type="number"
-                                    min="0"
+                                <RupiahInput
                                     value={settleForm.data.uph}
-                                    onChange={(e) =>
-                                        settleForm.setData(
-                                            'uph',
-                                            e.target.value,
-                                        )
+                                    onChange={(raw) =>
+                                        settleForm.setData('uph', raw)
                                     }
                                     placeholder="mis. sisa cuti, biaya pulang"
                                     style={inputStyle}
@@ -781,14 +782,12 @@ export default function OffboardingIndex({
                                 <label style={labelStyle}>
                                     Uang Pisah (untuk resign/mangkir)
                                 </label>
-                                <input
-                                    type="number"
-                                    min="0"
+                                <RupiahInput
                                     value={settleForm.data.separation_pay}
-                                    onChange={(e) =>
+                                    onChange={(raw) =>
                                         settleForm.setData(
                                             'separation_pay',
-                                            e.target.value,
+                                            raw,
                                         )
                                     }
                                     placeholder="sesuai PKB/kebijakan"

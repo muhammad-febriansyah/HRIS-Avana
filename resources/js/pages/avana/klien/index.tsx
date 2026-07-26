@@ -47,8 +47,10 @@ export default function KlienIndex({
     // Features grouped by section (in server order) for the Kelola Fitur modal.
     const groupedFeatures = useMemo(() => {
         const out: { group: string; items: FeatureOption[] }[] = [];
+
         for (const feature of features) {
             const last = out[out.length - 1];
+
             if (!last || last.group !== feature.group) {
                 out.push({ group: feature.group, items: [feature] });
             } else {
@@ -348,7 +350,8 @@ export default function KlienIndex({
                                                             borderRadius: 9,
                                                             flex: 'none',
                                                             display: 'flex',
-                                                            alignItems: 'center',
+                                                            alignItems:
+                                                                'center',
                                                             justifyContent:
                                                                 'center',
                                                             background:
@@ -725,7 +728,8 @@ export default function KlienIndex({
                                                     <div
                                                         style={{
                                                             display: 'flex',
-                                                            alignItems: 'center',
+                                                            alignItems:
+                                                                'center',
                                                             gap: 12,
                                                             minWidth: 0,
                                                         }}
@@ -741,9 +745,10 @@ export default function KlienIndex({
                                                                     'center',
                                                                 justifyContent:
                                                                     'center',
-                                                                background: enabled
-                                                                    ? 'rgba(47,84,201,.1)'
-                                                                    : '#F1F3F9',
+                                                                background:
+                                                                    enabled
+                                                                        ? 'rgba(47,84,201,.1)'
+                                                                        : '#F1F3F9',
                                                                 color: enabled
                                                                     ? C.primary
                                                                     : C.faint,
@@ -760,7 +765,9 @@ export default function KlienIndex({
                                                             />
                                                         </div>
                                                         <div
-                                                            style={{ minWidth: 0 }}
+                                                            style={{
+                                                                minWidth: 0,
+                                                            }}
                                                         >
                                                             <div
                                                                 style={{
@@ -784,7 +791,9 @@ export default function KlienIndex({
                                                                         color: C.faint,
                                                                     }}
                                                                 >
-                                                                    {feature.code}
+                                                                    {
+                                                                        feature.code
+                                                                    }
                                                                 </div>
                                                             )}
                                                         </div>
@@ -797,10 +806,12 @@ export default function KlienIndex({
                                                                 color: C.green,
                                                                 background:
                                                                     'rgba(22,163,74,.1)',
-                                                                padding: '4px 10px',
+                                                                padding:
+                                                                    '4px 10px',
                                                                 borderRadius: 999,
                                                                 flex: 'none',
-                                                                whiteSpace: 'nowrap',
+                                                                whiteSpace:
+                                                                    'nowrap',
                                                             }}
                                                         >
                                                             Selalu aktif
@@ -809,7 +820,9 @@ export default function KlienIndex({
                                                         <button
                                                             type="button"
                                                             role="switch"
-                                                            aria-checked={enabled}
+                                                            aria-checked={
+                                                                enabled
+                                                            }
                                                             onClick={() =>
                                                                 feature.id !==
                                                                     null &&
@@ -828,9 +841,10 @@ export default function KlienIndex({
                                                                     'relative',
                                                                 transition:
                                                                     'background .15s',
-                                                                background: enabled
-                                                                    ? C.primary
-                                                                    : '#D5DCEA',
+                                                                background:
+                                                                    enabled
+                                                                        ? C.primary
+                                                                        : '#D5DCEA',
                                                                 flex: 'none',
                                                             }}
                                                         >

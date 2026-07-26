@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, C, card } from '@/lib/avana';
 import type {
@@ -257,17 +258,13 @@ export function EmployeeForm({
                         label="Tanggal Lahir"
                         error={errors.birth_date}
                     >
-                        <input
-                            id="birth_date"
-                            type="date"
+                        <DatePicker
                             value={data.birth_date}
-                            onChange={(event) =>
-                                setData('birth_date', event.target.value)
+                            onChange={(nextValue) =>
+                                setData('birth_date', nextValue)
                             }
-                            style={styleFor(!!errors.birth_date, {
-                                ...inputStyle,
-                                color: C.muted,
-                            })}
+                            placeholder="Pilih tanggal"
+                            width="100%"
                         />
                     </Field>
 
@@ -555,10 +552,7 @@ export function EmployeeForm({
                             type="checkbox"
                             checked={data.is_top_approver}
                             onChange={(event) =>
-                                setData(
-                                    'is_top_approver',
-                                    event.target.checked,
-                                )
+                                setData('is_top_approver', event.target.checked)
                             }
                             style={{
                                 width: 17,
@@ -595,8 +589,9 @@ export function EmployeeForm({
                                     lineHeight: 1.5,
                                 }}
                             >
-                                Tidak punya atasan di atasnya. Pengajuan cuti/izin
-                                miliknya <strong>langsung disetujui</strong> tanpa
+                                Tidak punya atasan di atasnya. Pengajuan
+                                cuti/izin miliknya{' '}
+                                <strong>langsung disetujui</strong> tanpa
                                 menunggu persetujuan atasan.
                             </div>
                         </div>
@@ -633,17 +628,13 @@ export function EmployeeForm({
                         label="Tanggal Masuk"
                         error={errors.join_date}
                     >
-                        <input
-                            id="join_date"
-                            type="date"
+                        <DatePicker
                             value={data.join_date}
-                            onChange={(event) =>
-                                setData('join_date', event.target.value)
+                            onChange={(nextValue) =>
+                                setData('join_date', nextValue)
                             }
-                            style={styleFor(!!errors.join_date, {
-                                ...inputStyle,
-                                color: C.muted,
-                            })}
+                            placeholder="Pilih tanggal"
+                            width="100%"
                         />
                     </Field>
 
@@ -691,9 +682,7 @@ export function EmployeeForm({
                                 selectStyle,
                             )}
                         >
-                            <option value="">
-                                Otomatis (ikut cabang)
-                            </option>
+                            <option value="">Otomatis (ikut cabang)</option>
                             {availableWorkLocations.map((location) => (
                                 <option
                                     key={location.id}

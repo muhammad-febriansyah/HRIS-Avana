@@ -16,7 +16,11 @@ const thCell: CSSProperties = {
     color: C.faint,
     textTransform: 'uppercase',
 };
-const tdCell: CSSProperties = { padding: '13px 18px', fontSize: 13, color: C.text };
+const tdCell: CSSProperties = {
+    padding: '13px 18px',
+    fontSize: 13,
+    color: C.text,
+};
 
 function dash(value: string | null | undefined): string {
     return value && value.trim() !== '' ? value : '—';
@@ -91,7 +95,10 @@ export default function AsetShow({ asset, history, qrUrl }: AsetShowProps) {
                             <AIcon name="chevron-right" size={13} />
                             <Link
                                 href={AssetController.index()}
-                                style={{ color: C.muted, textDecoration: 'none' }}
+                                style={{
+                                    color: C.muted,
+                                    textDecoration: 'none',
+                                }}
                             >
                                 Aset
                             </Link>
@@ -109,7 +116,13 @@ export default function AsetShow({ asset, history, qrUrl }: AsetShowProps) {
                         >
                             {asset.name}
                         </h1>
-                        <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
+                        <div
+                            style={{
+                                fontSize: 14,
+                                color: C.muted,
+                                marginTop: 4,
+                            }}
+                        >
                             {asset.code} · {asset.category}
                         </div>
                     </div>
@@ -184,12 +197,17 @@ export default function AsetShow({ asset, history, qrUrl }: AsetShowProps) {
                                 lineHeight: 1.5,
                             }}
                         >
-                            Scan untuk membuka detail aset ini di perangkat lain.
+                            Scan untuk membuka detail aset ini di perangkat
+                            lain.
                         </div>
                         <button
                             type="button"
                             onClick={printLabel}
-                            style={{ ...btnP, width: '100%', justifyContent: 'center' }}
+                            style={{
+                                ...btnP,
+                                width: '100%',
+                                justifyContent: 'center',
+                            }}
                         >
                             <AIcon name="printer" size={16} color="#fff" />
                             Cetak Label QR
@@ -197,7 +215,14 @@ export default function AsetShow({ asset, history, qrUrl }: AsetShowProps) {
                     </div>
 
                     {/* Detail card */}
-                    <div style={{ ...card, padding: 24, flex: '1 1 420px', minWidth: 320 }}>
+                    <div
+                        style={{
+                            ...card,
+                            padding: 24,
+                            flex: '1 1 420px',
+                            minWidth: 320,
+                        }}
+                    >
                         <div
                             style={{
                                 fontSize: 15,
@@ -211,7 +236,8 @@ export default function AsetShow({ asset, history, qrUrl }: AsetShowProps) {
                         <div
                             style={{
                                 display: 'grid',
-                                gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+                                gridTemplateColumns:
+                                    'repeat(auto-fill, minmax(180px, 1fr))',
                                 gap: 18,
                             }}
                         >
@@ -219,7 +245,11 @@ export default function AsetShow({ asset, history, qrUrl }: AsetShowProps) {
                             <Cell label="Kategori" value={asset.category} />
                             <Cell
                                 label="Kondisi"
-                                value={<ConditionBadge condition={asset.condition} />}
+                                value={
+                                    <ConditionBadge
+                                        condition={asset.condition}
+                                    />
+                                }
                             />
                             <Cell
                                 label="Status"
@@ -240,7 +270,12 @@ export default function AsetShow({ asset, history, qrUrl }: AsetShowProps) {
                             <Cell
                                 label="Nilai Buku"
                                 value={
-                                    <span style={{ fontWeight: 600, color: C.navy }}>
+                                    <span
+                                        style={{
+                                            fontWeight: 600,
+                                            color: C.navy,
+                                        }}
+                                    >
                                         {rp(asset.book_value)}
                                     </span>
                                 }
@@ -249,7 +284,12 @@ export default function AsetShow({ asset, history, qrUrl }: AsetShowProps) {
                         {asset.notes && asset.notes.trim() !== '' && (
                             <div style={{ marginTop: 18 }}>
                                 <div style={fieldLabel}>Catatan</div>
-                                <div style={{ ...fieldValue, whiteSpace: 'pre-wrap' }}>
+                                <div
+                                    style={{
+                                        ...fieldValue,
+                                        whiteSpace: 'pre-wrap',
+                                    }}
+                                >
                                     {asset.notes}
                                 </div>
                             </div>
@@ -287,7 +327,11 @@ export default function AsetShow({ asset, history, qrUrl }: AsetShowProps) {
                             </thead>
                             <tbody>
                                 {history.length === 0 && (
-                                    <tr style={{ borderTop: `1px solid ${C.line}` }}>
+                                    <tr
+                                        style={{
+                                            borderTop: `1px solid ${C.line}`,
+                                        }}
+                                    >
                                         <td
                                             colSpan={4}
                                             style={{
@@ -304,10 +348,17 @@ export default function AsetShow({ asset, history, qrUrl }: AsetShowProps) {
                                 {history.map((row) => (
                                     <tr
                                         key={row.id}
-                                        style={{ borderTop: `1px solid ${C.line}` }}
+                                        style={{
+                                            borderTop: `1px solid ${C.line}`,
+                                        }}
                                     >
                                         <td style={tdCell}>
-                                            <div style={{ fontWeight: 600, color: C.text }}>
+                                            <div
+                                                style={{
+                                                    fontWeight: 600,
+                                                    color: C.text,
+                                                }}
+                                            >
                                                 {row.employee_name ?? '—'}
                                             </div>
                                             <div
@@ -320,17 +371,26 @@ export default function AsetShow({ asset, history, qrUrl }: AsetShowProps) {
                                                 {row.employee_number ?? ''}
                                             </div>
                                         </td>
-                                        <td style={tdCell}>{dash(row.assigned_date)}</td>
+                                        <td style={tdCell}>
+                                            {dash(row.assigned_date)}
+                                        </td>
                                         <td style={tdCell}>
                                             {row.returned_date ? (
                                                 dash(row.returned_date)
                                             ) : (
-                                                <span style={{ color: C.green, fontWeight: 600 }}>
+                                                <span
+                                                    style={{
+                                                        color: C.green,
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
                                                     Masih dipakai
                                                 </span>
                                             )}
                                         </td>
-                                        <td style={tdCell}>{dash(row.condition_note)}</td>
+                                        <td style={tdCell}>
+                                            {dash(row.condition_note)}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>

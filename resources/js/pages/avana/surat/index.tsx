@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import LetterTemplateController from '@/actions/App/Http/Controllers/Avana/LetterTemplateController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import { ActionBtn, AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
 import {
@@ -640,19 +641,19 @@ export default function SuratIndex({
                                     <label style={fieldLabelStyle}>
                                         Tanggal
                                     </label>
-                                    <input
-                                        type="date"
+                                    <DatePicker
                                         value={generateForm.data.generated_at}
-                                        onChange={(event) =>
+                                        onChange={(nextValue) =>
                                             generateForm.setData(
                                                 'generated_at',
-                                                event.target.value,
+                                                nextValue,
                                             )
                                         }
-                                        style={withError(
-                                            inputStyle,
-                                            !!generateForm.errors.generated_at,
-                                        )}
+                                        placeholder="Pilih tanggal"
+                                        hasError={
+                                            !!generateForm.errors.generated_at
+                                        }
+                                        width="100%"
                                     />
                                     <FieldError
                                         message={

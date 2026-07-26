@@ -808,7 +808,6 @@ export default function VisitingShow({ visit }: { visit: VisitDetail }) {
                                 </div>
                             )}
                         </div>
-
                     </div>
                 </div>
             </div>

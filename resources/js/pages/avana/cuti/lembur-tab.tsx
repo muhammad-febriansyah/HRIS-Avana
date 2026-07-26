@@ -1,5 +1,6 @@
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
+import { DatePicker } from '@/components/avana/date-picker';
 import {
     ApprovalTable,
     dateInputStyle,
@@ -53,13 +54,14 @@ export function LemburTab({
                     employees={employees}
                 />
                 <Field label="Tanggal" required error={form.errors.date}>
-                    <input
-                        type="date"
+                    <DatePicker
                         value={form.data.date}
-                        onChange={(event) =>
-                            form.setData('date', event.target.value)
+                        onChange={(nextValue) =>
+                            form.setData('date', nextValue)
                         }
-                        style={withError(dateInputStyle, !!form.errors.date)}
+                        placeholder="Pilih tanggal"
+                        hasError={!!form.errors.date}
+                        width="100%"
                     />
                 </Field>
                 <Field label="Durasi (jam)" required error={form.errors.hours}>

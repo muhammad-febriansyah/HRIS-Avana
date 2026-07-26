@@ -3,7 +3,10 @@ import { AIcon, C, card } from '@/lib/avana';
 export type Category = 'low' | 'medium' | 'high';
 
 /** Risk band → label + colour + tinted background, shared by list and detail. */
-export const RISK: Record<Category, { label: string; color: string; bg: string }> = {
+export const RISK: Record<
+    Category,
+    { label: string; color: string; bg: string }
+> = {
     low: { label: 'Rendah', color: C.green, bg: 'rgba(22,163,74,.1)' },
     medium: { label: 'Sedang', color: C.amber, bg: 'rgba(217,119,6,.1)' },
     high: { label: 'Tinggi', color: C.red, bg: 'rgba(220,38,38,.1)' },

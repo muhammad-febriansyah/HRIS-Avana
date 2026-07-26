@@ -124,6 +124,7 @@ export default function EmailSettings({
 
     const statusBadge = (status: string) => {
         const ok = status === 'sent';
+
         return (
             <span
                 style={{
@@ -154,6 +155,7 @@ export default function EmailSettings({
         text: string,
     ) => {
         const active = tab === key;
+
         return (
             <button
                 type="button"

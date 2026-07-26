@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import OnboardingController from '@/actions/App/Http/Controllers/Avana/OnboardingController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, ActionBtn, btnOut, btnP, C, card } from '@/lib/avana';
 
@@ -600,20 +601,16 @@ export default function OnboardingIndex({
                                                     height: 38,
                                                 }}
                                             />
-                                            <input
-                                                type="date"
+                                            <DatePicker
                                                 value={taskForm.data.due_date}
-                                                onChange={(e) =>
+                                                onChange={(nextValue) =>
                                                     taskForm.setData(
                                                         'due_date',
-                                                        e.target.value,
+                                                        nextValue,
                                                     )
                                                 }
-                                                style={{
-                                                    ...inputStyle,
-                                                    flex: '1 1 140px',
-                                                    height: 38,
-                                                }}
+                                                placeholder="Pilih tanggal"
+                                                width="100%"
                                             />
                                             <button
                                                 type="submit"
@@ -689,16 +686,16 @@ export default function OnboardingIndex({
                             </div>
                             <div>
                                 <label style={labelStyle}>Tanggal Mulai</label>
-                                <input
-                                    type="date"
+                                <DatePicker
                                     value={programForm.data.start_date}
-                                    onChange={(e) =>
+                                    onChange={(nextValue) =>
                                         programForm.setData(
                                             'start_date',
-                                            e.target.value,
+                                            nextValue,
                                         )
                                     }
-                                    style={inputStyle}
+                                    placeholder="Pilih tanggal"
+                                    width="100%"
                                 />
                                 {programForm.errors.start_date && (
                                     <FieldError

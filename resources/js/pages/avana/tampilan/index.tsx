@@ -38,6 +38,7 @@ const HEX = /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/;
 
 function normalizeHex(value: string): string {
     let v = value.trim();
+
     if (v && !v.startsWith('#')) {
         v = '#' + v;
     }
@@ -93,7 +94,14 @@ function Preview({ c, brand }: { c: Colors; brand: string }) {
                     >
                         {brand}
                     </div>
-                    <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <div
+                        style={{
+                            padding: 8,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 3,
+                        }}
+                    >
                         <div
                             style={{
                                 fontSize: 9,
@@ -132,7 +140,14 @@ function Preview({ c, brand }: { c: Colors; brand: string }) {
                     </div>
                 </div>
                 {/* main */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                <div
+                    style={{
+                        flex: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        minWidth: 0,
+                    }}
+                >
                     <div
                         style={{
                             height: 44,
@@ -160,7 +175,13 @@ function Preview({ c, brand }: { c: Colors; brand: string }) {
                             <AIcon name="panel-left" size={14} />
                         </div>
                         <div style={{ flex: 1 }} />
-                        <div style={{ fontSize: 12, fontWeight: 600, color: c.topbar_text }}>
+                        <div
+                            style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: c.topbar_text,
+                            }}
+                        >
                             Rina A.
                         </div>
                         <div
@@ -168,7 +189,8 @@ function Preview({ c, brand }: { c: Colors; brand: string }) {
                                 width: 26,
                                 height: 26,
                                 borderRadius: 7,
-                                background: 'linear-gradient(135deg,#2F54C9,#6E9BE6)',
+                                background:
+                                    'linear-gradient(135deg,#2F54C9,#6E9BE6)',
                             }}
                         />
                     </div>
@@ -213,6 +235,7 @@ export default function TampilanTema({
         if (flash?.success) {
             toast.success(flash.success, { id: flash.success });
         }
+
         if (flash?.error) {
             toast.error(flash.error, { id: flash.error });
         }
@@ -241,6 +264,7 @@ export default function TampilanTema({
 
             return;
         }
+
         setSaving(true);
         router.post(TenantAppearanceController.update().url, colors, {
             preserveScroll: true,
@@ -262,9 +286,11 @@ export default function TampilanTema({
 
     const onPickLogo = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
+
         if (!file) {
             return;
         }
+
         setUploadingLogo(true);
         router.post(
             TenantAppearanceController.updateLogo().url,
@@ -279,6 +305,7 @@ export default function TampilanTema({
                 },
                 onFinish: () => {
                     setUploadingLogo(false);
+
                     if (logoInput.current) {
                         logoInput.current.value = '';
                     }
@@ -324,8 +351,9 @@ export default function TampilanTema({
                         Tampilan & Tema
                     </h1>
                     <div style={{ fontSize: 14, color: C.muted, marginTop: 5 }}>
-                        Sesuaikan warna sidebar dan topbar panel admin sesuai brand
-                        perusahaan. Perubahan berlaku untuk semua pengguna tenant.
+                        Sesuaikan warna sidebar dan topbar panel admin sesuai
+                        brand perusahaan. Perubahan berlaku untuk semua pengguna
+                        tenant.
                     </div>
                 </div>
 
@@ -338,7 +366,13 @@ export default function TampilanTema({
                     }}
                 >
                     {/* editor */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                    <div
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 20,
+                        }}
+                    >
                         <div style={{ ...card, padding: 20 }}>
                             <div style={sectionTitle}>Logo</div>
                             <div
@@ -412,7 +446,9 @@ export default function TampilanTema({
                                     />
                                     <button
                                         type="button"
-                                        onClick={() => logoInput.current?.click()}
+                                        onClick={() =>
+                                            logoInput.current?.click()
+                                        }
                                         disabled={uploadingLogo}
                                         style={{
                                             ...btnP,
@@ -483,21 +519,31 @@ export default function TampilanTema({
                                                     : 'none',
                                             }}
                                         >
-                                            <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-                                                {['sidebar_bg', 'sidebar_accent', 'topbar_bg', 'topbar_text'].map(
-                                                    (k) => (
-                                                        <span
-                                                            key={k}
-                                                            style={{
-                                                                width: 18,
-                                                                height: 18,
-                                                                borderRadius: 5,
-                                                                background: p.colors[k],
-                                                                border: `1px solid ${C.border}`,
-                                                            }}
-                                                        />
-                                                    ),
-                                                )}
+                                            <div
+                                                style={{
+                                                    display: 'flex',
+                                                    gap: 4,
+                                                    marginBottom: 8,
+                                                }}
+                                            >
+                                                {[
+                                                    'sidebar_bg',
+                                                    'sidebar_accent',
+                                                    'topbar_bg',
+                                                    'topbar_text',
+                                                ].map((k) => (
+                                                    <span
+                                                        key={k}
+                                                        style={{
+                                                            width: 18,
+                                                            height: 18,
+                                                            borderRadius: 5,
+                                                            background:
+                                                                p.colors[k],
+                                                            border: `1px solid ${C.border}`,
+                                                        }}
+                                                    />
+                                                ))}
                                             </div>
                                             <div
                                                 style={{
@@ -506,7 +552,9 @@ export default function TampilanTema({
                                                     gap: 6,
                                                     fontSize: 12.5,
                                                     fontWeight: 600,
-                                                    color: active ? C.primary : C.text,
+                                                    color: active
+                                                        ? C.primary
+                                                        : C.text,
                                                 }}
                                             >
                                                 {p.name}
@@ -516,7 +564,8 @@ export default function TampilanTema({
                                                             fontSize: 10.5,
                                                             fontWeight: 700,
                                                             color: C.primary,
-                                                            background: 'rgba(47,84,201,.12)',
+                                                            background:
+                                                                'rgba(47,84,201,.12)',
                                                             borderRadius: 5,
                                                             padding: '1px 6px',
                                                         }}
@@ -554,7 +603,9 @@ export default function TampilanTema({
                                                 gap: 14,
                                             }}
                                         >
-                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div
+                                                style={{ flex: 1, minWidth: 0 }}
+                                            >
                                                 <div
                                                     style={{
                                                         fontSize: 13.5,
@@ -575,9 +626,14 @@ export default function TampilanTema({
                                             </div>
                                             <input
                                                 type="color"
-                                                value={valid ? value : '#ffffff'}
+                                                value={
+                                                    valid ? value : '#ffffff'
+                                                }
                                                 onChange={(e) =>
-                                                    set(t.key, e.target.value.toUpperCase())
+                                                    set(
+                                                        t.key,
+                                                        e.target.value.toUpperCase(),
+                                                    )
                                                 }
                                                 style={{
                                                     width: 44,
@@ -594,7 +650,12 @@ export default function TampilanTema({
                                                 type="text"
                                                 value={value}
                                                 onChange={(e) =>
-                                                    set(t.key, normalizeHex(e.target.value))
+                                                    set(
+                                                        t.key,
+                                                        normalizeHex(
+                                                            e.target.value,
+                                                        ),
+                                                    )
                                                 }
                                                 spellCheck={false}
                                                 style={{
@@ -627,7 +688,11 @@ export default function TampilanTema({
                                 }}
                             >
                                 <button onClick={reset} style={btnOut}>
-                                    <AIcon name="rotate-ccw" size={15} color={C.text} />
+                                    <AIcon
+                                        name="rotate-ccw"
+                                        size={15}
+                                        color={C.text}
+                                    />
                                     Kembalikan Bawaan
                                 </button>
                                 <button
@@ -638,7 +703,11 @@ export default function TampilanTema({
                                         opacity: saving || !isValid ? 0.6 : 1,
                                     }}
                                 >
-                                    <AIcon name="check" size={15} color="#fff" />
+                                    <AIcon
+                                        name="check"
+                                        size={15}
+                                        color="#fff"
+                                    />
                                     {saving ? 'Menyimpan…' : 'Simpan Tema'}
                                 </button>
                             </div>

@@ -228,9 +228,7 @@ export default function KasbonShow({
                                     />
                                     <Fact
                                         label="Dicairkan Oleh"
-                                        value={
-                                            advance.disbursed_by_name ?? '—'
-                                        }
+                                        value={advance.disbursed_by_name ?? '—'}
                                     />
                                 </div>
                             </div>

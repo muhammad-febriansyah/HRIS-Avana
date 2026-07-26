@@ -70,22 +70,52 @@ type ShowProps = {
             probation: number;
             resigned: number;
         };
-        recent: { name: string; position: string | null; join_date: string | null }[];
+        recent: {
+            name: string;
+            position: string | null;
+            join_date: string | null;
+        }[];
     };
 };
 
-const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
+const STATUS_META: Record<
+    string,
+    { label: string; color: string; bg: string }
+> = {
     active: { label: 'Aktif', color: '#16A34A', bg: 'rgba(22,163,74,.1)' },
     trial: { label: 'Trial', color: '#2F54C9', bg: 'rgba(47,84,201,.1)' },
-    suspended: { label: 'Ditangguhkan', color: '#D97706', bg: 'rgba(217,119,6,.1)' },
-    inactive: { label: 'Nonaktif', color: '#6B7280', bg: 'rgba(107,114,128,.12)' },
+    suspended: {
+        label: 'Ditangguhkan',
+        color: '#D97706',
+        bg: 'rgba(217,119,6,.1)',
+    },
+    inactive: {
+        label: 'Nonaktif',
+        color: '#6B7280',
+        bg: 'rgba(107,114,128,.12)',
+    },
 };
 
-const INVOICE_META: Record<string, { label: string; color: string; bg: string }> = {
+const INVOICE_META: Record<
+    string,
+    { label: string; color: string; bg: string }
+> = {
     paid: { label: 'Lunas', color: '#16A34A', bg: 'rgba(22,163,74,.1)' },
-    unpaid: { label: 'Belum Bayar', color: '#D97706', bg: 'rgba(217,119,6,.1)' },
-    overdue: { label: 'Jatuh Tempo', color: '#DC2626', bg: 'rgba(220,38,38,.1)' },
-    cancelled: { label: 'Dibatalkan', color: '#6B7280', bg: 'rgba(107,114,128,.12)' },
+    unpaid: {
+        label: 'Belum Bayar',
+        color: '#D97706',
+        bg: 'rgba(217,119,6,.1)',
+    },
+    overdue: {
+        label: 'Jatuh Tempo',
+        color: '#DC2626',
+        bg: 'rgba(220,38,38,.1)',
+    },
+    cancelled: {
+        label: 'Dibatalkan',
+        color: '#6B7280',
+        bg: 'rgba(107,114,128,.12)',
+    },
 };
 
 const EMPLOYMENT_META: Record<string, { label: string; color: string }> = {
@@ -103,8 +133,18 @@ const TABS = [
 ];
 
 const MONTHS = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
-    'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'Mei',
+    'Jun',
+    'Jul',
+    'Agu',
+    'Sep',
+    'Okt',
+    'Nov',
+    'Des',
 ];
 
 /** Format an ISO/`YYYY-MM-DD` date to `d Mon Y`, or an em dash when absent. */
@@ -112,7 +152,9 @@ function fmtDate(value: string | null): string {
     if (!value) {
         return '—';
     }
+
     const date = new Date(value);
+
     if (Number.isNaN(date.getTime())) {
         return '—';
     }
@@ -137,7 +179,15 @@ const valueStyle: CSSProperties = {
     fontWeight: 500,
 };
 
-function SectionCard({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+function SectionCard({
+    title,
+    action,
+    children,
+}: {
+    title: string;
+    action?: ReactNode;
+    children: ReactNode;
+}) {
     return (
         <div style={card}>
             <div
@@ -159,7 +209,17 @@ function SectionCard({ title, action, children }: { title: string; action?: Reac
     );
 }
 
-function QuotaBar({ label, used, max, color }: { label: string; used: number; max: number; color: string }) {
+function QuotaBar({
+    label,
+    used,
+    max,
+    color,
+}: {
+    label: string;
+    used: number;
+    max: number;
+    color: string;
+}) {
     const percentage = pct(used, max);
     const danger = percentage >= 90;
 
@@ -417,7 +477,10 @@ export default function KlienShow({
                             <div style={{ display: 'flex', gap: 9 }}>
                                 <Link
                                     href={`/avana/klien/${tenant.id}/edit`}
-                                    style={{ ...btnOut, textDecoration: 'none' }}
+                                    style={{
+                                        ...btnOut,
+                                        textDecoration: 'none',
+                                    }}
                                 >
                                     <AIcon name="pencil" size={15} />
                                     Edit
@@ -448,7 +511,10 @@ export default function KlienShow({
                             {headerStats.map((stat) => (
                                 <div
                                     key={stat.label}
-                                    style={{ background: '#fff', padding: '14px 16px' }}
+                                    style={{
+                                        background: '#fff',
+                                        padding: '14px 16px',
+                                    }}
                                 >
                                     <div
                                         style={{
@@ -539,7 +605,13 @@ export default function KlienShow({
                             gap: 16,
                         }}
                     >
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        <div
+                            style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 16,
+                            }}
+                        >
                             <SectionCard title="Penggunaan Kuota">
                                 <QuotaBar
                                     label="Pengguna"
@@ -609,7 +681,13 @@ export default function KlienShow({
                             </SectionCard>
                         </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        <div
+                            style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 16,
+                            }}
+                        >
                             <SectionCard title="Informasi Klien">
                                 <div
                                     style={{
@@ -618,16 +696,34 @@ export default function KlienShow({
                                         gap: 16,
                                     }}
                                 >
-                                    <KeyValue label="Nama Perusahaan" value={tenant.company_name ?? '—'} />
-                                    <KeyValue label="Slug" value={tenant.slug} />
+                                    <KeyValue
+                                        label="Nama Perusahaan"
+                                        value={tenant.company_name ?? '—'}
+                                    />
+                                    <KeyValue
+                                        label="Slug"
+                                        value={tenant.slug}
+                                    />
                                     <KeyValue
                                         label="Status Billing"
                                         value={tenant.billing_status ?? '—'}
                                     />
-                                    <KeyValue label="Paket" value={tenant.package?.name ?? '—'} />
-                                    <KeyValue label="Mulai" value={fmtDate(tenant.start_date)} />
-                                    <KeyValue label="Berakhir" value={fmtDate(tenant.end_date)} />
-                                    <KeyValue label="Bergabung" value={fmtDate(tenant.created_at)} />
+                                    <KeyValue
+                                        label="Paket"
+                                        value={tenant.package?.name ?? '—'}
+                                    />
+                                    <KeyValue
+                                        label="Mulai"
+                                        value={fmtDate(tenant.start_date)}
+                                    />
+                                    <KeyValue
+                                        label="Berakhir"
+                                        value={fmtDate(tenant.end_date)}
+                                    />
+                                    <KeyValue
+                                        label="Bergabung"
+                                        value={fmtDate(tenant.created_at)}
+                                    />
                                     <KeyValue
                                         label="Langganan"
                                         value={`${subscription.total} langganan`}
@@ -688,7 +784,13 @@ export default function KlienShow({
 
                 {/* ---- Langganan & Tagihan ---- */}
                 {activeTab === 'tagihan' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 16,
+                        }}
+                    >
                         <SectionCard title="Langganan Aktif">
                             {subscription.active ? (
                                 <div
@@ -700,7 +802,9 @@ export default function KlienShow({
                                 >
                                     <KeyValue
                                         label="Paket"
-                                        value={subscription.active.package ?? '—'}
+                                        value={
+                                            subscription.active.package ?? '—'
+                                        }
                                     />
                                     <KeyValue
                                         label="Harga"
@@ -708,11 +812,15 @@ export default function KlienShow({
                                     />
                                     <KeyValue
                                         label="Mulai"
-                                        value={fmtDate(subscription.active.start_date)}
+                                        value={fmtDate(
+                                            subscription.active.start_date,
+                                        )}
                                     />
                                     <KeyValue
                                         label="Berakhir"
-                                        value={fmtDate(subscription.active.end_date)}
+                                        value={fmtDate(
+                                            subscription.active.end_date,
+                                        )}
                                     />
                                 </div>
                             ) : (
@@ -744,18 +852,50 @@ export default function KlienShow({
                                                     fontSize: 11.5,
                                                 }}
                                             >
-                                                <th style={{ padding: '8px 10px' }}>NO. INVOICE</th>
-                                                <th style={{ padding: '8px 10px' }}>TERBIT</th>
-                                                <th style={{ padding: '8px 10px' }}>JATUH TEMPO</th>
-                                                <th style={{ padding: '8px 10px', textAlign: 'right' }}>TOTAL</th>
-                                                <th style={{ padding: '8px 10px' }}>STATUS</th>
+                                                <th
+                                                    style={{
+                                                        padding: '8px 10px',
+                                                    }}
+                                                >
+                                                    NO. INVOICE
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: '8px 10px',
+                                                    }}
+                                                >
+                                                    TERBIT
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: '8px 10px',
+                                                    }}
+                                                >
+                                                    JATUH TEMPO
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: '8px 10px',
+                                                        textAlign: 'right',
+                                                    }}
+                                                >
+                                                    TOTAL
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: '8px 10px',
+                                                    }}
+                                                >
+                                                    STATUS
+                                                </th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {billing.recent.map((invoice) => {
                                                 const meta =
-                                                    INVOICE_META[invoice.status] ??
-                                                    INVOICE_META.unpaid;
+                                                    INVOICE_META[
+                                                        invoice.status
+                                                    ] ?? INVOICE_META.unpaid;
 
                                                 return (
                                                     <tr
@@ -773,30 +913,51 @@ export default function KlienShow({
                                                         >
                                                             {invoice.number}
                                                         </td>
-                                                        <td style={{ padding: '10px', color: C.muted }}>
-                                                            {fmtDate(invoice.issue_date)}
-                                                        </td>
-                                                        <td style={{ padding: '10px', color: C.muted }}>
-                                                            {fmtDate(invoice.due_date)}
+                                                        <td
+                                                            style={{
+                                                                padding: '10px',
+                                                                color: C.muted,
+                                                            }}
+                                                        >
+                                                            {fmtDate(
+                                                                invoice.issue_date,
+                                                            )}
                                                         </td>
                                                         <td
                                                             style={{
                                                                 padding: '10px',
-                                                                textAlign: 'right',
+                                                                color: C.muted,
+                                                            }}
+                                                        >
+                                                            {fmtDate(
+                                                                invoice.due_date,
+                                                            )}
+                                                        </td>
+                                                        <td
+                                                            style={{
+                                                                padding: '10px',
+                                                                textAlign:
+                                                                    'right',
                                                                 fontWeight: 600,
                                                                 color: C.navy,
                                                             }}
                                                         >
                                                             {rp(invoice.total)}
                                                         </td>
-                                                        <td style={{ padding: '10px' }}>
+                                                        <td
+                                                            style={{
+                                                                padding: '10px',
+                                                            }}
+                                                        >
                                                             <span
                                                                 style={{
-                                                                    background: meta.bg,
+                                                                    background:
+                                                                        meta.bg,
                                                                     color: meta.color,
                                                                     fontSize: 11,
                                                                     fontWeight: 600,
-                                                                    padding: '3px 9px',
+                                                                    padding:
+                                                                        '3px 9px',
                                                                     borderRadius: 100,
                                                                 }}
                                                             >
@@ -898,7 +1059,9 @@ export default function KlienShow({
                         <div style={{ gridColumn: '1 / -1' }}>
                             <SectionCard title="Karyawan Terbaru">
                                 {employees.recent.length === 0 ? (
-                                    <div style={{ fontSize: 13, color: C.faint }}>
+                                    <div
+                                        style={{ fontSize: 13, color: C.faint }}
+                                    >
                                         Belum ada karyawan.
                                     </div>
                                 ) : (
@@ -910,36 +1073,42 @@ export default function KlienShow({
                                             gap: 10,
                                         }}
                                     >
-                                        {employees.recent.map((employee, index) => (
-                                            <div
-                                                key={index}
-                                                style={{
-                                                    border: `1px solid ${C.line}`,
-                                                    borderRadius: 10,
-                                                    padding: '11px 13px',
-                                                }}
-                                            >
+                                        {employees.recent.map(
+                                            (employee, index) => (
                                                 <div
+                                                    key={index}
                                                     style={{
-                                                        fontSize: 13,
-                                                        fontWeight: 500,
-                                                        color: C.text,
+                                                        border: `1px solid ${C.line}`,
+                                                        borderRadius: 10,
+                                                        padding: '11px 13px',
                                                     }}
                                                 >
-                                                    {employee.name}
+                                                    <div
+                                                        style={{
+                                                            fontSize: 13,
+                                                            fontWeight: 500,
+                                                            color: C.text,
+                                                        }}
+                                                    >
+                                                        {employee.name}
+                                                    </div>
+                                                    <div
+                                                        style={{
+                                                            fontSize: 12,
+                                                            color: C.faint,
+                                                            marginTop: 2,
+                                                        }}
+                                                    >
+                                                        {employee.position ??
+                                                            '—'}{' '}
+                                                        ·{' '}
+                                                        {fmtDate(
+                                                            employee.join_date,
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                <div
-                                                    style={{
-                                                        fontSize: 12,
-                                                        color: C.faint,
-                                                        marginTop: 2,
-                                                    }}
-                                                >
-                                                    {employee.position ?? '—'} ·{' '}
-                                                    {fmtDate(employee.join_date)}
-                                                </div>
-                                            </div>
-                                        ))}
+                                            ),
+                                        )}
                                     </div>
                                 )}
                             </SectionCard>
@@ -979,7 +1148,9 @@ function ListRows({
                                 : 'none',
                     }}
                 >
-                    <span style={{ fontSize: 13, color: C.text }}>{row.name}</span>
+                    <span style={{ fontSize: 13, color: C.text }}>
+                        {row.name}
+                    </span>
                     <span
                         style={{
                             fontSize: 12.5,

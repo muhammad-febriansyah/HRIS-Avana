@@ -34,9 +34,11 @@ function MembershipRow({
 
     const saveAmount = () => {
         const value = Number(amount.replace(/[^\d]/g, '')) || 0;
+
         if (value === c.amount) {
             return;
         }
+
         router.post(
             SalaryMasterController.setComponentAmount(masterId).url,
             { payroll_component_id: c.id, amount: value },

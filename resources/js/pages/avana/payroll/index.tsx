@@ -1,15 +1,16 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { toast } from 'sonner';
 import PayrollController from '@/actions/App/Http/Controllers/Avana/PayrollController';
 import SalaryMasterController from '@/actions/App/Http/Controllers/Avana/SalaryMasterController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { AIcon, btnOut, btnP, C } from '@/lib/avana';
 import { LockedAlert } from './components';
 import { PeriodTable } from './period-table';
 import { RecipientsTable } from './recipients-table';
 import { SlipDetail } from './slip-detail';
 import { SummaryCard } from './summary-card';
-import type { CSSProperties } from 'react';
 import type { FlashProps, PayrollProps } from './types';
 
 const exportItem: CSSProperties = {
@@ -185,6 +186,7 @@ export default function AvanaPayroll({
     const confirmReject = () => {
         if (approvalNote.trim().length < 3) {
             toast.error('Alasan penolakan minimal 3 karakter.');
+
             return;
         }
 
@@ -223,6 +225,7 @@ export default function AvanaPayroll({
 
         if (reason.trim().length < 5) {
             toast.error('Alasan minimal 5 karakter.');
+
             return;
         }
 
@@ -279,6 +282,7 @@ export default function AvanaPayroll({
                 toast.error(
                     'Kunci periode dulu sebelum unduh file transfer bank.',
                 );
+
                 return;
             }
 
@@ -1053,19 +1057,11 @@ function RunConfirmModal({
                     >
                         Tanggal Bayar
                     </label>
-                    <input
-                        type="date"
+                    <DatePicker
                         value={payDate}
-                        onChange={(e) => setPayDate(e.target.value)}
-                        style={{
-                            width: '100%',
-                            padding: '10px 12px',
-                            borderRadius: 8,
-                            border: `1px solid ${C.line}`,
-                            fontSize: 13.5,
-                            color: C.text,
-                            outline: 'none',
-                        }}
+                        onChange={(nextValue) => setPayDate(nextValue)}
+                        placeholder="Pilih tanggal"
+                        width="100%"
                     />
                     <div
                         style={{

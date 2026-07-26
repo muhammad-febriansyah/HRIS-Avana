@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
+import { DatePicker } from '@/components/avana/date-picker';
 import { FileDropzone } from '@/components/avana-ui/file-dropzone';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, btnOut, btnP, C, card, rp, RupiahInput } from '@/lib/avana';
@@ -13,13 +14,13 @@ import {
     textInputStyle,
     withError,
 } from './components';
-import {
-    emptySettlementLine,
-    type EmployeeOption,
-    type SelectOption,
-    type SettlementAttachmentRow,
-    type SettlementFormData,
-    type SettlementLineInput,
+import { emptySettlementLine } from './types';
+import type {
+    EmployeeOption,
+    SelectOption,
+    SettlementAttachmentRow,
+    SettlementFormData,
+    SettlementLineInput,
 } from './types';
 
 interface SettlementFormProps {
@@ -101,9 +102,7 @@ export function SettlementForm({
                 alignItems: 'start',
             }}
         >
-            <div
-                style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
-            >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 {/* ---------- General Information ---------- */}
                 <div style={card}>
                     <div style={cardHeaderStyle}>
@@ -198,19 +197,14 @@ export function SettlementForm({
                                 required
                                 error={errors.submission_date}
                             >
-                                <input
-                                    type="date"
+                                <DatePicker
                                     value={data.submission_date}
-                                    onChange={(event) =>
-                                        setData(
-                                            'submission_date',
-                                            event.target.value,
-                                        )
+                                    onChange={(nextValue) =>
+                                        setData('submission_date', nextValue)
                                     }
-                                    style={withError(
-                                        dateInputStyle,
-                                        !!errors.submission_date,
-                                    )}
+                                    placeholder="Pilih tanggal"
+                                    hasError={!!errors.submission_date}
+                                    width="100%"
                                 />
                             </Field>
                         </div>
@@ -277,8 +271,7 @@ export function SettlementForm({
                         <div
                             style={{
                                 display: 'grid',
-                                gridTemplateColumns:
-                                    '1fr 150px 150px 34px',
+                                gridTemplateColumns: '1fr 150px 150px 34px',
                                 gap: 10,
                                 padding: '10px 0',
                                 fontSize: 11,
@@ -295,12 +288,10 @@ export function SettlementForm({
                         </div>
                         {data.items.map((item, index) => (
                             <div
-                                // eslint-disable-next-line react/no-array-index-key
                                 key={index}
                                 style={{
                                     display: 'grid',
-                                    gridTemplateColumns:
-                                        '1fr 150px 150px 34px',
+                                    gridTemplateColumns: '1fr 150px 150px 34px',
                                     gap: 10,
                                     alignItems: 'center',
                                     paddingBottom: 10,
@@ -382,9 +373,7 @@ export function SettlementForm({
                         Lampiran
                     </div>
                     <div style={{ padding: '20px' }}>
-                        <label style={fieldLabelStyle}>
-                            Bukti / Kuitansi
-                        </label>
+                        <label style={fieldLabelStyle}>Bukti / Kuitansi</label>
                         <FileDropzone
                             files={data.attachments}
                             onChange={(files) => setData('attachments', files)}

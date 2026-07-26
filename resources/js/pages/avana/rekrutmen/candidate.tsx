@@ -3,8 +3,9 @@ import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import RecruitmentController from '@/actions/App/Http/Controllers/Avana/RecruitmentController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { usePermission } from '@/hooks/use-permission';
-import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
 import { StageBadge } from './components';
 import {
     fieldLabelStyle,
@@ -641,16 +642,16 @@ export default function Candidate({
                                         <label style={fieldLabelStyle}>
                                             Tanggal
                                         </label>
-                                        <input
-                                            type="date"
+                                        <DatePicker
                                             value={medicalForm.data.checked_at}
-                                            onChange={(e) =>
+                                            onChange={(nextValue) =>
                                                 medicalForm.setData(
                                                     'checked_at',
-                                                    e.target.value,
+                                                    nextValue,
                                                 )
                                             }
-                                            style={inputStyle}
+                                            placeholder="Pilih tanggal"
+                                            width="100%"
                                         />
                                     </div>
                                     <div style={{ gridColumn: '1 / -1' }}>
@@ -1339,16 +1340,14 @@ export default function Candidate({
                                             <label style={fieldLabelStyle}>
                                                 Gaji (Rp)
                                             </label>
-                                            <input
-                                                type="number"
-                                                min={0}
+                                            <RupiahInput
                                                 value={
                                                     offerForm.data.offer_salary
                                                 }
-                                                onChange={(e) =>
+                                                onChange={(raw) =>
                                                     offerForm.setData(
                                                         'offer_salary',
-                                                        e.target.value,
+                                                        raw,
                                                     )
                                                 }
                                                 style={inputStyle}
@@ -1358,19 +1357,19 @@ export default function Candidate({
                                             <label style={fieldLabelStyle}>
                                                 Mulai Kerja
                                             </label>
-                                            <input
-                                                type="date"
+                                            <DatePicker
                                                 value={
                                                     offerForm.data
                                                         .offer_start_date
                                                 }
-                                                onChange={(e) =>
+                                                onChange={(nextValue) =>
                                                     offerForm.setData(
                                                         'offer_start_date',
-                                                        e.target.value,
+                                                        nextValue,
                                                     )
                                                 }
-                                                style={inputStyle}
+                                                placeholder="Pilih tanggal"
+                                                width="100%"
                                             />
                                         </div>
                                     </div>
@@ -1394,19 +1393,16 @@ export default function Candidate({
                                     <label style={fieldLabelStyle}>
                                         Berlaku Hingga
                                     </label>
-                                    <input
-                                        type="date"
+                                    <DatePicker
                                         value={offerForm.data.offer_valid_until}
-                                        onChange={(e) =>
+                                        onChange={(nextValue) =>
                                             offerForm.setData(
                                                 'offer_valid_until',
-                                                e.target.value,
+                                                nextValue,
                                             )
                                         }
-                                        style={{
-                                            ...inputStyle,
-                                            marginBottom: 10,
-                                        }}
+                                        placeholder="Pilih tanggal"
+                                        width="100%"
                                     />
                                     <label style={fieldLabelStyle}>
                                         Catatan Penawaran

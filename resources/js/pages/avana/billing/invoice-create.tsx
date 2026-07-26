@@ -2,6 +2,7 @@ import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import BillingController from '@/actions/App/Http/Controllers/Avana/BillingController';
+import { DatePicker } from '@/components/avana/date-picker';
 import {
     AIcon,
     ActionBtn,
@@ -193,25 +194,25 @@ export default function InvoiceCreate({
                             <label style={fieldLabelStyle}>
                                 Tanggal Terbit
                             </label>
-                            <input
-                                type="date"
+                            <DatePicker
                                 value={data.issue_date}
-                                onChange={(e) =>
-                                    setData('issue_date', e.target.value)
+                                onChange={(nextValue) =>
+                                    setData('issue_date', nextValue)
                                 }
-                                style={inputStyle}
+                                placeholder="Pilih tanggal"
+                                width="100%"
                             />
                             <FieldErr msg={errors.issue_date} />
                         </div>
                         <div>
                             <label style={fieldLabelStyle}>Jatuh Tempo</label>
-                            <input
-                                type="date"
+                            <DatePicker
                                 value={data.due_date}
-                                onChange={(e) =>
-                                    setData('due_date', e.target.value)
+                                onChange={(nextValue) =>
+                                    setData('due_date', nextValue)
                                 }
-                                style={inputStyle}
+                                placeholder="Pilih tanggal"
+                                width="100%"
                             />
                             <FieldErr msg={errors.due_date} />
                         </div>

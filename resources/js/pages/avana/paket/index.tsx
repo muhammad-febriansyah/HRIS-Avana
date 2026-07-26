@@ -71,6 +71,7 @@ export default function PaketIndex({ packages, cycles }: PageProps) {
         if (flash?.success) {
             toast.success(flash.success, { id: flash.success });
         }
+
         if (flash?.error) {
             toast.error(flash.error, { id: flash.error });
         }
@@ -113,6 +114,7 @@ export default function PaketIndex({ packages, cycles }: PageProps) {
             preserveScroll: true,
             onSuccess: () => closeModal(),
         };
+
         if (editing) {
             form.put(`/avana/paket/${editing.id}`, opts);
         } else {
@@ -124,6 +126,7 @@ export default function PaketIndex({ packages, cycles }: PageProps) {
         if (!confirm) {
             return;
         }
+
         router.delete(`/avana/paket/${confirm.id}`, {
             preserveScroll: true,
             onFinish: () => setConfirm(null),

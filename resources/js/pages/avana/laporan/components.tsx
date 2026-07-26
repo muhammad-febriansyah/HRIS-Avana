@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
+import { DatePicker } from '@/components/avana/date-picker';
 import { AIcon, C, card } from '@/lib/avana';
 import type { PeriodOption, ReportCard } from './types';
 
@@ -45,23 +46,36 @@ const filterInput: CSSProperties = {
 };
 
 /** Build the export URL for a report + format, appending any active filters. */
-function exportUrl(type: string, format: string, query: Record<string, string>): string {
+function exportUrl(
+    type: string,
+    format: string,
+    query: Record<string, string>,
+): string {
     const params = new URLSearchParams();
+
     if (format !== 'csv') {
         params.set('format', format);
     }
+
     for (const [key, value] of Object.entries(query)) {
         if (value !== '') {
             params.set(key, value);
         }
     }
+
     const qs = params.toString();
 
     return '/avana/laporan/export/' + type + (qs ? '?' + qs : '');
 }
 
 /** A single report card: icon, copy, headline stat, period filter + downloads. */
-export function ReportCardItem({ report, periods }: { report: ReportCard; periods: PeriodOption[] }) {
+export function ReportCardItem({
+    report,
+    periods,
+}: {
+    report: ReportCard;
+    periods: PeriodOption[];
+}) {
     const [start, setStart] = useState('');
     const [end, setEnd] = useState('');
     const [periodId, setPeriodId] = useState('');
@@ -74,7 +88,15 @@ export function ReportCardItem({ report, periods }: { report: ReportCard; period
               : {};
 
     return (
-        <div style={{ ...card, padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div
+            style={{
+                ...card,
+                padding: '22px 24px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+            }}
+        >
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
                 <div
                     style={{
@@ -92,21 +114,49 @@ export function ReportCardItem({ report, periods }: { report: ReportCard; period
                     <AIcon name={report.icon} size={22} color={report.color} />
                 </div>
                 <div>
-                    <div style={{ fontSize: 16, fontWeight: 600, color: C.navy }}>{report.title}</div>
-                    <div style={{ fontSize: 13, color: C.muted, marginTop: 4, lineHeight: 1.5 }}>{report.desc}</div>
+                    <div
+                        style={{ fontSize: 16, fontWeight: 600, color: C.navy }}
+                    >
+                        {report.title}
+                    </div>
+                    <div
+                        style={{
+                            fontSize: 13,
+                            color: C.muted,
+                            marginTop: 4,
+                            lineHeight: 1.5,
+                        }}
+                    >
+                        {report.desc}
+                    </div>
                 </div>
             </div>
 
             {/* Optional period filter */}
             {report.periodFilter === 'range' && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <input type="date" value={start} onChange={(e) => setStart(e.target.value)} style={filterInput} aria-label="Tanggal mulai" />
+                    <DatePicker
+                        value={start}
+                        onChange={(nextValue) => setStart(nextValue)}
+                        placeholder="Pilih tanggal"
+                        width="100%"
+                    />
                     <span style={{ fontSize: 12, color: C.faint }}>s.d.</span>
-                    <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} style={filterInput} aria-label="Tanggal selesai" />
+                    <DatePicker
+                        value={end}
+                        onChange={(nextValue) => setEnd(nextValue)}
+                        placeholder="Pilih tanggal"
+                        width="100%"
+                    />
                 </div>
             )}
             {report.periodFilter === 'period' && (
-                <select value={periodId} onChange={(e) => setPeriodId(e.target.value)} style={{ ...filterInput, width: '100%' }} aria-label="Periode payroll">
+                <select
+                    value={periodId}
+                    onChange={(e) => setPeriodId(e.target.value)}
+                    style={{ ...filterInput, width: '100%' }}
+                    aria-label="Periode payroll"
+                >
                     <option value="">Semua periode</option>
                     {periods.map((p) => (
                         <option key={p.id} value={String(p.id)}>
@@ -116,23 +166,60 @@ export function ReportCardItem({ report, periods }: { report: ReportCard; period
                 </select>
             )}
 
-            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginTop: 'auto' }}>
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    marginTop: 'auto',
+                }}
+            >
                 <div>
-                    <div style={{ fontSize: 12, color: C.faint }}>{report.statLabel}</div>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: C.navy, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
+                    <div style={{ fontSize: 12, color: C.faint }}>
+                        {report.statLabel}
+                    </div>
+                    <div
+                        style={{
+                            fontSize: 22,
+                            fontWeight: 700,
+                            color: C.navy,
+                            marginTop: 2,
+                            fontVariantNumeric: 'tabular-nums',
+                        }}
+                    >
                         {report.statValue}
                     </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    <a href={exportUrl(report.type, 'xlsx', query)} download style={btnExcel}>
+                <div
+                    style={{
+                        display: 'flex',
+                        gap: 8,
+                        flexWrap: 'wrap',
+                        justifyContent: 'flex-end',
+                    }}
+                >
+                    <a
+                        href={exportUrl(report.type, 'xlsx', query)}
+                        download
+                        style={btnExcel}
+                    >
                         <AIcon name="sheet" size={15} color="#fff" />
                         Excel
                     </a>
-                    <a href={exportUrl(report.type, 'pdf', query)} download style={btnGhost}>
+                    <a
+                        href={exportUrl(report.type, 'pdf', query)}
+                        download
+                        style={btnGhost}
+                    >
                         <AIcon name="file-text" size={15} color={C.navy} />
                         PDF
                     </a>
-                    <a href={exportUrl(report.type, 'csv', query)} download style={btnGhost}>
+                    <a
+                        href={exportUrl(report.type, 'csv', query)}
+                        download
+                        style={btnGhost}
+                    >
                         <AIcon name="download" size={15} color={C.navy} />
                         CSV
                     </a>

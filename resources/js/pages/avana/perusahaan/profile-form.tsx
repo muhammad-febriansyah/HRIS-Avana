@@ -1,5 +1,6 @@
 import { router } from '@inertiajs/react';
-import { useState, type CSSProperties } from 'react';
+import { useState } from 'react';
+import type { CSSProperties } from 'react';
 import { toast } from 'sonner';
 import { AIcon, btnP, C, card } from '@/lib/avana';
 import type { CompanyProfile } from './types';
@@ -42,15 +43,20 @@ export function ProfileForm({ company }: { company: CompanyProfile }) {
 
             return;
         }
+
         setSaving(true);
-        router.put('/avana/perusahaan/profile', { ...form }, {
-            preserveScroll: true,
-            onError: (errors) =>
-                toast.error(
-                    Object.values(errors)[0] || 'Gagal menyimpan profil.',
-                ),
-            onFinish: () => setSaving(false),
-        });
+        router.put(
+            '/avana/perusahaan/profile',
+            { ...form },
+            {
+                preserveScroll: true,
+                onError: (errors) =>
+                    toast.error(
+                        Object.values(errors)[0] || 'Gagal menyimpan profil.',
+                    ),
+                onFinish: () => setSaving(false),
+            },
+        );
     };
 
     const field = (

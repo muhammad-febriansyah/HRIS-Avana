@@ -1,6 +1,6 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
-import {  useEffect, useMemo, useState } from 'react';
-import type {FormEvent} from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
 import { toast } from 'sonner';
 import DynamicReportController from '@/actions/App/Http/Controllers/Avana/DynamicReportController';
 import { AIcon, ActionBtn, btnOut, btnP, C, card, thCell } from '@/lib/avana';

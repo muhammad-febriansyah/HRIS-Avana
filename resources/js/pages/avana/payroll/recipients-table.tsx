@@ -49,7 +49,9 @@ export function RecipientsTable({
     const onlyPaid = filters.only_paid === '1' || filters.only_paid === true;
 
     /** Reload the recipient list, merging one changed filter over the rest. */
-    const apply = (patch: Partial<Record<string, string | number | undefined>>) => {
+    const apply = (
+        patch: Partial<Record<string, string | number | undefined>>,
+    ) => {
         router.get(
             '/avana/payroll',
             {
@@ -105,7 +107,9 @@ export function RecipientsTable({
                     {/* Tax scheme filter */}
                     <select
                         value={scheme}
-                        onChange={(e) => apply({ scheme: e.target.value || undefined })}
+                        onChange={(e) =>
+                            apply({ scheme: e.target.value || undefined })
+                        }
                         style={{
                             height: 34,
                             border: `1px solid ${C.border}`,
@@ -126,7 +130,9 @@ export function RecipientsTable({
                     {/* Only-paid toggle */}
                     <button
                         type="button"
-                        onClick={() => apply({ only_paid: onlyPaid ? undefined : '1' })}
+                        onClick={() =>
+                            apply({ only_paid: onlyPaid ? undefined : '1' })
+                        }
                         style={{
                             height: 34,
                             display: 'inline-flex',
@@ -138,7 +144,9 @@ export function RecipientsTable({
                             fontSize: 12.5,
                             fontWeight: 600,
                             color: onlyPaid ? C.primary : C.muted,
-                            background: onlyPaid ? 'rgba(47,84,201,.08)' : '#fff',
+                            background: onlyPaid
+                                ? 'rgba(47,84,201,.08)'
+                                : '#fff',
                             cursor: 'pointer',
                         }}
                     >
@@ -352,7 +360,9 @@ export function RecipientsTable({
                     >
                         <button
                             disabled={meta.current_page <= 1}
-                            onClick={() => apply({ page: meta.current_page - 1 })}
+                            onClick={() =>
+                                apply({ page: meta.current_page - 1 })
+                            }
                             style={{
                                 height: 34,
                                 minWidth: 34,
@@ -383,7 +393,9 @@ export function RecipientsTable({
                         </span>
                         <button
                             disabled={meta.current_page >= meta.last_page}
-                            onClick={() => apply({ page: meta.current_page + 1 })}
+                            onClick={() =>
+                                apply({ page: meta.current_page + 1 })
+                            }
                             style={{
                                 height: 34,
                                 minWidth: 34,

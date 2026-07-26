@@ -1,6 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
 import { AIcon, C, card } from '@/lib/avana';
-import { type Category, CategoryChip, RISK } from './components';
+import { CategoryChip, RISK } from './components';
+import type { Category } from './components';
 
 interface Factor {
     key: string;
@@ -36,7 +37,10 @@ interface AttritionShowProps {
     };
 }
 
-export default function AttritionShow({ employee, result }: AttritionShowProps) {
+export default function AttritionShow({
+    employee,
+    result,
+}: AttritionShowProps) {
     const r = RISK[result.category];
 
     const facts: [string, string | null][] = [
@@ -62,7 +66,10 @@ export default function AttritionShow({ employee, result }: AttritionShowProps) 
                         marginBottom: 16,
                     }}
                 >
-                    <Link href="/avana/attrition" style={{ color: C.faint, textDecoration: 'none' }}>
+                    <Link
+                        href="/avana/attrition"
+                        style={{ color: C.faint, textDecoration: 'none' }}
+                    >
                         Prediksi Resign
                     </Link>
                     <AIcon name="chevron-right" size={13} />
@@ -78,9 +85,22 @@ export default function AttritionShow({ employee, result }: AttritionShowProps) 
                         alignItems: 'start',
                     }}
                 >
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                    <div
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 18,
+                        }}
+                    >
                         <div style={{ ...card, padding: 24 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 12,
+                                    marginBottom: 18,
+                                }}
+                            >
                                 <div
                                     style={{
                                         width: 46,
@@ -99,16 +119,33 @@ export default function AttritionShow({ employee, result }: AttritionShowProps) 
                                     {employee.initials}
                                 </div>
                                 <div>
-                                    <div style={{ fontSize: 16, fontWeight: 700, color: C.navy }}>
+                                    <div
+                                        style={{
+                                            fontSize: 16,
+                                            fontWeight: 700,
+                                            color: C.navy,
+                                        }}
+                                    >
                                         {employee.name}
                                     </div>
-                                    <div style={{ fontSize: 12.5, color: C.faint }}>
-                                        {employee.employee_number} · {employee.position ?? '—'}
+                                    <div
+                                        style={{
+                                            fontSize: 12.5,
+                                            color: C.faint,
+                                        }}
+                                    >
+                                        {employee.employee_number} ·{' '}
+                                        {employee.position ?? '—'}
                                     </div>
                                 </div>
                             </div>
 
-                            <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
+                            <div
+                                style={{
+                                    textAlign: 'center',
+                                    padding: '8px 0 4px',
+                                }}
+                            >
                                 <div
                                     style={{
                                         fontSize: 48,
@@ -119,12 +156,26 @@ export default function AttritionShow({ employee, result }: AttritionShowProps) 
                                     }}
                                 >
                                     {result.score}
-                                    <span style={{ fontSize: 20, color: C.faint, fontWeight: 600 }}>/100</span>
+                                    <span
+                                        style={{
+                                            fontSize: 20,
+                                            color: C.faint,
+                                            fontWeight: 600,
+                                        }}
+                                    >
+                                        /100
+                                    </span>
                                 </div>
                                 <div style={{ marginTop: 10 }}>
                                     <CategoryChip category={result.category} />
                                 </div>
-                                <div style={{ fontSize: 11.5, color: C.faint, marginTop: 10 }}>
+                                <div
+                                    style={{
+                                        fontSize: 11.5,
+                                        color: C.faint,
+                                        marginTop: 10,
+                                    }}
+                                >
                                     Cakupan data {result.coverage}% dari model
                                 </div>
                             </div>
@@ -161,24 +212,58 @@ export default function AttritionShow({ employee, result }: AttritionShowProps) 
                                     }}
                                 >
                                     <span style={{ color: C.muted }}>{k}</span>
-                                    <span style={{ color: C.text, fontWeight: 500 }}>{v ?? '—'}</span>
+                                    <span
+                                        style={{
+                                            color: C.text,
+                                            fontWeight: 500,
+                                        }}
+                                    >
+                                        {v ?? '—'}
+                                    </span>
                                 </div>
                             ))}
                         </div>
                     </div>
 
                     <div style={{ ...card, padding: '20px 22px' }}>
-                        <div style={{ fontSize: 15, fontWeight: 600, color: C.navy, marginBottom: 4 }}>
+                        <div
+                            style={{
+                                fontSize: 15,
+                                fontWeight: 600,
+                                color: C.navy,
+                                marginBottom: 4,
+                            }}
+                        >
                             Rincian Faktor Risiko
                         </div>
-                        <div style={{ fontSize: 12.5, color: C.faint, marginBottom: 16 }}>
-                            Faktor pemicu skor ditandai merah; faktor tanpa data tidak dihitung.
+                        <div
+                            style={{
+                                fontSize: 12.5,
+                                color: C.faint,
+                                marginBottom: 16,
+                            }}
+                        >
+                            Faktor pemicu skor ditandai merah; faktor tanpa data
+                            tidak dihitung.
                         </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div
+                            style={{ display: 'flex', flexDirection: 'column' }}
+                        >
                             {result.factors.map((f) => {
-                                const state = f.disabled ? 'off_disabled' : !f.available ? 'na' : f.triggered ? 'on' : 'off';
-                                const dot = state === 'on' ? C.red : state === 'off' ? C.green : C.faint;
+                                const state = f.disabled
+                                    ? 'off_disabled'
+                                    : !f.available
+                                      ? 'na'
+                                      : f.triggered
+                                        ? 'on'
+                                        : 'off';
+                                const dot =
+                                    state === 'on'
+                                        ? C.red
+                                        : state === 'off'
+                                          ? C.green
+                                          : C.faint;
                                 const detailText = f.disabled
                                     ? 'Dinonaktifkan di pengaturan'
                                     : state === 'na'
@@ -210,31 +295,64 @@ export default function AttritionShow({ employee, result }: AttritionShowProps) 
                                                 style={{
                                                     fontSize: 13.5,
                                                     fontWeight: 600,
-                                                    color: state === 'on' || state === 'off' ? C.text : C.faint,
+                                                    color:
+                                                        state === 'on' ||
+                                                        state === 'off'
+                                                            ? C.text
+                                                            : C.faint,
                                                 }}
                                             >
                                                 {f.label}
                                             </div>
-                                            <div style={{ fontSize: 12, color: C.faint, marginTop: 1 }}>
+                                            <div
+                                                style={{
+                                                    fontSize: 12,
+                                                    color: C.faint,
+                                                    marginTop: 1,
+                                                }}
+                                            >
                                                 {detailText}
                                             </div>
                                         </div>
-                                        <div style={{ textAlign: 'right', flex: 'none' }}>
-                                            {state === 'na' || state === 'off_disabled' ? (
-                                                <span style={{ fontSize: 12, color: C.faint }}>
-                                                    {state === 'off_disabled' ? 'Off' : 'N/A'}
+                                        <div
+                                            style={{
+                                                textAlign: 'right',
+                                                flex: 'none',
+                                            }}
+                                        >
+                                            {state === 'na' ||
+                                            state === 'off_disabled' ? (
+                                                <span
+                                                    style={{
+                                                        fontSize: 12,
+                                                        color: C.faint,
+                                                    }}
+                                                >
+                                                    {state === 'off_disabled'
+                                                        ? 'Off'
+                                                        : 'N/A'}
                                                 </span>
                                             ) : (
                                                 <span
                                                     style={{
                                                         fontSize: 13,
                                                         fontWeight: 700,
-                                                        color: f.triggered ? C.red : C.faint,
-                                                        fontVariantNumeric: 'tabular-nums',
+                                                        color: f.triggered
+                                                            ? C.red
+                                                            : C.faint,
+                                                        fontVariantNumeric:
+                                                            'tabular-nums',
                                                     }}
                                                 >
-                                                    {f.triggered ? `+${f.points}` : '0'}
-                                                    <span style={{ color: C.faint, fontWeight: 500 }}>
+                                                    {f.triggered
+                                                        ? `+${f.points}`
+                                                        : '0'}
+                                                    <span
+                                                        style={{
+                                                            color: C.faint,
+                                                            fontWeight: 500,
+                                                        }}
+                                                    >
                                                         /{f.weight}
                                                     </span>
                                                 </span>

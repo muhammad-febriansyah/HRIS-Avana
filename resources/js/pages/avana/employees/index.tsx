@@ -797,8 +797,7 @@ export default function EmployeesIndex({
                                                                     ).url,
                                                                     {},
                                                                     {
-                                                                        preserveScroll:
-                                                                            true,
+                                                                        preserveScroll: true,
                                                                     },
                                                                 )
                                                             }
@@ -1343,9 +1342,7 @@ export default function EmployeesIndex({
                             <div style={{ color: C.faint }}>
                                 Perangkat terikat
                             </div>
-                            <div
-                                style={{ color: C.text, fontWeight: 600 }}
-                            >
+                            <div style={{ color: C.text, fontWeight: 600 }}>
                                 {resetTarget.device?.label}
                             </div>
                             {resetTarget.device?.last_login && (

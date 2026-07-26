@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import AssetController from '@/actions/App/Http/Controllers/Avana/AssetController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import { usePermission } from '@/hooks/use-permission';
 import { AIcon, ActionBtn, btnP, C, card, rp, thCell } from '@/lib/avana';
@@ -743,19 +744,17 @@ export default function AsetIndex({
                                     Tanggal Ditugaskan{' '}
                                     <span style={{ color: C.red }}>*</span>
                                 </label>
-                                <input
-                                    type="date"
+                                <DatePicker
                                     value={assignForm.data.assigned_date}
-                                    onChange={(event) =>
+                                    onChange={(nextValue) =>
                                         assignForm.setData(
                                             'assigned_date',
-                                            event.target.value,
+                                            nextValue,
                                         )
                                     }
-                                    style={withError(
-                                        inputStyle,
-                                        !!assignForm.errors.assigned_date,
-                                    )}
+                                    placeholder="Pilih tanggal"
+                                    hasError={!!assignForm.errors.assigned_date}
+                                    width="100%"
                                 />
                                 <FieldError
                                     message={assignForm.errors.assigned_date}

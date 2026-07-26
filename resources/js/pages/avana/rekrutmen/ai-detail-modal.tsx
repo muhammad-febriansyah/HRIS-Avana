@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { AIcon, C } from '@/lib/avana';
-import { badgeOf, initials, type Rec, STAGE_LABELS } from './ai-columns';
+import { badgeOf, initials, STAGE_LABELS } from './ai-columns';
+import type { Rec } from './ai-columns';
 
 function InfoItem({
     icon,

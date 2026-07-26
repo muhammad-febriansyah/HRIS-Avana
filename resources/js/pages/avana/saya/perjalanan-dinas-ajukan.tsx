@@ -1,7 +1,7 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { DatePicker } from '@/components/avana/date-picker';
-import { AIcon, btnOut, btnP, C } from '@/lib/avana';
+import { AIcon, btnOut, btnP, C, RupiahInput } from '@/lib/avana';
 import {
     Field,
     inputStyle,
@@ -186,22 +186,12 @@ export default function SayaPerjalananDinasAjukan() {
                                 error={form.errors.estimated_cost}
                                 hint="Perkiraan tiket, penginapan, dan lain-lain."
                             >
-                                <input
-                                    type="number"
-                                    min="0"
-                                    step="1000"
+                                <RupiahInput
                                     value={form.data.estimated_cost}
-                                    onChange={(event) =>
-                                        form.setData(
-                                            'estimated_cost',
-                                            event.target.value,
-                                        )
+                                    onChange={(raw) =>
+                                        form.setData('estimated_cost', raw)
                                     }
-                                    placeholder="0"
-                                    style={withError(
-                                        inputStyle,
-                                        !!form.errors.estimated_cost,
-                                    )}
+                                    invalid={!!form.errors.estimated_cost}
                                 />
                             </Field>
                         </div>

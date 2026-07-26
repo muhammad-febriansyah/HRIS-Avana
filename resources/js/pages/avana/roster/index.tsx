@@ -1,5 +1,6 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { type CSSProperties, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { toast } from 'sonner';
 import RosterController from '@/actions/App/Http/Controllers/Avana/RosterController';
 import { AIcon, C } from '@/lib/avana';
@@ -116,10 +117,13 @@ export default function AvanaRoster({
         if (bulkShift === '') {
             return;
         }
+
         const dates = datesForPreset();
+
         if (dates.length === 0) {
             return;
         }
+
         router.post(
             RosterController.bulkStore().url,
             { shift_id: bulkShift, dates },
@@ -255,9 +259,7 @@ export default function AvanaRoster({
                         onChange={(e) =>
                             setPreset(
                                 e.target.value as
-                                    | 'weekdays'
-                                    | 'sixdays'
-                                    | 'all',
+                                    'weekdays' | 'sixdays' | 'all',
                             )
                         }
                         style={selectStyle}
@@ -277,8 +279,7 @@ export default function AvanaRoster({
                             padding: '8px 14px',
                             borderRadius: 9,
                             border: 'none',
-                            background:
-                                bulkShift === '' ? C.faint : C.primary,
+                            background: bulkShift === '' ? C.faint : C.primary,
                             color: '#fff',
                             fontSize: 12.5,
                             fontWeight: 600,

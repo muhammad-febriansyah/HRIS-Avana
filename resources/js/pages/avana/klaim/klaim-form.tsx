@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { ChangeEvent, FormEvent } from 'react';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
 import {
@@ -105,16 +106,14 @@ export function KlaimForm({
                             Tanggal Klaim{' '}
                             <span style={{ color: C.red }}>*</span>
                         </label>
-                        <input
-                            type="date"
+                        <DatePicker
                             value={data.claim_date}
-                            onChange={(event) =>
-                                setData('claim_date', event.target.value)
+                            onChange={(nextValue) =>
+                                setData('claim_date', nextValue)
                             }
-                            style={withError(
-                                dateInputStyle,
-                                !!errors.claim_date,
-                            )}
+                            placeholder="Pilih tanggal"
+                            hasError={!!errors.claim_date}
+                            width="100%"
                         />
                         <FieldError message={errors.claim_date} />
                     </div>

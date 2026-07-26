@@ -257,6 +257,7 @@ export function Tabs({
         >
             {tabs.map((tab) => {
                 const on = active === tab.key;
+
                 return (
                     <button
                         key={tab.key}
@@ -343,6 +344,7 @@ export function DataTable<T>({
 
     const filtered = useMemo(() => {
         const term = query.trim().toLowerCase();
+
         return term === ''
             ? rows
             : rows.filter((row) =>

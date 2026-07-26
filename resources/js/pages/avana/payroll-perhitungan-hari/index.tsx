@@ -119,8 +119,8 @@ export default function PerhitunganHari({ methods, basisOptions }: Props) {
                 </h1>
                 <div style={{ fontSize: 14, color: C.muted, marginBottom: 18 }}>
                     Metode penghitungan hari untuk prorata gaji: pasangan basis
-                    (Absen / Hari Kerja / Hari Kalender / Formula) dengan pembagi.
-                    Master Gaji memilih salah satu metode ini.
+                    (Absen / Hari Kerja / Hari Kalender / Formula) dengan
+                    pembagi. Master Gaji memilih salah satu metode ini.
                 </div>
 
                 <div style={{ ...card, padding: 18, marginBottom: 18 }}>
@@ -147,13 +147,17 @@ export default function PerhitunganHari({ methods, basisOptions }: Props) {
                             style={input}
                             placeholder="Kode"
                             value={form.data.code}
-                            onChange={(e) => form.setData('code', e.target.value)}
+                            onChange={(e) =>
+                                form.setData('code', e.target.value)
+                            }
                         />
                         <input
                             style={input}
                             placeholder="Nama metode"
                             value={form.data.name}
-                            onChange={(e) => form.setData('name', e.target.value)}
+                            onChange={(e) =>
+                                form.setData('name', e.target.value)
+                            }
                         />
                         <select
                             style={input}
@@ -198,7 +202,10 @@ export default function PerhitunganHari({ methods, basisOptions }: Props) {
                 <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
                     <div style={{ overflowX: 'auto' }}>
                         <table
-                            style={{ width: '100%', borderCollapse: 'collapse' }}
+                            style={{
+                                width: '100%',
+                                borderCollapse: 'collapse',
+                            }}
                         >
                             <thead>
                                 <tr>
@@ -245,7 +252,8 @@ export default function PerhitunganHari({ methods, basisOptions }: Props) {
                                             </td>
                                             <td style={td}>{m.name}</td>
                                             <td style={td}>
-                                                {BASIS_LABEL[m.basis] ?? m.basis}
+                                                {BASIS_LABEL[m.basis] ??
+                                                    m.basis}
                                             </td>
                                             <td style={td}>
                                                 {m.divisor ?? '—'}

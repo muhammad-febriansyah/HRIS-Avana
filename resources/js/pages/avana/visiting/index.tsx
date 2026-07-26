@@ -2,6 +2,7 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import FieldVisitController from '@/actions/App/Http/Controllers/Avana/FieldVisitController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { ActionBtn, AIcon, btnP, C, card } from '@/lib/avana';
 import { ConfirmModal, filterSelectStyle, headThStyle } from './components';
 import type {
@@ -357,14 +358,13 @@ export default function VisitingIndex({
                                 }}
                             />
                         </div>
-                        <input
-                            type="date"
-                            aria-label="Tanggal"
+                        <DatePicker
                             value={filters.date ?? ''}
-                            onChange={(event) =>
-                                applyFilter('date', event.target.value)
+                            onChange={(nextValue) =>
+                                applyFilter('date', nextValue)
                             }
-                            style={filterSelectStyle}
+                            placeholder="Pilih tanggal"
+                            width="100%"
                         />
                         <select
                             aria-label="Cabang"

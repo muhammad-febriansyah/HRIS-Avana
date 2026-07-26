@@ -95,7 +95,11 @@ function fmt(n: number): string {
 }
 
 function StatusPill({ status }: { status: string }) {
-    const [label, color, bg] = ORDER_STATUS[status] ?? [status, C.muted, C.line];
+    const [label, color, bg] = ORDER_STATUS[status] ?? [
+        status,
+        C.muted,
+        C.line,
+    ];
 
     return (
         <span
@@ -194,6 +198,7 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
         if (!confirm) {
             return;
         }
+
         router.delete(AiTokenPackController.destroy(confirm.id).url, {
             preserveScroll: true,
             onSuccess: () => setConfirm(null),
@@ -227,7 +232,9 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
                         >
                             <span>Platform</span>
                             <AIcon name="chevron-right" size={13} />
-                            <span style={{ color: C.muted }}>Paket Token AI</span>
+                            <span style={{ color: C.muted }}>
+                                Paket Token AI
+                            </span>
                         </div>
                         <h1
                             style={{
@@ -240,9 +247,15 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
                         >
                             Paket Token AI
                         </h1>
-                        <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
-                            Atur paket token yang bisa dibeli tenant untuk mengisi
-                            saldo AI Assistant.
+                        <div
+                            style={{
+                                fontSize: 14,
+                                color: C.muted,
+                                marginTop: 4,
+                            }}
+                        >
+                            Atur paket token yang bisa dibeli tenant untuk
+                            mengisi saldo AI Assistant.
                         </div>
                     </div>
                     <button onClick={openCreate} style={btnP}>
@@ -261,8 +274,14 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
                 >
                     <Kpi label="Pendapatan" value={rp(kpis.revenue)} />
                     <Kpi label="Token terjual" value={fmt(kpis.tokens_sold)} />
-                    <Kpi label="Order lunas" value={fmt(kpis.completed_count)} />
-                    <Kpi label="Order menunggu" value={fmt(kpis.pending_count)} />
+                    <Kpi
+                        label="Order lunas"
+                        value={fmt(kpis.completed_count)}
+                    />
+                    <Kpi
+                        label="Order menunggu"
+                        value={fmt(kpis.pending_count)}
+                    />
                 </div>
 
                 <div style={{ ...card, overflow: 'hidden', marginBottom: 26 }}>
@@ -297,12 +316,22 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
                                 }}
                             >
                                 <thead>
-                                    <tr style={{ color: C.muted, textAlign: 'left' }}>
+                                    <tr
+                                        style={{
+                                            color: C.muted,
+                                            textAlign: 'left',
+                                        }}
+                                    >
                                         <th style={th}>Nama</th>
                                         <th style={th}>Token</th>
                                         <th style={th}>Harga</th>
                                         <th style={th}>Status</th>
-                                        <th style={{ ...th, textAlign: 'right' }}>
+                                        <th
+                                            style={{
+                                                ...th,
+                                                textAlign: 'right',
+                                            }}
+                                        >
                                             Aksi
                                         </th>
                                     </tr>
@@ -347,9 +376,10 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
                                                         color: pack.is_active
                                                             ? C.green
                                                             : C.muted,
-                                                        background: pack.is_active
-                                                            ? 'rgba(22,163,74,.1)'
-                                                            : C.line,
+                                                        background:
+                                                            pack.is_active
+                                                                ? 'rgba(22,163,74,.1)'
+                                                                : C.line,
                                                         padding: '3px 10px',
                                                         borderRadius: 999,
                                                     }}
@@ -367,7 +397,9 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
                                                 }}
                                             >
                                                 <button
-                                                    onClick={() => openEdit(pack)}
+                                                    onClick={() =>
+                                                        openEdit(pack)
+                                                    }
                                                     style={iconBtn}
                                                     title="Ubah"
                                                 >
@@ -378,7 +410,9 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
                                                     />
                                                 </button>
                                                 <button
-                                                    onClick={() => setConfirm(pack)}
+                                                    onClick={() =>
+                                                        setConfirm(pack)
+                                                    }
                                                     style={iconBtn}
                                                     title="Hapus"
                                                 >
@@ -429,7 +463,12 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
                                 }}
                             >
                                 <thead>
-                                    <tr style={{ color: C.muted, textAlign: 'left' }}>
+                                    <tr
+                                        style={{
+                                            color: C.muted,
+                                            textAlign: 'left',
+                                        }}
+                                    >
                                         <th style={th}>No. Order</th>
                                         <th style={th}>Tenant</th>
                                         <th style={th}>Paket</th>
@@ -447,19 +486,37 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
                                                 borderTop: `1px solid ${C.line}`,
                                             }}
                                         >
-                                            <td style={{ ...td, fontFamily: 'monospace' }}>
+                                            <td
+                                                style={{
+                                                    ...td,
+                                                    fontFamily: 'monospace',
+                                                }}
+                                            >
                                                 {order.order_number}
                                             </td>
-                                            <td style={td}>{order.tenant ?? '-'}</td>
-                                            <td style={td}>{order.pack_name}</td>
+                                            <td style={td}>
+                                                {order.tenant ?? '-'}
+                                            </td>
+                                            <td style={td}>
+                                                {order.pack_name}
+                                            </td>
                                             <td style={td}>
                                                 {fmt(order.token_amount)}
                                             </td>
-                                            <td style={td}>{rp(order.amount)}</td>
                                             <td style={td}>
-                                                <StatusPill status={order.status} />
+                                                {rp(order.amount)}
                                             </td>
-                                            <td style={{ ...td, color: C.muted }}>
+                                            <td style={td}>
+                                                <StatusPill
+                                                    status={order.status}
+                                                />
+                                            </td>
+                                            <td
+                                                style={{
+                                                    ...td,
+                                                    color: C.muted,
+                                                }}
+                                            >
                                                 {order.created_at ?? '-'}
                                             </td>
                                         </tr>
@@ -500,13 +557,23 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
                                     placeholder="Paket Hemat"
                                 />
                                 {form.errors.name && (
-                                    <div style={errStyle}>{form.errors.name}</div>
+                                    <div style={errStyle}>
+                                        {form.errors.name}
+                                    </div>
                                 )}
                             </div>
 
-                            <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    gap: 12,
+                                    marginBottom: 14,
+                                }}
+                            >
                                 <div style={{ flex: 1 }}>
-                                    <label style={labelStyle}>Jumlah Token</label>
+                                    <label style={labelStyle}>
+                                        Jumlah Token
+                                    </label>
                                     <RupiahInput
                                         value={form.data.token_amount}
                                         onChange={(digits) =>
@@ -540,18 +607,29 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
                             </div>
 
                             <div style={{ marginBottom: 14 }}>
-                                <label style={labelStyle}>Deskripsi (opsional)</label>
+                                <label style={labelStyle}>
+                                    Deskripsi (opsional)
+                                </label>
                                 <input
                                     value={form.data.description}
                                     onChange={(e) =>
-                                        form.setData('description', e.target.value)
+                                        form.setData(
+                                            'description',
+                                            e.target.value,
+                                        )
                                     }
                                     style={input}
                                     placeholder="Cocok untuk tim kecil"
                                 />
                             </div>
 
-                            <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    gap: 12,
+                                    marginBottom: 20,
+                                }}
+                            >
                                 <div style={{ flex: 1 }}>
                                     <label style={labelStyle}>Urutan</label>
                                     <input

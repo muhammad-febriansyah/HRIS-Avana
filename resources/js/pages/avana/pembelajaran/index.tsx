@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import LearningController from '@/actions/App/Http/Controllers/Avana/LearningController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import {
     AIcon,
@@ -963,19 +964,19 @@ export default function PembelajaranIndex({
                                     <label style={fieldLabelStyle}>
                                         Tgl Selesai
                                     </label>
-                                    <input
-                                        type="date"
+                                    <DatePicker
                                         value={updateForm.data.completed_date}
-                                        onChange={(event) =>
+                                        onChange={(nextValue) =>
                                             updateForm.setData(
                                                 'completed_date',
-                                                event.target.value,
+                                                nextValue,
                                             )
                                         }
-                                        style={withError(
-                                            inputStyle,
-                                            !!updateForm.errors.completed_date,
-                                        )}
+                                        placeholder="Pilih tanggal"
+                                        hasError={
+                                            !!updateForm.errors.completed_date
+                                        }
+                                        width="100%"
                                     />
                                     <FieldError
                                         message={

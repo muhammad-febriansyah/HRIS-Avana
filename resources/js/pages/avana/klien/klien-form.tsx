@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
+import { DatePicker } from '@/components/avana/date-picker';
 import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
 import {
     FieldError,
@@ -177,25 +178,27 @@ export function KlienForm({
                     </div>
                     <div>
                         <label style={fieldLabelStyle}>Mulai Langganan</label>
-                        <input
-                            type="date"
+                        <DatePicker
                             value={data.start_date}
-                            onChange={(event) =>
-                                setData('start_date', event.target.value)
+                            onChange={(nextValue) =>
+                                setData('start_date', nextValue)
                             }
-                            style={withError(inputStyle, !!errors.start_date)}
+                            placeholder="Pilih tanggal"
+                            hasError={!!errors.start_date}
+                            width="100%"
                         />
                         <FieldError message={errors.start_date} />
                     </div>
                     <div>
                         <label style={fieldLabelStyle}>Selesai Langganan</label>
-                        <input
-                            type="date"
+                        <DatePicker
                             value={data.end_date}
-                            onChange={(event) =>
-                                setData('end_date', event.target.value)
+                            onChange={(nextValue) =>
+                                setData('end_date', nextValue)
                             }
-                            style={withError(inputStyle, !!errors.end_date)}
+                            placeholder="Pilih tanggal"
+                            hasError={!!errors.end_date}
+                            width="100%"
                         />
                         <FieldError message={errors.end_date} />
                     </div>

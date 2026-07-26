@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import PerformanceController from '@/actions/App/Http/Controllers/Avana/PerformanceController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { ActionBtn, AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
 import {
     ConfirmModal,
@@ -699,19 +700,19 @@ export default function KinerjaIndex({
                                         Mulai{' '}
                                         <span style={{ color: C.red }}>*</span>
                                     </label>
-                                    <input
-                                        type="date"
+                                    <DatePicker
                                         value={cycleForm.data.period_start}
-                                        onChange={(event) =>
+                                        onChange={(nextValue) =>
                                             cycleForm.setData(
                                                 'period_start',
-                                                event.target.value,
+                                                nextValue,
                                             )
                                         }
-                                        style={withError(
-                                            inputStyle,
-                                            !!cycleForm.errors.period_start,
-                                        )}
+                                        placeholder="Pilih tanggal"
+                                        hasError={
+                                            !!cycleForm.errors.period_start
+                                        }
+                                        width="100%"
                                     />
                                     <FieldError
                                         message={cycleForm.errors.period_start}
@@ -722,19 +723,17 @@ export default function KinerjaIndex({
                                         Selesai{' '}
                                         <span style={{ color: C.red }}>*</span>
                                     </label>
-                                    <input
-                                        type="date"
+                                    <DatePicker
                                         value={cycleForm.data.period_end}
-                                        onChange={(event) =>
+                                        onChange={(nextValue) =>
                                             cycleForm.setData(
                                                 'period_end',
-                                                event.target.value,
+                                                nextValue,
                                             )
                                         }
-                                        style={withError(
-                                            inputStyle,
-                                            !!cycleForm.errors.period_end,
-                                        )}
+                                        placeholder="Pilih tanggal"
+                                        hasError={!!cycleForm.errors.period_end}
+                                        width="100%"
                                     />
                                     <FieldError
                                         message={cycleForm.errors.period_end}
@@ -1020,19 +1019,17 @@ export default function KinerjaIndex({
                                 <label style={fieldLabelStyle}>
                                     Tanggal Penilaian
                                 </label>
-                                <input
-                                    type="date"
+                                <DatePicker
                                     value={scoreForm.data.review_date}
-                                    onChange={(event) =>
+                                    onChange={(nextValue) =>
                                         scoreForm.setData(
                                             'review_date',
-                                            event.target.value,
+                                            nextValue,
                                         )
                                     }
-                                    style={withError(
-                                        inputStyle,
-                                        !!scoreForm.errors.review_date,
-                                    )}
+                                    placeholder="Pilih tanggal"
+                                    hasError={!!scoreForm.errors.review_date}
+                                    width="100%"
                                 />
                                 <FieldError
                                     message={scoreForm.errors.review_date}

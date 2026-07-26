@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import CrmController from '@/actions/App/Http/Controllers/Avana/CrmController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import {
     AIcon,
@@ -266,7 +267,11 @@ export default function CrmIndex({
                 >
                     {(
                         [
-                            { id: 'pipeline', label: 'Pipeline', icon: 'kanban' },
+                            {
+                                id: 'pipeline',
+                                label: 'Pipeline',
+                                icon: 'kanban',
+                            },
                             { id: 'kontak', label: 'Kontak', icon: 'contact' },
                         ] as const
                     ).map((t) => {
@@ -323,447 +328,463 @@ export default function CrmIndex({
 
                 {/* Pipeline board */}
                 {activeTab === 'pipeline' && (
-                <div
-                    style={{
-                        display: 'flex',
-                        gap: 14,
-                        overflowX: 'auto',
-                        paddingBottom: 8,
-                        marginBottom: 8,
-                    }}
-                >
-                    {stages.map((stage) => {
-                        const cards = pipeline[stage.value] ?? [];
-                        const [accent] = STAGE_COLORS[stage.value] ??
-                            STAGE_COLORS.lead;
+                    <div
+                        style={{
+                            display: 'flex',
+                            gap: 14,
+                            overflowX: 'auto',
+                            paddingBottom: 8,
+                            marginBottom: 8,
+                        }}
+                    >
+                        {stages.map((stage) => {
+                            const cards = pipeline[stage.value] ?? [];
+                            const [accent] =
+                                STAGE_COLORS[stage.value] ?? STAGE_COLORS.lead;
 
-                        return (
-                            <div
-                                key={stage.value}
-                                style={{
-                                    flex: '0 0 288px',
-                                    background: C.surface,
-                                    borderRadius: 14,
-                                    padding: 12,
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: 10,
-                                }}
-                            >
+                            return (
                                 <div
+                                    key={stage.value}
                                     style={{
+                                        flex: '0 0 288px',
+                                        background: C.surface,
+                                        borderRadius: 14,
+                                        padding: 12,
                                         display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        padding: '2px 4px 10px',
-                                        borderBottom: `2px solid ${accent}`,
+                                        flexDirection: 'column',
+                                        gap: 10,
                                     }}
                                 >
                                     <div
                                         style={{
                                             display: 'flex',
                                             alignItems: 'center',
-                                            gap: 8,
+                                            justifyContent: 'space-between',
+                                            padding: '2px 4px 10px',
+                                            borderBottom: `2px solid ${accent}`,
                                         }}
                                     >
-                                        <span
-                                            style={{
-                                                width: 8,
-                                                height: 8,
-                                                borderRadius: 100,
-                                                background: accent,
-                                            }}
-                                        />
-                                        <span
-                                            style={{
-                                                fontSize: 13,
-                                                fontWeight: 700,
-                                                color: C.navy,
-                                            }}
-                                        >
-                                            {stage.label}
-                                        </span>
-                                        <span
-                                            style={{
-                                                fontSize: 11,
-                                                fontWeight: 600,
-                                                color: C.muted,
-                                                background: '#fff',
-                                                borderRadius: 100,
-                                                padding: '1px 8px',
-                                            }}
-                                        >
-                                            {cards.length}
-                                        </span>
-                                    </div>
-                                    <span
-                                        style={{
-                                            fontSize: 11.5,
-                                            fontWeight: 600,
-                                            color: C.muted,
-                                            fontVariantNumeric: 'tabular-nums',
-                                        }}
-                                    >
-                                        {rp(stageTotals(stage.value))}
-                                    </span>
-                                </div>
-
-                                {cards.length === 0 && (
-                                    <div
-                                        style={{
-                                            fontSize: 12.5,
-                                            color: C.faint,
-                                            textAlign: 'center',
-                                            padding: '18px 0',
-                                        }}
-                                    >
-                                        Kosong
-                                    </div>
-                                )}
-
-                                {cards.map((deal) => (
-                                    <div
-                                        key={deal.id}
-                                        style={{
-                                            background: '#fff',
-                                            border: `1px solid ${C.border}`,
-                                            borderLeft: `3px solid ${accent}`,
-                                            borderRadius: 10,
-                                            padding: '12px 13px',
-                                            boxShadow:
-                                                '0 1px 2px rgba(14,26,58,.04)',
-                                        }}
-                                    >
-                                        <Link
-                                            href={CrmController.show(deal.id).url}
-                                            style={{
-                                                display: 'block',
-                                                fontSize: 13.5,
-                                                fontWeight: 600,
-                                                color: C.navy,
-                                                textDecoration: 'none',
-                                                lineHeight: 1.35,
-                                            }}
-                                        >
-                                            {deal.title}
-                                        </Link>
                                         <div
                                             style={{
-                                                fontSize: 15,
-                                                fontWeight: 700,
-                                                color: C.navy,
-                                                marginTop: 5,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 8,
+                                            }}
+                                        >
+                                            <span
+                                                style={{
+                                                    width: 8,
+                                                    height: 8,
+                                                    borderRadius: 100,
+                                                    background: accent,
+                                                }}
+                                            />
+                                            <span
+                                                style={{
+                                                    fontSize: 13,
+                                                    fontWeight: 700,
+                                                    color: C.navy,
+                                                }}
+                                            >
+                                                {stage.label}
+                                            </span>
+                                            <span
+                                                style={{
+                                                    fontSize: 11,
+                                                    fontWeight: 600,
+                                                    color: C.muted,
+                                                    background: '#fff',
+                                                    borderRadius: 100,
+                                                    padding: '1px 8px',
+                                                }}
+                                            >
+                                                {cards.length}
+                                            </span>
+                                        </div>
+                                        <span
+                                            style={{
+                                                fontSize: 11.5,
+                                                fontWeight: 600,
+                                                color: C.muted,
                                                 fontVariantNumeric:
                                                     'tabular-nums',
                                             }}
                                         >
-                                            {rp(deal.value)}
-                                        </div>
+                                            {rp(stageTotals(stage.value))}
+                                        </span>
+                                    </div>
+
+                                    {cards.length === 0 && (
                                         <div
                                             style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: 7,
-                                                marginTop: 9,
+                                                fontSize: 12.5,
+                                                color: C.faint,
+                                                textAlign: 'center',
+                                                padding: '18px 0',
                                             }}
                                         >
-                                            <span
-                                                style={{
-                                                    width: 22,
-                                                    height: 22,
-                                                    borderRadius: 100,
-                                                    background: `${accent}1a`,
-                                                    color: accent,
-                                                    fontSize: 10.5,
-                                                    fontWeight: 700,
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    flex: 'none',
-                                                }}
-                                            >
-                                                {(deal.contact ?? '?')
-                                                    .charAt(0)
-                                                    .toUpperCase()}
-                                            </span>
-                                            <span
-                                                style={{
-                                                    fontSize: 12,
-                                                    color: C.muted,
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    whiteSpace: 'nowrap',
-                                                }}
-                                            >
-                                                {deal.contact ?? 'Tanpa kontak'}
-                                                {deal.company
-                                                    ? ` · ${deal.company}`
-                                                    : ''}
-                                            </span>
+                                            Kosong
                                         </div>
-                                        {deal.owner && (
-                                            <div
-                                                style={{
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    gap: 5,
-                                                    marginTop: 8,
-                                                    fontSize: 11,
-                                                    fontWeight: 600,
-                                                    color: C.muted,
-                                                    background: C.surface,
-                                                    borderRadius: 100,
-                                                    padding: '3px 9px',
-                                                }}
-                                            >
-                                                <AIcon
-                                                    name="briefcase"
-                                                    size={11}
-                                                    color={C.faint}
-                                                />
-                                                {deal.owner}
-                                            </div>
-                                        )}
-                                        {((deal.activities_count ?? 0) > 0 ||
-                                            (deal.open_tasks_count ?? 0) > 0) && (
-                                            <div
-                                                style={{
-                                                    display: 'flex',
-                                                    gap: 10,
-                                                    marginTop: 8,
-                                                    fontSize: 11.5,
-                                                    color: C.faint,
-                                                }}
-                                            >
-                                                {(deal.activities_count ?? 0) >
-                                                    0 && (
-                                                    <span
-                                                        style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: 4,
-                                                        }}
-                                                    >
-                                                        <AIcon
-                                                            name="activity"
-                                                            size={12}
-                                                            color={C.faint}
-                                                        />
-                                                        {deal.activities_count}
-                                                    </span>
-                                                )}
-                                                {(deal.open_tasks_count ?? 0) >
-                                                    0 && (
-                                                    <span
-                                                        style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: 4,
-                                                            color: C.amber,
-                                                        }}
-                                                    >
-                                                        <AIcon
-                                                            name="list-checks"
-                                                            size={12}
-                                                            color={C.amber}
-                                                        />
-                                                        {deal.open_tasks_count}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        )}
+                                    )}
+
+                                    {cards.map((deal) => (
                                         <div
+                                            key={deal.id}
                                             style={{
-                                                display: 'flex',
-                                                justifyContent: 'space-between',
-                                                alignItems: 'center',
-                                                marginTop: 10,
-                                                gap: 6,
+                                                background: '#fff',
+                                                border: `1px solid ${C.border}`,
+                                                borderLeft: `3px solid ${accent}`,
+                                                borderRadius: 10,
+                                                padding: '12px 13px',
+                                                boxShadow:
+                                                    '0 1px 2px rgba(14,26,58,.04)',
                                             }}
                                         >
-                                            <button
-                                                title="Tahap sebelumnya"
-                                                onClick={() =>
-                                                    moveStage(deal, -1)
+                                            <Link
+                                                href={
+                                                    CrmController.show(deal.id)
+                                                        .url
                                                 }
-                                                style={iconBtn}
+                                                style={{
+                                                    display: 'block',
+                                                    fontSize: 13.5,
+                                                    fontWeight: 600,
+                                                    color: C.navy,
+                                                    textDecoration: 'none',
+                                                    lineHeight: 1.35,
+                                                }}
                                             >
-                                                <AIcon
-                                                    name="chevron-left"
-                                                    size={15}
-                                                    color={C.muted}
-                                                />
-                                            </button>
+                                                {deal.title}
+                                            </Link>
+                                            <div
+                                                style={{
+                                                    fontSize: 15,
+                                                    fontWeight: 700,
+                                                    color: C.navy,
+                                                    marginTop: 5,
+                                                    fontVariantNumeric:
+                                                        'tabular-nums',
+                                                }}
+                                            >
+                                                {rp(deal.value)}
+                                            </div>
                                             <div
                                                 style={{
                                                     display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 7,
+                                                    marginTop: 9,
+                                                }}
+                                            >
+                                                <span
+                                                    style={{
+                                                        width: 22,
+                                                        height: 22,
+                                                        borderRadius: 100,
+                                                        background: `${accent}1a`,
+                                                        color: accent,
+                                                        fontSize: 10.5,
+                                                        fontWeight: 700,
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent:
+                                                            'center',
+                                                        flex: 'none',
+                                                    }}
+                                                >
+                                                    {(deal.contact ?? '?')
+                                                        .charAt(0)
+                                                        .toUpperCase()}
+                                                </span>
+                                                <span
+                                                    style={{
+                                                        fontSize: 12,
+                                                        color: C.muted,
+                                                        overflow: 'hidden',
+                                                        textOverflow:
+                                                            'ellipsis',
+                                                        whiteSpace: 'nowrap',
+                                                    }}
+                                                >
+                                                    {deal.contact ??
+                                                        'Tanpa kontak'}
+                                                    {deal.company
+                                                        ? ` · ${deal.company}`
+                                                        : ''}
+                                                </span>
+                                            </div>
+                                            {deal.owner && (
+                                                <div
+                                                    style={{
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: 5,
+                                                        marginTop: 8,
+                                                        fontSize: 11,
+                                                        fontWeight: 600,
+                                                        color: C.muted,
+                                                        background: C.surface,
+                                                        borderRadius: 100,
+                                                        padding: '3px 9px',
+                                                    }}
+                                                >
+                                                    <AIcon
+                                                        name="briefcase"
+                                                        size={11}
+                                                        color={C.faint}
+                                                    />
+                                                    {deal.owner}
+                                                </div>
+                                            )}
+                                            {((deal.activities_count ?? 0) >
+                                                0 ||
+                                                (deal.open_tasks_count ?? 0) >
+                                                    0) && (
+                                                <div
+                                                    style={{
+                                                        display: 'flex',
+                                                        gap: 10,
+                                                        marginTop: 8,
+                                                        fontSize: 11.5,
+                                                        color: C.faint,
+                                                    }}
+                                                >
+                                                    {(deal.activities_count ??
+                                                        0) > 0 && (
+                                                        <span
+                                                            style={{
+                                                                display: 'flex',
+                                                                alignItems:
+                                                                    'center',
+                                                                gap: 4,
+                                                            }}
+                                                        >
+                                                            <AIcon
+                                                                name="activity"
+                                                                size={12}
+                                                                color={C.faint}
+                                                            />
+                                                            {
+                                                                deal.activities_count
+                                                            }
+                                                        </span>
+                                                    )}
+                                                    {(deal.open_tasks_count ??
+                                                        0) > 0 && (
+                                                        <span
+                                                            style={{
+                                                                display: 'flex',
+                                                                alignItems:
+                                                                    'center',
+                                                                gap: 4,
+                                                                color: C.amber,
+                                                            }}
+                                                        >
+                                                            <AIcon
+                                                                name="list-checks"
+                                                                size={12}
+                                                                color={C.amber}
+                                                            />
+                                                            {
+                                                                deal.open_tasks_count
+                                                            }
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
+                                            <div
+                                                style={{
+                                                    display: 'flex',
+                                                    justifyContent:
+                                                        'space-between',
+                                                    alignItems: 'center',
+                                                    marginTop: 10,
                                                     gap: 6,
                                                 }}
                                             >
-                                                <ActionBtn
-                                                    icon="eye"
-                                                    label="Detail"
-                                                    variant="primary"
+                                                <button
+                                                    title="Tahap sebelumnya"
                                                     onClick={() =>
-                                                        router.visit(
-                                                            CrmController.show(
-                                                                deal.id,
-                                                            ).url,
-                                                        )
+                                                        moveStage(deal, -1)
                                                     }
-                                                />
-                                                <ActionBtn
-                                                    icon="pencil"
-                                                    label="Ubah"
-                                                    variant="success"
+                                                    style={iconBtn}
+                                                >
+                                                    <AIcon
+                                                        name="chevron-left"
+                                                        size={15}
+                                                        color={C.muted}
+                                                    />
+                                                </button>
+                                                <div
+                                                    style={{
+                                                        display: 'flex',
+                                                        gap: 6,
+                                                    }}
+                                                >
+                                                    <ActionBtn
+                                                        icon="eye"
+                                                        label="Detail"
+                                                        variant="primary"
+                                                        onClick={() =>
+                                                            router.visit(
+                                                                CrmController.show(
+                                                                    deal.id,
+                                                                ).url,
+                                                            )
+                                                        }
+                                                    />
+                                                    <ActionBtn
+                                                        icon="pencil"
+                                                        label="Ubah"
+                                                        variant="success"
+                                                        onClick={() =>
+                                                            openDeal(deal)
+                                                        }
+                                                    />
+                                                    <ActionBtn
+                                                        icon="trash-2"
+                                                        label="Hapus"
+                                                        variant="danger"
+                                                        onClick={() =>
+                                                            setConfirm(deal)
+                                                        }
+                                                    />
+                                                </div>
+                                                <button
+                                                    title="Tahap berikutnya"
                                                     onClick={() =>
-                                                        openDeal(deal)
+                                                        moveStage(deal, 1)
                                                     }
-                                                />
-                                                <ActionBtn
-                                                    icon="trash-2"
-                                                    label="Hapus"
-                                                    variant="danger"
-                                                    onClick={() =>
-                                                        setConfirm(deal)
-                                                    }
-                                                />
+                                                    style={iconBtn}
+                                                >
+                                                    <AIcon
+                                                        name="chevron-right"
+                                                        size={15}
+                                                        color={C.muted}
+                                                    />
+                                                </button>
                                             </div>
-                                            <button
-                                                title="Tahap berikutnya"
-                                                onClick={() =>
-                                                    moveStage(deal, 1)
-                                                }
-                                                style={iconBtn}
-                                            >
-                                                <AIcon
-                                                    name="chevron-right"
-                                                    size={15}
-                                                    color={C.muted}
-                                                />
-                                            </button>
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
-                        );
-                    })}
-                </div>
+                                    ))}
+                                </div>
+                            );
+                        })}
+                    </div>
                 )}
 
                 {/* Contacts table */}
                 {activeTab === 'kontak' && (
-                <div style={{ ...card, overflow: 'hidden' }}>
-                    <div style={{ overflowX: 'auto' }}>
-                        <table
-                            style={{
-                                width: '100%',
-                                borderCollapse: 'collapse',
-                                minWidth: 700,
-                            }}
-                        >
-                            <thead>
-                                <tr style={{ background: '#FAFBFD' }}>
-                                    <th style={thCell}>Nama</th>
-                                    <th style={thCell}>Perusahaan</th>
-                                    <th style={thCell}>Email</th>
-                                    <th style={thCell}>Telepon</th>
-                                    <th style={thCell}>Deal</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {contacts.length === 0 && (
-                                    <tr
-                                        style={{
-                                            borderTop: `1px solid ${C.line}`,
-                                        }}
-                                    >
-                                        <td
-                                            colSpan={5}
+                    <div style={{ ...card, overflow: 'hidden' }}>
+                        <div style={{ overflowX: 'auto' }}>
+                            <table
+                                style={{
+                                    width: '100%',
+                                    borderCollapse: 'collapse',
+                                    minWidth: 700,
+                                }}
+                            >
+                                <thead>
+                                    <tr style={{ background: '#FAFBFD' }}>
+                                        <th style={thCell}>Nama</th>
+                                        <th style={thCell}>Perusahaan</th>
+                                        <th style={thCell}>Email</th>
+                                        <th style={thCell}>Telepon</th>
+                                        <th style={thCell}>Deal</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {contacts.length === 0 && (
+                                        <tr
                                             style={{
-                                                padding: '48px 18px',
-                                                textAlign: 'center',
-                                                fontSize: 13.5,
-                                                color: C.muted,
+                                                borderTop: `1px solid ${C.line}`,
                                             }}
                                         >
-                                            <div
+                                            <td
+                                                colSpan={5}
                                                 style={{
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    alignItems: 'center',
-                                                    gap: 10,
+                                                    padding: '48px 18px',
+                                                    textAlign: 'center',
+                                                    fontSize: 13.5,
+                                                    color: C.muted,
                                                 }}
                                             >
-                                                <AIcon
-                                                    name="contact"
-                                                    size={28}
-                                                    color={C.faint}
-                                                />
-                                                <div>Belum ada kontak.</div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )}
-                                {contacts.map((contact) => (
-                                    <tr
-                                        key={contact.id}
-                                        style={{
-                                            borderTop: `1px solid ${C.line}`,
-                                        }}
-                                    >
-                                        <td
+                                                <div
+                                                    style={{
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        alignItems: 'center',
+                                                        gap: 10,
+                                                    }}
+                                                >
+                                                    <AIcon
+                                                        name="contact"
+                                                        size={28}
+                                                        color={C.faint}
+                                                    />
+                                                    <div>Belum ada kontak.</div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )}
+                                    {contacts.map((contact) => (
+                                        <tr
+                                            key={contact.id}
                                             style={{
-                                                padding: '13px 16px',
-                                                fontSize: 13,
-                                                fontWeight: 600,
-                                                color: C.navy,
+                                                borderTop: `1px solid ${C.line}`,
                                             }}
                                         >
-                                            {contact.name}
-                                        </td>
-                                        <td
-                                            style={{
-                                                padding: '13px 16px',
-                                                fontSize: 13,
-                                                color: C.text,
-                                            }}
-                                        >
-                                            {contact.company ?? '—'}
-                                        </td>
-                                        <td
-                                            style={{
-                                                padding: '13px 16px',
-                                                fontSize: 13,
-                                                color: C.text,
-                                            }}
-                                        >
-                                            {contact.email ?? '—'}
-                                        </td>
-                                        <td
-                                            style={{
-                                                padding: '13px 16px',
-                                                fontSize: 13,
-                                                color: C.text,
-                                            }}
-                                        >
-                                            {contact.phone ?? '—'}
-                                        </td>
-                                        <td
-                                            style={{
-                                                padding: '13px 16px',
-                                                fontSize: 13,
-                                                color: C.text,
-                                            }}
-                                        >
-                                            {contact.deals_count}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                            <td
+                                                style={{
+                                                    padding: '13px 16px',
+                                                    fontSize: 13,
+                                                    fontWeight: 600,
+                                                    color: C.navy,
+                                                }}
+                                            >
+                                                {contact.name}
+                                            </td>
+                                            <td
+                                                style={{
+                                                    padding: '13px 16px',
+                                                    fontSize: 13,
+                                                    color: C.text,
+                                                }}
+                                            >
+                                                {contact.company ?? '—'}
+                                            </td>
+                                            <td
+                                                style={{
+                                                    padding: '13px 16px',
+                                                    fontSize: 13,
+                                                    color: C.text,
+                                                }}
+                                            >
+                                                {contact.email ?? '—'}
+                                            </td>
+                                            <td
+                                                style={{
+                                                    padding: '13px 16px',
+                                                    fontSize: 13,
+                                                    color: C.text,
+                                                }}
+                                            >
+                                                {contact.phone ?? '—'}
+                                            </td>
+                                            <td
+                                                style={{
+                                                    padding: '13px 16px',
+                                                    fontSize: 13,
+                                                    color: C.text,
+                                                }}
+                                            >
+                                                {contact.deals_count}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
                 )}
             </div>
 
@@ -997,19 +1018,14 @@ export default function CrmIndex({
                     </div>
                     <div>
                         <label style={fieldLabelStyle}>Perkiraan Closing</label>
-                        <input
-                            type="date"
+                        <DatePicker
                             value={dealForm.data.expected_close}
-                            onChange={(event) =>
-                                dealForm.setData(
-                                    'expected_close',
-                                    event.target.value,
-                                )
+                            onChange={(nextValue) =>
+                                dealForm.setData('expected_close', nextValue)
                             }
-                            style={withError(
-                                inputStyle,
-                                !!dealForm.errors.expected_close,
-                            )}
+                            placeholder="Pilih tanggal"
+                            hasError={!!dealForm.errors.expected_close}
+                            width="100%"
                         />
                         <FieldError message={dealForm.errors.expected_close} />
                     </div>

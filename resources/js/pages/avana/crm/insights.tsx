@@ -1,7 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
 import { Fragment } from 'react';
-import { AIcon, btnOut, C, card, rp, thCell } from '@/lib/avana';
 import CrmController from '@/actions/App/Http/Controllers/Avana/CrmController';
+import { AIcon, btnOut, C, card, rp, thCell } from '@/lib/avana';
 import { KpiCard } from './components';
 import type { CrmInsightsProps } from './types';
 
@@ -13,7 +13,11 @@ const STAGE_BAR: Record<string, string> = {
     lost: '#DC2626',
 };
 
-export default function CrmInsights({ funnel, kpis, byOwner }: CrmInsightsProps) {
+export default function CrmInsights({
+    funnel,
+    kpis,
+    byOwner,
+}: CrmInsightsProps) {
     // The funnel is the deal progression; "lost" is a drop-out shown apart.
     const progression = funnel.filter((row) => row.stage !== 'lost');
     const lost = funnel.find((row) => row.stage === 'lost');
@@ -47,7 +51,10 @@ export default function CrmInsights({ funnel, kpis, byOwner }: CrmInsightsProps)
                         >
                             <Link
                                 href={CrmController.index().url}
-                                style={{ color: C.faint, textDecoration: 'none' }}
+                                style={{
+                                    color: C.faint,
+                                    textDecoration: 'none',
+                                }}
                             >
                                 CRM
                             </Link>
@@ -66,9 +73,14 @@ export default function CrmInsights({ funnel, kpis, byOwner }: CrmInsightsProps)
                             CRM Insights Dashboard
                         </h1>
                         <div
-                            style={{ fontSize: 14, color: C.muted, marginTop: 4 }}
+                            style={{
+                                fontSize: 14,
+                                color: C.muted,
+                                marginTop: 4,
+                            }}
                         >
-                            Funnel konversi, win rate, forecast &amp; performa tim.
+                            Funnel konversi, win rate, forecast &amp; performa
+                            tim.
                         </div>
                     </div>
                     <Link
@@ -141,7 +153,9 @@ export default function CrmInsights({ funnel, kpis, byOwner }: CrmInsightsProps)
                 </div>
 
                 {/* Funnel */}
-                <div style={{ ...card, padding: '22px 24px', marginBottom: 24 }}>
+                <div
+                    style={{ ...card, padding: '22px 24px', marginBottom: 24 }}
+                >
                     <div
                         style={{
                             display: 'flex',
@@ -175,7 +189,11 @@ export default function CrmInsights({ funnel, kpis, byOwner }: CrmInsightsProps)
                                     padding: '4px 11px',
                                 }}
                             >
-                                <AIcon name="circle-x" size={13} color={C.red} />
+                                <AIcon
+                                    name="circle-x"
+                                    size={13}
+                                    color={C.red}
+                                />
                                 Kalah: {lost.count} · {rp(lost.value)}
                             </span>
                         )}
@@ -188,17 +206,13 @@ export default function CrmInsights({ funnel, kpis, byOwner }: CrmInsightsProps)
                         }}
                     >
                         {progression.map((row, index) => {
-                            const width =
-                                42 + (row.count / maxCount) * 58;
+                            const width = 42 + (row.count / maxCount) * 58;
                             const prev = progression[index - 1];
                             const conv =
                                 prev && prev.count > 0
-                                    ? Math.round(
-                                          (row.count / prev.count) * 100,
-                                      )
+                                    ? Math.round((row.count / prev.count) * 100)
                                     : null;
-                            const color =
-                                STAGE_BAR[row.stage] ?? C.primary;
+                            const color = STAGE_BAR[row.stage] ?? C.primary;
 
                             return (
                                 <Fragment key={row.stage}>
@@ -305,16 +319,36 @@ export default function CrmInsights({ funnel, kpis, byOwner }: CrmInsightsProps)
                             <thead>
                                 <tr style={{ background: '#FAFBFD' }}>
                                     <th style={thCell}>PIC</th>
-                                    <th style={{ ...thCell, textAlign: 'right' }}>
+                                    <th
+                                        style={{
+                                            ...thCell,
+                                            textAlign: 'right',
+                                        }}
+                                    >
                                         Deal
                                     </th>
-                                    <th style={{ ...thCell, textAlign: 'right' }}>
+                                    <th
+                                        style={{
+                                            ...thCell,
+                                            textAlign: 'right',
+                                        }}
+                                    >
                                         Won
                                     </th>
-                                    <th style={{ ...thCell, textAlign: 'right' }}>
+                                    <th
+                                        style={{
+                                            ...thCell,
+                                            textAlign: 'right',
+                                        }}
+                                    >
                                         Nilai Won
                                     </th>
-                                    <th style={{ ...thCell, textAlign: 'right' }}>
+                                    <th
+                                        style={{
+                                            ...thCell,
+                                            textAlign: 'right',
+                                        }}
+                                    >
                                         Pipeline Terbuka
                                     </th>
                                 </tr>

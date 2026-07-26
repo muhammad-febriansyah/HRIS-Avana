@@ -2,6 +2,7 @@ import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import BillingController from '@/actions/App/Http/Controllers/Avana/BillingController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { AIcon, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
 import { fieldLabelStyle, inputStyle, selectStyle } from './components';
 import { BILLING_CYCLE_LABEL } from './types';
@@ -197,25 +198,25 @@ export default function SubscriptionCreate({
                         </div>
                         <div>
                             <label style={fieldLabelStyle}>Mulai</label>
-                            <input
-                                type="date"
+                            <DatePicker
                                 value={data.start_date}
-                                onChange={(e) =>
-                                    setData('start_date', e.target.value)
+                                onChange={(nextValue) =>
+                                    setData('start_date', nextValue)
                                 }
-                                style={inputStyle}
+                                placeholder="Pilih tanggal"
+                                width="100%"
                             />
                             <FieldErr msg={errors.start_date} />
                         </div>
                         <div>
                             <label style={fieldLabelStyle}>Berakhir</label>
-                            <input
-                                type="date"
+                            <DatePicker
                                 value={data.end_date}
-                                onChange={(e) =>
-                                    setData('end_date', e.target.value)
+                                onChange={(nextValue) =>
+                                    setData('end_date', nextValue)
                                 }
-                                style={inputStyle}
+                                placeholder="Pilih tanggal"
+                                width="100%"
                             />
                             <FieldErr msg={errors.end_date} />
                         </div>

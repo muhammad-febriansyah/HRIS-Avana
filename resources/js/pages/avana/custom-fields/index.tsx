@@ -2,7 +2,15 @@ import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import CustomFieldController from '@/actions/App/Http/Controllers/Avana/CustomFieldController';
-import { ActionBtn, AIcon, btnP, C, card, statusBadge, thCell } from '@/lib/avana';
+import {
+    ActionBtn,
+    AIcon,
+    btnP,
+    C,
+    card,
+    statusBadge,
+    thCell,
+} from '@/lib/avana';
 
 interface CustomFieldRow {
     id: number;
@@ -80,7 +88,9 @@ export default function CustomFields({ fields, types }: CustomFieldsProps) {
                 >
                     <span>Sistem</span>
                     <AIcon name="chevron-right" size={13} />
-                    <span style={{ color: C.muted }}>Field Kustom Karyawan</span>
+                    <span style={{ color: C.muted }}>
+                        Field Kustom Karyawan
+                    </span>
                 </div>
                 <h1
                     style={{

@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import ShiftSwapController from '@/actions/App/Http/Controllers/Avana/ShiftSwapController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import {
     ActionBtn,
@@ -443,16 +444,14 @@ export default function ShiftSwapIndex({
                             <label style={fieldLabelStyle}>
                                 Tanggal <span style={{ color: C.red }}>*</span>
                             </label>
-                            <input
-                                type="date"
+                            <DatePicker
                                 value={form.data.date}
-                                onChange={(event) =>
-                                    form.setData('date', event.target.value)
+                                onChange={(nextValue) =>
+                                    form.setData('date', nextValue)
                                 }
-                                style={withError(
-                                    inputStyle,
-                                    !!form.errors.date,
-                                )}
+                                placeholder="Pilih tanggal"
+                                hasError={!!form.errors.date}
+                                width="100%"
                             />
                             <FieldError message={form.errors.date} />
                         </div>

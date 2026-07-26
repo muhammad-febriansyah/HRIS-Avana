@@ -1,8 +1,9 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { toast } from 'sonner';
 import SalaryRapelController from '@/actions/App/Http/Controllers/Avana/SalaryRapelController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
-import { AIcon, ActionBtn, C, card } from '@/lib/avana';
+import { ActionBtn, AIcon, C, card, RupiahInput } from '@/lib/avana';
 
 interface Rapel {
     id: number;
@@ -187,23 +188,17 @@ export default function PayrollRapel({
                                 label: c.name,
                             }))}
                         />
-                        <input
-                            style={input}
-                            type="number"
-                            placeholder="Nominal lama"
+                        <RupiahInput
                             value={form.data.old_amount}
-                            onChange={(e) =>
-                                form.setData('old_amount', e.target.value)
-                            }
-                        />
-                        <input
+                            onChange={(raw) => form.setData('old_amount', raw)}
+                            placeholder="Nominal lama"
                             style={input}
-                            type="number"
-                            placeholder="Nominal baru"
+                        />
+                        <RupiahInput
                             value={form.data.new_amount}
-                            onChange={(e) =>
-                                form.setData('new_amount', e.target.value)
-                            }
+                            onChange={(raw) => form.setData('new_amount', raw)}
+                            placeholder="Nominal baru"
+                            style={input}
                         />
                     </div>
                     <div
@@ -224,16 +219,13 @@ export default function PayrollRapel({
                             >
                                 Berlaku sejak
                             </div>
-                            <input
-                                style={input}
-                                type="date"
+                            <DatePicker
                                 value={form.data.effective_from}
-                                onChange={(e) =>
-                                    form.setData(
-                                        'effective_from',
-                                        e.target.value,
-                                    )
+                                onChange={(nextValue) =>
+                                    form.setData('effective_from', nextValue)
                                 }
+                                placeholder="Pilih tanggal"
+                                width="100%"
                             />
                         </div>
                         <div>
@@ -246,13 +238,13 @@ export default function PayrollRapel({
                             >
                                 Dibayar (posting)
                             </div>
-                            <input
-                                style={input}
-                                type="date"
+                            <DatePicker
                                 value={form.data.posting_date}
-                                onChange={(e) =>
-                                    form.setData('posting_date', e.target.value)
+                                onChange={(nextValue) =>
+                                    form.setData('posting_date', nextValue)
                                 }
+                                placeholder="Pilih tanggal"
+                                width="100%"
                             />
                         </div>
                         <input

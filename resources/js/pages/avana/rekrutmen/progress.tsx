@@ -165,6 +165,7 @@ export default function CandidateProgressPage({ requests }: Props) {
                                                     const sc =
                                                         STAGE_COLOR[c.stage] ??
                                                         STAGE_COLOR.applied;
+
                                                     return (
                                                         <tr key={c.id}>
                                                             <td

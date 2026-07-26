@@ -2,7 +2,7 @@ import { router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import PayrollConfigController from '@/actions/App/Http/Controllers/Avana/PayrollConfigController';
-import { ActionBtn, C, card, rp } from '@/lib/avana';
+import { ActionBtn, C, card, rp, RupiahInput } from '@/lib/avana';
 import type { PkpRate, PtkpRate } from './types';
 
 /**
@@ -135,7 +135,10 @@ export default function Pph21Tab({
                                 placeholder="TK/0, K/2 …"
                                 value={ptkpForm.data.ptkp_status}
                                 onChange={(e) =>
-                                    ptkpForm.setData('ptkp_status', e.target.value)
+                                    ptkpForm.setData(
+                                        'ptkp_status',
+                                        e.target.value,
+                                    )
                                 }
                             />
                         </Field>
@@ -145,18 +148,20 @@ export default function Pph21Tab({
                                 style={input}
                                 value={ptkpForm.data.year}
                                 onChange={(e) =>
-                                    ptkpForm.setData('year', Number(e.target.value))
+                                    ptkpForm.setData(
+                                        'year',
+                                        Number(e.target.value),
+                                    )
                                 }
                             />
                         </Field>
                         <Field label="Nilai Setahun (Rp)">
-                            <input
-                                type="number"
-                                style={input}
+                            <RupiahInput
                                 value={ptkpForm.data.amount}
-                                onChange={(e) =>
-                                    ptkpForm.setData('amount', e.target.value)
+                                onChange={(raw) =>
+                                    ptkpForm.setData('amount', raw)
                                 }
+                                style={input}
                             />
                         </Field>
                         <Field label="Keterangan">
@@ -187,37 +192,71 @@ export default function Pph21Tab({
                         </button>
                     </div>
 
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <table
+                        style={{ width: '100%', borderCollapse: 'collapse' }}
+                    >
                         <thead>
                             <tr>
-                                <th style={{ ...th, paddingTop: 16 }}>Status</th>
+                                <th style={{ ...th, paddingTop: 16 }}>
+                                    Status
+                                </th>
                                 <th style={{ ...th, paddingTop: 16 }}>Tahun</th>
-                                <th style={{ ...th, paddingTop: 16 }}>Nilai Setahun</th>
-                                <th style={{ ...th, paddingTop: 16 }}>Keterangan</th>
+                                <th style={{ ...th, paddingTop: 16 }}>
+                                    Nilai Setahun
+                                </th>
+                                <th style={{ ...th, paddingTop: 16 }}>
+                                    Keterangan
+                                </th>
                                 <th style={{ ...th, paddingTop: 16 }} />
                             </tr>
                         </thead>
                         <tbody>
                             {ptkpRates.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} style={{ ...td, textAlign: 'center', color: C.faint }}>
+                                    <td
+                                        colSpan={5}
+                                        style={{
+                                            ...td,
+                                            textAlign: 'center',
+                                            color: C.faint,
+                                        }}
+                                    >
                                         Belum ada tarif PTKP.
                                     </td>
                                 </tr>
                             ) : (
                                 ptkpRates.map((r) => (
                                     <tr key={r.id}>
-                                        <td style={{ ...td, fontWeight: 600, color: C.navy }}>{r.ptkp_status}</td>
+                                        <td
+                                            style={{
+                                                ...td,
+                                                fontWeight: 600,
+                                                color: C.navy,
+                                            }}
+                                        >
+                                            {r.ptkp_status}
+                                        </td>
                                         <td style={td}>{r.year}</td>
                                         <td style={td}>{rp(r.amount)}</td>
-                                        <td style={{ ...td, color: C.muted }}>{r.note ?? '—'}</td>
-                                        <td style={{ ...td, textAlign: 'right' }}>
+                                        <td style={{ ...td, color: C.muted }}>
+                                            {r.note ?? '—'}
+                                        </td>
+                                        <td
+                                            style={{
+                                                ...td,
+                                                textAlign: 'right',
+                                            }}
+                                        >
                                             <ActionBtn
                                                 icon="trash-2"
                                                 label="Hapus"
                                                 variant="danger"
                                                 onClick={() =>
-                                                    del(PayrollConfigController.destroyPtkpRate(r.id).url)
+                                                    del(
+                                                        PayrollConfigController.destroyPtkpRate(
+                                                            r.id,
+                                                        ).url,
+                                                    )
                                                 }
                                             />
                                         </td>
@@ -246,19 +285,21 @@ export default function Pph21Tab({
                                 style={input}
                                 value={pkpForm.data.year}
                                 onChange={(e) =>
-                                    pkpForm.setData('year', Number(e.target.value))
+                                    pkpForm.setData(
+                                        'year',
+                                        Number(e.target.value),
+                                    )
                                 }
                             />
                         </Field>
                         <Field label="Sampai (Rp, kosong = tak hingga)">
-                            <input
-                                type="number"
-                                style={input}
-                                placeholder="60000000"
+                            <RupiahInput
                                 value={pkpForm.data.up_to}
-                                onChange={(e) =>
-                                    pkpForm.setData('up_to', e.target.value)
+                                onChange={(raw) =>
+                                    pkpForm.setData('up_to', raw)
                                 }
+                                placeholder="60000000"
+                                style={input}
                             />
                         </Field>
                         <Field label="Tarif (0.05 = 5%)">
@@ -278,7 +319,10 @@ export default function Pph21Tab({
                                 style={input}
                                 value={pkpForm.data.sort_order}
                                 onChange={(e) =>
-                                    pkpForm.setData('sort_order', Number(e.target.value))
+                                    pkpForm.setData(
+                                        'sort_order',
+                                        Number(e.target.value),
+                                    )
                                 }
                             />
                         </Field>
@@ -301,12 +345,18 @@ export default function Pph21Tab({
                         </button>
                     </div>
 
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <table
+                        style={{ width: '100%', borderCollapse: 'collapse' }}
+                    >
                         <thead>
                             <tr>
-                                <th style={{ ...th, paddingTop: 16 }}>Urutan</th>
+                                <th style={{ ...th, paddingTop: 16 }}>
+                                    Urutan
+                                </th>
                                 <th style={{ ...th, paddingTop: 16 }}>Tahun</th>
-                                <th style={{ ...th, paddingTop: 16 }}>Sampai</th>
+                                <th style={{ ...th, paddingTop: 16 }}>
+                                    Sampai
+                                </th>
                                 <th style={{ ...th, paddingTop: 16 }}>Tarif</th>
                                 <th style={{ ...th, paddingTop: 16 }} />
                             </tr>
@@ -314,7 +364,14 @@ export default function Pph21Tab({
                         <tbody>
                             {pkpRates.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} style={{ ...td, textAlign: 'center', color: C.faint }}>
+                                    <td
+                                        colSpan={5}
+                                        style={{
+                                            ...td,
+                                            textAlign: 'center',
+                                            color: C.faint,
+                                        }}
+                                    >
                                         Belum ada bracket PKP.
                                     </td>
                                 </tr>
@@ -323,17 +380,36 @@ export default function Pph21Tab({
                                     <tr key={r.id}>
                                         <td style={td}>{r.sort_order}</td>
                                         <td style={td}>{r.year}</td>
-                                        <td style={td}>{r.up_to !== null ? rp(r.up_to) : 'tak hingga'}</td>
-                                        <td style={{ ...td, fontWeight: 600, color: C.navy }}>
+                                        <td style={td}>
+                                            {r.up_to !== null
+                                                ? rp(r.up_to)
+                                                : 'tak hingga'}
+                                        </td>
+                                        <td
+                                            style={{
+                                                ...td,
+                                                fontWeight: 600,
+                                                color: C.navy,
+                                            }}
+                                        >
                                             {(r.rate * 100).toFixed(2)}%
                                         </td>
-                                        <td style={{ ...td, textAlign: 'right' }}>
+                                        <td
+                                            style={{
+                                                ...td,
+                                                textAlign: 'right',
+                                            }}
+                                        >
                                             <ActionBtn
                                                 icon="trash-2"
                                                 label="Hapus"
                                                 variant="danger"
                                                 onClick={() =>
-                                                    del(PayrollConfigController.destroyPkpRate(r.id).url)
+                                                    del(
+                                                        PayrollConfigController.destroyPkpRate(
+                                                            r.id,
+                                                        ).url,
+                                                    )
                                                 }
                                             />
                                         </td>

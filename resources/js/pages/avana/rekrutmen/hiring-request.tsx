@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import HiringRequestController from '@/actions/App/Http/Controllers/Avana/HiringRequestController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { usePermission } from '@/hooks/use-permission';
 import { AIcon, ActionBtn, btnOut, btnP, C, card } from '@/lib/avana';
 import { Empty, Kpi, KpiRow, RecruitmentHeader, td, th } from './shell';
@@ -121,6 +122,7 @@ export default function HiringRequestPage({
             },
             onError: () => toast.error('Periksa kembali isian'),
         };
+
         if (editId) {
             form.put(HiringRequestController.update(editId).url, opts);
         } else {
@@ -223,6 +225,7 @@ export default function HiringRequestPage({
                                     {requests.map((r) => {
                                         const st =
                                             STATUS[r.status] ?? STATUS.open;
+
                                         return (
                                             <tr key={r.id}>
                                                 <td
@@ -422,16 +425,13 @@ export default function HiringRequestPage({
                             </select>
                         </Field>
                         <Field label="Target Join">
-                            <input
-                                type="date"
-                                style={input}
+                            <DatePicker
                                 value={form.data.target_join_date}
-                                onChange={(e) =>
-                                    form.setData(
-                                        'target_join_date',
-                                        e.target.value,
-                                    )
+                                onChange={(nextValue) =>
+                                    form.setData('target_join_date', nextValue)
                                 }
+                                placeholder="Pilih tanggal"
+                                width="100%"
                             />
                         </Field>
                     </div>

@@ -39,7 +39,8 @@ export default function AvanaLaporan({ stats, periods }: LaporanProps) {
                         Laporan
                     </h1>
                     <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
-                        Unduh laporan data HR dalam format CSV, Excel, atau PDF — dengan filter periode.
+                        Unduh laporan data HR dalam format CSV, Excel, atau PDF
+                        — dengan filter periode.
                     </div>
                 </div>
 
@@ -54,7 +55,11 @@ export default function AvanaLaporan({ stats, periods }: LaporanProps) {
                     }}
                 >
                     {reports.map((report) => (
-                        <ReportCardItem key={report.type} report={report} periods={periods} />
+                        <ReportCardItem
+                            key={report.type}
+                            report={report}
+                            periods={periods}
+                        />
                     ))}
                 </div>
             </div>

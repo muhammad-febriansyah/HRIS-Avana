@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
 import {
@@ -213,13 +214,14 @@ export function KinerjaForm({
 
                 <div>
                     <label style={fieldLabelStyle}>Tanggal Penilaian</label>
-                    <input
-                        type="date"
+                    <DatePicker
                         value={data.review_date}
-                        onChange={(event) =>
-                            setData('review_date', event.target.value)
+                        onChange={(nextValue) =>
+                            setData('review_date', nextValue)
                         }
-                        style={withError(inputStyle, !!errors.review_date)}
+                        placeholder="Pilih tanggal"
+                        hasError={!!errors.review_date}
+                        width="100%"
                     />
                     <FieldError message={errors.review_date} />
                 </div>

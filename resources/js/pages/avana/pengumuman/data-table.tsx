@@ -1,13 +1,15 @@
 import {
-    type ColumnDef,
-    type SortingState,
-    type VisibilityState,
     flexRender,
     getCoreRowModel,
     getFilteredRowModel,
     getPaginationRowModel,
     getSortedRowModel,
     useReactTable,
+} from '@tanstack/react-table';
+import type {
+    ColumnDef,
+    SortingState,
+    VisibilityState,
 } from '@tanstack/react-table';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
@@ -67,7 +69,9 @@ export function DataTable<TData, TValue>({
 }: DataTableProps<TData, TValue>) {
     const [sorting, setSorting] = useState<SortingState>([]);
     const [globalFilter, setGlobalFilter] = useState('');
-    const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+    const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
+        {},
+    );
 
     const table = useReactTable({
         data,
@@ -86,9 +90,26 @@ export function DataTable<TData, TValue>({
 
     return (
         <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    marginBottom: 12,
+                    flexWrap: 'wrap',
+                }}
+            >
                 <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', display: 'flex' }}>
+                    <span
+                        style={{
+                            position: 'absolute',
+                            left: 11,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            pointerEvents: 'none',
+                            display: 'flex',
+                        }}
+                    >
                         <AIcon name="search" size={15} color={C.faint} />
                     </span>
                     <input
@@ -113,7 +134,11 @@ export function DataTable<TData, TValue>({
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <button type="button" style={ctrlBtn}>
-                            <AIcon name="sliders-horizontal" size={15} color={C.muted} />
+                            <AIcon
+                                name="sliders-horizontal"
+                                size={15}
+                                color={C.muted}
+                            />
                             Kolom
                         </button>
                     </DropdownMenuTrigger>
@@ -125,7 +150,9 @@ export function DataTable<TData, TValue>({
                                 <DropdownMenuCheckboxItem
                                     key={column.id}
                                     checked={column.getIsVisible()}
-                                    onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                                    onCheckedChange={(value) =>
+                                        column.toggleVisibility(!!value)
+                                    }
                                 >
                                     {columnLabel(column)}
                                 </DropdownMenuCheckboxItem>
@@ -138,12 +165,25 @@ export function DataTable<TData, TValue>({
                 <Table>
                     <TableHeader>
                         {table.getHeaderGroups().map((headerGroup) => (
-                            <TableRow key={headerGroup.id} style={{ background: C.surface }}>
+                            <TableRow
+                                key={headerGroup.id}
+                                style={{ background: C.surface }}
+                            >
                                 {headerGroup.headers.map((header) => (
-                                    <TableHead key={header.id} style={{ padding: '12px 16px', color: C.muted }}>
+                                    <TableHead
+                                        key={header.id}
+                                        style={{
+                                            padding: '12px 16px',
+                                            color: C.muted,
+                                        }}
+                                    >
                                         {header.isPlaceholder
                                             ? null
-                                            : flexRender(header.column.columnDef.header, header.getContext())}
+                                            : flexRender(
+                                                  header.column.columnDef
+                                                      .header,
+                                                  header.getContext(),
+                                              )}
                                     </TableHead>
                                 ))}
                             </TableRow>
@@ -154,8 +194,14 @@ export function DataTable<TData, TValue>({
                             table.getRowModel().rows.map((row) => (
                                 <TableRow key={row.id}>
                                     {row.getVisibleCells().map((cell) => (
-                                        <TableCell key={cell.id} style={{ padding: '12px 16px' }}>
-                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                        <TableCell
+                                            key={cell.id}
+                                            style={{ padding: '12px 16px' }}
+                                        >
+                                            {flexRender(
+                                                cell.column.columnDef.cell,
+                                                cell.getContext(),
+                                            )}
                                         </TableCell>
                                     ))}
                                 </TableRow>
@@ -164,7 +210,12 @@ export function DataTable<TData, TValue>({
                             <TableRow>
                                 <TableCell
                                     colSpan={columns.length}
-                                    style={{ padding: 40, textAlign: 'center', color: C.faint, fontSize: 13.5 }}
+                                    style={{
+                                        padding: 40,
+                                        textAlign: 'center',
+                                        color: C.faint,
+                                        fontSize: 13.5,
+                                    }}
                                 >
                                     Tidak ada data.
                                 </TableCell>
@@ -174,17 +225,33 @@ export function DataTable<TData, TValue>({
                 </Table>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, flexWrap: 'wrap', gap: 10 }}>
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginTop: 12,
+                    flexWrap: 'wrap',
+                    gap: 10,
+                }}
+            >
                 <span style={{ fontSize: 12.5, color: C.muted }}>
                     {table.getFilteredRowModel().rows.length} baris · halaman{' '}
-                    {table.getState().pagination.pageIndex + 1} dari {table.getPageCount() || 1}
+                    {table.getState().pagination.pageIndex + 1} dari{' '}
+                    {table.getPageCount() || 1}
                 </span>
                 <div style={{ display: 'flex', gap: 8 }}>
                     <button
                         type="button"
                         onClick={() => table.previousPage()}
                         disabled={!table.getCanPreviousPage()}
-                        style={{ ...ctrlBtn, opacity: table.getCanPreviousPage() ? 1 : 0.5, cursor: table.getCanPreviousPage() ? 'pointer' : 'default' }}
+                        style={{
+                            ...ctrlBtn,
+                            opacity: table.getCanPreviousPage() ? 1 : 0.5,
+                            cursor: table.getCanPreviousPage()
+                                ? 'pointer'
+                                : 'default',
+                        }}
                     >
                         <AIcon name="chevron-left" size={15} color={C.muted} />
                         Sebelumnya
@@ -193,7 +260,13 @@ export function DataTable<TData, TValue>({
                         type="button"
                         onClick={() => table.nextPage()}
                         disabled={!table.getCanNextPage()}
-                        style={{ ...ctrlBtn, opacity: table.getCanNextPage() ? 1 : 0.5, cursor: table.getCanNextPage() ? 'pointer' : 'default' }}
+                        style={{
+                            ...ctrlBtn,
+                            opacity: table.getCanNextPage() ? 1 : 0.5,
+                            cursor: table.getCanNextPage()
+                                ? 'pointer'
+                                : 'default',
+                        }}
                     >
                         Berikutnya
                         <AIcon name="chevron-right" size={15} color={C.muted} />

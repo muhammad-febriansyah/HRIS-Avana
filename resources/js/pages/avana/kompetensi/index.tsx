@@ -14,15 +14,13 @@ import {
     textareaStyle,
     withError,
 } from './components';
-import {
-    emptyCompetencyForm,
-    LEVEL_OPTIONS
-    
-    
-    
-    
+import { emptyCompetencyForm, LEVEL_OPTIONS } from './types';
+import type {
+    CompetencyFormData,
+    CompetencyRow,
+    FlashProps,
+    KompetensiIndexProps,
 } from './types';
-import type {CompetencyFormData, CompetencyRow, FlashProps, KompetensiIndexProps} from './types';
 
 /** Background tint for a level chip in the matrix (1 = faint, 5 = strong). */
 function levelTint(level: number): string {

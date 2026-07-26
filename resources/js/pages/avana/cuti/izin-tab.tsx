@@ -1,5 +1,6 @@
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
+import { DatePicker } from '@/components/avana/date-picker';
 import {
     ApprovalTable,
     dateInputStyle,
@@ -103,16 +104,14 @@ export function IzinTab({
                         required
                         error={form.errors.start_date}
                     >
-                        <input
-                            type="date"
+                        <DatePicker
                             value={form.data.start_date}
-                            onChange={(event) =>
-                                setDate('start_date', event.target.value)
+                            onChange={(nextValue) =>
+                                setDate('start_date', nextValue)
                             }
-                            style={withError(
-                                dateInputStyle,
-                                !!form.errors.start_date,
-                            )}
+                            placeholder="Pilih tanggal"
+                            hasError={!!form.errors.start_date}
+                            width="100%"
                         />
                     </Field>
                     <Field
@@ -120,17 +119,14 @@ export function IzinTab({
                         required
                         error={form.errors.end_date}
                     >
-                        <input
-                            type="date"
+                        <DatePicker
                             value={form.data.end_date}
-                            min={form.data.start_date || undefined}
-                            onChange={(event) =>
-                                setDate('end_date', event.target.value)
+                            onChange={(nextValue) =>
+                                setDate('end_date', nextValue)
                             }
-                            style={withError(
-                                dateInputStyle,
-                                !!form.errors.end_date,
-                            )}
+                            placeholder="Pilih tanggal"
+                            hasError={!!form.errors.end_date}
+                            width="100%"
                         />
                     </Field>
                 </div>

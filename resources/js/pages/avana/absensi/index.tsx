@@ -149,7 +149,9 @@ export default function AvanaAbsensi({
                             }}
                         >
                             {range.display} ·{' '}
-                            {range.is_range ? 'Rekap periode' : 'Periode harian'}
+                            {range.is_range
+                                ? 'Rekap periode'
+                                : 'Periode harian'}
                         </div>
                     </div>
                     <div
@@ -169,7 +171,10 @@ export default function AvanaAbsensi({
                         >
                             <option value="">Semua cabang</option>
                             {branches.map((branch) => (
-                                <option key={branch.id} value={String(branch.id)}>
+                                <option
+                                    key={branch.id}
+                                    value={String(branch.id)}
+                                >
                                     {branch.name}
                                 </option>
                             ))}

@@ -1,7 +1,8 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
-import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import { DatePicker } from '@/components/avana/date-picker';
+import { AIcon, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
 import {
     FieldError,
     fieldLabelStyle,
@@ -110,26 +111,28 @@ export function PembelajaranForm({
                 >
                     <div>
                         <label style={fieldLabelStyle}>Tanggal Mulai</label>
-                        <input
-                            type="date"
+                        <DatePicker
                             value={data.start_date}
-                            onChange={(event) =>
-                                setData('start_date', event.target.value)
+                            onChange={(nextValue) =>
+                                setData('start_date', nextValue)
                             }
-                            style={withError(inputStyle, !!errors.start_date)}
+                            placeholder="Pilih tanggal"
+                            hasError={!!errors.start_date}
+                            width="100%"
                         />
                         <FieldError message={errors.start_date} />
                     </div>
 
                     <div>
                         <label style={fieldLabelStyle}>Tanggal Selesai</label>
-                        <input
-                            type="date"
+                        <DatePicker
                             value={data.end_date}
-                            onChange={(event) =>
-                                setData('end_date', event.target.value)
+                            onChange={(nextValue) =>
+                                setData('end_date', nextValue)
                             }
-                            style={withError(inputStyle, !!errors.end_date)}
+                            placeholder="Pilih tanggal"
+                            hasError={!!errors.end_date}
+                            width="100%"
                         />
                         <FieldError message={errors.end_date} />
                     </div>
@@ -146,15 +149,10 @@ export function PembelajaranForm({
                         <label style={fieldLabelStyle}>
                             Biaya (Rp) <span style={{ color: C.red }}>*</span>
                         </label>
-                        <input
-                            type="number"
-                            min={0}
+                        <RupiahInput
                             value={data.cost}
-                            onChange={(event) =>
-                                setData('cost', event.target.value)
-                            }
-                            placeholder="0"
-                            style={withError(inputStyle, !!errors.cost)}
+                            onChange={(raw) => setData('cost', raw)}
+                            invalid={!!errors.cost}
                         />
                         <FieldError message={errors.cost} />
                     </div>

@@ -181,7 +181,10 @@ export default function NilaiUpah({ grades, steps }: Props) {
                                     placeholder="Masa kerja (thn)"
                                     value={form.data.masa_kerja}
                                     onChange={(e) =>
-                                        form.setData('masa_kerja', e.target.value)
+                                        form.setData(
+                                            'masa_kerja',
+                                            e.target.value,
+                                        )
                                     }
                                 />
                                 <RupiahInput
@@ -220,7 +223,9 @@ export default function NilaiUpah({ grades, steps }: Props) {
                             {grades.map((g) => {
                                 const rows = steps
                                     .filter((s) => s.salary_grade_id === g.id)
-                                    .sort((a, b) => a.masa_kerja - b.masa_kerja);
+                                    .sort(
+                                        (a, b) => a.masa_kerja - b.masa_kerja,
+                                    );
 
                                 return (
                                     <div
@@ -303,7 +308,8 @@ export default function NilaiUpah({ grades, steps }: Props) {
                                                     rows.map((s) => (
                                                         <tr key={s.id}>
                                                             <td style={td}>
-                                                                {s.masa_kerja} thn
+                                                                {s.masa_kerja}{' '}
+                                                                thn
                                                             </td>
                                                             <td
                                                                 style={{
@@ -336,7 +342,9 @@ export default function NilaiUpah({ grades, steps }: Props) {
                                                                     label="Hapus"
                                                                     variant="danger"
                                                                     onClick={() =>
-                                                                        del(s.id)
+                                                                        del(
+                                                                            s.id,
+                                                                        )
                                                                     }
                                                                 />
                                                             </td>

@@ -2,7 +2,8 @@ import { Head, Link, router } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { AIcon, btnOut, C, card } from '@/lib/avana';
-import { type Category, CategoryChip, KpiCard, ScoreBar } from './components';
+import { CategoryChip, KpiCard, ScoreBar } from './components';
+import type { Category } from './components';
 
 interface Row {
     id: number;
@@ -21,7 +22,13 @@ interface Row {
 
 interface AttritionProps {
     rows: Row[];
-    kpis: { total: number; high: number; medium: number; low: number; avg: number };
+    kpis: {
+        total: number;
+        high: number;
+        medium: number;
+        low: number;
+        avg: number;
+    };
     filters: { search: string | null; category: Category | null };
 }
 
@@ -43,9 +50,19 @@ const CATEGORIES = [
     { value: 'low', label: 'Rendah' },
 ];
 
-const HEADERS = ['Karyawan', 'Departemen', 'Skor Risiko', 'Kategori', 'Faktor Utama'];
+const HEADERS = [
+    'Karyawan',
+    'Departemen',
+    'Skor Risiko',
+    'Kategori',
+    'Faktor Utama',
+];
 
-export default function AttritionIndex({ rows, kpis, filters }: AttritionProps) {
+export default function AttritionIndex({
+    rows,
+    kpis,
+    filters,
+}: AttritionProps) {
     const [search, setSearch] = useState(filters.search ?? '');
     const isFirst = useRef(true);
 
@@ -103,7 +120,9 @@ export default function AttritionIndex({ rows, kpis, filters }: AttritionProps) 
                         >
                             <span>Beranda</span>
                             <AIcon name="chevron-right" size={13} />
-                            <span style={{ color: C.muted }}>Prediksi Resign</span>
+                            <span style={{ color: C.muted }}>
+                                Prediksi Resign
+                            </span>
                         </div>
                         <h1
                             style={{
@@ -116,12 +135,21 @@ export default function AttritionIndex({ rows, kpis, filters }: AttritionProps) 
                         >
                             Prediksi Risiko Resign
                         </h1>
-                        <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
-                            Skor risiko keluar tiap karyawan dari 9 faktor · model
-                            scoring
+                        <div
+                            style={{
+                                fontSize: 14,
+                                color: C.muted,
+                                marginTop: 4,
+                            }}
+                        >
+                            Skor risiko keluar tiap karyawan dari 9 faktor ·
+                            model scoring
                         </div>
                     </div>
-                    <Link href="/avana/attrition/settings" style={{ ...btnOut, textDecoration: 'none' }}>
+                    <Link
+                        href="/avana/attrition/settings"
+                        style={{ ...btnOut, textDecoration: 'none' }}
+                    >
                         <AIcon name="settings" size={16} />
                         Pengaturan
                     </Link>
@@ -136,11 +164,36 @@ export default function AttritionIndex({ rows, kpis, filters }: AttritionProps) 
                         marginBottom: 18,
                     }}
                 >
-                    <KpiCard label="Total Karyawan" value={kpis.total} icon="users" color={C.primary} />
-                    <KpiCard label="Risiko Tinggi" value={kpis.high} icon="trending-up" color={C.red} />
-                    <KpiCard label="Risiko Sedang" value={kpis.medium} icon="minus" color={C.amber} />
-                    <KpiCard label="Risiko Rendah" value={kpis.low} icon="trending-down" color={C.green} />
-                    <KpiCard label="Skor Rata-rata" value={kpis.avg} icon="activity" color={C.navy} />
+                    <KpiCard
+                        label="Total Karyawan"
+                        value={kpis.total}
+                        icon="users"
+                        color={C.primary}
+                    />
+                    <KpiCard
+                        label="Risiko Tinggi"
+                        value={kpis.high}
+                        icon="trending-up"
+                        color={C.red}
+                    />
+                    <KpiCard
+                        label="Risiko Sedang"
+                        value={kpis.medium}
+                        icon="minus"
+                        color={C.amber}
+                    />
+                    <KpiCard
+                        label="Risiko Rendah"
+                        value={kpis.low}
+                        icon="trending-down"
+                        color={C.green}
+                    />
+                    <KpiCard
+                        label="Skor Rata-rata"
+                        value={kpis.avg}
+                        icon="activity"
+                        color={C.navy}
+                    />
                 </div>
 
                 <div
@@ -170,7 +223,9 @@ export default function AttritionIndex({ rows, kpis, filters }: AttritionProps) 
                                         fontSize: 13,
                                         fontWeight: 600,
                                         color: active ? '#fff' : C.muted,
-                                        background: active ? C.primary : C.surface,
+                                        background: active
+                                            ? C.primary
+                                            : C.surface,
                                     }}
                                 >
                                     {c.label}
@@ -189,12 +244,24 @@ export default function AttritionIndex({ rows, kpis, filters }: AttritionProps) 
 
                 <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
                     {rows.length === 0 ? (
-                        <div style={{ padding: 40, textAlign: 'center', color: C.faint, fontSize: 13 }}>
+                        <div
+                            style={{
+                                padding: 40,
+                                textAlign: 'center',
+                                color: C.faint,
+                                fontSize: 13,
+                            }}
+                        >
                             Tidak ada data yang cocok.
                         </div>
                     ) : (
                         <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <table
+                                style={{
+                                    width: '100%',
+                                    borderCollapse: 'collapse',
+                                }}
+                            >
                                 <thead>
                                     <tr style={{ background: C.surface }}>
                                         {HEADERS.map((h) => (
@@ -220,11 +287,26 @@ export default function AttritionIndex({ rows, kpis, filters }: AttritionProps) 
                                     {rows.map((r) => (
                                         <tr
                                             key={r.id}
-                                            onClick={() => router.visit(`/avana/attrition/${r.id}`)}
-                                            style={{ borderTop: `1px solid ${C.line}`, cursor: 'pointer' }}
+                                            onClick={() =>
+                                                router.visit(
+                                                    `/avana/attrition/${r.id}`,
+                                                )
+                                            }
+                                            style={{
+                                                borderTop: `1px solid ${C.line}`,
+                                                cursor: 'pointer',
+                                            }}
                                         >
-                                            <td style={{ padding: '12px 16px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+                                            <td
+                                                style={{ padding: '12px 16px' }}
+                                            >
+                                                <div
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: 11,
+                                                    }}
+                                                >
                                                     <div
                                                         style={{
                                                             width: 36,
@@ -232,9 +314,12 @@ export default function AttritionIndex({ rows, kpis, filters }: AttritionProps) 
                                                             borderRadius: 9,
                                                             flex: 'none',
                                                             display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center',
-                                                            background: r.avatar_color,
+                                                            alignItems:
+                                                                'center',
+                                                            justifyContent:
+                                                                'center',
+                                                            background:
+                                                                r.avatar_color,
                                                             color: '#fff',
                                                             fontSize: 12.5,
                                                             fontWeight: 700,
@@ -243,23 +328,54 @@ export default function AttritionIndex({ rows, kpis, filters }: AttritionProps) 
                                                         {r.initials}
                                                     </div>
                                                     <div>
-                                                        <div style={{ fontSize: 13.5, fontWeight: 600, color: C.navy }}>
+                                                        <div
+                                                            style={{
+                                                                fontSize: 13.5,
+                                                                fontWeight: 600,
+                                                                color: C.navy,
+                                                            }}
+                                                        >
                                                             {r.name}
                                                         </div>
-                                                        <div style={{ fontSize: 12, color: C.faint }}>
-                                                            {r.employee_number} · {r.position ?? '—'}
+                                                        <div
+                                                            style={{
+                                                                fontSize: 12,
+                                                                color: C.faint,
+                                                            }}
+                                                        >
+                                                            {r.employee_number}{' '}
+                                                            ·{' '}
+                                                            {r.position ?? '—'}
                                                         </div>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td style={{ padding: '12px 16px', fontSize: 13, color: C.muted }}>
+                                            <td
+                                                style={{
+                                                    padding: '12px 16px',
+                                                    fontSize: 13,
+                                                    color: C.muted,
+                                                }}
+                                            >
                                                 {r.department ?? '—'}
                                             </td>
-                                            <td style={{ padding: '12px 16px', minWidth: 180 }}>
-                                                <ScoreBar score={r.score} category={r.category} />
+                                            <td
+                                                style={{
+                                                    padding: '12px 16px',
+                                                    minWidth: 180,
+                                                }}
+                                            >
+                                                <ScoreBar
+                                                    score={r.score}
+                                                    category={r.category}
+                                                />
                                             </td>
-                                            <td style={{ padding: '12px 16px' }}>
-                                                <CategoryChip category={r.category} />
+                                            <td
+                                                style={{ padding: '12px 16px' }}
+                                            >
+                                                <CategoryChip
+                                                    category={r.category}
+                                                />
                                             </td>
                                             <td
                                                 style={{
@@ -272,7 +388,13 @@ export default function AttritionIndex({ rows, kpis, filters }: AttritionProps) 
                                                 {r.top_factors.length > 0 ? (
                                                     r.top_factors.join(' · ')
                                                 ) : (
-                                                    <span style={{ color: C.faint }}>—</span>
+                                                    <span
+                                                        style={{
+                                                            color: C.faint,
+                                                        }}
+                                                    >
+                                                        —
+                                                    </span>
                                                 )}
                                             </td>
                                         </tr>

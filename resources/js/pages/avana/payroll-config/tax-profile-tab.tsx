@@ -2,7 +2,16 @@ import { useForm } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { AIcon, ActionBtn, btnOut, btnP, C, card, rp } from '@/lib/avana';
+import {
+    ActionBtn,
+    AIcon,
+    btnOut,
+    btnP,
+    C,
+    card,
+    rp,
+    RupiahInput,
+} from '@/lib/avana';
 import type { Option, TaxProfileRow } from './types';
 
 const th: CSSProperties = {
@@ -65,6 +74,7 @@ export default function TaxProfileTab({
         taxSubjects.forEach((s) => {
             map[s.value] = s.label;
         });
+
         return map;
     }, [taxSubjects]);
 
@@ -105,9 +115,11 @@ export default function TaxProfileTab({
 
     const rows = taxProfiles.filter((r) => {
         const q = search.trim().toLowerCase();
+
         if (!q) {
             return true;
         }
+
         return (
             r.name.toLowerCase().includes(q) ||
             (r.employee_number ?? '').toLowerCase().includes(q)
@@ -363,18 +375,12 @@ export default function TaxProfileTab({
                         {isDaily && (
                             <div style={{ marginBottom: 14 }}>
                                 <label style={label}>Upah Harian (Rp)</label>
-                                <input
-                                    type="number"
-                                    min={0}
-                                    style={input}
+                                <RupiahInput
                                     value={form.data.daily_wage}
-                                    onChange={(e) =>
-                                        form.setData(
-                                            'daily_wage',
-                                            e.target.value,
-                                        )
+                                    onChange={(raw) =>
+                                        form.setData('daily_wage', raw)
                                     }
-                                    placeholder="0"
+                                    style={input}
                                 />
                                 <div
                                     style={{

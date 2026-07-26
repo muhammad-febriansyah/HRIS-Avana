@@ -353,7 +353,6 @@ function AddCandidateModal({
     onClose,
     onSubmit,
 }: {
-     
     form: any;
     jobs: JobOption[];
     onClose: () => void;

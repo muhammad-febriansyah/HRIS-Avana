@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
+import { DatePicker } from '@/components/avana/date-picker';
 import { AIcon, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
 import {
     FieldError,
@@ -115,16 +116,14 @@ export function AsetForm({
 
                     <div>
                         <label style={fieldLabelStyle}>Tanggal Pembelian</label>
-                        <input
-                            type="date"
+                        <DatePicker
                             value={data.purchase_date}
-                            onChange={(event) =>
-                                setData('purchase_date', event.target.value)
+                            onChange={(nextValue) =>
+                                setData('purchase_date', nextValue)
                             }
-                            style={withError(
-                                inputStyle,
-                                !!errors.purchase_date,
-                            )}
+                            placeholder="Pilih tanggal"
+                            hasError={!!errors.purchase_date}
+                            width="100%"
                         />
                         <FieldError message={errors.purchase_date} />
                     </div>

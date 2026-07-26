@@ -198,196 +198,218 @@ export function PermissionMatrix({
 
                             return (
                                 <Fragment key={module.key}>
-                                {showGroup && (
-                                    <tr>
-                                        <td
-                                            colSpan={2 + roles.length}
-                                            style={{
-                                                padding: '12px 18px 6px',
-                                                fontSize: 11,
-                                                fontWeight: 700,
-                                                letterSpacing: '.04em',
-                                                color: C.faint,
-                                                textTransform: 'uppercase',
-                                                background: '#FAFBFD',
-                                                borderTop: `1px solid ${C.line}`,
-                                            }}
-                                        >
-                                            {module.group}
-                                        </td>
-                                    </tr>
-                                )}
-                                <tr
-                                    style={{ borderTop: `1px solid ${C.line}` }}
-                                >
-                                    <td
+                                    {showGroup && (
+                                        <tr>
+                                            <td
+                                                colSpan={2 + roles.length}
+                                                style={{
+                                                    padding: '12px 18px 6px',
+                                                    fontSize: 11,
+                                                    fontWeight: 700,
+                                                    letterSpacing: '.04em',
+                                                    color: C.faint,
+                                                    textTransform: 'uppercase',
+                                                    background: '#FAFBFD',
+                                                    borderTop: `1px solid ${C.line}`,
+                                                }}
+                                            >
+                                                {module.group}
+                                            </td>
+                                        </tr>
+                                    )}
+                                    <tr
                                         style={{
-                                            padding: '13px 18px',
-                                            fontSize: 13.5,
-                                            fontWeight: 500,
-                                            color: dimmed ? C.faint : C.text,
-                                            whiteSpace: 'nowrap',
+                                            borderTop: `1px solid ${C.line}`,
                                         }}
                                     >
-                                        <span
+                                        <td
                                             style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: 8,
+                                                padding: '13px 18px',
+                                                fontSize: 13.5,
+                                                fontWeight: 500,
+                                                color: dimmed
+                                                    ? C.faint
+                                                    : C.text,
+                                                whiteSpace: 'nowrap',
                                             }}
                                         >
-                                            {module.label}
-                                            {canManageFeatures &&
-                                                module.featureId !== null && (
-                                                    <span
-                                                        style={{
-                                                            display:
-                                                                'inline-flex',
-                                                            gap: 4,
-                                                        }}
-                                                    >
-                                                        <button
-                                                            title="Ubah fitur"
-                                                            onClick={() =>
-                                                                onEditFeature(
-                                                                    module,
-                                                                )
-                                                            }
-                                                            style={featIconBtn}
-                                                        >
-                                                            <AIcon
-                                                                name="pencil"
-                                                                size={12}
-                                                            />
-                                                        </button>
-                                                        <button
-                                                            title="Hapus fitur"
-                                                            onClick={() =>
-                                                                onDeleteFeature(
-                                                                    module,
-                                                                )
-                                                            }
+                                            <span
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: 8,
+                                                }}
+                                            >
+                                                {module.label}
+                                                {canManageFeatures &&
+                                                    module.featureId !==
+                                                        null && (
+                                                        <span
                                                             style={{
-                                                                ...featIconBtn,
-                                                                color: '#DC2626',
+                                                                display:
+                                                                    'inline-flex',
+                                                                gap: 4,
                                                             }}
                                                         >
-                                                            <AIcon
-                                                                name="trash-2"
-                                                                size={12}
-                                                            />
-                                                        </button>
-                                                    </span>
-                                                )}
-                                        </span>
-                                    </td>
-                                    <td
-                                        style={{
-                                            padding: '10px 12px',
-                                            textAlign: 'center',
-                                            verticalAlign: 'middle',
-                                        }}
-                                    >
-                                        {module.hasFeature && hasTenant ? (
-                                            <div
-                                                style={{
-                                                    display: 'flex',
-                                                    justifyContent: 'center',
-                                                }}
-                                            >
-                                                <MasterSwitch
-                                                    on={module.featureEnabled}
-                                                    title={
-                                                        module.featureEnabled
-                                                            ? `Nonaktifkan menu ${module.label} (sembunyikan dari sidebar)`
-                                                            : `Aktifkan menu ${module.label}`
-                                                    }
-                                                    onToggle={() =>
-                                                        onToggleFeature(
-                                                            rowIdx,
-                                                            !module.featureEnabled,
-                                                        )
-                                                    }
-                                                />
-                                            </div>
-                                        ) : (
-                                            <div
-                                                style={{
-                                                    color: C.faint,
-                                                    fontSize: 12,
-                                                }}
-                                            >
-                                                selalu aktif
-                                            </div>
-                                        )}
-                                    </td>
-                                    {roles.map((role, colIdx) => (
+                                                            <button
+                                                                title="Ubah fitur"
+                                                                onClick={() =>
+                                                                    onEditFeature(
+                                                                        module,
+                                                                    )
+                                                                }
+                                                                style={
+                                                                    featIconBtn
+                                                                }
+                                                            >
+                                                                <AIcon
+                                                                    name="pencil"
+                                                                    size={12}
+                                                                />
+                                                            </button>
+                                                            <button
+                                                                title="Hapus fitur"
+                                                                onClick={() =>
+                                                                    onDeleteFeature(
+                                                                        module,
+                                                                    )
+                                                                }
+                                                                style={{
+                                                                    ...featIconBtn,
+                                                                    color: '#DC2626',
+                                                                }}
+                                                            >
+                                                                <AIcon
+                                                                    name="trash-2"
+                                                                    size={12}
+                                                                />
+                                                            </button>
+                                                        </span>
+                                                    )}
+                                            </span>
+                                        </td>
                                         <td
-                                            key={role.id}
                                             style={{
                                                 padding: '10px 12px',
+                                                textAlign: 'center',
                                                 verticalAlign: 'middle',
-                                                opacity: dimmed ? 0.4 : 1,
                                             }}
                                         >
-                                            {module.actionable ? (
+                                            {module.hasFeature && hasTenant ? (
                                                 <div
                                                     style={{
-                                                        display: 'grid',
-                                                        gridTemplateColumns:
-                                                            'repeat(2, auto)',
-                                                        gap: '6px 14px',
-                                                        justifyContent: 'center',
+                                                        display: 'flex',
+                                                        justifyContent:
+                                                            'center',
                                                     }}
                                                 >
-                                                    {actions.map((action) => (
-                                                        <ActionCheckbox
-                                                            key={action.key}
-                                                            label={action.label}
-                                                            on={
-                                                                !!matrix[rowIdx][
-                                                                    colIdx
-                                                                ][action.key]
-                                                            }
-                                                            disabled={
-                                                                role.locked
-                                                            }
-                                                            title={
-                                                                role.locked
-                                                                    ? `${role.name}: peran ini tidak dapat diubah`
-                                                                    : `${action.label} · ${module.label}`
-                                                            }
-                                                            onToggle={() =>
-                                                                onToggle(
-                                                                    rowIdx,
-                                                                    colIdx,
-                                                                    action.key,
-                                                                )
-                                                            }
-                                                        />
-                                                    ))}
+                                                    <MasterSwitch
+                                                        on={
+                                                            module.featureEnabled
+                                                        }
+                                                        title={
+                                                            module.featureEnabled
+                                                                ? `Nonaktifkan menu ${module.label} (sembunyikan dari sidebar)`
+                                                                : `Aktifkan menu ${module.label}`
+                                                        }
+                                                        onToggle={() =>
+                                                            onToggleFeature(
+                                                                rowIdx,
+                                                                !module.featureEnabled,
+                                                            )
+                                                        }
+                                                    />
                                                 </div>
                                             ) : (
                                                 <div
                                                     style={{
-                                                        textAlign: 'center',
                                                         color: C.faint,
                                                         fontSize: 12,
                                                     }}
-                                                    title={
-                                                        module.hasFeature
-                                                            ? 'Izin per-peran diatur di modul terkait'
-                                                            : undefined
-                                                    }
                                                 >
-                                                    {module.hasFeature
-                                                        ? '—'
-                                                        : 'selalu aktif'}
+                                                    selalu aktif
                                                 </div>
                                             )}
                                         </td>
-                                    ))}
-                                </tr>
+                                        {roles.map((role, colIdx) => (
+                                            <td
+                                                key={role.id}
+                                                style={{
+                                                    padding: '10px 12px',
+                                                    verticalAlign: 'middle',
+                                                    opacity: dimmed ? 0.4 : 1,
+                                                }}
+                                            >
+                                                {module.actionable ? (
+                                                    <div
+                                                        style={{
+                                                            display: 'grid',
+                                                            gridTemplateColumns:
+                                                                'repeat(2, auto)',
+                                                            gap: '6px 14px',
+                                                            justifyContent:
+                                                                'center',
+                                                        }}
+                                                    >
+                                                        {actions.map(
+                                                            (action) => (
+                                                                <ActionCheckbox
+                                                                    key={
+                                                                        action.key
+                                                                    }
+                                                                    label={
+                                                                        action.label
+                                                                    }
+                                                                    on={
+                                                                        !!matrix[
+                                                                            rowIdx
+                                                                        ][
+                                                                            colIdx
+                                                                        ][
+                                                                            action
+                                                                                .key
+                                                                        ]
+                                                                    }
+                                                                    disabled={
+                                                                        role.locked
+                                                                    }
+                                                                    title={
+                                                                        role.locked
+                                                                            ? `${role.name}: peran ini tidak dapat diubah`
+                                                                            : `${action.label} · ${module.label}`
+                                                                    }
+                                                                    onToggle={() =>
+                                                                        onToggle(
+                                                                            rowIdx,
+                                                                            colIdx,
+                                                                            action.key,
+                                                                        )
+                                                                    }
+                                                                />
+                                                            ),
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <div
+                                                        style={{
+                                                            textAlign: 'center',
+                                                            color: C.faint,
+                                                            fontSize: 12,
+                                                        }}
+                                                        title={
+                                                            module.hasFeature
+                                                                ? 'Izin per-peran diatur di modul terkait'
+                                                                : undefined
+                                                        }
+                                                    >
+                                                        {module.hasFeature
+                                                            ? '—'
+                                                            : 'selalu aktif'}
+                                                    </div>
+                                                )}
+                                            </td>
+                                        ))}
+                                    </tr>
                                 </Fragment>
                             );
                         })}

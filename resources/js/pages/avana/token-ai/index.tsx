@@ -155,9 +155,11 @@ export default function TokenAi({
         if (flash?.success) {
             toast.success(flash.success, { id: flash.success });
         }
+
         if (flash?.error) {
             toast.error(flash.error, { id: flash.error });
         }
+
         if (flash?.info) {
             toast(flash.info, { id: flash.info });
         }
@@ -255,7 +257,8 @@ export default function TokenAi({
                         </span>
                     </div>
                     <div style={{ fontSize: 14, color: C.muted, marginTop: 5 }}>
-                        Isi saldo token untuk AI Assistant dan atur jatah tiap role.
+                        Isi saldo token untuk AI Assistant dan atur jatah tiap
+                        role.
                     </div>
                 </div>
 
@@ -263,7 +266,8 @@ export default function TokenAi({
                 <div
                     style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                        gridTemplateColumns:
+                            'repeat(auto-fit, minmax(240px, 1fr))',
                         gap: 16,
                         marginBottom: 30,
                     }}
@@ -313,7 +317,11 @@ export default function TokenAi({
                             </span>
                         </div>
                         <div
-                            style={{ fontSize: 12.5, color: C.faint, marginTop: 4 }}
+                            style={{
+                                fontSize: 12.5,
+                                color: C.faint,
+                                marginTop: 4,
+                            }}
                         >
                             Permanen · tidak hangus
                         </div>
@@ -362,7 +370,11 @@ export default function TokenAi({
                             )}
                         </div>
                         <div
-                            style={{ fontSize: 12.5, color: C.faint, marginTop: 8 }}
+                            style={{
+                                fontSize: 12.5,
+                                color: C.faint,
+                                marginTop: 8,
+                            }}
                         >
                             Reset tiap awal bulan
                         </div>
@@ -403,7 +415,11 @@ export default function TokenAi({
                             </span>
                         </div>
                         <div
-                            style={{ fontSize: 12.5, color: C.faint, marginTop: 4 }}
+                            style={{
+                                fontSize: 12.5,
+                                color: C.faint,
+                                marginTop: 4,
+                            }}
                         >
                             Kuota bulanan + wallet
                         </div>
@@ -422,7 +438,8 @@ export default function TokenAi({
                         Beli Token
                     </div>
                     <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>
-                        Pembayaran diproses aman lewat payment gateway (QRIS / VA).
+                        Pembayaran diproses aman lewat payment gateway (QRIS /
+                        VA).
                     </div>
                 </div>
                 {packs.length === 0 ? (
@@ -614,10 +631,10 @@ export default function TokenAi({
                                 marginTop: 3,
                             }}
                         >
-                            Batas token per pengguna tiap bulan, diatur per role.
-                            Kosong = ikut default; default kosong = tanpa batas.
-                            Bila pengguna punya banyak role, batas terlonggar yang
-                            berlaku.
+                            Batas token per pengguna tiap bulan, diatur per
+                            role. Kosong = ikut default; default kosong = tanpa
+                            batas. Bila pengguna punya banyak role, batas
+                            terlonggar yang berlaku.
                         </div>
                     </div>
 
@@ -702,7 +719,8 @@ export default function TokenAi({
                                                     <div
                                                         style={{
                                                             display: 'flex',
-                                                            alignItems: 'center',
+                                                            alignItems:
+                                                                'center',
                                                             gap: 9,
                                                         }}
                                                     >
@@ -711,7 +729,8 @@ export default function TokenAi({
                                                                 width: 9,
                                                                 height: 9,
                                                                 borderRadius: 999,
-                                                                background: color,
+                                                                background:
+                                                                    color,
                                                                 flex: 'none',
                                                             }}
                                                         />
@@ -731,7 +750,8 @@ export default function TokenAi({
                                                             fontSize: 12,
                                                             fontWeight: 600,
                                                             color: C.muted,
-                                                            background: C.surface,
+                                                            background:
+                                                                C.surface,
                                                             padding: '3px 10px',
                                                             borderRadius: 999,
                                                         }}
@@ -753,7 +773,9 @@ export default function TokenAi({
                                                             value={
                                                                 caps[r.id] ?? ''
                                                             }
-                                                            onChange={(digits) =>
+                                                            onChange={(
+                                                                digits,
+                                                            ) =>
                                                                 setCaps(
                                                                     (prev) => ({
                                                                         ...prev,
@@ -818,7 +840,11 @@ export default function TokenAi({
                                 gap: 10,
                             }}
                         >
-                            <AIcon name="receipt-text" size={26} color={C.faint} />
+                            <AIcon
+                                name="receipt-text"
+                                size={26}
+                                color={C.faint}
+                            />
                             Belum ada pembelian.
                         </div>
                     ) : (
@@ -847,12 +873,9 @@ export default function TokenAi({
                                 </thead>
                                 <tbody>
                                     {orders.map((order) => {
-                                        const [label, color, bg] =
-                                            ORDER_STATUS[order.status] ?? [
-                                                order.status,
-                                                C.muted,
-                                                C.line,
-                                            ];
+                                        const [label, color, bg] = ORDER_STATUS[
+                                            order.status
+                                        ] ?? [order.status, C.muted, C.line];
 
                                         return (
                                             <tr

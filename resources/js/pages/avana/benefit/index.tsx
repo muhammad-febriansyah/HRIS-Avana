@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import BenefitController from '@/actions/App/Http/Controllers/Avana/BenefitController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import {
     AIcon,
@@ -670,19 +671,19 @@ export default function BenefitIndex({
                             >
                                 <div>
                                     <label style={fieldLabelStyle}>Mulai</label>
-                                    <input
-                                        type="date"
+                                    <DatePicker
                                         value={assignForm.data.start_date}
-                                        onChange={(event) =>
+                                        onChange={(nextValue) =>
                                             assignForm.setData(
                                                 'start_date',
-                                                event.target.value,
+                                                nextValue,
                                             )
                                         }
-                                        style={withError(
-                                            inputStyle,
-                                            !!assignForm.errors.start_date,
-                                        )}
+                                        placeholder="Pilih tanggal"
+                                        hasError={
+                                            !!assignForm.errors.start_date
+                                        }
+                                        width="100%"
                                     />
                                     <FieldError
                                         message={assignForm.errors.start_date}
@@ -692,19 +693,17 @@ export default function BenefitIndex({
                                     <label style={fieldLabelStyle}>
                                         Selesai
                                     </label>
-                                    <input
-                                        type="date"
+                                    <DatePicker
                                         value={assignForm.data.end_date}
-                                        onChange={(event) =>
+                                        onChange={(nextValue) =>
                                             assignForm.setData(
                                                 'end_date',
-                                                event.target.value,
+                                                nextValue,
                                             )
                                         }
-                                        style={withError(
-                                            inputStyle,
-                                            !!assignForm.errors.end_date,
-                                        )}
+                                        placeholder="Pilih tanggal"
+                                        hasError={!!assignForm.errors.end_date}
+                                        width="100%"
                                     />
                                     <FieldError
                                         message={assignForm.errors.end_date}

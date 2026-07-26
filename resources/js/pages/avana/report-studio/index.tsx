@@ -1,12 +1,12 @@
 import {
     DndContext,
-    type DragEndEvent,
     PointerSensor,
     useDraggable,
     useDroppable,
     useSensor,
     useSensors,
 } from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
 import { Head, router } from '@inertiajs/react';
 import type { ApexOptions } from 'apexcharts';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -109,9 +109,11 @@ function formatCell(value: number | null, format: string): string {
     if (value === null || value === undefined) {
         return '–';
     }
+
     if (format === 'currency') {
         return 'Rp ' + Math.round(value).toLocaleString('id-ID');
     }
+
     if (format === 'integer') {
         return Math.round(value).toLocaleString('id-ID');
     }
@@ -199,6 +201,7 @@ export default function ReportStudio({
                 if (kind !== 'measure') {
                     return;
                 }
+
                 setValues((prev) =>
                     prev.some((v) => v.field === key)
                         ? prev
@@ -214,11 +217,14 @@ export default function ReportStudio({
             if (kind !== 'dim') {
                 return;
             }
+
             const setter = zone === 'rows' ? setRows : setColumns;
             const other = zone === 'rows' ? columns : rows;
+
             if (other.includes(key)) {
                 return;
             }
+
             setter((prev) => (prev.includes(key) ? prev : [...prev, key]));
         },
         [columns, rows, measureById],
@@ -227,11 +233,12 @@ export default function ReportStudio({
     const onDragEnd = (event: DragEndEvent) => {
         const zone = event.over?.data.current?.zone as ZoneId | undefined;
         const active = event.active.data.current as
-            | { kind: 'dim' | 'measure'; key: string }
-            | undefined;
+            { kind: 'dim' | 'measure'; key: string } | undefined;
+
         if (!zone || !active) {
             return;
         }
+
         addField(zone, active.kind, active.key);
     };
 
@@ -263,9 +270,11 @@ export default function ReportStudio({
 
     const saveReport = () => {
         const name = reportName.trim();
+
         if (!name || configEmpty || saving) {
             return;
         }
+
         setSaving(true);
         router.post(
             '/avana/report-studio/reports',
@@ -295,9 +304,11 @@ export default function ReportStudio({
     // via a partial reload of the dimensions/measures props.
     const createField = () => {
         const label = fieldLabel.trim();
+
         if (!label || savingField) {
             return;
         }
+
         setSavingField(true);
         router.post(
             '/avana/custom-fields',
@@ -391,11 +402,7 @@ export default function ReportStudio({
                                 cursor: configEmpty ? 'not-allowed' : 'pointer',
                             }}
                         >
-                            <AIcon
-                                name="bookmark"
-                                size={15}
-                                color={C.text}
-                            />
+                            <AIcon name="bookmark" size={15} color={C.text} />
                             Simpan
                         </button>
                         <button
@@ -601,28 +608,32 @@ export default function ReportStudio({
                         {/* palette */}
                         <div>
                             {canManageFields ? (
-                            <button
-                                onClick={() => setFieldOpen(true)}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: 6,
-                                    width: '100%',
-                                    padding: '9px 12px',
-                                    marginBottom: 16,
-                                    border: `1px dashed ${C.primary}`,
-                                    borderRadius: 9,
-                                    background: 'rgba(47,84,201,.04)',
-                                    color: C.primary,
-                                    fontSize: 12.5,
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                }}
-                            >
-                                <AIcon name="plus" size={14} color={C.primary} />
-                                Tambah Field
-                            </button>
+                                <button
+                                    onClick={() => setFieldOpen(true)}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: 6,
+                                        width: '100%',
+                                        padding: '9px 12px',
+                                        marginBottom: 16,
+                                        border: `1px dashed ${C.primary}`,
+                                        borderRadius: 9,
+                                        background: 'rgba(47,84,201,.04)',
+                                        color: C.primary,
+                                        fontSize: 12.5,
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                    }}
+                                >
+                                    <AIcon
+                                        name="plus"
+                                        size={14}
+                                        color={C.primary}
+                                    />
+                                    Tambah Field
+                                </button>
                             ) : null}
                             {Object.entries(dimensionGroups).map(
                                 ([group, items]) => (
@@ -729,8 +740,8 @@ export default function ReportStudio({
                                             }
                                             value={value}
                                             aggs={
-                                                measureById[value.field]?.aggs ??
-                                                []
+                                                measureById[value.field]
+                                                    ?.aggs ?? []
                                             }
                                             onAgg={(agg) =>
                                                 changeAgg(value.field, agg)
@@ -770,7 +781,9 @@ export default function ReportStudio({
                                                 : '#16a34a',
                                         }}
                                     />
-                                    {loading ? 'Menghitung…' : 'Preview langsung'}
+                                    {loading
+                                        ? 'Menghitung…'
+                                        : 'Preview langsung'}
                                 </div>
                                 <div style={toggleWrap}>
                                     <button
@@ -950,8 +963,8 @@ export default function ReportStudio({
                                 marginBottom: 16,
                             }}
                         >
-                            Buat field data karyawan baru. Field langsung tersedia
-                            di palette laporan.
+                            Buat field data karyawan baru. Field langsung
+                            tersedia di palette laporan.
                         </div>
                         <label style={fieldFormLabel}>Nama Field</label>
                         <input
@@ -969,15 +982,14 @@ export default function ReportStudio({
                             onChange={(e) =>
                                 setFieldType(
                                     e.target.value as
-                                        | 'text'
-                                        | 'number'
-                                        | 'date'
-                                        | 'select',
+                                        'text' | 'number' | 'date' | 'select',
                                 )
                             }
                             style={fieldFormInput}
                         >
-                            <option value="number">Angka (bisa dihitung)</option>
+                            <option value="number">
+                                Angka (bisa dihitung)
+                            </option>
                             <option value="text">Teks</option>
                             <option value="date">Tanggal</option>
                             <option value="select">Pilihan</option>
@@ -1015,7 +1027,9 @@ export default function ReportStudio({
                             </button>
                             <button
                                 onClick={createField}
-                                disabled={fieldLabel.trim() === '' || savingField}
+                                disabled={
+                                    fieldLabel.trim() === '' || savingField
+                                }
                                 style={{
                                     ...btnPrimary,
                                     opacity:
@@ -1042,6 +1056,7 @@ function badgeFor(measure: Measure): string {
     if (measure.key === 'masa_kerja') {
         return 'tahun';
     }
+
     if (measure.format === 'currency') {
         return 'Rp';
     }
@@ -1079,6 +1094,7 @@ function summariseConfig(
     const valueLabel = (value: ValueField) => {
         const measure = measures.find((m) => m.key === value.field);
         const name = measure?.label ?? value.field;
+
         if (value.field === 'count' || value.field === 'resign') {
             return name;
         }
@@ -1249,9 +1265,7 @@ function DropZone({
                 {title}
             </div>
             {hasChildren ? (
-                <div
-                    style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}
-                >
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {children}
                 </div>
             ) : (
@@ -1399,7 +1413,13 @@ function PreviewTable({ result }: { result: PivotResult }) {
     const rowHeader = (result.meta.row_fields ?? []).join(' / ') || 'Baris';
 
     return (
-        <div style={{ overflowX: 'auto', border: `1px solid ${C.border}`, borderRadius: 12 }}>
+        <div
+            style={{
+                overflowX: 'auto',
+                border: `1px solid ${C.border}`,
+                borderRadius: 12,
+            }}
+        >
             <table
                 style={{
                     width: '100%',
@@ -1452,6 +1472,7 @@ function PreviewTable({ result }: { result: PivotResult }) {
 /** Compact axis label (e.g. "Rp 8,5jt", "1,2rb", "12"). */
 function formatAxis(value: number, format: string): string {
     const abs = Math.abs(value);
+
     if (format === 'currency') {
         if (abs >= 1_000_000) {
             return (
@@ -1462,6 +1483,7 @@ function formatAxis(value: number, format: string): string {
                 'jt'
             );
         }
+
         if (abs >= 1000) {
             return (
                 'Rp ' +
@@ -1485,8 +1507,9 @@ function formatAxis(value: number, format: string): string {
  * Loaded via a client-only dynamic import so it never runs during Inertia SSR.
  */
 function PreviewChart({ result }: { result: PivotResult }) {
-    const [ApexChart, setApexChart] =
-        useState<React.ComponentType<Record<string, unknown>> | null>(null);
+    const [ApexChart, setApexChart] = useState<React.ComponentType<
+        Record<string, unknown>
+    > | null>(null);
 
     useEffect(() => {
         let active = true;

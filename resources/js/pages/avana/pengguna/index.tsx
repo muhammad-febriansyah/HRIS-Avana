@@ -389,7 +389,8 @@ export default function PenggunaIndex({
                                                                 user.avatar_color,
                                                             color: '#fff',
                                                             display: 'flex',
-                                                            alignItems: 'center',
+                                                            alignItems:
+                                                                'center',
                                                             justifyContent:
                                                                 'center',
                                                             fontSize: 12.5,

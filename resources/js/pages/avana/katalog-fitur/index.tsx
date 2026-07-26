@@ -60,11 +60,13 @@ export default function KatalogFitur({
 
     const grouped = useMemo(() => {
         const map = new Map<string, Feature[]>();
+
         for (const feature of features) {
             const list = map.get(feature.module_group) ?? [];
             list.push(feature);
             map.set(feature.module_group, list);
         }
+
         return [...map.entries()];
     }, [features]);
 
@@ -125,6 +127,7 @@ export default function KatalogFitur({
         ) {
             return;
         }
+
         router.delete(FeatureCatalogController.destroy(feature.id).url, {
             preserveScroll: true,
         });
@@ -171,7 +174,9 @@ export default function KatalogFitur({
                         >
                             <span>Platform</span>
                             <AIcon name="chevron-right" size={13} />
-                            <span style={{ color: C.muted }}>Katalog Fitur</span>
+                            <span style={{ color: C.muted }}>
+                                Katalog Fitur
+                            </span>
                         </div>
                         <h1
                             style={{
@@ -193,8 +198,8 @@ export default function KatalogFitur({
                             }}
                         >
                             Daftar modul produk. Fitur baru otomatis muncul di
-                            Hak Akses (master switch + izin per-peran) &amp; bisa
-                            diaktifkan per tenant — tanpa ubah kode.
+                            Hak Akses (master switch + izin per-peran) &amp;
+                            bisa diaktifkan per tenant — tanpa ubah kode.
                         </div>
                     </div>
                     <button onClick={openCreate} style={btnP}>
@@ -282,8 +287,8 @@ export default function KatalogFitur({
                                                 marginTop: 7,
                                             }}
                                         >
-                                            {feature.permission_modules.length ===
-                                            0 ? (
+                                            {feature.permission_modules
+                                                .length === 0 ? (
                                                 <span
                                                     style={{
                                                         fontSize: 11.5,
@@ -333,7 +338,9 @@ export default function KatalogFitur({
                                                     ? 'Aktif — nonaktifkan untuk sembunyikan dari katalog'
                                                     : 'Nonaktif'
                                             }
-                                            onClick={() => toggleActive(feature)}
+                                            onClick={() =>
+                                                toggleActive(feature)
+                                            }
                                             style={{
                                                 width: 44,
                                                 height: 25,

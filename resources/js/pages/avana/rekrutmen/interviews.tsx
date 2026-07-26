@@ -107,6 +107,7 @@ export default function RecruitmentInterviews({
                                         const st =
                                             STATUS_STYLE[iv.status] ??
                                             STATUS_STYLE.scheduled;
+
                                         return (
                                             <tr key={iv.id}>
                                                 <td style={td}>

@@ -136,6 +136,7 @@ export default function PayrollKomponen({
 
     const rows = useMemo(() => {
         const q = search.trim().toLowerCase();
+
         return components
             .filter((c) => cat === 'semua' || c.category === cat)
             .filter(
@@ -210,6 +211,7 @@ export default function PayrollKomponen({
             onSuccess: () => setModal(false),
             onError: () => toast.error('Periksa kembali isian'),
         };
+
         if (form.data.id) {
             router.put(
                 `/avana/payroll/komponen/component/${form.data.id}`,
@@ -407,6 +409,7 @@ export default function PayrollKomponen({
                             key={key}
                             onClick={() => {
                                 setTab(key);
+
                                 if (key === 'pajak') {
                                     setCat('pajak');
                                 } else if (key === 'komponen') {
@@ -718,6 +721,7 @@ export default function PayrollKomponen({
                                                       CALC_LABEL.jumlah_tetap;
                                                   const active =
                                                       c.status === 'active';
+
                                                   return (
                                                       <tr
                                                           key={c.id}
@@ -1201,6 +1205,7 @@ function Kpi({
 
 function CatBadge({ category }: { category: Category }) {
     const s = CAT_STYLE[category];
+
     return (
         <span
             style={{
@@ -1438,6 +1443,7 @@ function ComponentDetail({
         ['Tampil di slip', component.show_on_slip ? 'Ya' : 'Tidak'],
         ['Status', component.status === 'active' ? 'Aktif' : 'Nonaktif'],
     ];
+
     return (
         <div style={{ marginTop: 10 }}>
             <div

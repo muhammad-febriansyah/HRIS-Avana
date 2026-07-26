@@ -1,7 +1,7 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { toast } from 'sonner';
 import PayrollUmrController from '@/actions/App/Http/Controllers/Avana/PayrollUmrController';
-import { AIcon, ActionBtn, C, card } from '@/lib/avana';
+import { ActionBtn, AIcon, C, card, RupiahInput } from '@/lib/avana';
 
 interface Rate {
     id: number;
@@ -162,16 +162,15 @@ export default function PayrollUmr({ rates, branchOptions }: Props) {
                             type="number"
                             placeholder="Tahun"
                             value={form.data.year}
-                            onChange={(e) => form.setData('year', e.target.value)}
-                        />
-                        <input
-                            style={input}
-                            type="number"
-                            placeholder="Nilai UMR"
-                            value={form.data.amount}
                             onChange={(e) =>
-                                form.setData('amount', e.target.value)
+                                form.setData('year', e.target.value)
                             }
+                        />
+                        <RupiahInput
+                            value={form.data.amount}
+                            onChange={(raw) => form.setData('amount', raw)}
+                            placeholder="Nilai UMR"
+                            style={input}
                         />
                         <button
                             style={primaryBtn}
@@ -186,7 +185,10 @@ export default function PayrollUmr({ rates, branchOptions }: Props) {
                 <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
                     <div style={{ overflowX: 'auto' }}>
                         <table
-                            style={{ width: '100%', borderCollapse: 'collapse' }}
+                            style={{
+                                width: '100%',
+                                borderCollapse: 'collapse',
+                            }}
                         >
                             <thead>
                                 <tr>

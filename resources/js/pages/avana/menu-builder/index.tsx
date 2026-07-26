@@ -575,9 +575,9 @@ export default function MenuBuilder({
                                 label="Modul akses (pisah koma)"
                                 error={
                                     form.errors.modules ??
-                                    (
-                                        form.errors as Record<string, string>
-                                    )['modules.0']
+                                    (form.errors as Record<string, string>)[
+                                        'modules.0'
+                                    ]
                                 }
                             >
                                 <input

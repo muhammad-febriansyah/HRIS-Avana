@@ -1,8 +1,9 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { toast } from 'sonner';
 import PayrollCorrectionController from '@/actions/App/Http/Controllers/Avana/PayrollCorrectionController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
-import { AIcon, ActionBtn, C, card } from '@/lib/avana';
+import { ActionBtn, AIcon, C, card, RupiahInput } from '@/lib/avana';
 
 interface Correction {
     id: number;
@@ -165,13 +166,13 @@ export default function PayrollKoreksi({
                                 label: (e.nik ? e.nik + ' · ' : '') + e.name,
                             }))}
                         />
-                        <input
-                            style={input}
-                            type="date"
+                        <DatePicker
                             value={form.data.correction_date}
-                            onChange={(e) =>
-                                form.setData('correction_date', e.target.value)
+                            onChange={(nextValue) =>
+                                form.setData('correction_date', nextValue)
                             }
+                            placeholder="Pilih tanggal"
+                            width="100%"
                         />
                         <select
                             style={input}
@@ -183,14 +184,11 @@ export default function PayrollKoreksi({
                             <option value="earning">Pendapatan (+)</option>
                             <option value="deduction">Potongan (−)</option>
                         </select>
-                        <input
-                            style={input}
-                            type="number"
-                            placeholder="Nilai"
+                        <RupiahInput
                             value={form.data.amount}
-                            onChange={(e) =>
-                                form.setData('amount', e.target.value)
-                            }
+                            onChange={(raw) => form.setData('amount', raw)}
+                            placeholder="Nilai"
+                            style={input}
                         />
                     </div>
                     <div
