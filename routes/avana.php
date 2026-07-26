@@ -33,9 +33,12 @@ use App\Http\Controllers\Avana\DynamicReportController;
 use App\Http\Controllers\Avana\EmailSettingController;
 use App\Http\Controllers\Avana\EmployeeController;
 use App\Http\Controllers\Avana\EssAttendanceController;
+use App\Http\Controllers\Avana\EssBenefitController;
+use App\Http\Controllers\Avana\EssCalendarController;
 use App\Http\Controllers\Avana\EssContractController;
 use App\Http\Controllers\Avana\EssDirectoryController;
 use App\Http\Controllers\Avana\EssDocumentController;
+use App\Http\Controllers\Avana\EssLearningController;
 use App\Http\Controllers\Avana\EssLeaveController;
 use App\Http\Controllers\Avana\EssOnboardingController;
 use App\Http\Controllers\Avana\EssOvertimeController;
@@ -44,6 +47,8 @@ use App\Http\Controllers\Avana\EssPerformanceController;
 use App\Http\Controllers\Avana\EssPermissionController;
 use App\Http\Controllers\Avana\EssProfileController;
 use App\Http\Controllers\Avana\EssScheduleController;
+use App\Http\Controllers\Avana\EssTaskController;
+use App\Http\Controllers\Avana\EssTravelController;
 use App\Http\Controllers\Avana\FeatureCatalogController;
 use App\Http\Controllers\Avana\FeatureController;
 use App\Http\Controllers\Avana\FieldVisitController;
@@ -752,6 +757,12 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
         Route::post('izin', [EssPermissionController::class, 'store'])->name('izin.store');
 
         Route::get('kontrak', [EssContractController::class, 'index'])->name('kontrak');
+
+        Route::get('kalender', [EssCalendarController::class, 'index'])->name('kalender');
+        Route::get('tugas', [EssTaskController::class, 'index'])->name('tugas');
+        Route::get('pembelajaran', [EssLearningController::class, 'index'])->name('pembelajaran');
+        Route::get('benefit', [EssBenefitController::class, 'index'])->name('benefit');
+        Route::get('perjalanan-dinas', [EssTravelController::class, 'index'])->name('perjalanan-dinas');
 
         Route::get('kinerja', [EssPerformanceController::class, 'index'])->name('kinerja');
         Route::post('kinerja/{review}/nilai-mandiri', [EssPerformanceController::class, 'submitSelfScore'])->name('kinerja.self-score');

@@ -87,9 +87,7 @@ export default function SayaSlipGaji({ payslips }: { payslips: Payslip[] }) {
                                                     }}
                                                 >
                                                     Terbit{' '}
-                                                    {formatDate(
-                                                        slip.issued_at,
-                                                    )}
+                                                    {formatDate(slip.issued_at)}
                                                 </div>
                                             </td>
                                             <td style={cell}>
@@ -98,9 +96,7 @@ export default function SayaSlipGaji({ payslips }: { payslips: Payslip[] }) {
                                             <td style={cell}>
                                                 {rp(slip.deductions)}
                                             </td>
-                                            <td style={cell}>
-                                                {rp(slip.tax)}
-                                            </td>
+                                            <td style={cell}>{rp(slip.tax)}</td>
                                             <td
                                                 style={{
                                                     ...cell,

@@ -169,9 +169,7 @@ export default function SayaProfil({ profile }: { profile: Profile }) {
                                 >
                                     {profile.full_name}
                                 </div>
-                                <div
-                                    style={{ fontSize: 12.5, color: C.muted }}
-                                >
+                                <div style={{ fontSize: 12.5, color: C.muted }}>
                                     {profile.employment.position ?? '—'}
                                 </div>
                             </div>
@@ -266,10 +264,7 @@ export default function SayaProfil({ profile }: { profile: Profile }) {
                                     gap: 16,
                                 }}
                             >
-                                <Field
-                                    label="Email"
-                                    error={form.errors.email}
-                                >
+                                <Field label="Email" error={form.errors.email}>
                                     <input
                                         type="email"
                                         value={form.data.email}

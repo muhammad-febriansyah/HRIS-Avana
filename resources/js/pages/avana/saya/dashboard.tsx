@@ -60,7 +60,9 @@ export default function SayaDashboard({
             <Head title="Beranda" />
             <div style={{ padding: '28px 32px' }}>
                 {/* Greeting + quick actions */}
-                <div style={{ ...card, padding: '24px 26px', marginBottom: 18 }}>
+                <div
+                    style={{ ...card, padding: '24px 26px', marginBottom: 18 }}
+                >
                     <div
                         style={{
                             display: 'flex',
@@ -310,7 +312,8 @@ export default function SayaDashboard({
                                                 }}
                                             >
                                                 {person.leave_type ?? 'Cuti'} ·
-                                                s/d {formatDate(person.end_date)}
+                                                s/d{' '}
+                                                {formatDate(person.end_date)}
                                             </div>
                                         </div>
                                     </div>

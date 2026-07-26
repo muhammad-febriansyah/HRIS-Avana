@@ -73,9 +73,7 @@ export default function SayaKontrak({ contracts, active }: Props) {
                             }}
                         >
                             <div>
-                                <div
-                                    style={{ fontSize: 12.5, color: C.muted }}
-                                >
+                                <div style={{ fontSize: 12.5, color: C.muted }}>
                                     Kontrak Berjalan
                                 </div>
                                 <div

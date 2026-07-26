@@ -191,11 +191,7 @@ export default function SayaLembur({
                                         opacity: form.processing ? 0.7 : 1,
                                     }}
                                 >
-                                    <AIcon
-                                        name="send"
-                                        size={16}
-                                        color="#fff"
-                                    />
+                                    <AIcon name="send" size={16} color="#fff" />
                                     Kirim Pengajuan
                                 </button>
                             </div>

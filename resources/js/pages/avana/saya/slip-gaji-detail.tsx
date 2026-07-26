@@ -21,11 +21,7 @@ interface Payslip {
     deduction_lines: Line[];
 }
 
-export default function SayaSlipGajiDetail({
-    payslip,
-}: {
-    payslip: Payslip;
-}) {
+export default function SayaSlipGajiDetail({ payslip }: { payslip: Payslip }) {
     const earnings = payslip.earning_lines ?? [];
     const deductionLines = payslip.deduction_lines ?? [];
 
@@ -207,7 +203,8 @@ function LineList({
                             justifyContent: 'space-between',
                             gap: 12,
                             padding: '12px 18px',
-                            borderTop: index === 0 ? 'none' : `1px solid ${C.line}`,
+                            borderTop:
+                                index === 0 ? 'none' : `1px solid ${C.line}`,
                             fontSize: 13,
                         }}
                     >

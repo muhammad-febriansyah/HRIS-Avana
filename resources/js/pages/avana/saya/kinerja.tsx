@@ -331,7 +331,8 @@ export default function SayaKinerja({ reviews, summary }: Props) {
                                                         style={{
                                                             border: `1px solid ${C.border}`,
                                                             borderRadius: 9,
-                                                            padding: '11px 13px',
+                                                            padding:
+                                                                '11px 13px',
                                                         }}
                                                     >
                                                         <div
@@ -412,9 +413,7 @@ export default function SayaKinerja({ reviews, summary }: Props) {
                                                     min="0"
                                                     max="100"
                                                     step="0.01"
-                                                    value={
-                                                        form.data.self_score
-                                                    }
+                                                    value={form.data.self_score}
                                                     onChange={(event) =>
                                                         form.setData(
                                                             'self_score',
@@ -477,10 +476,9 @@ export default function SayaKinerja({ reviews, summary }: Props) {
                                                     style={{
                                                         ...btnP,
                                                         height: 42,
-                                                        opacity:
-                                                            form.processing
-                                                                ? 0.7
-                                                                : 1,
+                                                        opacity: form.processing
+                                                            ? 0.7
+                                                            : 1,
                                                     }}
                                                 >
                                                     <AIcon
@@ -521,13 +519,7 @@ export default function SayaKinerja({ reviews, summary }: Props) {
     );
 }
 
-function ScoreCell({
-    label,
-    value,
-}: {
-    label: string;
-    value: number | null;
-}) {
+function ScoreCell({ label, value }: { label: string; value: number | null }) {
     return (
         <div>
             <div style={{ fontSize: 11.5, color: C.faint }}>{label}</div>

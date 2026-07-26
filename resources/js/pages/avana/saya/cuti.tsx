@@ -314,11 +314,7 @@ export default function SayaCuti({
                                         opacity: form.processing ? 0.7 : 1,
                                     }}
                                 >
-                                    <AIcon
-                                        name="send"
-                                        size={16}
-                                        color="#fff"
-                                    />
+                                    <AIcon name="send" size={16} color="#fff" />
                                     Kirim Pengajuan
                                 </button>
                             </div>
@@ -364,11 +360,8 @@ export default function SayaCuti({
                                                     {row.leave_type ?? '—'}
                                                 </td>
                                                 <td style={cell}>
-                                                    {formatDate(
-                                                        row.start_date,
-                                                    )}{' '}
-                                                    –{' '}
-                                                    {formatDate(row.end_date)}
+                                                    {formatDate(row.start_date)}{' '}
+                                                    – {formatDate(row.end_date)}
                                                 </td>
                                                 <td style={cell}>
                                                     {row.total_days.toLocaleString(

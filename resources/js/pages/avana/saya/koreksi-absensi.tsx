@@ -115,9 +115,7 @@ export default function SayaKoreksiAbsensi({
                                     >
                                         <input
                                             type="time"
-                                            value={
-                                                form.data.requested_clock_in
-                                            }
+                                            value={form.data.requested_clock_in}
                                             onChange={(event) =>
                                                 form.setData(
                                                     'requested_clock_in',
@@ -187,11 +185,7 @@ export default function SayaKoreksiAbsensi({
                                         opacity: form.processing ? 0.7 : 1,
                                     }}
                                 >
-                                    <AIcon
-                                        name="send"
-                                        size={16}
-                                        color="#fff"
-                                    />
+                                    <AIcon name="send" size={16} color="#fff" />
                                     Kirim Pengajuan
                                 </button>
                             </div>

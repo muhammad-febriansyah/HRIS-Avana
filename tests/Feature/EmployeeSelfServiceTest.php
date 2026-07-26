@@ -59,7 +59,25 @@ it('renders every self-service page for an employee', function (string $path, st
     'slip gaji' => ['/avana/saya/slip-gaji', 'avana/saya/slip-gaji'],
     'dokumen' => ['/avana/saya/dokumen', 'avana/saya/dokumen'],
     'onboarding' => ['/avana/saya/onboarding', 'avana/saya/onboarding'],
+    'kalender' => ['/avana/saya/kalender', 'avana/saya/kalender'],
+    'tugas' => ['/avana/saya/tugas', 'avana/saya/tugas'],
+    'pembelajaran' => ['/avana/saya/pembelajaran', 'avana/saya/pembelajaran'],
+    'benefit' => ['/avana/saya/benefit', 'avana/saya/benefit'],
+    'perjalanan dinas' => ['/avana/saya/perjalanan-dinas', 'avana/saya/perjalanan-dinas'],
 ]);
+
+it('covers every self-service menu with a reachable page', function (): void {
+    $employeeMenu = collect(AvanaNav::forUser($this->user->fresh()))
+        ->firstWhere('title', 'LAYANAN SAYA');
+
+    expect($employeeMenu)->not->toBeNull();
+
+    foreach ($employeeMenu['items'] as $item) {
+        $this->actingAs($this->user)
+            ->get($item['href'])
+            ->assertOk();
+    }
+});
 
 it('gives an employee their own dashboard instead of the HR one', function (): void {
     $this->actingAs($this->user)

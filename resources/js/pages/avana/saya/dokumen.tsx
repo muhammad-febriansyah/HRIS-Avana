@@ -183,9 +183,7 @@ export default function SayaDokumen({
                                         size={16}
                                         color="#fff"
                                     />
-                                    {form.processing
-                                        ? 'Mengunggah…'
-                                        : 'Unggah'}
+                                    {form.processing ? 'Mengunggah…' : 'Unggah'}
                                 </button>
                             </div>
                         </Panel>

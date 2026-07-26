@@ -178,7 +178,9 @@ export default function SayaAbsensi({ month, records, summary }: Props) {
                                                     ? `${(row.work_minutes / 60).toFixed(1).replace('.', ',')} jam`
                                                     : '—'}
                                             </td>
-                                            <td style={{ padding: '13px 16px' }}>
+                                            <td
+                                                style={{ padding: '13px 16px' }}
+                                            >
                                                 <Pill
                                                     label={row.status_label}
                                                     color={

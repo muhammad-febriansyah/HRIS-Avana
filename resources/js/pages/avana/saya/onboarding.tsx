@@ -69,7 +69,13 @@ export default function SayaOnboarding({
                     </Panel>
                 ) : (
                     <>
-                        <div style={{ ...card, padding: '22px 24px', marginBottom: 16 }}>
+                        <div
+                            style={{
+                                ...card,
+                                padding: '22px 24px',
+                                marginBottom: 16,
+                            }}
+                        >
                             <div
                                 style={{
                                     display: 'flex',
