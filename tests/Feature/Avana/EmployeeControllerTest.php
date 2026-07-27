@@ -599,3 +599,66 @@ it('rejects account actions on an employee from another tenant', function (): vo
         ->post(route('avana.employees.reset-device', $employee))
         ->assertStatus(404);
 });
+
+it('turns the "Tidak ada — Approver Puncak" choice into a director', function (): void {
+    // This is what the form actually posts; the earlier test sets the flag by
+    // hand and so never exercised the sentinel the UI sends.
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), [
+            'full_name' => 'Hendra Direksi',
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'manager_id' => 'none',
+        ])
+        ->assertRedirect(route('avana.employees.index'));
+
+    $employee = Employee::where('full_name', 'Hendra Direksi')->firstOrFail();
+
+    expect($employee->is_top_approver)->toBeTrue()
+        ->and($employee->manager_id)->toBeNull();
+});
+
+it('clears the director flag once somebody is given a manager', function (): void {
+    $director = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $director->update(['manager_id' => null, 'is_top_approver' => true]);
+
+    $manager = Employee::forTenant($this->tenant->id)->whereKeyNot($director->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $director), [
+            'full_name' => $director->full_name,
+            'employment_status' => $director->employment_status,
+            'status' => 'active',
+            'manager_id' => (string) $manager->id,
+        ])
+        ->assertRedirect();
+
+    expect($director->fresh()->is_top_approver)->toBeFalse()
+        ->and($director->fresh()->manager_id)->toBe($manager->id);
+});
+
+it('does not flag a director as missing a manager on the chart', function (): void {
+    // The chart tags a manager-less employee, but a director is meant to be
+    // one — the flag is what tells the two apart.
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), [
+            'full_name' => 'Direktur Chart',
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'manager_id' => 'none',
+        ])
+        ->assertRedirect();
+
+    actingAs($this->admin)
+        ->get(route('avana.organisasi'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('nodes', function ($nodes): bool {
+                $row = collect($nodes)->firstWhere('name', 'Direktur Chart');
+
+                return $row !== null
+                    && $row['is_top_approver'] === true
+                    && $row['manager_id'] === null;
+            })
+            ->etc());
+});
