@@ -118,39 +118,49 @@ final class SocialWall
      */
     public function leaderboard(int $tenantId, ?Carbon $since = null, int $limit = 20): Collection
     {
-        $posts = SocialPost::query()
+        // Grouped and ranked in SQL, not in PHP. Pulling every post into memory
+        // to sum it here is fine on a demo wall and ruinous on a real one — the
+        // cost would grow with the tenant's entire post history on every open.
+        $rows = SocialPost::query()
             ->forTenant($tenantId)
             ->published()
             ->when($since !== null, fn ($query) => $query->where('created_at', '>=', $since))
-            ->with('employee:id,full_name,photo_path')
-            ->get(['id', 'employee_id', 'likes_count', 'comments_count']);
+            ->groupBy('employee_id')
+            ->orderByDesc('points')
+            ->limit($limit)
+            ->get([
+                'employee_id',
+                DB::raw('count(*) as posts'),
+                DB::raw('coalesce(sum(likes_count), 0) as likes'),
+                DB::raw('coalesce(sum(comments_count), 0) as comments'),
+                DB::raw(sprintf(
+                    'count(*) * %d + coalesce(sum(likes_count), 0) * %d + coalesce(sum(comments_count), 0) * %d as points',
+                    self::POINTS_PER_POST,
+                    self::POINTS_PER_LIKE_RECEIVED,
+                    self::POINTS_PER_COMMENT_RECEIVED,
+                )),
+            ]);
 
-        return $posts->groupBy('employee_id')
-            ->map(function (Collection $rows): array {
-                $likes = (int) $rows->sum('likes_count');
-                $comments = (int) $rows->sum('comments_count');
-                $employee = $rows->first()->employee;
+        // One extra query for the names, over the winners only.
+        $employees = Employee::query()
+            ->whereIn('id', $rows->pluck('employee_id'))
+            ->get(['id', 'full_name', 'photo_path'])
+            ->keyBy('id');
 
-                return [
-                    'employee_id' => (int) $rows->first()->employee_id,
-                    'name' => $employee?->full_name ?? 'Karyawan',
-                    'photo' => $employee?->photo_path,
-                    'posts' => $rows->count(),
-                    'likes' => $likes,
-                    'comments' => $comments,
-                    'points' => $rows->count() * self::POINTS_PER_POST
-                        + $likes * self::POINTS_PER_LIKE_RECEIVED
-                        + $comments * self::POINTS_PER_COMMENT_RECEIVED,
-                ];
-            })
-            ->sortByDesc('points')
-            ->values()
-            ->take($limit)
-            ->map(function (array $row, int $index): array {
-                $row['rank'] = $index + 1;
+        return $rows->values()->map(function ($row, int $index) use ($employees): array {
+            $employee = $employees->get($row->employee_id);
 
-                return $row;
-            });
+            return [
+                'rank' => $index + 1,
+                'employee_id' => (int) $row->employee_id,
+                'name' => $employee?->full_name ?? 'Karyawan',
+                'photo' => $employee?->photo_path,
+                'posts' => (int) $row->posts,
+                'likes' => (int) $row->likes,
+                'comments' => (int) $row->comments,
+                'points' => (int) $row->points,
+            ];
+        });
     }
 
     /**

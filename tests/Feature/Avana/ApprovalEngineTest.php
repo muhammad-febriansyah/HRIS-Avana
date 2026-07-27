@@ -535,3 +535,114 @@ it('tells the approver the request only advanced when more steps remain', functi
     actingAs($this->admin)->post(route('avana.cuti.approve', $leave))
         ->assertSessionHas('success', 'Cuti disetujui');
 });
+
+it('advances the workflow when approving from the approval center', function (): void {
+    twoStepLeaveWorkflow($this->tenant->id, $this->approver->id);
+
+    $balance = LeaveBalance::query()
+        ->where('employee_id', $this->subject->id)
+        ->where('leave_type_id', $this->leaveType->id)
+        ->where('year', 2026)
+        ->firstOrFail();
+    $usedBefore = (float) $balance->used;
+
+    actingAs($this->admin)->post(route('avana.cuti.store'), [
+        'employee_id' => $this->subject->id,
+        'leave_type_id' => $this->leaveType->id,
+        'start_date' => '2026-09-10',
+        'end_date' => '2026-09-12',
+    ]);
+
+    $leave = LeaveRequest::where('employee_id', $this->subject->id)->latest('id')->firstOrFail();
+
+    // The unified inbox used to write `approved` straight onto the model, which
+    // skipped step 2 entirely and left the instance stranded on step 1.
+    actingAs($this->admin)
+        ->post(route('avana.approval.approve', ['type' => 'leave', 'id' => $leave->id]))
+        ->assertSessionHas('success', 'Persetujuan tercatat, menunggu tahap berikutnya');
+
+    $leave->refresh();
+    expect($leave->status)->toBe('pending');
+    expect((int) $leave->current_approver_id)->toBe($this->approver->id);
+
+    $instance = ApprovalRequest::where('approvable_id', $leave->id)
+        ->where('approvable_type', LeaveRequest::class)->firstOrFail();
+    expect((int) $instance->current_step)->toBe(2);
+    expect(ApprovalLog::where('approval_request_id', $instance->id)->count())->toBe(1);
+
+    $balance->refresh();
+    expect((float) $balance->used)->toBe($usedBefore);
+
+    // Second approval closes the workflow and draws the balance down once.
+    actingAs($this->admin)
+        ->post(route('avana.approval.approve', ['type' => 'leave', 'id' => $leave->id]))
+        ->assertSessionHas('success', 'Cuti disetujui');
+
+    $leave->refresh();
+    $instance->refresh();
+    $balance->refresh();
+
+    expect($leave->status)->toBe('approved');
+    expect($instance->status)->toBe('approved');
+    expect((float) $balance->used)->toBe($usedBefore + 3);
+});
+
+it('closes the workflow when rejecting from the approval center', function (): void {
+    twoStepLeaveWorkflow($this->tenant->id, $this->approver->id);
+
+    actingAs($this->admin)->post(route('avana.cuti.store'), [
+        'employee_id' => $this->subject->id,
+        'leave_type_id' => $this->leaveType->id,
+        'start_date' => '2026-09-10',
+        'end_date' => '2026-09-12',
+    ]);
+
+    $leave = LeaveRequest::where('employee_id', $this->subject->id)->latest('id')->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.approval.reject', ['type' => 'leave', 'id' => $leave->id]))
+        ->assertSessionHas('success');
+
+    $leave->refresh();
+    $instance = ApprovalRequest::where('approvable_id', $leave->id)
+        ->where('approvable_type', LeaveRequest::class)->firstOrFail();
+
+    expect($leave->status)->toBe('rejected');
+    expect($instance->status)->toBe('rejected');
+    expect(ApprovalLog::where('approval_request_id', $instance->id)
+        ->where('action', 'reject')->count())->toBe(1);
+});
+
+it('still finalizes directly from the approval center without a workflow', function (): void {
+    $balance = LeaveBalance::query()
+        ->where('employee_id', $this->subject->id)
+        ->where('leave_type_id', $this->leaveType->id)
+        ->where('year', 2026)
+        ->firstOrFail();
+    $usedBefore = (float) $balance->used;
+
+    actingAs($this->admin)->post(route('avana.cuti.store'), [
+        'employee_id' => $this->subject->id,
+        'leave_type_id' => $this->leaveType->id,
+        'start_date' => '2026-09-10',
+        'end_date' => '2026-09-12',
+    ]);
+
+    $leave = LeaveRequest::where('employee_id', $this->subject->id)->latest('id')->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.approval.approve', ['type' => 'leave', 'id' => $leave->id]))
+        ->assertSessionHas('success', 'Cuti disetujui');
+
+    $leave->refresh();
+    $balance->refresh();
+
+    expect($leave->status)->toBe('approved');
+    expect((float) $balance->used)->toBe($usedBefore + 3);
+    // whereDate, not whereBetween: `date` is a datetime column, so the string
+    // upper bound would cut off the last day's 00:00:00 row.
+    expect(Attendance::where('employee_id', $this->subject->id)
+        ->whereDate('date', '>=', '2026-09-10')
+        ->whereDate('date', '<=', '2026-09-12')
+        ->where('status', 'leave')->count())->toBe(3);
+});

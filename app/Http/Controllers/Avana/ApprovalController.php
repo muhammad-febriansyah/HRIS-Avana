@@ -4,13 +4,15 @@ namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceCorrection;
-use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
 use App\Models\User;
 use App\Models\WfhRequest;
-use App\Services\LeaveAttendanceMarker;
+use App\Services\ApprovalEngine;
+use App\Services\AttendanceCorrectionApproval;
+use App\Services\AutoApproval;
+use App\Services\LeaveApproval;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -129,6 +131,13 @@ class ApprovalController extends Controller
 
     /**
      * Approve a pending request resolved by its `type` tag and id.
+     *
+     * Routed through {@see ApprovalEngine} first: when the tenant configured a
+     * multi-step workflow for this request type, approving here advances one
+     * step rather than finalizing. Deciding directly used to skip every
+     * remaining step, strand the `approval_requests` row on step 1, and leave no
+     * approval log — the configured flow was silently void from this screen.
+     * Requests with no workflow instance fall through to the direct finalize.
      */
     public function approve(Request $request, string $type, int $id): RedirectResponse
     {
@@ -136,22 +145,21 @@ class ApprovalController extends Controller
 
         $model = $this->resolveModel($request, $type, $id);
 
-        $model->update(['status' => 'approved']);
-
-        if ($model instanceof LeaveRequest) {
-            $this->decrementLeaveBalance($model);
-            LeaveAttendanceMarker::mark($model);
+        if (! ApprovalEngine::decide($model, $request->user()->id, 'approve')) {
+            $this->finalizeApproved($model, (int) $request->user()->id);
         }
 
-        if ($model instanceof AttendanceCorrection) {
-            $model->update(['approver_id' => $request->user()->id]);
-        }
-
-        return back()->with('success', self::MESSAGES[$type]['approve']);
+        // A multi-step workflow only advanced here; do not claim it is done.
+        return back()->with('success', $model->fresh()?->getAttribute('status') === 'approved'
+            ? self::MESSAGES[$type]['approve']
+            : 'Persetujuan tercatat, menunggu tahap berikutnya');
     }
 
     /**
      * Reject a pending request resolved by its `type` tag and id.
+     *
+     * A rejection ends the workflow at whatever step it sits on, so the engine
+     * closes its instance and logs the decision before the request is marked.
      */
     public function reject(Request $request, string $type, int $id): RedirectResponse
     {
@@ -159,13 +167,32 @@ class ApprovalController extends Controller
 
         $model = $this->resolveModel($request, $type, $id);
 
-        $model->update(['status' => 'rejected']);
+        if (! ApprovalEngine::decide($model, $request->user()->id, 'reject')) {
+            $model->update(['status' => 'rejected']);
 
-        if ($model instanceof AttendanceCorrection) {
-            $model->update(['approver_id' => $request->user()->id]);
+            if ($model instanceof AttendanceCorrection) {
+                $model->update(['approver_id' => $request->user()->id]);
+            }
         }
 
         return back()->with('success', self::MESSAGES[$type]['reject']);
+    }
+
+    /**
+     * Approve a request that is not workflow-driven, through the same services
+     * the module screens and the engine's own finalize step use — so a leave
+     * approved here draws down the right balance (a sub-type charges its parent
+     * quota) and a correction is actually written onto the attendance row.
+     */
+    private function finalizeApproved(Model $model, int $approverUserId): void
+    {
+        match (true) {
+            $model instanceof LeaveRequest => LeaveApproval::finalize($model, $approverUserId),
+            $model instanceof OvertimeRequest => AutoApproval::overtime($model),
+            $model instanceof WfhRequest => AutoApproval::wfh($model),
+            $model instanceof AttendanceCorrection => AttendanceCorrectionApproval::finalize($model, $approverUserId),
+            default => $model->update(['status' => 'approved']),
+        };
     }
 
     /**
@@ -375,25 +402,6 @@ class ApprovalController extends Controller
         abort_if((int) $model->tenant_id !== (int) $request->user()->tenant_id, 404);
 
         return $model;
-    }
-
-    /**
-     * Decrement the matching leave balance after a leave approval.
-     */
-    private function decrementLeaveBalance(LeaveRequest $leave): void
-    {
-        $balance = LeaveBalance::query()
-            ->where('employee_id', $leave->employee_id)
-            ->where('leave_type_id', $leave->leave_type_id)
-            ->where('year', $leave->start_date->year)
-            ->first();
-
-        if ($balance !== null) {
-            $balance->update([
-                'used' => $balance->used + $leave->total_days,
-                'remaining' => max(0, $balance->remaining - $leave->total_days),
-            ]);
-        }
     }
 
     /**
