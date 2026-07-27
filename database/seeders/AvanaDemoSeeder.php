@@ -826,7 +826,7 @@ final class AvanaDemoSeeder extends Seeder
             // Engagement & Self-Service
             'ess' => ['Employee Self-Service', 'engagement', []],
             'announcement' => ['Pengumuman', 'engagement', ['announcement']],
-            'social' => ['Sosmed Karyawan', 'engagement', ['social']],
+            'social' => ['Ruang Kita', 'engagement', ['social']],
             'survey' => ['Survei Karyawan', 'engagement', ['survey']],
             // Analytics
             'analytics' => ['Analytics & Laporan', 'analytics', ['report']],

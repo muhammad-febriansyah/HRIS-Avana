@@ -51,7 +51,7 @@ return new class extends Migration
 
         $feature = Feature::updateOrCreate(
             ['code' => $module],
-            ['name' => 'Sosmed Karyawan', 'module_group' => 'engagement', 'permission_modules' => [$module]],
+            ['name' => 'Ruang Kita', 'module_group' => 'engagement', 'permission_modules' => [$module]],
         );
 
         $existing = DB::table('permissions')->pluck('code')->flip();

@@ -78,6 +78,12 @@ class EssSocialController extends Controller
                 })
                 ->all(),
             'weights' => SocialWall::weights(),
+            // The composer shows the caller's own face next to the prompt, the
+            // way the app's wall does.
+            'me' => [
+                'name' => $employee->full_name,
+                'photo' => $this->photoUrl($employee->photo_path),
+            ],
             'filters' => ['category' => $categoryId],
         ]);
     }

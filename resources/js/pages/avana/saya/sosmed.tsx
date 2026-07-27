@@ -1,6 +1,7 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
+import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { AIcon, C } from '@/lib/avana';
 import { EmptyState, PageHeader, PageShell, Panel } from './components';
@@ -65,8 +66,18 @@ interface SayaSosmedProps {
     categories: CategoryRow[];
     leaderboard: LeaderRow[];
     weights: Record<string, number>;
+    me: { name: string; photo: string | null };
     filters: { category: number | null };
 }
+
+interface ComposeData {
+    body: string;
+    social_category_id: string;
+    image: File | null;
+    [key: string]: string | File | null;
+}
+
+type ComposeForm = InertiaFormProps<ComposeData>;
 
 interface FlashProps {
     flash?: { success?: string };
@@ -107,6 +118,13 @@ function timeAgo(value: string | null): string {
         month: 'short',
         year: 'numeric',
     });
+}
+
+/** KB below a megabyte — "0.0 MB" reads as if nothing was attached. */
+function fileSize(bytes: number): string {
+    return bytes < 1024 * 1024
+        ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+        : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function initials(name: string): string {
@@ -249,20 +267,445 @@ function CommentLine({
     );
 }
 
+/**
+ * Compose in a modal rather than a permanent block at the top of the feed: the
+ * wall is mostly for reading, and the inline form pushed every post down while
+ * sitting empty. The image goes through a real drop zone with a preview — the
+ * bare "Choose File" control gave no way to tell what was attached.
+ */
+function ComposeModal({
+    categories,
+    form,
+    onClose,
+    onSubmit,
+}: {
+    categories: CategoryRow[];
+    form: ComposeForm;
+    onClose: () => void;
+    onSubmit: (event: FormEvent) => void;
+}) {
+    const [preview, setPreview] = useState<string | null>(null);
+    const [dragging, setDragging] = useState(false);
+    const fileInput = useRef<HTMLInputElement>(null);
+
+    // Object URLs are revoked on replacement/unmount; leaking one per pick would
+    // hold the whole image in memory for the life of the page.
+    const attach = (file: File | null) => {
+        setPreview((current) => {
+            if (current) {
+                URL.revokeObjectURL(current);
+            }
+
+            return file ? URL.createObjectURL(file) : null;
+        });
+        form.setData('image', file);
+    };
+
+    useEffect(
+        () => () => {
+            if (preview) {
+                URL.revokeObjectURL(preview);
+            }
+        },
+        [preview],
+    );
+
+    const image = form.data.image;
+    const overLimit = form.data.body.length > 500;
+
+    return (
+        <div
+            style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 80,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 20,
+            }}
+        >
+            <div
+                onClick={onClose}
+                style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(14,26,58,.45)',
+                }}
+            />
+            <form
+                onSubmit={onSubmit}
+                style={{
+                    position: 'relative',
+                    width: '100%',
+                    maxWidth: 560,
+                    maxHeight: '90vh',
+                    overflowY: 'auto',
+                    background: '#fff',
+                    borderRadius: 14,
+                    boxShadow: '0 20px 50px rgba(15,23,42,.25)',
+                }}
+            >
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '18px 22px',
+                        borderBottom: `1px solid ${C.line}`,
+                    }}
+                >
+                    <div
+                        style={{ fontSize: 17, fontWeight: 600, color: C.navy }}
+                    >
+                        Tulis sesuatu
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        aria-label="Tutup"
+                        style={{
+                            border: 'none',
+                            background: 'none',
+                            cursor: 'pointer',
+                            padding: 4,
+                            lineHeight: 0,
+                        }}
+                    >
+                        <AIcon name="x" size={18} color={C.muted} />
+                    </button>
+                </div>
+
+                <div
+                    style={{
+                        padding: 22,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 16,
+                    }}
+                >
+                    <div>
+                        <textarea
+                            name="body"
+                            aria-label="Isi postingan"
+                            autoFocus
+                            value={form.data.body}
+                            onChange={(event) =>
+                                form.setData('body', event.target.value)
+                            }
+                            placeholder="Bagikan ide, cerita, atau apresiasi…"
+                            rows={5}
+                            style={{
+                                width: '100%',
+                                padding: '12px 14px',
+                                border: `1px solid ${C.border}`,
+                                borderRadius: 10,
+                                fontSize: 14,
+                                color: C.text,
+                                resize: 'vertical',
+                                outline: 'none',
+                                fontFamily: 'inherit',
+                                lineHeight: 1.6,
+                            }}
+                        />
+                        <div
+                            style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                marginTop: 6,
+                                fontSize: 12,
+                            }}
+                        >
+                            <span style={{ color: C.red }}>
+                                {form.errors.body ?? ''}
+                            </span>
+                            <span
+                                style={{ color: overLimit ? C.red : C.faint }}
+                            >
+                                {form.data.body.length}/500
+                            </span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div
+                            style={{
+                                fontSize: 12.5,
+                                fontWeight: 600,
+                                color: C.muted,
+                                marginBottom: 8,
+                            }}
+                        >
+                            Kategori
+                        </div>
+                        <div
+                            style={{
+                                display: 'flex',
+                                gap: 8,
+                                flexWrap: 'wrap',
+                            }}
+                        >
+                            {[
+                                { id: '', name: 'Tanpa kategori', color: null },
+                                ...categories,
+                            ].map((category) => {
+                                const value = String(category.id);
+                                const selected =
+                                    form.data.social_category_id === value;
+                                const accent = category.color ?? C.muted;
+
+                                return (
+                                    <button
+                                        key={value || 'none'}
+                                        type="button"
+                                        onClick={() =>
+                                            form.setData(
+                                                'social_category_id',
+                                                value,
+                                            )
+                                        }
+                                        style={{
+                                            height: 32,
+                                            padding: '0 14px',
+                                            borderRadius: 999,
+                                            border: 'none',
+                                            background: selected
+                                                ? accent
+                                                : C.surface,
+                                            color: selected ? '#fff' : C.muted,
+                                            fontSize: 12.5,
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        {category.name}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <div>
+                        <div
+                            style={{
+                                fontSize: 12.5,
+                                fontWeight: 600,
+                                color: C.muted,
+                                marginBottom: 8,
+                            }}
+                        >
+                            Foto (opsional)
+                        </div>
+
+                        {image && preview ? (
+                            <div
+                                style={{
+                                    position: 'relative',
+                                    borderRadius: 12,
+                                    overflow: 'hidden',
+                                }}
+                            >
+                                <img
+                                    src={preview}
+                                    alt={image.name}
+                                    style={{
+                                        width: '100%',
+                                        maxHeight: 260,
+                                        objectFit: 'cover',
+                                        display: 'block',
+                                    }}
+                                />
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 10,
+                                        padding: '10px 12px',
+                                        background: C.surface,
+                                        fontSize: 12.5,
+                                        color: C.muted,
+                                    }}
+                                >
+                                    <AIcon
+                                        name="image"
+                                        size={15}
+                                        color={C.muted}
+                                    />
+                                    <span
+                                        style={{
+                                            flex: 1,
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap',
+                                        }}
+                                    >
+                                        {image.name} · {fileSize(image.size)}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => attach(null)}
+                                        style={{
+                                            border: 'none',
+                                            background: 'none',
+                                            cursor: 'pointer',
+                                            color: C.red,
+                                            fontSize: 12.5,
+                                            fontWeight: 600,
+                                            padding: 0,
+                                        }}
+                                    >
+                                        Hapus
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div
+                                onClick={() => fileInput.current?.click()}
+                                onDragOver={(event) => {
+                                    event.preventDefault();
+                                    setDragging(true);
+                                }}
+                                onDragLeave={() => setDragging(false)}
+                                onDrop={(event) => {
+                                    event.preventDefault();
+                                    setDragging(false);
+                                    attach(
+                                        event.dataTransfer.files?.[0] ?? null,
+                                    );
+                                }}
+                                style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    padding: '26px 16px',
+                                    borderRadius: 12,
+                                    border: `1.5px dashed ${dragging ? C.primary : C.border}`,
+                                    background: dragging
+                                        ? `${C.primary}0A`
+                                        : C.surface,
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <AIcon
+                                    name="image-plus"
+                                    size={22}
+                                    color={dragging ? C.primary : C.faint}
+                                />
+                                <div
+                                    style={{
+                                        fontSize: 13,
+                                        color: C.text,
+                                        fontWeight: 600,
+                                    }}
+                                >
+                                    Seret foto ke sini, atau klik untuk memilih
+                                </div>
+                                <div style={{ fontSize: 11.5, color: C.faint }}>
+                                    JPG, PNG, atau WEBP · maksimal 5 MB
+                                </div>
+                            </div>
+                        )}
+
+                        <input
+                            ref={fileInput}
+                            type="file"
+                            name="image"
+                            aria-label="Foto"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={(event) =>
+                                attach(event.target.files?.[0] ?? null)
+                            }
+                            style={{ display: 'none' }}
+                        />
+                        {form.errors.image && (
+                            <div
+                                style={{
+                                    fontSize: 12.5,
+                                    color: C.red,
+                                    marginTop: 6,
+                                }}
+                            >
+                                {form.errors.image}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div
+                    style={{
+                        display: 'flex',
+                        gap: 10,
+                        justifyContent: 'flex-end',
+                        padding: '16px 22px',
+                        borderTop: `1px solid ${C.line}`,
+                    }}
+                >
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        style={{
+                            height: 42,
+                            padding: '0 20px',
+                            borderRadius: 10,
+                            border: `1px solid ${C.border}`,
+                            background: '#fff',
+                            color: C.muted,
+                            fontSize: 13.5,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        Batal
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={
+                            form.processing || form.data.body.trim() === ''
+                        }
+                        style={{
+                            height: 42,
+                            padding: '0 24px',
+                            borderRadius: 10,
+                            border: 'none',
+                            background: C.primary,
+                            color: '#fff',
+                            fontSize: 13.5,
+                            fontWeight: 600,
+                            cursor:
+                                form.processing || form.data.body.trim() === ''
+                                    ? 'default'
+                                    : 'pointer',
+                            opacity:
+                                form.processing || form.data.body.trim() === ''
+                                    ? 0.55
+                                    : 1,
+                        }}
+                    >
+                        {form.processing ? 'Mengirim…' : 'Posting'}
+                    </button>
+                </div>
+            </form>
+        </div>
+    );
+}
+
 export default function SayaSosmed({
     posts,
     categories,
     leaderboard,
     weights,
+    me,
     filters,
 }: SayaSosmedProps) {
     const { flash } = usePage<FlashProps>().props;
 
-    const compose = useForm<{
-        body: string;
-        social_category_id: string;
-        image: File | null;
-    }>({ body: '', social_category_id: '', image: null });
+    const compose = useForm<ComposeData>({
+        body: '',
+        social_category_id: '',
+        image: null,
+    });
+    const [composeOpen, setComposeOpen] = useState(false);
 
     const [openThread, setOpenThread] = useState<number | null>(null);
     const [draft, setDraft] = useState('');
@@ -281,7 +724,10 @@ export default function SayaSosmed({
         compose.post('/avana/saya/sosmed', {
             preserveScroll: true,
             forceFormData: true,
-            onSuccess: () => compose.reset(),
+            onSuccess: () => {
+                compose.reset();
+                setComposeOpen(false);
+            },
         });
     };
 
@@ -357,11 +803,19 @@ export default function SayaSosmed({
 
     return (
         <>
-            <Head title="Sosmed" />
+            <Head title="Ruang Kita" />
+            {composeOpen && (
+                <ComposeModal
+                    categories={categories}
+                    form={compose}
+                    onClose={() => setComposeOpen(false)}
+                    onSubmit={submitPost}
+                />
+            )}
             <PageShell>
                 <PageHeader
-                    title="Sosmed"
-                    subtitle="Dinding karyawan — cerita, ide, dan apresiasi. Terhubung langsung dengan yang ada di aplikasi."
+                    title="Ruang Kita"
+                    subtitle="Tempat berbagi ide, cerita, dan apresiasi antar rekan. Terhubung langsung dengan yang ada di aplikasi."
                 />
 
                 <div
@@ -379,160 +833,61 @@ export default function SayaSosmed({
                             gap: 16,
                         }}
                     >
-                        <form onSubmit={submitPost}>
-                            <Panel title="Tulis sesuatu">
-                                <div
+                        <Panel>
+                            <button
+                                type="button"
+                                onClick={() => setComposeOpen(true)}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 12,
+                                    width: '100%',
+                                    border: 'none',
+                                    background: 'none',
+                                    padding: 0,
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                }}
+                            >
+                                <Avatar name={me.name} photo={me.photo} />
+                                <span
                                     style={{
+                                        flex: 1,
+                                        height: 42,
                                         display: 'flex',
-                                        flexDirection: 'column',
-                                        gap: 12,
+                                        alignItems: 'center',
+                                        padding: '0 14px',
+                                        borderRadius: 999,
+                                        background: C.surface,
+                                        color: C.faint,
+                                        fontSize: 13.5,
                                     }}
                                 >
-                                    <textarea
-                                        name="body"
-                                        aria-label="Isi postingan"
-                                        value={compose.data.body}
-                                        onChange={(event) =>
-                                            compose.setData(
-                                                'body',
-                                                event.target.value,
-                                            )
-                                        }
-                                        placeholder="Bagikan ide, cerita, atau apresiasi…"
-                                        maxLength={500}
-                                        rows={3}
-                                        style={{
-                                            width: '100%',
-                                            padding: '11px 13px',
-                                            border: `1px solid ${C.border}`,
-                                            borderRadius: 8,
-                                            fontSize: 13.5,
-                                            color: C.text,
-                                            resize: 'vertical',
-                                            outline: 'none',
-                                            fontFamily: 'inherit',
-                                        }}
+                                    Bagikan ide, cerita, atau apresiasi…
+                                </span>
+                                <span
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 7,
+                                        height: 42,
+                                        padding: '0 18px',
+                                        borderRadius: 10,
+                                        background: C.primary,
+                                        color: '#fff',
+                                        fontSize: 13.5,
+                                        fontWeight: 600,
+                                    }}
+                                >
+                                    <AIcon
+                                        name="pencil"
+                                        size={15}
+                                        color="#fff"
                                     />
-                                    {compose.errors.body && (
-                                        <div
-                                            style={{
-                                                fontSize: 12.5,
-                                                color: C.red,
-                                            }}
-                                        >
-                                            {compose.errors.body}
-                                        </div>
-                                    )}
-
-                                    <div
-                                        style={{
-                                            display: 'flex',
-                                            gap: 10,
-                                            flexWrap: 'wrap',
-                                            alignItems: 'center',
-                                        }}
-                                    >
-                                        <select
-                                            name="social_category_id"
-                                            aria-label="Kategori"
-                                            value={
-                                                compose.data.social_category_id
-                                            }
-                                            onChange={(event) =>
-                                                compose.setData(
-                                                    'social_category_id',
-                                                    event.target.value,
-                                                )
-                                            }
-                                            style={{
-                                                height: 38,
-                                                padding: '0 10px',
-                                                border: `1px solid ${C.border}`,
-                                                borderRadius: 8,
-                                                fontSize: 13,
-                                                color: C.text,
-                                                background: '#fff',
-                                            }}
-                                        >
-                                            <option value="">
-                                                Tanpa kategori
-                                            </option>
-                                            {categories.map((category) => (
-                                                <option
-                                                    key={category.id}
-                                                    value={category.id}
-                                                >
-                                                    {category.name}
-                                                </option>
-                                            ))}
-                                        </select>
-
-                                        <input
-                                            type="file"
-                                            name="image"
-                                            aria-label="Foto"
-                                            accept="image/jpeg,image/png,image/webp"
-                                            onChange={(event) =>
-                                                compose.setData(
-                                                    'image',
-                                                    event.target.files?.[0] ??
-                                                        null,
-                                                )
-                                            }
-                                            style={{
-                                                fontSize: 12.5,
-                                                color: C.muted,
-                                                flex: '1 1 180px',
-                                            }}
-                                        />
-
-                                        <span
-                                            style={{
-                                                fontSize: 12,
-                                                color: C.faint,
-                                            }}
-                                        >
-                                            {compose.data.body.length}/500
-                                        </span>
-
-                                        <button
-                                            type="submit"
-                                            disabled={compose.processing}
-                                            style={{
-                                                height: 38,
-                                                padding: '0 18px',
-                                                border: 'none',
-                                                borderRadius: 8,
-                                                background: C.primary,
-                                                color: '#fff',
-                                                fontSize: 13.5,
-                                                fontWeight: 600,
-                                                cursor: compose.processing
-                                                    ? 'default'
-                                                    : 'pointer',
-                                                opacity: compose.processing
-                                                    ? 0.6
-                                                    : 1,
-                                            }}
-                                        >
-                                            {compose.processing
-                                                ? 'Mengirim…'
-                                                : 'Posting'}
-                                        </button>
-                                    </div>
-                                    {compose.errors.image && (
-                                        <div
-                                            style={{
-                                                fontSize: 12.5,
-                                                color: C.red,
-                                            }}
-                                        >
-                                            {compose.errors.image}
-                                        </div>
-                                    )}
-                                </div>
-                            </Panel>
-                        </form>
+                                    Tulis
+                                </span>
+                            </button>
+                        </Panel>
 
                         <div
                             style={{

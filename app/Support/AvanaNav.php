@@ -63,7 +63,7 @@ final class AvanaNav
                 self::leaf('saya-slip', 'Slip Gaji Saya', 'receipt', '/avana/saya/slip-gaji', 'ess', ['own']),
                 self::leaf('saya-dokumen', 'Dokumen Saya', 'folder', '/avana/saya/dokumen', 'ess', ['own']),
                 self::leaf('saya-sop', 'SOP Perusahaan', 'book-open', '/avana/saya/sop', 'sop', ['own']),
-                self::leaf('saya-sosmed', 'Sosmed', 'message-circle', '/avana/saya/sosmed', 'social', ['own']),
+                self::leaf('saya-sosmed', 'Ruang Kita', 'message-circle', '/avana/saya/sosmed', 'social', ['own']),
                 self::leaf('saya-onboarding', 'Onboarding Saya', 'clipboard-check', '/avana/saya/onboarding', 'ess', ['own']),
             ]],
             ['title' => 'MANAJEMEN', 'items' => [
@@ -160,7 +160,7 @@ final class AvanaNav
             ['title' => 'LAYANAN', 'items' => [
                 self::leaf('helpdesk', 'HR Helpdesk', 'life-buoy', '/avana/helpdesk', 'helpdesk', ['helpdesk']),
                 self::leaf('pengumuman', 'Pengumuman', 'megaphone', '/avana/pengumuman', 'announcement', ['announcement']),
-                self::leaf('sosmed', 'Sosmed Karyawan', 'users-round', '/avana/sosmed', 'social', ['social']),
+                self::leaf('sosmed', 'Ruang Kita', 'users-round', '/avana/sosmed', 'social', ['social']),
                 self::leaf('survei', 'Survei Karyawan', 'clipboard-list', '/avana/survei', 'survey', ['survey']),
                 self::leaf('kalender', 'Kalender Acara', 'calendar-days', '/avana/kalender', 'calendar', ['calendar']),
                 self::leaf('ai', 'AI Assistant', 'sparkles', '/avana/ai', 'ai', ['ai']),

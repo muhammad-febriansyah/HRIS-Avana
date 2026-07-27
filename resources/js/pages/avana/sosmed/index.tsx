@@ -190,7 +190,7 @@ export default function SosmedIndex({
 
     return (
         <>
-            <Head title="Sosmed Karyawan" />
+            <Head title="Ruang Kita" />
             <div style={{ padding: '28px 32px' }}>
                 <div
                     style={{
@@ -215,7 +215,7 @@ export default function SosmedIndex({
                         >
                             <span>Layanan</span>
                             <AIcon name="chevron-right" size={13} />
-                            <span style={{ color: C.muted }}>Sosmed</span>
+                            <span style={{ color: C.muted }}>Ruang Kita</span>
                         </div>
                         <h1
                             style={{
@@ -226,7 +226,7 @@ export default function SosmedIndex({
                                 letterSpacing: '-.01em',
                             }}
                         >
-                            Sosmed Karyawan
+                            Ruang Kita
                         </h1>
                         <div
                             style={{
