@@ -193,3 +193,33 @@ it('ranks the top three on a podium above the rest of the list', function () {
         ->assertSee('Poin = ')
         ->assertNoJavascriptErrors();
 });
+
+it('keeps the contributor name readable on a phone', function () {
+    // Three fixed metric columns used to squeeze the name box to zero width
+    // here, leaving rows that were a rank, a face and some numbers.
+    $employees = Employee::where('tenant_id', $this->tenantId)->take(4)->get();
+
+    foreach ($employees as $index => $employee) {
+        SocialPost::factory()->count(4 - $index)->create([
+            'tenant_id' => $this->tenantId,
+            'employee_id' => $employee->id,
+            'status' => SocialPost::STATUS_PUBLISHED,
+        ]);
+    }
+
+    actingAs($this->admin);
+
+    $page = visit('/avana/sosmed')->on()->iPhone15Pro();
+    $page->click('button[role=tab][aria-label="Leaderboard"]');
+
+    $width = $page->script(
+        "Math.round(Math.min(...[...document.querySelectorAll('div')]"
+        ."  .filter(d => d.style.width === '26px')"
+        .'  .map(d => d.parentElement.children[2].getBoundingClientRect().width)))'
+    );
+
+    expect($width)->toBeGreaterThan(60);
+
+    $page->assertSee($employees[3]->full_name)
+        ->assertNoJavascriptErrors();
+});

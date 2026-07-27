@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import SocialController from '@/actions/App/Http/Controllers/Avana/SocialController';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { ActionBtn, AIcon, btnP, C, card, thCell } from '@/lib/avana';
 import {
     CategoryChip,
@@ -1157,6 +1158,8 @@ function LeaderboardTab({
     rows: LeaderboardRow[];
     weights: SosmedIndexProps['weights'];
 }) {
+    const isMobile = useIsMobile();
+
     if (rows.length === 0) {
         return (
             <div
@@ -1186,10 +1189,11 @@ function LeaderboardTab({
     }
 
     // Second place on the left, first in the middle, third on the right — the
-    // shape everyone already reads as a podium.
-    const podium = [rows[1], rows[0], rows[2]].filter(
-        Boolean,
-    ) as LeaderboardRow[];
+    // shape everyone already reads as a podium. Stacked on a phone that reads
+    // as "second is above first", so the champion goes back on top there.
+    const podium = (
+        isMobile ? [rows[0], rows[1], rows[2]] : [rows[1], rows[0], rows[2]]
+    ).filter(Boolean) as LeaderboardRow[];
     const rest = rows.slice(3);
 
     return (
@@ -1247,24 +1251,46 @@ function LeaderboardTab({
                                 size={34}
                             />
 
-                            <div
-                                style={{
-                                    flex: 1,
-                                    minWidth: 0,
-                                    fontSize: 13.5,
-                                    fontWeight: 600,
-                                    color: C.navy,
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                }}
-                            >
-                                {row.name}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div
+                                    style={{
+                                        fontSize: 13.5,
+                                        fontWeight: 600,
+                                        color: C.navy,
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                    }}
+                                >
+                                    {row.name}
+                                </div>
+                                {/* Three fixed metric columns squeeze the name
+                                    to nothing on a phone, so there they move
+                                    under it as one line. */}
+                                {isMobile && (
+                                    <div
+                                        style={{
+                                            marginTop: 2,
+                                            fontSize: 11,
+                                            color: C.faint,
+                                        }}
+                                    >
+                                        {row.posts} post · {row.likes} like ·{' '}
+                                        {row.comments} komentar
+                                    </div>
+                                )}
                             </div>
 
-                            <Metric value={row.posts} label="post" />
-                            <Metric value={row.likes} label="like" />
-                            <Metric value={row.comments} label="komentar" />
+                            {!isMobile && (
+                                <>
+                                    <Metric value={row.posts} label="post" />
+                                    <Metric value={row.likes} label="like" />
+                                    <Metric
+                                        value={row.comments}
+                                        label="komentar"
+                                    />
+                                </>
+                            )}
 
                             <div
                                 style={{
