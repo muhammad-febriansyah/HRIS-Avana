@@ -1187,9 +1187,20 @@ export default function SayaSosmed({
                                                             />
                                                             {comment.replies
                                                                 .length > 0 && (
+                                                                // A spine under
+                                                                // the parent's
+                                                                // avatar with an
+                                                                // elbow per reply,
+                                                                // so which comment
+                                                                // a reply answers
+                                                                // is visible
+                                                                // rather than
+                                                                // inferred from
+                                                                // indentation.
                                                                 <div
                                                                     style={{
-                                                                        marginLeft: 35,
+                                                                        marginLeft: 13,
+                                                                        paddingLeft: 22,
                                                                         display:
                                                                             'flex',
                                                                         flexDirection:
@@ -1200,21 +1211,70 @@ export default function SayaSosmed({
                                                                     {comment.replies.map(
                                                                         (
                                                                             reply,
-                                                                        ) => (
-                                                                            <CommentLine
-                                                                                key={
-                                                                                    reply.id
-                                                                                }
-                                                                                entry={
-                                                                                    reply
-                                                                                }
-                                                                                onRemoved={() =>
-                                                                                    void loadComments(
-                                                                                        post.id,
-                                                                                    )
-                                                                                }
-                                                                            />
-                                                                        ),
+                                                                            index,
+                                                                        ) => {
+                                                                            const last =
+                                                                                index ===
+                                                                                comment
+                                                                                    .replies
+                                                                                    .length -
+                                                                                    1;
+
+                                                                            return (
+                                                                                <div
+                                                                                    key={
+                                                                                        reply.id
+                                                                                    }
+                                                                                    style={{
+                                                                                        position:
+                                                                                            'relative',
+                                                                                    }}
+                                                                                >
+                                                                                    {/* Spine: full height between replies, cut at the elbow on the last one. */}
+                                                                                    <span
+                                                                                        aria-hidden
+                                                                                        style={{
+                                                                                            position:
+                                                                                                'absolute',
+                                                                                            left: -22,
+                                                                                            top: 0,
+                                                                                            width: 1,
+                                                                                            height: last
+                                                                                                ? 14
+                                                                                                : undefined,
+                                                                                            bottom: last
+                                                                                                ? undefined
+                                                                                                : -10,
+                                                                                            background:
+                                                                                                C.border,
+                                                                                        }}
+                                                                                    />
+                                                                                    <span
+                                                                                        aria-hidden
+                                                                                        style={{
+                                                                                            position:
+                                                                                                'absolute',
+                                                                                            left: -22,
+                                                                                            top: 13,
+                                                                                            width: 16,
+                                                                                            height: 1,
+                                                                                            background:
+                                                                                                C.border,
+                                                                                        }}
+                                                                                    />
+                                                                                    <CommentLine
+                                                                                        entry={
+                                                                                            reply
+                                                                                        }
+                                                                                        onRemoved={() =>
+                                                                                            void loadComments(
+                                                                                                post.id,
+                                                                                            )
+                                                                                        }
+                                                                                    />
+                                                                                </div>
+                                                                            );
+                                                                        },
                                                                     )}
                                                                 </div>
                                                             )}
@@ -1401,10 +1461,62 @@ export default function SayaSosmed({
                         )}
                     </div>
 
-                    <Panel
-                        title="Leaderboard"
-                        subtitle={`Poin: ${weights.post ?? 0}/postingan · ${weights.like ?? 0}/suka · ${weights.comment ?? 0}/komentar`}
-                    >
+                    <Panel padded={false}>
+                        <div
+                            style={{
+                                display: 'flex',
+                                borderBottom: `1px solid ${C.border}`,
+                            }}
+                        >
+                            {(
+                                [
+                                    ['leaderboard', 'Leaderboard'],
+                                    ['eotm', 'Employee of the Month'],
+                                ] as const
+                            ).map(([key, label]) => {
+                                const active = sidePanel === key;
+
+                                return (
+                                    <button
+                                        key={key}
+                                        type="button"
+                                        onClick={() => setSidePanel(key)}
+                                        style={{
+                                            flex: 1,
+                                            padding: '13px 10px',
+                                            border: 'none',
+                                            background: 'none',
+                                            // The active tab is marked by its own
+                                            // underline, so the panel border below
+                                            // does not read as the indicator.
+                                            borderBottom: `2px solid ${active ? C.primary : 'transparent'}`,
+                                            marginBottom: -1,
+                                            color: active ? C.primary : C.muted,
+                                            fontSize: 13,
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        {label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        <div style={{ padding: 18 }}>
+                            {sidePanel === 'leaderboard' ? (
+                                <>
+                                    <div
+                                        style={{
+                                            fontSize: 12,
+                                            color: C.muted,
+                                            marginBottom: 14,
+                                        }}
+                                    >
+                                        Poin: {weights.post ?? 0}/postingan ·{' '}
+                                        {weights.like ?? 0}/suka ·{' '}
+                                        {weights.comment ?? 0}/komentar
+                                    </div>
                         {leaderboard.length === 0 ? (
                             <EmptyState
                                 icon="crown"
@@ -1486,6 +1598,14 @@ export default function SayaSosmed({
                                 ))}
                             </div>
                         )}
+                                </>
+                            ) : (
+                                <EotmPanel
+                                    eotm={eotm}
+                                    onVote={() => setVoteOpen(true)}
+                                />
+                            )}
+                        </div>
                     </Panel>
                 </div>
             </PageShell>

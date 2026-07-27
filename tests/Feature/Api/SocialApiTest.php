@@ -547,3 +547,41 @@ it('ranks the trending feed by interaction within the last week', function (): v
 
     expect(collect($latest->json('data'))->pluck('body')->first())->toBe('Baru tapi sepi');
 });
+
+it('names the person a reply answers, but only when the indent cannot', function (): void {
+    $post = SocialPost::factory()->create([
+        'tenant_id' => $this->tenantId,
+        'employee_id' => $this->employee->id,
+    ]);
+
+    $parentId = ($this->auth)($this->token)
+        ->postJson('/api/v1/me/social/posts/'.$post->id.'/comments', ['body' => 'Saya ikut ya.'])
+        ->json('data.id');
+
+    // A reply to the top-level comment sits directly under it, so the indent
+    // already says who it answers.
+    $replyId = ($this->auth)($this->token)
+        ->postJson('/api/v1/me/social/posts/'.$post->id.'/comments', [
+            'body' => 'ayo',
+            'parent_id' => $parentId,
+        ])
+        ->assertCreated()
+        ->assertJsonPath('data.reply_to', null)
+        ->json('data.id');
+
+    // Replying to that reply lands beside it, not under it — hence the name.
+    ($this->auth)($this->token)
+        ->postJson('/api/v1/me/social/posts/'.$post->id.'/comments', [
+            'body' => 'oke',
+            'parent_id' => $replyId,
+        ])
+        ->assertCreated()
+        ->assertJsonPath('data.parent_id', $parentId)
+        ->assertJsonPath('data.reply_to', $this->employee->full_name);
+
+    $thread = ($this->auth)($this->token)
+        ->getJson('/api/v1/me/social/posts/'.$post->id.'/comments')
+        ->assertOk();
+
+    expect($thread->json('data.0.replies.1.reply_to'))->toBe($this->employee->full_name);
+});

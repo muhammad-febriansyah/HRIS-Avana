@@ -42,6 +42,15 @@ final class SocialPostComment extends Model
     }
 
     /**
+     * The employee this reply answers, set only when the indent alone would not
+     * say — that is, when replying to another reply.
+     */
+    public function replyTo(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'reply_to_employee_id');
+    }
+
+    /**
      * Replies under this comment. Only top-level comments have any — a reply to
      * a reply is attached to the same parent.
      *

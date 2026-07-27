@@ -823,6 +823,10 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
         Route::delete('sosmed/komentar/{comment}', [EssSocialController::class, 'destroyComment'])->name('sosmed.comment.destroy');
         Route::post('sosmed/{post}/lapor', [EssSocialController::class, 'report'])->name('sosmed.report');
 
+        // Employee of the Month voting, shown as a tab beside the leaderboard.
+        Route::get('sosmed/eotm/kandidat', [EssSocialController::class, 'nominees'])->name('sosmed.eotm.nominees');
+        Route::post('sosmed/eotm/vote', [EssSocialController::class, 'vote'])->name('sosmed.eotm.vote');
+
         Route::get('onboarding', [EssOnboardingController::class, 'index'])->name('onboarding');
         Route::patch('onboarding/tugas/{task}', [EssOnboardingController::class, 'toggleTask'])->name('onboarding.task');
     });

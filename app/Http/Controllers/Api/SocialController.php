@@ -250,7 +250,9 @@ class SocialController extends Controller
             ->topLevel()
             ->with([
                 'employee:id,full_name,photo_path',
-                'replies' => fn ($query) => $query->with('employee:id,full_name,photo_path')->orderBy('id'),
+                'replies' => fn ($query) => $query
+                    ->with(['employee:id,full_name,photo_path', 'replyTo:id,full_name'])
+                    ->orderBy('id'),
             ])
             ->orderBy('id')
             ->get()
@@ -441,6 +443,7 @@ class SocialController extends Controller
                 : null,
             'is_mine' => (int) $comment->employee_id === (int) $viewer->id,
             'parent_id' => $comment->parent_id,
+            'reply_to' => $comment->replyTo?->full_name,
             'created_at' => $comment->created_at?->toDateTimeString(),
         ];
     }

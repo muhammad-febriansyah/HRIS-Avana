@@ -76,9 +76,15 @@ final class SocialWall
             // top-level comment, so a thread never nests off the screen.
             $parentId = $parent?->parent_id ?? $parent?->id;
 
+            // Name the person only when the indent cannot: a reply to a reply
+            // sits beside the one it answers, so without this the reader has to
+            // guess which of the two it belongs to.
+            $replyToId = $parent?->parent_id !== null ? $parent?->employee_id : null;
+
             $comment = SocialPostComment::create([
                 'social_post_id' => $post->id,
                 'parent_id' => $parentId,
+                'reply_to_employee_id' => $replyToId,
                 'employee_id' => $employee->id,
                 'tenant_id' => $post->tenant_id,
                 'body' => $body,

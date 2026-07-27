@@ -4,10 +4,14 @@ namespace App\Http\Controllers\Avana;
 
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
+use App\Models\Employee;
+use App\Models\EotmCoreValue;
+use App\Models\EotmPeriod;
 use App\Models\SocialCategory;
 use App\Models\SocialPost;
 use App\Models\SocialPostComment;
 use App\Models\SocialPostReport;
+use App\Services\EotmVoting;
 use App\Services\SocialWall;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -84,8 +88,135 @@ class EssSocialController extends Controller
                 'name' => $employee->full_name,
                 'photo' => $this->photoUrl($employee->photo_path),
             ],
+            'eotm' => $this->eotmPayload($employee),
             'filters' => ['category' => $categoryId],
         ]);
+    }
+
+    /**
+     * The Employee of the Month panel: the open period (or the last closed one,
+     * so a finished month still shows its winner), the caller's own vote, the
+     * core values they may tag it with, and the running tally.
+     *
+     * @return array<string, mixed>
+     */
+    private function eotmPayload(Employee $employee): array
+    {
+        $voting = app(EotmVoting::class);
+        $tenantId = (int) $employee->tenant_id;
+
+        $period = $voting->openPeriod($tenantId)
+            ?? EotmPeriod::forTenant($tenantId)->latest('period')->first();
+
+        if ($period === null) {
+            return ['period' => null, 'my_vote' => null, 'core_values' => [], 'standings' => []];
+        }
+
+        $myVote = $voting->voteOf($period, $employee);
+
+        return [
+            'period' => [
+                'id' => $period->id,
+                'label' => $period->label(),
+                'title' => $period->title,
+                'description' => $period->description,
+                'is_open' => $period->isOpen(),
+                'closes_at' => $period->closes_at?->toDateTimeString(),
+                'winner' => $period->winner?->full_name,
+                'winner_votes' => $period->winner_votes,
+                'total_votes' => $period->votes()->count(),
+            ],
+            'my_vote' => $myVote === null ? null : [
+                'nominee_employee_id' => $myVote->nominee_employee_id,
+                'nominee' => $myVote->nominee?->full_name,
+                'core_value_id' => $myVote->eotm_core_value_id,
+                'core_value' => $myVote->coreValue?->name,
+                'reason' => $myVote->reason,
+            ],
+            'core_values' => EotmCoreValue::forTenant($tenantId)
+                ->active()
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(['id', 'name', 'icon', 'color']),
+            'standings' => $voting->standings($period)
+                ->map(function (array $row) use ($employee): array {
+                    $row['photo'] = $this->photoUrl($row['photo']);
+                    $row['is_me'] = (int) $row['employee_id'] === (int) $employee->id;
+
+                    return $row;
+                })
+                ->all(),
+        ];
+    }
+
+    /**
+     * Colleagues the caller may vote for — themselves excluded, since the
+     * service rejects a self-vote anyway.
+     */
+    public function nominees(Request $request): JsonResponse
+    {
+        $employee = $this->currentEmployee($request);
+        $search = trim((string) $request->string('search'));
+
+        return response()->json([
+            'data' => Employee::forTenant($employee->tenant_id)
+                ->where('status', 'active')
+                ->where('id', '!=', $employee->id)
+                ->when(
+                    $search !== '',
+                    fn ($query) => $query->where(fn ($inner) => $inner
+                        ->where('full_name', 'like', "%{$search}%")
+                        ->orWhere('employee_number', 'like', "%{$search}%")),
+                )
+                ->orderBy('full_name')
+                ->take(30)
+                ->get(['id', 'full_name', 'employee_number', 'photo_path'])
+                ->map(fn (Employee $row): array => [
+                    'id' => $row->id,
+                    'name' => $row->full_name,
+                    'employee_number' => $row->employee_number,
+                    'photo' => $this->photoUrl($row->photo_path),
+                ]),
+        ]);
+    }
+
+    /** Cast or change the caller's vote for the open period. */
+    public function vote(Request $request): RedirectResponse
+    {
+        $employee = $this->currentEmployee($request);
+        $voting = app(EotmVoting::class);
+
+        $period = $voting->openPeriod((int) $employee->tenant_id);
+
+        abort_if($period === null, 404, 'Belum ada periode voting yang dibuka.');
+
+        $data = $request->validate([
+            'nominee_employee_id' => [
+                'required',
+                'integer',
+                Rule::exists('employees', 'id')->where('tenant_id', $employee->tenant_id),
+            ],
+            'eotm_core_value_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('eotm_core_values', 'id')->where('tenant_id', $employee->tenant_id),
+            ],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ], [
+            'nominee_employee_id.required' => 'Pilih dulu karyawan yang kamu vote.',
+        ]);
+
+        $nominee = Employee::forTenant($employee->tenant_id)->findOrFail($data['nominee_employee_id']);
+
+        $voting->vote(
+            $period,
+            $employee,
+            $nominee,
+            $data['eotm_core_value_id'] ?? null,
+            $data['reason'] ?? null,
+        );
+
+        return back()->with('success', 'Vote kamu tersimpan');
     }
 
     public function store(Request $request): RedirectResponse
