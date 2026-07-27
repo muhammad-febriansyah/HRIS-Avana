@@ -206,7 +206,9 @@ class EssSocialController extends Controller
             'nominee_employee_id.required' => 'Pilih dulu karyawan yang kamu vote.',
         ]);
 
-        $nominee = Employee::forTenant($employee->tenant_id)->findOrFail($data['nominee_employee_id']);
+        $nominee = Employee::forTenant($employee->tenant_id)
+            ->where('id', $data['nominee_employee_id'])
+            ->firstOrFail();
 
         $voting->vote(
             $period,
@@ -332,7 +334,7 @@ class EssSocialController extends Controller
             $employee,
             $data['body'],
             isset($data['parent_id'])
-                ? SocialPostComment::query()->find($data['parent_id'])
+                ? SocialPostComment::query()->where('id', $data['parent_id'])->first()
                 : null,
         );
 

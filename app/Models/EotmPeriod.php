@@ -52,16 +52,19 @@ final class EotmPeriod extends Model
         return $this->status === self::STATUS_OPEN;
     }
 
+    /** @return BelongsTo<Tenant, $this> */
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);
     }
 
+    /** @return HasMany<EotmVote, $this> */
     public function votes(): HasMany
     {
         return $this->hasMany(EotmVote::class);
     }
 
+    /** @return BelongsTo<Employee, $this> */
     public function winner(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'winner_employee_id');

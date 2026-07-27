@@ -44,6 +44,55 @@ interface PostRow {
     edited: boolean;
 }
 
+interface EotmPeriod {
+    id: number;
+    label: string;
+    title: string | null;
+    description: string | null;
+    is_open: boolean;
+    closes_at: string | null;
+    winner: string | null;
+    winner_votes: number | null;
+    total_votes: number;
+}
+
+interface EotmVote {
+    nominee_employee_id: number;
+    nominee: string | null;
+    core_value_id: number | null;
+    core_value: string | null;
+    reason: string | null;
+}
+
+interface CoreValueRow {
+    id: number;
+    name: string;
+    icon: string | null;
+    color: string | null;
+}
+
+interface StandingRow {
+    employee_id: number;
+    name: string;
+    photo: string | null;
+    votes: number;
+    is_me: boolean;
+}
+
+interface EotmPayload {
+    period: EotmPeriod | null;
+    my_vote: EotmVote | null;
+    core_values: CoreValueRow[];
+    standings: StandingRow[];
+}
+
+interface NomineeRow {
+    id: number;
+    name: string;
+    employee_number: string | null;
+    photo: string | null;
+}
+
 interface LeaderRow {
     rank: number;
     employee_id: number;
@@ -67,6 +116,7 @@ interface SayaSosmedProps {
     leaderboard: LeaderRow[];
     weights: Record<string, number>;
     me: { name: string; photo: string | null };
+    eotm: EotmPayload;
     filters: { category: number | null };
 }
 
@@ -690,12 +740,628 @@ function ComposeModal({
     );
 }
 
+/**
+ * Employee of the Month, as the app's tab shows it: the open period, your own
+ * ballot, and the running tally. A closed period still renders — it carries the
+ * winner, which is the whole point of looking a month later.
+ */
+function EotmPanel({
+    eotm,
+    onVote,
+}: {
+    eotm: EotmPayload;
+    onVote: () => void;
+}) {
+    const { period, my_vote: myVote, standings } = eotm;
+
+    if (period === null) {
+        return (
+            <EmptyState
+                icon="crown"
+                message="Belum ada periode voting yang dibuka."
+            />
+        );
+    }
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div
+                style={{
+                    padding: 14,
+                    borderRadius: 12,
+                    background: period.is_open ? C.primary : C.navy,
+                    color: '#fff',
+                }}
+            >
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        marginBottom: 6,
+                    }}
+                >
+                    <AIcon name="crown" size={16} color="#FBBF24" />
+                    <span style={{ fontSize: 14, fontWeight: 700, flex: 1 }}>
+                        {period.label}
+                    </span>
+                    <span
+                        style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: '3px 9px',
+                            borderRadius: 999,
+                            background: 'rgba(255,255,255,.2)',
+                        }}
+                    >
+                        {period.is_open ? 'BERLANGSUNG' : 'DITUTUP'}
+                    </span>
+                </div>
+                <div style={{ fontSize: 12.5, opacity: 0.9 }}>
+                    {!period.is_open && period.winner
+                        ? `Pemenang: ${period.winner} (${period.winner_votes ?? 0} suara)`
+                        : `${period.total_votes} suara masuk`}
+                </div>
+                {period.description && (
+                    <div
+                        style={{
+                            fontSize: 12,
+                            opacity: 0.8,
+                            marginTop: 6,
+                            lineHeight: 1.5,
+                        }}
+                    >
+                        {period.description}
+                    </div>
+                )}
+            </div>
+
+            {period.is_open && (
+                <button
+                    type="button"
+                    onClick={onVote}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        width: '100%',
+                        padding: 12,
+                        borderRadius: 10,
+                        border: 'none',
+                        background: myVote ? C.surface : `${C.primary}14`,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                    }}
+                >
+                    <AIcon
+                        name={myVote ? 'circle-check' : 'star'}
+                        size={18}
+                        color={myVote ? C.green : C.primary}
+                    />
+                    <span style={{ flex: 1 }}>
+                        <span
+                            style={{
+                                display: 'block',
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: C.navy,
+                            }}
+                        >
+                            {myVote ? 'Kamu memilih' : 'Beri vote kamu'}
+                        </span>
+                        <span style={{ fontSize: 11.5, color: C.muted }}>
+                            {myVote
+                                ? `${myVote.nominee ?? '-'}${myVote.core_value ? ` · ${myVote.core_value}` : ''}`
+                                : 'Pilih rekan kerja terbaik bulan ini'}
+                        </span>
+                    </span>
+                    <AIcon name="chevron-right" size={15} color={C.faint} />
+                </button>
+            )}
+
+            <div>
+                <div
+                    style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: C.muted,
+                        marginBottom: 10,
+                    }}
+                >
+                    Perolehan sementara
+                </div>
+                {standings.length === 0 ? (
+                    <div style={{ fontSize: 12.5, color: C.faint }}>
+                        Belum ada suara masuk.
+                    </div>
+                ) : (
+                    <div
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 10,
+                        }}
+                    >
+                        {standings.map((row, index) => (
+                            <div
+                                key={row.employee_id}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 10,
+                                    padding: row.is_me ? '8px 10px' : undefined,
+                                    borderRadius: 8,
+                                    background: row.is_me
+                                        ? `${C.primary}0F`
+                                        : undefined,
+                                }}
+                            >
+                                <span
+                                    style={{
+                                        width: 18,
+                                        fontSize: 12.5,
+                                        fontWeight: 700,
+                                        color: C.faint,
+                                    }}
+                                >
+                                    {index + 1}
+                                </span>
+                                <Avatar
+                                    name={row.name}
+                                    photo={row.photo}
+                                    size={30}
+                                />
+                                <div
+                                    style={{
+                                        flex: 1,
+                                        minWidth: 0,
+                                        fontSize: 13,
+                                        fontWeight: 600,
+                                        color: C.navy,
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                    }}
+                                >
+                                    {row.name}
+                                    {row.is_me && ' (Anda)'}
+                                </div>
+                                <span
+                                    style={{
+                                        fontSize: 12.5,
+                                        fontWeight: 700,
+                                        color: C.primary,
+                                    }}
+                                >
+                                    {row.votes} suara
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+/**
+ * The ballot. Nominees are searched server-side rather than shipped with the
+ * page: a tenant can have thousands of employees, and only one is voted for.
+ */
+function VoteModal({
+    coreValues,
+    myVote,
+    onClose,
+}: {
+    coreValues: CoreValueRow[];
+    myVote: EotmVote | null;
+    onClose: () => void;
+}) {
+    const [search, setSearch] = useState('');
+    const [nominees, setNominees] = useState<NomineeRow[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const form = useForm<{
+        nominee_employee_id: number | null;
+        eotm_core_value_id: number | null;
+        reason: string;
+        [key: string]: number | string | null;
+    }>({
+        nominee_employee_id: myVote?.nominee_employee_id ?? null,
+        eotm_core_value_id: myVote?.core_value_id ?? null,
+        reason: myVote?.reason ?? '',
+    });
+
+    useEffect(() => {
+        let cancelled = false;
+        // Debounced so typing a name does not fire a request per keystroke.
+        const timer = setTimeout(async () => {
+            setLoading(true);
+            const response = await fetch(
+                `/avana/saya/sosmed/eotm/kandidat?search=${encodeURIComponent(search)}`,
+                { headers: { Accept: 'application/json' } },
+            );
+            const payload = (await response.json()) as { data: NomineeRow[] };
+
+            if (!cancelled) {
+                setNominees(payload.data);
+                setLoading(false);
+            }
+        }, 250);
+
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [search]);
+
+    const submit = (event: FormEvent) => {
+        event.preventDefault();
+        form.post('/avana/saya/sosmed/eotm/vote', {
+            preserveScroll: true,
+            onSuccess: onClose,
+        });
+    };
+
+    return (
+        <div
+            style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 80,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 20,
+            }}
+        >
+            <div
+                onClick={onClose}
+                style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(14,26,58,.45)',
+                }}
+            />
+            <form
+                onSubmit={submit}
+                style={{
+                    position: 'relative',
+                    width: '100%',
+                    maxWidth: 520,
+                    maxHeight: '90vh',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    background: '#fff',
+                    borderRadius: 14,
+                    boxShadow: '0 20px 50px rgba(15,23,42,.25)',
+                }}
+            >
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '18px 22px',
+                        borderBottom: `1px solid ${C.line}`,
+                    }}
+                >
+                    <div
+                        style={{ fontSize: 17, fontWeight: 600, color: C.navy }}
+                    >
+                        Employee of the Month
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        aria-label="Tutup"
+                        style={{
+                            border: 'none',
+                            background: 'none',
+                            cursor: 'pointer',
+                            padding: 4,
+                            lineHeight: 0,
+                        }}
+                    >
+                        <AIcon name="x" size={18} color={C.muted} />
+                    </button>
+                </div>
+
+                <div
+                    style={{
+                        padding: 22,
+                        overflowY: 'auto',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 16,
+                    }}
+                >
+                    <div>
+                        <div
+                            style={{
+                                fontSize: 12.5,
+                                fontWeight: 600,
+                                color: C.muted,
+                                marginBottom: 8,
+                            }}
+                        >
+                            Pilih rekan kerja
+                        </div>
+                        <input
+                            name="cari_kandidat"
+                            aria-label="Cari rekan kerja"
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                            placeholder="Cari nama atau NIK…"
+                            style={{
+                                width: '100%',
+                                height: 40,
+                                padding: '0 13px',
+                                border: `1px solid ${C.border}`,
+                                borderRadius: 8,
+                                fontSize: 13.5,
+                                color: C.text,
+                                outline: 'none',
+                                marginBottom: 10,
+                            }}
+                        />
+                        <div
+                            style={{
+                                maxHeight: 210,
+                                overflowY: 'auto',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 6,
+                            }}
+                        >
+                            {loading ? (
+                                <div style={{ fontSize: 12.5, color: C.faint }}>
+                                    Memuat…
+                                </div>
+                            ) : nominees.length === 0 ? (
+                                <div style={{ fontSize: 12.5, color: C.faint }}>
+                                    Tidak ada rekan yang cocok.
+                                </div>
+                            ) : (
+                                nominees.map((nominee) => {
+                                    const picked =
+                                        form.data.nominee_employee_id ===
+                                        nominee.id;
+
+                                    return (
+                                        <button
+                                            key={nominee.id}
+                                            type="button"
+                                            onClick={() =>
+                                                form.setData(
+                                                    'nominee_employee_id',
+                                                    nominee.id,
+                                                )
+                                            }
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 10,
+                                                padding: 8,
+                                                borderRadius: 8,
+                                                border: 'none',
+                                                background: picked
+                                                    ? `${C.primary}14`
+                                                    : 'transparent',
+                                                cursor: 'pointer',
+                                                textAlign: 'left',
+                                            }}
+                                        >
+                                            <Avatar
+                                                name={nominee.name}
+                                                photo={nominee.photo}
+                                                size={30}
+                                            />
+                                            <span style={{ flex: 1 }}>
+                                                <span
+                                                    style={{
+                                                        display: 'block',
+                                                        fontSize: 13,
+                                                        fontWeight: 600,
+                                                        color: C.navy,
+                                                    }}
+                                                >
+                                                    {nominee.name}
+                                                </span>
+                                                <span
+                                                    style={{
+                                                        fontSize: 11.5,
+                                                        color: C.muted,
+                                                    }}
+                                                >
+                                                    {nominee.employee_number ??
+                                                        '—'}
+                                                </span>
+                                            </span>
+                                            {picked && (
+                                                <AIcon
+                                                    name="circle-check"
+                                                    size={17}
+                                                    color={C.primary}
+                                                />
+                                            )}
+                                        </button>
+                                    );
+                                })
+                            )}
+                        </div>
+                        {form.errors.nominee_employee_id && (
+                            <div
+                                style={{
+                                    fontSize: 12.5,
+                                    color: C.red,
+                                    marginTop: 6,
+                                }}
+                            >
+                                {form.errors.nominee_employee_id}
+                            </div>
+                        )}
+                    </div>
+
+                    {coreValues.length > 0 && (
+                        <div>
+                            <div
+                                style={{
+                                    fontSize: 12.5,
+                                    fontWeight: 600,
+                                    color: C.muted,
+                                    marginBottom: 8,
+                                }}
+                            >
+                                Core value (opsional)
+                            </div>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    gap: 8,
+                                    flexWrap: 'wrap',
+                                }}
+                            >
+                                {coreValues.map((value) => {
+                                    const picked =
+                                        form.data.eotm_core_value_id ===
+                                        value.id;
+                                    const accent = value.color ?? C.primary;
+
+                                    return (
+                                        <button
+                                            key={value.id}
+                                            type="button"
+                                            onClick={() =>
+                                                form.setData(
+                                                    'eotm_core_value_id',
+                                                    picked ? null : value.id,
+                                                )
+                                            }
+                                            style={{
+                                                height: 32,
+                                                padding: '0 14px',
+                                                borderRadius: 999,
+                                                border: 'none',
+                                                background: picked
+                                                    ? accent
+                                                    : C.surface,
+                                                color: picked
+                                                    ? '#fff'
+                                                    : C.muted,
+                                                fontSize: 12.5,
+                                                fontWeight: 600,
+                                                cursor: 'pointer',
+                                            }}
+                                        >
+                                            {value.name}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    <div>
+                        <div
+                            style={{
+                                fontSize: 12.5,
+                                fontWeight: 600,
+                                color: C.muted,
+                                marginBottom: 8,
+                            }}
+                        >
+                            Alasan (opsional)
+                        </div>
+                        <textarea
+                            name="reason"
+                            aria-label="Alasan"
+                            value={form.data.reason}
+                            onChange={(event) =>
+                                form.setData('reason', event.target.value)
+                            }
+                            rows={3}
+                            maxLength={500}
+                            placeholder="Kenapa dia pantas?"
+                            style={{
+                                width: '100%',
+                                padding: '11px 13px',
+                                border: `1px solid ${C.border}`,
+                                borderRadius: 10,
+                                fontSize: 13.5,
+                                color: C.text,
+                                resize: 'vertical',
+                                outline: 'none',
+                                fontFamily: 'inherit',
+                            }}
+                        />
+                    </div>
+                </div>
+
+                <div
+                    style={{
+                        display: 'flex',
+                        gap: 10,
+                        justifyContent: 'flex-end',
+                        padding: '16px 22px',
+                        borderTop: `1px solid ${C.line}`,
+                    }}
+                >
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        style={{
+                            height: 42,
+                            padding: '0 20px',
+                            borderRadius: 10,
+                            border: `1px solid ${C.border}`,
+                            background: '#fff',
+                            color: C.muted,
+                            fontSize: 13.5,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        Batal
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={
+                            form.processing ||
+                            form.data.nominee_employee_id === null
+                        }
+                        style={{
+                            height: 42,
+                            padding: '0 24px',
+                            borderRadius: 10,
+                            border: 'none',
+                            background: C.primary,
+                            color: '#fff',
+                            fontSize: 13.5,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            opacity:
+                                form.processing ||
+                                form.data.nominee_employee_id === null
+                                    ? 0.55
+                                    : 1,
+                        }}
+                    >
+                        {myVote ? 'Ubah vote' : 'Kirim vote'}
+                    </button>
+                </div>
+            </form>
+        </div>
+    );
+}
+
 export default function SayaSosmed({
     posts,
     categories,
     leaderboard,
     weights,
     me,
+    eotm,
     filters,
 }: SayaSosmedProps) {
     const { flash } = usePage<FlashProps>().props;
@@ -706,6 +1372,10 @@ export default function SayaSosmed({
         image: null,
     });
     const [composeOpen, setComposeOpen] = useState(false);
+    const [sidePanel, setSidePanel] = useState<'leaderboard' | 'eotm'>(
+        'leaderboard',
+    );
+    const [voteOpen, setVoteOpen] = useState(false);
 
     const [openThread, setOpenThread] = useState<number | null>(null);
     const [draft, setDraft] = useState('');
@@ -804,6 +1474,13 @@ export default function SayaSosmed({
     return (
         <>
             <Head title="Ruang Kita" />
+            {voteOpen && eotm.period && (
+                <VoteModal
+                    coreValues={eotm.core_values}
+                    myVote={eotm.my_vote}
+                    onClose={() => setVoteOpen(false)}
+                />
+            )}
             {composeOpen && (
                 <ComposeModal
                     categories={categories}
@@ -1517,87 +2194,96 @@ export default function SayaSosmed({
                                         {weights.like ?? 0}/suka ·{' '}
                                         {weights.comment ?? 0}/komentar
                                     </div>
-                        {leaderboard.length === 0 ? (
-                            <EmptyState
-                                icon="crown"
-                                message="Belum ada kontributor."
-                            />
-                        ) : (
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: 10,
-                                }}
-                            >
-                                {leaderboard.map((leader) => (
-                                    <div
-                                        key={leader.employee_id}
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 10,
-                                            padding: leader.is_me
-                                                ? '8px 10px'
-                                                : undefined,
-                                            borderRadius: 8,
-                                            background: leader.is_me
-                                                ? `${C.primary}0F`
-                                                : undefined,
-                                        }}
-                                    >
-                                        <span
-                                            style={{
-                                                width: 18,
-                                                fontSize: 12.5,
-                                                fontWeight: 700,
-                                                color: C.faint,
-                                            }}
-                                        >
-                                            {leader.rank}
-                                        </span>
-                                        <Avatar
-                                            name={leader.name}
-                                            photo={leader.photo}
-                                            size={30}
+                                    {leaderboard.length === 0 ? (
+                                        <EmptyState
+                                            icon="crown"
+                                            message="Belum ada kontributor."
                                         />
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                            <div
-                                                style={{
-                                                    fontSize: 13,
-                                                    fontWeight: 600,
-                                                    color: C.navy,
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    whiteSpace: 'nowrap',
-                                                }}
-                                            >
-                                                {leader.name}
-                                                {leader.is_me && ' (Anda)'}
-                                            </div>
-                                            <div
-                                                style={{
-                                                    fontSize: 11.5,
-                                                    color: C.muted,
-                                                }}
-                                            >
-                                                {leader.posts} ide ·{' '}
-                                                {leader.likes} suka
-                                            </div>
-                                        </div>
-                                        <span
+                                    ) : (
+                                        <div
                                             style={{
-                                                fontSize: 13,
-                                                fontWeight: 700,
-                                                color: C.primary,
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: 10,
                                             }}
                                         >
-                                            {leader.points}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                                            {leaderboard.map((leader) => (
+                                                <div
+                                                    key={leader.employee_id}
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: 10,
+                                                        padding: leader.is_me
+                                                            ? '8px 10px'
+                                                            : undefined,
+                                                        borderRadius: 8,
+                                                        background: leader.is_me
+                                                            ? `${C.primary}0F`
+                                                            : undefined,
+                                                    }}
+                                                >
+                                                    <span
+                                                        style={{
+                                                            width: 18,
+                                                            fontSize: 12.5,
+                                                            fontWeight: 700,
+                                                            color: C.faint,
+                                                        }}
+                                                    >
+                                                        {leader.rank}
+                                                    </span>
+                                                    <Avatar
+                                                        name={leader.name}
+                                                        photo={leader.photo}
+                                                        size={30}
+                                                    />
+                                                    <div
+                                                        style={{
+                                                            flex: 1,
+                                                            minWidth: 0,
+                                                        }}
+                                                    >
+                                                        <div
+                                                            style={{
+                                                                fontSize: 13,
+                                                                fontWeight: 600,
+                                                                color: C.navy,
+                                                                overflow:
+                                                                    'hidden',
+                                                                textOverflow:
+                                                                    'ellipsis',
+                                                                whiteSpace:
+                                                                    'nowrap',
+                                                            }}
+                                                        >
+                                                            {leader.name}
+                                                            {leader.is_me &&
+                                                                ' (Anda)'}
+                                                        </div>
+                                                        <div
+                                                            style={{
+                                                                fontSize: 11.5,
+                                                                color: C.muted,
+                                                            }}
+                                                        >
+                                                            {leader.posts} ide ·{' '}
+                                                            {leader.likes} suka
+                                                        </div>
+                                                    </div>
+                                                    <span
+                                                        style={{
+                                                            fontSize: 13,
+                                                            fontWeight: 700,
+                                                            color: C.primary,
+                                                        }}
+                                                    >
+                                                        {leader.points}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </>
                             ) : (
                                 <EotmPanel

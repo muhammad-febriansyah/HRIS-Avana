@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\Employee;
+use App\Models\EotmCoreValue;
+use App\Models\EotmPeriod;
 use App\Models\SocialCategory;
 use App\Models\SocialPost;
 use App\Models\SocialPostComment;
@@ -245,4 +247,105 @@ it('refuses a reply whose parent belongs to another post', function (): void {
             'parent_id' => $foreignParent->id,
         ])
         ->assertSessionHasErrors('parent_id');
+});
+
+/**
+ * The demo seeder ships core values but no period, so the voting tests open one.
+ */
+function openEotmPeriod(int $tenantId): EotmPeriod
+{
+    return EotmPeriod::create([
+        'tenant_id' => $tenantId,
+        'period' => now()->format('Y-m'),
+        'title' => 'Employee of the Month Uji',
+        'status' => EotmPeriod::STATUS_OPEN,
+        'opens_at' => now(),
+        'winner_votes' => 0,
+    ]);
+}
+
+it('carries the open EOTM period and standings onto the wall', function (): void {
+    openEotmPeriod($this->tenantId);
+
+    actingAs($this->user)
+        ->get('/avana/saya/sosmed')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('eotm.period')
+            ->has('eotm.core_values')
+            ->has('eotm.standings')
+            ->where('eotm.period.is_open', true));
+});
+
+it('lists vote candidates without the caller', function (): void {
+    $res = actingAs($this->user)
+        ->getJson('/avana/saya/sosmed/eotm/kandidat')
+        ->assertOk();
+
+    $ids = collect($res->json('data'))->pluck('id');
+
+    expect($ids)->not->toContain($this->employee->id);
+    expect($ids)->not->toBeEmpty();
+});
+
+it('searches vote candidates by name', function (): void {
+    $other = Employee::forTenant($this->tenantId)
+        ->where('id', '!=', $this->employee->id)
+        ->firstOrFail();
+
+    $res = actingAs($this->user)
+        ->getJson('/avana/saya/sosmed/eotm/kandidat?search='.urlencode($other->full_name))
+        ->assertOk();
+
+    expect(collect($res->json('data'))->pluck('id'))->toContain($other->id);
+});
+
+it('casts a vote and reflects it back on the wall', function (): void {
+    openEotmPeriod($this->tenantId);
+
+    $nominee = Employee::forTenant($this->tenantId)
+        ->where('id', '!=', $this->employee->id)
+        ->firstOrFail();
+    $value = EotmCoreValue::forTenant($this->tenantId)->firstOrFail();
+
+    actingAs($this->user)
+        ->post('/avana/saya/sosmed/eotm/vote', [
+            'nominee_employee_id' => $nominee->id,
+            'eotm_core_value_id' => $value->id,
+            'reason' => 'Selalu bantu tim',
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    actingAs($this->user)
+        ->get('/avana/saya/sosmed')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('eotm.my_vote.nominee_employee_id', $nominee->id)
+            ->where('eotm.my_vote.core_value', $value->name));
+});
+
+it('rejects a vote with no nominee', function (): void {
+    openEotmPeriod($this->tenantId);
+
+    actingAs($this->user)
+        ->post('/avana/saya/sosmed/eotm/vote', ['reason' => 'lupa pilih'])
+        ->assertSessionHasErrors('nominee_employee_id');
+});
+
+it('refuses to vote for someone in another tenant', function (): void {
+    openEotmPeriod($this->tenantId);
+
+    $otherTenant = Tenant::create(['name' => 'PT Seberang', 'slug' => 'pt-seberang-eotm']);
+    $stranger = Employee::create([
+        'tenant_id' => $otherTenant->id,
+        'employee_number' => 'EMP-6002',
+        'full_name' => 'Kandidat Seberang',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+    ]);
+
+    actingAs($this->user)
+        ->post('/avana/saya/sosmed/eotm/vote', ['nominee_employee_id' => $stranger->id])
+        ->assertSessionHasErrors('nominee_employee_id');
 });

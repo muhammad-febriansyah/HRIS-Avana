@@ -29,11 +29,13 @@ final class EotmVote extends Model
         return $this->belongsTo(Employee::class, 'voter_employee_id');
     }
 
+    /** @return BelongsTo<Employee, $this> */
     public function nominee(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'nominee_employee_id');
     }
 
+    /** @return BelongsTo<EotmCoreValue, $this> */
     public function coreValue(): BelongsTo
     {
         return $this->belongsTo(EotmCoreValue::class, 'eotm_core_value_id');
