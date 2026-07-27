@@ -6,6 +6,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Services\AiImageGenerator;
 use App\Services\AiToolkit;
+use App\Support\AiPersona;
 use App\Support\GeneratedImageBag;
 use Illuminate\Support\Facades\Storage;
 use Prism\Prism\Facades\Prism;
@@ -144,4 +145,20 @@ it('appends what it drew to the reply as markdown', function (): void {
 
     expect($bag->toMarkdown())
         ->toContain('![kucing oranye](http://localhost/storage/ai-images/1/abc.png)');
+});
+
+it('tells the model it can draw only when the tool is registered', function (): void {
+    // Asked for a logo without this, the model answered with raw SVG source:
+    // it had the tool but no instruction that drawing was its job.
+    $withTool = AiToolkit::forUser($this->user);
+
+    expect(AiPersona::systemPrompt($withTool))->toContain('buat_gambar')
+        ->and(AiPersona::systemPrompt($withTool))->toContain('DILARANG membalas dengan kode SVG');
+
+    AiSetting::current()->update(['image_enabled' => false]);
+
+    $withoutTool = AiToolkit::forUser($this->user->fresh());
+
+    expect(AiPersona::systemPrompt($withoutTool))->not->toContain('buat_gambar')
+        ->and(AiPersona::systemPrompt($withoutTool))->toBe(AiPersona::SYSTEM_PROMPT);
 });

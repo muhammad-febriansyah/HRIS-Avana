@@ -35,11 +35,6 @@ class AiAssistantController extends Controller
     private const MODULE = 'ai';
 
     /**
-     * AvanaHR system persona for the assistant, shared with the mobile API.
-     */
-    private const SYSTEM_PROMPT = AiPersona::SYSTEM_PROMPT;
-
-    /**
      * Render the GPT-style chat with the conversation history sidebar.
      */
     public function index(Request $request): Response
@@ -234,7 +229,7 @@ class AiAssistantController extends Controller
                 try {
                     $request = Prism::text()
                         ->using($provider, $model)
-                        ->withSystemPrompt(self::SYSTEM_PROMPT)
+                        ->withSystemPrompt(AiPersona::systemPrompt($tools))
                         ->withMessages($history);
 
                     // Let the model call data tools and loop back with results.

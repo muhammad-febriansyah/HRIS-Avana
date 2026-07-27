@@ -211,7 +211,7 @@ class AiAssistantController extends Controller
         try {
             $pending = Prism::text()
                 ->using($provider, $model)
-                ->withSystemPrompt(AiPersona::SYSTEM_PROMPT)
+                ->withSystemPrompt(AiPersona::systemPrompt($tools))
                 ->withMessages($history);
 
             if ($tools !== []) {
