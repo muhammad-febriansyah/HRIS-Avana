@@ -7,9 +7,11 @@ use App\Http\Controllers\Controller;
 use App\Models\OvertimeRequest;
 use App\Services\ApprovalEngine;
 use App\Services\AutoApproval;
+use App\Support\OvertimeWindow;
 use DateTimeInterface;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -31,13 +33,14 @@ class EssOvertimeController extends Controller
             ->where('employee_id', $employee->id)
             ->orderByDesc('date')
             ->orderByDesc('id')
-            ->get(['id', 'date', 'hours', 'reason', 'status']);
+            ->get(['id', 'date', 'start_time', 'end_time', 'hours', 'reason', 'status']);
 
         return Inertia::render('avana/saya/lembur', [
             'requests' => $requests->map(fn (OvertimeRequest $overtime): array => [
                 'id' => $overtime->id,
                 'date' => $this->dateString($overtime->date),
                 'hours' => (float) $overtime->hours,
+                'time_range' => OvertimeWindow::label($overtime->start_time, $overtime->end_time),
                 'reason' => $overtime->reason,
                 'status' => $overtime->status,
             ])->values(),
@@ -55,21 +58,36 @@ class EssOvertimeController extends Controller
 
         $data = $request->validate([
             'date' => ['required', 'date'],
-            'hours' => ['required', 'numeric', 'min:0.5', 'max:12'],
+            'start_time' => ['required', 'date_format:H:i'],
+            'end_time' => ['required', 'date_format:H:i'],
             'reason' => ['nullable', 'string', 'max:1000'],
         ], [
             'date.required' => 'Tanggal wajib diisi.',
-            'hours.required' => 'Jumlah jam wajib diisi.',
-            'hours.min' => 'Minimal 0,5 jam.',
-            'hours.max' => 'Maksimal 12 jam.',
+            'start_time.required' => 'Jam mulai wajib diisi.',
+            'end_time.required' => 'Jam selesai wajib diisi.',
         ]);
+
+        // Hours are derived, never typed: the range is what an approver checks,
+        // so payroll must agree with it by construction.
+
+        if (! OvertimeWindow::isPlausible($data['start_time'], $data['end_time'])) {
+            throw ValidationException::withMessages([
+                'end_time' => sprintf(
+                    'Durasi lembur harus antara %s dan %s jam.',
+                    OvertimeWindow::MIN_HOURS,
+                    OvertimeWindow::MAX_HOURS,
+                ),
+            ]);
+        }
 
         $overtime = OvertimeRequest::create([
             'tenant_id' => $employee->tenant_id,
             'employee_id' => $employee->id,
             'branch_id' => $employee->branch_id,
             'date' => $data['date'],
-            'hours' => $data['hours'],
+            'start_time' => $data['start_time'],
+            'end_time' => $data['end_time'],
+            'hours' => OvertimeWindow::hoursBetween($data['start_time'], $data['end_time']),
             'reason' => $data['reason'] ?? null,
             'current_approver_id' => $employee->manager_id,
             'status' => 'pending',

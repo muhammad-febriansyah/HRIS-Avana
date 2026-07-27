@@ -66,7 +66,8 @@ it('creates a pending overtime request scoped to the tenant and branch', functio
         ->post(route('avana.cuti.lembur.store'), [
             'employee_id' => $employee->id,
             'date' => '2026-07-10',
-            'hours' => 3,
+            'start_time' => '18:00',
+            'end_time' => '21:00',
             'reason' => 'Lembur akhir bulan',
         ])
         ->assertRedirect()
@@ -88,7 +89,8 @@ it('auto-approves overtime submitted by a top approver (director)', function ():
         ->post(route('avana.cuti.lembur.store'), [
             'employee_id' => $employee->id,
             'date' => '2026-07-10',
-            'hours' => 3,
+            'start_time' => '18:00',
+            'end_time' => '21:00',
             'reason' => 'Lembur direksi',
         ])
         ->assertRedirect()
@@ -103,9 +105,10 @@ it('validates required fields when storing overtime', function (): void {
         ->post(route('avana.cuti.lembur.store'), [
             'employee_id' => '',
             'date' => '',
-            'hours' => '',
+            'start_time' => '',
+            'end_time' => '',
         ])
-        ->assertSessionHasErrors(['employee_id', 'date', 'hours']);
+        ->assertSessionHasErrors(['employee_id', 'date', 'start_time', 'end_time']);
 });
 
 it('approves a pending overtime request', function (): void {
@@ -163,7 +166,8 @@ it('forbids an employee-role user from storing overtime', function (): void {
         ->post(route('avana.cuti.lembur.store'), [
             'employee_id' => $employee->id,
             'date' => '2026-07-10',
-            'hours' => 3,
+            'start_time' => '18:00',
+            'end_time' => '21:00',
         ])
         ->assertForbidden();
 });
@@ -180,4 +184,74 @@ it('forbids an employee-role user from approving overtime', function (): void {
         ->assertForbidden();
 
     expect($overtime->fresh()->status)->toBe('pending');
+});
+
+it('derives the hours from the filed time range', function (): void {
+    // The range is what an approver checks, so payroll must agree with it —
+    // the client no longer sends a number at all.
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.cuti.lembur.store'), [
+            'employee_id' => $employee->id,
+            'date' => '2026-07-10',
+            'start_time' => '18:30',
+            'end_time' => '21:15',
+        ])
+        ->assertSessionHas('success');
+
+    $overtime = OvertimeRequest::where('employee_id', $employee->id)->latest('id')->firstOrFail();
+
+    expect((float) $overtime->hours)->toBe(2.75)
+        ->and(substr((string) $overtime->start_time, 0, 5))->toBe('18:30')
+        ->and(substr((string) $overtime->end_time, 0, 5))->toBe('21:15');
+});
+
+it('counts overtime that runs past midnight as the next day', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.cuti.lembur.store'), [
+            'employee_id' => $employee->id,
+            'date' => '2026-07-10',
+            'start_time' => '22:00',
+            'end_time' => '01:00',
+        ])
+        ->assertSessionHas('success');
+
+    expect((float) OvertimeRequest::where('employee_id', $employee->id)->latest('id')->firstOrFail()->hours)
+        ->toBe(3.0);
+});
+
+it('refuses a range too short or too long to be a shift', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    foreach ([['18:00', '18:15'], ['08:00', '21:00'], ['19:00', '19:00']] as [$start, $end]) {
+        actingAs($this->admin)
+            ->post(route('avana.cuti.lembur.store'), [
+                'employee_id' => $employee->id,
+                'date' => '2026-07-10',
+                'start_time' => $start,
+                'end_time' => $end,
+            ])
+            ->assertSessionHasErrors('end_time');
+    }
+});
+
+it('ignores an hours value posted alongside the range', function (): void {
+    // Trusting a client-sent total would let someone file "18:00–19:00, 8 jam".
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.cuti.lembur.store'), [
+            'employee_id' => $employee->id,
+            'date' => '2026-07-10',
+            'start_time' => '18:00',
+            'end_time' => '19:00',
+            'hours' => 8,
+        ])
+        ->assertSessionHas('success');
+
+    expect((float) OvertimeRequest::where('employee_id', $employee->id)->latest('id')->firstOrFail()->hours)
+        ->toBe(1.0);
 });

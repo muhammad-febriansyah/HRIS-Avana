@@ -14,6 +14,9 @@ final class OvertimeRequest extends Model
     {
         return [
             'date' => 'date',
+            // Left as plain strings: these are wall-clock times on the request's
+            // own date, and casting them to datetime would attach today's date
+            // and quietly shift them across a timezone boundary.
             'hours' => 'decimal:2',
         ];
     }

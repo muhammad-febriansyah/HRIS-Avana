@@ -50,7 +50,8 @@ export default function AvanaCuti({
     const overtimeForm = useForm<OvertimeFormData>({
         employee_id: '',
         date: '',
-        hours: '',
+        start_time: '',
+        end_time: '',
         reason: '',
     });
 

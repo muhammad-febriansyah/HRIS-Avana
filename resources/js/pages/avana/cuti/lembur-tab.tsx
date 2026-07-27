@@ -64,19 +64,48 @@ export function LemburTab({
                         width="100%"
                     />
                 </Field>
-                <Field label="Durasi (jam)" required error={form.errors.hours}>
-                    <input
-                        type="number"
-                        step="0.5"
-                        min="0.5"
-                        placeholder="2"
-                        value={form.data.hours}
-                        onChange={(event) =>
-                            form.setData('hours', event.target.value)
-                        }
-                        style={withError(textInputStyle, !!form.errors.hours)}
-                    />
-                </Field>
+                <div
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: 12,
+                    }}
+                >
+                    <Field
+                        label="Jam Mulai"
+                        required
+                        error={form.errors.start_time}
+                    >
+                        <input
+                            type="time"
+                            value={form.data.start_time}
+                            onChange={(event) =>
+                                form.setData('start_time', event.target.value)
+                            }
+                            style={withError(
+                                textInputStyle,
+                                !!form.errors.start_time,
+                            )}
+                        />
+                    </Field>
+                    <Field
+                        label="Jam Selesai"
+                        required
+                        error={form.errors.end_time}
+                    >
+                        <input
+                            type="time"
+                            value={form.data.end_time}
+                            onChange={(event) =>
+                                form.setData('end_time', event.target.value)
+                            }
+                            style={withError(
+                                textInputStyle,
+                                !!form.errors.end_time,
+                            )}
+                        />
+                    </Field>
+                </div>
                 <Field label="Alasan" error={form.errors.reason}>
                     <textarea
                         rows={3}
@@ -104,7 +133,9 @@ export function LemburTab({
                     status_label: row.status_label,
                     cells: [
                         row.date ?? '—',
-                        `${row.hours} jam`,
+                        row.time_range
+                            ? `${row.hours} jam · ${row.time_range}`
+                            : `${row.hours} jam`,
                         row.reason ?? '—',
                     ],
                 }))}

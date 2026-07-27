@@ -162,7 +162,7 @@ it('rejects a leave request over balance', function (): void {
 });
 
 it('submits overtime, permission and wfh, and lists announcements', function (): void {
-    ($this->auth)()->postJson('/api/v1/me/overtime', ['date' => now()->toDateString(), 'hours' => 2, 'reason' => 'Deadline'])->assertCreated();
+    ($this->auth)()->postJson('/api/v1/me/overtime', ['date' => now()->toDateString(), 'start_time' => '18:00', 'end_time' => '20:00', 'reason' => 'Deadline'])->assertCreated();
     ($this->auth)()->postJson('/api/v1/me/permissions', ['start_date' => now()->toDateString(), 'end_date' => now()->toDateString(), 'type' => 'keluar', 'start_time' => '10:00', 'end_time' => '11:00'])->assertCreated();
     ($this->auth)()->postJson('/api/v1/me/wfh', ['start_date' => now()->addDay()->toDateString(), 'end_date' => now()->addDay()->toDateString()])->assertCreated();
     ($this->auth)()->getJson('/api/v1/me/announcements')->assertOk()->assertJsonStructure(['data']);
@@ -586,7 +586,7 @@ it('returns a merged activity feed newest-first', function (): void {
 
 it('includes a freshly submitted request in the activity feed', function (): void {
     ($this->auth)()->postJson('/api/v1/me/overtime', [
-        'date' => now()->toDateString(), 'hours' => 2, 'reason' => 'Rilis fitur',
+        'date' => now()->toDateString(), 'start_time' => '18:00', 'end_time' => '20:00', 'reason' => 'Rilis fitur',
     ])->assertCreated();
 
     $res = ($this->auth)()->getJson('/api/v1/me/activities')->assertOk();

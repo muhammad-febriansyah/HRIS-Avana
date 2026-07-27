@@ -170,7 +170,8 @@ it('files overtime, izin, and an attendance correction for the employee', functi
     $this->actingAs($this->user)
         ->post('/avana/saya/lembur', [
             'date' => now()->subDay()->toDateString(),
-            'hours' => 2,
+            'start_time' => '18:00',
+            'end_time' => '20:00',
             'reason' => 'Rilis fitur',
         ])
         ->assertSessionHasNoErrors();

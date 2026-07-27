@@ -73,6 +73,8 @@ export interface OvertimeRow {
     employee: RequestEmployee | null;
     date: string | null;
     hours: number;
+    /** Null for requests filed before overtime was captured as a range. */
+    time_range: string | null;
     reason: string | null;
     status: RequestStatus;
     status_label: RequestStatusLabel;
@@ -131,7 +133,9 @@ export interface LeaveFormData {
 export interface OvertimeFormData {
     employee_id: string;
     date: string;
-    hours: string;
+    /** `HH:MM`. The server derives the hours from the pair. */
+    start_time: string;
+    end_time: string;
     reason: string;
 }
 

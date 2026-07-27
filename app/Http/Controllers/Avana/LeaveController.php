@@ -14,6 +14,7 @@ use App\Models\PermissionRequest;
 use App\Models\WfhRequest;
 use App\Services\ApprovalEngine;
 use App\Services\LeaveApproval;
+use App\Support\OvertimeWindow;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
@@ -129,6 +130,7 @@ class LeaveController extends Controller
                     'employee' => $this->shapeEmployee($overtime),
                     'date' => $overtime->date?->format('d M Y'),
                     'hours' => (float) $overtime->hours,
+                    'time_range' => OvertimeWindow::label($overtime->start_time, $overtime->end_time),
                     'reason' => $overtime->reason,
                     'status' => $overtime->status,
                     'status_label' => $this->statusLabel($overtime->status),

@@ -18,10 +18,27 @@ import {
     withError,
 } from './components';
 
+/** Hours between two `HH:MM` values, carrying a range past midnight. */
+function hoursBetween(start: string, end: string): number | null {
+    if (!/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end)) {
+        return null;
+    }
+
+    const [sh, sm] = start.split(':').map(Number);
+    const [eh, em] = end.split(':').map(Number);
+    const minutes = eh * 60 + em - (sh * 60 + sm);
+
+    // Evening overtime commonly ends after midnight, so an end at or before
+    // the start belongs to the next day rather than being negative.
+    return (minutes <= 0 ? minutes + 24 * 60 : minutes) / 60;
+}
+
 interface OvertimeRow {
     id: number;
     date: string | null;
     hours: number;
+    /** Null for requests filed before overtime was captured as a range. */
+    time_range: string | null;
     reason: string | null;
     status: string;
 }
@@ -41,7 +58,16 @@ export default function SayaLembur({
 }: Props) {
     const { flash } = usePage<FlashProps>().props;
 
-    const form = useForm({ date: '', hours: '', reason: '' });
+    const form = useForm({
+        date: '',
+        start_time: '',
+        end_time: '',
+        reason: '',
+    });
+
+    // Shown live so the employee sees what they are actually claiming before
+    // they send it — the server derives the same number from the same range.
+    const duration = hoursBetween(form.data.start_time, form.data.end_time);
 
     useEffect(() => {
         if (flash?.success) {
@@ -131,31 +157,75 @@ export default function SayaLembur({
                                     />
                                 </Field>
 
-                                <Field
-                                    label="Jumlah Jam"
-                                    required
-                                    error={form.errors.hours}
-                                    hint="Kelipatan 0,5 jam. Maksimal 12 jam."
+                                <div
+                                    style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: '1fr 1fr',
+                                        gap: 12,
+                                    }}
                                 >
-                                    <input
-                                        type="number"
-                                        step="0.5"
-                                        min="0.5"
-                                        max="12"
-                                        value={form.data.hours}
-                                        onChange={(event) =>
-                                            form.setData(
-                                                'hours',
-                                                event.target.value,
-                                            )
-                                        }
-                                        placeholder="2"
-                                        style={withError(
-                                            inputStyle,
-                                            !!form.errors.hours,
-                                        )}
-                                    />
-                                </Field>
+                                    <Field
+                                        label="Jam Mulai"
+                                        required
+                                        error={form.errors.start_time}
+                                    >
+                                        <input
+                                            type="time"
+                                            value={form.data.start_time}
+                                            onChange={(event) =>
+                                                form.setData(
+                                                    'start_time',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            style={withError(
+                                                inputStyle,
+                                                !!form.errors.start_time,
+                                            )}
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="Jam Selesai"
+                                        required
+                                        error={form.errors.end_time}
+                                    >
+                                        <input
+                                            type="time"
+                                            value={form.data.end_time}
+                                            onChange={(event) =>
+                                                form.setData(
+                                                    'end_time',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            style={withError(
+                                                inputStyle,
+                                                !!form.errors.end_time,
+                                            )}
+                                        />
+                                    </Field>
+                                </div>
+
+                                {duration !== null && (
+                                    <div
+                                        style={{
+                                            fontSize: 12.5,
+                                            color: C.muted,
+                                            marginTop: -6,
+                                        }}
+                                    >
+                                        Durasi{' '}
+                                        <strong style={{ color: C.navy }}>
+                                            {duration.toLocaleString('id-ID', {
+                                                maximumFractionDigits: 2,
+                                            })}{' '}
+                                            jam
+                                        </strong>
+                                        {(duration > 12 || duration < 0.5) &&
+                                            ' — di luar batas 0,5–12 jam'}
+                                    </div>
+                                )}
 
                                 <Field
                                     label="Alasan"
@@ -234,10 +304,23 @@ export default function SayaLembur({
                                                     {formatDate(row.date)}
                                                 </td>
                                                 <td style={cell}>
-                                                    {row.hours.toLocaleString(
-                                                        'id-ID',
-                                                    )}{' '}
-                                                    jam
+                                                    <div>
+                                                        {row.hours.toLocaleString(
+                                                            'id-ID',
+                                                        )}{' '}
+                                                        jam
+                                                    </div>
+                                                    {row.time_range && (
+                                                        <div
+                                                            style={{
+                                                                fontSize: 11.5,
+                                                                color: C.faint,
+                                                                marginTop: 2,
+                                                            }}
+                                                        >
+                                                            {row.time_range}
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td
                                                     style={{

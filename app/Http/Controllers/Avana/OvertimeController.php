@@ -7,10 +7,12 @@ use App\Models\Employee;
 use App\Models\OvertimeRequest;
 use App\Services\ApprovalEngine;
 use App\Services\AutoApproval;
+use App\Support\OvertimeWindow;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class OvertimeController extends Controller
 {
@@ -31,9 +33,20 @@ class OvertimeController extends Controller
                 Rule::exists('employees', 'id')->where('tenant_id', $tenantId),
             ],
             'date' => ['required', 'date'],
-            'hours' => ['required', 'numeric', 'min:0.5', 'max:24'],
+            'start_time' => ['required', 'date_format:H:i'],
+            'end_time' => ['required', 'date_format:H:i'],
             'reason' => ['nullable', 'string', 'max:1000'],
         ]);
+
+        if (! OvertimeWindow::isPlausible($data['start_time'], $data['end_time'])) {
+            throw ValidationException::withMessages([
+                'end_time' => sprintf(
+                    'Durasi lembur harus antara %s dan %s jam.',
+                    OvertimeWindow::MIN_HOURS,
+                    OvertimeWindow::MAX_HOURS,
+                ),
+            ]);
+        }
 
         $employee = Employee::forTenant($tenantId)->findOrFail($data['employee_id']);
 
@@ -42,7 +55,9 @@ class OvertimeController extends Controller
             'employee_id' => $employee->id,
             'branch_id' => $employee->branch_id,
             'date' => $data['date'],
-            'hours' => $data['hours'],
+            'start_time' => $data['start_time'],
+            'end_time' => $data['end_time'],
+            'hours' => OvertimeWindow::hoursBetween($data['start_time'], $data['end_time']),
             'reason' => $data['reason'] ?? null,
             'status' => 'pending',
         ]);
