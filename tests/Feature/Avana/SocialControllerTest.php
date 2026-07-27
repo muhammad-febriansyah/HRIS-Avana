@@ -392,3 +392,40 @@ it('never leaves two periods open when one is reopened', function (): void {
         ->and($running->refresh()->status)->toBe(EotmPeriod::STATUS_CLOSED)
         ->and(EotmPeriod::forTenant($this->tenantId)->open()->count())->toBe(1);
 });
+
+it('sends the leaderboard photo as a URL the podium can render', function (): void {
+    // The service returns the stored path; an <img> needs a URL, and the
+    // podium is the first thing on the screen to show a face.
+    $this->employee->update(['photo_path' => 'employees/bagus.jpg']);
+
+    SocialPost::factory()->create([
+        'tenant_id' => $this->tenantId,
+        'employee_id' => $this->employee->id,
+        'status' => SocialPost::STATUS_PUBLISHED,
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.sosmed'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('leaderboard.0.photo', fn (?string $photo): bool => $photo !== null
+                && str_contains($photo, '/storage/employees/bagus.jpg'))
+            ->etc());
+});
+
+it('leaves the leaderboard photo null for an employee with none', function (): void {
+    $this->employee->update(['photo_path' => null]);
+
+    SocialPost::factory()->create([
+        'tenant_id' => $this->tenantId,
+        'employee_id' => $this->employee->id,
+        'status' => SocialPost::STATUS_PUBLISHED,
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.sosmed'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('leaderboard.0.photo', null)
+            ->etc());
+});

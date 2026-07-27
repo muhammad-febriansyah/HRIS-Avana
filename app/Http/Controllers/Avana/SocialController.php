@@ -15,6 +15,7 @@ use App\Support\Notifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -88,7 +89,17 @@ class SocialController extends Controller
             'posts' => $posts,
             'categories' => $categories,
             'filters' => $request->only(['category', 'status', 'reported']),
-            'leaderboard' => app(SocialWall::class)->leaderboard($tenantId)->all(),
+            'leaderboard' => app(SocialWall::class)->leaderboard($tenantId)
+                ->map(function (array $row): array {
+                    // The service returns the stored path; the podium needs a
+                    // URL it can put in an <img>.
+                    $row['photo'] = $row['photo'] !== null
+                        ? Storage::disk('public')->url($row['photo'])
+                        : null;
+
+                    return $row;
+                })
+                ->all(),
             'weights' => SocialWall::weights(),
             'eotm' => $this->eotmPayload($tenantId),
             'kpis' => [

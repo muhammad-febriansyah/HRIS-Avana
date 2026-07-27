@@ -970,6 +970,186 @@ function CategoryTab({
     );
 }
 
+/** First letters of a name, for an employee with no photo on file. */
+function initials(name: string): string {
+    return name
+        .split(' ')
+        .map((part) => part[0])
+        .filter(Boolean)
+        .slice(0, 2)
+        .join('')
+        .toUpperCase();
+}
+
+/**
+ * Medal colours for the top three. Rank is the whole point of a leaderboard, so
+ * the first three places are read at a glance rather than counted down a table.
+ */
+const MEDAL: Record<number, string> = {
+    1: '#D97706',
+    2: '#94A3B8',
+    3: '#B45309',
+};
+
+function LeaderAvatar({
+    name,
+    photo,
+    size,
+    ring,
+}: {
+    name: string;
+    photo: string | null;
+    size: number;
+    ring?: string;
+}) {
+    const shared: CSSProperties = {
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        objectFit: 'cover',
+        flexShrink: 0,
+        outline: ring ? `2px solid ${ring}` : undefined,
+        outlineOffset: 2,
+    };
+
+    if (photo) {
+        return <img src={photo} alt={name} style={shared} />;
+    }
+
+    return (
+        <div
+            style={{
+                ...shared,
+                display: 'grid',
+                placeItems: 'center',
+                background: C.surface,
+                color: C.muted,
+                fontSize: size * 0.36,
+                fontWeight: 700,
+            }}
+        >
+            {initials(name)}
+        </div>
+    );
+}
+
+/** One of the three podium cards. Rank 1 sits in the middle and reads larger. */
+function PodiumCard({
+    row,
+    featured,
+}: {
+    row: LeaderboardRow;
+    featured: boolean;
+}) {
+    const medal = MEDAL[row.rank];
+
+    return (
+        <div
+            style={{
+                ...card,
+                flex: featured ? '1 1 220px' : '1 1 190px',
+                maxWidth: featured ? 260 : 230,
+                padding: featured ? '22px 18px 20px' : '18px 16px 16px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                textAlign: 'center',
+                alignSelf: featured ? 'flex-start' : 'flex-end',
+            }}
+        >
+            <div style={{ position: 'relative', marginBottom: 10 }}>
+                <LeaderAvatar
+                    name={row.name}
+                    photo={row.photo}
+                    size={featured ? 72 : 56}
+                    ring={medal}
+                />
+                <span
+                    style={{
+                        position: 'absolute',
+                        bottom: -4,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        width: 22,
+                        height: 22,
+                        borderRadius: '50%',
+                        background: medal,
+                        color: '#fff',
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        display: 'grid',
+                        placeItems: 'center',
+                    }}
+                >
+                    {row.rank}
+                </span>
+            </div>
+
+            <div
+                style={{
+                    fontSize: featured ? 15 : 13.5,
+                    fontWeight: 700,
+                    color: C.navy,
+                    maxWidth: '100%',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                }}
+            >
+                {row.name}
+            </div>
+
+            <div
+                style={{
+                    marginTop: 6,
+                    fontSize: featured ? 26 : 21,
+                    fontWeight: 700,
+                    color: C.primary,
+                    lineHeight: 1.1,
+                }}
+            >
+                {row.points.toLocaleString('id-ID')}
+                <span
+                    style={{
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                        color: C.faint,
+                        marginLeft: 4,
+                    }}
+                >
+                    poin
+                </span>
+            </div>
+
+            <div
+                style={{
+                    marginTop: 10,
+                    display: 'flex',
+                    gap: 12,
+                    fontSize: 11.5,
+                    color: C.muted,
+                }}
+            >
+                <span>{row.posts} post</span>
+                <span>{row.likes} like</span>
+                <span>{row.comments} komentar</span>
+            </div>
+        </div>
+    );
+}
+
+/** A metric under a name in the ranked list. */
+function Metric({ value, label }: { value: number; label: string }) {
+    return (
+        <div style={{ textAlign: 'right', minWidth: 54 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
+                {value}
+            </div>
+            <div style={{ fontSize: 10.5, color: C.faint }}>{label}</div>
+        </div>
+    );
+}
+
 function LeaderboardTab({
     rows,
     weights,
@@ -984,119 +1164,136 @@ function LeaderboardTab({
                     ...card,
                     padding: '48px 18px',
                     textAlign: 'center',
-                    color: C.muted,
-                    fontSize: 13.5,
                 }}
             >
-                Belum ada kontributor.
+                <AIcon name="trophy" size={26} color={C.faint} />
+                <div
+                    style={{
+                        marginTop: 10,
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: C.navy,
+                    }}
+                >
+                    Belum ada peringkat
+                </div>
+                <div style={{ marginTop: 4, fontSize: 12.5, color: C.muted }}>
+                    Peringkat muncul begitu karyawan mulai memposting di Ruang
+                    Kita.
+                </div>
             </div>
         );
     }
+
+    // Second place on the left, first in the middle, third on the right — the
+    // shape everyone already reads as a podium.
+    const podium = [rows[1], rows[0], rows[2]].filter(
+        Boolean,
+    ) as LeaderboardRow[];
+    const rest = rows.slice(3);
 
     return (
         <>
             <div
                 style={{
-                    fontSize: 12.5,
-                    color: C.faint,
-                    marginBottom: 12,
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 14,
+                    justifyContent: 'center',
+                    alignItems: 'flex-end',
+                    marginBottom: 18,
+                }}
+            >
+                {podium.map((row) => (
+                    <PodiumCard
+                        key={row.employee_id}
+                        row={row}
+                        featured={row.rank === 1}
+                    />
+                ))}
+            </div>
+
+            {rest.length > 0 && (
+                <div style={{ ...card, overflow: 'hidden' }}>
+                    {rest.map((row, index) => (
+                        <div
+                            key={row.employee_id}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 12,
+                                padding: '12px 16px',
+                                borderTop:
+                                    index === 0
+                                        ? undefined
+                                        : `1px solid ${C.line}`,
+                            }}
+                        >
+                            <div
+                                style={{
+                                    width: 26,
+                                    fontSize: 13,
+                                    fontWeight: 700,
+                                    color: C.faint,
+                                    flexShrink: 0,
+                                }}
+                            >
+                                {row.rank}
+                            </div>
+
+                            <LeaderAvatar
+                                name={row.name}
+                                photo={row.photo}
+                                size={34}
+                            />
+
+                            <div
+                                style={{
+                                    flex: 1,
+                                    minWidth: 0,
+                                    fontSize: 13.5,
+                                    fontWeight: 600,
+                                    color: C.navy,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                }}
+                            >
+                                {row.name}
+                            </div>
+
+                            <Metric value={row.posts} label="post" />
+                            <Metric value={row.likes} label="like" />
+                            <Metric value={row.comments} label="komentar" />
+
+                            <div
+                                style={{
+                                    minWidth: 68,
+                                    textAlign: 'right',
+                                    fontSize: 14,
+                                    fontWeight: 700,
+                                    color: C.primary,
+                                }}
+                            >
+                                {row.points.toLocaleString('id-ID')}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <div
+                style={{
+                    marginTop: 12,
+                    padding: '12px 14px',
+                    background: C.surface,
+                    borderRadius: 10,
+                    fontSize: 12,
+                    color: C.muted,
                 }}
             >
                 Poin = {weights.post} per post + {weights.like} per like
                 diterima + {weights.comment} per komentar diterima.
-            </div>
-            <div style={{ ...card, overflow: 'hidden' }}>
-                <div style={{ overflowX: 'auto' }}>
-                    <table
-                        style={{
-                            width: '100%',
-                            borderCollapse: 'collapse',
-                            minWidth: 640,
-                        }}
-                    >
-                        <thead>
-                            <tr style={{ background: '#FAFBFD' }}>
-                                <th style={thCell}>#</th>
-                                <th style={thCell}>Karyawan</th>
-                                <th style={thCell}>Post</th>
-                                <th style={thCell}>Like</th>
-                                <th style={thCell}>Komentar</th>
-                                <th style={thCell}>Poin</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {rows.map((row) => (
-                                <tr
-                                    key={row.employee_id}
-                                    style={{
-                                        borderTop: `1px solid ${C.line}`,
-                                    }}
-                                >
-                                    <td
-                                        style={{
-                                            padding: '13px 16px',
-                                            fontSize: 13,
-                                            fontWeight: 700,
-                                            color:
-                                                row.rank <= 3
-                                                    ? C.amber
-                                                    : C.muted,
-                                        }}
-                                    >
-                                        {row.rank}
-                                    </td>
-                                    <td
-                                        style={{
-                                            padding: '13px 16px',
-                                            fontSize: 13,
-                                            fontWeight: 600,
-                                            color: C.navy,
-                                        }}
-                                    >
-                                        {row.name}
-                                    </td>
-                                    <td
-                                        style={{
-                                            padding: '13px 16px',
-                                            fontSize: 13,
-                                            color: C.text,
-                                        }}
-                                    >
-                                        {row.posts}
-                                    </td>
-                                    <td
-                                        style={{
-                                            padding: '13px 16px',
-                                            fontSize: 13,
-                                            color: C.text,
-                                        }}
-                                    >
-                                        {row.likes}
-                                    </td>
-                                    <td
-                                        style={{
-                                            padding: '13px 16px',
-                                            fontSize: 13,
-                                            color: C.text,
-                                        }}
-                                    >
-                                        {row.comments}
-                                    </td>
-                                    <td
-                                        style={{
-                                            padding: '13px 16px',
-                                            fontSize: 13,
-                                            fontWeight: 700,
-                                            color: C.primary,
-                                        }}
-                                    >
-                                        {row.points}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
             </div>
         </>
     );

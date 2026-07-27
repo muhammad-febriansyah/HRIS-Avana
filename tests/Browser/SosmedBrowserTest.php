@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Employee;
 use App\Models\EotmPeriod;
 use App\Models\SocialCategory;
 use App\Models\SocialPost;
@@ -35,7 +36,7 @@ it('renders the wall with its KPI row and four tabs', function () {
 
     $page = visit('/avana/sosmed');
 
-    $page->assertSee('Sosmed Karyawan')
+    $page->assertSee('Ruang Kita')
         ->assertSee('Post Tayang')
         ->assertSee('Kontributor')
         ->assertSee('Dilaporkan')
@@ -164,5 +165,31 @@ it('shows a running period with its tally and a close button', function () {
         ->assertSee('BERLANGSUNG')
         ->assertSee('Tutup Voting')
         ->assertSee('Belum ada suara masuk.')
+        ->assertNoJavascriptErrors();
+});
+
+it('ranks the top three on a podium above the rest of the list', function () {
+    // Four contributors, so there is both a podium and a list under it.
+    $employees = Employee::where('tenant_id', $this->tenantId)->take(4)->get();
+
+    foreach ($employees as $index => $employee) {
+        SocialPost::factory()->count(4 - $index)->create([
+            'tenant_id' => $this->tenantId,
+            'employee_id' => $employee->id,
+            'status' => SocialPost::STATUS_PUBLISHED,
+        ]);
+    }
+
+    actingAs($this->admin);
+
+    $page = visit('/avana/sosmed');
+    $page->click('button[role=tab][aria-label="Leaderboard"]');
+
+    // Podium cards carry the "poin" label; the fourth contributor can only be
+    // in the ranked list below it.
+    $page->assertSee('poin')
+        ->assertSee($employees[0]->full_name)
+        ->assertSee($employees[3]->full_name)
+        ->assertSee('Poin = ')
         ->assertNoJavascriptErrors();
 });
