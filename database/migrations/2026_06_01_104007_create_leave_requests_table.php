@@ -19,7 +19,7 @@ return new class extends Migration
             $table->decimal('total_days', 5, 2)->default(0);
             $table->text('reason')->nullable();
             $table->string('file_path')->nullable();
-            $table->foreignId('current_approver_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('current_approver_id')->nullable()->constrained('employees')->nullOnDelete();
             $table->string('status')->default('pending')->index();
             $table->timestamps();
             $table->index(['tenant_id', 'employee_id', 'status']);

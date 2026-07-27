@@ -14,7 +14,7 @@ return new class extends Migration
             $table->string('approvable_type');
             $table->unsignedBigInteger('approvable_id');
             $table->foreignId('requester_id')->nullable()->constrained('users')->nullOnDelete();
-            $table->foreignId('current_approver_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('current_approver_id')->nullable()->constrained('employees')->nullOnDelete();
             $table->foreignId('approval_workflow_id')->nullable()->constrained('approval_workflows')->nullOnDelete();
             $table->unsignedInteger('current_step')->default(1);
             $table->string('status')->default('pending')->index();

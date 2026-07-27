@@ -23,6 +23,7 @@ interface OrgNode {
     branch: string | null;
     join_date: string | null;
     manager_id: number | null;
+    is_top_approver: boolean;
     manager_name: string | null;
 }
 
@@ -78,6 +79,13 @@ interface CardData {
     indirectReports: number;
     isExpanded: boolean;
     isHighlighted: boolean;
+    /**
+     * Nobody to report to, and not the company head either. The top approver is
+     * meant to sit at the root; anyone else floating there is missing a
+     * manager, so only they are flagged — and only when the chart has more than
+     * one root to begin with.
+     */
+    isUnattached: boolean;
     onToggle: (id: number) => void;
 }
 
@@ -87,8 +95,14 @@ interface CardData {
  * the toggle stops that click so the two never fight.
  */
 function OrgCard({ data }: NodeProps<CardData>) {
-    const { node, directReports, indirectReports, isExpanded, isHighlighted } =
-        data;
+    const {
+        node,
+        directReports,
+        indirectReports,
+        isExpanded,
+        isHighlighted,
+        isUnattached,
+    } = data;
     const color = hashColor(node.department ?? node.name);
 
     return (
@@ -164,6 +178,25 @@ function OrgCard({ data }: NodeProps<CardData>) {
                         </div>
                     </div>
                 </div>
+
+                {isUnattached && (
+                    <div
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            fontSize: 10,
+                            fontWeight: 600,
+                            color: C.amber,
+                            background: `${C.amber}14`,
+                            borderRadius: 6,
+                            padding: '3px 7px',
+                        }}
+                    >
+                        <AIcon name="unlink" size={10} color={C.amber} />
+                        Belum punya atasan
+                    </div>
+                )}
 
                 <div
                     style={{
@@ -383,6 +416,10 @@ function layout(
                     (tree.descendantsOf.get(node.id) ?? 0) - directReports,
                 isExpanded,
                 isHighlighted: highlighted.has(node.id),
+                isUnattached:
+                    node.manager_id === null &&
+                    !node.is_top_approver &&
+                    tree.roots.length > 1,
                 onToggle,
             },
             style: { width: NODE_WIDTH, cursor: 'pointer' },

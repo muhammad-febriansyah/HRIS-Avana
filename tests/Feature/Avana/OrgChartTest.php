@@ -30,5 +30,6 @@ it('renders the org chart with hierarchy nodes', function (): void {
                 ->has('branch')
                 ->has('join_date')
                 ->has('manager_id')
-                ->has('manager_name')));
+                ->has('manager_name')
+                ->has('is_top_approver')));
 });

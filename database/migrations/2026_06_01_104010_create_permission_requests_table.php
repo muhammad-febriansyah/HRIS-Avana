@@ -17,7 +17,7 @@ return new class extends Migration
             $table->time('start_time')->nullable();
             $table->time('end_time')->nullable();
             $table->text('reason')->nullable();
-            $table->foreignId('current_approver_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('current_approver_id')->nullable()->constrained('employees')->nullOnDelete();
             $table->string('status')->default('pending')->index();
             $table->timestamps();
             $table->index(['tenant_id', 'employee_id', 'status']);

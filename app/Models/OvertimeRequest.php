@@ -48,6 +48,6 @@ final class OvertimeRequest extends Model
 
     public function currentApprover(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'current_approver_id');
+        return $this->belongsTo(Employee::class, 'current_approver_id');
     }
 }

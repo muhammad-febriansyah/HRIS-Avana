@@ -1275,11 +1275,7 @@ final class AvanaDemoSeeder extends Seeder
         // The director tops the org chart: a real employee (uses the ESS app
         // like anyone) flagged as top approver. is_top_approver auto-approves
         // their own requests and — via ResolvesApiEmployee — unlocks Manager
-        // mode in the mobile app even without direct reports. They are left at
-        // the head of the chart (manager_id null) rather than made the HR
-        // Manager's boss, because current_approver_id carries an *employee* id
-        // yet is FK-constrained to users; routing a request to an employee with
-        // no matching user id would fail the insert.
+        // mode in the mobile app even without direct reports.
         $direksi = Department::firstOrCreate(
             ['tenant_id' => $tenant->id, 'code' => 'DIR'],
             ['name' => 'Direksi', 'status' => 'active'],
@@ -1310,6 +1306,16 @@ final class AvanaDemoSeeder extends Seeder
             ],
         );
         $employees[0]->forceFill(['is_top_approver' => true])->save();
+
+        // Everyone else reports up to the director, so the chart is one tree
+        // instead of disconnected islands. This used to be impossible:
+        // current_approver_id was FK-constrained to `users` while carrying an
+        // employee id, so the first request routed to him failed to insert.
+        Employee::query()
+            ->where('tenant_id', $tenant->id)
+            ->whereNull('manager_id')
+            ->whereKeyNot($employees[0]->id)
+            ->update(['manager_id' => $employees[0]->id]);
 
         return $employees;
     }

@@ -32,7 +32,7 @@ class EssDirectoryController extends Controller
             ->where('status', 'active')
             ->with(['position:id,name', 'department:id,name', 'branch:id,name'])
             ->orderBy('full_name')
-            ->get(['id', 'full_name', 'employee_number', 'email', 'position_id', 'department_id', 'branch_id', 'manager_id', 'join_date']);
+            ->get(['id', 'full_name', 'employee_number', 'email', 'position_id', 'department_id', 'branch_id', 'manager_id', 'join_date', 'is_top_approver']);
 
         $names = $colleagues->pluck('full_name', 'id');
 
@@ -50,6 +50,9 @@ class EssDirectoryController extends Controller
                 'branch' => $colleague->branch?->name,
                 'join_date' => $colleague->join_date?->locale('id')->translatedFormat('d M Y'),
                 'manager_id' => $colleague->manager_id,
+                // The company head legitimately reports to nobody; anyone else
+                // without a manager is a gap the chart should point out.
+                'is_top_approver' => (bool) $colleague->is_top_approver,
                 'manager_name' => $colleague->manager_id !== null ? $names->get($colleague->manager_id) : null,
             ])->values(),
         ]);
