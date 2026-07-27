@@ -190,21 +190,37 @@ export function EmployeeForm({
         }
     }
 
-    /** Whether a step has everything it needs to move on. */
-    const stepComplete = (index: number): boolean => {
+    /**
+     * Required fields a step is still missing, by their on-screen label.
+     *
+     * Named rather than merely counted: a greyed-out Lanjut with nothing to
+     * explain it leaves the person scanning the form for whichever box is
+     * empty — the Direktur case hit exactly that, since Status Kepegawaian sits
+     * below the fold on a short window.
+     */
+    const missingFor = (index: number): string[] => {
         if (index === 0) {
-            return data.full_name.trim().length > 0;
+            return data.full_name.trim().length > 0 ? [] : ['Nama Lengkap'];
         }
 
         if (index === 1) {
-            return (
-                data.employment_status.trim().length > 0 &&
-                data.manager_id.trim().length > 0
-            );
+            return [
+                data.manager_id.trim().length > 0 ? null : 'Atasan Langsung',
+                data.employment_status.trim().length > 0
+                    ? null
+                    : 'Status Kepegawaian',
+            ].filter((label): label is string => label !== null);
         }
 
-        return true;
+        return [];
     };
+
+    /** Whether a step has everything it needs to move on. */
+    const stepComplete = (index: number): boolean =>
+        missingFor(index).length === 0;
+
+    // The last step's Simpan is gated by step 2, so it reports step 2's gaps.
+    const missing = missingFor(step < lastStep ? step : 1);
 
     const styleFor = (hasError: boolean, base: CSSProperties): CSSProperties =>
         hasError ? { ...base, ...errorBorder } : base;
@@ -1051,6 +1067,22 @@ export function EmployeeForm({
                         <AIcon name="chevron-left" size={16} color={C.text} />
                         Kembali
                     </button>
+                )}
+
+                {missing.length > 0 && (
+                    <span
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 7,
+                            marginRight: 'auto',
+                            fontSize: 12.5,
+                            color: C.amber,
+                        }}
+                    >
+                        <AIcon name="circle-alert" size={14} color={C.amber} />
+                        Lengkapi dulu: {missing.join(', ')}
+                    </span>
                 )}
 
                 {step < lastStep ? (
