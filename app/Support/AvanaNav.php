@@ -62,6 +62,7 @@ final class AvanaNav
                 self::leaf('saya-dinas', 'Perjalanan Dinas Saya', 'plane', '/avana/saya/perjalanan-dinas', 'ess', ['own']),
                 self::leaf('saya-slip', 'Slip Gaji Saya', 'receipt', '/avana/saya/slip-gaji', 'ess', ['own']),
                 self::leaf('saya-dokumen', 'Dokumen Saya', 'folder', '/avana/saya/dokumen', 'ess', ['own']),
+                self::leaf('saya-sop', 'SOP Perusahaan', 'book-open', '/avana/saya/sop', 'sop', ['own']),
                 self::leaf('saya-onboarding', 'Onboarding Saya', 'clipboard-check', '/avana/saya/onboarding', 'ess', ['own']),
             ]],
             ['title' => 'MANAJEMEN', 'items' => [
@@ -71,6 +72,7 @@ final class AvanaNav
                     self::leaf('kontrak', 'Kontrak Kerja', 'file-text', '/avana/kontrak', 'hr_core', ['employee']),
                     self::leaf('mutasi', 'Mutasi & Karir', 'arrow-left-right', '/avana/mutasi', 'hr_core', ['employee']),
                     self::leaf('dokumen', 'Dokumen', 'folder', '/avana/dokumen', 'document', ['document']),
+                    self::leaf('sop', 'SOP', 'book-open', '/avana/sop', 'sop', ['sop']),
                     self::leaf('surat', 'Template Surat', 'file-signature', '/avana/surat', 'letter', ['letter']),
                     self::leaf('offboarding', 'Offboarding', 'door-open', '/avana/offboarding', 'offboarding', ['offboarding']),
                 ]),
@@ -157,6 +159,7 @@ final class AvanaNav
             ['title' => 'LAYANAN', 'items' => [
                 self::leaf('helpdesk', 'HR Helpdesk', 'life-buoy', '/avana/helpdesk', 'helpdesk', ['helpdesk']),
                 self::leaf('pengumuman', 'Pengumuman', 'megaphone', '/avana/pengumuman', 'announcement', ['announcement']),
+                self::leaf('sosmed', 'Sosmed Karyawan', 'users-round', '/avana/sosmed', 'social', ['social']),
                 self::leaf('survei', 'Survei Karyawan', 'clipboard-list', '/avana/survei', 'survey', ['survey']),
                 self::leaf('kalender', 'Kalender Acara', 'calendar-days', '/avana/kalender', 'calendar', ['calendar']),
                 self::leaf('ai', 'AI Assistant', 'sparkles', '/avana/ai', 'ai', ['ai']),
@@ -509,14 +512,33 @@ final class AvanaNav
     /**
      * Populate a tenant's menu_items from the built-in default navigation.
      * Idempotent — existing customised rows are left untouched.
+     *
+     * A leaf is matched by `key` alone, NOT by (key, parent_id): the Menu
+     * Builder lets a tenant move a leaf to another parent or to the top level,
+     * and matching on the parent too would clone it back under the default
+     * parent on the next re-seed. Parent (collapsible) rows are still matched
+     * on (key, parent_id === null) because a parent may legitimately share its
+     * key with its first child — "Payroll" > "Payroll", for example.
      */
     public static function seedDefaultsFor(int $tenantId): void
     {
         $order = 0;
 
+        /** @var Collection<string, int> $seenLeafKeys */
+        $seenLeafKeys = MenuItem::forTenant($tenantId)
+            ->whereNotNull('href')
+            ->pluck('key')
+            ->flip();
+
         foreach (self::groups() as $group) {
             foreach ($group['items'] as $item) {
                 $order++;
+
+                $itemIsLeaf = ($item['href'] ?? null) !== null;
+
+                if ($itemIsLeaf && $seenLeafKeys->has($item['id'])) {
+                    continue;
+                }
 
                 $parent = MenuItem::firstOrCreate(
                     ['tenant_id' => $tenantId, 'key' => $item['id'], 'parent_id' => null],
@@ -534,7 +556,29 @@ final class AvanaNav
                     ],
                 );
 
+                if ($itemIsLeaf) {
+                    $seenLeafKeys->put($item['id'], 1);
+                }
+
                 foreach ($item['children'] ?? [] as $childOrder => $child) {
+                    if ($seenLeafKeys->has($child['id'])) {
+                        continue;
+                    }
+
+                    // A menu added to the canonical nav later would otherwise
+                    // land on a sort_order an existing sibling already holds,
+                    // making the order of the two arbitrary. Append instead.
+                    $taken = MenuItem::forTenant($tenantId)
+                        ->where('parent_id', $parent->id)
+                        ->where('sort_order', $childOrder)
+                        ->exists();
+
+                    if ($taken) {
+                        $childOrder = 1 + (int) MenuItem::forTenant($tenantId)
+                            ->where('parent_id', $parent->id)
+                            ->max('sort_order');
+                    }
+
                     MenuItem::firstOrCreate(
                         ['tenant_id' => $tenantId, 'key' => $child['id'], 'parent_id' => $parent->id],
                         [
@@ -551,6 +595,8 @@ final class AvanaNav
                             'sort_order' => $childOrder,
                         ],
                     );
+
+                    $seenLeafKeys->put($child['id'], 1);
                 }
             }
         }

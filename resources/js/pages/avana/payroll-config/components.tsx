@@ -420,8 +420,8 @@ export function ConfigModal({ section, record, onClose }: ConfigModalProps) {
                         style={{
                             width: 32,
                             height: 32,
-                            border: 'none',
-                            background: 'none',
+                            border: `1px solid ${C.border}`,
+                            background: C.surface,
                             borderRadius: 8,
                             cursor: 'pointer',
                             color: C.muted,
@@ -570,6 +570,7 @@ export function ConfigModal({ section, record, onClose }: ConfigModalProps) {
                             disabled={form.processing}
                             style={{
                                 ...btnP,
+                                background: C.green,
                                 flex: 1,
                                 justifyContent: 'center',
                                 opacity: form.processing ? 0.7 : 1,

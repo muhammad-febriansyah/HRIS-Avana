@@ -13,6 +13,7 @@ use App\Services\AiToolkit;
 use App\Support\AiPersona;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Prism\Prism\Facades\Prism;
 use Prism\Prism\ValueObjects\Messages\AssistantMessage;
@@ -41,11 +42,14 @@ class AiAssistantController extends Controller
             'ready' => AiSetting::current()->isReady(),
             'usage' => $this->tokenUsage($user),
             'conversations' => $this->conversationList($user),
+            // The SOP prompt earns its place here: the mobile app dropped its
+            // SOP menu entry, so the assistant is now the way employees reach
+            // those documents, and the empty state is where they find that out.
             'suggestions' => [
                 'Berapa sisa cuti saya tahun ini?',
+                'Apa isi SOP pengajuan cuti?',
                 'Tampilkan slip gaji terakhir saya',
                 'Rekap kehadiran saya bulan ini',
-                'Status pengajuan cuti saya',
             ],
         ]);
     }
@@ -222,8 +226,18 @@ class AiAssistantController extends Controller
                 $model,
             ];
         } catch (\Throwable $e) {
+            // The provider's own wording (billing state, rate limits) is for the
+            // log, not for a tenant's employee — see the web controller.
+            Log::error('AI assistant chat failed', [
+                'tenant_id' => $user->tenant_id,
+                'user_id' => $user->id,
+                'provider' => $provider,
+                'model' => $model,
+                'message' => $e->getMessage(),
+            ]);
+
             return [
-                'Maaf, terjadi gangguan menghubungi AI: '.$e->getMessage(),
+                'Maaf, terjadi kesalahan sistem saat menghubungi AI. Silakan coba lagi beberapa saat lagi.',
                 null,
                 null,
                 $model,

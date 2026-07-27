@@ -388,6 +388,7 @@ export default function ReportStudio({
                     </div>
                     <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
                         <button onClick={reset} style={btnGhost}>
+                            <AIcon name="rotate-ccw" size={15} color={C.text} />
                             Reset
                         </button>
                         <button
@@ -410,6 +411,7 @@ export default function ReportStudio({
                             disabled={configEmpty}
                             style={{
                                 ...btnPrimary,
+                                background: C.amber,
                                 opacity: configEmpty ? 0.5 : 1,
                                 cursor: configEmpty ? 'not-allowed' : 'pointer',
                             }}
@@ -573,17 +575,19 @@ export default function ReportStudio({
                                                 position: 'absolute',
                                                 top: 12,
                                                 right: 12,
-                                                border: 'none',
-                                                background: 'transparent',
+                                                border: '1px solid rgba(220,38,38,.35)',
+                                                background:
+                                                    'rgba(220,38,38,.07)',
+                                                borderRadius: 7,
                                                 cursor: 'pointer',
-                                                padding: 2,
+                                                padding: 5,
                                                 display: 'inline-flex',
                                             }}
                                         >
                                             <AIcon
                                                 name="trash-2"
                                                 size={14}
-                                                color={C.faint}
+                                                color={C.red}
                                             />
                                         </button>
                                     </div>
@@ -898,6 +902,7 @@ export default function ReportStudio({
                                 onClick={() => setSaveOpen(false)}
                                 style={btnGhost}
                             >
+                                <AIcon name="x" size={15} color={C.text} />
                                 Batal
                             </button>
                             <button
@@ -905,6 +910,7 @@ export default function ReportStudio({
                                 disabled={reportName.trim() === '' || saving}
                                 style={{
                                     ...btnPrimary,
+                                    background: C.green,
                                     opacity:
                                         reportName.trim() === '' || saving
                                             ? 0.5
@@ -915,6 +921,7 @@ export default function ReportStudio({
                                             : 'pointer',
                                 }}
                             >
+                                <AIcon name="save" size={15} color="#fff" />
                                 {saving ? 'Menyimpan…' : 'Simpan'}
                             </button>
                         </div>
@@ -1023,6 +1030,7 @@ export default function ReportStudio({
                                 onClick={() => setFieldOpen(false)}
                                 style={btnGhost}
                             >
+                                <AIcon name="x" size={15} color={C.text} />
                                 Batal
                             </button>
                             <button
@@ -1042,6 +1050,7 @@ export default function ReportStudio({
                                             : 'pointer',
                                 }}
                             >
+                                <AIcon name="plus" size={15} color="#fff" />
                                 {savingField ? 'Menyimpan…' : 'Tambah Field'}
                             </button>
                         </div>
@@ -1295,10 +1304,11 @@ function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
                 onClick={onRemove}
                 style={{
                     border: 'none',
-                    background: 'transparent',
+                    background: 'rgba(47,84,201,.16)',
+                    borderRadius: '50%',
                     cursor: 'pointer',
                     display: 'inline-flex',
-                    padding: 0,
+                    padding: 2,
                     color: C.primary,
                 }}
             >
@@ -1362,10 +1372,11 @@ function ValueChip({
                 onClick={onRemove}
                 style={{
                     border: 'none',
-                    background: 'transparent',
+                    background: 'rgba(109,40,217,.16)',
+                    borderRadius: '50%',
                     cursor: 'pointer',
                     display: 'inline-flex',
-                    padding: 0,
+                    padding: 2,
                     color: '#6d28d9',
                 }}
             >
@@ -1636,6 +1647,10 @@ const btnPrimary: React.CSSProperties = {
 };
 
 const btnGhost: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
     background: '#fff',
     color: C.text,
     border: `1px solid ${C.border}`,

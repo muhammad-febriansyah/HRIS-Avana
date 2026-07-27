@@ -112,8 +112,19 @@ class DashboardController extends Controller
     }
 
     /**
-     * Whether the user only holds self-service (`own`) permissions — a plain
-     * karyawan, as opposed to HR, a manager, or finance.
+     * Modules a plain karyawan may hold without becoming an administrator.
+     *
+     * `ai` sits here because the assistant's tools are scoped to the caller —
+     * holding it says nothing about managing other people's data, so it must
+     * not tip an employee over into the HR dashboard.
+     *
+     * @var array<int, string>
+     */
+    private const SELF_SERVICE_MODULES = ['own', 'ai'];
+
+    /**
+     * Whether the user only holds self-service permissions — a plain karyawan,
+     * as opposed to HR, a manager, or finance.
      */
     private function isSelfServiceOnly(User $user): bool
     {
@@ -126,7 +137,7 @@ class DashboardController extends Controller
             ->distinct()
             ->pluck('module');
 
-        return $modules->isNotEmpty() && $modules->diff(['own'])->isEmpty();
+        return $modules->isNotEmpty() && $modules->diff(self::SELF_SERVICE_MODULES)->isEmpty();
     }
 
     /**

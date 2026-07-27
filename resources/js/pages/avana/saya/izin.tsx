@@ -241,6 +241,7 @@ export default function SayaIzin({ requests, types }: Props) {
                                     disabled={form.processing}
                                     style={{
                                         ...btnP,
+                                        background: C.violet,
                                         height: 44,
                                         justifyContent: 'center',
                                         opacity: form.processing ? 0.7 : 1,

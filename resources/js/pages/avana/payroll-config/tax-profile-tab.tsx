@@ -436,10 +436,11 @@ export default function TaxProfileTab({
                                 style={btnOut}
                                 onClick={() => setEditing(null)}
                             >
+                                <AIcon name="x" size={15} color={C.text} />
                                 Batal
                             </button>
                             <button
-                                style={btnP}
+                                style={{ ...btnP, background: C.green }}
                                 disabled={form.processing}
                                 onClick={submit}
                             >

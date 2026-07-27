@@ -144,10 +144,25 @@ it('returns 404 deleting another user conversation', function (): void {
         ->assertNotFound();
 });
 
-it('forbids a plain employee from the assistant', function (): void {
+it('lets a plain employee use the assistant', function (): void {
     $employeeRole = Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->firstOrFail();
     $staff = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $staff->roles()->sync([$employeeRole->id]);
+
+    // The mobile API never gated the assistant; the web now matches it. Every
+    // tool is scoped to the caller, so this exposes no one else's data.
+    actingAs($staff)->get(route('avana.ai'))->assertOk();
+});
+
+it('forbids the assistant for a role without the ai permission', function (): void {
+    $strippedRole = Role::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'tanpa_ai',
+        'name' => 'Tanpa AI',
+    ]);
+
+    $staff = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $staff->roles()->sync([$strippedRole->id]);
 
     actingAs($staff)->get(route('avana.ai'))->assertForbidden();
 });

@@ -230,6 +230,7 @@ export default function PeriodCreate() {
                             disabled={processing}
                             style={{
                                 ...btnP,
+                                background: C.green,
                                 height: 44,
                                 justifyContent: 'center',
                                 opacity: processing ? 0.7 : 1,

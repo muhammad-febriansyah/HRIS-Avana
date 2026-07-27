@@ -7,6 +7,7 @@ use App\Models\LeaveType;
 use App\Models\MoodCheckin;
 use App\Models\Notification;
 use App\Models\Reimbursement;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WorkLocation;
 use Database\Seeders\AvanaDemoSeeder;
@@ -604,6 +605,84 @@ it('returns a dashboard summary', function (): void {
     ($this->auth)()->getJson('/api/v1/me/dashboard')
         ->assertOk()
         ->assertJsonStructure(['data' => ['leave_available', 'work_minutes_month', 'work_hours_month', 'pending_count']]);
+});
+
+it('lists colleagues whose birthday is today on the dashboard', function (): void {
+    $me = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail()->employee;
+
+    $celebrant = Employee::forTenant($me->tenant_id)->where('id', '!=', $me->id)->firstOrFail();
+    $celebrant->update(['birth_date' => now()->subYears(30)->toDateString(), 'status' => 'active']);
+
+    Employee::forTenant($me->tenant_id)
+        ->whereKeyNot($celebrant->id)
+        ->update(['birth_date' => now()->addDay()->subYears(28)->toDateString()]);
+
+    $res = ($this->auth)()->getJson('/api/v1/me/dashboard')->assertOk();
+
+    expect(collect($res->json('data.birthdays'))->pluck('id'))->toContain($celebrant->id);
+});
+
+it('caps the dashboard birthday preview but reports the true total', function (): void {
+    $me = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail()->employee;
+
+    Employee::forTenant($me->tenant_id)->update(['birth_date' => now()->addDay()->toDateString()]);
+
+    foreach (range(1, 20) as $i) {
+        Employee::create([
+            'tenant_id' => $me->tenant_id,
+            'employee_number' => 'ULTAH-'.$i,
+            'full_name' => 'Karyawan Ultah '.str_pad((string) $i, 2, '0', STR_PAD_LEFT),
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'birth_date' => now()->subYears(30)->toDateString(),
+        ]);
+    }
+
+    $res = ($this->auth)()->getJson('/api/v1/me/dashboard')->assertOk();
+
+    expect($res->json('data.birthdays'))->toHaveCount(12);
+    expect($res->json('data.birthdays_total'))->toBe(20);
+
+    // The sheet endpoint still hands back everyone.
+    $all = ($this->auth)()->getJson('/api/v1/me/birthdays')->assertOk();
+    expect($all->json('data'))->toHaveCount(20);
+});
+
+it('never leaks another tenant\'s birthdays to the full birthday list', function (): void {
+    $otherTenant = Tenant::create(['name' => 'PT Seberang', 'slug' => 'pt-seberang-sheet']);
+    Employee::create([
+        'tenant_id' => $otherTenant->id,
+        'employee_number' => 'EMP-7777',
+        'full_name' => 'Sheet Tenant Lain',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+        'birth_date' => now()->subYears(25)->toDateString(),
+    ]);
+
+    $res = ($this->auth)()->getJson('/api/v1/me/birthdays')->assertOk();
+
+    expect(collect($res->json('data'))->pluck('name'))->not->toContain('Sheet Tenant Lain');
+});
+
+it('never leaks another tenant\'s birthdays to the dashboard', function (): void {
+    $me = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail()->employee;
+
+    $otherTenant = Tenant::create(['name' => 'PT Seberang', 'slug' => 'pt-seberang-ultah']);
+    Employee::create([
+        'tenant_id' => $otherTenant->id,
+        'employee_number' => 'EMP-8888',
+        'full_name' => 'Ulang Tahun Tenant Lain',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+        'birth_date' => now()->subYears(25)->toDateString(),
+    ]);
+
+    $res = ($this->auth)()->getJson('/api/v1/me/dashboard')->assertOk();
+    $names = collect($res->json('data.birthdays'))->pluck('name');
+
+    expect($names)->not->toContain('Ulang Tahun Tenant Lain');
+    expect(Employee::whereIn('id', collect($res->json('data.birthdays'))->pluck('id'))->pluck('tenant_id')->unique())
+        ->not->toContain($otherTenant->id);
 });
 
 it('records and reports a daily mood check-in', function (): void {

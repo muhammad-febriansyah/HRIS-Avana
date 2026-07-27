@@ -817,6 +817,7 @@ export default function PembelajaranIndex({
                                 disabled={enrollForm.processing}
                                 style={{
                                     ...btnP,
+                                    background: C.green,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',
@@ -1032,6 +1033,7 @@ export default function PembelajaranIndex({
                                 disabled={updateForm.processing}
                                 style={{
                                     ...btnP,
+                                    background: C.green,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',

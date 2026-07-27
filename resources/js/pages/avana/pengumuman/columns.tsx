@@ -1,5 +1,6 @@
 import type { Column, ColumnDef, RowData } from '@tanstack/react-table';
 import type { CSSProperties } from 'react';
+import { formatFileSize } from '@/components/avana/file-dropzone';
 import { AIcon, ActionBtn, C } from '@/lib/avana';
 
 declare module '@tanstack/react-table' {
@@ -8,6 +9,14 @@ declare module '@tanstack/react-table' {
         /** Human label shown in the column show/hide menu. */
         label?: string;
     }
+}
+
+export interface AnnouncementAttachment {
+    url: string;
+    name: string | null;
+    mime: string | null;
+    size: number | null;
+    is_image: boolean;
 }
 
 export interface Announcement {
@@ -19,6 +28,7 @@ export interface Announcement {
     pinned: boolean;
     published_at: string | null;
     created_at: string | null;
+    attachment: AnnouncementAttachment | null;
 }
 
 interface Handlers {
@@ -65,10 +75,11 @@ function SortHeader<T>({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 5,
-                background: 'none',
-                border: 'none',
+                background: C.surface,
+                border: `1px solid ${C.border}`,
+                borderRadius: 6,
                 cursor: 'pointer',
-                padding: 0,
+                padding: '4px 8px',
                 fontSize: 11.5,
                 fontWeight: 600,
                 letterSpacing: '.03em',
@@ -166,6 +177,48 @@ export function makeColumns({
                 ) : (
                     <span style={{ color: C.faint }}>—</span>
                 ),
+        },
+        {
+            id: 'lampiran',
+            meta: { label: 'Lampiran' },
+            enableSorting: false,
+            accessorFn: (a) => a.attachment?.name ?? '',
+            header: () => (
+                <span
+                    style={{
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                        letterSpacing: '.03em',
+                        textTransform: 'uppercase',
+                        color: C.muted,
+                    }}
+                >
+                    Lampiran
+                </span>
+            ),
+            cell: ({ row }) => {
+                const file = row.original.attachment;
+
+                if (!file) {
+                    return <span style={{ color: C.faint }}>—</span>;
+                }
+
+                return (
+                    <ActionBtn
+                        icon={file.is_image ? 'image' : 'file-text'}
+                        label={
+                            file.size !== null
+                                ? formatFileSize(file.size)
+                                : file.is_image
+                                  ? 'Gambar'
+                                  : 'PDF'
+                        }
+                        title={file.name ?? undefined}
+                        variant={file.is_image ? 'success' : 'primary'}
+                        href={file.url}
+                    />
+                );
+            },
         },
         {
             accessorKey: 'status',

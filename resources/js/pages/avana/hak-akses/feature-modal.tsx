@@ -194,9 +194,18 @@ export function FeatureModal({
                             border: `1px solid ${C.border}`,
                         }}
                     >
+                        <AIcon name="x" size={15} color={C.muted} />
                         Batal
                     </button>
-                    <button onClick={onSubmit} style={btnP}>
+                    <button
+                        onClick={onSubmit}
+                        style={{ ...btnP, background: C.green }}
+                    >
+                        <AIcon
+                            name={mode === 'edit' ? 'save' : 'plus'}
+                            size={15}
+                            color="#fff"
+                        />
                         {mode === 'edit' ? 'Simpan' : 'Tambah'}
                     </button>
                 </div>

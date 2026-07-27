@@ -131,7 +131,11 @@ export function ProfileForm({ company }: { company: CompanyProfile }) {
                     type="button"
                     onClick={save}
                     disabled={saving}
-                    style={{ ...btnP, opacity: saving ? 0.6 : 1 }}
+                    style={{
+                        ...btnP,
+                        background: C.green,
+                        opacity: saving ? 0.6 : 1,
+                    }}
                 >
                     <AIcon name="check" size={16} color="#fff" />
                     {saving ? 'Menyimpan…' : 'Simpan Profil'}

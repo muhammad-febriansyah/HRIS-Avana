@@ -547,6 +547,7 @@ export default function RequisitionPage({
                     onSubmit={publish}
                     processing={pubForm.processing}
                     submitLabel="Publish"
+                    submitIcon="send"
                 >
                     <div
                         style={{

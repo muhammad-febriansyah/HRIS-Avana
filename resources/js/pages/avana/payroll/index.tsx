@@ -549,6 +549,7 @@ export default function AvanaPayroll({
                                                     }}
                                                     style={{
                                                         ...btnP,
+                                                        background: C.amber,
                                                         height: 36,
                                                         textDecoration: 'none',
                                                     }}
@@ -673,7 +674,7 @@ export default function AvanaPayroll({
                                 fontSize: 13,
                                 fontWeight: 600,
                                 color: C.red,
-                                background: 'transparent',
+                                background: 'rgba(220,38,38,.07)',
                                 border: `1px solid ${C.red}`,
                                 borderRadius: 8,
                                 padding: '7px 14px',
@@ -903,7 +904,7 @@ function ApprovalModal({
                             padding: '9px 16px',
                             borderRadius: 8,
                             border: `1px solid ${C.red}`,
-                            background: 'transparent',
+                            background: 'rgba(220,38,38,.07)',
                             color: C.red,
                             fontSize: 13,
                             fontWeight: 600,
@@ -919,12 +920,17 @@ function ApprovalModal({
                             disabled={processing}
                             style={{ ...btnOut, textDecoration: 'none' }}
                         >
+                            <AIcon name="x" size={15} color={C.text} />
                             Batal
                         </button>
                         <button
                             onClick={onApprove}
                             disabled={processing}
-                            style={{ ...btnP, opacity: processing ? 0.6 : 1 }}
+                            style={{
+                                ...btnP,
+                                background: C.green,
+                                opacity: processing ? 0.6 : 1,
+                            }}
                         >
                             <AIcon name="check-check" size={15} color="#fff" />
                             {processing ? 'Memproses…' : 'Setujui'}
@@ -1088,6 +1094,7 @@ function RunConfirmModal({
                         disabled={processing}
                         style={{ ...btnOut, textDecoration: 'none' }}
                     >
+                        <AIcon name="x" size={15} color={C.text} />
                         Batal
                     </button>
                     <button
@@ -1095,6 +1102,7 @@ function RunConfirmModal({
                         disabled={processing || !payDate}
                         style={{
                             ...btnP,
+                            background: C.violet,
                             opacity: processing || !payDate ? 0.6 : 1,
                         }}
                     >

@@ -20,9 +20,14 @@ class EnsureFreshToken
     {
         /** @var User|null $user */
         $user = $request->user();
+        $token = $request->bearerToken();
 
-        if ($user !== null) {
-            $payload = auth('api')->setToken($request->bearerToken())->getPayload();
+        // Both must be present: `setToken(null)` throws a TokenInvalidException,
+        // which surfaces as a 500 instead of the 401 the caller deserves. In
+        // production a resolved user always arrives with its bearer header, so
+        // this only bites when the guard was primed some other way.
+        if ($user !== null && $token !== null) {
+            $payload = auth('api')->setToken($token)->getPayload();
             $tokenVersion = (int) ($payload->get('tv') ?? 0);
 
             if ($tokenVersion !== (int) $user->token_version) {

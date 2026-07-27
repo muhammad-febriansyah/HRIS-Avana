@@ -453,7 +453,10 @@ export default function Candidate({
                                         <button
                                             type="submit"
                                             disabled={profileForm.processing}
-                                            style={btnP}
+                                            style={{
+                                                ...btnP,
+                                                background: C.green,
+                                            }}
                                         >
                                             <AIcon name="check" size={15} />
                                             Simpan
@@ -680,7 +683,10 @@ export default function Candidate({
                                         <button
                                             type="submit"
                                             disabled={medicalForm.processing}
-                                            style={btnP}
+                                            style={{
+                                                ...btnP,
+                                                background: C.green,
+                                            }}
                                         >
                                             <AIcon name="save" size={15} />
                                             Simpan
@@ -883,7 +889,10 @@ export default function Candidate({
                                         <button
                                             type="submit"
                                             disabled={backgroundForm.processing}
-                                            style={btnP}
+                                            style={{
+                                                ...btnP,
+                                                background: C.green,
+                                            }}
                                         >
                                             <AIcon name="save" size={15} />
                                             Simpan
@@ -1283,6 +1292,7 @@ export default function Candidate({
                                         disabled={interviewForm.processing}
                                         style={{
                                             ...btnP,
+                                            background: C.green,
                                             width: '100%',
                                             justifyContent: 'center',
                                         }}

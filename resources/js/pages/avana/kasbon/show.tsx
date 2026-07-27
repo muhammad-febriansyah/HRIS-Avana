@@ -481,6 +481,7 @@ export default function KasbonShow({
                                 textDecoration: 'none',
                             }}
                         >
+                            <AIcon name="arrow-left" size={15} color={C.text} />
                             Kembali ke Daftar
                         </Link>
                     </div>

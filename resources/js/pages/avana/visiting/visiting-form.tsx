@@ -377,10 +377,11 @@ export function VisitingForm({
                                         aria-label={`Hapus tugas ${task}`}
                                         style={{
                                             border: 'none',
-                                            background: 'transparent',
+                                            background: 'rgba(107,114,128,.14)',
+                                            borderRadius: '50%',
                                             cursor: 'pointer',
                                             display: 'inline-flex',
-                                            padding: 0,
+                                            padding: 3,
                                         }}
                                     >
                                         <AIcon
@@ -448,11 +449,13 @@ export function VisitingForm({
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: 7,
-                            border: 'none',
-                            background: 'transparent',
-                            padding: 0,
+                            height: 32,
+                            padding: '0 11px',
+                            borderRadius: 7,
+                            border: '1px solid rgba(47,84,201,.35)',
+                            background: 'rgba(47,84,201,.07)',
                             fontSize: 12.5,
-                            fontWeight: 500,
+                            fontWeight: 600,
                             color: C.primary,
                             cursor: locating ? 'wait' : 'pointer',
                         }}

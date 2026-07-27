@@ -417,7 +417,7 @@ function DecisionModal({
                             padding: '9px 20px',
                             borderRadius: 8,
                             border: 'none',
-                            background: C.primary,
+                            background: C.green,
                             color: '#fff',
                             fontSize: 13,
                             fontWeight: 600,

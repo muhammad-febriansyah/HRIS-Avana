@@ -585,6 +585,7 @@ export default function TokenAi({
                                                 disabled={buying === pack.id}
                                                 style={{
                                                     ...btnP,
+                                                    background: C.violet,
                                                     marginTop: 12,
                                                     width: '100%',
                                                     justifyContent: 'center',
@@ -806,7 +807,7 @@ export default function TokenAi({
                             <button
                                 onClick={saveAllocation}
                                 disabled={savingAlloc}
-                                style={btnP}
+                                style={{ ...btnP, background: C.green }}
                             >
                                 <AIcon name="check" size={15} color="#fff" />
                                 {savingAlloc ? 'Menyimpan…' : 'Simpan Alokasi'}

@@ -35,7 +35,29 @@ beforeEach(function (): void {
 it('lists announcements with read + comment counts', function (): void {
     ($this->auth)()->getJson('/api/v1/me/announcements')
         ->assertOk()
-        ->assertJsonStructure(['data' => [['id', 'title', 'is_read', 'read_count', 'comment_count']]]);
+        ->assertJsonStructure(['data' => [['id', 'title', 'is_read', 'read_count', 'comment_count', 'attachment']]]);
+});
+
+it('exposes the attachment so the app can render or download it', function (): void {
+    $this->announcement->update([
+        'attachment_path' => 'announcements/'.$this->tenantId.'/poster.png',
+        'attachment_name' => 'poster.png',
+        'attachment_mime' => 'image/png',
+        'attachment_size' => 2048,
+    ]);
+
+    ($this->auth)()->getJson('/api/v1/me/announcements/'.$this->announcement->id)
+        ->assertOk()
+        ->assertJsonPath('data.attachment.name', 'poster.png')
+        ->assertJsonPath('data.attachment.is_image', true)
+        ->assertJsonPath('data.attachment.size', 2048)
+        ->assertJsonPath('data.attachment.url', $this->announcement->attachmentUrl());
+});
+
+it('reports a null attachment when the announcement has none', function (): void {
+    ($this->auth)()->getJson('/api/v1/me/announcements/'.$this->announcement->id)
+        ->assertOk()
+        ->assertJsonPath('data.attachment', null);
 });
 
 it('marks an announcement as read idempotently', function (): void {

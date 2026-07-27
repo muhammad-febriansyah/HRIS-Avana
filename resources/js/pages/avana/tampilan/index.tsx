@@ -452,6 +452,7 @@ export default function TampilanTema({
                                         disabled={uploadingLogo}
                                         style={{
                                             ...btnP,
+                                            background: C.violet,
                                             opacity: uploadingLogo ? 0.6 : 1,
                                         }}
                                     >
@@ -700,6 +701,7 @@ export default function TampilanTema({
                                     disabled={saving || !isValid}
                                     style={{
                                         ...btnP,
+                                        background: C.green,
                                         opacity: saving || !isValid ? 0.6 : 1,
                                     }}
                                 >

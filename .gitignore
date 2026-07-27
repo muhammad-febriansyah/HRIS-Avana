@@ -43,3 +43,6 @@ yarn-error.log
 /CLAUDE.md
 /AGENTS.md
 /docs
+/.playwright-cli
+/approval.yml
+/tests/Browser/Screenshots

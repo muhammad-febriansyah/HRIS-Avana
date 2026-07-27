@@ -495,6 +495,7 @@ export function Modal({
     onSubmit,
     processing,
     submitLabel = 'Simpan',
+    submitIcon = 'save',
     children,
 }: {
     title: string;
@@ -502,6 +503,7 @@ export function Modal({
     onSubmit: () => void;
     processing?: boolean;
     submitLabel?: string;
+    submitIcon?: string;
     children: React.ReactNode;
 }) {
     return (
@@ -549,6 +551,7 @@ export function Modal({
                     }}
                 >
                     <button style={btnOut} onClick={onClose}>
+                        <AIcon name="x" size={15} color={C.text} />
                         Batal
                     </button>
                     <button
@@ -556,6 +559,7 @@ export function Modal({
                         disabled={processing}
                         onClick={onSubmit}
                     >
+                        <AIcon name={submitIcon} size={15} color="#fff" />
                         {submitLabel}
                     </button>
                 </div>

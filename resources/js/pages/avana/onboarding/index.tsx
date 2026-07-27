@@ -621,6 +621,7 @@ export default function OnboardingIndex({
                                                 }
                                                 style={{
                                                     ...btnP,
+                                                    background: C.sky,
                                                     height: 38,
                                                     opacity:
                                                         taskForm.processing ||
@@ -864,6 +865,7 @@ function ModalActions({
                 disabled={processing}
                 style={{
                     ...btnP,
+                    background: C.green,
                     flex: 1,
                     height: 44,
                     justifyContent: 'center',

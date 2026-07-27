@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests\Avana;
 
-use App\Models\LeaveBalance;
 use App\Models\LeaveType;
+use App\Services\LeaveQuota;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Carbon;
@@ -47,8 +47,9 @@ class StoreLeaveRequest extends FormRequest
     }
 
     /**
-     * Reject the request when the leave type forbids negative balances and the
-     * requested duration exceeds the employee's remaining balance for the year.
+     * Reject the request when it would break either the parent quota or the
+     * sub-type's own yearly cap. {@see LeaveQuota} holds the rules so the admin
+     * form, the ESS page, and the mobile API stay in step.
      */
     public function withValidator(Validator $validator): void
     {
@@ -58,41 +59,28 @@ class StoreLeaveRequest extends FormRequest
             }
 
             $leaveType = LeaveType::forTenant($this->user()->tenant_id)
+                ->with('parent')
                 ->find($this->input('leave_type_id'));
 
-            if ($leaveType === null || $leaveType->allow_negative) {
+            if ($leaveType === null) {
                 return;
             }
 
             $start = Carbon::parse($this->input('start_date'));
             $end = Carbon::parse($this->input('end_date'));
-            $totalDays = (int) $start->diffInDays($end) + 1;
+            $totalDays = (float) ((int) $start->diffInDays($end) + 1);
 
-            $balance = LeaveBalance::query()
-                ->where('employee_id', $this->input('employee_id'))
-                ->where('leave_type_id', $leaveType->id)
-                ->where('year', $start->year)
-                ->first();
+            $message = LeaveQuota::check(
+                (int) $this->input('employee_id'),
+                $leaveType,
+                $totalDays,
+                $start->year,
+            );
 
-            $remaining = $balance !== null
-                ? (float) $balance->remaining
-                : (float) $leaveType->default_quota;
-
-            if ($totalDays > $remaining) {
-                $validator->errors()->add(
-                    'leave_type_id',
-                    sprintf('Saldo cuti tidak mencukupi (sisa %s hari).', $this->formatDays($remaining)),
-                );
+            if ($message !== null) {
+                $validator->errors()->add('leave_type_id', $message);
             }
         });
-    }
-
-    /**
-     * Format a remaining-day count without trailing decimal zeros.
-     */
-    private function formatDays(float $value): string
-    {
-        return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
     }
 
     /**

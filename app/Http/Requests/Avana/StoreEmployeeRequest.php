@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Avana;
 
+use App\Concerns\ResolvesTopApprover;
 use App\Models\AttendancePolicy;
 use App\Models\CustomField;
 use App\Models\Employee;
@@ -13,6 +14,16 @@ use Illuminate\Validation\Validator;
 
 class StoreEmployeeRequest extends FormRequest
 {
+    use ResolvesTopApprover;
+
+    /**
+     * Fold the Atasan Langsung sentinel into manager_id + is_top_approver.
+     */
+    protected function prepareForValidation(): void
+    {
+        $this->resolveTopApprover();
+    }
+
     /**
      * Determine if the user is authorized to make this request.
      */

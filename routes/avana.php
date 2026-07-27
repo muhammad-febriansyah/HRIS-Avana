@@ -47,6 +47,7 @@ use App\Http\Controllers\Avana\EssPerformanceController;
 use App\Http\Controllers\Avana\EssPermissionController;
 use App\Http\Controllers\Avana\EssProfileController;
 use App\Http\Controllers\Avana\EssScheduleController;
+use App\Http\Controllers\Avana\EssSopController;
 use App\Http\Controllers\Avana\EssTaskController;
 use App\Http\Controllers\Avana\EssTravelController;
 use App\Http\Controllers\Avana\FeatureCatalogController;
@@ -92,6 +93,8 @@ use App\Http\Controllers\Avana\SalesOrderController;
 use App\Http\Controllers\Avana\SearchController;
 use App\Http\Controllers\Avana\SettlementController;
 use App\Http\Controllers\Avana\ShiftSwapController;
+use App\Http\Controllers\Avana\SocialController;
+use App\Http\Controllers\Avana\SopController;
 use App\Http\Controllers\Avana\SurveyController;
 use App\Http\Controllers\Avana\TalentController;
 use App\Http\Controllers\Avana\TenantAiTokenController;
@@ -520,6 +523,32 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('dokumen', [DokumenController::class, 'store'])->name('dokumen.store');
     Route::delete('dokumen/{document}', [DokumenController::class, 'destroy'])->name('dokumen.destroy');
 
+    // Sosmed (employee social wall: moderation + category master + leaderboard)
+    Route::get('sosmed', [SocialController::class, 'index'])->name('sosmed');
+    Route::post('sosmed/kategori', [SocialController::class, 'storeCategory'])->name('sosmed.kategori.store');
+    Route::put('sosmed/kategori/{socialCategory}', [SocialController::class, 'updateCategory'])->name('sosmed.kategori.update');
+    Route::delete('sosmed/kategori/{socialCategory}', [SocialController::class, 'destroyCategory'])->name('sosmed.kategori.destroy');
+    Route::put('sosmed/post/{post}/visibility', [SocialController::class, 'toggleVisibility'])->name('sosmed.post.visibility');
+    Route::delete('sosmed/post/{post}', [SocialController::class, 'destroyPost'])->name('sosmed.post.destroy');
+    Route::post('sosmed/eotm/periode', [SocialController::class, 'storePeriod'])->name('sosmed.eotm.store');
+    Route::put('sosmed/eotm/periode/{eotmPeriod}', [SocialController::class, 'updatePeriod'])->name('sosmed.eotm.update');
+    Route::post('sosmed/eotm/periode/{eotmPeriod}/tutup', [SocialController::class, 'closePeriod'])->name('sosmed.eotm.close');
+    Route::post('sosmed/eotm/periode/{eotmPeriod}/buka-ulang', [SocialController::class, 'reopenPeriod'])->name('sosmed.eotm.reopen');
+    Route::post('sosmed/eotm/core-value', [SocialController::class, 'storeCoreValue'])->name('sosmed.eotm.value.store');
+    Route::delete('sosmed/eotm/core-value/{eotmCoreValue}', [SocialController::class, 'destroyCoreValue'])->name('sosmed.eotm.value.destroy');
+
+    // SOP (jenis SOP master + PDF documents fed to the AI assistant)
+    Route::get('sop', [SopController::class, 'index'])->name('sop');
+    Route::post('sop', [SopController::class, 'store'])->name('sop.store');
+    // `sop/jenis*` must stay ahead of `sop/{sop}` so the literal segment wins.
+    Route::post('sop/jenis', [SopController::class, 'storeCategory'])->name('sop.jenis.store');
+    Route::put('sop/jenis/{sopCategory}', [SopController::class, 'updateCategory'])->name('sop.jenis.update');
+    Route::delete('sop/jenis/{sopCategory}', [SopController::class, 'destroyCategory'])->name('sop.jenis.destroy');
+    Route::get('sop/{sop}/unduh', [SopController::class, 'download'])->name('sop.download');
+    // POST (not PUT) so the edit form can carry a replacement PDF upload.
+    Route::post('sop/{sop}', [SopController::class, 'update'])->name('sop.update');
+    Route::delete('sop/{sop}', [SopController::class, 'destroy'])->name('sop.destroy');
+
     // Template Surat (HR letter templates + generated letters)
     Route::get('surat', [LetterTemplateController::class, 'index'])->name('surat');
     Route::get('surat/create', [LetterTemplateController::class, 'create'])->name('surat.create');
@@ -653,8 +682,10 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     // Pengumuman (announcements)
     Route::get('pengumuman', [AnnouncementController::class, 'index'])->name('pengumuman');
     Route::post('pengumuman', [AnnouncementController::class, 'store'])->name('pengumuman.store');
-    Route::put('pengumuman/{announcement}', [AnnouncementController::class, 'update'])->name('pengumuman.update');
     Route::post('pengumuman/{announcement}/publish', [AnnouncementController::class, 'publish'])->name('pengumuman.publish');
+    // POST, not PUT: the edit form carries a file, and multipart cannot be sent
+    // over a spoofed PUT. Must stay below the literal `publish` segment.
+    Route::post('pengumuman/{announcement}', [AnnouncementController::class, 'update'])->name('pengumuman.update');
     Route::delete('pengumuman/{announcement}', [AnnouncementController::class, 'destroy'])->name('pengumuman.destroy');
 
     // Survei Karyawan
@@ -776,6 +807,9 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
 
         Route::get('dokumen', [EssDocumentController::class, 'index'])->name('dokumen');
         Route::post('dokumen', [EssDocumentController::class, 'store'])->name('dokumen.store');
+
+        Route::get('sop', [EssSopController::class, 'index'])->name('sop');
+        Route::get('sop/{sop}/unduh', [EssSopController::class, 'download'])->name('sop.download');
 
         Route::get('onboarding', [EssOnboardingController::class, 'index'])->name('onboarding');
         Route::patch('onboarding/tugas/{task}', [EssOnboardingController::class, 'toggleTask'])->name('onboarding.task');

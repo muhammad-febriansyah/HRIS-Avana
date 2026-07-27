@@ -42,6 +42,10 @@ const td: React.CSSProperties = {
     borderBottom: `1px solid ${C.line}`,
 };
 const primaryBtn: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
     padding: '9px 16px',
     borderRadius: 8,
     border: 'none',
@@ -162,10 +166,11 @@ export default function PayrollMasterGaji({ masters }: Props) {
                                 }
                             />
                             <button
-                                style={primaryBtn}
+                                style={{ ...primaryBtn, background: C.green }}
                                 disabled={form.processing}
                                 onClick={submit}
                             >
+                                <AIcon name="save" size={15} color="#fff" />
                                 Simpan
                             </button>
                         </div>
@@ -202,7 +207,12 @@ export default function PayrollMasterGaji({ masters }: Props) {
                             style={primaryBtn}
                             onClick={() => setAdding((v) => !v)}
                         >
-                            + Tambah Data
+                            <AIcon
+                                name={adding ? 'x' : 'plus'}
+                                size={15}
+                                color="#fff"
+                            />
+                            {adding ? 'Tutup Form' : 'Tambah Data'}
                         </button>
                     </div>
                     <div style={{ overflowX: 'auto' }}>

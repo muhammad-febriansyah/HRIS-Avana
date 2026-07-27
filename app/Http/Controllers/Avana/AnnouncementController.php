@@ -7,6 +7,7 @@ use App\Models\Announcement;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -62,6 +63,7 @@ class AnnouncementController extends Controller
             'category' => $data['category'] ?? null,
             'pinned' => $data['pinned'] ?? false,
             'status' => 'draft',
+            ...$this->storeAttachment($request->file('attachment'), $tenantId),
         ]);
 
         return redirect()->route('avana.pengumuman')
@@ -78,12 +80,25 @@ class AnnouncementController extends Controller
 
         $data = $this->validateAnnouncement($request);
 
-        $announcement->update([
+        $attributes = [
             'title' => $data['title'],
             'body' => $data['body'],
             'category' => $data['category'] ?? null,
             'pinned' => $data['pinned'] ?? false,
-        ]);
+        ];
+
+        $file = $request->file('attachment');
+
+        if ($file !== null) {
+            // A replacement was uploaded: drop the old file before repointing.
+            $announcement->deleteAttachmentFile();
+            $attributes += $this->storeAttachment($file, (int) $announcement->tenant_id);
+        } elseif ($request->boolean('remove_attachment')) {
+            $announcement->deleteAttachmentFile();
+            $attributes += $this->emptyAttachment();
+        }
+
+        $announcement->update($attributes);
 
         return redirect()->route('avana.pengumuman')
             ->with('success', 'Pengumuman berhasil diperbarui');
@@ -113,6 +128,7 @@ class AnnouncementController extends Controller
         $this->ensureCan($request, 'archive');
         $this->ensureTenantOwnership($request, $announcement);
 
+        $announcement->deleteAttachmentFile();
         $announcement->delete();
 
         return back()->with('success', 'Pengumuman dihapus');
@@ -130,7 +146,46 @@ class AnnouncementController extends Controller
             'body' => ['required', 'string'],
             'category' => ['nullable', 'string', 'max:255'],
             'pinned' => ['nullable', 'boolean'],
+            'attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
+            'remove_attachment' => ['nullable', 'boolean'],
+        ], [
+            'attachment.mimes' => 'Lampiran harus berupa PDF atau gambar (JPG, PNG, WEBP).',
+            'attachment.max' => 'Ukuran lampiran maksimal 10 MB.',
         ]);
+    }
+
+    /**
+     * Store an uploaded attachment and return the columns describing it.
+     *
+     * @return array<string, mixed>
+     */
+    private function storeAttachment(?UploadedFile $file, int $tenantId): array
+    {
+        if ($file === null) {
+            return $this->emptyAttachment();
+        }
+
+        return [
+            'attachment_path' => $file->store("announcements/{$tenantId}", Announcement::ATTACHMENT_DISK),
+            'attachment_name' => $file->getClientOriginalName(),
+            'attachment_mime' => $file->getMimeType(),
+            'attachment_size' => $file->getSize(),
+        ];
+    }
+
+    /**
+     * The attachment columns cleared back to null.
+     *
+     * @return array<string, null>
+     */
+    private function emptyAttachment(): array
+    {
+        return [
+            'attachment_path' => null,
+            'attachment_name' => null,
+            'attachment_mime' => null,
+            'attachment_size' => null,
+        ];
     }
 
     /**
@@ -163,6 +218,13 @@ class AnnouncementController extends Controller
             'pinned' => (bool) $announcement->pinned,
             'published_at' => $announcement->published_at?->toDateTimeString(),
             'created_at' => $announcement->created_at?->toDateTimeString(),
+            'attachment' => $announcement->attachment_path === null ? null : [
+                'url' => $announcement->attachmentUrl(),
+                'name' => $announcement->attachment_name,
+                'mime' => $announcement->attachment_mime,
+                'size' => $announcement->attachment_size,
+                'is_image' => $announcement->attachmentIsImage(),
+            ],
         ];
     }
 

@@ -1,6 +1,7 @@
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { DatePicker } from '@/components/avana/date-picker';
+import { LeaveTypeOptions } from '@/components/avana/leave-type-options';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, C, card } from '@/lib/avana';
 import {
@@ -114,14 +115,7 @@ export function LeaveRequestForm({
                         )}
                     >
                         <option value="">Pilih jenis cuti</option>
-                        {leaveTypes.map((leaveType) => (
-                            <option
-                                key={leaveType.id}
-                                value={String(leaveType.id)}
-                            >
-                                {leaveType.name}
-                            </option>
-                        ))}
+                        <LeaveTypeOptions types={leaveTypes} />
                     </select>
                     <FieldError message={form.errors.leave_type_id} />
                 </div>
@@ -257,7 +251,7 @@ export function LeaveRequestForm({
                     style={{
                         width: '100%',
                         height: 44,
-                        background: C.primary,
+                        background: C.violet,
                         color: '#fff',
                         border: 'none',
                         borderRadius: 8,

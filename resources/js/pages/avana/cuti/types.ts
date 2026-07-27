@@ -4,6 +4,7 @@
  * related Overtime / PermissionRequest / Wfh request row shapes.
  */
 
+import type { LeaveTypeNode } from '@/components/avana/leave-type-options';
 import type { PaginationMeta } from '../employees/types';
 
 export type { FlashProps, PaginationMeta } from '../employees/types';
@@ -30,11 +31,8 @@ export interface LeaveRequest {
     status_label: 'Menunggu' | 'Disetujui' | 'Ditolak';
 }
 
-export interface LeaveTypeOption {
-    id: number;
-    name: string;
-    default_quota: number;
-}
+/** The leave type picker speaks the grouped tree, so this module reuses it. */
+export type LeaveTypeOption = LeaveTypeNode;
 
 export interface EmployeeOption {
     id: number;

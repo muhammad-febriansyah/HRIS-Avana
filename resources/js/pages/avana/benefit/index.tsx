@@ -205,8 +205,11 @@ export default function BenefitIndex({
                                     alignItems: 'center',
                                     gap: 7,
                                     padding: '11px 14px',
-                                    background: 'none',
+                                    background: active
+                                        ? 'rgba(47,84,201,.07)'
+                                        : C.surface,
                                     border: 'none',
+                                    borderRadius: '8px 8px 0 0',
                                     borderBottom: `2px solid ${active ? C.primary : 'transparent'}`,
                                     marginBottom: -1,
                                     fontSize: 13.5,

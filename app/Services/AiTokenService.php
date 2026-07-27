@@ -110,10 +110,20 @@ final class AiTokenService
 
         $cap = $this->resolveUserCap($user, $tenant);
 
-        if ($cap !== null && $this->userMonthlyUsed($user) >= $cap) {
+        $used = $this->userMonthlyUsed($user);
+
+        if ($cap !== null && $used >= $cap) {
+            // Name the personal allowance and its size: the company pool can be
+            // nearly untouched while this user is out, and a bare "token habis"
+            // reads as though the whole tenant had run dry.
             return TokenGate::block(
                 'user_cap',
-                'Batas token AI Anda bulan ini telah habis. Hubungi admin perusahaan untuk menambah jatah.',
+                sprintf(
+                    'Jatah token AI pribadi Anda bulan ini sudah terpakai (%s dari %s). '
+                    .'Kuota perusahaan masih tersedia — minta admin menaikkan jatah Anda di menu Token AI.',
+                    number_format($used, 0, ',', '.'),
+                    number_format($cap, 0, ',', '.'),
+                ),
             );
         }
 

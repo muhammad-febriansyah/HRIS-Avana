@@ -543,6 +543,7 @@ export default function EmployeesBulkCreate({
                             disabled={uploading}
                             style={{
                                 ...btnP,
+                                background: C.violet,
                                 opacity: uploading ? 0.7 : 1,
                                 cursor: uploading ? 'wait' : 'pointer',
                             }}
@@ -916,6 +917,7 @@ export default function EmployeesBulkCreate({
                         disabled={processing}
                         style={{
                             ...btnP,
+                            background: C.green,
                             opacity: processing ? 0.7 : 1,
                             cursor: processing ? 'not-allowed' : 'pointer',
                         }}

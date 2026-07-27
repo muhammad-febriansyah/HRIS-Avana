@@ -647,7 +647,7 @@ export default function CrmDealDetail({
                                 <button
                                     type="submit"
                                     disabled={memberForm.processing}
-                                    style={btnP}
+                                    style={{ ...btnP, background: C.sky }}
                                 >
                                     <AIcon
                                         name="user-plus"

@@ -604,6 +604,7 @@ export default function HelpdeskIndex({
                                 type="submit"
                                 style={{
                                     ...btnP,
+                                    background: C.green,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',

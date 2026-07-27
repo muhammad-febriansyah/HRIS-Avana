@@ -2,7 +2,7 @@ import { router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import PayrollConfigController from '@/actions/App/Http/Controllers/Avana/PayrollConfigController';
-import { ActionBtn, C, card, rp, RupiahInput } from '@/lib/avana';
+import { ActionBtn, AIcon, C, card, rp, RupiahInput } from '@/lib/avana';
 import type { PkpRate, PtkpRate } from './types';
 
 /**
@@ -177,6 +177,10 @@ export default function Pph21Tab({
                             onClick={submitPtkp}
                             disabled={ptkpForm.processing}
                             style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 7,
                                 padding: '9px 16px',
                                 borderRadius: 8,
                                 border: 'none',
@@ -188,6 +192,7 @@ export default function Pph21Tab({
                                 height: 38,
                             }}
                         >
+                            <AIcon name="plus" size={15} color="#fff" />
                             Tambah
                         </button>
                     </div>
@@ -330,6 +335,10 @@ export default function Pph21Tab({
                             onClick={submitPkp}
                             disabled={pkpForm.processing}
                             style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 7,
                                 padding: '9px 16px',
                                 borderRadius: 8,
                                 border: 'none',
@@ -341,6 +350,7 @@ export default function Pph21Tab({
                                 height: 38,
                             }}
                         >
+                            <AIcon name="plus" size={15} color="#fff" />
                             Tambah
                         </button>
                     </div>

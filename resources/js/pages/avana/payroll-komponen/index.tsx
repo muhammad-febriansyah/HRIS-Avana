@@ -418,8 +418,12 @@ export default function PayrollKomponen({
                             }}
                             style={{
                                 padding: '11px 14px',
-                                background: 'none',
+                                background:
+                                    tab === key
+                                        ? 'rgba(47,84,201,.07)'
+                                        : C.surface,
                                 border: 'none',
+                                borderRadius: '8px 8px 0 0',
                                 borderBottom: `2px solid ${tab === key ? C.primary : 'transparent'}`,
                                 marginBottom: -1,
                                 fontSize: 13.5,
@@ -1116,10 +1120,11 @@ export default function PayrollKomponen({
                                 style={btnOut}
                                 onClick={() => setModal(false)}
                             >
+                                <AIcon name="x" size={15} color={C.text} />
                                 Batal
                             </button>
                             <button
-                                style={btnP}
+                                style={{ ...btnP, background: C.green }}
                                 disabled={form.processing}
                                 onClick={submit}
                             >

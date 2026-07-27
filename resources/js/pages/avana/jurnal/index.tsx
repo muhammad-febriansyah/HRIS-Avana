@@ -205,6 +205,7 @@ export default function JurnalIndex({
                             }
                             style={{
                                 ...btnP,
+                                background: C.violet,
                                 opacity: !latestRun || generating ? 0.6 : 1,
                                 cursor:
                                     !latestRun || generating

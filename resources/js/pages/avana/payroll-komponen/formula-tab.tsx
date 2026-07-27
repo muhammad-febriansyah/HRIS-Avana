@@ -307,7 +307,7 @@ export default function FormulaTab({
                                     }
                                 />
                                 <button
-                                    style={btnP}
+                                    style={{ ...btnP, background: C.sky }}
                                     onClick={() => addItem(f.id)}
                                 >
                                     <AIcon name="plus" size={14} color="#fff" />

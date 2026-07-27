@@ -352,8 +352,16 @@ class ApprovalWorkflowController extends Controller
                 ->map(fn (Position $p): array => ['value' => $p->id, 'label' => $p->name]),
             'employees' => Employee::forTenant($tenantId)->orderBy('full_name')->get(['id', 'full_name'])
                 ->map(fn (Employee $e): array => ['value' => $e->id, 'label' => $e->full_name]),
-            'leaveTypes' => LeaveType::forTenant($tenantId)->orderBy('name')->get(['id', 'name'])
-                ->map(fn (LeaveType $t): array => ['value' => $t->id, 'label' => $t->name]),
+            // A sub-type may need its own approval path, so both levels are
+            // offered — prefixed with the parent so the label stays unambiguous.
+            'leaveTypes' => LeaveType::forTenant($tenantId)
+                ->with('parent:id,name')
+                ->orderBy('name')
+                ->get(['id', 'name', 'parent_id'])
+                ->map(fn (LeaveType $t): array => [
+                    'value' => $t->id,
+                    'label' => $t->parent === null ? $t->name : $t->parent->name.' › '.$t->name,
+                ]),
         ];
     }
 

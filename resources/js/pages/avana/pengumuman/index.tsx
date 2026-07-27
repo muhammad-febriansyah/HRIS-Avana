@@ -3,9 +3,10 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import AnnouncementController from '@/actions/App/Http/Controllers/Avana/AnnouncementController';
-import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import { FileDropzone, formatFileSize } from '@/components/avana/file-dropzone';
+import { AIcon, btnOut, btnP, C, card, hexA } from '@/lib/avana';
 import { makeColumns } from './columns';
-import type { Announcement } from './columns';
+import type { Announcement, AnnouncementAttachment } from './columns';
 import { DataTable } from './data-table';
 
 /* ============================================================
@@ -32,6 +33,9 @@ interface AnnouncementFormData {
     category: string;
     body: string;
     pinned: boolean;
+    attachment: File | null;
+    /** Set when editing and the existing attachment should be dropped. */
+    remove_attachment: boolean;
 }
 
 const emptyForm: AnnouncementFormData = {
@@ -39,7 +43,11 @@ const emptyForm: AnnouncementFormData = {
     category: '',
     body: '',
     pinned: false,
+    attachment: null,
+    remove_attachment: false,
 };
+
+const ATTACHMENT_ACCEPT = '.pdf,image/jpeg,image/png,image/webp';
 
 const labelStyle: CSSProperties = {
     display: 'block',
@@ -112,6 +120,8 @@ export default function PengumumanIndex({
             category: item.category ?? '',
             body: item.body,
             pinned: item.pinned,
+            attachment: null,
+            remove_attachment: false,
         });
         setModalOpen(true);
     };
@@ -126,15 +136,15 @@ export default function PengumumanIndex({
     const submit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
-        if (editing) {
-            form.submit(AnnouncementController.update(editing.id), {
-                onSuccess: () => closeModal(),
-            });
-        } else {
-            form.submit(AnnouncementController.store(), {
-                onSuccess: () => closeModal(),
-            });
-        }
+        const action = editing
+            ? AnnouncementController.update(editing.id)
+            : AnnouncementController.store();
+
+        // `forceFormData` so the attachment survives; both endpoints are POST.
+        form.submit(action, {
+            forceFormData: true,
+            onSuccess: () => closeModal(),
+        });
     };
 
     const publish = (item: AnnouncementCard) => {
@@ -166,6 +176,16 @@ export default function PengumumanIndex({
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [],
     );
+
+    // The attachment already on the record, unless the user replaced it with a
+    // fresh upload or asked for it to be dropped.
+    const keptAttachment =
+        editing !== null &&
+        editing.attachment !== null &&
+        form.data.attachment === null &&
+        !form.data.remove_attachment
+            ? editing.attachment
+            : null;
 
     const kpiItems = [
         {
@@ -419,6 +439,50 @@ export default function PengumumanIndex({
                                     <FieldError message={form.errors.body} />
                                 )}
                             </div>
+                            <div>
+                                <label style={labelStyle}>
+                                    Lampiran{' '}
+                                    <span
+                                        style={{
+                                            color: C.faint,
+                                            fontWeight: 400,
+                                        }}
+                                    >
+                                        (opsional)
+                                    </span>
+                                </label>
+
+                                {keptAttachment ? (
+                                    <ExistingAttachment
+                                        attachment={keptAttachment}
+                                        onRemove={() =>
+                                            form.setData(
+                                                'remove_attachment',
+                                                true,
+                                            )
+                                        }
+                                    />
+                                ) : (
+                                    <FileDropzone
+                                        value={form.data.attachment}
+                                        onChange={(file) =>
+                                            form.setData((current) => ({
+                                                ...current,
+                                                attachment: file,
+                                                // Picking a new file already
+                                                // replaces the old one.
+                                                remove_attachment:
+                                                    current.remove_attachment &&
+                                                    file === null,
+                                            }))
+                                        }
+                                        accept={ATTACHMENT_ACCEPT}
+                                        hint="PDF atau gambar (JPG, PNG, WEBP), maks. 10 MB"
+                                        hasError={!!form.errors.attachment}
+                                    />
+                                )}
+                                <FieldError message={form.errors.attachment} />
+                            </div>
                             <label
                                 style={{
                                     display: 'flex',
@@ -466,6 +530,7 @@ export default function PengumumanIndex({
                                 disabled={form.processing}
                                 style={{
                                     ...btnP,
+                                    background: C.green,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',
@@ -497,6 +562,107 @@ export default function PengumumanIndex({
                 />
             )}
         </>
+    );
+}
+
+/**
+ * The attachment already saved on an announcement being edited. An image gets a
+ * thumbnail so the admin can tell at a glance which file is attached; a PDF gets
+ * an icon. Either way the file opens in a new tab and can be dropped.
+ */
+function ExistingAttachment({
+    attachment,
+    onRemove,
+}: {
+    attachment: AnnouncementAttachment;
+    onRemove: () => void;
+}) {
+    return (
+        <div
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '12px 14px',
+                border: `1px solid ${C.border}`,
+                borderRadius: 10,
+                background: '#fff',
+            }}
+        >
+            {attachment.is_image ? (
+                <img
+                    src={attachment.url}
+                    alt={attachment.name ?? 'Lampiran'}
+                    style={{
+                        width: 38,
+                        height: 38,
+                        flex: 'none',
+                        borderRadius: 9,
+                        objectFit: 'cover',
+                        border: `1px solid ${C.border}`,
+                    }}
+                />
+            ) : (
+                <div
+                    style={{
+                        width: 38,
+                        height: 38,
+                        flex: 'none',
+                        borderRadius: 9,
+                        display: 'grid',
+                        placeItems: 'center',
+                        background: hexA(C.primary, 0.1),
+                    }}
+                >
+                    <AIcon name="file-text" size={18} color={C.primary} />
+                </div>
+            )}
+
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <a
+                    href={attachment.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                        display: 'block',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: C.primary,
+                        textDecoration: 'none',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                    }}
+                >
+                    {attachment.name ?? 'Lihat lampiran'}
+                </a>
+                <div style={{ fontSize: 11.5, color: C.faint }}>
+                    {attachment.size !== null
+                        ? `${formatFileSize(attachment.size)} · tersimpan`
+                        : 'Tersimpan'}
+                </div>
+            </div>
+
+            <button
+                type="button"
+                onClick={onRemove}
+                title="Hapus lampiran"
+                aria-label="Hapus lampiran"
+                style={{
+                    width: 30,
+                    height: 30,
+                    flex: 'none',
+                    display: 'grid',
+                    placeItems: 'center',
+                    borderRadius: 8,
+                    border: '1px solid rgba(220,38,38,.35)',
+                    background: 'rgba(220,38,38,.07)',
+                    cursor: 'pointer',
+                }}
+            >
+                <AIcon name="trash-2" size={15} color={C.red} />
+            </button>
+        </div>
     );
 }
 

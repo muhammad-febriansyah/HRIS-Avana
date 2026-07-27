@@ -111,3 +111,63 @@ it('does not restore usage when a conversation is deleted (ledger-based)', funct
 
     expect($this->service->userMonthlyUsed($this->admin->fresh()))->toBe(500);
 });
+
+it('names the personal allowance and says the company pool is still available', function (): void {
+    // A tiny per-user cap against an almost untouched company pool — the exact
+    // shape that made the meter read "sisa 486.298" beside a "habis" reply.
+    $this->tenant->update([
+        'ai_token_quota' => 500_000,
+        'ai_token_balance' => 0,
+        'ai_token_user_cap' => 10_000,
+    ]);
+
+    AiTokenLedger::create([
+        'tenant_id' => $this->tenant->id,
+        'user_id' => $this->admin->id,
+        'type' => AiTokenLedger::TYPE_DEBIT,
+        'source' => 'chat',
+        'tokens' => 10_571,
+        'wallet_delta' => 0,
+        'balance_after' => 0,
+        'period' => now()->format('Y-m'),
+    ]);
+
+    $gate = $this->service->canChat($this->admin->fresh());
+
+    expect($gate->allowed)->toBeFalse()
+        ->and($gate->reason)->toBe('user_cap')
+        ->and($gate->message)
+        ->toContain('pribadi')
+        ->toContain('10.571')
+        ->toContain('10.000')
+        ->toContain('Kuota perusahaan masih tersedia');
+});
+
+it('reports the per-user cap to the meter, not just the company pool', function (): void {
+    $this->tenant->update([
+        'ai_token_quota' => 500_000,
+        'ai_token_balance' => 0,
+        'ai_token_user_cap' => 10_000,
+    ]);
+
+    AiTokenLedger::create([
+        'tenant_id' => $this->tenant->id,
+        'user_id' => $this->admin->id,
+        'type' => AiTokenLedger::TYPE_DEBIT,
+        'source' => 'chat',
+        'tokens' => 10_571,
+        'wallet_delta' => 0,
+        'balance_after' => 0,
+        'period' => now()->format('Y-m'),
+    ]);
+
+    $usage = $this->service->remainingForUser($this->admin->fresh());
+
+    expect($usage['user_cap'])->toBe(10_000)
+        ->and($usage['user_used'])->toBe(10_571)
+        // Already over the cap: nothing left for this user...
+        ->and($usage['user_remaining'])->toBe(0)
+        ->and($usage['effective_remaining'])->toBe(0)
+        // ...even though the company pool is barely touched.
+        ->and($usage['free_remaining'])->toBe(489_429);
+});

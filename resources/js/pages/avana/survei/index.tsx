@@ -1086,6 +1086,7 @@ export default function SurveiIndex({
                                 disabled={createForm.processing}
                                 style={{
                                     ...btnP,
+                                    background: C.green,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',
@@ -1310,6 +1311,7 @@ export default function SurveiIndex({
                                 }
                                 style={{
                                     ...btnP,
+                                    background: C.violet,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',

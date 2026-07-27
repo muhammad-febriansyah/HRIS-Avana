@@ -282,6 +282,7 @@ export default function RecruitmentPools({ pools }: { pools: Pool[] }) {
                                 style={btnOut}
                                 onClick={() => setOpen(false)}
                             >
+                                <AIcon name="x" size={15} color={C.text} />
                                 Batal
                             </button>
                             <button
@@ -289,6 +290,7 @@ export default function RecruitmentPools({ pools }: { pools: Pool[] }) {
                                 disabled={form.processing}
                                 onClick={submit}
                             >
+                                <AIcon name="plus" size={15} color="#fff" />
                                 Buat Pool
                             </button>
                         </div>

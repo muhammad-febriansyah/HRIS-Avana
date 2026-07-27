@@ -222,7 +222,11 @@ export default function AvanaHakAkses({
                                     fontSize: 13.5,
                                     fontWeight: 600,
                                     border: 'none',
-                                    background: 'transparent',
+                                    background:
+                                        tab === t.key
+                                            ? 'rgba(47,84,201,.07)'
+                                            : C.surface,
+                                    borderRadius: '8px 8px 0 0',
                                     cursor: 'pointer',
                                     color: tab === t.key ? C.primary : C.muted,
                                     borderBottom:

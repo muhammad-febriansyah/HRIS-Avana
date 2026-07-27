@@ -138,7 +138,10 @@ export function PermissionOverrides({
                                     style={{
                                         display: 'inline-flex',
                                         border: 'none',
-                                        background: 'transparent',
+                                        background: isGrant
+                                            ? 'rgba(21,128,61,.14)'
+                                            : 'rgba(185,28,28,.14)',
+                                        borderRadius: '50%',
                                         cursor: 'pointer',
                                         color: 'inherit',
                                         padding: 2,
@@ -211,6 +214,7 @@ export function PermissionOverrides({
                     disabled={saving}
                     style={{
                         ...btnP,
+                        background: C.green,
                         opacity: saving ? 0.7 : 1,
                         cursor: saving ? 'not-allowed' : 'pointer',
                     }}

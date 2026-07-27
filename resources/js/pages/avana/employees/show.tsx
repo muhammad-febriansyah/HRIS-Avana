@@ -364,7 +364,10 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                                         ? `2px solid ${C.primary}`
                                         : '2px solid transparent',
                                     cursor: 'pointer',
-                                    background: 'none',
+                                    background: active
+                                        ? 'rgba(47,84,201,.07)'
+                                        : C.surface,
+                                    borderRadius: '8px 8px 0 0',
                                     whiteSpace: 'nowrap',
                                     transition: '.15s',
                                 }}

@@ -51,6 +51,10 @@ const td: React.CSSProperties = {
     borderBottom: `1px solid ${C.line}`,
 };
 const primaryBtn: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
     padding: '9px 16px',
     borderRadius: 8,
     border: 'none',
@@ -235,10 +239,11 @@ export default function MappingPayday({ paydays, employees }: Props) {
                             }
                         />
                         <button
-                            style={primaryBtn}
+                            style={{ ...primaryBtn, background: C.green }}
                             disabled={form.processing}
                             onClick={submit}
                         >
+                            <AIcon name="save" size={15} color="#fff" />
                             Simpan
                         </button>
                     </div>
@@ -398,11 +403,18 @@ export default function MappingPayday({ paydays, employees }: Props) {
                             </div>
                             <button
                                 onClick={() => setAssignTo(null)}
+                                aria-label="Tutup"
                                 style={{
-                                    border: 'none',
-                                    background: 'transparent',
+                                    width: 30,
+                                    height: 30,
+                                    border: `1px solid ${C.border}`,
+                                    background: C.surface,
+                                    borderRadius: 8,
                                     cursor: 'pointer',
-                                    color: C.faint,
+                                    color: C.muted,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
                                 }}
                             >
                                 <AIcon name="x" size={16} />
@@ -456,7 +468,11 @@ export default function MappingPayday({ paydays, employees }: Props) {
                                 );
                             })}
                         </div>
-                        <button style={primaryBtn} onClick={saveAssign}>
+                        <button
+                            style={{ ...primaryBtn, background: C.violet }}
+                            onClick={saveAssign}
+                        >
+                            <AIcon name="save" size={15} color="#fff" />
                             Simpan Pemetaan
                         </button>
                     </div>

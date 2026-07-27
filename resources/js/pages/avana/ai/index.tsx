@@ -15,10 +15,23 @@ interface Conversation {
     updated_at: string | null;
 }
 
+interface SopCitation {
+    code: string;
+    title: string;
+    url: string;
+}
+
 interface TokenUsage {
     used: number;
     quota: number | null;
     period: string;
+    /** Monthly cap for THIS user; null = only the company pool applies. */
+    user_cap: number | null;
+    user_used: number;
+    user_remaining: number | null;
+    /** Company pool left: free monthly quota not yet used, plus the wallet. */
+    free_remaining: number;
+    wallet_balance: number;
 }
 
 interface AiProps {
@@ -27,6 +40,7 @@ interface AiProps {
     messages: ChatMessage[];
     ready: boolean;
     tokenUsage: TokenUsage;
+    sopCitations: SopCitation[];
 }
 
 const numberFormatter = new Intl.NumberFormat('id-ID');
@@ -47,14 +61,70 @@ function cookie(name: string): string {
     return match ? decodeURIComponent(match[1]) : '';
 }
 
+/**
+ * WhatsApp-style "sedang mengetik" indicator: three dots bouncing in sequence,
+ * shown while the model is thinking and no token has arrived yet.
+ */
+function TypingDots() {
+    return (
+        <span
+            style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                color: C.muted,
+                height: 18,
+            }}
+            aria-label="Asisten sedang mengetik"
+        >
+            {[0, 1, 2].map((index) => (
+                <span
+                    key={index}
+                    className="avn-typing-dot"
+                    style={{ animationDelay: `${index * 0.16}s` }}
+                />
+            ))}
+        </span>
+    );
+}
+
+/** Escape a string for safe use inside a regular expression. */
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Turn every SOP code the assistant cited into a link to that PDF.
+ *
+ * Runs on already-escaped HTML: an SOP code is alphanumeric plus dashes, so
+ * escaping never rewrites it. Only codes the server sent are matched, and the
+ * server sends only what this user may read — so a private SOP can never be
+ * linked into someone else's chat.
+ */
+function linkifyCitations(html: string, citations: SopCitation[]): string {
+    return citations.reduce((carry, citation) => {
+        if (!citation.code) {
+            return carry;
+        }
+
+        return carry.replace(
+            new RegExp(
+                `(?<![\\w-])${escapeRegExp(citation.code)}(?![\\w-])`,
+                'g',
+            ),
+            `<a href="${citation.url}" target="_blank" rel="noopener" title="Unduh ${citation.title}" style="color:${C.primary};font-weight:600;text-decoration:underline">${citation.code}</a>`,
+        );
+    }, html);
+}
+
 /** Minimal markdown → HTML for bold, inline code, and line breaks. */
-function renderMarkdown(text: string): string {
+function renderMarkdown(text: string, citations: SopCitation[] = []): string {
     const escaped = text
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
 
-    return escaped
+    return linkifyCitations(escaped, citations)
         .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
         .replace(
             /`([^`]+)`/g,
@@ -64,18 +134,29 @@ function renderMarkdown(text: string): string {
 }
 
 /**
- * Compact monthly AI token meter shown in the chat header: used vs quota with
- * a progress bar that shifts to amber then red as the allowance runs low.
+ * Compact monthly AI token meter shown in the chat header.
+ *
+ * It reports whichever limit actually stops this user. A per-user monthly cap
+ * is usually far smaller than the company pool, so showing the pool made the
+ * meter read "sisa 486.298" right next to a "batas token Anda habis" reply.
+ * The cap wins when one is set; the pool is shown underneath as context.
  */
 function TokenMeter({ usage }: { usage: TokenUsage }) {
-    const { used, quota, period } = usage;
-    const hasQuota = quota !== null && quota > 0;
-    const percent = hasQuota
-        ? Math.min(100, Math.round((used / (quota as number)) * 100))
+    const { used, quota, period, user_cap, user_used } = usage;
+
+    const capped = user_cap !== null && user_cap > 0;
+    const limit = capped ? user_cap : quota;
+    const spent = capped ? user_used : used;
+    const hasLimit = limit !== null && limit > 0;
+
+    const percent = hasLimit
+        ? Math.min(100, Math.round((spent / (limit as number)) * 100))
         : 0;
 
     const barColor =
         percent >= 90 ? '#dc2626' : percent >= 70 ? '#f59e0b' : C.primary;
+
+    const poolLeft = usage.free_remaining + usage.wallet_balance;
 
     return (
         <div
@@ -84,7 +165,11 @@ function TokenMeter({ usage }: { usage: TokenUsage }) {
                 width: 210,
                 flexShrink: 0,
             }}
-            title={`Token AI terpakai bulan ${period}`}
+            title={
+                capped
+                    ? `Jatah token Anda bulan ${period}. Kuota perusahaan tersisa ${numberFormatter.format(poolLeft)} token.`
+                    : `Token AI perusahaan terpakai bulan ${period}`
+            }
         >
             <div
                 style={{
@@ -105,12 +190,12 @@ function TokenMeter({ usage }: { usage: TokenUsage }) {
                     }}
                 >
                     <AIcon name="zap" size={12} color={C.faint} />
-                    Token AI · {period}
+                    {capped ? 'Jatah Anda' : 'Token AI'} · {period}
                 </span>
                 <span style={{ color: C.muted, fontWeight: 600 }}>
-                    {numberFormatter.format(used)}
-                    {hasQuota
-                        ? ` / ${numberFormatter.format(quota as number)}`
+                    {numberFormatter.format(spent)}
+                    {hasLimit
+                        ? ` / ${numberFormatter.format(limit as number)}`
                         : ''}
                 </span>
             </div>
@@ -125,7 +210,7 @@ function TokenMeter({ usage }: { usage: TokenUsage }) {
                 <div
                     style={{
                         height: '100%',
-                        width: hasQuota ? `${percent}%` : '0%',
+                        width: hasLimit ? `${percent}%` : '0%',
                         borderRadius: 99,
                         background: barColor,
                         transition: 'width .4s ease',
@@ -140,9 +225,11 @@ function TokenMeter({ usage }: { usage: TokenUsage }) {
                     textAlign: 'right',
                 }}
             >
-                {hasQuota
-                    ? `Sisa ${numberFormatter.format(Math.max(0, (quota as number) - used))} token`
-                    : 'Kuota tak terbatas'}
+                {!hasLimit
+                    ? 'Kuota tak terbatas'
+                    : percent >= 100
+                      ? 'Jatah bulan ini habis'
+                      : `Sisa ${numberFormatter.format(Math.max(0, (limit as number) - spent))} token`}
             </div>
         </div>
     );
@@ -154,6 +241,7 @@ export default function AiAssistant({
     messages: propMessages,
     ready,
     tokenUsage,
+    sopCitations,
 }: AiProps) {
     const [conversations, setConversations] =
         useState<Conversation[]>(propConversations);
@@ -162,6 +250,12 @@ export default function AiAssistant({
     const [input, setInput] = useState('');
     const [streaming, setStreaming] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
+
+    // Tokens land in bursts; these drive the typewriter that drains them at a
+    // steady pace so the reply reads as if it were being typed.
+    const bufferRef = useRef('');
+    const revealedRef = useRef(0);
+    const frameRef = useRef<number | null>(null);
 
     // Re-seed from the server when navigating between conversations.
     useEffect(() => {
@@ -177,6 +271,71 @@ export default function AiAssistant({
             behavior: 'smooth',
         });
     }, [messages]);
+
+    // Stop the typewriter if the component unmounts mid-stream.
+    useEffect(
+        () => () => {
+            if (frameRef.current !== null) {
+                cancelAnimationFrame(frameRef.current);
+            }
+        },
+        [],
+    );
+
+    /** Write `text` into the assistant bubble currently being streamed. */
+    const setLastAssistantContent = (text: string) => {
+        setMessages((prev) => {
+            const next = [...prev];
+            const last = next[next.length - 1];
+
+            if (!last || last.role !== 'assistant') {
+                return prev;
+            }
+
+            next[next.length - 1] = { ...last, content: text };
+
+            return next;
+        });
+    };
+
+    /**
+     * Reveal buffered tokens a few characters per frame. The step scales with
+     * the backlog so a fast model never lags behind, while a slow one still
+     * types smoothly instead of pasting whole sentences at once.
+     */
+    const startTypewriter = () => {
+        if (frameRef.current !== null) {
+            return;
+        }
+
+        const tick = () => {
+            const pending = bufferRef.current.length - revealedRef.current;
+
+            if (pending > 0) {
+                revealedRef.current += Math.max(1, Math.ceil(pending / 10));
+                setLastAssistantContent(
+                    bufferRef.current.slice(0, revealedRef.current),
+                );
+            }
+
+            frameRef.current = requestAnimationFrame(tick);
+        };
+
+        frameRef.current = requestAnimationFrame(tick);
+    };
+
+    /** Stop the typewriter and show whatever is left in the buffer at once. */
+    const stopTypewriter = () => {
+        if (frameRef.current !== null) {
+            cancelAnimationFrame(frameRef.current);
+            frameRef.current = null;
+        }
+
+        if (bufferRef.current.length > revealedRef.current) {
+            revealedRef.current = bufferRef.current.length;
+            setLastAssistantContent(bufferRef.current);
+        }
+    };
 
     const newChat = () => {
         setActiveId(null);
@@ -216,6 +375,8 @@ export default function AiAssistant({
         const wasNew = activeId === null;
         setInput('');
         setStreaming(true);
+        bufferRef.current = '';
+        revealedRef.current = 0;
         setMessages((prev) => [
             ...prev,
             { role: 'user', content: message },
@@ -256,6 +417,8 @@ export default function AiAssistant({
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
 
+            startTypewriter();
+
             for (;;) {
                 const { done, value } = await reader.read();
 
@@ -263,31 +426,13 @@ export default function AiAssistant({
                     break;
                 }
 
-                const chunk = decoder.decode(value, { stream: true });
-                setMessages((prev) => {
-                    const next = [...prev];
-                    const last = next[next.length - 1];
-                    next[next.length - 1] = {
-                        ...last,
-                        content: last.content + chunk,
-                    };
-
-                    return next;
-                });
+                bufferRef.current += decoder.decode(value, { stream: true });
             }
-        } catch {
-            setMessages((prev) => {
-                const next = [...prev];
-                const last = next[next.length - 1];
-                next[next.length - 1] = {
-                    ...last,
-                    content:
-                        (last.content || '') +
-                        '\n\n[Terjadi kesalahan. Coba lagi.]',
-                };
 
-                return next;
-            });
+            stopTypewriter();
+        } catch {
+            bufferRef.current += '\n\n[Terjadi kesalahan. Coba lagi.]';
+            stopTypewriter();
         } finally {
             setStreaming(false);
             // Refresh only the token meter; local chat state is preserved.
@@ -424,17 +569,18 @@ export default function AiAssistant({
                                         }}
                                         title="Hapus"
                                         style={{
-                                            border: 'none',
-                                            background: 'transparent',
+                                            border: '1px solid rgba(220,38,38,.35)',
+                                            background: 'rgba(220,38,38,.07)',
+                                            borderRadius: 6,
                                             cursor: 'pointer',
-                                            padding: 3,
+                                            padding: 4,
                                             display: 'inline-flex',
                                         }}
                                     >
                                         <AIcon
                                             name="trash-2"
                                             size={13}
-                                            color={C.faint}
+                                            color={C.red}
                                         />
                                     </button>
                                 </div>
@@ -673,29 +819,29 @@ export default function AiAssistant({
                                             {m.role === 'assistant' &&
                                             m.content === '' &&
                                             streaming ? (
-                                                <span
-                                                    style={{
-                                                        color: C.faint,
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        gap: 6,
-                                                    }}
-                                                >
-                                                    <AIcon
-                                                        name="loader"
-                                                        size={14}
-                                                        color={C.muted}
-                                                    />{' '}
-                                                    mengetik…
-                                                </span>
+                                                <TypingDots />
                                             ) : (
-                                                <span
-                                                    dangerouslySetInnerHTML={{
-                                                        __html: renderMarkdown(
-                                                            m.content,
-                                                        ),
-                                                    }}
-                                                />
+                                                <>
+                                                    <span
+                                                        dangerouslySetInnerHTML={{
+                                                            __html: renderMarkdown(
+                                                                m.content,
+                                                                sopCitations,
+                                                            ),
+                                                        }}
+                                                    />
+                                                    {m.role === 'assistant' &&
+                                                    streaming &&
+                                                    index ===
+                                                        messages.length - 1 ? (
+                                                        <span
+                                                            className="avn-stream-caret"
+                                                            style={{
+                                                                color: C.muted,
+                                                            }}
+                                                        />
+                                                    ) : null}
+                                                </>
                                             )}
                                         </div>
                                     </div>

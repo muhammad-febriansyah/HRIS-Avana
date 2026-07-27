@@ -304,6 +304,7 @@ export default function KinerjaEdit({
                                 disabled={calibrateForm.processing}
                                 style={{
                                     ...btnP,
+                                    background: C.green,
                                     height: 42,
                                     justifyContent: 'center',
                                     opacity: calibrateForm.processing ? 0.7 : 1,

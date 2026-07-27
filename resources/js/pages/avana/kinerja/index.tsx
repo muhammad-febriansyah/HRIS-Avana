@@ -814,6 +814,7 @@ export default function KinerjaIndex({
                                 disabled={cycleForm.processing}
                                 style={{
                                     ...btnP,
+                                    background: C.green,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',
@@ -1058,6 +1059,7 @@ export default function KinerjaIndex({
                                 disabled={scoreForm.processing}
                                 style={{
                                     ...btnP,
+                                    background: C.green,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',

@@ -466,6 +466,7 @@ function ObjectiveCard({
                             disabled={krForm.processing}
                             style={{
                                 ...btnP,
+                                background: C.green,
                                 height: 38,
                                 justifyContent: 'center',
                                 opacity: krForm.processing ? 0.7 : 1,

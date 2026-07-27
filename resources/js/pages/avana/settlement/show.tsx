@@ -1001,15 +1001,21 @@ function RejectAction({
                 type="button"
                 onClick={() => setOpen(true)}
                 style={{
-                    background: 'none',
-                    border: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: 'rgba(220,38,38,.07)',
+                    border: '1px solid rgba(220,38,38,.35)',
+                    borderRadius: 7,
+                    height: 32,
+                    padding: '0 11px',
                     color: C.red,
                     fontSize: 12.5,
                     fontWeight: 600,
                     cursor: 'pointer',
-                    padding: 0,
                 }}
             >
+                <AIcon name="corner-up-left" size={14} color={C.red} />
                 Kembalikan ke karyawan
             </button>
         );
@@ -1039,6 +1045,7 @@ function RejectAction({
                         justifyContent: 'center',
                     }}
                 >
+                    <AIcon name="corner-up-left" size={15} color="#fff" />
                     Kembalikan
                 </button>
                 <button
@@ -1046,6 +1053,7 @@ function RejectAction({
                     onClick={() => setOpen(false)}
                     style={{ ...btnOut, height: 38 }}
                 >
+                    <AIcon name="x" size={15} color={C.text} />
                     Batal
                 </button>
             </div>
@@ -1304,8 +1312,11 @@ function FraudPanel({
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: 5,
-                            background: 'none',
-                            border: 'none',
+                            height: 30,
+                            padding: '0 10px',
+                            borderRadius: 7,
+                            background: 'rgba(47,84,201,.07)',
+                            border: '1px solid rgba(47,84,201,.35)',
                             color: C.primary,
                             fontSize: 12,
                             fontWeight: 600,

@@ -900,6 +900,7 @@ export default function OffboardingIndex({
                                 disabled={settleForm.processing}
                                 style={{
                                     ...btnP,
+                                    background: C.green,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',
@@ -1068,6 +1069,7 @@ function ModalActions({
                 disabled={processing}
                 style={{
                     ...btnP,
+                    background: C.green,
                     flex: 1,
                     height: 44,
                     justifyContent: 'center',

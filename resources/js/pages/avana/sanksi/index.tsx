@@ -704,6 +704,7 @@ export default function SanksiIndex({ penalties, filters }: SanksiIndexProps) {
                                 disabled={generateForm.processing}
                                 style={{
                                     ...btnP,
+                                    background: C.violet,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',

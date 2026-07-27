@@ -465,6 +465,7 @@ export default function WebsiteSettings({ settings }: PageProps) {
                         disabled={form.processing}
                         style={{
                             ...btnP,
+                            background: C.green,
                             height: 44,
                             padding: '0 22px',
                             opacity: form.processing ? 0.7 : 1,

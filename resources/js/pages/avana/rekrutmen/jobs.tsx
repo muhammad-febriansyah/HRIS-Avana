@@ -280,14 +280,26 @@ export default function RecruitmentJobs({ postings, kpis }: JobsProps) {
                                                 copy(subjectCode(p.title))
                                             }
                                             style={{
-                                                border: 'none',
-                                                background: 'transparent',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 5,
+                                                border: '1px solid rgba(180,83,9,.3)',
+                                                borderRadius: 6,
+                                                padding: '4px 9px',
+                                                background:
+                                                    'rgba(180,83,9,.08)',
                                                 color: '#B45309',
                                                 fontWeight: 700,
                                                 fontSize: 12,
                                                 cursor: 'pointer',
+                                                whiteSpace: 'nowrap',
                                             }}
                                         >
+                                            <AIcon
+                                                name="copy"
+                                                size={12}
+                                                color="#B45309"
+                                            />
                                             Salin
                                         </button>
                                     </div>

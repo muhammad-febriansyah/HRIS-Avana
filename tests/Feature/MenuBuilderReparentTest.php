@@ -82,6 +82,42 @@ it('lands a moved menu at the end of its new level instead of colliding', functi
     expect($dokumen->refresh()->sort_order)->toBe($highestTopLevel + 1);
 });
 
+it('does not clone a leaf the tenant moved when the defaults are re-seeded', function (): void {
+    $dokumen = MenuItem::forTenant($this->tenantId)->where('key', 'dokumen')->firstOrFail();
+
+    $this->actingAs($this->superAdmin)
+        ->put(route('avana.menu-builder.update', $dokumen), menuPayload($dokumen, null))
+        ->assertRedirect();
+
+    AvanaNav::seedDefaultsFor($this->tenantId);
+
+    expect(MenuItem::forTenant($this->tenantId)->where('key', 'dokumen')->count())->toBe(1)
+        ->and($dokumen->refresh()->parent_id)->toBeNull();
+});
+
+it('appends a newly added child instead of colliding with an existing sibling', function (): void {
+    $hr = MenuItem::forTenant($this->tenantId)->where('key', 'hr')->whereNull('parent_id')->firstOrFail();
+
+    $sop = MenuItem::forTenant($this->tenantId)->where('key', 'sop')->firstOrFail();
+    $slot = (int) $sop->sort_order;
+    $sop->delete();
+
+    // A tenant that predates the SOP menu already has that slot in use.
+    MenuItem::forTenant($this->tenantId)
+        ->where('parent_id', $hr->id)
+        ->where('key', 'surat')
+        ->update(['sort_order' => $slot]);
+
+    $highest = (int) MenuItem::forTenant($this->tenantId)->where('parent_id', $hr->id)->max('sort_order');
+
+    AvanaNav::seedDefaultsFor($this->tenantId);
+
+    $reseeded = MenuItem::forTenant($this->tenantId)->where('key', 'sop')->firstOrFail();
+
+    expect($reseeded->parent_id)->toBe($hr->id)
+        ->and($reseeded->sort_order)->toBe($highest + 1);
+});
+
 it('rejects making a menu its own parent', function (): void {
     $hr = MenuItem::forTenant($this->tenantId)->where('key', 'hr')->whereNull('parent_id')->firstOrFail();
 

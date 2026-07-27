@@ -112,9 +112,10 @@ function Thumb({
                 flex: 1,
                 minWidth: 0,
                 textAlign: 'left',
-                padding: 0,
-                border: 'none',
-                background: 'none',
+                padding: 8,
+                border: `1px solid ${C.border}`,
+                borderRadius: 8,
+                background: C.surface,
                 cursor: 'zoom-in',
             }}
         >

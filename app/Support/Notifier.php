@@ -7,6 +7,7 @@ use App\Mail\BrandedNotification;
 use App\Models\Announcement;
 use App\Models\AttendanceCorrection;
 use App\Models\Employee;
+use App\Models\EotmPeriod;
 use App\Models\Invoice;
 use App\Models\LeaveRequest;
 use App\Models\Notification;
@@ -15,6 +16,7 @@ use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
 use App\Models\PermissionRequest;
 use App\Models\Reimbursement;
+use App\Models\SocialPost;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
@@ -185,6 +187,117 @@ final class Notifier
         ])->all();
 
         self::insertMany($rows);
+    }
+
+    /**
+     * Tell the author of a social post that someone commented on it.
+     *
+     * Commenting on your own post is silent — a notification about yourself is
+     * noise, not news.
+     */
+    public static function socialPostCommented(SocialPost $post, Employee $commenter): void
+    {
+        if ((int) $post->employee_id === (int) $commenter->id) {
+            return;
+        }
+
+        $userId = self::userIdFor($post->employee_id);
+
+        if ($userId === null) {
+            return;
+        }
+
+        $body = $commenter->full_name.' mengomentari postingan kamu';
+
+        self::insertMany([[
+            'tenant_id' => $post->tenant_id,
+            'user_id' => $userId,
+            'type' => 'social',
+            'title' => 'Komentar baru',
+            'body' => $body,
+            'data' => ['link' => ['type' => 'social_post', 'id' => $post->id]],
+        ]]);
+
+        app(FcmService::class)->pushToUsers(
+            [$userId],
+            'Komentar baru',
+            $body,
+            ['type' => 'social_post', 'id' => $post->id],
+        );
+    }
+
+    /**
+     * Announce that Employee of the Month voting has opened, so the month does
+     * not pass with a ballot nobody knew about.
+     */
+    public static function eotmPeriodOpened(EotmPeriod $period): void
+    {
+        $body = 'Voting '.$period->label().' sudah dibuka. Pilih rekan kerja terbaikmu.';
+
+        self::notifyTenantEmployees(
+            $period,
+            'Voting Employee of the Month dibuka',
+            $body,
+            'eotm_open',
+        );
+    }
+
+    /**
+     * Announce the winner once voting closes.
+     */
+    public static function eotmPeriodClosed(EotmPeriod $period): void
+    {
+        $winner = $period->winner?->full_name;
+
+        $body = $winner !== null
+            ? 'Selamat kepada '.$winner.' — Employee of the Month '.$period->label().'!'
+            : 'Voting '.$period->label().' telah ditutup.';
+
+        self::notifyTenantEmployees(
+            $period,
+            'Employee of the Month '.$period->label(),
+            $body,
+            'eotm_result',
+        );
+    }
+
+    /**
+     * Fan a single message out to every active employee of the period's tenant,
+     * in-app and as a push.
+     */
+    private static function notifyTenantEmployees(
+        EotmPeriod $period,
+        string $title,
+        string $body,
+        string $event,
+    ): void {
+        $userIds = Employee::forTenant($period->tenant_id)
+            ->where('status', 'active')
+            ->whereNotNull('user_id')
+            ->pluck('user_id');
+
+        if ($userIds->isEmpty()) {
+            return;
+        }
+
+        self::insertMany($userIds->map(fn (int $userId): array => [
+            'tenant_id' => $period->tenant_id,
+            'user_id' => $userId,
+            'type' => 'eotm',
+            'title' => $title,
+            'body' => $body,
+            'data' => [
+                'link' => ['type' => 'eotm', 'id' => $period->id],
+                'event' => $event,
+            ],
+        ])->all());
+
+        app(FcmService::class)->pushToUsers(
+            $userIds->all(),
+            $title,
+            $body,
+            ['type' => 'eotm', 'id' => $period->id],
+        );
     }
 
     /**

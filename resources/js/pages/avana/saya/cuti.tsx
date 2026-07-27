@@ -3,6 +3,8 @@ import type { FormEvent } from 'react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { DatePicker } from '@/components/avana/date-picker';
+import { LeaveTypeOptions } from '@/components/avana/leave-type-options';
+import type { LeaveTypeNode } from '@/components/avana/leave-type-options';
 import { AIcon, btnP, C, card, thCell } from '@/lib/avana';
 import {
     EmptyState,
@@ -41,7 +43,7 @@ interface Props {
     year: number;
     balances: Balance[];
     requests: LeaveRow[];
-    leaveTypes: { id: number; name: string; requires_attachment: boolean }[];
+    leaveTypes: LeaveTypeNode[];
 }
 
 type FlashProps = { flash?: { success?: string } };
@@ -224,14 +226,7 @@ export default function SayaCuti({
                                         )}
                                     >
                                         <option value="">— Pilih —</option>
-                                        {leaveTypes.map((type) => (
-                                            <option
-                                                key={type.id}
-                                                value={String(type.id)}
-                                            >
-                                                {type.name}
-                                            </option>
-                                        ))}
+                                        <LeaveTypeOptions types={leaveTypes} />
                                     </select>
                                 </Field>
 
@@ -302,6 +297,7 @@ export default function SayaCuti({
                                     disabled={form.processing}
                                     style={{
                                         ...btnP,
+                                        background: C.violet,
                                         height: 44,
                                         justifyContent: 'center',
                                         opacity: form.processing ? 0.7 : 1,

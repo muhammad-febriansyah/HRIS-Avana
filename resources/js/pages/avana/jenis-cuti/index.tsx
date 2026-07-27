@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import LeaveTypeController from '@/actions/App/Http/Controllers/Avana/LeaveTypeController';
 import { AIcon, ActionBtn, btnP, C, card, thCell } from '@/lib/avana';
@@ -188,93 +188,232 @@ export default function JenisCutiIndex({ leaveTypes }: JenisCutiIndexProps) {
                                     </tr>
                                 )}
                                 {leaveTypes.map((row) => (
-                                    <tr
-                                        key={row.id}
-                                        style={{
-                                            borderTop: `1px solid ${C.line}`,
-                                        }}
-                                    >
-                                        <td
+                                    <Fragment key={row.id}>
+                                        <tr
                                             style={{
-                                                padding: '13px 16px',
-                                                fontSize: 13,
-                                                fontWeight: 600,
-                                                color: C.text,
+                                                borderTop: `1px solid ${C.line}`,
                                             }}
                                         >
-                                            {row.code}
-                                        </td>
-                                        <td
-                                            style={{
-                                                padding: '13px 16px',
-                                                fontSize: 13,
-                                                color: C.text,
-                                            }}
-                                        >
-                                            {row.name}
-                                        </td>
-                                        <td
-                                            style={{
-                                                padding: '13px 16px',
-                                                fontSize: 13,
-                                                color: C.text,
-                                            }}
-                                        >
-                                            {row.default_quota.toLocaleString(
-                                                'id-ID',
-                                            )}{' '}
-                                            hari
-                                        </td>
-                                        <td style={{ padding: '13px 16px' }}>
-                                            <YesNoPill
-                                                value={row.allow_negative}
-                                            />
-                                        </td>
-                                        <td style={{ padding: '13px 16px' }}>
-                                            <YesNoPill
-                                                value={row.requires_attachment}
-                                            />
-                                        </td>
-                                        <td style={{ padding: '13px 16px' }}>
-                                            <StatusPill status={row.status} />
-                                        </td>
-                                        <td
-                                            style={{
-                                                padding: '13px 18px',
-                                                textAlign: 'right',
-                                            }}
-                                        >
-                                            <div
+                                            <td
                                                 style={{
-                                                    display: 'inline-flex',
-                                                    gap: 6,
+                                                    padding: '13px 16px',
+                                                    fontSize: 13,
+                                                    fontWeight: 600,
+                                                    color: C.text,
                                                 }}
                                             >
-                                                <ActionBtn
-                                                    icon="pencil"
-                                                    label="Ubah"
-                                                    variant="success"
-                                                    title="Ubah"
-                                                    onClick={() =>
-                                                        router.visit(
-                                                            LeaveTypeController.edit(
-                                                                row.id,
-                                                            ).url,
-                                                        )
+                                                {row.code}
+                                            </td>
+                                            <td
+                                                style={{
+                                                    padding: '13px 16px',
+                                                    fontSize: 13,
+                                                    color: C.text,
+                                                }}
+                                            >
+                                                {row.name}
+                                                {row.children.length > 0 && (
+                                                    <span
+                                                        style={{
+                                                            display:
+                                                                'inline-flex',
+                                                            alignItems:
+                                                                'center',
+                                                            gap: 4,
+                                                            marginLeft: 8,
+                                                            padding: '2px 8px',
+                                                            borderRadius: 100,
+                                                            fontSize: 11,
+                                                            fontWeight: 700,
+                                                            color: C.sky,
+                                                            background:
+                                                                'rgba(110,155,230,.15)',
+                                                        }}
+                                                    >
+                                                        <AIcon
+                                                            name="git-branch"
+                                                            size={11}
+                                                            color={C.sky}
+                                                        />
+                                                        {row.children.length}{' '}
+                                                        sub
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td
+                                                style={{
+                                                    padding: '13px 16px',
+                                                    fontSize: 13,
+                                                    color: C.text,
+                                                }}
+                                            >
+                                                {row.default_quota.toLocaleString(
+                                                    'id-ID',
+                                                )}{' '}
+                                                hari
+                                            </td>
+                                            <td
+                                                style={{ padding: '13px 16px' }}
+                                            >
+                                                <YesNoPill
+                                                    value={row.allow_negative}
+                                                />
+                                            </td>
+                                            <td
+                                                style={{ padding: '13px 16px' }}
+                                            >
+                                                <YesNoPill
+                                                    value={
+                                                        row.requires_attachment
                                                     }
                                                 />
-                                                <ActionBtn
-                                                    icon="trash-2"
-                                                    label="Hapus"
-                                                    variant="danger"
-                                                    title="Hapus"
-                                                    onClick={() =>
-                                                        setConfirm(row)
-                                                    }
+                                            </td>
+                                            <td
+                                                style={{ padding: '13px 16px' }}
+                                            >
+                                                <StatusPill
+                                                    status={row.status}
                                                 />
-                                            </div>
-                                        </td>
-                                    </tr>
+                                            </td>
+                                            <td
+                                                style={{
+                                                    padding: '13px 18px',
+                                                    textAlign: 'right',
+                                                }}
+                                            >
+                                                <div
+                                                    style={{
+                                                        display: 'inline-flex',
+                                                        gap: 6,
+                                                    }}
+                                                >
+                                                    <ActionBtn
+                                                        icon="pencil"
+                                                        label="Ubah"
+                                                        variant="success"
+                                                        title="Ubah"
+                                                        onClick={() =>
+                                                            router.visit(
+                                                                LeaveTypeController.edit(
+                                                                    row.id,
+                                                                ).url,
+                                                            )
+                                                        }
+                                                    />
+                                                    <ActionBtn
+                                                        icon="trash-2"
+                                                        label="Hapus"
+                                                        variant="danger"
+                                                        title="Hapus"
+                                                        onClick={() =>
+                                                            setConfirm(row)
+                                                        }
+                                                    />
+                                                </div>
+                                            </td>
+                                        </tr>
+
+                                        {/* Sub-types are edited from their
+                                            parent's form, so these rows are
+                                            read-only. */}
+                                        {row.children.map((child) => (
+                                            <tr
+                                                key={child.id}
+                                                style={{
+                                                    borderTop: `1px solid ${C.line}`,
+                                                    background: C.surface,
+                                                }}
+                                            >
+                                                <td
+                                                    style={{
+                                                        padding:
+                                                            '11px 16px 11px 34px',
+                                                        fontSize: 12.5,
+                                                        fontWeight: 600,
+                                                        color: C.muted,
+                                                    }}
+                                                >
+                                                    {child.code}
+                                                </td>
+                                                <td
+                                                    style={{
+                                                        padding: '11px 16px',
+                                                        fontSize: 12.5,
+                                                        color: C.muted,
+                                                    }}
+                                                >
+                                                    <span
+                                                        style={{
+                                                            display:
+                                                                'inline-flex',
+                                                            alignItems:
+                                                                'center',
+                                                            gap: 6,
+                                                        }}
+                                                    >
+                                                        <AIcon
+                                                            name="corner-down-right"
+                                                            size={13}
+                                                            color={C.faint}
+                                                        />
+                                                        {child.name}
+                                                    </span>
+                                                </td>
+                                                <td
+                                                    style={{
+                                                        padding: '11px 16px',
+                                                        fontSize: 12.5,
+                                                        color: C.muted,
+                                                    }}
+                                                >
+                                                    {child.sub_limit === null
+                                                        ? 'Bebas dari induk'
+                                                        : `Maks ${child.sub_limit} hari`}
+                                                </td>
+                                                <td
+                                                    style={{
+                                                        padding: '11px 16px',
+                                                    }}
+                                                >
+                                                    <YesNoPill
+                                                        value={
+                                                            child.allow_negative
+                                                        }
+                                                    />
+                                                </td>
+                                                <td
+                                                    style={{
+                                                        padding: '11px 16px',
+                                                    }}
+                                                >
+                                                    <YesNoPill
+                                                        value={
+                                                            child.requires_attachment
+                                                        }
+                                                    />
+                                                </td>
+                                                <td
+                                                    style={{
+                                                        padding: '11px 16px',
+                                                    }}
+                                                >
+                                                    <StatusPill
+                                                        status={child.status}
+                                                    />
+                                                </td>
+                                                <td
+                                                    style={{
+                                                        padding: '11px 18px',
+                                                        textAlign: 'right',
+                                                        fontSize: 11.5,
+                                                        color: C.faint,
+                                                    }}
+                                                >
+                                                    Diatur dari induk
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </Fragment>
                                 ))}
                             </tbody>
                         </table>

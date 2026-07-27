@@ -12,6 +12,7 @@ use App\Models\Company;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmployeeSalaryComponent;
+use App\Models\EotmCoreValue;
 use App\Models\Feature;
 use App\Models\FieldVisit;
 use App\Models\JobLevel;
@@ -32,6 +33,7 @@ use App\Models\Position;
 use App\Models\PtkpRate;
 use App\Models\Role;
 use App\Models\Shift;
+use App\Models\SocialCategory;
 use App\Models\Survey;
 use App\Models\SurveyQuestion;
 use App\Models\SurveyResponse;
@@ -45,6 +47,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /**
  * Seeds the AvanaHR demo tenant (PT Nusantara Jaya) that backs the
@@ -85,6 +88,8 @@ final class AvanaDemoSeeder extends Seeder
 
         $this->seedPermissionsAndRoles($tenant);
         $this->seedMenuItems($tenant);
+        $this->seedSocialCategories($tenant);
+        $this->seedEotmCoreValues($tenant);
         $admin = $this->seedAdminUser($tenant);
 
         $company = Company::firstOrCreate(
@@ -788,6 +793,7 @@ final class AvanaDemoSeeder extends Seeder
             'hr_core' => ['HR Core', 'core', ['employee']],
             'organization' => ['Organization', 'core', ['branch', 'department', 'position', 'organization']],
             'document' => ['Manajemen Dokumen', 'core', ['document']],
+            'sop' => ['SOP & Prosedur', 'core', ['sop']],
             'letter' => ['Template Surat', 'core', ['letter']],
             'offboarding' => ['Offboarding & Clearance', 'core', ['offboarding']],
             'helpdesk' => ['HR Helpdesk', 'core', ['helpdesk']],
@@ -820,6 +826,7 @@ final class AvanaDemoSeeder extends Seeder
             // Engagement & Self-Service
             'ess' => ['Employee Self-Service', 'engagement', []],
             'announcement' => ['Pengumuman', 'engagement', ['announcement']],
+            'social' => ['Sosmed Karyawan', 'engagement', ['social']],
             'survey' => ['Survei Karyawan', 'engagement', ['survey']],
             // Analytics
             'analytics' => ['Analytics & Laporan', 'analytics', ['report']],
@@ -855,12 +862,12 @@ final class AvanaDemoSeeder extends Seeder
             'own.profile.view', 'own.attendance.clock_in', 'own.leave.request', 'own.payslip.view',
             // Per-menu access modules so every sidebar item is role-configurable
             // from the Hak Akses matrix (not just feature-gated per tenant).
-            'document.view', 'letter.view', 'offboarding.view', 'organization.view',
+            'document.view', 'sop.view', 'letter.view', 'offboarding.view', 'organization.view',
             'timesheet.view', 'shift_swap.view', 'delegation.view',
             'claim.view', 'loan.view', 'journal.view', 'budget.view', 'salary_structure.view',
             'recruitment.view', 'onboarding.view',
             'performance.view', 'okr.view', 'competency.view', 'talent.view', 'learning.view',
-            'helpdesk.view', 'announcement.view', 'survey.view', 'calendar.view', 'ai.view',
+            'helpdesk.view', 'announcement.view', 'social.view', 'survey.view', 'calendar.view', 'ai.view',
             'ai_topup.view', 'appearance.view', 'asset.view', 'crm.view', 'dynamic_report.view', 'attrition.view',
         ];
         $permModels = collect($perms)->map(function (string $code) {
@@ -887,7 +894,11 @@ final class AvanaDemoSeeder extends Seeder
                 // payroll — but none of the HR/people administration.
                 'finance' => $permModels->filter(fn ($p) => in_array($p->module, ['claim', 'loan', 'journal', 'budget', 'salary_structure', 'payroll', 'report'], true)
                     || str_starts_with($p->code, 'own.')),
-                default => $permModels->filter(fn ($p) => str_starts_with($p->code, 'own.')),
+                // Karyawan: their own data, plus the AI assistant — its tools
+                // are already scoped to the caller, so it exposes nothing they
+                // cannot see about themselves. The mobile app never gated it.
+                default => $permModels->filter(fn ($p) => str_starts_with($p->code, 'own.')
+                    || $p->code === 'ai.view'),
             };
             $role->permissions()->syncWithoutDetaching($assigned->pluck('id'));
 
@@ -905,6 +916,61 @@ final class AvanaDemoSeeder extends Seeder
      * Seed the tenant's editable sidebar menu from the AvanaNav defaults so the
      * Menu Builder has content and the runtime nav is DB-driven.
      */
+    /**
+     * Starter categories for the employee social wall, so the feed has chips to
+     * post under the moment a tenant is created. Fully editable afterwards from
+     * the Sosmed screen — nothing in the code keys off these names.
+     */
+    private function seedSocialCategories(Tenant $tenant): void
+    {
+        $categories = [
+            ['Ide Perbaikan', 'lightbulb', '#F59E0B', 'Usulan perbaikan proses, produk, atau tempat kerja.'],
+            ['Sports Day', 'trophy', '#16A34A', 'Kegiatan olahraga dan keseruan bareng tim.'],
+            ['Employee of the Month', 'star', '#7C3AED', 'Apresiasi untuk rekan kerja yang berprestasi.'],
+        ];
+
+        foreach ($categories as $index => [$name, $icon, $color, $description]) {
+            SocialCategory::firstOrCreate(
+                ['tenant_id' => $tenant->id, 'name' => $name],
+                [
+                    'slug' => Str::slug($name),
+                    'icon' => $icon,
+                    'color' => $color,
+                    'description' => $description,
+                    'status' => 'active',
+                    'sort_order' => $index,
+                ],
+            );
+        }
+    }
+
+    /**
+     * Starter core values for Employee of the Month voting, so the ballot has
+     * options the moment a tenant exists. Editable from the Sosmed screen.
+     */
+    private function seedEotmCoreValues(Tenant $tenant): void
+    {
+        $values = [
+            ['Jujur', 'shield-check', '#16A34A'],
+            ['Kerjasama', 'handshake', '#2F54C9'],
+            ['Integritas', 'award', '#7C3AED'],
+            ['Komunikasi', 'message-circle', '#0EA5E9'],
+            ['Customer Focus', 'heart', '#DB2777'],
+        ];
+
+        foreach ($values as $index => [$name, $icon, $color]) {
+            EotmCoreValue::firstOrCreate(
+                ['tenant_id' => $tenant->id, 'name' => $name],
+                [
+                    'icon' => $icon,
+                    'color' => $color,
+                    'status' => 'active',
+                    'sort_order' => $index,
+                ],
+            );
+        }
+    }
+
     private function seedMenuItems(Tenant $tenant): void
     {
         AvanaNav::seedDefaultsFor($tenant->id);

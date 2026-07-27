@@ -336,6 +336,7 @@ export default function DynamicReportIndex({
                             disabled={form.processing}
                             style={{
                                 ...btnP,
+                                background: C.green,
                                 width: '100%',
                                 justifyContent: 'center',
                                 opacity: form.processing ? 0.6 : 1,

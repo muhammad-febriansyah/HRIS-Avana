@@ -205,6 +205,7 @@ export default function AsetShow({ asset, history, qrUrl }: AsetShowProps) {
                             onClick={printLabel}
                             style={{
                                 ...btnP,
+                                background: C.amber,
                                 width: '100%',
                                 justifyContent: 'center',
                             }}

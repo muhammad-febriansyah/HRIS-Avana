@@ -16,8 +16,11 @@ use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
 use App\Models\PermissionRequest;
+use App\Models\Sop;
 use App\Models\User;
 use App\Models\WfhRequest;
+use App\Support\AvanaNav;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Prism\Prism\Tool;
 
@@ -45,14 +48,25 @@ final class AiToolkit
     {
         $tools = [];
 
-        if ($this->employee() !== null) {
-            $tools[] = $this->saldoCutiTool();
-            $tools[] = $this->slipGajiTool();
-            $tools[] = $this->rekapKehadiranTool();
-            $tools[] = $this->pengajuanSayaTool();
-            $tools[] = $this->profilSayaTool();
-            $tools[] = $this->inboxPersetujuanTool();
-        }
+        // Personal tools are registered even for an account with no employee
+        // record (a bare HR/admin login). Withholding them made the model
+        // improvise — it used to answer "modul Cuti tidak tersedia" and invent
+        // a menu path. Registered, each one reports the real reason instead.
+        $tools[] = $this->saldoCutiTool();
+        $tools[] = $this->slipGajiTool();
+        $tools[] = $this->rekapKehadiranTool();
+        $tools[] = $this->pengajuanSayaTool();
+        $tools[] = $this->profilSayaTool();
+        $tools[] = $this->inboxPersetujuanTool();
+
+        // What this account can actually reach, so "fitur apa saja yang ada?"
+        // and "menunya di mana?" are answered from the real sidebar.
+        $tools[] = $this->fiturTersediaTool();
+
+        // SOP tools need no employee record — visibility alone decides which
+        // documents the caller may be shown.
+        $tools[] = $this->daftarSopTool();
+        $tools[] = $this->bacaSopTool();
 
         if ($this->can('employee.view')) {
             $tools[] = $this->cariKaryawanTool();
@@ -73,6 +87,18 @@ final class AiToolkit
     private function employee(): ?Employee
     {
         return $this->user->employee;
+    }
+
+    /**
+     * The line a personal tool returns when the signed-in account carries no
+     * employee record, so there is no "my leave / my payslip" to read. Stating
+     * the real cause keeps the model from inventing one.
+     */
+    private function noEmployeeRecord(string $subject): string
+    {
+        return "Akun Anda ({$this->user->name}) tidak tertaut ke data karyawan mana pun, "
+            ."jadi {$subject} tidak ada. Ini akun administratif, bukan akun karyawan. "
+            .'Minta Admin HR menautkan akun ini ke data karyawan bila Anda memang perlu akses layanan mandiri.';
     }
 
     private function can(string $code): bool
@@ -102,6 +128,11 @@ final class AiToolkit
             ->for('Saldo/sisa cuti karyawan yang sedang login untuk tahun berjalan, per jenis cuti.')
             ->using(function (): string {
                 $employee = $this->employee();
+
+                if ($employee === null) {
+                    return $this->noEmployeeRecord('saldo cuti pribadi');
+                }
+
                 $names = LeaveType::where('tenant_id', $this->tenantId())->pluck('name', 'id');
 
                 $balances = LeaveBalance::where('tenant_id', $this->tenantId())
@@ -130,6 +161,10 @@ final class AiToolkit
             ->for('Slip gaji terbaru karyawan yang sedang login: gaji kotor, potongan, PPh21, dan gaji bersih.')
             ->using(function (): string {
                 $employee = $this->employee();
+
+                if ($employee === null) {
+                    return $this->noEmployeeRecord('slip gaji pribadi');
+                }
 
                 $item = PayrollRunItem::where('tenant_id', $this->tenantId())
                     ->where('employee_id', $employee->id)
@@ -163,6 +198,11 @@ final class AiToolkit
             ->withStringParameter('bulan', 'Bulan dalam format YYYY-MM, contoh 2026-06. Kosongkan untuk bulan berjalan.', false)
             ->using(function (?string $bulan = null): string {
                 $employee = $this->employee();
+
+                if ($employee === null) {
+                    return $this->noEmployeeRecord('rekap kehadiran pribadi');
+                }
+
                 $date = $bulan !== null && $bulan !== '' ? Carbon::parse($bulan.'-01') : Carbon::now();
 
                 $counts = Attendance::where('tenant_id', $this->tenantId())
@@ -191,6 +231,11 @@ final class AiToolkit
             ->for('Status pengajuan milik karyawan yang sedang login: cuti, izin, lembur, WFH, dan klaim/reimbursement.')
             ->using(function (): string {
                 $employee = $this->employee();
+
+                if ($employee === null) {
+                    return $this->noEmployeeRecord('daftar pengajuan pribadi');
+                }
+
                 $tenantId = $this->tenantId();
                 $lines = [];
 
@@ -224,6 +269,10 @@ final class AiToolkit
             ->as('profil_saya')
             ->for('Data profil karyawan yang sedang login: jabatan, departemen, cabang, tanggal bergabung, status, dan atasan.')
             ->using(function (): string {
+                if ($this->employee() === null) {
+                    return $this->noEmployeeRecord('profil karyawan');
+                }
+
                 $e = $this->employee()->loadMissing(['position:id,name', 'department:id,name', 'branch:id,name', 'manager:id,full_name']);
 
                 return sprintf(
@@ -247,6 +296,10 @@ final class AiToolkit
             ->as('inbox_persetujuan')
             ->for('Jumlah pengajuan (cuti, izin, lembur, WFH, klaim) yang menunggu persetujuan dari user yang sedang login (untuk atasan/manajer).')
             ->using(function (): string {
+                if ($this->employee() === null) {
+                    return $this->noEmployeeRecord('inbox persetujuan pribadi');
+                }
+
                 $approverId = $this->employee()->id;
                 $tenantId = $this->tenantId();
 
@@ -269,6 +322,179 @@ final class AiToolkit
 
                 return "Total $total pengajuan menunggu persetujuan Anda: $detail.";
             });
+    }
+
+    /**
+     * Every menu this account can actually open, flattened to
+     * `[label, group, href]` and already filtered by tenant feature toggles and
+     * role permissions via {@see AvanaNav::forUser()}.
+     *
+     * @return array<int, array{label: string, group: string, href: string}>
+     */
+    private function reachableMenus(): array
+    {
+        $menus = [];
+
+        foreach (AvanaNav::forUser($this->user) as $group) {
+            $groupTitle = $group['title'] ?? 'Umum';
+
+            foreach ($group['items'] as $item) {
+                foreach ($item['children'] ?? [$item] as $leaf) {
+                    if (($leaf['href'] ?? '') === '') {
+                        continue;
+                    }
+
+                    $parent = isset($item['children']) ? $item['label'].' > ' : '';
+
+                    $menus[] = [
+                        'label' => $parent.$leaf['label'],
+                        'group' => $groupTitle,
+                        'href' => $leaf['href'],
+                    ];
+                }
+            }
+        }
+
+        return $menus;
+    }
+
+    private function fiturTersediaTool(): Tool
+    {
+        return (new Tool)
+            ->as('fitur_tersedia')
+            ->for('Daftar fitur/menu AvanaHR yang benar-benar bisa dibuka oleh pengguna yang sedang login, lengkap dengan grup dan alamat menunya. WAJIB dipakai untuk menjawab "fitur apa saja yang ada", "aplikasi ini bisa apa", atau "menunya di mana" — jangan menebak nama menu.')
+            ->withStringParameter('kata_kunci', 'Saring menu yang namanya mengandung kata ini, mis. "cuti" atau "payroll". Kosongkan untuk semua menu.', false)
+            ->using(function (?string $kata_kunci = null): string {
+                $menus = collect($this->reachableMenus());
+
+                if ($kata_kunci !== null && $kata_kunci !== '') {
+                    $needle = mb_strtolower($kata_kunci);
+                    $menus = $menus->filter(
+                        fn (array $menu): bool => str_contains(mb_strtolower($menu['label']), $needle)
+                            || str_contains(mb_strtolower($menu['group']), $needle),
+                    );
+                }
+
+                if ($menus->isEmpty()) {
+                    return $kata_kunci !== null && $kata_kunci !== ''
+                        ? "Tidak ada menu yang cocok dengan '{$kata_kunci}' pada akun ini. Jangan mengarang nama menu — sarankan pengguna menghubungi Admin HR bila merasa seharusnya punya akses."
+                        : 'Akun ini belum punya menu yang bisa dibuka.';
+                }
+
+                return $menus->groupBy('group')
+                    ->map(fn ($rows, $group): string => $group.': '.$rows
+                        ->map(fn (array $menu): string => $menu['label'].' ('.$menu['href'].')')
+                        ->implode(', '))
+                    ->implode('. ');
+            });
+    }
+
+    /**
+     * SOP documents the caller may be shown: everything for a user holding
+     * `sop.view` (HR/admin), only the `public` ones for a plain employee.
+     *
+     * @return Builder<Sop>
+     */
+    private function visibleSops(): Builder
+    {
+        $query = Sop::query()
+            ->where('tenant_id', $this->tenantId())
+            ->active();
+
+        if (! $this->can('sop.view')) {
+            $query->publiclyVisible();
+        }
+
+        return $query;
+    }
+
+    private function daftarSopTool(): Tool
+    {
+        return (new Tool)
+            ->as('daftar_sop')
+            ->for('Daftar SOP/prosedur resmi perusahaan yang boleh dibaca pengguna ini, lengkap dengan jenis SOP, kode, versi, dan tanggal berlaku. Panggil ini lebih dulu bila pengguna bertanya "SOP apa saja yang ada".')
+            ->withStringParameter('jenis', 'Filter berdasarkan nama jenis/kategori SOP. Kosongkan untuk semua.', false)
+            ->using(function (?string $jenis = null): string {
+                $query = $this->visibleSops()->with('category:id,name');
+
+                if ($jenis !== null && $jenis !== '') {
+                    $query->whereHas('category', fn ($q) => $q->where('name', 'like', "%{$jenis}%"));
+                }
+
+                $rows = $query->orderBy('title')->take(40)->get();
+
+                if ($rows->isEmpty()) {
+                    return 'Belum ada dokumen SOP yang tersedia untuk Anda.';
+                }
+
+                return $rows->map(fn (Sop $sop): string => sprintf(
+                    '%s%s — jenis: %s, versi: %s, berlaku: %s, tipe: %s',
+                    $sop->title,
+                    $sop->code !== null ? " ({$sop->code})" : '',
+                    $sop->category?->name ?? 'Umum',
+                    $sop->version ?? '-',
+                    $this->date($sop->effective_date),
+                    $sop->visibility,
+                ))->implode('; ');
+            });
+    }
+
+    private function bacaSopTool(): Tool
+    {
+        return (new Tool)
+            ->as('baca_sop')
+            ->for('Isi dokumen SOP perusahaan berdasarkan kata kunci (judul, kode, atau isi). WAJIB dipakai untuk menjawab pertanyaan tentang prosedur/aturan internal perusahaan, agar jawaban mengutip SOP resmi dan bukan karangan.')
+            ->withStringParameter('kata_kunci', 'Kata kunci topik SOP yang dicari, contoh: "pengajuan cuti", "perjalanan dinas".', true)
+            ->using(function (string $kata_kunci): string {
+                $rows = $this->visibleSops()
+                    ->with('category:id,name')
+                    ->where(fn ($q) => $q
+                        ->where('title', 'like', "%{$kata_kunci}%")
+                        ->orWhere('code', 'like', "%{$kata_kunci}%")
+                        ->orWhere('summary', 'like', "%{$kata_kunci}%")
+                        ->orWhere('content', 'like', "%{$kata_kunci}%"))
+                    ->take(3)
+                    ->get();
+
+                if ($rows->isEmpty()) {
+                    return "Tidak ada SOP yang cocok dengan '{$kata_kunci}'. Jangan mengarang isi SOP — sarankan pengguna menghubungi HR.";
+                }
+
+                return $rows->map(fn (Sop $sop): string => sprintf(
+                    "SOP: %s%s [jenis: %s, versi: %s, berlaku: %s]\n%s",
+                    $sop->title,
+                    $sop->code !== null ? " ({$sop->code})" : '',
+                    $sop->category?->name ?? 'Umum',
+                    $sop->version ?? '-',
+                    $this->date($sop->effective_date),
+                    $this->sopExcerpt($sop, $kata_kunci),
+                ))->implode("\n\n---\n\n");
+            });
+    }
+
+    /**
+     * The slice of an SOP most likely to answer the question: the text around
+     * the first keyword hit, falling back to the opening of the document.
+     */
+    private function sopExcerpt(Sop $sop, string $keyword): string
+    {
+        $body = trim((string) ($sop->content ?? ''));
+
+        if ($body === '') {
+            return $sop->summary !== null && $sop->summary !== ''
+                ? $sop->summary
+                : '(Isi dokumen belum terbaca oleh sistem — arahkan pengguna mengunduh berkas SOP dari menu SOP.)';
+        }
+
+        $position = mb_stripos($body, $keyword);
+        $start = $position === false ? 0 : max(0, $position - 500);
+        $excerpt = mb_substr($body, $start, 2500);
+
+        if ($sop->summary !== null && $sop->summary !== '') {
+            $excerpt = 'Ringkasan: '.$sop->summary."\n\n".$excerpt;
+        }
+
+        return $excerpt;
     }
 
     private function cariKaryawanTool(): Tool

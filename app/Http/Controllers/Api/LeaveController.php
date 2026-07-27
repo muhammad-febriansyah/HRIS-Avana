@@ -10,6 +10,7 @@ use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Services\ApprovalEngine;
 use App\Services\LeaveApproval;
+use App\Services\LeaveQuota;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -115,11 +116,9 @@ class LeaveController extends Controller
     {
         $employee = $this->currentEmployee($request);
 
-        $data = LeaveType::forTenant($employee->tenant_id)
-            ->where('status', 'active')
-            ->get(['id', 'code', 'name', 'default_quota', 'requires_attachment']);
-
-        return response()->json(['data' => $data]);
+        return response()->json([
+            'data' => LeaveType::selectableTree($employee->tenant_id),
+        ]);
     }
 
     public function index(Request $request): JsonResponse
@@ -159,20 +158,14 @@ class LeaveController extends Controller
         $end = Carbon::parse($data['end_date']);
         $totalDays = $start->diffInDays($end) + 1;
 
-        $type = LeaveType::forTenant($employee->tenant_id)->findOrFail($data['leave_type_id']);
+        $type = LeaveType::forTenant($employee->tenant_id)
+            ->with('parent')
+            ->findOrFail($data['leave_type_id']);
 
-        $balance = LeaveBalance::forTenant($employee->tenant_id)
-            ->where('employee_id', $employee->id)
-            ->where('leave_type_id', $type->id)
-            ->where('year', $start->year)
-            ->first();
+        $message = LeaveQuota::check($employee->id, $type, (float) $totalDays, $start->year);
 
-        $remaining = $balance !== null ? (int) $balance->remaining : (int) $type->default_quota;
-
-        if (! $type->allow_negative && $totalDays > $remaining) {
-            return response()->json([
-                'message' => 'Saldo cuti tidak mencukupi (sisa '.$remaining.' hari).',
-            ], 422);
+        if ($message !== null) {
+            return response()->json(['message' => $message], 422);
         }
 
         $leave = LeaveRequest::create([

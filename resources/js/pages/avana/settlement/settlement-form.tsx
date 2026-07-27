@@ -255,8 +255,11 @@ export function SettlementForm({
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: 6,
-                                background: 'none',
-                                border: 'none',
+                                height: 32,
+                                padding: '0 11px',
+                                borderRadius: 7,
+                                background: 'rgba(47,84,201,.07)',
+                                border: '1px solid rgba(47,84,201,.35)',
                                 color: C.primary,
                                 fontSize: 12.5,
                                 fontWeight: 600,
@@ -523,6 +526,7 @@ export function SettlementForm({
                             cursor: processing ? 'not-allowed' : 'pointer',
                         }}
                     >
+                        <AIcon name="save" size={15} color={C.text} />
                         Simpan sebagai Draft
                     </button>
                     <Link

@@ -215,7 +215,7 @@ export function RequestFormCard({
                     style={{
                         width: '100%',
                         height: 44,
-                        background: C.primary,
+                        background: C.violet,
                         color: '#fff',
                         border: 'none',
                         borderRadius: 8,

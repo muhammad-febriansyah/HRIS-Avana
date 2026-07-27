@@ -683,13 +683,15 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
                                     onClick={closeModal}
                                     style={btnOut}
                                 >
+                                    <AIcon name="x" size={15} color={C.text} />
                                     Batal
                                 </button>
                                 <button
                                     type="submit"
-                                    style={btnP}
+                                    style={{ ...btnP, background: C.green }}
                                     disabled={form.processing}
                                 >
+                                    <AIcon name="save" size={15} color="#fff" />
                                     Simpan
                                 </button>
                             </div>
@@ -735,12 +737,14 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
                                 onClick={() => setConfirm(null)}
                                 style={btnOut}
                             >
+                                <AIcon name="x" size={15} color={C.text} />
                                 Batal
                             </button>
                             <button
                                 onClick={remove}
                                 style={{ ...btnP, background: C.red }}
                             >
+                                <AIcon name="trash-2" size={15} color="#fff" />
                                 Hapus
                             </button>
                         </div>

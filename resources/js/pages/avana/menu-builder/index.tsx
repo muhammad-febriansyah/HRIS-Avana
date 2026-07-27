@@ -666,6 +666,7 @@ export default function MenuBuilder({
                                     disabled={form.processing}
                                     style={{
                                         ...btnP,
+                                        background: C.green,
                                         flex: 1,
                                         justifyContent: 'center',
                                     }}

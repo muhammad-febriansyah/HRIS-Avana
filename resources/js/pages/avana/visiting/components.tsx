@@ -153,7 +153,7 @@ export function EmployeeChip({
                     height: 16,
                     border: 'none',
                     borderRadius: '50%',
-                    background: 'transparent',
+                    background: 'rgba(47,84,201,.16)',
                     cursor: 'pointer',
                     padding: 0,
                     color: C.primary,

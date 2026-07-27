@@ -39,14 +39,14 @@ final class PermissionCatalog
      * @var array<int, string>
      */
     public const MODULES = [
-        'employee', 'document', 'letter', 'offboarding',
+        'employee', 'document', 'sop', 'letter', 'offboarding',
         'attendance', 'timesheet', 'shift_swap',
         'leave', 'overtime', 'wfh', 'delegation',
         'payroll', 'bpjs', 'pph21',
         'claim', 'loan', 'journal', 'budget', 'salary_structure',
         'recruitment', 'onboarding',
         'performance', 'okr', 'competency', 'talent', 'learning',
-        'helpdesk', 'announcement', 'survey', 'calendar', 'ai', 'ai_topup', 'asset', 'crm',
+        'helpdesk', 'announcement', 'social', 'survey', 'calendar', 'ai', 'ai_topup', 'asset', 'crm',
         'report', 'dynamic_report', 'attrition', 'audit',
         'branch', 'department', 'position', 'organization',
         'user', 'settings', 'role', 'permission', 'appearance',

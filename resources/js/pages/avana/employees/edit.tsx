@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import EmployeeController from '@/actions/App/Http/Controllers/Avana/EmployeeController';
 import { AIcon, C } from '@/lib/avana';
 import { EmployeeForm } from './employee-form';
+import { NO_MANAGER } from './types';
 import type {
     CustomFieldDef,
     Employee,
@@ -52,7 +53,11 @@ export default function EmployeesEdit({
         department_id: relationId(data.department),
         position_id: relationId(data.position),
         job_level_id: relationId(data.job_level),
-        manager_id: relationId(data.manager),
+        // An existing approver puncak has no manager row, so the picker shows
+        // the explicit sentinel instead of an empty field.
+        manager_id: data.is_top_approver
+            ? NO_MANAGER
+            : relationId(data.manager),
         status: data.status ?? 'active',
         password: '',
         role_id: data.role_id ? String(data.role_id) : '',

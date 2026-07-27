@@ -19,6 +19,7 @@ export const C = {
     green: '#16A34A',
     amber: '#D97706',
     red: '#DC2626',
+    violet: '#7C3AED',
     sky: '#6E9BE6',
 } as const;
 
@@ -365,6 +366,21 @@ export const btnOut: CSSProperties = {
     cursor: 'pointer',
     transition: '.15s',
 };
+
+/* ---------- semantic action-button palette ----------
+ * One colour per action *meaning*, so two buttons sitting in the same toolbar
+ * or modal footer never share a colour unless they do the same thing.
+ *
+ * Spread `btnP` and override `background` with the colour for the intent:
+ *
+ * create   C.primary  Tambah / Buat / Baru / Ajukan / Lanjut
+ * nested   C.sky      a second "Tambah …" sharing the screen with a create
+ * save     C.green    Simpan / Terapkan / Setujui / Verifikasi / Selesai
+ * danger   C.red      Hapus / Tolak / Kembalikan / Batalkan
+ * export   C.amber    Export / Unduh / Cetak
+ * process  C.violet   Generate / Hitung / Proses / Pindai / Publish / Kirim
+ * cancel   white      Batal / Tutup / Kembali / Reset — use `btnOut` instead
+ */
 
 export const card: CSSProperties = {
     background: '#fff',

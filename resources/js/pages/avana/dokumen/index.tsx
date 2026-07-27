@@ -172,6 +172,7 @@ export default function DokumenIndex({
                             disabled={employees.length === 0}
                             style={{
                                 ...btnP,
+                                background: C.violet,
                                 opacity: employees.length === 0 ? 0.6 : 1,
                                 cursor:
                                     employees.length === 0
@@ -616,6 +617,7 @@ export default function DokumenIndex({
                                 disabled={form.processing}
                                 style={{
                                     ...btnP,
+                                    background: C.green,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',

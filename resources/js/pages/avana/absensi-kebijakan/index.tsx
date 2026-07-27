@@ -589,7 +589,11 @@ export default function AbsensiKebijakan({
 
                     <button
                         type="submit"
-                        style={{ ...btnP, opacity: form.processing ? 0.6 : 1 }}
+                        style={{
+                            ...btnP,
+                            background: C.green,
+                            opacity: form.processing ? 0.6 : 1,
+                        }}
                         disabled={form.processing}
                     >
                         <AIcon name="save" size={16} />

@@ -608,6 +608,9 @@ function MappingModal({
                         onClick={onClose}
                         disabled={form.processing}
                         style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 7,
                             padding: '9px 16px',
                             borderRadius: 8,
                             border: `1px solid ${C.line}`,
@@ -618,6 +621,7 @@ function MappingModal({
                             cursor: 'pointer',
                         }}
                     >
+                        <AIcon name="x" size={15} color={C.muted} />
                         Batal
                     </button>
                     <button
@@ -627,6 +631,7 @@ function MappingModal({
                         }
                         style={{
                             ...primaryBtn,
+                            background: C.green,
                             opacity:
                                 form.processing || !form.data.salary_master_id
                                     ? 0.6

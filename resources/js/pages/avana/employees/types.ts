@@ -148,6 +148,71 @@ export type EmployeeFormData = {
     custom_data?: Record<string, string>;
 };
 
+/**
+ * Sentinel the Atasan Langsung picker posts for "no manager above this person".
+ * Distinct from an empty value, which only means the field is untouched — the
+ * backend turns this into `manager_id: null` + `is_top_approver: true`.
+ */
+export const NO_MANAGER = 'none';
+
+/** The six religions recognised by the Indonesian state, plus an escape hatch. */
+export const RELIGIONS = [
+    'Islam',
+    'Kristen Protestan',
+    'Katolik',
+    'Hindu',
+    'Buddha',
+    'Konghucu',
+    'Kepercayaan Lainnya',
+] as const;
+
+/** Default password offered when creating an employee login. */
+export const DEFAULT_PASSWORD = 'karyawan123';
+
+/** Wizard steps for the employee form, in the order they are shown. */
+export const EMPLOYEE_STEPS = [
+    { title: 'Data Personal', hint: 'Identitas sesuai KTP' },
+    { title: 'Kepegawaian', hint: 'Posisi, atasan & kontrak' },
+    { title: 'Akun & Akses', hint: 'Login aplikasi mobile' },
+    { title: 'Data Tambahan', hint: 'Field kustom perusahaan' },
+] as const;
+
+/**
+ * Which form fields belong to which step, so a server-side validation error
+ * can send the wizard back to the step that owns it.
+ */
+export const STEP_FIELDS: string[][] = [
+    [
+        'full_name',
+        'nik',
+        'email',
+        'phone',
+        'birth_place',
+        'birth_date',
+        'gender',
+        'marital_status',
+        'religion',
+        'address',
+        'password',
+    ],
+    [
+        'employee_number',
+        'department_id',
+        'position_id',
+        'job_level_id',
+        'manager_id',
+        'is_top_approver',
+        'employment_status',
+        'join_date',
+        'branch_id',
+        'work_location_id',
+        'attendance_scope',
+        'status',
+    ],
+    ['role_id'],
+    ['custom_data'],
+];
+
 /** A tenant-defined custom employee field. */
 export type CustomFieldDef = {
     key: string;

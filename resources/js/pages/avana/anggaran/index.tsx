@@ -766,6 +766,7 @@ export default function AnggaranIndex({
                                 disabled={form.processing}
                                 style={{
                                     ...btnP,
+                                    background: C.green,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',

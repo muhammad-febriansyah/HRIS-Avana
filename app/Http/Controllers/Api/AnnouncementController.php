@@ -137,6 +137,13 @@ class AnnouncementController extends Controller
             'is_read' => $isRead,
             'read_count' => (int) ($a->reads_count ?? 0),
             'comment_count' => (int) ($a->comments_count ?? 0),
+            'attachment' => $a->attachment_path === null ? null : [
+                'url' => $a->attachmentUrl(),
+                'name' => $a->attachment_name,
+                'mime' => $a->attachment_mime,
+                'size' => $a->attachment_size,
+                'is_image' => $a->attachmentIsImage(),
+            ],
         ];
     }
 

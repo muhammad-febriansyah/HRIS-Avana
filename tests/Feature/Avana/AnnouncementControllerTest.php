@@ -5,12 +5,15 @@ use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 
 use function Pest\Laravel\actingAs;
 
 beforeEach(function (): void {
     $this->withoutVite();
+    Storage::fake(Announcement::ATTACHMENT_DISK);
     $this->seed(AvanaDemoSeeder::class);
 
     $this->admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
@@ -48,7 +51,8 @@ it('renders the announcement index with the expected props', function (): void {
                 ->has('status')
                 ->has('pinned')
                 ->has('published_at')
-                ->has('created_at'))
+                ->has('created_at')
+                ->has('attachment'))
             ->has('kpis'));
 });
 
@@ -113,7 +117,7 @@ it('updates an existing announcement', function (): void {
     $announcement = makeAnnouncement($this->tenant->id, ['title' => 'Old', 'pinned' => false]);
 
     actingAs($this->admin)
-        ->put(route('avana.pengumuman.update', $announcement), [
+        ->post(route('avana.pengumuman.update', $announcement), [
             'title' => 'New Title',
             'body' => 'Isi baru',
             'category' => 'Penting',
@@ -156,7 +160,7 @@ it('returns 404 when updating an announcement from another tenant', function ():
     $foreign = makeAnnouncement($otherTenant->id);
 
     actingAs($this->admin)
-        ->put(route('avana.pengumuman.update', $foreign), [
+        ->post(route('avana.pengumuman.update', $foreign), [
             'title' => 'Hack',
             'body' => 'Hack body',
         ])
@@ -181,6 +185,162 @@ it('returns 404 when deleting an announcement from another tenant', function ():
         ->assertNotFound();
 
     expect(Announcement::find($foreign->id))->not->toBeNull();
+});
+
+it('stores a PDF attachment alongside the announcement', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.pengumuman.store'), [
+            'title' => 'Panduan Cuti',
+            'body' => 'Lihat lampiran.',
+            'attachment' => UploadedFile::fake()->create('panduan.pdf', 120, 'application/pdf'),
+        ])
+        ->assertRedirect(route('avana.pengumuman'))
+        ->assertSessionHas('success');
+
+    $announcement = Announcement::where('title', 'Panduan Cuti')->firstOrFail();
+
+    expect($announcement->attachment_path)->not->toBeNull();
+    expect($announcement->attachment_name)->toBe('panduan.pdf');
+    expect($announcement->attachmentIsImage())->toBeFalse();
+    Storage::disk(Announcement::ATTACHMENT_DISK)->assertExists($announcement->attachment_path);
+});
+
+it('flags an image attachment so clients can render it inline', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.pengumuman.store'), [
+            'title' => 'Poster K3',
+            'body' => 'Poster terbaru.',
+            'attachment' => UploadedFile::fake()->image('poster.png', 400, 300),
+        ])
+        ->assertSessionHas('success');
+
+    $announcement = Announcement::where('title', 'Poster K3')->firstOrFail();
+
+    expect($announcement->attachmentIsImage())->toBeTrue();
+    expect($announcement->attachmentUrl())->not->toBeNull();
+});
+
+it('rejects an attachment that is neither a PDF nor an image', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.pengumuman.store'), [
+            'title' => 'Berkas Aneh',
+            'body' => 'Isi',
+            'attachment' => UploadedFile::fake()->create('virus.exe', 10, 'application/octet-stream'),
+        ])
+        ->assertSessionHasErrors('attachment');
+
+    expect(Announcement::where('title', 'Berkas Aneh')->exists())->toBeFalse();
+});
+
+it('rejects an attachment larger than 10 MB', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.pengumuman.store'), [
+            'title' => 'Terlalu Besar',
+            'body' => 'Isi',
+            'attachment' => UploadedFile::fake()->create('besar.pdf', 10241, 'application/pdf'),
+        ])
+        ->assertSessionHasErrors('attachment');
+});
+
+it('replaces the stored file when a new attachment is uploaded', function (): void {
+    $announcement = makeAnnouncement($this->tenant->id);
+
+    actingAs($this->admin)
+        ->post(route('avana.pengumuman.update', $announcement), [
+            'title' => $announcement->title,
+            'body' => $announcement->body,
+            'attachment' => UploadedFile::fake()->create('awal.pdf', 50, 'application/pdf'),
+        ])
+        ->assertSessionHas('success');
+
+    $firstPath = $announcement->refresh()->attachment_path;
+
+    actingAs($this->admin)
+        ->post(route('avana.pengumuman.update', $announcement), [
+            'title' => $announcement->title,
+            'body' => $announcement->body,
+            'attachment' => UploadedFile::fake()->image('pengganti.jpg'),
+        ])
+        ->assertSessionHas('success');
+
+    $announcement->refresh();
+
+    expect($announcement->attachment_name)->toBe('pengganti.jpg');
+    expect($announcement->attachment_path)->not->toBe($firstPath);
+    Storage::disk(Announcement::ATTACHMENT_DISK)->assertMissing($firstPath);
+});
+
+it('keeps the existing attachment when the edit sends no file', function (): void {
+    $announcement = makeAnnouncement($this->tenant->id);
+
+    actingAs($this->admin)
+        ->post(route('avana.pengumuman.update', $announcement), [
+            'title' => $announcement->title,
+            'body' => $announcement->body,
+            'attachment' => UploadedFile::fake()->create('tetap.pdf', 40, 'application/pdf'),
+        ]);
+
+    $path = $announcement->refresh()->attachment_path;
+
+    actingAs($this->admin)
+        ->post(route('avana.pengumuman.update', $announcement), [
+            'title' => 'Judul Baru',
+            'body' => $announcement->body,
+        ])
+        ->assertSessionHas('success');
+
+    $announcement->refresh();
+
+    expect($announcement->title)->toBe('Judul Baru');
+    expect($announcement->attachment_path)->toBe($path);
+    Storage::disk(Announcement::ATTACHMENT_DISK)->assertExists($path);
+});
+
+it('drops the attachment when the edit asks for its removal', function (): void {
+    $announcement = makeAnnouncement($this->tenant->id);
+
+    actingAs($this->admin)
+        ->post(route('avana.pengumuman.update', $announcement), [
+            'title' => $announcement->title,
+            'body' => $announcement->body,
+            'attachment' => UploadedFile::fake()->create('buang.pdf', 40, 'application/pdf'),
+        ]);
+
+    $path = $announcement->refresh()->attachment_path;
+
+    actingAs($this->admin)
+        ->post(route('avana.pengumuman.update', $announcement), [
+            'title' => $announcement->title,
+            'body' => $announcement->body,
+            'remove_attachment' => true,
+        ])
+        ->assertSessionHas('success');
+
+    $announcement->refresh();
+
+    expect($announcement->attachment_path)->toBeNull();
+    expect($announcement->attachment_name)->toBeNull();
+    expect($announcement->attachmentUrl())->toBeNull();
+    Storage::disk(Announcement::ATTACHMENT_DISK)->assertMissing($path);
+});
+
+it('removes the stored file when the announcement is deleted', function (): void {
+    $announcement = makeAnnouncement($this->tenant->id);
+
+    actingAs($this->admin)
+        ->post(route('avana.pengumuman.update', $announcement), [
+            'title' => $announcement->title,
+            'body' => $announcement->body,
+            'attachment' => UploadedFile::fake()->create('sisa.pdf', 30, 'application/pdf'),
+        ]);
+
+    $path = $announcement->refresh()->attachment_path;
+
+    actingAs($this->admin)
+        ->delete(route('avana.pengumuman.destroy', $announcement))
+        ->assertSessionHas('success');
+
+    Storage::disk(Announcement::ATTACHMENT_DISK)->assertMissing($path);
 });
 
 it('forbids a plain employee from managing announcements', function (): void {

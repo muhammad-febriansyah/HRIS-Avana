@@ -120,10 +120,11 @@ function SortHeader<T>({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 5,
-                background: 'none',
-                border: 'none',
+                background: C.surface,
+                border: `1px solid ${C.border}`,
+                borderRadius: 6,
                 cursor: 'pointer',
-                padding: 0,
+                padding: '4px 8px',
             }}
         >
             {label}

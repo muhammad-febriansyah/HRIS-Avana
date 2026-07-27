@@ -284,9 +284,9 @@ export default function RecruitmentCandidates({
                                                             color: C.muted,
                                                             padding: '5px 11px',
                                                             borderRadius: 6,
-                                                            border: `1px dashed ${C.line}`,
+                                                            border: `1px solid ${C.border}`,
                                                             background:
-                                                                'transparent',
+                                                                C.surface,
                                                             cursor: 'pointer',
                                                         }}
                                                     >
@@ -419,10 +419,17 @@ function AddCandidateModal({
                     </div>
                     <button
                         onClick={onClose}
+                        aria-label="Tutup"
                         style={{
-                            border: 'none',
-                            background: 'transparent',
+                            width: 32,
+                            height: 32,
+                            border: `1px solid ${C.border}`,
+                            background: C.surface,
+                            borderRadius: 8,
                             cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
                         }}
                     >
                         <AIcon name="x" size={20} color={C.faint} />
@@ -551,6 +558,7 @@ function AddCandidateModal({
                     }}
                 >
                     <button style={btnOut} onClick={onClose}>
+                        <AIcon name="x" size={15} color={C.text} />
                         Batal
                     </button>
                     <button
@@ -558,6 +566,7 @@ function AddCandidateModal({
                         disabled={form.processing}
                         onClick={onSubmit}
                     >
+                        <AIcon name="user-plus" size={15} color="#fff" />
                         Tambah Kandidat
                     </button>
                 </div>

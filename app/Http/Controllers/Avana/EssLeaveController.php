@@ -9,6 +9,7 @@ use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Services\ApprovalEngine;
 use App\Services\LeaveApproval;
+use App\Services\LeaveQuota;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -76,15 +77,7 @@ class EssLeaveController extends Controller
             'year' => $year,
             'balances' => $balances,
             'requests' => $requests,
-            'leaveTypes' => LeaveType::forTenant($employee->tenant_id)
-                ->where('status', 'active')
-                ->orderBy('name')
-                ->get(['id', 'name', 'requires_attachment'])
-                ->map(fn (LeaveType $type): array => [
-                    'id' => $type->id,
-                    'name' => $type->name,
-                    'requires_attachment' => (bool) $type->requires_attachment,
-                ])->values(),
+            'leaveTypes' => LeaveType::selectableTree($employee->tenant_id),
         ]);
     }
 
@@ -111,20 +104,14 @@ class EssLeaveController extends Controller
         $end = Carbon::parse($data['end_date']);
         $totalDays = $start->diffInDays($end) + 1;
 
-        $type = LeaveType::forTenant($employee->tenant_id)->findOrFail($data['leave_type_id']);
+        $type = LeaveType::forTenant($employee->tenant_id)
+            ->with('parent')
+            ->findOrFail($data['leave_type_id']);
 
-        $balance = LeaveBalance::forTenant($employee->tenant_id)
-            ->where('employee_id', $employee->id)
-            ->where('leave_type_id', $type->id)
-            ->where('year', $start->year)
-            ->first();
+        $message = LeaveQuota::check($employee->id, $type, (float) $totalDays, $start->year);
 
-        $remaining = $balance !== null ? (int) $balance->remaining : (int) $type->default_quota;
-
-        if (! $type->allow_negative && $totalDays > $remaining) {
-            return back()->withErrors([
-                'leave_type_id' => 'Saldo cuti tidak mencukupi (sisa '.$remaining.' hari).',
-            ]);
+        if ($message !== null) {
+            return back()->withErrors(['leave_type_id' => $message]);
         }
 
         $leave = LeaveRequest::create([

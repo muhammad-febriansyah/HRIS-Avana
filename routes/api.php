@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\CashAdvanceController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DirectoryController;
 use App\Http\Controllers\Api\DocumentController;
+use App\Http\Controllers\Api\EotmController;
 use App\Http\Controllers\Api\FaceController;
 use App\Http\Controllers\Api\FieldVisitController;
 use App\Http\Controllers\Api\FinanceController;
@@ -29,6 +30,8 @@ use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\SecurityController;
 use App\Http\Controllers\Api\SettlementController;
 use App\Http\Controllers\Api\ShiftSwapController;
+use App\Http\Controllers\Api\SocialController;
+use App\Http\Controllers\Api\SopController;
 use App\Http\Controllers\Api\TaxController;
 use App\Http\Controllers\Api\WfhController;
 use App\Http\Controllers\PakasirWebhookController;
@@ -65,6 +68,7 @@ Route::prefix('v1')->group(function (): void {
             Route::post('profile/photo', [ProfileController::class, 'updatePhoto']);
 
             Route::get('dashboard', [DashboardController::class, 'summary']);
+            Route::get('birthdays', [DashboardController::class, 'birthdays']);
 
             Route::get('mood', [MoodController::class, 'today']);
             Route::post('mood', [MoodController::class, 'store']);
@@ -133,6 +137,29 @@ Route::prefix('v1')->group(function (): void {
 
             Route::get('documents', [DocumentController::class, 'index']);
             Route::post('documents', [DocumentController::class, 'store']);
+
+            Route::get('sop', [SopController::class, 'index']);
+            Route::get('sop/{sop}/download', [SopController::class, 'download'])->whereNumber('sop');
+
+            // Social wall: feed, posting, likes, comments, leaderboard.
+            Route::get('social/categories', [SocialController::class, 'categories']);
+            Route::get('social/feed', [SocialController::class, 'feed']);
+            Route::get('social/leaderboard', [SocialController::class, 'leaderboard']);
+            Route::post('social/posts', [SocialController::class, 'store']);
+            Route::get('social/posts/{post}', [SocialController::class, 'show'])->whereNumber('post');
+            // POST, not PUT: the edit form can carry a replacement photo.
+            Route::post('social/posts/{post}/update', [SocialController::class, 'update'])->whereNumber('post');
+            Route::delete('social/posts/{post}', [SocialController::class, 'destroy'])->whereNumber('post');
+            Route::post('social/posts/{post}/like', [SocialController::class, 'toggleLike'])->whereNumber('post');
+            Route::post('social/posts/{post}/report', [SocialController::class, 'report'])->whereNumber('post');
+            Route::get('social/posts/{post}/comments', [SocialController::class, 'comments'])->whereNumber('post');
+            Route::post('social/posts/{post}/comments', [SocialController::class, 'storeComment'])->whereNumber('post');
+            Route::delete('social/comments/{comment}', [SocialController::class, 'destroyComment'])->whereNumber('comment');
+
+            // Employee of the Month voting.
+            Route::get('eotm', [EotmController::class, 'show']);
+            Route::get('eotm/nominees', [EotmController::class, 'nominees']);
+            Route::post('eotm/vote', [EotmController::class, 'vote']);
 
             Route::get('field-visits', [FieldVisitController::class, 'index']);
             Route::post('field-visits', [FieldVisitController::class, 'store']);

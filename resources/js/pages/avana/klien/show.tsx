@@ -2,7 +2,12 @@ import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
 import { AIcon, btnOut, btnP, C, card, rp } from '@/lib/avana';
-import { FieldError, fieldLabelStyle, inputStyle, withError } from './components';
+import {
+    FieldError,
+    fieldLabelStyle,
+    inputStyle,
+    withError,
+} from './components';
 import type { TenantAdmin, TenantCredentials } from './types';
 
 type Pkg = {
@@ -350,10 +355,7 @@ function AdminAccountsTab({
                             gap: 12,
                         }}
                     >
-                        <KeyValue
-                            label="Nama"
-                            value={flash.credentials.name}
-                        />
+                        <KeyValue label="Nama" value={flash.credentials.name} />
                         <KeyValue
                             label="Email"
                             value={flash.credentials.email}
@@ -666,6 +668,7 @@ function AdminAccountsTab({
                                             disabled={resetForm.processing}
                                             style={{
                                                 ...btnP,
+                                                background: C.green,
                                                 height: 42,
                                                 opacity: resetForm.processing
                                                     ? 0.7
@@ -1011,7 +1014,10 @@ export default function KlienShow({
                                     gap: 7,
                                     padding: '10px 14px',
                                     border: 'none',
-                                    background: 'transparent',
+                                    background: active
+                                        ? 'rgba(47,84,201,.07)'
+                                        : C.surface,
+                                    borderRadius: '8px 8px 0 0',
                                     fontSize: 13.5,
                                     fontWeight: active ? 600 : 500,
                                     color: active ? C.primary : C.muted,

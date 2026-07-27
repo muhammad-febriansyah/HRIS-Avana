@@ -421,6 +421,7 @@ export default function RecruitmentHeadcount({
                                 style={btnOut}
                                 onClick={() => setOpen(false)}
                             >
+                                <AIcon name="x" size={15} color={C.text} />
                                 Batal
                             </button>
                             <button
@@ -428,6 +429,7 @@ export default function RecruitmentHeadcount({
                                 disabled={form.processing}
                                 onClick={submit}
                             >
+                                <AIcon name="send" size={15} color="#fff" />
                                 Ajukan
                             </button>
                         </div>

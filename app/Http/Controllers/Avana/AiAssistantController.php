@@ -6,12 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\AiConversation;
 use App\Models\AiMessage;
 use App\Models\AiSetting;
+use App\Models\Sop;
 use App\Models\User;
 use App\Services\AiTokenService;
 use App\Services\AiToolkit;
 use App\Support\AiPersona;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -74,7 +76,52 @@ class AiAssistantController extends Controller
             'messages' => $messages,
             'ready' => AiSetting::current()->isReady(),
             'tokenUsage' => $this->tokenUsage($request->user()),
+            'sopCitations' => $this->sopCitations($request->user()),
         ]);
+    }
+
+    /**
+     * SOP codes the caller may read, mapped to the URL that serves the PDF.
+     *
+     * The assistant is told to name the SOP it quotes; the chat turns each of
+     * those codes into a link so the source document is one click away.
+     * Mirrors {@see AiToolkit::visibleSops()} — a code the user
+     * may not read is simply absent, so nothing here leaks a private SOP.
+     *
+     * @return array<int, array{code: string, title: string, url: string}>
+     */
+    private function sopCitations(User $user): array
+    {
+        $canManage = $user->isSuperAdmin() || $user->hasPermissionTo('sop.view');
+
+        $query = Sop::query()
+            ->where('tenant_id', $user->tenant_id)
+            ->active()
+            ->whereNotNull('code')
+            ->whereNotNull('file_path');
+
+        if (! $canManage) {
+            $query->publiclyVisible();
+        }
+
+        // A plain employee downloads through the self-service route; it needs
+        // an employee record, so an admin account without one keeps the
+        // management route instead.
+        $viaSelfService = ! $canManage && $user->employee !== null;
+
+        if (! $canManage && ! $viaSelfService) {
+            return [];
+        }
+
+        return $query->get(['id', 'code', 'title'])
+            ->map(fn (Sop $sop): array => [
+                'code' => (string) $sop->code,
+                'title' => $sop->title,
+                'url' => $viaSelfService
+                    ? route('avana.saya.sop.download', $sop->id)
+                    : route('avana.sop.download', $sop->id),
+            ])
+            ->all();
     }
 
     /**
@@ -204,7 +251,19 @@ class AiAssistantController extends Controller
                         }
                     }
                 } catch (\Throwable $e) {
-                    $note = "\n\n[Maaf, terjadi gangguan menghubungi AI: ".$e->getMessage().']';
+                    // Never surface the provider's own words. A billing error
+                    // ("You exceeded your current quota") would otherwise be
+                    // shown verbatim to a tenant's staff, who cannot act on it
+                    // and should not see the platform's account state.
+                    Log::error('AI assistant stream failed', [
+                        'tenant_id' => $user->tenant_id,
+                        'user_id' => $user->id,
+                        'provider' => $provider,
+                        'model' => $model,
+                        'message' => $e->getMessage(),
+                    ]);
+
+                    $note = "\n\n[Maaf, terjadi kesalahan sistem saat menghubungi AI. Silakan coba lagi beberapa saat lagi.]";
                     $full .= $note;
                     $emit($note);
                 }

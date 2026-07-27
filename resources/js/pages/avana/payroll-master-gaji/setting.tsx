@@ -437,6 +437,9 @@ export default function MasterGajiSetting({
                                 router.visit(SalaryMasterController.index().url)
                             }
                             style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 7,
                                 padding: '9px 16px',
                                 borderRadius: 8,
                                 border: `1px solid ${C.line}`,
@@ -447,22 +450,31 @@ export default function MasterGajiSetting({
                                 cursor: 'pointer',
                             }}
                         >
+                            <AIcon
+                                name="arrow-left"
+                                size={15}
+                                color={C.muted}
+                            />
                             Kembali
                         </button>
                         <button
                             onClick={save}
                             disabled={form.processing}
                             style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 7,
                                 padding: '9px 20px',
                                 borderRadius: 8,
                                 border: 'none',
-                                background: C.primary,
+                                background: C.green,
                                 color: '#fff',
                                 fontSize: 13,
                                 fontWeight: 600,
                                 cursor: 'pointer',
                             }}
                         >
+                            <AIcon name="save" size={15} color="#fff" />
                             Simpan
                         </button>
                     </div>
@@ -822,6 +834,9 @@ export default function MasterGajiSetting({
                         <button
                             onClick={() => setAssignOpen((v) => !v)}
                             style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
                                 padding: '7px 12px',
                                 borderRadius: 8,
                                 border: `1px solid ${C.line}`,
@@ -832,6 +847,11 @@ export default function MasterGajiSetting({
                                 cursor: 'pointer',
                             }}
                         >
+                            <AIcon
+                                name={assignOpen ? 'x' : 'user-plus'}
+                                size={14}
+                                color={C.primary}
+                            />
                             {assignOpen ? 'Tutup' : 'Pilih Pegawai'}
                         </button>
                     </div>
@@ -918,10 +938,13 @@ function AssignPanel({
             </div>
             <button
                 style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 7,
                     padding: '9px 16px',
                     borderRadius: 8,
                     border: 'none',
-                    background: C.primary,
+                    background: C.violet,
                     color: '#fff',
                     fontSize: 13,
                     fontWeight: 600,
@@ -930,6 +953,7 @@ function AssignPanel({
                 disabled={form.processing}
                 onClick={apply}
             >
+                <AIcon name="check" size={15} color="#fff" />
                 Terapkan
             </button>
         </div>

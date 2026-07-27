@@ -104,7 +104,26 @@ export function StatusPill({ status }: { status: string }) {
 }
 
 /** Ya/Tidak pill for boolean columns. */
-export function YesNoPill({ value }: { value: boolean }) {
+export function YesNoPill({ value }: { value: boolean | null }) {
+    // null only reaches here from a sub-type that defers to its parent.
+    if (value === null) {
+        return (
+            <span
+                style={{
+                    display: 'inline-block',
+                    padding: '3px 10px',
+                    borderRadius: 100,
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    color: C.faint,
+                    background: 'rgba(156,163,175,.14)',
+                }}
+            >
+                Ikut induk
+            </span>
+        );
+    }
+
     const color = value ? C.primary : C.muted;
     const bg = value ? 'rgba(47,84,201,.1)' : 'rgba(107,114,128,.12)';
 

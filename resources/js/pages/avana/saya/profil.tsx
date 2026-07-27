@@ -179,7 +179,7 @@ export default function SayaProfil({ profile }: { profile: Profile }) {
                                 onClick={() => photoInput.current?.click()}
                                 disabled={photoForm.processing}
                                 style={{
-                                    background: 'none',
+                                    background: '#fff',
                                     border: `1px solid ${C.border}`,
                                     borderRadius: 8,
                                     padding: '7px 13px',
@@ -446,6 +446,7 @@ export default function SayaProfil({ profile }: { profile: Profile }) {
                                     disabled={form.processing}
                                     style={{
                                         ...btnP,
+                                        background: C.green,
                                         height: 44,
                                         opacity: form.processing ? 0.7 : 1,
                                     }}

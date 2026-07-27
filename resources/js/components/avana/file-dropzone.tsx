@@ -39,12 +39,18 @@ function iconFor(file: File): string {
  *
  * `value`/`onChange` speak File | null, so it drops straight into an Inertia
  * form field.
+ *
+ * On an edit form, pass `existing` so the file already on the record is shown
+ * as a card instead of an empty drop area — otherwise the form reads as though
+ * the document had no attachment and the user re-uploads it needlessly.
  */
 export function FileDropzone({
     value,
     onChange,
     accept,
     hint,
+    name,
+    existing = null,
     hasError = false,
     disabled = false,
 }: {
@@ -53,6 +59,10 @@ export function FileDropzone({
     /** Same syntax as the input's accept attribute, e.g. ".pdf,image/*". */
     accept?: string;
     hint?: string;
+    /** Name for the underlying input, so a form/test can address it. */
+    name?: string;
+    /** The file already stored on the record, shown until a new one is picked. */
+    existing?: { name: string; sizeLabel?: string | null } | null;
     hasError?: boolean;
     disabled?: boolean;
 }) {
@@ -157,6 +167,93 @@ export function FileDropzone({
                 <input
                     ref={inputRef}
                     type="file"
+                    name={name}
+                    accept={accept}
+                    onChange={(event) => pick(event.target.files?.[0] ?? null)}
+                    style={{ display: 'none' }}
+                />
+            </>
+        );
+    }
+
+    if (existing !== null) {
+        return (
+            <>
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        padding: '12px 14px',
+                        border: `1px solid ${hasError ? C.red : C.border}`,
+                        borderRadius: 10,
+                        background: '#FBFCFE',
+                    }}
+                >
+                    <div
+                        style={{
+                            width: 38,
+                            height: 38,
+                            flex: 'none',
+                            borderRadius: 9,
+                            display: 'grid',
+                            placeItems: 'center',
+                            background: hexA(C.muted, 0.1),
+                        }}
+                    >
+                        <AIcon name="file-text" size={18} color={C.muted} />
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                            style={{
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: C.text,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                            }}
+                        >
+                            {existing.name}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: C.faint }}>
+                            Berkas tersimpan
+                            {existing.sizeLabel
+                                ? ` · ${existing.sizeLabel}`
+                                : ''}
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={() => !disabled && inputRef.current?.click()}
+                        disabled={disabled}
+                        style={{
+                            flex: 'none',
+                            height: 30,
+                            padding: '0 12px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            borderRadius: 8,
+                            border: `1px solid ${C.border}`,
+                            background: '#fff',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: C.primary,
+                            cursor: disabled ? 'not-allowed' : 'pointer',
+                        }}
+                    >
+                        <AIcon name="refresh-cw" size={13} color={C.primary} />
+                        Ganti
+                    </button>
+                </div>
+
+                <input
+                    ref={inputRef}
+                    type="file"
+                    name={name}
                     accept={accept}
                     onChange={(event) => pick(event.target.files?.[0] ?? null)}
                     style={{ display: 'none' }}
@@ -225,6 +322,7 @@ export function FileDropzone({
             <input
                 ref={inputRef}
                 type="file"
+                name={name}
                 accept={accept}
                 onChange={(event) => pick(event.target.files?.[0] ?? null)}
                 style={{ display: 'none' }}

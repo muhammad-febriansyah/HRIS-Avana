@@ -568,6 +568,7 @@ export default function PaketIndex({ packages, cycles }: PageProps) {
                         }}
                     >
                         <button onClick={closeModal} style={btnGhost}>
+                            <AIcon name="x" size={15} color={C.text} />
                             Batal
                         </button>
                         <button
@@ -575,9 +576,11 @@ export default function PaketIndex({ packages, cycles }: PageProps) {
                             disabled={form.processing}
                             style={{
                                 ...btnPrimary,
+                                background: C.green,
                                 opacity: form.processing ? 0.6 : 1,
                             }}
                         >
+                            <AIcon name="save" size={15} color="#fff" />
                             {form.processing ? 'Menyimpan…' : 'Simpan'}
                         </button>
                     </div>
@@ -608,6 +611,7 @@ export default function PaketIndex({ packages, cycles }: PageProps) {
                             onClick={() => setConfirm(null)}
                             style={btnGhost}
                         >
+                            <AIcon name="x" size={15} color={C.text} />
                             Batal
                         </button>
                         <button
@@ -617,6 +621,7 @@ export default function PaketIndex({ packages, cycles }: PageProps) {
                                 background: C.red,
                             }}
                         >
+                            <AIcon name="trash-2" size={15} color="#fff" />
                             Hapus
                         </button>
                     </div>

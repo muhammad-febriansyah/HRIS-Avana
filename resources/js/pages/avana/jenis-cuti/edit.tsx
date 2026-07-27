@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import LeaveTypeController from '@/actions/App/Http/Controllers/Avana/LeaveTypeController';
 import { AIcon, C } from '@/lib/avana';
 import { JenisCutiForm } from './jenis-cuti-form';
+import { subTypeToForm } from './types';
 import type { FlashProps, LeaveTypeFormData, LeaveTypeRow } from './types';
 
 interface JenisCutiEditProps {
@@ -18,9 +19,12 @@ export default function JenisCutiEdit({ leaveType }: JenisCutiEditProps) {
         code: leaveType.code,
         name: leaveType.name,
         default_quota: String(leaveType.default_quota),
-        allow_negative: leaveType.allow_negative,
-        requires_attachment: leaveType.requires_attachment,
+        // A root always stores a concrete boolean; the nullable column only
+        // matters for sub-types, which inherit when left unset.
+        allow_negative: leaveType.allow_negative ?? false,
+        requires_attachment: leaveType.requires_attachment ?? false,
         status: leaveType.status,
+        children: leaveType.children.map(subTypeToForm),
     });
 
     useEffect(() => {

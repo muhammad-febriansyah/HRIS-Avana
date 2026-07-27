@@ -98,9 +98,7 @@ class LeaveController extends Controller
             'filters' => $request->only([
                 'search', 'status', 'leave_type_id', 'sort', 'direction', 'per_page',
             ]),
-            'leaveTypes' => LeaveType::forTenant($tenantId)
-                ->where('status', 'active')
-                ->get(['id', 'name', 'default_quota']),
+            'leaveTypes' => LeaveType::selectableTree($tenantId),
             'employees' => Employee::forTenant($tenantId)
                 ->orderBy('full_name')
                 ->get(['id', 'full_name', 'employee_number'])
@@ -109,7 +107,9 @@ class LeaveController extends Controller
                     'name' => $employee->full_name,
                     'employee_number' => $employee->employee_number,
                 ]),
+            // Only quota owners carry a balance; sub-types draw from the parent.
             'balances' => LeaveType::forTenant($tenantId)
+                ->roots()
                 ->where('status', 'active')
                 ->get()
                 ->map(fn (LeaveType $leaveType): array => [

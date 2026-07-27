@@ -976,10 +976,13 @@ export default function EmployeesIndex({
                     <button
                         onClick={() => setSelected(new Set())}
                         style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
                             height: 34,
                             padding: '0 12px',
-                            background: 'transparent',
-                            color: 'rgba(255,255,255,.85)',
+                            background: 'rgba(255,255,255,.14)',
+                            color: 'rgba(255,255,255,.9)',
                             border: '1px solid rgba(255,255,255,.25)',
                             borderRadius: 8,
                             fontSize: 13,
@@ -987,6 +990,11 @@ export default function EmployeesIndex({
                             cursor: 'pointer',
                         }}
                     >
+                        <AIcon
+                            name="x"
+                            size={14}
+                            color="rgba(255,255,255,.9)"
+                        />
                         Batal
                     </button>
                     <button

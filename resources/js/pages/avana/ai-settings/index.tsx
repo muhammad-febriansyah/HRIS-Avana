@@ -288,6 +288,7 @@ export default function AiSettings({
                         disabled={form.processing}
                         style={{
                             ...btnP,
+                            background: C.green,
                             opacity: form.processing ? 0.6 : 1,
                             cursor: form.processing ? 'default' : 'pointer',
                         }}

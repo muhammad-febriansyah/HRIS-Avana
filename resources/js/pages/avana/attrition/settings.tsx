@@ -310,6 +310,7 @@ export default function AttritionSettings({
                             disabled={form.processing}
                             style={{
                                 ...btnP,
+                                background: C.green,
                                 opacity: form.processing ? 0.6 : 1,
                             }}
                         >

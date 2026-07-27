@@ -490,7 +490,11 @@ export default function Wizard({
                     <button
                         onClick={submit}
                         disabled={processing}
-                        style={{ ...btnP, opacity: processing ? 0.7 : 1 }}
+                        style={{
+                            ...btnP,
+                            background: C.green,
+                            opacity: processing ? 0.7 : 1,
+                        }}
                     >
                         <AIcon name="check" size={15} color="#fff" />
                         Simpan Workflow

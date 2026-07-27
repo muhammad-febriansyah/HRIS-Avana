@@ -77,7 +77,10 @@ class SalesOrderController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name'])
                 ->map(fn (Shift $s): array => ['id' => $s->id, 'name' => $s->name])->all(),
+            // The benefit attached to an order is a quota, so only the types
+            // that own one are offered — a sub-type has none of its own.
             'leaveOptions' => LeaveType::forTenant($tenantId)
+                ->roots()
                 ->orderBy('name')
                 ->get(['id', 'name'])
                 ->map(fn (LeaveType $l): array => ['id' => $l->id, 'name' => $l->name])->all(),

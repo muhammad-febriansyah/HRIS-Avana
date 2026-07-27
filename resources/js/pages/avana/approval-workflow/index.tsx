@@ -482,9 +482,9 @@ function KebabItem({
                 gap: 9,
                 width: '100%',
                 padding: '8px 10px',
-                border: 'none',
+                border: `1px solid ${danger ? 'rgba(220,38,38,.28)' : C.border}`,
                 borderRadius: 7,
-                background: 'transparent',
+                background: danger ? 'rgba(220,38,38,.06)' : C.surface,
                 color,
                 fontSize: 13,
                 fontWeight: 500,
@@ -803,6 +803,9 @@ function PreviewModal({
                     <button
                         onClick={onClose}
                         style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 8,
                             height: 40,
                             padding: '0 20px',
                             border: `1px solid ${C.border}`,
@@ -814,6 +817,7 @@ function PreviewModal({
                             cursor: 'pointer',
                         }}
                     >
+                        <AIcon name="x" size={15} color={C.text} />
                         Tutup
                     </button>
                 </div>
@@ -876,6 +880,10 @@ function DeleteModal({
                     <button
                         onClick={onCancel}
                         style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 8,
                             flex: 1,
                             height: 44,
                             border: `1px solid ${C.border}`,
@@ -887,6 +895,7 @@ function DeleteModal({
                             cursor: 'pointer',
                         }}
                     >
+                        <AIcon name="x" size={15} color={C.text} />
                         Batal
                     </button>
                     <button

@@ -371,10 +371,14 @@ export default function TalentIndex({
                                         type="button"
                                         onClick={resetForm}
                                         style={{
-                                            border: 'none',
-                                            background: 'transparent',
+                                            border: `1px solid ${C.border}`,
+                                            background: '#fff',
+                                            borderRadius: 7,
+                                            height: 30,
+                                            padding: '0 10px',
                                             color: C.muted,
                                             fontSize: 12.5,
+                                            fontWeight: 600,
                                             cursor: 'pointer',
                                             display: 'inline-flex',
                                             alignItems: 'center',
@@ -588,6 +592,7 @@ export default function TalentIndex({
                                     disabled={form.processing}
                                     style={{
                                         ...btnP,
+                                        background: C.green,
                                         flex: 1,
                                         height: 44,
                                         justifyContent: 'center',

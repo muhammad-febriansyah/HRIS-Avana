@@ -1,9 +1,17 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
+import { useState } from 'react';
 import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, C, card } from '@/lib/avana';
+import {
+    DEFAULT_PASSWORD,
+    EMPLOYEE_STEPS,
+    NO_MANAGER,
+    RELIGIONS,
+    STEP_FIELDS,
+} from './types';
 import type {
     CustomFieldDef,
     EmployeeFormData,
@@ -149,6 +157,54 @@ export function EmployeeForm({
     hasLogin = false,
 }: EmployeeFormProps) {
     const { data, setData, errors, processing } = form;
+    const [step, setStep] = useState(0);
+    const [showPassword, setShowPassword] = useState(false);
+
+    // The custom-field step only exists when the tenant defined any.
+    const steps = EMPLOYEE_STEPS.filter(
+        (_, index) => index !== 3 || customFields.length > 0,
+    );
+    const lastStep = steps.length - 1;
+
+    const stepHasErrors = (index: number): boolean =>
+        STEP_FIELDS[index].some((field) =>
+            Object.keys(errors).some(
+                (key) => key === field || key.startsWith(`${field}.`),
+            ),
+        );
+
+    // Server-side validation sends the wizard back to the step that owns the
+    // first broken field, otherwise the message would sit on an unseen page.
+    // Adjusted during render rather than in an effect, so the correct step
+    // paints straight away instead of flashing the wrong one first.
+    const errorKey = Object.keys(errors).sort().join(',');
+    const [seenErrorKey, setSeenErrorKey] = useState(errorKey);
+
+    if (errorKey !== seenErrorKey) {
+        setSeenErrorKey(errorKey);
+
+        const broken = steps.findIndex((_, index) => stepHasErrors(index));
+
+        if (broken !== -1) {
+            setStep(broken);
+        }
+    }
+
+    /** Whether a step has everything it needs to move on. */
+    const stepComplete = (index: number): boolean => {
+        if (index === 0) {
+            return data.full_name.trim().length > 0;
+        }
+
+        if (index === 1) {
+            return (
+                data.employment_status.trim().length > 0 &&
+                data.manager_id.trim().length > 0
+            );
+        }
+
+        return true;
+    };
 
     const styleFor = (hasError: boolean, base: CSSProperties): CSSProperties =>
         hasError ? { ...base, ...errorBorder } : base;
@@ -169,556 +225,700 @@ export function EmployeeForm({
             onSubmit={onSubmit}
             style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
         >
-            {/* Data Personal */}
-            <div style={card}>
-                <SectionHeader
-                    icon="user"
-                    title="Data Personal"
-                    desc="Identitas dasar karyawan sesuai KTP."
-                />
-                <div className="avn-2col" style={sectionGrid}>
-                    <Field
-                        htmlFor="full_name"
-                        label="Nama Lengkap"
-                        required
-                        error={errors.full_name}
-                    >
-                        <input
-                            id="full_name"
-                            value={data.full_name}
-                            onChange={(event) =>
-                                setData('full_name', event.target.value)
-                            }
-                            placeholder="Masukkan nama sesuai KTP"
-                            style={styleFor(!!errors.full_name, inputStyle)}
-                        />
-                    </Field>
+            <Stepper
+                steps={steps}
+                current={step}
+                onJump={setStep}
+                complete={stepComplete}
+            />
 
-                    <Field htmlFor="nik" label="NIK (KTP)" error={errors.nik}>
-                        <input
-                            id="nik"
-                            inputMode="numeric"
-                            maxLength={16}
-                            value={data.nik}
-                            onChange={(event) =>
-                                setData('nik', event.target.value)
-                            }
-                            placeholder="16 digit NIK"
-                            style={styleFor(!!errors.nik, inputStyle)}
-                        />
-                    </Field>
-
-                    <Field htmlFor="email" label="Email" error={errors.email}>
-                        <input
-                            id="email"
-                            type="email"
-                            value={data.email}
-                            onChange={(event) =>
-                                setData('email', event.target.value)
-                            }
-                            placeholder="nama@perusahaan.co.id"
-                            style={styleFor(!!errors.email, inputStyle)}
-                        />
-                    </Field>
-
-                    <Field
-                        htmlFor="phone"
-                        label="No. Telepon"
-                        error={errors.phone}
-                    >
-                        <input
-                            id="phone"
-                            value={data.phone}
-                            onChange={(event) =>
-                                setData('phone', event.target.value)
-                            }
-                            placeholder="08xx-xxxx-xxxx"
-                            style={styleFor(!!errors.phone, inputStyle)}
-                        />
-                    </Field>
-
-                    <Field
-                        htmlFor="birth_place"
-                        label="Tempat Lahir"
-                        error={errors.birth_place}
-                    >
-                        <input
-                            id="birth_place"
-                            value={data.birth_place}
-                            onChange={(event) =>
-                                setData('birth_place', event.target.value)
-                            }
-                            placeholder="cth. Jakarta"
-                            style={styleFor(!!errors.birth_place, inputStyle)}
-                        />
-                    </Field>
-
-                    <Field
-                        htmlFor="birth_date"
-                        label="Tanggal Lahir"
-                        error={errors.birth_date}
-                    >
-                        <DatePicker
-                            value={data.birth_date}
-                            onChange={(nextValue) =>
-                                setData('birth_date', nextValue)
-                            }
-                            placeholder="Pilih tanggal"
-                            width="100%"
-                        />
-                    </Field>
-
-                    <Field
-                        htmlFor="gender"
-                        label="Jenis Kelamin"
-                        error={errors.gender}
-                    >
-                        <select
-                            id="gender"
-                            value={data.gender}
-                            onChange={(event) =>
-                                setData('gender', event.target.value)
-                            }
-                            style={styleFor(!!errors.gender, selectStyle)}
+            {step === 0 && (
+                <div style={card}>
+                    <SectionHeader
+                        icon="user"
+                        title="Data Personal"
+                        desc="Identitas dasar karyawan sesuai KTP."
+                    />
+                    <div className="avn-2col" style={sectionGrid}>
+                        <Field
+                            htmlFor="full_name"
+                            label="Nama Lengkap"
+                            required
+                            error={errors.full_name}
                         >
-                            <option value="">Pilih jenis kelamin</option>
-                            {options.genders.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                    {option.label}
-                                </option>
-                            ))}
-                        </select>
-                    </Field>
-
-                    <Field
-                        htmlFor="religion"
-                        label="Agama"
-                        error={errors.religion}
-                    >
-                        <input
-                            id="religion"
-                            value={data.religion}
-                            onChange={(event) =>
-                                setData('religion', event.target.value)
-                            }
-                            placeholder="cth. Islam"
-                            style={styleFor(!!errors.religion, inputStyle)}
-                        />
-                    </Field>
-
-                    <Field
-                        htmlFor="marital_status"
-                        label="Status Pernikahan"
-                        error={errors.marital_status}
-                    >
-                        <input
-                            id="marital_status"
-                            value={data.marital_status}
-                            onChange={(event) =>
-                                setData('marital_status', event.target.value)
-                            }
-                            placeholder="cth. Menikah"
-                            style={styleFor(
-                                !!errors.marital_status,
-                                inputStyle,
-                            )}
-                        />
-                    </Field>
-
-                    <Field
-                        htmlFor="address"
-                        label="Alamat Domisili"
-                        fullWidth
-                        error={errors.address}
-                    >
-                        <textarea
-                            id="address"
-                            rows={2}
-                            value={data.address}
-                            onChange={(event) =>
-                                setData('address', event.target.value)
-                            }
-                            placeholder="Alamat lengkap tempat tinggal"
-                            style={styleFor(!!errors.address, {
-                                ...inputStyle,
-                                height: undefined,
-                                padding: '11px 13px',
-                                resize: 'vertical',
-                            })}
-                        />
-                    </Field>
-                </div>
-            </div>
-
-            {/* Akun Aplikasi Mobile */}
-            <div style={card}>
-                <SectionHeader
-                    icon="smartphone"
-                    title="Akun Aplikasi Mobile & Hak Akses"
-                    desc={
-                        hasLogin
-                            ? 'Karyawan sudah punya akun login. Isi password untuk reset, atau ganti role untuk mengubah hak aksesnya.'
-                            : 'Isi password untuk membuatkan akun login (pakai email di atas). Role menentukan hak akses menu — pilih agar karyawan langsung mewarisi akses role tersebut.'
-                    }
-                />
-                <div className="avn-2col" style={sectionGrid}>
-                    <Field
-                        htmlFor="password"
-                        label={hasLogin ? 'Reset Password' : 'Password Login'}
-                        error={errors.password}
-                    >
-                        <input
-                            id="password"
-                            type="password"
-                            autoComplete="new-password"
-                            value={data.password}
-                            onChange={(event) =>
-                                setData('password', event.target.value)
-                            }
-                            placeholder="Min. 8 karakter"
-                            style={styleFor(!!errors.password, inputStyle)}
-                        />
-                    </Field>
-                    <Field
-                        htmlFor="role_id"
-                        label="Role / Hak Akses"
-                        error={errors.role_id}
-                    >
-                        <select
-                            id="role_id"
-                            value={data.role_id}
-                            onChange={(event) =>
-                                setData('role_id', event.target.value)
-                            }
-                            style={styleFor(!!errors.role_id, selectStyle)}
-                        >
-                            <option value="">
-                                {hasLogin
-                                    ? '— Biarkan role saat ini —'
-                                    : '— Role default (Karyawan) —'}
-                            </option>
-                            {options.roles.map((role) => (
-                                <option key={role.id} value={String(role.id)}>
-                                    {role.name}
-                                </option>
-                            ))}
-                        </select>
-                    </Field>
-                    {hasLogin ? (
-                        <div
-                            style={{
-                                gridColumn: '1/-1',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 8,
-                                fontSize: 12.5,
-                                color: '#059669',
-                            }}
-                        >
-                            <AIcon
-                                name="badge-check"
-                                size={16}
-                                color="#059669"
+                            <input
+                                id="full_name"
+                                value={data.full_name}
+                                onChange={(event) =>
+                                    setData('full_name', event.target.value)
+                                }
+                                placeholder="Masukkan nama sesuai KTP"
+                                style={styleFor(!!errors.full_name, inputStyle)}
                             />
-                            Akun login aktif
-                        </div>
-                    ) : null}
-                </div>
-            </div>
+                        </Field>
 
-            {/* Kepegawaian */}
-            <div style={card}>
-                <SectionHeader
-                    icon="briefcase"
-                    title="Kepegawaian"
-                    desc="Posisi & detail kontrak kerja."
-                />
-                <div className="avn-2col" style={sectionGrid}>
-                    <Field
-                        htmlFor="department_id"
-                        label="Departemen"
-                        error={errors.department_id}
-                    >
-                        <select
-                            id="department_id"
-                            value={data.department_id}
-                            onChange={(event) =>
-                                setData('department_id', event.target.value)
-                            }
-                            style={styleFor(
-                                !!errors.department_id,
-                                selectStyle,
-                            )}
+                        <Field
+                            htmlFor="nik"
+                            label="NIK (KTP)"
+                            error={errors.nik}
                         >
-                            <option value="">Pilih departemen</option>
-                            {options.departments.map((department) => (
-                                <option
-                                    key={department.id}
-                                    value={String(department.id)}
+                            <input
+                                id="nik"
+                                inputMode="numeric"
+                                maxLength={16}
+                                value={data.nik}
+                                onChange={(event) =>
+                                    setData('nik', event.target.value)
+                                }
+                                placeholder="16 digit NIK"
+                                style={styleFor(!!errors.nik, inputStyle)}
+                            />
+                        </Field>
+
+                        <Field
+                            htmlFor="email"
+                            label="Email"
+                            error={errors.email}
+                        >
+                            <input
+                                id="email"
+                                type="email"
+                                value={data.email}
+                                onChange={(event) =>
+                                    setData('email', event.target.value)
+                                }
+                                placeholder="nama@perusahaan.co.id"
+                                style={styleFor(!!errors.email, inputStyle)}
+                            />
+                        </Field>
+
+                        <Field
+                            htmlFor="password"
+                            label={
+                                hasLogin ? 'Reset Password' : 'Password Login'
+                            }
+                            error={errors.password}
+                        >
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <div
+                                    style={{
+                                        position: 'relative',
+                                        flex: 1,
+                                        minWidth: 0,
+                                    }}
                                 >
-                                    {department.name}
-                                </option>
-                            ))}
-                        </select>
-                    </Field>
-
-                    <Field
-                        htmlFor="position_id"
-                        label="Jabatan"
-                        error={errors.position_id}
-                    >
-                        <select
-                            id="position_id"
-                            value={data.position_id}
-                            onChange={(event) =>
-                                setData('position_id', event.target.value)
-                            }
-                            style={styleFor(!!errors.position_id, selectStyle)}
-                        >
-                            <option value="">Pilih jabatan</option>
-                            {options.positions.map((position) => (
-                                <option
-                                    key={position.id}
-                                    value={String(position.id)}
+                                    <input
+                                        id="password"
+                                        type={
+                                            showPassword ? 'text' : 'password'
+                                        }
+                                        autoComplete="new-password"
+                                        value={data.password}
+                                        onChange={(event) =>
+                                            setData(
+                                                'password',
+                                                event.target.value,
+                                            )
+                                        }
+                                        placeholder="Min. 8 karakter"
+                                        style={{
+                                            ...styleFor(
+                                                !!errors.password,
+                                                inputStyle,
+                                            ),
+                                            paddingRight: 40,
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setShowPassword(!showPassword)
+                                        }
+                                        // The field is a control, not a target:
+                                        // tabbing should land on the next input.
+                                        tabIndex={-1}
+                                        title={
+                                            showPassword
+                                                ? 'Sembunyikan password'
+                                                : 'Tampilkan password'
+                                        }
+                                        aria-label={
+                                            showPassword
+                                                ? 'Sembunyikan password'
+                                                : 'Tampilkan password'
+                                        }
+                                        style={{
+                                            position: 'absolute',
+                                            top: 0,
+                                            right: 0,
+                                            height: 42,
+                                            width: 38,
+                                            display: 'grid',
+                                            placeItems: 'center',
+                                            border: 'none',
+                                            background: 'transparent',
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        <AIcon
+                                            name={
+                                                showPassword ? 'eye-off' : 'eye'
+                                            }
+                                            size={16}
+                                            color={C.faint}
+                                        />
+                                    </button>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setData('password', DEFAULT_PASSWORD)
+                                    }
+                                    title={`Isi dengan "${DEFAULT_PASSWORD}"`}
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        flex: 'none',
+                                        height: 42,
+                                        padding: '0 13px',
+                                        borderRadius: 8,
+                                        border: '1px solid rgba(47,84,201,.35)',
+                                        background: 'rgba(47,84,201,.07)',
+                                        color: C.primary,
+                                        fontSize: 12.5,
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        whiteSpace: 'nowrap',
+                                    }}
                                 >
-                                    {position.name}
-                                </option>
-                            ))}
-                        </select>
-                    </Field>
-
-                    <Field
-                        htmlFor="job_level_id"
-                        label="Jenjang Jabatan"
-                        error={errors.job_level_id}
-                    >
-                        <select
-                            id="job_level_id"
-                            value={data.job_level_id}
-                            onChange={(event) =>
-                                setData('job_level_id', event.target.value)
-                            }
-                            style={styleFor(!!errors.job_level_id, selectStyle)}
-                        >
-                            <option value="">Pilih jenjang</option>
-                            {options.jobLevels.map((level) => (
-                                <option key={level.id} value={String(level.id)}>
-                                    {level.name}
-                                </option>
-                            ))}
-                        </select>
-                    </Field>
-
-                    <Field
-                        htmlFor="manager_id"
-                        label="Atasan Langsung"
-                        error={errors.manager_id}
-                    >
-                        <SearchableSelect
-                            value={data.manager_id}
-                            onChange={(value) => setData('manager_id', value)}
-                            options={options.managers.map((manager) => ({
-                                value: String(manager.id),
-                                label: `${manager.name} (${manager.employee_number})`,
-                            }))}
-                            placeholder="Pilih atasan"
-                            searchPlaceholder="Cari nama karyawan…"
-                            allowClear
-                            style={styleFor(!!errors.manager_id, selectStyle)}
-                        />
-                    </Field>
-
-                    {/* Top approver (director): own requests auto-approve since
-                        no manager sits above them. */}
-                    <label
-                        htmlFor="is_top_approver"
-                        style={{
-                            gridColumn: '1/-1',
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            gap: 11,
-                            padding: '13px 15px',
-                            border: `1px solid ${data.is_top_approver ? C.primary : C.border}`,
-                            borderRadius: 10,
-                            background: data.is_top_approver
-                                ? 'rgba(47,84,201,.05)'
-                                : '#fff',
-                            cursor: 'pointer',
-                            transition: '.15s',
-                        }}
-                    >
-                        <input
-                            id="is_top_approver"
-                            type="checkbox"
-                            checked={data.is_top_approver}
-                            onChange={(event) =>
-                                setData('is_top_approver', event.target.checked)
-                            }
-                            style={{
-                                width: 17,
-                                height: 17,
-                                marginTop: 1,
-                                accentColor: C.primary,
-                                cursor: 'pointer',
-                                flex: 'none',
-                            }}
-                        />
-                        <div>
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 7,
-                                    fontSize: 13.5,
-                                    fontWeight: 600,
-                                    color: C.navy,
-                                }}
-                            >
-                                <AIcon
-                                    name="shield-check"
-                                    size={15}
-                                    color={C.primary}
-                                />
-                                Approver Puncak (Direktur / Direksi)
+                                    <AIcon
+                                        name="wand-sparkles"
+                                        size={14}
+                                        color={C.primary}
+                                    />
+                                    Password Default
+                                </button>
                             </div>
                             <div
                                 style={{
                                     fontSize: 12,
                                     color: C.muted,
-                                    marginTop: 3,
-                                    lineHeight: 1.5,
+                                    marginTop: 6,
                                 }}
                             >
-                                Tidak punya atasan di atasnya. Pengajuan
-                                cuti/izin miliknya{' '}
-                                <strong>langsung disetujui</strong> tanpa
-                                menunggu persetujuan atasan.
+                                {hasLogin
+                                    ? 'Kosongkan bila password tidak diganti.'
+                                    : `Kosongkan bila karyawan belum perlu akun mobile. Rekomendasi: ${DEFAULT_PASSWORD} — minta karyawan menggantinya setelah login pertama.`}
                             </div>
-                        </div>
-                    </label>
+                        </Field>
 
-                    <Field
-                        htmlFor="employment_status"
-                        label="Status Kepegawaian"
-                        required
-                        error={errors.employment_status}
-                    >
-                        <select
-                            id="employment_status"
-                            value={data.employment_status}
-                            onChange={(event) =>
-                                setData('employment_status', event.target.value)
-                            }
-                            style={styleFor(
-                                !!errors.employment_status,
-                                selectStyle,
-                            )}
+                        <Field
+                            htmlFor="phone"
+                            label="No. Telepon"
+                            error={errors.phone}
                         >
-                            <option value="">Pilih status</option>
-                            {options.employmentStatuses.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                    {option.label}
-                                </option>
-                            ))}
-                        </select>
-                    </Field>
+                            <input
+                                id="phone"
+                                value={data.phone}
+                                onChange={(event) =>
+                                    setData('phone', event.target.value)
+                                }
+                                placeholder="08xx-xxxx-xxxx"
+                                style={styleFor(!!errors.phone, inputStyle)}
+                            />
+                        </Field>
 
-                    <Field
-                        htmlFor="join_date"
-                        label="Tanggal Masuk"
-                        error={errors.join_date}
-                    >
-                        <DatePicker
-                            value={data.join_date}
-                            onChange={(nextValue) =>
-                                setData('join_date', nextValue)
-                            }
-                            placeholder="Pilih tanggal"
-                            width="100%"
-                        />
-                    </Field>
-
-                    <Field
-                        htmlFor="branch_id"
-                        label="Cabang"
-                        error={errors.branch_id}
-                    >
-                        <select
-                            id="branch_id"
-                            value={data.branch_id}
-                            onChange={(event) => {
-                                setData('branch_id', event.target.value);
-                                // A work location belongs to one branch; drop
-                                // the selection when the branch changes.
-                                setData('work_location_id', '');
-                            }}
-                            style={styleFor(!!errors.branch_id, selectStyle)}
+                        <Field
+                            htmlFor="birth_place"
+                            label="Tempat Lahir"
+                            error={errors.birth_place}
                         >
-                            <option value="">Pilih cabang</option>
-                            {options.branches.map((branch) => (
-                                <option
-                                    key={branch.id}
-                                    value={String(branch.id)}
-                                >
-                                    {branch.name}
-                                </option>
-                            ))}
-                        </select>
-                    </Field>
+                            <input
+                                id="birth_place"
+                                value={data.birth_place}
+                                onChange={(event) =>
+                                    setData('birth_place', event.target.value)
+                                }
+                                placeholder="cth. Jakarta"
+                                style={styleFor(
+                                    !!errors.birth_place,
+                                    inputStyle,
+                                )}
+                            />
+                        </Field>
 
-                    <Field
-                        htmlFor="work_location_id"
-                        label="Lokasi Kerja (Absensi)"
-                        error={errors.work_location_id}
-                    >
-                        <select
-                            id="work_location_id"
-                            value={data.work_location_id}
-                            onChange={(event) =>
-                                setData('work_location_id', event.target.value)
-                            }
-                            style={styleFor(
-                                !!errors.work_location_id,
-                                selectStyle,
-                            )}
+                        <Field
+                            htmlFor="birth_date"
+                            label="Tanggal Lahir"
+                            error={errors.birth_date}
                         >
-                            <option value="">Otomatis (ikut cabang)</option>
-                            {availableWorkLocations.map((location) => (
-                                <option
-                                    key={location.id}
-                                    value={String(location.id)}
-                                >
-                                    {location.name}
-                                </option>
-                            ))}
-                        </select>
-                    </Field>
+                            <DatePicker
+                                value={data.birth_date}
+                                onChange={(nextValue) =>
+                                    setData('birth_date', nextValue)
+                                }
+                                placeholder="Pilih tanggal"
+                                width="100%"
+                            />
+                        </Field>
 
-                    <Field
-                        htmlFor="status"
-                        label="Status Karyawan"
-                        error={errors.status}
-                    >
-                        <select
-                            id="status"
-                            value={data.status}
-                            onChange={(event) =>
-                                setData('status', event.target.value)
-                            }
-                            style={styleFor(!!errors.status, selectStyle)}
+                        <Field
+                            htmlFor="gender"
+                            label="Jenis Kelamin"
+                            error={errors.gender}
                         >
-                            {options.statuses.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                    {option.label}
-                                </option>
-                            ))}
-                        </select>
-                    </Field>
+                            <select
+                                id="gender"
+                                value={data.gender}
+                                onChange={(event) =>
+                                    setData('gender', event.target.value)
+                                }
+                                style={styleFor(!!errors.gender, selectStyle)}
+                            >
+                                <option value="">Pilih jenis kelamin</option>
+                                {options.genders.map((option) => (
+                                    <option
+                                        key={option.value}
+                                        value={option.value}
+                                    >
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </Field>
+
+                        <Field
+                            htmlFor="religion"
+                            label="Agama"
+                            error={errors.religion}
+                        >
+                            <select
+                                id="religion"
+                                value={data.religion}
+                                onChange={(event) =>
+                                    setData('religion', event.target.value)
+                                }
+                                style={styleFor(!!errors.religion, selectStyle)}
+                            >
+                                <option value="">Pilih agama</option>
+                                {RELIGIONS.map((religion) => (
+                                    <option key={religion} value={religion}>
+                                        {religion}
+                                    </option>
+                                ))}
+                            </select>
+                        </Field>
+
+                        <Field
+                            htmlFor="marital_status"
+                            label="Status Pernikahan"
+                            error={errors.marital_status}
+                        >
+                            <input
+                                id="marital_status"
+                                value={data.marital_status}
+                                onChange={(event) =>
+                                    setData(
+                                        'marital_status',
+                                        event.target.value,
+                                    )
+                                }
+                                placeholder="cth. Menikah"
+                                style={styleFor(
+                                    !!errors.marital_status,
+                                    inputStyle,
+                                )}
+                            />
+                        </Field>
+
+                        <Field
+                            htmlFor="address"
+                            label="Alamat Domisili"
+                            fullWidth
+                            error={errors.address}
+                        >
+                            <textarea
+                                id="address"
+                                rows={2}
+                                value={data.address}
+                                onChange={(event) =>
+                                    setData('address', event.target.value)
+                                }
+                                placeholder="Alamat lengkap tempat tinggal"
+                                style={styleFor(!!errors.address, {
+                                    ...inputStyle,
+                                    height: undefined,
+                                    padding: '11px 13px',
+                                    resize: 'vertical',
+                                })}
+                            />
+                        </Field>
+                    </div>
                 </div>
-            </div>
+            )}
+
+            {step === 2 && (
+                <div style={card}>
+                    <SectionHeader
+                        icon="smartphone"
+                        title="Akun Aplikasi Mobile & Hak Akses"
+                        desc={
+                            hasLogin
+                                ? 'Karyawan sudah punya akun login. Isi password untuk reset, atau ganti role untuk mengubah hak aksesnya.'
+                                : 'Isi password untuk membuatkan akun login (pakai email di atas). Role menentukan hak akses menu — pilih agar karyawan langsung mewarisi akses role tersebut.'
+                        }
+                    />
+                    <div className="avn-2col" style={sectionGrid}>
+                        <Field
+                            htmlFor="role_id"
+                            label="Role / Hak Akses"
+                            error={errors.role_id}
+                        >
+                            <select
+                                id="role_id"
+                                value={data.role_id}
+                                onChange={(event) =>
+                                    setData('role_id', event.target.value)
+                                }
+                                style={styleFor(!!errors.role_id, selectStyle)}
+                            >
+                                <option value="">
+                                    {hasLogin
+                                        ? '— Biarkan role saat ini —'
+                                        : '— Role default (Karyawan) —'}
+                                </option>
+                                {options.roles.map((role) => (
+                                    <option
+                                        key={role.id}
+                                        value={String(role.id)}
+                                    >
+                                        {role.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </Field>
+                        {hasLogin ? (
+                            <div
+                                style={{
+                                    gridColumn: '1/-1',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    fontSize: 12.5,
+                                    color: '#059669',
+                                }}
+                            >
+                                <AIcon
+                                    name="badge-check"
+                                    size={16}
+                                    color="#059669"
+                                />
+                                Akun login aktif
+                            </div>
+                        ) : null}
+                    </div>
+                </div>
+            )}
+
+            {step === 1 && (
+                <div style={card}>
+                    <SectionHeader
+                        icon="briefcase"
+                        title="Kepegawaian"
+                        desc="Posisi & detail kontrak kerja."
+                    />
+                    <div className="avn-2col" style={sectionGrid}>
+                        <Field
+                            htmlFor="department_id"
+                            label="Departemen"
+                            error={errors.department_id}
+                        >
+                            <select
+                                id="department_id"
+                                value={data.department_id}
+                                onChange={(event) =>
+                                    setData('department_id', event.target.value)
+                                }
+                                style={styleFor(
+                                    !!errors.department_id,
+                                    selectStyle,
+                                )}
+                            >
+                                <option value="">Pilih departemen</option>
+                                {options.departments.map((department) => (
+                                    <option
+                                        key={department.id}
+                                        value={String(department.id)}
+                                    >
+                                        {department.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </Field>
+
+                        <Field
+                            htmlFor="position_id"
+                            label="Jabatan"
+                            error={errors.position_id}
+                        >
+                            <select
+                                id="position_id"
+                                value={data.position_id}
+                                onChange={(event) =>
+                                    setData('position_id', event.target.value)
+                                }
+                                style={styleFor(
+                                    !!errors.position_id,
+                                    selectStyle,
+                                )}
+                            >
+                                <option value="">Pilih jabatan</option>
+                                {options.positions.map((position) => (
+                                    <option
+                                        key={position.id}
+                                        value={String(position.id)}
+                                    >
+                                        {position.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </Field>
+
+                        <Field
+                            htmlFor="job_level_id"
+                            label="Jenjang Jabatan"
+                            error={errors.job_level_id}
+                        >
+                            <select
+                                id="job_level_id"
+                                value={data.job_level_id}
+                                onChange={(event) =>
+                                    setData('job_level_id', event.target.value)
+                                }
+                                style={styleFor(
+                                    !!errors.job_level_id,
+                                    selectStyle,
+                                )}
+                            >
+                                <option value="">Pilih jenjang</option>
+                                {options.jobLevels.map((level) => (
+                                    <option
+                                        key={level.id}
+                                        value={String(level.id)}
+                                    >
+                                        {level.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </Field>
+
+                        {/* One control decides the reporting line. Picking the
+                        "Tidak ada" entry is what marks an approver puncak —
+                        leaving the field empty just means "not filled in yet",
+                        which is why the two are not the same choice. */}
+                        <Field
+                            htmlFor="manager_id"
+                            label="Atasan Langsung"
+                            required
+                            fullWidth
+                            error={errors.manager_id}
+                        >
+                            <SearchableSelect
+                                value={data.manager_id}
+                                onChange={(value) =>
+                                    setData('manager_id', value)
+                                }
+                                options={[
+                                    {
+                                        value: NO_MANAGER,
+                                        label: 'Tidak ada — Approver Puncak (Direktur / Direksi)',
+                                    },
+                                    ...options.managers.map((manager) => ({
+                                        value: String(manager.id),
+                                        label: `${manager.name} (${manager.employee_number})`,
+                                    })),
+                                ]}
+                                placeholder="Pilih atasan"
+                                searchPlaceholder="Cari nama karyawan…"
+                                style={styleFor(
+                                    !!errors.manager_id,
+                                    selectStyle,
+                                )}
+                            />
+                            {data.manager_id === NO_MANAGER && (
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'flex-start',
+                                        gap: 9,
+                                        marginTop: 9,
+                                        padding: '11px 13px',
+                                        border: '1px solid rgba(220,38,38,.35)',
+                                        background: 'rgba(220,38,38,.06)',
+                                        borderRadius: 9,
+                                    }}
+                                >
+                                    <AIcon
+                                        name="triangle-alert"
+                                        size={15}
+                                        color={C.red}
+                                    />
+                                    <div
+                                        style={{
+                                            fontSize: 12.5,
+                                            color: C.text,
+                                            lineHeight: 1.55,
+                                        }}
+                                    >
+                                        Tanpa atasan, pengajuan cuti, lembur,
+                                        dan reimbursement karyawan ini{' '}
+                                        <strong>langsung disetujui</strong>{' '}
+                                        tanpa diperiksa siapa pun. Pilih ini
+                                        hanya untuk direksi.
+                                    </div>
+                                </div>
+                            )}
+                        </Field>
+
+                        <Field
+                            htmlFor="employment_status"
+                            label="Status Kepegawaian"
+                            required
+                            error={errors.employment_status}
+                        >
+                            <select
+                                id="employment_status"
+                                value={data.employment_status}
+                                onChange={(event) =>
+                                    setData(
+                                        'employment_status',
+                                        event.target.value,
+                                    )
+                                }
+                                style={styleFor(
+                                    !!errors.employment_status,
+                                    selectStyle,
+                                )}
+                            >
+                                <option value="">Pilih status</option>
+                                {options.employmentStatuses.map((option) => (
+                                    <option
+                                        key={option.value}
+                                        value={option.value}
+                                    >
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </Field>
+
+                        <Field
+                            htmlFor="join_date"
+                            label="Tanggal Masuk"
+                            error={errors.join_date}
+                        >
+                            <DatePicker
+                                value={data.join_date}
+                                onChange={(nextValue) =>
+                                    setData('join_date', nextValue)
+                                }
+                                placeholder="Pilih tanggal"
+                                width="100%"
+                            />
+                        </Field>
+
+                        <Field
+                            htmlFor="branch_id"
+                            label="Cabang"
+                            error={errors.branch_id}
+                        >
+                            <select
+                                id="branch_id"
+                                value={data.branch_id}
+                                onChange={(event) => {
+                                    setData('branch_id', event.target.value);
+                                    // A work location belongs to one branch; drop
+                                    // the selection when the branch changes.
+                                    setData('work_location_id', '');
+                                }}
+                                style={styleFor(
+                                    !!errors.branch_id,
+                                    selectStyle,
+                                )}
+                            >
+                                <option value="">Pilih cabang</option>
+                                {options.branches.map((branch) => (
+                                    <option
+                                        key={branch.id}
+                                        value={String(branch.id)}
+                                    >
+                                        {branch.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </Field>
+
+                        <Field
+                            htmlFor="work_location_id"
+                            label="Lokasi Kerja (Absensi)"
+                            error={errors.work_location_id}
+                        >
+                            <select
+                                id="work_location_id"
+                                value={data.work_location_id}
+                                onChange={(event) =>
+                                    setData(
+                                        'work_location_id',
+                                        event.target.value,
+                                    )
+                                }
+                                style={styleFor(
+                                    !!errors.work_location_id,
+                                    selectStyle,
+                                )}
+                            >
+                                <option value="">Otomatis (ikut cabang)</option>
+                                {availableWorkLocations.map((location) => (
+                                    <option
+                                        key={location.id}
+                                        value={String(location.id)}
+                                    >
+                                        {location.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </Field>
+
+                        <Field
+                            htmlFor="status"
+                            label="Status Karyawan"
+                            error={errors.status}
+                        >
+                            <select
+                                id="status"
+                                value={data.status}
+                                onChange={(event) =>
+                                    setData('status', event.target.value)
+                                }
+                                style={styleFor(!!errors.status, selectStyle)}
+                            >
+                                {options.statuses.map((option) => (
+                                    <option
+                                        key={option.value}
+                                        value={option.value}
+                                    >
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </Field>
+                    </div>
+                </div>
+            )}
 
             {/* Data Tambahan (custom fields per tenant) */}
-            {customFields.length > 0 && (
+            {step === 3 && customFields.length > 0 && (
                 <div style={card}>
                     <SectionHeader
                         icon="list-plus"
@@ -762,15 +962,26 @@ export function EmployeeForm({
                                                 </option>
                                             ))}
                                         </select>
+                                    ) : field.type === 'date' ? (
+                                        // Same picker as Tanggal Lahir, so a
+                                        // custom date field does not fall back
+                                        // to the browser's native control.
+                                        <DatePicker
+                                            value={value}
+                                            onChange={(next) =>
+                                                setCustom(field.key, next)
+                                            }
+                                            placeholder="Pilih tanggal"
+                                            hasError={!!error}
+                                            width="100%"
+                                        />
                                     ) : (
                                         <input
                                             id={`cf_${field.key}`}
                                             type={
                                                 field.type === 'number'
                                                     ? 'number'
-                                                    : field.type === 'date'
-                                                      ? 'date'
-                                                      : 'text'
+                                                    : 'text'
                                             }
                                             value={value}
                                             onChange={(event) =>
@@ -830,31 +1041,167 @@ export function EmployeeForm({
                     <AIcon name="x" size={16} />
                     Batal
                 </Link>
-                <button
-                    type="submit"
-                    disabled={processing}
-                    style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        height: 42,
-                        padding: '0 20px',
-                        background: C.primary,
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: 8,
-                        fontSize: 13.5,
-                        fontWeight: 600,
-                        cursor: processing ? 'not-allowed' : 'pointer',
-                        opacity: processing ? 0.7 : 1,
-                        transition: '.15s',
-                    }}
-                >
-                    <AIcon name="save" size={16} color="#fff" />
-                    {submitLabel}
-                </button>
+
+                {step > 0 && (
+                    <button
+                        type="button"
+                        onClick={() => setStep(step - 1)}
+                        style={navButtonStyle('#fff', C.text)}
+                    >
+                        <AIcon name="chevron-left" size={16} color={C.text} />
+                        Kembali
+                    </button>
+                )}
+
+                {step < lastStep ? (
+                    <button
+                        type="button"
+                        onClick={() => setStep(step + 1)}
+                        disabled={!stepComplete(step)}
+                        style={{
+                            ...navButtonStyle(C.primary, '#fff'),
+                            opacity: stepComplete(step) ? 1 : 0.55,
+                            cursor: stepComplete(step)
+                                ? 'pointer'
+                                : 'not-allowed',
+                        }}
+                    >
+                        Lanjut
+                        <AIcon name="chevron-right" size={16} color="#fff" />
+                    </button>
+                ) : (
+                    <button
+                        type="submit"
+                        disabled={processing || !stepComplete(1)}
+                        style={{
+                            ...navButtonStyle(C.green, '#fff'),
+                            opacity: processing || !stepComplete(1) ? 0.6 : 1,
+                            cursor:
+                                processing || !stepComplete(1)
+                                    ? 'not-allowed'
+                                    : 'pointer',
+                        }}
+                    >
+                        <AIcon name="save" size={16} color="#fff" />
+                        {submitLabel}
+                    </button>
+                )}
             </div>
         </form>
+    );
+}
+
+/** Shared shape for the wizard's Kembali / Lanjut / Simpan buttons. */
+function navButtonStyle(background: string, color: string): CSSProperties {
+    return {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 8,
+        height: 42,
+        padding: '0 20px',
+        background,
+        color,
+        border: background === '#fff' ? `1px solid ${C.border}` : 'none',
+        borderRadius: 8,
+        fontSize: 13.5,
+        fontWeight: 600,
+        cursor: 'pointer',
+        transition: '.15s',
+    };
+}
+
+/**
+ * Progress rail above the form. Completed steps stay clickable so the admin can
+ * jump back and fix something without losing what they already typed.
+ */
+function Stepper({
+    steps,
+    current,
+    onJump,
+    complete,
+}: {
+    steps: readonly { title: string; hint: string }[];
+    current: number;
+    onJump: (step: number) => void;
+    complete: (step: number) => boolean;
+}) {
+    return (
+        <div
+            className="avn-2col"
+            style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))`,
+                gap: 10,
+            }}
+        >
+            {steps.map((item, index) => {
+                const active = index === current;
+                const done = index < current && complete(index);
+
+                return (
+                    <button
+                        key={item.title}
+                        type="button"
+                        onClick={() => index <= current && onJump(index)}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            padding: '12px 14px',
+                            textAlign: 'left',
+                            border: `1px solid ${active ? C.primary : C.line}`,
+                            borderRadius: 10,
+                            background: active ? '#F5F7FF' : '#fff',
+                            cursor: index <= current ? 'pointer' : 'default',
+                            transition: '.15s',
+                        }}
+                    >
+                        <span
+                            style={{
+                                display: 'grid',
+                                placeItems: 'center',
+                                width: 26,
+                                height: 26,
+                                flex: 'none',
+                                borderRadius: '50%',
+                                fontSize: 12.5,
+                                fontWeight: 700,
+                                background: done
+                                    ? C.green
+                                    : active
+                                      ? C.primary
+                                      : C.surface,
+                                color: done || active ? '#fff' : C.faint,
+                            }}
+                        >
+                            {done ? '✓' : index + 1}
+                        </span>
+                        <span style={{ minWidth: 0 }}>
+                            <span
+                                style={{
+                                    display: 'block',
+                                    fontSize: 13.5,
+                                    fontWeight: 600,
+                                    color: active ? C.navy : C.text,
+                                }}
+                            >
+                                {item.title}
+                            </span>
+                            <span
+                                style={{
+                                    display: 'block',
+                                    fontSize: 11.5,
+                                    color: C.faint,
+                                    marginTop: 2,
+                                }}
+                            >
+                                {item.hint}
+                            </span>
+                        </span>
+                    </button>
+                );
+            })}
+        </div>
     );
 }
 
