@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\AiTokenService;
 use App\Services\AiToolkit;
 use App\Support\AiPersona;
+use App\Support\GeneratedImageBag;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -267,6 +268,16 @@ class AiAssistantController extends Controller
                     $full .= $note;
                     $emit($note);
                 }
+            }
+
+            // Anything the assistant drew is appended by us, not by the model:
+            // a streamed reply is plain text, and asking a model to echo a long
+            // URL verbatim is unreliable. See GeneratedImageBag.
+            $drawn = app(GeneratedImageBag::class)->toMarkdown();
+
+            if ($drawn !== '') {
+                $full .= $drawn;
+                $emit($drawn);
             }
 
             $totalTokens = $promptTokens !== null || $completionTokens !== null

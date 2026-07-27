@@ -95,3 +95,53 @@ it('reports readiness based on the configured key', function (): void {
     $settings->update(['provider' => 'ollama', 'api_key' => null]);
     expect($settings->fresh()->isReady())->toBeTrue();
 });
+
+it('saves the image generation settings', function (): void {
+    actingAs($this->superAdmin)
+        ->post(route('avana.ai-settings.update'), [
+            'provider' => 'openai',
+            'api_key' => 'sk-live',
+            'is_enabled' => true,
+            'image_enabled' => true,
+            'image_model' => 'gpt-image-1',
+            'image_token_cost' => 3000,
+        ])
+        ->assertSessionHas('success');
+
+    $settings = AiSetting::current();
+
+    expect($settings->image_enabled)->toBeTrue()
+        ->and($settings->image_model)->toBe('gpt-image-1')
+        ->and($settings->image_token_cost)->toBe(3000);
+
+    expect($settings->resolvedImage())->toMatchArray([
+        'provider' => 'openai',
+        'model' => 'gpt-image-1',
+        'token_cost' => 3000,
+    ]);
+});
+
+it('cannot draw with a provider that has no image support', function (): void {
+    $settings = AiSetting::current();
+    $settings->update([
+        'provider' => 'anthropic',
+        'api_key' => 'sk-live',
+        'is_enabled' => true,
+        'image_enabled' => true,
+    ]);
+
+    expect($settings->fresh()->resolvedImage())->toBeNull();
+});
+
+it('falls back to the default image model when none is chosen', function (): void {
+    $settings = AiSetting::current();
+    $settings->update([
+        'provider' => 'openai',
+        'api_key' => 'sk-live',
+        'is_enabled' => true,
+        'image_enabled' => true,
+        'image_model' => null,
+    ]);
+
+    expect($settings->fresh()->resolvedImage()['model'])->toBe('gpt-image-1');
+});

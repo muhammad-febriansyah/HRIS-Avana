@@ -12,12 +12,17 @@ interface Settings {
     has_key: boolean;
     key_preview: string | null;
     is_ready: boolean;
+    image_enabled: boolean;
+    image_model: string;
+    image_token_cost: number;
+    can_generate_images: boolean;
 }
 
 interface PageProps {
     settings: Settings;
     providers: Record<string, string>;
     suggestedModels: Record<string, string[]>;
+    imageModels: Record<string, string[]>;
 }
 
 interface FlashProps {
@@ -54,6 +59,7 @@ export default function AiSettings({
     settings,
     providers,
     suggestedModels,
+    imageModels,
 }: PageProps) {
     const { flash } = usePage<FlashProps>().props;
 
@@ -62,11 +68,17 @@ export default function AiSettings({
         model: string;
         api_key: string;
         is_enabled: boolean;
+        image_enabled: boolean;
+        image_model: string;
+        image_token_cost: number;
     }>({
         provider: settings.provider,
         model: settings.model ?? '',
         api_key: '',
         is_enabled: settings.is_enabled,
+        image_enabled: settings.image_enabled,
+        image_model: settings.image_model ?? '',
+        image_token_cost: settings.image_token_cost,
     });
 
     useEffect(() => {
@@ -85,6 +97,11 @@ export default function AiSettings({
 
     const isOllama = form.data.provider === 'ollama';
     const suggestions = suggestedModels[form.data.provider] ?? [];
+
+    // Only two providers can draw. Saying so beats a switch that silently does
+    // nothing after it is turned on.
+    const imageSuggestions = imageModels[form.data.provider] ?? [];
+    const providerCanDraw = imageSuggestions.length > 0;
 
     return (
         <>
@@ -282,6 +299,127 @@ export default function AiSettings({
                         />
                         Aktifkan AI Assistant
                     </label>
+
+                    <div
+                        style={{
+                            borderTop: `1px solid ${C.border}`,
+                            paddingTop: 20,
+                            marginBottom: 22,
+                        }}
+                    >
+                        <div
+                            style={{
+                                fontSize: 14,
+                                fontWeight: 600,
+                                color: C.navy,
+                                marginBottom: 4,
+                            }}
+                        >
+                            Pembuatan Gambar
+                        </div>
+                        <p style={{ ...hint, marginTop: 0, marginBottom: 14 }}>
+                            {providerCanDraw
+                                ? 'Asisten dapat menggambar bila diminta. Biayanya dipotong dari dompet token yang sama dengan chat.'
+                                : `${providers[form.data.provider]} belum mendukung pembuatan gambar. Pilih OpenAI atau Google Gemini.`}
+                        </p>
+
+                        <label
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 10,
+                                fontSize: 14,
+                                color: providerCanDraw ? C.text : C.faint,
+                                cursor: providerCanDraw
+                                    ? 'pointer'
+                                    : 'not-allowed',
+                                marginBottom: 16,
+                            }}
+                        >
+                            <input
+                                type="checkbox"
+                                disabled={!providerCanDraw}
+                                checked={form.data.image_enabled}
+                                onChange={(e) =>
+                                    form.setData(
+                                        'image_enabled',
+                                        e.target.checked,
+                                    )
+                                }
+                            />
+                            Izinkan asisten membuat gambar
+                        </label>
+
+                        {providerCanDraw && form.data.image_enabled && (
+                            <div
+                                style={{
+                                    display: 'grid',
+                                    gridTemplateColumns:
+                                        'repeat(auto-fit, minmax(220px, 1fr))',
+                                    gap: 16,
+                                }}
+                            >
+                                <div>
+                                    <label style={label} htmlFor="image_model">
+                                        Model Gambar
+                                    </label>
+                                    <input
+                                        id="image_model"
+                                        list="image-model-suggestions"
+                                        style={input}
+                                        placeholder={imageSuggestions[0]}
+                                        value={form.data.image_model}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'image_model',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                    <datalist id="image-model-suggestions">
+                                        {imageSuggestions.map((m) => (
+                                            <option key={m} value={m} />
+                                        ))}
+                                    </datalist>
+                                    <p style={hint}>
+                                        Kosongkan untuk memakai{' '}
+                                        {imageSuggestions[0]}.
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <label
+                                        style={label}
+                                        htmlFor="image_token_cost"
+                                    >
+                                        Biaya per Gambar (token)
+                                    </label>
+                                    <input
+                                        id="image_token_cost"
+                                        type="number"
+                                        min={0}
+                                        style={input}
+                                        value={form.data.image_token_cost}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'image_token_cost',
+                                                Number(e.target.value),
+                                            )
+                                        }
+                                    />
+                                    <p style={hint}>
+                                        Penyedia menagih per gambar, bukan per
+                                        token, jadi harganya dikonversi di sini.
+                                    </p>
+                                    {form.errors.image_token_cost && (
+                                        <p style={{ ...hint, color: C.red }}>
+                                            {form.errors.image_token_cost}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
 
                     <button
                         type="submit"

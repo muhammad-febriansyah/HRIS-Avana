@@ -117,7 +117,18 @@ function linkifyCitations(html: string, citations: SopCitation[]): string {
     }, html);
 }
 
-/** Minimal markdown → HTML for bold, inline code, and line breaks. */
+/**
+ * Images the assistant drew, as `![alt](url)`.
+ *
+ * Only our own `/storage/ai-images/` path is accepted, and only its path is
+ * kept — the host, if the model wrote one, is dropped so the browser resolves
+ * it against this origin. A reply is model-controlled text, so a permissive
+ * pattern here would let it embed anything from anywhere.
+ */
+const AI_IMAGE =
+    /!\[([^\]]*)\]\((?:https?:\/\/[^/)\s]+)?(\/storage\/ai-images\/[A-Za-z0-9/_.-]+)\)/g;
+
+/** Minimal markdown → HTML for bold, inline code, images, and line breaks. */
 function renderMarkdown(text: string, citations: SopCitation[] = []): string {
     const escaped = text
         .replace(/&/g, '&amp;')
@@ -125,6 +136,11 @@ function renderMarkdown(text: string, citations: SopCitation[] = []): string {
         .replace(/>/g, '&gt;');
 
     return linkifyCitations(escaped, citations)
+        .replace(
+            AI_IMAGE,
+            (_match, alt: string, path: string) =>
+                `<img src="${path}" alt="${alt}" loading="lazy" style="display:block;width:100%;max-width:420px;height:auto;border-radius:10px;margin:10px 0" />`,
+        )
         .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
         .replace(
             /`([^`]+)`/g,

@@ -26,6 +26,7 @@ use App\Observers\RequestDecisionObserver;
 use App\Observers\SubscriptionObserver;
 use App\Observers\TenantObserver;
 use App\Policies\PayrollPolicy;
+use App\Support\GeneratedImageBag;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -41,7 +42,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // One bag per request: the AI tool that draws writes into it and the
+        // chat controller reads it back after the stream, so it must never be
+        // shared between two users' requests.
+        $this->app->scoped(GeneratedImageBag::class);
     }
 
     /**

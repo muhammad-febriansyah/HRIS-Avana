@@ -142,14 +142,18 @@ final class AiTokenService
     /**
      * Record consumption: log the ledger debit and draw the overflow (beyond the
      * free monthly quota) from the permanent wallet. Locked to avoid races.
+     *
+     * `$source` only labels the ledger row — every kind of usage draws on the
+     * same quota and the same wallet, so a picture and a paragraph compete for
+     * one balance and one per-user cap.
      */
-    public function debit(User $user, int $tokens): void
+    public function debit(User $user, int $tokens, string $source = 'chat'): void
     {
         if ($tokens <= 0 || $user->tenant_id === null) {
             return;
         }
 
-        DB::transaction(function () use ($user, $tokens): void {
+        DB::transaction(function () use ($user, $tokens, $source): void {
             $tenant = Tenant::query()->whereKey($user->tenant_id)->lockForUpdate()->first();
 
             if ($tenant === null) {
@@ -168,7 +172,7 @@ final class AiTokenService
                 'tenant_id' => $tenant->id,
                 'user_id' => $user->id,
                 'type' => AiTokenLedger::TYPE_DEBIT,
-                'source' => 'chat',
+                'source' => $source,
                 'tokens' => $tokens,
                 'wallet_delta' => -$applied,
                 'balance_after' => (int) $tenant->ai_token_balance,

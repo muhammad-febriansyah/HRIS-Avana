@@ -44,6 +44,18 @@ final class AiSetting extends Model
     ];
 
     /**
+     * Providers that can generate images. Prism ships an image handler for
+     * these two only; picking any other provider leaves the assistant
+     * text-only no matter what is configured here.
+     *
+     * @var array<string, list<string>>
+     */
+    public const IMAGE_MODELS = [
+        'openai' => ['gpt-image-1', 'dall-e-3'],
+        'gemini' => ['imagen-3.0-generate-002', 'gemini-2.0-flash-preview-image-generation'],
+    ];
+
+    /**
      * Default model used when a provider has no explicit model configured.
      */
     private const DEFAULT_MODEL = 'gpt-4o-mini';
@@ -53,6 +65,8 @@ final class AiSetting extends Model
         return [
             'api_key' => 'encrypted',
             'is_enabled' => 'boolean',
+            'image_enabled' => 'boolean',
+            'image_token_cost' => 'integer',
         ];
     }
 
@@ -82,6 +96,32 @@ final class AiSetting extends Model
             'model' => $model,
             'api_key' => $apiKey,
             'enabled' => (bool) $this->is_enabled,
+        ];
+    }
+
+    /**
+     * Image generation settings, or null when the assistant cannot draw:
+     * switched off, chat itself not ready, or a provider Prism has no image
+     * handler for.
+     *
+     * @return array{provider: string, model: string, token_cost: int}|null
+     */
+    public function resolvedImage(): ?array
+    {
+        if (! $this->image_enabled || ! $this->isReady()) {
+            return null;
+        }
+
+        $provider = $this->resolved()['provider'];
+
+        if (! array_key_exists($provider, self::IMAGE_MODELS)) {
+            return null;
+        }
+
+        return [
+            'provider' => $provider,
+            'model' => (string) ($this->image_model ?: self::IMAGE_MODELS[$provider][0]),
+            'token_cost' => max(0, (int) $this->image_token_cost),
         ];
     }
 

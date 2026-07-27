@@ -37,9 +37,14 @@ class AiSettingController extends Controller
                 'has_key' => $settings->api_key !== null && $settings->api_key !== '',
                 'key_preview' => $settings->keyPreview(),
                 'is_ready' => $settings->isReady(),
+                'image_enabled' => (bool) $settings->image_enabled,
+                'image_model' => $settings->image_model ?? '',
+                'image_token_cost' => (int) $settings->image_token_cost,
+                'can_generate_images' => $settings->resolvedImage() !== null,
             ],
             'providers' => AiSetting::PROVIDERS,
             'suggestedModels' => AiSetting::SUGGESTED_MODELS,
+            'imageModels' => AiSetting::IMAGE_MODELS,
         ]);
     }
 
@@ -56,13 +61,23 @@ class AiSettingController extends Controller
             'model' => ['nullable', 'string', 'max:120'],
             'api_key' => ['nullable', 'string', 'max:255'],
             'is_enabled' => ['boolean'],
+            'image_enabled' => ['boolean'],
+            'image_model' => ['nullable', 'string', 'max:120'],
+            // Images are billed from the same wallet as chat, priced in tokens.
+            'image_token_cost' => ['nullable', 'integer', 'min:0', 'max:1000000'],
         ]);
 
         $settings = AiSetting::current();
 
         $settings->provider = $validated['provider'];
-        $settings->model = $validated['model'] ?: null;
+        $settings->model = ($validated['model'] ?? null) ?: null;
         $settings->is_enabled = (bool) ($validated['is_enabled'] ?? true);
+        $settings->image_enabled = (bool) ($validated['image_enabled'] ?? false);
+        $settings->image_model = ($validated['image_model'] ?? null) ?: null;
+
+        if (isset($validated['image_token_cost'])) {
+            $settings->image_token_cost = (int) $validated['image_token_cost'];
+        }
 
         // Only overwrite the stored key when a new one is actually supplied.
         if (! empty($validated['api_key'])) {

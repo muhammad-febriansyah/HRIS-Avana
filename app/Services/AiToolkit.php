@@ -20,8 +20,10 @@ use App\Models\Sop;
 use App\Models\User;
 use App\Models\WfhRequest;
 use App\Support\AvanaNav;
+use App\Support\GeneratedImageBag;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Prism\Prism\Tool;
 
 /**
@@ -67,6 +69,13 @@ final class AiToolkit
         // documents the caller may be shown.
         $tools[] = $this->daftarSopTool();
         $tools[] = $this->bacaSopTool();
+
+        // Only offered when a super admin has turned image generation on and
+        // picked a provider that can actually draw. Registering it otherwise
+        // would let the model promise a picture it cannot produce.
+        if (app(AiImageGenerator::class)->isAvailable()) {
+            $tools[] = $this->buatGambarTool();
+        }
 
         if ($this->can('employee.view')) {
             $tools[] = $this->cariKaryawanTool();
@@ -406,6 +415,47 @@ final class AiToolkit
         }
 
         return $query;
+    }
+
+    /**
+     * Draw a picture. The image is billed to the same token wallet as chat, so
+     * a tenant that has run dry gets the same refusal here as anywhere else.
+     */
+    private function buatGambarTool(): Tool
+    {
+        return (new Tool)
+            ->as('buat_gambar')
+            ->for('Buat/gambar sebuah gambar atau ilustrasi dari deskripsi teks. Panggil ini bila pengguna minta dibuatkan gambar, ilustrasi, poster, logo, atau desain. Gambar otomatis ditampilkan ke pengguna, jadi cukup jelaskan singkat apa yang dibuat — jangan menulis ulang tautannya.')
+            ->withStringParameter('deskripsi', 'Deskripsi gambar yang diinginkan, sedetail mungkin, dalam bahasa Indonesia atau Inggris.')
+            ->using(function (string $deskripsi): string {
+                $deskripsi = trim($deskripsi);
+
+                if ($deskripsi === '') {
+                    return 'Deskripsi gambar masih kosong. Tanyakan pengguna ingin gambar seperti apa.';
+                }
+
+                try {
+                    $image = app(AiImageGenerator::class)->generate($this->user, $deskripsi);
+                } catch (\Throwable $e) {
+                    // The provider's own words never reach a tenant's staff —
+                    // a billing or moderation message is not theirs to read.
+                    Log::error('AI image generation failed', [
+                        'tenant_id' => $this->user->tenant_id,
+                        'user_id' => $this->user->id,
+                        'message' => $e->getMessage(),
+                    ]);
+
+                    return 'Gambar gagal dibuat karena kendala sistem. Sampaikan permintaan maaf singkat dan tawarkan mencoba lagi.';
+                }
+
+                app(GeneratedImageBag::class)->push($image['url'], $image['prompt']);
+
+                return sprintf(
+                    'Gambar berhasil dibuat dan sudah ditampilkan kepada pengguna. Isi gambar: %s. '
+                    .'Jawab singkat saja, jangan menyertakan tautan atau markdown gambar.',
+                    $image['prompt'],
+                );
+            });
     }
 
     private function daftarSopTool(): Tool

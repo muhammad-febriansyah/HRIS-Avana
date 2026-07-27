@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\AiTokenService;
 use App\Services\AiToolkit;
 use App\Support\AiPersona;
+use App\Support\GeneratedImageBag;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -219,8 +220,12 @@ class AiAssistantController extends Controller
 
             $response = $pending->asText();
 
+            // Appended by us rather than by the model — see the web controller
+            // and GeneratedImageBag. The mobile chat renders the same markdown.
+            $text = $response->text.app(GeneratedImageBag::class)->toMarkdown();
+
             return [
-                $response->text,
+                $text,
                 $response->usage->promptTokens,
                 $response->usage->completionTokens,
                 $model,
