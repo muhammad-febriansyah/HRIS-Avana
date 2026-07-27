@@ -233,10 +233,21 @@ class SocialController extends Controller
         $this->ensureSameTenant($post->tenant_id, $employee);
 
         $data = $post->comments()
-            ->with('employee:id,full_name,photo_path')
+            ->topLevel()
+            ->with([
+                'employee:id,full_name,photo_path',
+                'replies' => fn ($query) => $query->with('employee:id,full_name,photo_path')->orderBy('id'),
+            ])
             ->orderBy('id')
             ->get()
-            ->map(fn (SocialPostComment $comment): array => $this->transformComment($comment, $employee));
+            ->map(function (SocialPostComment $comment) use ($employee): array {
+                $row = $this->transformComment($comment, $employee);
+                $row['replies'] = $comment->replies
+                    ->map(fn (SocialPostComment $reply): array => $this->transformComment($reply, $employee))
+                    ->all();
+
+                return $row;
+            });
 
         return response()->json(['data' => $data]);
     }
@@ -248,16 +259,30 @@ class SocialController extends Controller
         $this->ensureSameTenant($post->tenant_id, $employee);
         abort_if($post->status !== SocialPost::STATUS_PUBLISHED, 404);
 
-        $data = $request->validate(
-            ['body' => ['required', 'string', 'max:500']],
-            ['body.required' => 'Komentar tidak boleh kosong.'],
-        );
+        $data = $request->validate([
+            'body' => ['required', 'string', 'max:500'],
+            'parent_id' => [
+                'nullable',
+                'integer',
+                // Scoped to this post: a parent from another post would graft
+                // the thread onto the wrong conversation.
+                Rule::exists('social_post_comments', 'id')
+                    ->where('social_post_id', $post->id)
+                    ->whereNull('deleted_at'),
+            ],
+        ], [
+            'body.required' => 'Komentar tidak boleh kosong.',
+        ]);
 
-        $comment = app(SocialWall::class)->comment($post, $employee, $data['body']);
+        $parent = isset($data['parent_id'])
+            ? SocialPostComment::find($data['parent_id'])
+            : null;
+
+        $comment = app(SocialWall::class)->comment($post, $employee, $data['body'], $parent);
         $comment->load('employee:id,full_name,photo_path');
 
         return response()->json([
-            'message' => 'Komentar terkirim',
+            'message' => $parent === null ? 'Komentar terkirim' : 'Balasan terkirim',
             'data' => $this->transformComment($comment, $employee),
         ], 201);
     }
@@ -401,6 +426,7 @@ class SocialController extends Controller
                 ? Storage::disk('public')->url($comment->employee->photo_path)
                 : null,
             'is_mine' => (int) $comment->employee_id === (int) $viewer->id,
+            'parent_id' => $comment->parent_id,
             'created_at' => $comment->created_at?->toDateTimeString(),
         ];
     }

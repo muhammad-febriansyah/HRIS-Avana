@@ -65,17 +65,30 @@ final class SocialWall
         });
     }
 
-    public function comment(SocialPost $post, Employee $employee, string $body): SocialPostComment
-    {
-        return DB::transaction(function () use ($post, $employee, $body): SocialPostComment {
+    public function comment(
+        SocialPost $post,
+        Employee $employee,
+        string $body,
+        ?SocialPostComment $parent = null,
+    ): SocialPostComment {
+        return DB::transaction(function () use ($post, $employee, $body, $parent): SocialPostComment {
+            // One level only: replying to a reply lands under the same
+            // top-level comment, so a thread never nests off the screen.
+            $parentId = $parent?->parent_id ?? $parent?->id;
+
             $comment = SocialPostComment::create([
                 'social_post_id' => $post->id,
+                'parent_id' => $parentId,
                 'employee_id' => $employee->id,
                 'tenant_id' => $post->tenant_id,
                 'body' => $body,
             ]);
 
             $post->increment('comments_count');
+
+            if ($parent !== null) {
+                Notifier::socialCommentReplied($parent, $employee, $post);
+            }
 
             Notifier::socialPostCommented($post, $employee);
 

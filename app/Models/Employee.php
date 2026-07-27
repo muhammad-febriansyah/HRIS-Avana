@@ -144,4 +144,13 @@ final class Employee extends Model
     {
         return $this->hasOne(TaxProfile::class);
     }
+
+    /**
+     * Likes this employee has given, used to mark the feed without a query per
+     * post.
+     */
+    public function socialLikes(): HasMany
+    {
+        return $this->hasMany(SocialPostLike::class);
+    }
 }

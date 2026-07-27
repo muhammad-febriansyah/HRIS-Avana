@@ -63,6 +63,7 @@ final class AvanaNav
                 self::leaf('saya-slip', 'Slip Gaji Saya', 'receipt', '/avana/saya/slip-gaji', 'ess', ['own']),
                 self::leaf('saya-dokumen', 'Dokumen Saya', 'folder', '/avana/saya/dokumen', 'ess', ['own']),
                 self::leaf('saya-sop', 'SOP Perusahaan', 'book-open', '/avana/saya/sop', 'sop', ['own']),
+                self::leaf('saya-sosmed', 'Sosmed', 'message-circle', '/avana/saya/sosmed', 'social', ['own']),
                 self::leaf('saya-onboarding', 'Onboarding Saya', 'clipboard-check', '/avana/saya/onboarding', 'ess', ['own']),
             ]],
             ['title' => 'MANAJEMEN', 'items' => [

@@ -51,31 +51,37 @@ final class SocialPost extends Model
         return $query->where('status', self::STATUS_PUBLISHED);
     }
 
+    /** @return BelongsTo<Tenant, $this> */
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);
     }
 
+    /** @return BelongsTo<SocialCategory, $this> */
     public function category(): BelongsTo
     {
         return $this->belongsTo(SocialCategory::class, 'social_category_id');
     }
 
+    /** @return BelongsTo<Employee, $this> */
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
     }
 
+    /** @return HasMany<SocialPostLike, $this> */
     public function likes(): HasMany
     {
         return $this->hasMany(SocialPostLike::class);
     }
 
+    /** @return HasMany<SocialPostComment, $this> */
     public function comments(): HasMany
     {
         return $this->hasMany(SocialPostComment::class);
     }
 
+    /** @return HasMany<SocialPostReport, $this> */
     public function reports(): HasMany
     {
         return $this->hasMany(SocialPostReport::class);

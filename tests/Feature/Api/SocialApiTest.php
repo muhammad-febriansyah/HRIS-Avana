@@ -395,3 +395,110 @@ it('serves a single post for the detail screen but not a hidden one', function (
         ->getJson('/api/v1/me/social/posts/'.$post->id)
         ->assertNotFound();
 });
+
+it('nests a reply under the comment it answers', function (): void {
+    $post = SocialPost::factory()->create([
+        'tenant_id' => $this->tenantId,
+        'employee_id' => $this->employee->id,
+    ]);
+
+    $parentId = ($this->auth)($this->token)
+        ->postJson('/api/v1/me/social/posts/'.$post->id.'/comments', ['body' => 'Komentar utama'])
+        ->assertCreated()
+        ->json('data.id');
+
+    ($this->auth)($this->token)
+        ->postJson('/api/v1/me/social/posts/'.$post->id.'/comments', [
+            'body' => 'Balasan untuk Yoga',
+            'parent_id' => $parentId,
+        ])
+        ->assertCreated()
+        ->assertJsonPath('message', 'Balasan terkirim')
+        ->assertJsonPath('data.parent_id', $parentId);
+
+    $response = ($this->auth)($this->token)
+        ->getJson('/api/v1/me/social/posts/'.$post->id.'/comments')
+        ->assertOk()
+        // The reply hangs off its parent, not beside it.
+        ->assertJsonCount(1, 'data')
+        ->assertJsonCount(1, 'data.0.replies');
+
+    expect($response->json('data.0.replies.0.body'))->toBe('Balasan untuk Yoga')
+        // Both still count towards the post's comment tally.
+        ->and($post->refresh()->comments_count)->toBe(2);
+});
+
+it('keeps threads one level deep', function (): void {
+    $post = SocialPost::factory()->create([
+        'tenant_id' => $this->tenantId,
+        'employee_id' => $this->employee->id,
+    ]);
+
+    $parentId = ($this->auth)($this->token)
+        ->postJson('/api/v1/me/social/posts/'.$post->id.'/comments', ['body' => 'Induk'])
+        ->json('data.id');
+
+    $replyId = ($this->auth)($this->token)
+        ->postJson('/api/v1/me/social/posts/'.$post->id.'/comments', [
+            'body' => 'Balasan',
+            'parent_id' => $parentId,
+        ])
+        ->json('data.id');
+
+    // Replying to a reply lands beside it, under the same parent — otherwise a
+    // thread marches off the right edge of a phone.
+    ($this->auth)($this->token)
+        ->postJson('/api/v1/me/social/posts/'.$post->id.'/comments', [
+            'body' => 'Balasan atas balasan',
+            'parent_id' => $replyId,
+        ])
+        ->assertCreated()
+        ->assertJsonPath('data.parent_id', $parentId);
+
+    ($this->auth)($this->token)
+        ->getJson('/api/v1/me/social/posts/'.$post->id.'/comments')
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonCount(2, 'data.0.replies');
+});
+
+it('refuses a parent comment from a different post', function (): void {
+    $postA = SocialPost::factory()->create([
+        'tenant_id' => $this->tenantId,
+        'employee_id' => $this->employee->id,
+    ]);
+
+    $postB = SocialPost::factory()->create([
+        'tenant_id' => $this->tenantId,
+        'employee_id' => $this->employee->id,
+    ]);
+
+    $foreignParentId = ($this->auth)($this->token)
+        ->postJson('/api/v1/me/social/posts/'.$postA->id.'/comments', ['body' => 'Di post A'])
+        ->json('data.id');
+
+    ($this->auth)($this->token)
+        ->postJson('/api/v1/me/social/posts/'.$postB->id.'/comments', [
+            'body' => 'Nyasar',
+            'parent_id' => $foreignParentId,
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('parent_id');
+});
+
+it('stores emoji intact, including ZWJ sequences and skin tones', function (): void {
+    $body = 'Ide bagus 🎉🔥 tim: 👨‍👩‍👧‍👦 bendera: 🇮🇩 jempol: 👍🏽';
+
+    $id = ($this->auth)($this->token)
+        ->postJson('/api/v1/me/social/posts', ['body' => $body])
+        ->assertCreated()
+        ->json('data.id');
+
+    // utf8mb4 end to end — a 3-byte utf8 column would mangle these.
+    expect(SocialPost::findOrFail($id)->body)->toBe($body);
+
+    ($this->auth)($this->token)
+        ->postJson('/api/v1/me/social/posts/'.$id.'/comments', ['body' => 'Setuju 👏🏼✨'])
+        ->assertCreated()
+        ->assertJsonPath('data.body', 'Setuju 👏🏼✨');
+});

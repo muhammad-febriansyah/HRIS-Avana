@@ -47,6 +47,7 @@ use App\Http\Controllers\Avana\EssPerformanceController;
 use App\Http\Controllers\Avana\EssPermissionController;
 use App\Http\Controllers\Avana\EssProfileController;
 use App\Http\Controllers\Avana\EssScheduleController;
+use App\Http\Controllers\Avana\EssSocialController;
 use App\Http\Controllers\Avana\EssSopController;
 use App\Http\Controllers\Avana\EssTaskController;
 use App\Http\Controllers\Avana\EssTravelController;
@@ -810,6 +811,17 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
 
         Route::get('sop', [EssSopController::class, 'index'])->name('sop');
         Route::get('sop/{sop}/unduh', [EssSopController::class, 'download'])->name('sop.download');
+
+        // Employee social wall — the desktop half of the app's "Sosmed" tab.
+        // Distinct from /avana/sosmed, which is HR's moderation screen.
+        Route::get('sosmed', [EssSocialController::class, 'index'])->name('sosmed');
+        Route::post('sosmed', [EssSocialController::class, 'store'])->name('sosmed.store');
+        Route::delete('sosmed/{post}', [EssSocialController::class, 'destroy'])->name('sosmed.destroy');
+        Route::post('sosmed/{post}/suka', [EssSocialController::class, 'toggleLike'])->name('sosmed.like');
+        Route::get('sosmed/{post}/komentar', [EssSocialController::class, 'comments'])->name('sosmed.comments');
+        Route::post('sosmed/{post}/komentar', [EssSocialController::class, 'storeComment'])->name('sosmed.comment.store');
+        Route::delete('sosmed/komentar/{comment}', [EssSocialController::class, 'destroyComment'])->name('sosmed.comment.destroy');
+        Route::post('sosmed/{post}/lapor', [EssSocialController::class, 'report'])->name('sosmed.report');
 
         Route::get('onboarding', [EssOnboardingController::class, 'index'])->name('onboarding');
         Route::patch('onboarding/tugas/{task}', [EssOnboardingController::class, 'toggleTask'])->name('onboarding.task');

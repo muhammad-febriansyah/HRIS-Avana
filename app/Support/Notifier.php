@@ -17,6 +17,7 @@ use App\Models\PayrollRunItem;
 use App\Models\PermissionRequest;
 use App\Models\Reimbursement;
 use App\Models\SocialPost;
+use App\Models\SocialPostComment;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
@@ -221,6 +222,51 @@ final class Notifier
         app(FcmService::class)->pushToUsers(
             [$userId],
             'Komentar baru',
+            $body,
+            ['type' => 'social_post', 'id' => $post->id],
+        );
+    }
+
+    /**
+     * Tell the author of a comment that someone replied to it.
+     *
+     * Skipped when they replied to themselves, and when they are also the post
+     * author — that case already gets the "commented on your post" notice, and
+     * two notifications for one reply is noise.
+     */
+    public static function socialCommentReplied(
+        SocialPostComment $parent,
+        Employee $replier,
+        SocialPost $post,
+    ): void {
+        if ((int) $parent->employee_id === (int) $replier->id) {
+            return;
+        }
+
+        if ((int) $parent->employee_id === (int) $post->employee_id) {
+            return;
+        }
+
+        $userId = self::userIdFor($parent->employee_id);
+
+        if ($userId === null) {
+            return;
+        }
+
+        $body = $replier->full_name.' membalas komentar kamu';
+
+        self::insertMany([[
+            'tenant_id' => $post->tenant_id,
+            'user_id' => $userId,
+            'type' => 'social',
+            'title' => 'Balasan baru',
+            'body' => $body,
+            'data' => ['link' => ['type' => 'social_post', 'id' => $post->id]],
+        ]]);
+
+        app(FcmService::class)->pushToUsers(
+            [$userId],
+            'Balasan baru',
             $body,
             ['type' => 'social_post', 'id' => $post->id],
         );
