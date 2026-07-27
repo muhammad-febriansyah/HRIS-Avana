@@ -6,10 +6,29 @@ import AuthLayout from '@/layouts/auth-layout';
 import AvanaLayout from '@/layouts/avana-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 
-const appName = import.meta.env.VITE_APP_NAME || 'AvanaHR';
+const platformName = import.meta.env.VITE_APP_NAME || 'AvanaHR';
+
+/**
+ * What the browser tab is suffixed with.
+ *
+ * A tenant's staff see their own company, not ours — the product is
+ * white-labelled everywhere else (logo, colours), and the tab should follow.
+ * Only the platform side, which belongs to no tenant, keeps "AvanaHR".
+ */
+interface TenantAuth {
+    tenant?: { name?: string; company_name?: string | null } | null;
+}
 
 createInertiaApp({
-    title: (title) => (title ? `${title} - ${appName}` : appName),
+    // Inertia hands the current page to the title callback, so the suffix is
+    // derived per render — correct during SSR and after every visit alike,
+    // including a super admin stepping into or out of a tenant.
+    title: (title, page) => {
+        const tenant = (page.props.auth as TenantAuth | undefined)?.tenant;
+        const suffix = tenant?.company_name || tenant?.name || platformName;
+
+        return title ? `${title} - ${suffix}` : suffix;
+    },
     layout: (name) => {
         switch (true) {
             case name === 'welcome':

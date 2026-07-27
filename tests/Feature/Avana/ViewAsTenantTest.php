@@ -17,11 +17,14 @@ beforeEach(function (): void {
     $this->other = Tenant::create(['name' => 'PT Tenant Lain', 'company_name' => 'PT Tenant Lain', 'slug' => 'lain', 'status' => 'active']);
 });
 
-it('super admin sees their own tenant by default', function (): void {
+it('wears no tenant brand on the platform side', function (): void {
+    // The chrome — sidebar name, logo, browser tab — belongs to AvanaHR here,
+    // not to whichever tenant row the super admin's own account happens to sit
+    // in. Impersonating one is what puts a tenant's brand on screen.
     actingAs($this->superadmin)
         ->get('/avana/organisasi')
         ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page->where('auth.tenant.id', $this->ownTenantId));
+        ->assertInertia(fn (Assert $page) => $page->where('auth.tenant', null));
 });
 
 it('switching stores the viewed tenant in the session', function (): void {
@@ -58,4 +61,14 @@ it('never overrides tenant for a non-super-admin even if the session is tampered
         ->withSession(['view_tenant_id' => $this->other->id])
         ->get('/avana/organisasi')
         ->assertInertia(fn (Assert $page) => $page->where('auth.tenant.id', $this->admin->tenant_id));
+});
+
+it('ignores a tampered view_tenant_id when branding a non-super-admin', function (): void {
+    actingAs($this->admin)
+        ->withSession(['view_tenant_id' => $this->other->id])
+        ->get('/avana/organisasi')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('auth.tenant.id', $this->admin->tenant_id)
+            ->where('auth.tenant.company_name', 'PT Nusantara Jaya'));
 });

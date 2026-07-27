@@ -54,7 +54,7 @@ class HandleInertiaRequests extends Middleware
                 'avatar' => fn () => $this->resolveAvatarUrl($user),
                 'roles' => fn () => $user?->roles()->pluck('code')->all() ?? [],
                 'isSuperAdmin' => fn () => (bool) $user?->roles()->where('code', 'super_admin')->exists(),
-                'tenant' => fn () => $this->tenantBranding($user),
+                'tenant' => fn () => $this->tenantBranding($request, $user),
                 // Effective {module}.{action} codes for action-level UI gating
                 // (usePermission). A super admin resolves to every code; null
                 // when enforcement is disabled so the UI gates nothing.
@@ -90,15 +90,30 @@ class HandleInertiaRequests extends Middleware
     }
 
     /**
-     * The user's tenant identity + branding for the sidebar. `logo_url` is the
-     * tenant's own company logo, so a non-platform tenant is white-labelled
-     * with their own brand instead of AvanaHR.
+     * The tenant whose brand the chrome wears: name, logo, and the browser tab
+     * suffix. A non-platform tenant is white-labelled with their own brand
+     * instead of AvanaHR.
+     *
+     * Scoped the same way as `theme` and `nav`: null on the platform side, so a
+     * super admin sees AvanaHR rather than whichever tenant their own account
+     * happens to sit in, and the impersonated tenant while viewing as one.
      *
      * @return array{id: int, name: string, company_name: string|null, logo_url: string|null}|null
      */
-    private function tenantBranding(?User $user): ?array
+    private function tenantBranding(Request $request, ?User $user): ?array
     {
-        $tenant = $user?->tenant;
+        if ($user === null || $this->isPlatformScope($request, $user)) {
+            return null;
+        }
+
+        // Only a super admin may be viewing as someone else; for anyone else a
+        // `view_tenant_id` in the session is tampering, and honouring it would
+        // put another tenant's name and logo on their chrome.
+        $viewTenantId = $user->roles()->where('code', 'super_admin')->exists()
+            ? (int) ($request->session()->get('view_tenant_id') ?? 0)
+            : 0;
+
+        $tenant = $viewTenantId > 0 ? Tenant::find($viewTenantId) : $user->tenant;
 
         if ($tenant === null) {
             return null;
