@@ -177,6 +177,95 @@ function fileSize(bytes: number): string {
         : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+/** Distinct author names in a thread, used to recognise a leading mention. */
+function threadNames(thread: CommentRow[] | undefined): string[] {
+    if (!thread) {
+        return [];
+    }
+
+    return [
+        ...new Set(
+            thread.flatMap((comment) => [
+                comment.author,
+                ...comment.replies.map((reply) => reply.author),
+            ]),
+        ),
+    ];
+}
+
+/**
+ * Page numbers to draw, with `null` for an elided run. Always shows the first
+ * and last page plus a window around the current one, so a long feed does not
+ * grow a row of forty buttons.
+ */
+function pageNumbers(current: number, last: number): (number | null)[] {
+    if (last <= 7) {
+        return Array.from({ length: last }, (_, index) => index + 1);
+    }
+
+    const window = new Set([1, last, current]);
+
+    if (current - 1 > 1) {
+        window.add(current - 1);
+    }
+
+    if (current + 1 < last) {
+        window.add(current + 1);
+    }
+
+    const pages = [...window].sort((a, b) => a - b);
+    const out: (number | null)[] = [];
+
+    pages.forEach((page, index) => {
+        if (index > 0 && page - pages[index - 1] > 1) {
+            out.push(null);
+        }
+
+        out.push(page);
+    });
+
+    return out;
+}
+
+function PageButton({
+    label,
+    ariaLabel,
+    active = false,
+    disabled = false,
+    onClick,
+}: {
+    label: string;
+    ariaLabel: string;
+    active?: boolean;
+    disabled?: boolean;
+    onClick: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            aria-label={ariaLabel}
+            aria-current={active ? 'page' : undefined}
+            disabled={disabled}
+            onClick={onClick}
+            style={{
+                minWidth: 34,
+                height: 34,
+                padding: '0 10px',
+                borderRadius: 8,
+                border: `1px solid ${active ? C.primary : C.border}`,
+                background: active ? C.primary : '#fff',
+                color: active ? '#fff' : disabled ? C.faint : C.text,
+                fontSize: 13,
+                fontWeight: active ? 700 : 500,
+                cursor: disabled ? 'default' : 'pointer',
+                opacity: disabled ? 0.5 : 1,
+            }}
+        >
+            {label}
+        </button>
+    );
+}
+
 function initials(name: string): string {
     return (
         name
@@ -235,12 +324,45 @@ function Avatar({
 }
 
 /** A comment or reply line. Replies are the same shape, one indent deeper. */
+/**
+ * Draws a reply's leading "@Nama" as a highlighted mention. The candidate names
+ * come from the thread itself rather than a regex: a full name carries spaces,
+ * so "@Bagus Pratama setuju" cannot be split on whitespace without guessing.
+ *
+ * The mention is part of the stored body, so the mobile app shows it too; this
+ * only changes how it is drawn.
+ */
+function CommentBody({ text, names }: { text: string; names: string[] }) {
+    if (!text.startsWith('@')) {
+        return <>{text}</>;
+    }
+
+    // Longest first, so "Andi Wijaya" wins over a colleague merely named "Andi".
+    const hit = [...names]
+        .sort((a, b) => b.length - a.length)
+        .find((name) => text.startsWith(`@${name}`));
+
+    if (!hit) {
+        return <>{text}</>;
+    }
+
+    return (
+        <>
+            <span style={{ fontWeight: 700, color: C.navy }}>{hit}</span>
+            {text.slice(hit.length + 1)}
+        </>
+    );
+}
+
 function CommentLine({
     entry,
+    names,
     onReply,
     onRemoved,
 }: {
     entry: ReplyRow;
+    /** Every author in this thread — the mention is matched against these. */
+    names: string[];
     onReply?: () => void;
     onRemoved: () => void;
 }) {
@@ -276,7 +398,7 @@ function CommentLine({
                         whiteSpace: 'pre-wrap',
                     }}
                 >
-                    {entry.body}
+                    <CommentBody text={entry.body} names={names} />
                 </div>
                 <div style={{ display: 'flex', gap: 12, marginTop: 3 }}>
                     {onReply && (
@@ -1379,7 +1501,13 @@ export default function SayaSosmed({
 
     const [openThread, setOpenThread] = useState<number | null>(null);
     const [draft, setDraft] = useState('');
-    const [replyTo, setReplyTo] = useState<number | null>(null);
+    // Who the next comment answers: the thread it belongs to (parent id) plus
+    // the person being addressed, which can be a reply's author rather than the
+    // thread starter.
+    const [replyTo, setReplyTo] = useState<{
+        parentId: number;
+        name: string;
+    } | null>(null);
     const [comments, setComments] = useState<Record<number, CommentRow[]>>({});
     const activeCategory = filters.category;
 
@@ -1427,15 +1555,19 @@ export default function SayaSosmed({
     };
 
     const sendComment = (postId: number) => {
-        const body = draft.trim();
+        const typed = draft.trim();
 
-        if (!body) {
+        if (!typed) {
             return;
         }
 
+        // The mention is stored in the body, not as a separate column: it has to
+        // survive to the mobile app, which reads the same text.
+        const body = replyTo ? `@${replyTo.name} ${typed}` : typed;
+
         router.post(
             `/avana/saya/sosmed/${postId}/komentar`,
-            { body, parent_id: replyTo },
+            { body, parent_id: replyTo?.parentId ?? null },
             {
                 preserveScroll: true,
                 onSuccess: () => {
@@ -1851,10 +1983,17 @@ export default function SayaSosmed({
                                                         >
                                                             <CommentLine
                                                                 entry={comment}
+                                                                names={threadNames(
+                                                                    comments[
+                                                                        post.id
+                                                                    ],
+                                                                )}
                                                                 onReply={() =>
-                                                                    setReplyTo(
-                                                                        comment.id,
-                                                                    )
+                                                                    setReplyTo({
+                                                                        parentId:
+                                                                            comment.id,
+                                                                        name: comment.author,
+                                                                    })
                                                                 }
                                                                 onRemoved={() =>
                                                                     void loadComments(
@@ -1943,6 +2082,21 @@ export default function SayaSosmed({
                                                                                         entry={
                                                                                             reply
                                                                                         }
+                                                                                        names={threadNames(
+                                                                                            comments[
+                                                                                                post
+                                                                                                    .id
+                                                                                            ],
+                                                                                        )}
+                                                                                        onReply={() =>
+                                                                                            setReplyTo(
+                                                                                                {
+                                                                                                    parentId:
+                                                                                                        comment.id,
+                                                                                                    name: reply.author,
+                                                                                                },
+                                                                                            )
+                                                                                        }
                                                                                         onRemoved={() =>
                                                                                             void loadComments(
                                                                                                 post.id,
@@ -1965,7 +2119,15 @@ export default function SayaSosmed({
                                                                 color: C.muted,
                                                             }}
                                                         >
-                                                            Membalas komentar ·{' '}
+                                                            Membalas{' '}
+                                                            <strong
+                                                                style={{
+                                                                    color: C.navy,
+                                                                }}
+                                                            >
+                                                                {replyTo.name}
+                                                            </strong>{' '}
+                                                            ·{' '}
                                                             <button
                                                                 type="button"
                                                                 onClick={() =>
@@ -2073,67 +2235,63 @@ export default function SayaSosmed({
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    gap: 12,
-                                    fontSize: 13,
-                                    color: C.muted,
+                                    gap: 6,
+                                    flexWrap: 'wrap',
                                 }}
                             >
-                                <button
-                                    type="button"
+                                <PageButton
+                                    label="‹"
+                                    ariaLabel="Halaman sebelumnya"
                                     disabled={posts.current_page <= 1}
                                     onClick={() =>
                                         goToPage(posts.current_page - 1)
                                     }
-                                    style={{
-                                        height: 34,
-                                        padding: '0 14px',
-                                        borderRadius: 8,
-                                        border: 'none',
-                                        background: C.surface,
-                                        color: C.text,
-                                        cursor:
-                                            posts.current_page <= 1
-                                                ? 'default'
-                                                : 'pointer',
-                                        opacity:
-                                            posts.current_page <= 1 ? 0.5 : 1,
-                                    }}
-                                >
-                                    Sebelumnya
-                                </button>
-                                <span>
-                                    Halaman {posts.current_page} dari{' '}
-                                    {posts.last_page}
-                                </span>
-                                <button
-                                    type="button"
+                                />
+                                {pageNumbers(
+                                    posts.current_page,
+                                    posts.last_page,
+                                ).map((page, index) =>
+                                    page === null ? (
+                                        <span
+                                            key={`gap-${index}`}
+                                            style={{
+                                                width: 20,
+                                                textAlign: 'center',
+                                                color: C.faint,
+                                                fontSize: 13,
+                                            }}
+                                        >
+                                            …
+                                        </span>
+                                    ) : (
+                                        <PageButton
+                                            key={page}
+                                            label={String(page)}
+                                            ariaLabel={`Halaman ${page}`}
+                                            active={page === posts.current_page}
+                                            onClick={() => goToPage(page)}
+                                        />
+                                    ),
+                                )}
+                                <PageButton
+                                    label="›"
+                                    ariaLabel="Halaman berikutnya"
                                     disabled={
                                         posts.current_page >= posts.last_page
                                     }
                                     onClick={() =>
                                         goToPage(posts.current_page + 1)
                                     }
+                                />
+                                <span
                                     style={{
-                                        height: 34,
-                                        padding: '0 14px',
-                                        borderRadius: 8,
-                                        border: 'none',
-                                        background: C.surface,
-                                        color: C.text,
-                                        cursor:
-                                            posts.current_page >=
-                                            posts.last_page
-                                                ? 'default'
-                                                : 'pointer',
-                                        opacity:
-                                            posts.current_page >=
-                                            posts.last_page
-                                                ? 0.5
-                                                : 1,
+                                        marginLeft: 8,
+                                        fontSize: 12.5,
+                                        color: C.faint,
                                     }}
                                 >
-                                    Berikutnya
-                                </button>
+                                    {posts.total} postingan
+                                </span>
                             </div>
                         )}
                     </div>
