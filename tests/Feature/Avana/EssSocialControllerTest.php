@@ -203,3 +203,46 @@ it('shares one wall between the web page and the mobile API', function (): void 
 
     expect($bodies)->toContain('Ditulis dari web');
 });
+
+it('replies to a comment and nests it under the parent', function (): void {
+    $post = makeWallPost($this->tenantId, $this->employee->id);
+
+    actingAs($this->user)
+        ->post("/avana/saya/sosmed/{$post->id}/komentar", ['body' => 'Komentar utama'])
+        ->assertRedirect();
+
+    $parent = SocialPostComment::where('social_post_id', $post->id)->firstOrFail();
+
+    actingAs($this->user)
+        ->post("/avana/saya/sosmed/{$post->id}/komentar", [
+            'body' => 'Balasannya',
+            'parent_id' => $parent->id,
+        ])
+        ->assertRedirect();
+
+    actingAs($this->user)
+        ->getJson("/avana/saya/sosmed/{$post->id}/komentar")
+        ->assertOk()
+        // Only the parent is top-level; the reply hangs off it.
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.body', 'Komentar utama')
+        ->assertJsonPath('data.0.replies.0.body', 'Balasannya');
+});
+
+it('refuses a reply whose parent belongs to another post', function (): void {
+    $post = makeWallPost($this->tenantId, $this->employee->id);
+    $otherPost = makeWallPost($this->tenantId, $this->employee->id, ['body' => 'Postingan lain']);
+
+    actingAs($this->user)
+        ->post("/avana/saya/sosmed/{$otherPost->id}/komentar", ['body' => 'Milik postingan lain'])
+        ->assertRedirect();
+
+    $foreignParent = SocialPostComment::where('social_post_id', $otherPost->id)->firstOrFail();
+
+    actingAs($this->user)
+        ->post("/avana/saya/sosmed/{$post->id}/komentar", [
+            'body' => 'Nyasar',
+            'parent_id' => $foreignParent->id,
+        ])
+        ->assertSessionHasErrors('parent_id');
+});

@@ -502,3 +502,48 @@ it('stores emoji intact, including ZWJ sequences and skin tones', function (): v
         ->assertCreated()
         ->assertJsonPath('data.body', 'Setuju 👏🏼✨');
 });
+
+it('ranks the trending feed by interaction within the last week', function (): void {
+    // Popular but stale: without the window it would sit on top forever.
+    SocialPost::factory()->create([
+        'tenant_id' => $this->tenantId,
+        'employee_id' => $this->employee->id,
+        'body' => 'Viral tahun lalu',
+        'likes_count' => 500,
+        'created_at' => now()->subDays(60),
+    ]);
+
+    SocialPost::factory()->create([
+        'tenant_id' => $this->tenantId,
+        'employee_id' => $this->employee->id,
+        'body' => 'Ramai minggu ini',
+        'likes_count' => 8,
+        'comments_count' => 4,
+        'created_at' => now()->subDays(2),
+    ]);
+
+    SocialPost::factory()->create([
+        'tenant_id' => $this->tenantId,
+        'employee_id' => $this->employee->id,
+        'body' => 'Baru tapi sepi',
+        'created_at' => now()->subHour(),
+    ]);
+
+    $trending = ($this->auth)($this->token)
+        ->getJson('/api/v1/me/social/feed?sort=trending')
+        ->assertOk()
+        ->assertJsonPath('meta.sort', 'trending');
+
+    $bodies = collect($trending->json('data'))->pluck('body');
+
+    expect($bodies->first())->toBe('Ramai minggu ini')
+        ->and($bodies)->not->toContain('Viral tahun lalu');
+
+    // The default stays chronological, so a quiet new post is still seen.
+    $latest = ($this->auth)($this->token)
+        ->getJson('/api/v1/me/social/feed')
+        ->assertOk()
+        ->assertJsonPath('meta.sort', 'latest');
+
+    expect(collect($latest->json('data'))->pluck('body')->first())->toBe('Baru tapi sepi');
+});

@@ -1,0 +1,394 @@
+- generic [ref=f1e2]:
+  - generic [ref=f1e3]:
+    - complementary [ref=f1e4]:
+      - img "PT Nusantara Jaya" [ref=f1e6]
+      - navigation [ref=f1e7]:
+        - link "Dashboard" [ref=f1e9] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=f1e10]
+          - generic [ref=f1e15]: Dashboard
+        - generic [ref=f1e16]:
+          - generic [ref=f1e17]: LAYANAN SAYA
+          - link "Profil Saya" [ref=f1e18] [cursor=pointer]:
+            - /url: /avana/saya/profil
+            - img [ref=f1e19]
+            - generic [ref=f1e22]: Profil Saya
+          - link "Absensi Saya" [ref=f1e23] [cursor=pointer]:
+            - /url: /avana/saya/absensi
+            - img [ref=f1e24]
+            - generic [ref=f1e33]: Absensi Saya
+          - link "Koreksi Absensi" [ref=f1e34] [cursor=pointer]:
+            - /url: /avana/saya/koreksi-absensi
+            - img [ref=f1e35]
+            - generic [ref=f1e38]: Koreksi Absensi
+          - link "Jadwal Saya" [ref=f1e39] [cursor=pointer]:
+            - /url: /avana/saya/jadwal
+            - img [ref=f1e40]
+            - generic [ref=f1e44]: Jadwal Saya
+          - link "Struktur Organisasi" [ref=f1e45] [cursor=pointer]:
+            - /url: /avana/saya/organisasi
+            - img [ref=f1e46]
+            - generic [ref=f1e51]: Struktur Organisasi
+          - link "Cuti Saya" [ref=f1e52] [cursor=pointer]:
+            - /url: /avana/saya/cuti
+            - img [ref=f1e53]
+            - generic [ref=f1e58]: Cuti Saya
+          - link "Lembur Saya" [ref=f1e59] [cursor=pointer]:
+            - /url: /avana/saya/lembur
+            - img [ref=f1e60]
+            - generic [ref=f1e63]: Lembur Saya
+          - link "Izin Saya" [ref=f1e64] [cursor=pointer]:
+            - /url: /avana/saya/izin
+            - img [ref=f1e65]
+            - generic [ref=f1e70]: Izin Saya
+          - link "Slip Gaji Saya" [ref=f1e71] [cursor=pointer]:
+            - /url: /avana/saya/slip-gaji
+            - img [ref=f1e72]
+            - generic [ref=f1e75]: Slip Gaji Saya
+          - link "Dokumen Saya" [ref=f1e76] [cursor=pointer]:
+            - /url: /avana/saya/dokumen
+            - img [ref=f1e77]
+            - generic [ref=f1e79]: Dokumen Saya
+          - link "Onboarding Saya" [ref=f1e80] [cursor=pointer]:
+            - /url: /avana/saya/onboarding
+            - img [ref=f1e81]
+            - generic [ref=f1e85]: Onboarding Saya
+          - link "Kontrak Saya" [ref=f1e86] [cursor=pointer]:
+            - /url: /avana/saya/kontrak
+            - img [ref=f1e87]
+            - generic [ref=f1e90]: Kontrak Saya
+          - link "Kinerja Saya" [ref=f1e91] [cursor=pointer]:
+            - /url: /avana/saya/kinerja
+            - img [ref=f1e92]
+            - generic [ref=f1e95]: Kinerja Saya
+          - link "Kalender Saya" [ref=f1e96] [cursor=pointer]:
+            - /url: /avana/saya/kalender
+            - img [ref=f1e97]
+            - generic [ref=f1e99]: Kalender Saya
+          - link "Tugas Saya" [ref=f1e100] [cursor=pointer]:
+            - /url: /avana/saya/tugas
+            - img [ref=f1e101]
+            - generic [ref=f1e104]: Tugas Saya
+          - link "Pembelajaran Saya" [ref=f1e105] [cursor=pointer]:
+            - /url: /avana/saya/pembelajaran
+            - img [ref=f1e106]
+            - generic [ref=f1e109]: Pembelajaran Saya
+          - link "Benefit Saya" [ref=f1e110] [cursor=pointer]:
+            - /url: /avana/saya/benefit
+            - img [ref=f1e111]
+            - generic [ref=f1e115]: Benefit Saya
+          - link "Perjalanan Dinas Saya" [ref=f1e116] [cursor=pointer]:
+            - /url: /avana/saya/perjalanan-dinas
+            - img [ref=f1e117]
+            - generic [ref=f1e119]: Perjalanan Dinas Saya
+          - link "SOP Perusahaan" [ref=f1e120] [cursor=pointer]:
+            - /url: /avana/saya/sop
+            - img [ref=f1e121]
+            - generic [ref=f1e123]: SOP Perusahaan
+        - generic [ref=f1e124]:
+          - generic [ref=f1e125]: LAYANAN
+          - link "AI Assistant" [ref=f1e126] [cursor=pointer]:
+            - /url: /avana/ai
+            - img [ref=f1e127]
+            - generic [ref=f1e129]: AI Assistant
+      - generic [ref=f1e131]:
+        - generic [ref=f1e132]:
+          - img [ref=f1e134]
+          - generic [ref=f1e141]: Butuh Bantuan?
+        - link "WhatsApp (021) 5099-9000" [ref=f1e143] [cursor=pointer]:
+          - /url: https://wa.me/02150999000
+          - img [ref=f1e145]
+          - generic [ref=f1e147]:
+            - generic [ref=f1e148]: WhatsApp
+            - generic [ref=f1e149]: (021) 5099-9000
+    - generic [ref=f1e150]:
+      - banner [ref=f1e151]:
+        - button [ref=f1e152] [cursor=pointer]:
+          - img [ref=f1e153]
+        - generic [ref=f1e155]:
+          - img [ref=f1e157]
+          - textbox "Cari karyawan, klien, menu…" [ref=f1e160]
+        - button "Notifikasi" [ref=f1e161] [cursor=pointer]:
+          - img [ref=f1e162]
+          - generic [ref=f1e165]: "2"
+        - button "Bagus Pratama Bagus Pratama PT Nusantara Jaya" [ref=f1e167] [cursor=pointer]:
+          - img "Bagus Pratama" [ref=f1e168]
+          - generic [ref=f1e169]:
+            - generic [ref=f1e170]: Bagus Pratama
+            - generic [ref=f1e171]: PT Nusantara Jaya
+          - img [ref=f1e172]
+      - main [ref=f1e174]:
+        - generic [ref=f1e557]:
+          - generic [ref=f1e559]:
+            - generic [ref=f1e560]:
+              - generic [ref=f1e561]: Layanan Saya
+              - img [ref=f1e562]
+              - generic [ref=f1e564]: Sosmed
+            - heading "Sosmed" [level=1] [ref=f1e565]
+            - generic [ref=f1e566]: Dinding karyawan — cerita, ide, dan apresiasi. Terhubung langsung dengan yang ada di aplikasi.
+          - generic [ref=f1e567]:
+            - generic [ref=f1e568]:
+              - generic [ref=f1e570]:
+                - generic [ref=f1e573]: Tulis sesuatu
+                - generic [ref=f1e575]:
+                  - textbox "Isi postingan" [ref=f1e576]:
+                    - /placeholder: Bagikan ide, cerita, atau apresiasi…
+                  - generic [ref=f1e577]:
+                    - combobox "Kategori" [ref=f1e578]:
+                      - option "Tanpa kategori" [selected]
+                      - option "Ide Perbaikan"
+                      - option "Sports Day"
+                      - option "Employee of the Month"
+                    - button "Foto" [ref=f1e579]
+                    - generic [ref=f1e580]: 0/500
+                    - button "Posting" [ref=f1e581] [cursor=pointer]
+              - generic [ref=f1e582]:
+                - button "Semua" [ref=f1e583] [cursor=pointer]
+                - button "Ide Perbaikan" [ref=f1e584] [cursor=pointer]
+                - button "Sports Day" [ref=f1e585] [cursor=pointer]
+                - button "Employee of the Month" [ref=f1e586] [cursor=pointer]
+              - generic [ref=f1e589]:
+                - img "Bagus Pratama" [ref=f1e590]
+                - generic [ref=f1e591]:
+                  - generic [ref=f1e592]:
+                    - generic [ref=f1e593]: Bagus Pratama
+                    - generic [ref=f1e594]: Ide Perbaikan
+                    - generic [ref=f1e595]: 3 menit lalu
+                  - generic [ref=f1e596]: "E2E: ide efisiensi gudang"
+                  - generic [ref=f1e597]:
+                    - button "0" [ref=f1e598] [cursor=pointer]:
+                      - img [ref=f1e599]
+                      - text: "0"
+                    - button "1" [ref=f1e815] [cursor=pointer]:
+                      - img [ref=f1e602]
+                      - text: "1"
+                    - button "Hapus" [ref=f1e604] [cursor=pointer]
+                  - generic [ref=f1e790]:
+                    - generic [ref=f1e796]:
+                      - img "Bagus Pratama" [ref=f1e797]
+                      - generic [ref=f1e798]:
+                        - generic [ref=f1e799]: Bagus Pratama
+                        - generic [ref=f1e800]: Komentar induk dari E2E
+                        - generic [ref=f1e801]:
+                          - button "Balas" [ref=f1e802] [cursor=pointer]
+                          - button "Hapus" [ref=f1e803] [cursor=pointer]
+                    - generic [ref=f1e791]:
+                      - textbox "Tulis komentar" [ref=f1e792]:
+                        - /placeholder: Tulis komentar…
+                      - button "Kirim" [ref=f1e793] [cursor=pointer]
+              - generic [ref=f1e607]:
+                - img "Bagus Pratama" [ref=f1e608]
+                - generic [ref=f1e609]:
+                  - generic [ref=f1e610]:
+                    - generic [ref=f1e611]: Bagus Pratama
+                    - generic [ref=f1e612]: Ide Perbaikan
+                    - generic [ref=f1e613]: 10 menit lalu · diedit
+                  - generic [ref=f1e614]: panas amat ya🫣
+                  - generic [ref=f1e615]:
+                    - button "0" [ref=f1e616] [cursor=pointer]:
+                      - img [ref=f1e617]
+                      - text: "0"
+                    - button "0" [ref=f1e619] [cursor=pointer]:
+                      - img [ref=f1e620]
+                      - text: "0"
+                    - button "Hapus" [ref=f1e622] [cursor=pointer]
+              - generic [ref=f1e625]:
+                - generic [ref=f1e626]: AW
+                - generic [ref=f1e627]:
+                  - generic [ref=f1e628]:
+                    - generic [ref=f1e629]: Andi Wijaya
+                    - generic [ref=f1e630]: Ide Perbaikan
+                    - generic [ref=f1e631]: 17 Jul 2026
+                  - generic [ref=f1e632]: "Saran: notifikasi cuti disetujui masuk ke aplikasi juga, bukan cuma email. Sering kelewat."
+                  - generic [ref=f1e633]:
+                    - button "8" [ref=f1e634] [cursor=pointer]:
+                      - img [ref=f1e635]
+                      - text: "8"
+                    - button "5" [ref=f1e637] [cursor=pointer]:
+                      - img [ref=f1e638]
+                      - text: "5"
+                    - button "Laporkan" [ref=f1e640] [cursor=pointer]
+              - generic [ref=f1e643]:
+                - generic [ref=f1e644]: MS
+                - generic [ref=f1e645]:
+                  - generic [ref=f1e646]:
+                    - generic [ref=f1e647]: Maya Saraswati
+                    - generic [ref=f1e648]: Ide Perbaikan
+                    - generic [ref=f1e649]: 5 hari lalu
+                  - generic [ref=f1e650]: Parkiran motor penuh terus jam 8. Kalau digeser sebagian ke sisi belakang kayaknya masih muat.
+                  - generic [ref=f1e651]:
+                    - button "5" [ref=f1e652] [cursor=pointer]:
+                      - img [ref=f1e653]
+                      - text: "5"
+                    - button "1" [ref=f1e655] [cursor=pointer]:
+                      - img [ref=f1e656]
+                      - text: "1"
+                    - button "Laporkan" [ref=f1e658] [cursor=pointer]
+              - generic [ref=f1e661]:
+                - generic [ref=f1e662]: DL
+                - generic [ref=f1e663]:
+                  - generic [ref=f1e664]:
+                    - generic [ref=f1e665]: Dewi Lestari
+                    - generic [ref=f1e666]: Ide Perbaikan
+                    - generic [ref=f1e667]: 3 hari lalu
+                  - generic [ref=f1e668]: Ruang meeting lantai 2 sering bentrok. Mungkin perlu booking lewat aplikasi biar kelihatan siapa pakai jam berapa.
+                  - generic [ref=f1e669]:
+                    - button "7" [ref=f1e670] [cursor=pointer]:
+                      - img [ref=f1e671]
+                      - text: "7"
+                    - button "2" [ref=f1e673] [cursor=pointer]:
+                      - img [ref=f1e674]
+                      - text: "2"
+                    - button "Laporkan" [ref=f1e676] [cursor=pointer]
+              - generic [ref=f1e679]:
+                - img "Bagus Pratama" [ref=f1e680]
+                - generic [ref=f1e681]:
+                  - generic [ref=f1e682]:
+                    - generic [ref=f1e683]: Bagus Pratama
+                    - generic [ref=f1e684]: Ide Perbaikan
+                    - generic [ref=f1e685]: 1 hari lalu
+                  - generic [ref=f1e686]: Gimana kalau form reimbursement bisa upload foto struk langsung dari kamera? Sekarang harus simpan dulu ke galeri.
+                  - generic [ref=f1e687]:
+                    - button "9" [ref=f1e688] [cursor=pointer]:
+                      - img [ref=f1e689]
+                      - text: "9"
+                    - button "4" [ref=f1e691] [cursor=pointer]:
+                      - img [ref=f1e692]
+                      - text: "4"
+                    - button "Hapus" [ref=f1e694] [cursor=pointer]
+              - generic [ref=f1e697]:
+                - generic [ref=f1e698]: PA
+                - generic [ref=f1e699]:
+                  - generic [ref=f1e700]:
+                    - generic [ref=f1e701]: Putri Anjani
+                    - generic [ref=f1e702]: Ide Perbaikan
+                    - generic [ref=f1e703]: 30 menit lalu
+                  - generic [ref=f1e704]: "Usul: tambah dispenser air panas di pantry lantai 3. Yang sering lembur pasti terbantu."
+                  - generic [ref=f1e705]:
+                    - button "11" [ref=f1e706] [cursor=pointer]:
+                      - img [ref=f1e707]
+                      - text: "11"
+                    - button "3" [ref=f1e709] [cursor=pointer]:
+                      - img [ref=f1e710]
+                      - text: "3"
+                    - button "Laporkan" [ref=f1e712] [cursor=pointer]
+            - generic [ref=f1e713]:
+              - generic [ref=f1e715]:
+                - generic [ref=f1e716]: Leaderboard
+                - generic [ref=f1e717]: "Poin: 5/postingan · 2/suka · 1/komentar"
+              - generic [ref=f1e719]:
+                - generic [ref=f1e720]:
+                  - generic [ref=f1e721]: "1"
+                  - img "Bagus Pratama" [ref=f1e722]
+                  - generic [ref=f1e723]:
+                    - generic [ref=f1e724]: Bagus Pratama (Anda)
+                    - generic [ref=f1e725]: 4 ide · 10 suka
+                  - generic [ref=f1e726]: "46"
+                - generic [ref=f1e727]:
+                  - generic [ref=f1e728]: "2"
+                  - generic [ref=f1e729]: YS
+                  - generic [ref=f1e730]:
+                    - generic [ref=f1e731]: Yoga Saputra
+                    - generic [ref=f1e732]: 1 ide · 11 suka
+                  - generic [ref=f1e733]: "34"
+                - generic [ref=f1e734]:
+                  - generic [ref=f1e735]: "3"
+                  - generic [ref=f1e736]: SN
+                  - generic [ref=f1e737]:
+                    - generic [ref=f1e738]: Siti Nurhaliza
+                    - generic [ref=f1e739]: 1 ide · 11 suka
+                  - generic [ref=f1e740]: "33"
+                - generic [ref=f1e741]:
+                  - generic [ref=f1e742]: "4"
+                  - generic [ref=f1e743]: RM
+                  - generic [ref=f1e744]:
+                    - generic [ref=f1e745]: Rizki Maulana
+                    - generic [ref=f1e746]: 1 ide · 11 suka
+                  - generic [ref=f1e747]: "32"
+                - generic [ref=f1e748]:
+                  - generic [ref=f1e749]: "5"
+                  - generic [ref=f1e750]: AW
+                  - generic [ref=f1e751]:
+                    - generic [ref=f1e752]: Andi Wijaya
+                    - generic [ref=f1e753]: 1 ide · 11 suka
+                  - generic [ref=f1e754]: "31"
+                - generic [ref=f1e755]:
+                  - generic [ref=f1e756]: "6"
+                  - generic [ref=f1e757]: PA
+                  - generic [ref=f1e758]:
+                    - generic [ref=f1e759]: Putri Anjani
+                    - generic [ref=f1e760]: 1 ide · 11 suka
+                  - generic [ref=f1e761]: "30"
+                - generic [ref=f1e762]:
+                  - generic [ref=f1e763]: "7"
+                  - generic [ref=f1e764]: FN
+                  - generic [ref=f1e765]:
+                    - generic [ref=f1e766]: Fajar Nugroho
+                    - generic [ref=f1e767]: 1 ide · 11 suka
+                  - generic [ref=f1e768]: "29"
+                - generic [ref=f1e769]:
+                  - generic [ref=f1e770]: "8"
+                  - generic [ref=f1e771]: AW
+                  - generic [ref=f1e772]:
+                    - generic [ref=f1e773]: Andi Wijaya
+                    - generic [ref=f1e774]: 1 ide · 8 suka
+                  - generic [ref=f1e775]: "26"
+                - generic [ref=f1e776]:
+                  - generic [ref=f1e777]: "9"
+                  - generic [ref=f1e778]: DL
+                  - generic [ref=f1e779]:
+                    - generic [ref=f1e780]: Dewi Lestari
+                    - generic [ref=f1e781]: 1 ide · 7 suka
+                  - generic [ref=f1e782]: "21"
+                - generic [ref=f1e783]:
+                  - generic [ref=f1e784]: "10"
+                  - generic [ref=f1e785]: MS
+                  - generic [ref=f1e786]:
+                    - generic [ref=f1e787]: Maya Saraswati
+                    - generic [ref=f1e788]: 1 ide · 5 suka
+                  - generic [ref=f1e789]: "16"
+    - complementary [ref=f1e466]:
+      - generic [ref=f1e467]:
+        - generic [ref=f1e468]: Notifikasi
+        - generic [ref=f1e469]: 2 baru
+        - button "Tandai semua" [ref=f1e470] [cursor=pointer]
+        - button "Tutup" [ref=f1e471] [cursor=pointer]:
+          - img [ref=f1e472]
+      - generic [ref=f1e475]:
+        - button "Cuti disetujui Pengajuan Cuti Anda telah disetujui oleh manajer. 25 mnt lalu" [ref=f1e476] [cursor=pointer]:
+          - img [ref=f1e478]
+          - generic [ref=f1e481]:
+            - generic [ref=f1e483]: Cuti disetujui
+            - paragraph [ref=f1e485]: Pengajuan Cuti Anda telah disetujui oleh manajer.
+            - text: 25 mnt lalu
+        - button "Cuti disetujui Pengajuan Cuti Anda telah disetujui oleh manajer. 4 jam lalu" [ref=f1e486] [cursor=pointer]:
+          - img [ref=f1e488]
+          - generic [ref=f1e491]:
+            - generic [ref=f1e493]: Cuti disetujui
+            - paragraph [ref=f1e495]: Pengajuan Cuti Anda telah disetujui oleh manajer.
+            - text: 4 jam lalu
+        - button "Clock-in tercatat Masuk pukul 18:27 2 hari lalu" [ref=f1e496]:
+          - img [ref=f1e498]
+          - generic [ref=f1e501]:
+            - generic [ref=f1e503]: Clock-in tercatat
+            - paragraph [ref=f1e504]: Masuk pukul 18:27
+            - text: 2 hari lalu
+        - button "Clock-out tercatat Keluar pukul 11:22 · 0.1 jam kerja 4 hari lalu" [ref=f1e505]:
+          - img [ref=f1e507]
+          - generic [ref=f1e510]:
+            - generic [ref=f1e512]: Clock-out tercatat
+            - paragraph [ref=f1e513]: Keluar pukul 11:22 · 0.1 jam kerja
+            - text: 4 hari lalu
+        - button "Clock-in tercatat Masuk pukul 11:14 4 hari lalu" [ref=f1e514]:
+          - img [ref=f1e516]
+          - generic [ref=f1e519]:
+            - generic [ref=f1e521]: Clock-in tercatat
+            - paragraph [ref=f1e522]: Masuk pukul 11:14
+            - text: 4 hari lalu
+        - button "Pengumuman baru Eius voluptas illum 4 hari lalu" [ref=f1e523]:
+          - img [ref=f1e525]
+          - generic [ref=f1e528]:
+            - generic [ref=f1e530]: Pengumuman baru
+            - paragraph [ref=f1e531]: Eius voluptas illum
+            - text: 4 hari lalu
+  - region "Notifications alt+T"

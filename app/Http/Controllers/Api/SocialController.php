@@ -30,6 +30,12 @@ class SocialController extends Controller
 {
     use ResolvesApiEmployee;
 
+    /**
+     * How far back "trending" looks. A week is long enough for a Friday post to
+     * still rank on Monday, short enough that the tab keeps changing.
+     */
+    private const TRENDING_DAYS = 7;
+
     public function categories(Request $request): JsonResponse
     {
         $employee = $this->currentEmployee($request);
@@ -58,14 +64,21 @@ class SocialController extends Controller
     {
         $employee = $this->currentEmployee($request);
 
+        $trending = $request->string('sort')->toString() === 'trending';
+
         $posts = SocialPost::forTenant($employee->tenant_id)
             ->published()
             ->when(
                 $request->filled('category'),
                 fn ($query) => $query->where('social_category_id', $request->integer('category')),
             )
-            ->with(['employee:id,full_name,photo_path', 'category:id,name,icon,color'])
+            // Trending is the last week only: without the window a post that
+            // once went viral would sit at the top of the wall forever.
+            ->when($trending, fn ($query) => $query
+                ->where('created_at', '>=', Carbon::now()->subDays(self::TRENDING_DAYS))
+                ->orderByRaw('(likes_count + comments_count) desc'))
             ->latest('id')
+            ->with(['employee:id,full_name,photo_path', 'category:id,name,icon,color'])
             ->paginate(min(50, max(5, $request->integer('per_page', 15))));
 
         $likedIds = $this->likedPostIds($employee, collect($posts->items())->pluck('id'));
@@ -78,6 +91,7 @@ class SocialController extends Controller
                 'current_page' => $posts->currentPage(),
                 'last_page' => $posts->lastPage(),
                 'total' => $posts->total(),
+                'sort' => $trending ? 'trending' : 'latest',
             ],
         ]);
     }

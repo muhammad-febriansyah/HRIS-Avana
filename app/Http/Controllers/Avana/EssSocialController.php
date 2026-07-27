@@ -194,7 +194,9 @@ class EssSocialController extends Controller
             $post,
             $employee,
             $data['body'],
-            isset($data['parent_id']) ? SocialPostComment::find($data['parent_id']) : null,
+            isset($data['parent_id'])
+                ? SocialPostComment::query()->find($data['parent_id'])
+                : null,
         );
 
         return back();
