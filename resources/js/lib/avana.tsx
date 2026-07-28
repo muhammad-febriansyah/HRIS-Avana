@@ -96,12 +96,14 @@ export function rp(n: number): string {
 /** Translucent tint of a #RGB or #RRGGBB colour (alpha 0..1). */
 export function hexA(hex: string, a: number): string {
     let h = hex.replace('#', '');
+
     if (h.length === 3) {
         h = h
             .split('')
             .map((c) => c + c)
             .join('');
     }
+
     const r = parseInt(h.slice(0, 2), 16) || 0;
     const g = parseInt(h.slice(2, 4), 16) || 0;
     const b = parseInt(h.slice(4, 6), 16) || 0;
@@ -266,6 +268,12 @@ interface ActionBtnProps {
     title?: string;
     href?: string;
     download?: boolean;
+    /**
+     * Drop the label and render a square. For an action repeated once per row,
+     * where spelling it out would widen the column past the table — the label
+     * still reaches screen readers and the tooltip.
+     */
+    iconOnly?: boolean;
 }
 
 /** Compact table/row action that always pairs an icon with a label and is
@@ -281,15 +289,18 @@ export function ActionBtn({
     title,
     href,
     download,
+    iconOnly = false,
 }: ActionBtnProps) {
     const v = ACTION_VARIANTS[variant];
 
     const style: CSSProperties = {
         display: 'inline-flex',
         alignItems: 'center',
+        justifyContent: 'center',
         gap: 6,
         height: 32,
-        padding: '0 11px',
+        width: iconOnly ? 32 : undefined,
+        padding: iconOnly ? 0 : '0 11px',
         border: `1px solid ${v.border}`,
         background: v.bg,
         color: v.color,
@@ -314,7 +325,7 @@ export function ActionBtn({
                 style={style}
             >
                 <AIcon name={icon} size={14} color={v.color} />
-                {label}
+                {iconOnly ? null : label}
             </a>
         );
     }
@@ -325,10 +336,11 @@ export function ActionBtn({
             onClick={onClick}
             disabled={disabled}
             title={title ?? label}
+            aria-label={iconOnly ? (title ?? label) : undefined}
             style={style}
         >
             <AIcon name={icon} size={14} color={v.color} />
-            {label}
+            {iconOnly ? null : label}
         </button>
     );
 }
@@ -380,7 +392,48 @@ export const btnOut: CSSProperties = {
  * export   C.amber    Export / Unduh / Cetak
  * process  C.violet   Generate / Hitung / Proses / Pindai / Publish / Kirim
  * cancel   white      Batal / Tutup / Kembali / Reset — use `btnOut` instead
+ *
+ * The ready-made styles below are that table, so a screen never has to
+ * hand-roll one and drift out of step with the rest of the app.
  */
+
+/** Tambah / Buat / Baru — the one action a screen exists to perform. */
+export const btnCreate: CSSProperties = { ...btnP };
+
+/** A second "Tambah …" sharing a screen with the main create. */
+export const btnNested: CSSProperties = { ...btnP, background: C.sky };
+
+/** Simpan / Terapkan / Setujui / Verifikasi. */
+export const btnSave: CSSProperties = { ...btnP, background: C.green };
+
+/** Hapus / Tolak / Batalkan — solid, for a destructive primary action. */
+export const btnDanger: CSSProperties = { ...btnP, background: C.red };
+
+/** Export / Unduh / Cetak. */
+export const btnExport: CSSProperties = { ...btnP, background: C.amber };
+
+/** Generate / Hitung / Proses / Publish / Kirim. */
+export const btnProcess: CSSProperties = { ...btnP, background: C.violet };
+
+/**
+ * A borderless text action — "+3 lainnya", "Pilih semua". Carries no background
+ * on purpose: it is a link in button clothing, and giving it a chip would make
+ * it compete with the real buttons around it.
+ */
+export function btnLink(tone: string = C.primary): CSSProperties {
+    return {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: 0,
+        border: 'none',
+        background: 'none',
+        color: tone,
+        fontSize: 12.5,
+        fontWeight: 600,
+        cursor: 'pointer',
+    };
+}
 
 export const card: CSSProperties = {
     background: '#fff',

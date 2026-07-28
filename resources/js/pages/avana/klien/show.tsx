@@ -1,7 +1,7 @@
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
-import { AIcon, btnOut, btnP, C, card, rp } from '@/lib/avana';
+import { AIcon, btnOut, btnP, btnSave, C, card, rp } from '@/lib/avana';
 import {
     FieldError,
     fieldLabelStyle,
@@ -745,8 +745,7 @@ function AdminAccountsTab({
                                             type="submit"
                                             disabled={resetForm.processing}
                                             style={{
-                                                ...btnP,
-                                                background: C.green,
+                                                ...btnSave,
                                                 height: 42,
                                                 opacity: resetForm.processing
                                                     ? 0.7

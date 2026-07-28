@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { AIcon, btnOut, C } from '@/lib/avana';
+import { AIcon, btnDanger, btnOut, C } from '@/lib/avana';
 import type { TenantTokenStanding } from './types';
 
 /* ---------- shared field styles (mirror benefit/components.tsx) ---------- */
@@ -159,7 +159,9 @@ export function TokenCell({ token }: { token?: TenantTokenStanding }) {
                     color: bought ? C.navy : C.faint,
                 }}
             >
-                {bought ? token.purchased.toLocaleString('id-ID') : 'Belum beli'}
+                {bought
+                    ? token.purchased.toLocaleString('id-ID')
+                    : 'Belum beli'}
             </div>
             <div style={{ fontSize: 11.5, color: C.faint, marginTop: 2 }}>
                 Sisa {token.balance.toLocaleString('id-ID')}
@@ -262,20 +264,10 @@ export function ConfirmModal({
                     <button
                         onClick={onConfirm}
                         style={{
+                            ...btnDanger,
                             flex: 1,
                             height: 44,
-                            background: C.red,
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: 9,
-                            fontSize: 14,
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
                             justifyContent: 'center',
-                            gap: 8,
-                            transition: '.15s',
                         }}
                     >
                         <AIcon name="trash-2" size={16} />

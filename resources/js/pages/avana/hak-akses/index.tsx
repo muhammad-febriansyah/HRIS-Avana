@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import AccessController from '@/actions/App/Http/Controllers/Avana/AccessController';
 import FeatureCatalogController from '@/actions/App/Http/Controllers/Avana/FeatureCatalogController';
-import { AIcon, btnP, C, hexA } from '@/lib/avana';
+import { AIcon, btnCreate, btnNested, C, hexA } from '@/lib/avana';
 import MenuBuilder from '../menu-builder';
 import { CompanyMenuPanel } from './company-menu-panel';
 import { blankFeatureForm, FeatureModal } from './feature-modal';
@@ -282,22 +282,19 @@ export default function AvanaHakAkses({
                             {canManageFeatures && (
                                 <button
                                     onClick={openCreateFeature}
-                                    style={{
-                                        ...btnP,
-                                        background: '#fff',
-                                        color: C.primary,
-                                        border: `1px solid ${C.primary}`,
-                                    }}
+                                    style={btnNested}
+                                    title="Daftarkan modul fitur baru ke katalog"
                                 >
-                                    <AIcon name="plus" size={16} />
+                                    <AIcon name="plus" size={16} color="#fff" />
                                     Tambah Fitur
                                 </button>
                             )}
                             <button
                                 onClick={() => setRoleModalOpen(true)}
-                                style={btnP}
+                                style={btnCreate}
+                                title="Buat peran baru untuk perusahaan ini"
                             >
-                                <AIcon name="plus" size={16} />
+                                <AIcon name="plus" size={16} color="#fff" />
                                 Buat Peran
                             </button>
                         </div>

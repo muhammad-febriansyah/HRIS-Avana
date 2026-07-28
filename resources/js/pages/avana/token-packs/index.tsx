@@ -3,7 +3,18 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import AiTokenPackController from '@/actions/App/Http/Controllers/Avana/AiTokenPackController';
-import { AIcon, btnOut, btnP, C, card, rp, RupiahInput } from '@/lib/avana';
+import {
+    ActionBtn,
+    AIcon,
+    btnCreate,
+    btnDanger,
+    btnOut,
+    btnSave,
+    C,
+    card,
+    rp,
+    RupiahInput,
+} from '@/lib/avana';
 
 /* ============================================================
  * Paket Token AI (super admin): price catalogue + tenant orders.
@@ -258,7 +269,7 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
                             mengisi saldo AI Assistant.
                         </div>
                     </div>
-                    <button onClick={openCreate} style={btnP}>
+                    <button onClick={openCreate} style={btnCreate}>
                         <AIcon name="plus" size={16} color="#fff" />
                         Tambah Paket
                     </button>
@@ -396,32 +407,33 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
                                                     whiteSpace: 'nowrap',
                                                 }}
                                             >
-                                                <button
-                                                    onClick={() =>
-                                                        openEdit(pack)
-                                                    }
-                                                    style={iconBtn}
-                                                    title="Ubah"
+                                                <span
+                                                    style={{
+                                                        display: 'inline-flex',
+                                                        gap: 6,
+                                                    }}
                                                 >
-                                                    <AIcon
-                                                        name="pencil"
-                                                        size={15}
-                                                        color={C.muted}
+                                                    <ActionBtn
+                                                        icon="pencil"
+                                                        label="Edit"
+                                                        variant="warning"
+                                                        iconOnly
+                                                        title={`Ubah ${pack.name}`}
+                                                        onClick={() =>
+                                                            openEdit(pack)
+                                                        }
                                                     />
-                                                </button>
-                                                <button
-                                                    onClick={() =>
-                                                        setConfirm(pack)
-                                                    }
-                                                    style={iconBtn}
-                                                    title="Hapus"
-                                                >
-                                                    <AIcon
-                                                        name="trash-2"
-                                                        size={15}
-                                                        color={C.red}
+                                                    <ActionBtn
+                                                        icon="trash-2"
+                                                        label="Hapus"
+                                                        variant="danger"
+                                                        iconOnly
+                                                        title={`Hapus ${pack.name}`}
+                                                        onClick={() =>
+                                                            setConfirm(pack)
+                                                        }
                                                     />
-                                                </button>
+                                                </span>
                                             </td>
                                         </tr>
                                     ))}
@@ -688,7 +700,7 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
                                 </button>
                                 <button
                                     type="submit"
-                                    style={{ ...btnP, background: C.green }}
+                                    style={btnSave}
                                     disabled={form.processing}
                                 >
                                     <AIcon name="save" size={15} color="#fff" />
@@ -740,10 +752,7 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
                                 <AIcon name="x" size={15} color={C.text} />
                                 Batal
                             </button>
-                            <button
-                                onClick={remove}
-                                style={{ ...btnP, background: C.red }}
-                            >
+                            <button onClick={remove} style={btnDanger}>
                                 <AIcon name="trash-2" size={15} color="#fff" />
                                 Hapus
                             </button>
@@ -757,13 +766,6 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
 
 const th: CSSProperties = { padding: '11px 18px', fontWeight: 500 };
 const td: CSSProperties = { padding: '12px 18px', color: C.text };
-const iconBtn: CSSProperties = {
-    background: 'transparent',
-    border: 'none',
-    cursor: 'pointer',
-    padding: 6,
-    marginLeft: 4,
-};
 const errStyle: CSSProperties = { fontSize: 12.5, color: C.red, marginTop: 5 };
 const overlay: CSSProperties = {
     position: 'fixed',

@@ -2,7 +2,20 @@ import { Head, router, useForm, usePage } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { AIcon, C, card, rp, RupiahInput } from '@/lib/avana';
+import {
+    ActionBtn,
+    AIcon,
+    btnCreate,
+    btnDanger,
+    btnLink,
+    btnOut,
+    btnSave,
+    C,
+    card,
+    hexA,
+    rp,
+    RupiahInput,
+} from '@/lib/avana';
 
 interface Package {
     id: number;
@@ -333,7 +346,7 @@ export default function PaketIndex({
                             tersimpan di database.
                         </p>
                     </div>
-                    <button onClick={openCreate} style={btnPrimary}>
+                    <button onClick={openCreate} style={btnCreate}>
                         <AIcon name="plus" size={15} color="#fff" />
                         Tambah Paket
                     </button>
@@ -489,7 +502,7 @@ export default function PaketIndex({
                                             onClick={() =>
                                                 toggleExpanded(pkg.id)
                                             }
-                                            style={moreButtonStyle}
+                                            style={btnLink()}
                                         >
                                             {open
                                                 ? 'Tampilkan lebih sedikit'
@@ -519,28 +532,21 @@ export default function PaketIndex({
                                             : `${pkg.tenants_count} klien`}
                                     </span>
                                     <div style={{ display: 'flex', gap: 8 }}>
-                                        <button
+                                        <ActionBtn
+                                            icon="pencil"
+                                            label="Edit"
+                                            variant="warning"
+                                            title={`Ubah paket ${pkg.name}`}
                                             onClick={() => openEdit(pkg)}
-                                            style={btnGhost}
-                                        >
-                                            <AIcon
-                                                name="pencil"
-                                                size={14}
-                                                color={C.text}
-                                            />
-                                            Edit
-                                        </button>
-                                        <button
+                                        />
+                                        <ActionBtn
+                                            icon="trash-2"
+                                            label="Hapus"
+                                            variant="danger"
+                                            iconOnly
+                                            title={`Hapus paket ${pkg.name}`}
                                             onClick={() => setConfirm(pkg)}
-                                            style={btnDanger}
-                                            title="Hapus"
-                                        >
-                                            <AIcon
-                                                name="trash-2"
-                                                size={15}
-                                                color={C.red}
-                                            />
-                                        </button>
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -837,8 +843,8 @@ export default function PaketIndex({
                                         <button
                                             type="button"
                                             onClick={() => removeFeature(i)}
-                                            style={btnDanger}
-                                            title="Hapus fitur"
+                                            style={pointRemoveStyle}
+                                            title="Hapus poin ini"
                                         >
                                             <AIcon
                                                 name="x"
@@ -852,15 +858,17 @@ export default function PaketIndex({
                                     type="button"
                                     onClick={addFeature}
                                     style={{
-                                        ...btnGhost,
+                                        ...btnOut,
+                                        height: 34,
                                         alignSelf: 'flex-start',
-                                        padding: '7px 14px',
+                                        color: C.sky,
+                                        borderColor: hexA(C.sky, 0.4),
                                     }}
                                 >
                                     <AIcon
                                         name="plus"
                                         size={14}
-                                        color={C.text}
+                                        color={C.sky}
                                     />
                                     Tambah Poin
                                 </button>
@@ -887,7 +895,7 @@ export default function PaketIndex({
                             marginTop: 22,
                         }}
                     >
-                        <button onClick={closeModal} style={btnGhost}>
+                        <button onClick={closeModal} style={btnOut}>
                             <AIcon name="x" size={15} color={C.text} />
                             Batal
                         </button>
@@ -895,8 +903,7 @@ export default function PaketIndex({
                             onClick={submit}
                             disabled={form.processing}
                             style={{
-                                ...btnPrimary,
-                                background: C.green,
+                                ...btnSave,
                                 opacity: form.processing ? 0.6 : 1,
                             }}
                         >
@@ -927,20 +934,11 @@ export default function PaketIndex({
                             gap: 10,
                         }}
                     >
-                        <button
-                            onClick={() => setConfirm(null)}
-                            style={btnGhost}
-                        >
+                        <button onClick={() => setConfirm(null)} style={btnOut}>
                             <AIcon name="x" size={15} color={C.text} />
                             Batal
                         </button>
-                        <button
-                            onClick={remove}
-                            style={{
-                                ...btnPrimary,
-                                background: C.red,
-                            }}
-                        >
+                        <button onClick={remove} style={btnDanger}>
                             <AIcon name="trash-2" size={15} color="#fff" />
                             Hapus
                         </button>
@@ -1340,20 +1338,6 @@ const featureItemStyle: CSSProperties = {
     color: C.text,
 };
 
-const moreButtonStyle: CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 4,
-    alignSelf: 'flex-start',
-    padding: 0,
-    border: 'none',
-    background: 'none',
-    fontSize: 12,
-    fontWeight: 600,
-    color: C.primary,
-    cursor: 'pointer',
-};
-
 const cardFooterStyle: CSSProperties = {
     display: 'flex',
     alignItems: 'center',
@@ -1370,6 +1354,19 @@ const tenantCountStyle: CSSProperties = {
     gap: 5,
     fontSize: 11.5,
     color: C.faint,
+};
+
+const pointRemoveStyle: CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 34,
+    height: 34,
+    flex: 'none',
+    background: hexA(C.red, 0.08),
+    border: `1px solid ${hexA(C.red, 0.28)}`,
+    borderRadius: 9,
+    cursor: 'pointer',
 };
 
 const tokenPackBoxStyle: CSSProperties = {
@@ -1394,46 +1391,6 @@ const modalTitle: CSSProperties = {
     fontSize: 17,
     fontWeight: 700,
     color: C.navy,
-};
-
-const btnPrimary: CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 7,
-    background: C.primary,
-    color: '#fff',
-    border: 'none',
-    borderRadius: 10,
-    padding: '9px 16px',
-    fontSize: 13.5,
-    fontWeight: 600,
-    cursor: 'pointer',
-};
-
-const btnGhost: CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-    background: '#fff',
-    color: C.text,
-    border: `1px solid ${C.border}`,
-    borderRadius: 10,
-    padding: '9px 16px',
-    fontSize: 13.5,
-    fontWeight: 600,
-    cursor: 'pointer',
-};
-
-const btnDanger: CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: 'rgba(220,38,38,.07)',
-    border: `1px solid rgba(220,38,38,.3)`,
-    borderRadius: 10,
-    padding: '9px 12px',
-    cursor: 'pointer',
 };
 
 const taglineBadge: CSSProperties = {
