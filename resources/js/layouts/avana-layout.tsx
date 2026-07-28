@@ -1,11 +1,14 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import type { PropsWithChildren } from 'react';
+import type { CSSProperties } from 'react';
+import WebsiteSettingController from '@/actions/App/Http/Controllers/Avana/WebsiteSettingController';
 import { GlobalSearch } from '@/components/avana-ui/global-search';
 import {
-    NotificationSheet,
-    type NotificationItem,
+    NotificationSheet
+    
 } from '@/components/avana-ui/notification-sheet';
+import type {NotificationItem} from '@/components/avana-ui/notification-sheet';
 import { WaIcon } from '@/components/avana-ui/wa-icon';
 import { SearchableSelect } from '@/components/searchable-select';
 import {
@@ -17,7 +20,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { AIcon, C, hexA, NAV } from '@/lib/avana';
 import type { NavGroup, NavItem } from '@/lib/avana';
-import type { CSSProperties } from 'react';
 
 /** The five configurable theme colours (per-tenant). */
 type ThemeColors = {
@@ -251,7 +253,8 @@ function HelpRow({
                 color: 'var(--avn-sidebar-text)',
             }}
             onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--avn-sidebar-active-bg)';
+                e.currentTarget.style.background =
+                    'var(--avn-sidebar-active-bg)';
             }}
             onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'transparent';
@@ -269,7 +272,11 @@ function HelpRow({
                     flex: 'none',
                 }}
             >
-                <AIcon name={icon} size={14} color="var(--avn-sidebar-accent)" />
+                <AIcon
+                    name={icon}
+                    size={14}
+                    color="var(--avn-sidebar-accent)"
+                />
             </span>
             <span
                 style={{
@@ -376,8 +383,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
     // White-label: a non-platform tenant with an uploaded company logo shows
     // their own brand in the sidebar; super admins keep the AvanaHR mark.
     const tenantLogo = page.props.auth?.tenant?.logo_url;
-    const useTenantLogo =
-        !page.props.auth?.isSuperAdmin && Boolean(tenantLogo);
+    const useTenantLogo = !page.props.auth?.isSuperAdmin && Boolean(tenantLogo);
     const brandName = page.props.auth?.tenant?.company_name || 'AvanaHR';
     const notif = page.props.notifications ?? { items: [], unread: 0 };
     const subscriptionNotice = page.props.subscription ?? null;
@@ -393,6 +399,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
     // from also lighting up on a child route (/avana/absensi/monitor).
     const activeHref = useMemo(() => {
         const hrefs: string[] = [];
+
         for (const grp of navGroups) {
             for (const it of grp.items) {
                 if (it.children) {
@@ -406,6 +413,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                 }
             }
         }
+
         // Match on the pathname only — a query string (e.g. the monitor's
         // ?date_from=…) must not stop /avana/absensi/monitor from matching and
         // let the shorter /avana/absensi parent win instead.
@@ -726,7 +734,8 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                                         width: 26,
                                         height: 26,
                                         borderRadius: 8,
-                                        background: 'var(--avn-sidebar-active-bg)',
+                                        background:
+                                            'var(--avn-sidebar-active-bg)',
                                         flex: 'none',
                                     }}
                                 >
@@ -990,7 +999,11 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                         <DropdownMenuContent align="end" className="w-52">
                             <DropdownMenuItem asChild>
                                 <Link
-                                    href={editProfile()}
+                                    href={
+                                        page.props.auth?.isSuperAdmin
+                                            ? WebsiteSettingController.edit()
+                                            : editProfile()
+                                    }
                                     className="cursor-pointer"
                                 >
                                     <AIcon name="settings" size={15} />
