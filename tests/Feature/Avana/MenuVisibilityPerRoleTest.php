@@ -184,3 +184,90 @@ it('forbids a plain employee from changing menu visibility', function (): void {
         ])
         ->assertForbidden();
 });
+
+it('lists who holds each role in the payload', function (): void {
+    $props = actingAs($this->admin)
+        ->get(route('avana.hak-akses'))
+        ->assertOk()
+        ->viewData('page')['props'];
+
+    $employeeRole = collect($props['roles'])->firstWhere('code', 'employee');
+
+    expect($employeeRole['members'])->not->toBeEmpty()
+        ->and(collect($employeeRole['members'])->pluck('email'))
+        ->toContain('bagus.p@nusantara.co.id');
+
+    // Tenant accounts available for assignment come along too.
+    expect(collect($props['assignableUsers'])->pluck('email'))
+        ->toContain('bagus.p@nusantara.co.id');
+});
+
+it('puts a user into a role and takes them out again', function (): void {
+    $manager = Role::where('tenant_id', $this->tenant->id)->where('code', 'manager')->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.hak-akses.roles.users.attach', $manager), ['user_id' => $this->employee->id])
+        ->assertSessionHas('success');
+
+    expect($manager->users()->whereKey($this->employee->id)->exists())->toBeTrue();
+
+    actingAs($this->admin)
+        ->delete(route('avana.hak-akses.roles.users.detach', ['role' => $manager->id, 'member' => $this->employee->id]))
+        ->assertSessionHas('success');
+
+    expect($manager->fresh()->users()->whereKey($this->employee->id)->exists())->toBeFalse();
+});
+
+it('refuses to leave a user with no role at all', function (): void {
+    $only = $this->employee->roles()->first();
+
+    actingAs($this->admin)
+        ->delete(route('avana.hak-akses.roles.users.detach', ['role' => $only->id, 'member' => $this->employee->id]))
+        ->assertSessionHas('error');
+
+    expect($this->employee->fresh()->roles()->count())->toBe(1);
+});
+
+it('refuses to restaff the actors own role', function (): void {
+    $ownRole = Role::where('tenant_id', $this->tenant->id)->where('code', 'admin_tenant_hr')->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.hak-akses.roles.users.attach', $ownRole), ['user_id' => $this->employee->id])
+        ->assertForbidden();
+});
+
+it('copies permissions and hidden menus into a new role', function (): void {
+    $manager = Role::where('tenant_id', $this->tenant->id)->where('code', 'manager')->firstOrFail();
+
+    RoleMenuVisibility::create([
+        'tenant_id' => $this->tenant->id,
+        'role_id' => $manager->id,
+        'menu_key' => 'saya-slip',
+        'is_visible' => false,
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.hak-akses.roles.store'), [
+            'name' => 'Supervisor Cabang',
+            'copy_from_role_id' => $manager->id,
+        ])
+        ->assertSessionHas('success');
+
+    $created = Role::where('tenant_id', $this->tenant->id)->where('name', 'Supervisor Cabang')->firstOrFail();
+
+    expect($created->permissions()->pluck('code')->sort()->values()->all())
+        ->toBe($manager->permissions()->pluck('code')->sort()->values()->all());
+
+    expect(RoleMenuVisibility::where('role_id', $created->id)->where('menu_key', 'saya-slip')->value('is_visible'))
+        ->toBeFalse();
+});
+
+it('creates an empty role when no source is given', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.hak-akses.roles.store'), ['name' => 'Peran Kosong'])
+        ->assertSessionHas('success');
+
+    $created = Role::where('tenant_id', $this->tenant->id)->where('name', 'Peran Kosong')->firstOrFail();
+
+    expect($created->permissions()->count())->toBe(0);
+});

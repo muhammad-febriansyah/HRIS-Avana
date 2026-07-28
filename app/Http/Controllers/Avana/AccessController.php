@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -127,7 +128,10 @@ class AccessController extends Controller
 
         $roleModels = $this->tenantRoles($tenantId, $isSuperAdmin)
             ->withCount('users')
-            ->with('permissions:id,code')
+            ->with(['permissions:id,code', 'users' => fn ($query) => $query
+                ->select('users.id', 'users.name', 'users.email', 'users.status')
+                ->with('employee:id,user_id,full_name,position_id', 'employee.position:id,name')
+                ->orderBy('users.name')])
             ->orderBy('id')
             ->get();
 
@@ -138,9 +142,19 @@ class AccessController extends Controller
             'desc' => self::ROLE_DESCRIPTIONS[$role->code] ?? '',
             'users' => $role->users_count,
             'color' => self::ROLE_COLORS[$index % count(self::ROLE_COLORS)],
+            'isSystem' => (bool) $role->is_system,
             // A locked role cannot be edited by the current actor: super_admin is
             // always immutable, and a tenant admin can never edit their own role.
             'locked' => $role->code === 'super_admin' || $actorRoleIds->contains($role->id),
+            // Who actually holds the role — the question "buat siapa peran ini?"
+            // that a permission matrix alone never answers.
+            'members' => $role->users->map(fn (User $member): array => [
+                'id' => $member->id,
+                'name' => $member->employee?->full_name ?? $member->name,
+                'email' => $member->email,
+                'position' => $member->employee?->position?->name,
+                'status' => $member->status,
+            ])->values()->all(),
         ])->all();
 
         $actions = collect(PermissionCatalog::ACTIONS)
@@ -216,7 +230,115 @@ class AccessController extends Controller
             // Menu-builder (super-admin only) folded in as the "Struktur Menu" tab.
             'canManageMenu' => $isSuperAdmin,
             'menu' => $this->menuBuilderData($request, $user, $isSuperAdmin),
+            // Everyone in the tenant who can be put into a role, so assigning a
+            // member never means leaving for the Pengguna screen and back.
+            'assignableUsers' => $this->assignableUsers($tenantId, $roleModels),
         ]);
+    }
+
+    /**
+     * Tenant accounts that may be added to a role, with the roles they already
+     * hold so the picker can say "sudah di peran ini".
+     *
+     * @param  Collection<int, Role>  $roles
+     * @return array<int, array{id: int, name: string, email: string, role_ids: array<int, int>}>
+     */
+    private function assignableUsers(?int $tenantId, Collection $roles): array
+    {
+        if ($tenantId === null) {
+            return [];
+        }
+
+        $byUser = DB::table('user_roles')
+            ->whereIn('role_id', $roles->pluck('id'))
+            ->get(['user_id', 'role_id'])
+            ->groupBy('user_id')
+            ->map(fn ($rows) => $rows->pluck('role_id')->map(fn ($id): int => (int) $id)->values()->all());
+
+        return User::query()
+            ->where('tenant_id', $tenantId)
+            ->with('employee:id,user_id,full_name')
+            ->orderBy('name')
+            ->get(['id', 'name', 'email'])
+            ->map(fn (User $member): array => [
+                'id' => $member->id,
+                'name' => $member->employee?->full_name ?? $member->name,
+                'email' => $member->email,
+                'role_ids' => $byUser[$member->id] ?? [],
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Put a tenant account into a role.
+     */
+    public function attachRoleUser(Request $request, Role $role): RedirectResponse
+    {
+        $this->ensureCanManageAccess($request);
+
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+        ]);
+
+        /** @var User $actor */
+        $actor = $request->user();
+        $role = $this->assertManageableRole($actor, $role);
+
+        $member = User::query()
+            ->where('tenant_id', $actor->tenant_id)
+            ->whereKey($validated['user_id'])
+            ->firstOrFail();
+
+        $role->users()->syncWithoutDetaching([$member->id]);
+
+        return back()->with('success', $member->name.' ditambahkan ke peran '.$role->name);
+    }
+
+    /**
+     * Take a tenant account out of a role. Refused when it is their last role —
+     * an account with none sees an empty app and cannot be fixed from here.
+     */
+    public function detachRoleUser(Request $request, Role $role, User $member): RedirectResponse
+    {
+        $this->ensureCanManageAccess($request);
+
+        /** @var User $actor */
+        $actor = $request->user();
+        $role = $this->assertManageableRole($actor, $role);
+
+        abort_unless((int) $member->tenant_id === (int) $actor->tenant_id, 404);
+
+        if ($member->roles()->count() <= 1) {
+            return back()->with('error', $member->name.' harus punya minimal satu peran.');
+        }
+
+        $role->users()->detach($member->id);
+
+        return back()->with('success', $member->name.' dikeluarkan dari peran '.$role->name);
+    }
+
+    /**
+     * The role must belong to the actor's scope and never be the system super
+     * admin; a tenant admin may not restaff their own role either.
+     */
+    private function assertManageableRole(User $actor, Role $role): Role
+    {
+        $isSuperAdmin = $actor->isSuperAdmin();
+
+        $role = $this->tenantRoles($actor->tenant_id, $isSuperAdmin)
+            ->whereKey($role->id)
+            ->firstOrFail();
+
+        abort_if($role->code === 'super_admin', 403, 'Super admin access cannot be modified.');
+
+        abort_if(
+            ! $isSuperAdmin && $actor->roles()->whereKey($role->id)->exists(),
+            403,
+            'Anda tidak dapat mengubah peran Anda sendiri.',
+        );
+
+        return $role;
     }
 
     /**
@@ -480,16 +602,42 @@ class AccessController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            // Starting from an existing role beats starting from nothing: a blank
+            // role sees no menu at all, which reads as "the role is broken".
+            'copy_from_role_id' => ['nullable', 'integer', 'exists:roles,id'],
         ]);
 
-        Role::create([
-            'tenant_id' => $request->user()->tenant_id,
+        /** @var User $user */
+        $user = $request->user();
+
+        $role = Role::create([
+            'tenant_id' => $user->tenant_id,
             'code' => Str::slug($validated['name']),
             'name' => $validated['name'],
             'is_system' => false,
         ]);
 
-        return back()->with('success', 'Role dibuat');
+        if (($validated['copy_from_role_id'] ?? null) !== null) {
+            $source = $this->tenantRoles($user->tenant_id, $user->isSuperAdmin())
+                ->whereKey($validated['copy_from_role_id'])
+                ->where('code', '!=', 'super_admin')
+                ->first();
+
+            if ($source !== null) {
+                $role->permissions()->syncWithoutDetaching($source->permissions()->pluck('permissions.id'));
+
+                foreach (RoleMenuVisibility::where('role_id', $source->id)->get() as $hidden) {
+                    RoleMenuVisibility::updateOrCreate(
+                        ['role_id' => $role->id, 'menu_key' => $hidden->menu_key],
+                        ['tenant_id' => $role->tenant_id ?? $user->tenant_id, 'is_visible' => $hidden->is_visible],
+                    );
+                }
+
+                return back()->with('success', 'Peran '.$role->name.' dibuat, menyalin izin dari '.$source->name);
+            }
+        }
+
+        return back()->with('success', 'Peran '.$role->name.' dibuat. Tambahkan penggunanya, lalu atur menunya.');
     }
 
     /**

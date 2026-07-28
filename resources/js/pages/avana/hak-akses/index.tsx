@@ -1,24 +1,26 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import AccessController from '@/actions/App/Http/Controllers/Avana/AccessController';
 import FeatureCatalogController from '@/actions/App/Http/Controllers/Avana/FeatureCatalogController';
-import { AIcon, btnP, C } from '@/lib/avana';
+import { AIcon, btnP, C, hexA } from '@/lib/avana';
 import MenuBuilder from '../menu-builder';
+import { CompanyMenuPanel } from './company-menu-panel';
 import { blankFeatureForm, FeatureModal } from './feature-modal';
 import type { FeatureForm } from './feature-modal';
-import { PermissionMatrix } from './permission-matrix';
-import { RoleCards } from './role-cards';
 import { RoleModal } from './role-modal';
-import type { FlashProps, HakAksesProps } from './types';
+import { RolePanel } from './role-panel';
+import type { HakAksesProps } from './types';
 
-type Tab = 'akses' | 'menu';
-
+/**
+ * One tab per role, plus a company-wide menu tab and (super admin) the menu
+ * builder. Everything the admin sees at once belongs to a single role, so
+ * "munculkan Dashboard untuk Karyawan" is: open Karyawan, flip Dashboard.
+ */
 export default function AvanaHakAkses({
     roles,
     actions,
     modules,
-    permHeaders,
     matrix,
     hasTenant,
     canManageFeatures,
@@ -26,31 +28,45 @@ export default function AvanaHakAkses({
     moduleOptions,
     canManageMenu,
     menu,
+    assignableUsers,
 }: HakAksesProps) {
-    const { flash } = usePage<FlashProps>().props;
-    // Tab lives in the URL (?tab=menu) so a tenant switch / redirect-back keeps it.
-    const [tab, setTab] = useState<Tab>(() =>
-        typeof window !== 'undefined' &&
-        new URLSearchParams(window.location.search).get('tab') === 'menu'
-            ? 'menu'
-            : 'akses',
-    );
-    const selectTab = (next: Tab) => {
-        setTab(next);
-        const url = new URL(window.location.href);
+    const { flash } = usePage<{
+        flash?: { success?: string; error?: string };
+    }>().props;
 
-        if (next === 'akses') {
-            url.searchParams.delete('tab');
-        } else {
-            url.searchParams.set('tab', next);
+    // The open tab lives in the URL (?tab=) so a redirect-back after any toggle
+    // returns to the same role instead of jumping to the first one.
+    const initialTab = (): string => {
+        if (typeof window === 'undefined') {
+            return roles[0]?.code ?? 'menu-perusahaan';
         }
 
+        const wanted = new URLSearchParams(window.location.search).get('tab');
+        const valid = [
+            ...roles.map((role) => role.code),
+            'menu-perusahaan',
+            ...(canManageMenu ? ['struktur-menu'] : []),
+        ];
+
+        return wanted !== null && valid.includes(wanted)
+            ? wanted
+            : (roles[0]?.code ?? 'menu-perusahaan');
+    };
+
+    const [tab, setTab] = useState<string>(initialTab);
+    const selectTab = (next: string) => {
+        setTab(next);
+
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', next);
         window.history.replaceState({}, '', url.toString());
     };
+
     const [roleModalOpen, setRoleModalOpen] = useState(false);
     const [roleName, setRoleName] = useState('');
+    const [copyFromRole, setCopyFromRole] = useState<string>('');
 
-    // Feature create/edit modal state.
+    // Feature create modal state (super admin registers a new module).
     const [featureOpen, setFeatureOpen] = useState<null | {
         mode: 'create' | 'edit';
         id: number | null;
@@ -65,30 +81,49 @@ export default function AvanaHakAkses({
         if (flash?.success) {
             toast.success(flash.success, { id: flash.success });
         }
-    }, [flash?.success]);
 
-    const closeRoleModal = () => {
-        setRoleModalOpen(false);
-        setRoleName('');
-    };
+        if (flash?.error) {
+            toast.error(flash.error, { id: flash.error });
+        }
+    }, [flash?.success, flash?.error]);
 
-    const toggleCell = (rowIdx: number, colIdx: number, action: string) => {
+    const activeRoleIdx = useMemo(
+        () => roles.findIndex((role) => role.code === tab),
+        [roles, tab],
+    );
+    const activeRole = activeRoleIdx >= 0 ? roles[activeRoleIdx] : null;
+
+    const visitOpts = { preserveScroll: true, preserveState: false } as const;
+
+    const toggleCell = (rowIdx: number, action: string) => {
+        if (activeRole === null) {
+            return;
+        }
+
         router.post(
             AccessController.togglePermission().url,
             {
                 module_key: modules[rowIdx].key,
                 action,
-                role_id: roles[colIdx].id,
+                role_id: activeRole.id,
             },
-            { preserveScroll: true },
+            visitOpts,
         );
     };
 
-    const toggleFeature = (rowIdx: number, enabled: boolean) => {
+    const toggleVisible = (rowIdx: number, visible: boolean) => {
+        if (activeRole === null) {
+            return;
+        }
+
         router.post(
-            AccessController.toggleFeature().url,
-            { module_key: modules[rowIdx].key, enabled },
-            { preserveScroll: true },
+            AccessController.toggleMenuVisibility().url,
+            {
+                menu_key: modules[rowIdx].key,
+                role_id: activeRole.id,
+                visible,
+            },
+            visitOpts,
         );
     };
 
@@ -96,35 +131,62 @@ export default function AvanaHakAkses({
         router.post(
             AccessController.toggleMenu().url,
             { menu_key: modules[rowIdx].key, active },
-            { preserveScroll: true },
+            visitOpts,
         );
     };
 
-    const toggleVisible = (
-        rowIdx: number,
-        colIdx: number,
-        visible: boolean,
-    ) => {
+    const toggleFeature = (rowIdx: number, enabled: boolean) => {
         router.post(
-            AccessController.toggleMenuVisibility().url,
-            {
-                menu_key: modules[rowIdx].key,
-                role_id: roles[colIdx].id,
-                visible,
-            },
-            { preserveScroll: true },
+            AccessController.toggleFeature().url,
+            { module_key: modules[rowIdx].key, enabled },
+            visitOpts,
         );
+    };
+
+    const attachUser = (userId: number) => {
+        if (activeRole === null) {
+            return;
+        }
+
+        router.post(
+            AccessController.attachRoleUser(activeRole.id).url,
+            { user_id: userId },
+            visitOpts,
+        );
+    };
+
+    const detachUser = (userId: number) => {
+        if (activeRole === null) {
+            return;
+        }
+
+        router.delete(
+            AccessController.detachRoleUser({
+                role: activeRole.id,
+                member: userId,
+            }).url,
+            visitOpts,
+        );
+    };
+
+    const closeRoleModal = () => {
+        setRoleModalOpen(false);
+        setRoleName('');
+        setCopyFromRole('');
     };
 
     const submitRole = () => {
         router.post(
             AccessController.storeRole().url,
-            { name: roleName },
+            {
+                name: roleName,
+                copy_from_role_id:
+                    copyFromRole === '' ? null : Number(copyFromRole),
+            },
             { preserveScroll: true, onSuccess: closeRoleModal },
         );
     };
 
-    // --- Feature catalog CRUD (super-admin) --------------------------------
     const openCreateFeature = () => {
         setFeatureForm(blankFeatureForm);
         setFeatureErrors({});
@@ -178,157 +240,221 @@ export default function AvanaHakAkses({
                         <AIcon name="chevron-right" size={13} />
                         <span style={{ color: C.muted }}>Hak Akses</span>
                     </div>
-                    <h1
-                        style={{
-                            fontSize: 24,
-                            fontWeight: 600,
-                            color: C.navy,
-                            margin: 0,
-                            letterSpacing: '-.01em',
-                        }}
-                    >
-                        Hak Akses &amp; Peran
-                    </h1>
-                    <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
-                        Fitur, izin per-peran &amp; struktur menu dalam satu
-                        layar.
-                    </div>
-                </div>
-
-                {/* Tabs */}
-                {canManageMenu && (
                     <div
                         style={{
                             display: 'flex',
-                            gap: 4,
-                            borderBottom: `1px solid ${C.border}`,
-                            marginBottom: 22,
+                            alignItems: 'flex-end',
+                            justifyContent: 'space-between',
+                            gap: 14,
+                            flexWrap: 'wrap',
                         }}
                     >
-                        {(
-                            [
-                                { key: 'akses', label: 'Izin & Fitur' },
-                                { key: 'menu', label: 'Struktur Menu' },
-                            ] as { key: Tab; label: string }[]
-                        ).map((t) => (
-                            <button
-                                key={t.key}
-                                onClick={() => selectTab(t.key)}
+                        <div>
+                            <h1
                                 style={{
-                                    padding: '10px 16px',
-                                    fontSize: 13.5,
+                                    fontSize: 24,
                                     fontWeight: 600,
-                                    border: 'none',
-                                    background:
-                                        tab === t.key
-                                            ? 'rgba(47,84,201,.07)'
-                                            : C.surface,
-                                    borderRadius: '8px 8px 0 0',
-                                    cursor: 'pointer',
-                                    color: tab === t.key ? C.primary : C.muted,
-                                    borderBottom:
-                                        tab === t.key
-                                            ? `2px solid ${C.primary}`
-                                            : '2px solid transparent',
-                                    marginBottom: -1,
+                                    color: C.navy,
+                                    margin: 0,
+                                    letterSpacing: '-.01em',
                                 }}
                             >
-                                {t.label}
-                            </button>
-                        ))}
-                    </div>
-                )}
-
-                {tab === 'akses' && (
-                    <>
-                        {canManageFeatures && (
+                                Hak Akses &amp; Peran
+                            </h1>
                             <div
                                 style={{
-                                    display: 'flex',
-                                    gap: 10,
-                                    alignItems: 'flex-start',
-                                    background: 'rgba(47,84,201,.05)',
-                                    border: `1px solid rgba(47,84,201,.15)`,
-                                    borderRadius: 10,
-                                    padding: '11px 14px',
-                                    marginBottom: 16,
-                                    fontSize: 12.5,
+                                    fontSize: 14,
                                     color: C.muted,
-                                    lineHeight: 1.5,
+                                    marginTop: 4,
                                 }}
                             >
-                                <AIcon
-                                    name="info"
-                                    size={15}
-                                    color={C.primary}
-                                />
-                                <span>
-                                    <b style={{ color: C.navy }}>
-                                        Tambah Fitur
-                                    </b>{' '}
-                                    = daftarkan modul baru (otomatis dapat izin
-                                    per-peran + baris di matriks). Ini{' '}
-                                    <b>belum</b> jadi menu di sidebar — untuk
-                                    itu pakai tab <b>Struktur Menu</b> →{' '}
-                                    <b>Tambah Menu</b>.
-                                </span>
+                                Pilih peran, atur siapa penggunanya dan menu apa
+                                yang mereka lihat.
                             </div>
-                        )}
+                        </div>
                         <div
                             style={{
                                 display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                gap: 12,
+                                gap: 10,
                                 flexWrap: 'wrap',
-                                marginBottom: 16,
                             }}
                         >
-                            <div />
-                            <div style={{ display: 'flex', gap: 10 }}>
-                                {canManageFeatures && (
-                                    <button
-                                        onClick={openCreateFeature}
-                                        style={{
-                                            ...btnP,
-                                            background: '#fff',
-                                            color: C.primary,
-                                            border: `1px solid ${C.primary}`,
-                                        }}
-                                    >
-                                        <AIcon name="plus" size={16} />
-                                        Tambah Fitur
-                                    </button>
-                                )}
+                            {canManageFeatures && (
                                 <button
-                                    onClick={() => setRoleModalOpen(true)}
-                                    style={btnP}
+                                    onClick={openCreateFeature}
+                                    style={{
+                                        ...btnP,
+                                        background: '#fff',
+                                        color: C.primary,
+                                        border: `1px solid ${C.primary}`,
+                                    }}
                                 >
                                     <AIcon name="plus" size={16} />
-                                    Buat Role Kustom
+                                    Tambah Fitur
                                 </button>
-                            </div>
+                            )}
+                            <button
+                                onClick={() => setRoleModalOpen(true)}
+                                style={btnP}
+                            >
+                                <AIcon name="plus" size={16} />
+                                Buat Peran
+                            </button>
                         </div>
+                    </div>
+                </div>
 
-                        <RoleCards roles={roles} />
+                {/* ---- Tabs: one per role, then the company-wide switches ---- */}
+                <div
+                    style={{
+                        display: 'flex',
+                        gap: 4,
+                        borderBottom: `1px solid ${C.border}`,
+                        marginBottom: 20,
+                        flexWrap: 'wrap',
+                    }}
+                >
+                    {roles.map((role) => {
+                        const active = tab === role.code;
 
-                        <PermissionMatrix
-                            roles={roles}
-                            actions={actions}
-                            modules={modules}
-                            permHeaders={permHeaders}
-                            matrix={matrix}
-                            hasTenant={hasTenant}
-                            canManageFeatures={canManageFeatures}
-                            onToggle={toggleCell}
-                            onToggleVisible={toggleVisible}
-                            onToggleMenu={toggleMenu}
-                            onToggleFeature={toggleFeature}
-                        />
-                    </>
+                        return (
+                            <button
+                                key={role.id}
+                                onClick={() => selectTab(role.code)}
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    padding: '10px 15px',
+                                    fontSize: 13.5,
+                                    fontWeight: active ? 600 : 500,
+                                    border: 'none',
+                                    background: active
+                                        ? hexA(role.color, 0.08)
+                                        : C.surface,
+                                    borderRadius: '9px 9px 0 0',
+                                    cursor: 'pointer',
+                                    color: active ? role.color : C.muted,
+                                    borderBottom: active
+                                        ? `2px solid ${role.color}`
+                                        : '2px solid transparent',
+                                    marginBottom: -1,
+                                }}
+                            >
+                                <AIcon
+                                    name="shield"
+                                    size={14}
+                                    color={active ? role.color : C.faint}
+                                />
+                                {role.name}
+                                <span
+                                    style={{
+                                        fontSize: 11,
+                                        fontWeight: 700,
+                                        color: active ? role.color : C.faint,
+                                        background: active
+                                            ? hexA(role.color, 0.14)
+                                            : C.line,
+                                        padding: '1px 7px',
+                                        borderRadius: 999,
+                                    }}
+                                >
+                                    {role.users}
+                                </span>
+                                {role.locked && (
+                                    <AIcon
+                                        name="lock"
+                                        size={11}
+                                        color={C.faint}
+                                    />
+                                )}
+                            </button>
+                        );
+                    })}
+
+                    {(
+                        [
+                            {
+                                key: 'menu-perusahaan',
+                                label: 'Menu Perusahaan',
+                                icon: 'building-2',
+                            },
+                            ...(canManageMenu
+                                ? [
+                                      {
+                                          key: 'struktur-menu',
+                                          label: 'Struktur Menu',
+                                          icon: 'list-tree',
+                                      },
+                                  ]
+                                : []),
+                        ] as { key: string; label: string; icon: string }[]
+                    ).map((extra) => {
+                        const active = tab === extra.key;
+
+                        return (
+                            <button
+                                key={extra.key}
+                                onClick={() => selectTab(extra.key)}
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 7,
+                                    padding: '10px 15px',
+                                    fontSize: 13.5,
+                                    fontWeight: active ? 600 : 500,
+                                    border: 'none',
+                                    background: active
+                                        ? 'rgba(47,84,201,.07)'
+                                        : C.surface,
+                                    borderRadius: '9px 9px 0 0',
+                                    cursor: 'pointer',
+                                    color: active ? C.primary : C.muted,
+                                    borderBottom: active
+                                        ? `2px solid ${C.primary}`
+                                        : '2px solid transparent',
+                                    marginBottom: -1,
+                                }}
+                            >
+                                <AIcon
+                                    name={extra.icon}
+                                    size={14}
+                                    color={active ? C.primary : C.faint}
+                                />
+                                {extra.label}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {activeRole !== null && (
+                    <RolePanel
+                        role={activeRole}
+                        roleIdx={activeRoleIdx}
+                        actions={actions}
+                        modules={modules}
+                        cells={modules.map(
+                            (_, rowIdx) => matrix[rowIdx]?.[activeRoleIdx] ?? {},
+                        )}
+                        assignableUsers={assignableUsers}
+                        onToggle={toggleCell}
+                        onToggleVisible={toggleVisible}
+                        onAttachUser={attachUser}
+                        onDetachUser={detachUser}
+                    />
                 )}
 
-                {tab === 'menu' && canManageMenu && (
+                {tab === 'menu-perusahaan' && (
+                    <CompanyMenuPanel
+                        modules={modules}
+                        hasTenant={hasTenant}
+                        canManageFeatures={canManageFeatures}
+                        onToggleMenu={toggleMenu}
+                        onToggleFeature={toggleFeature}
+                    />
+                )}
+
+                {tab === 'struktur-menu' && canManageMenu && (
                     <>
                         <div
                             style={{
@@ -336,10 +462,9 @@ export default function AvanaHakAkses({
                                 gap: 10,
                                 alignItems: 'flex-start',
                                 background: 'rgba(47,84,201,.05)',
-                                border: `1px solid rgba(47,84,201,.15)`,
+                                border: '1px solid rgba(47,84,201,.15)',
                                 borderRadius: 10,
                                 padding: '11px 14px',
-                                marginBottom: 4,
                                 fontSize: 12.5,
                                 color: C.muted,
                                 lineHeight: 1.5,
@@ -349,11 +474,10 @@ export default function AvanaHakAkses({
                             <span>
                                 <b style={{ color: C.navy }}>Tambah Menu</b> =
                                 item yang tampil di sidebar &amp; menunjuk ke
-                                sebuah halaman/route. Atur urutan, nesting,
-                                ikon, sembunyikan, dan fitur/izin yang
-                                menggerbanginya. Beda dari <b>Tambah Fitur</b>{' '}
-                                (yang bikin modul&nbsp;+&nbsp;izin, bukan
-                                tampilan sidebar).
+                                sebuah halaman. Atur urutan, nesting, ikon, dan
+                                fitur/izin yang menggerbanginya. Beda dari{' '}
+                                <b>Tambah Fitur</b> (yang bikin
+                                modul&nbsp;+&nbsp;izin, bukan tampilan sidebar).
                             </span>
                         </div>
                         <div style={{ margin: '10px -32px 0' }}>
@@ -372,6 +496,9 @@ export default function AvanaHakAkses({
                 <RoleModal
                     roleName={roleName}
                     onChangeName={setRoleName}
+                    copyFromRole={copyFromRole}
+                    onChangeCopyFrom={setCopyFromRole}
+                    roles={roles}
                     onSubmit={submitRole}
                     onClose={closeRoleModal}
                 />

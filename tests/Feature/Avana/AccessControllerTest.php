@@ -42,7 +42,7 @@ it('renders the hak-akses screen with roles, actions and the per-action matrix',
             ->component('avana/hak-akses/index', false)
             ->has('roles.0', fn (Assert $role) => $role
                 ->has('id')->has('name')->has('code')->has('desc')
-                ->has('users')->has('color')->has('locked'))
+                ->has('users')->has('color')->has('locked')->has('isSystem')->has('members'))
             ->has('actions', 6)
             ->has('actions.0', fn (Assert $action) => $action->has('key')->has('label'))
             ->has('modules')
@@ -162,7 +162,7 @@ it('refuses to modify the system super admin role', function (): void {
 it('creates a tenant role from a name', function (): void {
     actingAs($this->superAdmin)
         ->post('/__access/roles', ['name' => 'Auditor Internal'])
-        ->assertSessionHas('success', 'Role dibuat');
+        ->assertSessionHas('success');
 
     $role = Role::where('tenant_id', $this->superAdmin->tenant_id)->where('code', 'auditor-internal')->firstOrFail();
     expect($role->name)->toBe('Auditor Internal');

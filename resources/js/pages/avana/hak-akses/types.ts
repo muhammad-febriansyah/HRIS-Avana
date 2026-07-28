@@ -6,6 +6,15 @@
 
 export type { FlashProps } from '../employees/types';
 
+/** One account holding a role. */
+export interface RoleMember {
+    id: number;
+    name: string;
+    email: string;
+    position: string | null;
+    status: string | null;
+}
+
 /** A role card as serialized by `AccessController@index`. */
 export interface AccessRole {
     id: number;
@@ -14,8 +23,19 @@ export interface AccessRole {
     desc: string;
     users: number;
     color: string;
+    isSystem: boolean;
     /** True when the current actor may not edit this role (self-lockout / super_admin). */
     locked: boolean;
+    /** Who holds the role — answers "peran ini dipakai siapa?". */
+    members: RoleMember[];
+}
+
+/** A tenant account that can be put into a role, with the roles it already has. */
+export interface AssignableUser {
+    id: number;
+    name: string;
+    email: string;
+    role_ids: number[];
 }
 
 /** A single togglable action (view/create/update/archive/export/approve). */
@@ -91,4 +111,6 @@ export interface HakAksesProps {
     canManageMenu: boolean;
     /** Menu Builder tab data. */
     menu: MenuBuilderData;
+    /** Tenant accounts available for role assignment. */
+    assignableUsers: AssignableUser[];
 }
