@@ -1,6 +1,7 @@
+import type { CSSProperties } from 'react';
 import { Fragment, useMemo, useState } from 'react';
 import { AIcon, C, card, hexA } from '@/lib/avana';
-import { ActionCheckbox } from './components';
+import { ActionCheckbox, Switch } from './components';
 import type {
     AccessAction,
     AccessModule,
@@ -130,9 +131,7 @@ export function RolePanel({
                                 >
                                     {role.name}
                                 </div>
-                                <div
-                                    style={{ fontSize: 12.5, color: C.muted }}
-                                >
+                                <div style={{ fontSize: 12.5, color: C.muted }}>
                                     {role.desc ||
                                         'Peran kustom perusahaan Anda'}
                                 </div>
@@ -146,7 +145,9 @@ export function RolePanel({
                                 marginTop: 12,
                             }}
                         >
-                            <b style={{ color: C.navy }}>{role.members.length}</b>{' '}
+                            <b style={{ color: C.navy }}>
+                                {role.members.length}
+                            </b>{' '}
                             pengguna memakai peran ini ·{' '}
                             <b style={{ color: C.navy }}>{shownCount}</b> dari{' '}
                             {modules.length} menu terlihat
@@ -214,9 +215,7 @@ export function RolePanel({
                             }}
                         >
                             {candidates.length === 0 && (
-                                <div
-                                    style={{ fontSize: 12.5, color: C.faint }}
-                                >
+                                <div style={{ fontSize: 12.5, color: C.faint }}>
                                     Semua pengguna sudah memakai peran ini.
                                 </div>
                             )}
@@ -298,9 +297,7 @@ export function RolePanel({
                                     <button
                                         type="button"
                                         title={`Keluarkan ${member.name} dari peran ini`}
-                                        onClick={() =>
-                                            onDetachUser(member.id)
-                                        }
+                                        onClick={() => onDetachUser(member.id)}
                                         style={{
                                             border: 'none',
                                             background: 'none',
@@ -353,9 +350,8 @@ export function RolePanel({
                                 marginTop: 3,
                             }}
                         >
-                            Klik <b>Tampil</b> untuk memunculkan atau
-                            menyembunyikan menu · centang aksi untuk izin
-                            tombolnya.
+                            Geser sakelar untuk memunculkan atau menyembunyikan
+                            menu · centang aksi untuk izin tombolnya.
                         </div>
                     </div>
                     <div
@@ -397,10 +393,10 @@ export function RolePanel({
                                 />
                             </span>
                         </span>
-                        <button
-                            type="button"
-                            onClick={() => setOnlyHidden((v) => !v)}
+                        <span
                             style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
                                 height: 34,
                                 padding: '0 12px',
                                 borderRadius: 9,
@@ -408,14 +404,16 @@ export function RolePanel({
                                 background: onlyHidden
                                     ? hexA(C.primary, 0.08)
                                     : '#fff',
-                                color: onlyHidden ? C.primary : C.muted,
-                                fontSize: 12.5,
-                                fontWeight: 600,
-                                cursor: 'pointer',
                             }}
                         >
-                            Hanya yang disembunyikan
-                        </button>
+                            <Switch
+                                on={onlyHidden}
+                                tone={C.primary}
+                                label="Hanya yang disembunyikan"
+                                title="Saring daftar menjadi menu yang tidak dilihat peran ini"
+                                onToggle={() => setOnlyHidden((v) => !v)}
+                            />
+                        </span>
                     </div>
                 </div>
 
@@ -465,33 +463,17 @@ export function RolePanel({
                         return (
                             <Fragment key={module.key}>
                                 {showGroup && (
-                                    <div
-                                        style={{
-                                            padding: '11px 18px 5px',
-                                            fontSize: 11,
-                                            fontWeight: 700,
-                                            letterSpacing: '.04em',
-                                            color: C.faint,
-                                            textTransform: 'uppercase',
-                                            background: '#FAFBFD',
-                                            borderTop: `1px solid ${C.line}`,
-                                        }}
-                                    >
+                                    <div style={groupHeaderStyle}>
                                         {module.group}
                                     </div>
                                 )}
                                 <div
                                     style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 14,
-                                        flexWrap: 'wrap',
-                                        padding: '12px 18px',
-                                        borderTop: `1px solid ${C.line}`,
+                                        ...menuRowStyle,
                                         opacity: blocked ? 0.5 : 1,
                                     }}
                                 >
-                                    <div style={{ minWidth: 240, flex: 1 }}>
+                                    <div style={{ minWidth: 0 }}>
                                         <div
                                             style={{
                                                 display: 'flex',
@@ -565,15 +547,7 @@ export function RolePanel({
                                         }
                                     />
 
-                                    <div
-                                        style={{
-                                            display: 'flex',
-                                            gap: '6px 14px',
-                                            flexWrap: 'wrap',
-                                            minWidth: 320,
-                                            justifyContent: 'flex-end',
-                                        }}
-                                    >
+                                    <div style={actionCellStyle}>
                                         {module.actionable &&
                                         !cell.hidden &&
                                         !blocked ? (
@@ -620,6 +594,41 @@ export function RolePanel({
 }
 
 /**
+ * A fixed three-column row — name, visibility, actions — so the switches and
+ * checkboxes stack into straight columns down a list a hundred menus long.
+ * Flex-wrap let every row place them wherever its own label happened to end.
+ */
+const menuRowStyle: CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0,1fr) 150px minmax(0,430px)',
+    alignItems: 'center',
+    gap: 14,
+    padding: '11px 18px',
+    borderTop: `1px solid ${C.line}`,
+};
+
+const groupHeaderStyle: CSSProperties = {
+    position: 'sticky',
+    top: 0,
+    zIndex: 1,
+    padding: '9px 18px',
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: '.04em',
+    color: C.muted,
+    textTransform: 'uppercase',
+    background: '#F2F5FB',
+    borderTop: `1px solid ${C.line}`,
+};
+
+const actionCellStyle: CSSProperties = {
+    display: 'flex',
+    gap: '6px 14px',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+};
+
+/**
  * The one control that answers "does this role see the menu". Off carries the
  * reason, because "not visible" has three different fixes.
  */
@@ -639,11 +648,10 @@ function VisibleToggle({
     onToggle: () => void;
 }) {
     return (
-        <button
-            type="button"
-            role="switch"
-            aria-checked={on}
+        <Switch
+            on={on}
             disabled={disabled}
+            label={on ? 'Tampil' : (reason ?? 'Tidak tampil')}
             title={
                 disabled
                     ? reason === 'Menu nonaktif'
@@ -653,30 +661,7 @@ function VisibleToggle({
                       ? `Sembunyikan ${label} dari ${roleName}`
                       : `Tampilkan ${label} untuk ${roleName} (izin Lihat diberikan bila belum ada)`
             }
-            onClick={disabled ? undefined : onToggle}
-            style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 7,
-                padding: '5px 11px',
-                borderRadius: 999,
-                border: `1px solid ${on ? 'rgba(22,163,74,.35)' : C.border}`,
-                background: on ? 'rgba(22,163,74,.1)' : '#fff',
-                color: on ? C.green : C.faint,
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: disabled ? 'not-allowed' : 'pointer',
-                opacity: disabled ? 0.5 : 1,
-                whiteSpace: 'nowrap',
-                flex: 'none',
-            }}
-        >
-            <AIcon
-                name={on ? 'eye' : 'eye-off'}
-                size={13}
-                color={on ? C.green : C.faint}
-            />
-            {on ? 'Tampil' : (reason ?? 'Tidak tampil')}
-        </button>
+            onToggle={onToggle}
+        />
     );
 }

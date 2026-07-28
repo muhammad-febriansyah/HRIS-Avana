@@ -1,6 +1,93 @@
+import type { CSSProperties } from 'react';
 import { AIcon, C } from '@/lib/avana';
 
 /* ---------- shared presentational helpers for the hak-akses page ---------- */
+
+interface SwitchProps {
+    on: boolean;
+    disabled?: boolean;
+    title?: string;
+    /** Text rendered beside the track; carries the reason when the switch is off. */
+    label?: string;
+    /** Colour of the "on" state — green for grants, primary for view filters. */
+    tone?: string;
+    onToggle: () => void;
+}
+
+/**
+ * A sliding switch. Used wherever the page turns something on or off, so a
+ * setting never reads like a button that performs an action: the track shows
+ * the current state, not what a click would do.
+ */
+export function Switch({
+    on,
+    disabled = false,
+    title,
+    label,
+    tone = C.green,
+    onToggle,
+}: SwitchProps) {
+    const trackStyle: CSSProperties = {
+        position: 'relative',
+        display: 'inline-block',
+        width: 34,
+        height: 19,
+        flex: 'none',
+        borderRadius: 999,
+        background: on ? tone : '#D3D9E4',
+        transition: 'background .16s ease',
+    };
+
+    const knobStyle: CSSProperties = {
+        position: 'absolute',
+        top: 2,
+        left: on ? 17 : 2,
+        width: 15,
+        height: 15,
+        borderRadius: '50%',
+        background: '#fff',
+        boxShadow: '0 1px 3px rgba(14,26,58,.28)',
+        transition: 'left .16s ease',
+    };
+
+    return (
+        <button
+            type="button"
+            role="switch"
+            aria-checked={on}
+            aria-label={title}
+            disabled={disabled}
+            title={title}
+            onClick={disabled ? undefined : onToggle}
+            style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 9,
+                padding: 0,
+                border: 'none',
+                background: 'none',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                opacity: disabled ? 0.45 : 1,
+                whiteSpace: 'nowrap',
+            }}
+        >
+            <span style={trackStyle}>
+                <span style={knobStyle} />
+            </span>
+            {label ? (
+                <span
+                    style={{
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        color: on ? tone : C.faint,
+                    }}
+                >
+                    {label}
+                </span>
+            ) : null}
+        </button>
+    );
+}
 
 interface ToggleCellProps {
     on: boolean;
