@@ -25,6 +25,23 @@ final class AiImageGenerator
      */
     private const DIRECTORY = 'ai-images';
 
+    /**
+     * Seconds to wait for the provider to draw.
+     *
+     * Prism applies one `prism.request_timeout` (30s by default) to every call
+     * it makes, which suits a chat completion and is far too short for image
+     * models: gpt-image-1 and Imagen routinely need a minute. Left at the
+     * shared value the call always aborts, and because it runs inside the
+     * streamed chat turn it takes the whole reply down with it.
+     */
+    private const DRAW_TIMEOUT = 180;
+
+    /**
+     * Seconds to wait for the connection itself, which either opens promptly
+     * or is not going to.
+     */
+    private const CONNECT_TIMEOUT = 15;
+
     public function __construct(private readonly AiTokenService $tokens) {}
 
     /**
@@ -69,6 +86,10 @@ final class AiImageGenerator
         $response = Prism::image()
             ->using($image['provider'], $image['model'])
             ->withPrompt($prompt)
+            ->withClientOptions([
+                'timeout' => self::DRAW_TIMEOUT,
+                'connect_timeout' => self::CONNECT_TIMEOUT,
+            ])
             ->generate();
 
         $generated = $response->firstImage();

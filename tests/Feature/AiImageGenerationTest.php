@@ -162,3 +162,20 @@ it('tells the model it can draw only when the tool is registered', function (): 
     expect(AiPersona::systemPrompt($withoutTool))->not->toContain('buat_gambar')
         ->and(AiPersona::systemPrompt($withoutTool))->toBe(AiPersona::SYSTEM_PROMPT);
 });
+
+it('gives the drawing call a timeout long enough for an image model', function (): void {
+    $fake = Prism::fake([fakeImageResponse()]);
+
+    app(AiImageGenerator::class)->generate($this->user, 'logo biru');
+
+    // Prism applies one request_timeout to every call it makes. Chat can live
+    // with the 30s default; an image model cannot, and the abort would take
+    // the streamed chat turn down with it.
+    $fake->assertRequest(function (array $requests): void {
+        $options = $requests[0]->clientOptions();
+
+        expect($options['timeout'] ?? null)
+            ->toBeGreaterThan((int) config('prism.request_timeout'))
+            ->toBeGreaterThanOrEqual(120);
+    });
+});
