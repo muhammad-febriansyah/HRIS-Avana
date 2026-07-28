@@ -5,10 +5,12 @@ import { toast } from 'sonner';
 import SurveyController from '@/actions/App/Http/Controllers/Avana/SurveyController';
 import { SearchableSelect } from '@/components/searchable-select';
 import {
-    AIcon,
     ActionBtn,
+    AIcon,
     btnOut,
     btnP,
+    btnProcess,
+    btnSave,
     C,
     card,
     statusBadge,
@@ -1085,8 +1087,7 @@ export default function SurveiIndex({
                                 type="submit"
                                 disabled={createForm.processing}
                                 style={{
-                                    ...btnP,
-                                    background: C.green,
+                                    ...btnSave,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',
@@ -1310,8 +1311,7 @@ export default function SurveiIndex({
                                     selected.questions.length === 0
                                 }
                                 style={{
-                                    ...btnP,
-                                    background: C.violet,
+                                    ...btnProcess,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',

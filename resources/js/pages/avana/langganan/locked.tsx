@@ -29,7 +29,8 @@ export default function Locked({
     tenantName,
 }: PageProps) {
     const { website } = usePage<SharedProps>().props;
-    const whatsapp = website?.contact?.whatsapp || website?.contact?.phone || '';
+    const whatsapp =
+        website?.contact?.whatsapp || website?.contact?.phone || '';
     const waHref = `https://wa.me/${whatsapp.replace(/[^\d]/g, '')}`;
     const daysOver =
         subscription && subscription.days_left < 0
@@ -98,8 +99,8 @@ export default function Locked({
                             ? ` karena masa aktif berakhir pada ${subscription.end_date_label}`
                             : ''}
                         {daysOver > 0 ? ` (${daysOver} hari lalu)` : ''}. Data
-                        Anda tetap aman dan langsung bisa dipakai kembali setelah
-                        langganan diperpanjang.
+                        Anda tetap aman dan langsung bisa dipakai kembali
+                        setelah langganan diperpanjang.
                     </div>
 
                     {subscription?.package && (
@@ -146,7 +147,11 @@ export default function Locked({
                                     textDecoration: 'none',
                                 }}
                             >
-                                <AIcon name="refresh-cw" size={16} color="#fff" />
+                                <AIcon
+                                    name="refresh-cw"
+                                    size={16}
+                                    color="#fff"
+                                />
                                 Perpanjang Sekarang
                             </Link>
                         )}

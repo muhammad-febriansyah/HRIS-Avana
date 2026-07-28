@@ -10,7 +10,7 @@ import type { DragEndEvent } from '@dnd-kit/core';
 import { Head, router } from '@inertiajs/react';
 import type { ApexOptions } from 'apexcharts';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AIcon, C } from '@/lib/avana';
+import { AIcon, btnCreate, btnOut, C } from '@/lib/avana';
 
 const CHART_COLORS = [
     '#2547F9',
@@ -387,7 +387,7 @@ export default function ReportStudio({
                         </p>
                     </div>
                     <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
-                        <button onClick={reset} style={btnGhost}>
+                        <button onClick={reset} style={btnOut}>
                             <AIcon name="rotate-ccw" size={15} color={C.text} />
                             Reset
                         </button>
@@ -395,7 +395,7 @@ export default function ReportStudio({
                             onClick={() => setSaveOpen(true)}
                             disabled={configEmpty}
                             style={{
-                                ...btnGhost,
+                                ...btnOut,
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: 7,
@@ -410,7 +410,7 @@ export default function ReportStudio({
                             onClick={exportExcel}
                             disabled={configEmpty}
                             style={{
-                                ...btnPrimary,
+                                ...btnCreate,
                                 background: C.amber,
                                 opacity: configEmpty ? 0.5 : 1,
                                 cursor: configEmpty ? 'not-allowed' : 'pointer',
@@ -900,7 +900,7 @@ export default function ReportStudio({
                         >
                             <button
                                 onClick={() => setSaveOpen(false)}
-                                style={btnGhost}
+                                style={btnOut}
                             >
                                 <AIcon name="x" size={15} color={C.text} />
                                 Batal
@@ -909,7 +909,7 @@ export default function ReportStudio({
                                 onClick={saveReport}
                                 disabled={reportName.trim() === '' || saving}
                                 style={{
-                                    ...btnPrimary,
+                                    ...btnCreate,
                                     background: C.green,
                                     opacity:
                                         reportName.trim() === '' || saving
@@ -1028,7 +1028,7 @@ export default function ReportStudio({
                         >
                             <button
                                 onClick={() => setFieldOpen(false)}
-                                style={btnGhost}
+                                style={btnOut}
                             >
                                 <AIcon name="x" size={15} color={C.text} />
                                 Batal
@@ -1039,7 +1039,7 @@ export default function ReportStudio({
                                     fieldLabel.trim() === '' || savingField
                                 }
                                 style={{
-                                    ...btnPrimary,
+                                    ...btnCreate,
                                     opacity:
                                         fieldLabel.trim() === '' || savingField
                                             ? 0.5
@@ -1631,35 +1631,6 @@ function PreviewChart({ result }: { result: PivotResult }) {
         </div>
     );
 }
-
-const btnPrimary: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 7,
-    background: C.primary,
-    color: '#fff',
-    border: 'none',
-    borderRadius: 10,
-    padding: '9px 16px',
-    fontSize: 13.5,
-    fontWeight: 600,
-    cursor: 'pointer',
-};
-
-const btnGhost: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-    background: '#fff',
-    color: C.text,
-    border: `1px solid ${C.border}`,
-    borderRadius: 10,
-    padding: '9px 16px',
-    fontSize: 13.5,
-    fontWeight: 600,
-    cursor: 'pointer',
-};
 
 const fieldFormLabel: React.CSSProperties = {
     display: 'block',

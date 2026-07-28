@@ -2,7 +2,7 @@ import { router } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import UserController from '@/actions/App/Http/Controllers/Avana/UserController';
-import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnOut, btnSave, C, card } from '@/lib/avana';
 import type { PermissionActionOption, PermissionOverride } from './types';
 
 interface PermissionOverridesProps {
@@ -213,8 +213,7 @@ export function PermissionOverrides({
                     onClick={save}
                     disabled={saving}
                     style={{
-                        ...btnP,
-                        background: C.green,
+                        ...btnSave,
                         opacity: saving ? 0.7 : 1,
                         cursor: saving ? 'not-allowed' : 'pointer',
                     }}

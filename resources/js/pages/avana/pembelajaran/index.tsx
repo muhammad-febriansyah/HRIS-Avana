@@ -6,10 +6,11 @@ import LearningController from '@/actions/App/Http/Controllers/Avana/LearningCon
 import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import {
-    AIcon,
     ActionBtn,
+    AIcon,
     btnOut,
     btnP,
+    btnSave,
     C,
     card,
     rp,
@@ -816,8 +817,7 @@ export default function PembelajaranIndex({
                                 type="submit"
                                 disabled={enrollForm.processing}
                                 style={{
-                                    ...btnP,
-                                    background: C.green,
+                                    ...btnSave,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',
@@ -1032,8 +1032,7 @@ export default function PembelajaranIndex({
                                 type="submit"
                                 disabled={updateForm.processing}
                                 style={{
-                                    ...btnP,
-                                    background: C.green,
+                                    ...btnSave,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',

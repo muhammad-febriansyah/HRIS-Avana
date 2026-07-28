@@ -3,7 +3,16 @@ import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { toast } from 'sonner';
 import DynamicReportController from '@/actions/App/Http/Controllers/Avana/DynamicReportController';
-import { AIcon, ActionBtn, btnOut, btnP, C, card, thCell } from '@/lib/avana';
+import {
+    ActionBtn,
+    AIcon,
+    btnOut,
+    btnP,
+    btnSave,
+    C,
+    card,
+    thCell,
+} from '@/lib/avana';
 import { EmptyState, inputStyle, labelStyle } from './components';
 import type {
     BuilderFormData,
@@ -335,8 +344,7 @@ export default function DynamicReportIndex({
                             type="submit"
                             disabled={form.processing}
                             style={{
-                                ...btnP,
-                                background: C.green,
+                                ...btnSave,
                                 width: '100%',
                                 justifyContent: 'center',
                                 opacity: form.processing ? 0.6 : 1,

@@ -3,7 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import EmailSettingController from '@/actions/App/Http/Controllers/Avana/EmailSettingController';
-import { AIcon, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnSave, C, card } from '@/lib/avana';
 
 interface Settings {
     from_name: string | null;
@@ -499,8 +499,7 @@ export default function EmailSettings({
                                 type="submit"
                                 disabled={form.processing}
                                 style={{
-                                    ...btnP,
-                                    background: C.green,
+                                    ...btnSave,
                                     opacity: form.processing ? 0.6 : 1,
                                     cursor: form.processing
                                         ? 'default'

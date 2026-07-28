@@ -5,7 +5,16 @@ import { toast } from 'sonner';
 import OnboardingController from '@/actions/App/Http/Controllers/Avana/OnboardingController';
 import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
-import { AIcon, ActionBtn, btnOut, btnP, C, card } from '@/lib/avana';
+import {
+    ActionBtn,
+    AIcon,
+    btnNested,
+    btnOut,
+    btnP,
+    btnSave,
+    C,
+    card,
+} from '@/lib/avana';
 
 /* ============================================================
  * Onboarding board: new-hire programs with progress + checklist.
@@ -620,8 +629,7 @@ export default function OnboardingIndex({
                                                         ''
                                                 }
                                                 style={{
-                                                    ...btnP,
-                                                    background: C.sky,
+                                                    ...btnNested,
                                                     height: 38,
                                                     opacity:
                                                         taskForm.processing ||
@@ -864,8 +872,7 @@ function ModalActions({
                 type="submit"
                 disabled={processing}
                 style={{
-                    ...btnP,
-                    background: C.green,
+                    ...btnSave,
                     flex: 1,
                     height: 44,
                     justifyContent: 'center',

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import AnnouncementController from '@/actions/App/Http/Controllers/Avana/AnnouncementController';
 import { FileDropzone, formatFileSize } from '@/components/avana/file-dropzone';
-import { AIcon, btnOut, btnP, C, card, hexA } from '@/lib/avana';
+import { AIcon, btnOut, btnP, btnSave, C, card, hexA } from '@/lib/avana';
 import { makeColumns } from './columns';
 import type { Announcement, AnnouncementAttachment } from './columns';
 import { DataTable } from './data-table';
@@ -529,8 +529,7 @@ export default function PengumumanIndex({
                                 type="submit"
                                 disabled={form.processing}
                                 style={{
-                                    ...btnP,
-                                    background: C.green,
+                                    ...btnSave,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',

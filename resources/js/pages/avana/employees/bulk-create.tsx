@@ -2,7 +2,15 @@ import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import type { ChangeEvent, ClipboardEvent, CSSProperties } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { ActionBtn, AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import {
+    ActionBtn,
+    AIcon,
+    btnOut,
+    btnProcess,
+    btnSave,
+    C,
+    card,
+} from '@/lib/avana';
 import type { EmployeeFormOptions, FlashProps } from './types';
 
 interface BulkRow {
@@ -542,8 +550,7 @@ export default function EmployeesBulkCreate({
                             onClick={() => fileInput.current?.click()}
                             disabled={uploading}
                             style={{
-                                ...btnP,
-                                background: C.violet,
+                                ...btnProcess,
                                 opacity: uploading ? 0.7 : 1,
                                 cursor: uploading ? 'wait' : 'pointer',
                             }}
@@ -916,8 +923,7 @@ export default function EmployeesBulkCreate({
                         onClick={submit}
                         disabled={processing}
                         style={{
-                            ...btnP,
-                            background: C.green,
+                            ...btnSave,
                             opacity: processing ? 0.7 : 1,
                             cursor: processing ? 'not-allowed' : 'pointer',
                         }}

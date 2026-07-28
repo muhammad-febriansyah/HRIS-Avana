@@ -1,5 +1,5 @@
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
-import { AIcon, btnOut, btnP, C } from '@/lib/avana';
+import { AIcon, btnOut, btnSave, C } from '@/lib/avana';
 
 /* ---------- shared field styles (mirror rekrutmen/components.tsx) ---------- */
 
@@ -234,8 +234,7 @@ export function ModalShell({
                         type="submit"
                         disabled={processing}
                         style={{
-                            ...btnP,
-                            background: C.green,
+                            ...btnSave,
                             flex: 1,
                             height: 44,
                             justifyContent: 'center',

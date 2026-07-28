@@ -4,7 +4,16 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import PerformanceController from '@/actions/App/Http/Controllers/Avana/PerformanceController';
 import { DatePicker } from '@/components/avana/date-picker';
-import { ActionBtn, AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
+import {
+    ActionBtn,
+    AIcon,
+    btnOut,
+    btnP,
+    btnSave,
+    C,
+    card,
+    thCell,
+} from '@/lib/avana';
 import {
     ConfirmModal,
     CycleStatusBadge,
@@ -813,8 +822,7 @@ export default function KinerjaIndex({
                                 type="submit"
                                 disabled={cycleForm.processing}
                                 style={{
-                                    ...btnP,
-                                    background: C.green,
+                                    ...btnSave,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',
@@ -1058,8 +1066,7 @@ export default function KinerjaIndex({
                                 type="submit"
                                 disabled={scoreForm.processing}
                                 style={{
-                                    ...btnP,
-                                    background: C.green,
+                                    ...btnSave,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',

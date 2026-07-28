@@ -3,7 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import OkrController from '@/actions/App/Http/Controllers/Avana/OkrController';
-import { ActionBtn, AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import { ActionBtn, AIcon, btnOut, btnP, btnSave, C, card } from '@/lib/avana';
 import {
     ConfirmModal,
     FieldError,
@@ -465,8 +465,7 @@ function ObjectiveCard({
                             type="submit"
                             disabled={krForm.processing}
                             style={{
-                                ...btnP,
-                                background: C.green,
+                                ...btnSave,
                                 height: 38,
                                 justifyContent: 'center',
                                 opacity: krForm.processing ? 0.7 : 1,

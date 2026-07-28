@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import TenantAiTokenController from '@/actions/App/Http/Controllers/Avana/TenantAiTokenController';
-import { AIcon, btnP, C, card, rp, RupiahInput } from '@/lib/avana';
+import { AIcon, btnP, btnProcess, C, card, rp, RupiahInput } from '@/lib/avana';
 
 /* ============================================================
  * Token AI (tenant admin/HR): wallet, buy packs (Pakasir),
@@ -584,8 +584,7 @@ export default function TokenAi({
                                                 onClick={() => buy(pack.id)}
                                                 disabled={buying === pack.id}
                                                 style={{
-                                                    ...btnP,
-                                                    background: C.violet,
+                                                    ...btnProcess,
                                                     marginTop: 12,
                                                     width: '100%',
                                                     justifyContent: 'center',

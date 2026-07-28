@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import JournalController from '@/actions/App/Http/Controllers/Avana/JournalController';
 import { usePermission } from '@/hooks/use-permission';
-import { ActionBtn, AIcon, btnP, C, card, rp, thCell } from '@/lib/avana';
+import { ActionBtn, AIcon, btnProcess, C, card, rp, thCell } from '@/lib/avana';
 import type { FlashProps } from '../employees/types';
 
 interface JournalEntryRow {
@@ -204,8 +204,7 @@ export default function JurnalIndex({
                                 latestRun ? undefined : 'Belum ada payroll run'
                             }
                             style={{
-                                ...btnP,
-                                background: C.violet,
+                                ...btnProcess,
                                 opacity: !latestRun || generating ? 0.6 : 1,
                                 cursor:
                                     !latestRun || generating

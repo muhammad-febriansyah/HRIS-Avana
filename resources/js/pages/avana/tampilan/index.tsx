@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import TenantAppearanceController from '@/actions/App/Http/Controllers/Avana/TenantAppearanceController';
-import { AIcon, btnOut, btnP, C, card, hexA } from '@/lib/avana';
+import { AIcon, btnOut, btnProcess, btnSave, C, card, hexA } from '@/lib/avana';
 
 /* ============================================================
  * Tampilan & Tema (tenant admin): recolour sidebar + topbar.
@@ -451,8 +451,7 @@ export default function TampilanTema({
                                         }
                                         disabled={uploadingLogo}
                                         style={{
-                                            ...btnP,
-                                            background: C.violet,
+                                            ...btnProcess,
                                             opacity: uploadingLogo ? 0.6 : 1,
                                         }}
                                     >
@@ -700,8 +699,7 @@ export default function TampilanTema({
                                     onClick={save}
                                     disabled={saving || !isValid}
                                     style={{
-                                        ...btnP,
-                                        background: C.green,
+                                        ...btnSave,
                                         opacity: saving || !isValid ? 0.6 : 1,
                                     }}
                                 >

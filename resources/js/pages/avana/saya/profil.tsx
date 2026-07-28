@@ -3,7 +3,7 @@ import type { ChangeEvent, FormEvent } from 'react';
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { DatePicker } from '@/components/avana/date-picker';
-import { AIcon, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnSave, C, card } from '@/lib/avana';
 import {
     Field,
     formatDate,
@@ -445,8 +445,7 @@ export default function SayaProfil({ profile }: { profile: Profile }) {
                                     type="submit"
                                     disabled={form.processing}
                                     style={{
-                                        ...btnP,
-                                        background: C.green,
+                                        ...btnSave,
                                         height: 44,
                                         opacity: form.processing ? 0.7 : 1,
                                     }}

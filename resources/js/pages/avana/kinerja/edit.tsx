@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { toast } from 'sonner';
 import PerformanceController from '@/actions/App/Http/Controllers/Avana/PerformanceController';
 import { SearchableSelect } from '@/components/searchable-select';
-import { ActionBtn, AIcon, btnP, C, card } from '@/lib/avana';
+import { ActionBtn, AIcon, btnP, btnSave, C, card } from '@/lib/avana';
 import {
     FeedbackTypeBadge,
     FieldError,
@@ -303,8 +303,7 @@ export default function KinerjaEdit({
                                 type="submit"
                                 disabled={calibrateForm.processing}
                                 style={{
-                                    ...btnP,
-                                    background: C.green,
+                                    ...btnSave,
                                     height: 42,
                                     justifyContent: 'center',
                                     opacity: calibrateForm.processing ? 0.7 : 1,

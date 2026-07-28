@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { toast } from 'sonner';
 import PayrollController from '@/actions/App/Http/Controllers/Avana/PayrollController';
 import { DatePicker } from '@/components/avana/date-picker';
-import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnOut, btnSave, C, card } from '@/lib/avana';
 import type { FlashProps } from './types';
 
 const periodLabel = {
@@ -229,8 +229,7 @@ export default function PeriodCreate() {
                             type="submit"
                             disabled={processing}
                             style={{
-                                ...btnP,
-                                background: C.green,
+                                ...btnSave,
                                 height: 44,
                                 justifyContent: 'center',
                                 opacity: processing ? 0.7 : 1,

@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import WebsiteSettingController from '@/actions/App/Http/Controllers/Avana/WebsiteSettingController';
-import { AIcon, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnSave, C, card } from '@/lib/avana';
 import {
     Field,
     ImageUpload,
@@ -464,8 +464,7 @@ export default function WebsiteSettings({ settings }: PageProps) {
                         type="submit"
                         disabled={form.processing}
                         style={{
-                            ...btnP,
-                            background: C.green,
+                            ...btnSave,
                             height: 44,
                             padding: '0 22px',
                             opacity: form.processing ? 0.7 : 1,

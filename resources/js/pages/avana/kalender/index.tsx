@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import CalendarController from '@/actions/App/Http/Controllers/Avana/CalendarController';
 import { DatePicker } from '@/components/avana/date-picker';
-import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnOut, btnP, btnSave, C, card } from '@/lib/avana';
 import type { FlashProps } from '../employees/types';
 
 interface CalendarEventRow {
@@ -872,8 +872,7 @@ export default function KalenderIndex({
                                 type="submit"
                                 disabled={form.processing}
                                 style={{
-                                    ...btnP,
-                                    background: C.green,
+                                    ...btnSave,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',

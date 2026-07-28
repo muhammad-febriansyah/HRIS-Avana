@@ -2,7 +2,7 @@ import { router } from '@inertiajs/react';
 import { useState } from 'react';
 import type { CSSProperties } from 'react';
 import { toast } from 'sonner';
-import { AIcon, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnSave, C, card } from '@/lib/avana';
 import type { CompanyProfile } from './types';
 
 const label: CSSProperties = {
@@ -132,8 +132,7 @@ export function ProfileForm({ company }: { company: CompanyProfile }) {
                     onClick={save}
                     disabled={saving}
                     style={{
-                        ...btnP,
-                        background: C.green,
+                        ...btnSave,
                         opacity: saving ? 0.6 : 1,
                     }}
                 >

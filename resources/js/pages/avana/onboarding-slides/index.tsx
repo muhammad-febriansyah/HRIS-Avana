@@ -3,7 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import OnboardingSlideController from '@/actions/App/Http/Controllers/Avana/OnboardingSlideController';
-import { AIcon, ActionBtn, btnOut, btnP, C, card } from '@/lib/avana';
+import { ActionBtn, AIcon, btnOut, btnP, btnSave, C, card } from '@/lib/avana';
 import {
     Field,
     ImageUpload,
@@ -549,8 +549,7 @@ export default function OnboardingSlides({ slides }: OnboardingSlidesProps) {
                                 type="submit"
                                 disabled={form.processing}
                                 style={{
-                                    ...btnP,
-                                    background: C.green,
+                                    ...btnSave,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',

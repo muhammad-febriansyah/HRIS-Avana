@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import ApprovalWorkflowController from '@/actions/App/Http/Controllers/Avana/ApprovalWorkflowController';
 import { SearchableSelect } from '@/components/searchable-select';
-import { AIcon, C, btnOut, btnP, card } from '@/lib/avana';
+import { AIcon, btnOut, btnP, btnSave, C, card } from '@/lib/avana';
 import type {
     ApproverTypeDef,
     ConditionDraft,
@@ -491,8 +491,7 @@ export default function Wizard({
                         onClick={submit}
                         disabled={processing}
                         style={{
-                            ...btnP,
-                            background: C.green,
+                            ...btnSave,
                             opacity: processing ? 0.7 : 1,
                         }}
                     >

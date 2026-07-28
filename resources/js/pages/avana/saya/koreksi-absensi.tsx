@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { DatePicker } from '@/components/avana/date-picker';
-import { AIcon, btnP, C, thCell } from '@/lib/avana';
+import { AIcon, btnProcess, C, thCell } from '@/lib/avana';
 import {
     EmptyState,
     Field,
@@ -175,8 +175,7 @@ export default function SayaKoreksiAbsensi({
                                     type="submit"
                                     disabled={form.processing}
                                     style={{
-                                        ...btnP,
-                                        background: C.violet,
+                                        ...btnProcess,
                                         height: 44,
                                         justifyContent: 'center',
                                         opacity: form.processing ? 0.7 : 1,

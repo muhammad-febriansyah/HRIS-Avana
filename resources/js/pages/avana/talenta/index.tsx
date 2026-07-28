@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import TalentController from '@/actions/App/Http/Controllers/Avana/TalentController';
 import { SearchableSelect } from '@/components/searchable-select';
-import { AIcon, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnSave, C, card } from '@/lib/avana';
 import {
     ConfirmModal,
     FieldError,
@@ -591,8 +591,7 @@ export default function TalentIndex({
                                     type="submit"
                                     disabled={form.processing}
                                     style={{
-                                        ...btnP,
-                                        background: C.green,
+                                        ...btnSave,
                                         flex: 1,
                                         height: 44,
                                         justifyContent: 'center',

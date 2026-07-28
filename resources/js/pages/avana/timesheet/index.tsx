@@ -5,7 +5,16 @@ import { toast } from 'sonner';
 import TimesheetController from '@/actions/App/Http/Controllers/Avana/TimesheetController';
 import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
-import { ActionBtn, AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
+import {
+    ActionBtn,
+    AIcon,
+    btnOut,
+    btnP,
+    btnSave,
+    C,
+    card,
+    thCell,
+} from '@/lib/avana';
 import {
     ConfirmModal,
     FieldError,
@@ -821,8 +830,7 @@ function ModalActions({
                 type="submit"
                 disabled={processing}
                 style={{
-                    ...btnP,
-                    background: C.green,
+                    ...btnSave,
                     flex: 1,
                     height: 44,
                     justifyContent: 'center',

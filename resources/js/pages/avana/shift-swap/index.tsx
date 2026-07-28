@@ -10,6 +10,7 @@ import {
     AIcon,
     btnOut,
     btnP,
+    btnSave,
     C,
     card,
     statusBadge,
@@ -561,8 +562,7 @@ export default function ShiftSwapIndex({
                                 type="submit"
                                 disabled={form.processing}
                                 style={{
-                                    ...btnP,
-                                    background: C.green,
+                                    ...btnSave,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',

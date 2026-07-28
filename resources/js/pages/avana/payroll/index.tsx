@@ -5,7 +5,15 @@ import { toast } from 'sonner';
 import PayrollController from '@/actions/App/Http/Controllers/Avana/PayrollController';
 import SalaryMasterController from '@/actions/App/Http/Controllers/Avana/SalaryMasterController';
 import { DatePicker } from '@/components/avana/date-picker';
-import { AIcon, btnOut, btnP, C } from '@/lib/avana';
+import {
+    AIcon,
+    btnExport,
+    btnOut,
+    btnP,
+    btnProcess,
+    btnSave,
+    C,
+} from '@/lib/avana';
 import { LockedAlert } from './components';
 import { PeriodTable } from './period-table';
 import { RecipientsTable } from './recipients-table';
@@ -548,8 +556,7 @@ export default function AvanaPayroll({
                                                         );
                                                     }}
                                                     style={{
-                                                        ...btnP,
-                                                        background: C.amber,
+                                                        ...btnExport,
                                                         height: 36,
                                                         textDecoration: 'none',
                                                     }}
@@ -927,8 +934,7 @@ function ApprovalModal({
                             onClick={onApprove}
                             disabled={processing}
                             style={{
-                                ...btnP,
-                                background: C.green,
+                                ...btnSave,
                                 opacity: processing ? 0.6 : 1,
                             }}
                         >
@@ -1101,8 +1107,7 @@ function RunConfirmModal({
                         onClick={onConfirm}
                         disabled={processing || !payDate}
                         style={{
-                            ...btnP,
-                            background: C.violet,
+                            ...btnProcess,
                             opacity: processing || !payDate ? 0.6 : 1,
                         }}
                     >

@@ -5,7 +5,16 @@ import { toast } from 'sonner';
 import ApprovalDelegationController from '@/actions/App/Http/Controllers/Avana/ApprovalDelegationController';
 import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
-import { AIcon, ActionBtn, btnOut, btnP, C, card, thCell } from '@/lib/avana';
+import {
+    ActionBtn,
+    AIcon,
+    btnOut,
+    btnP,
+    btnSave,
+    C,
+    card,
+    thCell,
+} from '@/lib/avana';
 
 /* ---------- types (mirror ApprovalDelegationController payloads) ---------- */
 
@@ -779,8 +788,7 @@ export default function DelegasiIndex({
                                 type="submit"
                                 disabled={form.processing}
                                 style={{
-                                    ...btnP,
-                                    background: C.green,
+                                    ...btnSave,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',

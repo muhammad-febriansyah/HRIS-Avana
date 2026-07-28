@@ -3,10 +3,39 @@ import { useEffect } from 'react';
 import { toast } from 'sonner';
 import BillingController from '@/actions/App/Http/Controllers/Avana/BillingController';
 import { DatePicker } from '@/components/avana/date-picker';
-import { AIcon, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
+import { AIcon, btnOut, btnSave, C, card, RupiahInput } from '@/lib/avana';
 import { fieldLabelStyle, inputStyle, selectStyle } from './components';
-import { BILLING_CYCLE_LABEL } from './types';
+import { BILLING_CYCLE_LABEL, SUBSCRIPTION_STATUS_LABEL } from './types';
 import type { FlashProps, PackageOption, TenantOption } from './types';
+
+/** Months a billing cycle covers, for deriving the end date from the start. */
+const CYCLE_MONTHS: Record<string, number> = {
+    monthly: 1,
+    quarterly: 3,
+    yearly: 12,
+};
+
+/** `YYYY-MM-DD` of today. */
+function today(): string {
+    return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * The date `months` after `start`, clamped to the end of a shorter month (31 Jan
+ * + 1 month = 28/29 Feb, never 3 March).
+ */
+function addMonths(start: string, months: number): string {
+    const [y, m, d] = start.split('-').map(Number);
+
+    if (!y || !m || !d) {
+        return '';
+    }
+
+    const lastDay = new Date(y, m - 1 + months + 1, 0).getDate();
+    const date = new Date(y, m - 1 + months, Math.min(d, lastDay));
+
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
 
 interface SubscriptionCreateProps {
     tenants: TenantOption[];
@@ -33,17 +62,24 @@ export default function SubscriptionCreate({
 }: SubscriptionCreateProps) {
     const { flash } = usePage<FlashProps>().props;
 
+    // The period is prefilled from today: a subscription saved without an end
+    // date never expires, so it would never warn, never lock, and never be
+    // renewable — an easy trap on a form where both dates are optional.
     const form = useForm({
         tenant_id: '',
         package_id: '',
         status: 'active',
         billing_cycle: 'monthly',
         price: '',
-        start_date: '',
-        end_date: '',
+        start_date: today(),
+        end_date: addMonths(today(), 1),
     });
 
     const { data, setData, errors, processing } = form;
+
+    /** Move the end date along with whatever drives it, unless it was cleared. */
+    const deriveEnd = (start: string, cycle: string): string =>
+        start === '' ? '' : addMonths(start, CYCLE_MONTHS[cycle] ?? 1);
 
     useEffect(() => {
         if (flash?.success) {
@@ -131,16 +167,24 @@ export default function SubscriptionCreate({
                                     const pkg = packages.find(
                                         (p) => String(p.id) === e.target.value,
                                     );
-                                    setData((current) => ({
-                                        ...current,
-                                        package_id: e.target.value,
-                                        price: pkg
-                                            ? String(pkg.price)
-                                            : current.price,
-                                        billing_cycle: pkg
+                                    setData((current) => {
+                                        const cycle = pkg
                                             ? pkg.billing_cycle
-                                            : current.billing_cycle,
-                                    }));
+                                            : current.billing_cycle;
+
+                                        return {
+                                            ...current,
+                                            package_id: e.target.value,
+                                            price: pkg
+                                                ? String(pkg.price)
+                                                : current.price,
+                                            billing_cycle: cycle,
+                                            end_date: deriveEnd(
+                                                current.start_date,
+                                                cycle,
+                                            ),
+                                        };
+                                    });
                                 }}
                                 style={selectStyle}
                             >
@@ -167,7 +211,14 @@ export default function SubscriptionCreate({
                             <select
                                 value={data.billing_cycle}
                                 onChange={(e) =>
-                                    setData('billing_cycle', e.target.value)
+                                    setData((current) => ({
+                                        ...current,
+                                        billing_cycle: e.target.value,
+                                        end_date: deriveEnd(
+                                            current.start_date,
+                                            e.target.value,
+                                        ),
+                                    }))
                                 }
                                 style={selectStyle}
                             >
@@ -190,7 +241,7 @@ export default function SubscriptionCreate({
                             >
                                 {subscriptionStatuses.map((s) => (
                                     <option key={s} value={s}>
-                                        {s}
+                                        {SUBSCRIPTION_STATUS_LABEL[s] ?? s}
                                     </option>
                                 ))}
                             </select>
@@ -201,7 +252,14 @@ export default function SubscriptionCreate({
                             <DatePicker
                                 value={data.start_date}
                                 onChange={(nextValue) =>
-                                    setData('start_date', nextValue)
+                                    setData((current) => ({
+                                        ...current,
+                                        start_date: nextValue,
+                                        end_date: deriveEnd(
+                                            nextValue,
+                                            current.billing_cycle,
+                                        ),
+                                    }))
                                 }
                                 placeholder="Pilih tanggal"
                                 width="100%"
@@ -219,6 +277,18 @@ export default function SubscriptionCreate({
                                 width="100%"
                             />
                             <FieldErr msg={errors.end_date} />
+                            <div
+                                style={{
+                                    fontSize: 11.5,
+                                    color: C.faint,
+                                    marginTop: 5,
+                                }}
+                            >
+                                Terisi otomatis dari siklus — bisa diubah.
+                                Dikosongkan berarti langganan tanpa masa
+                                berakhir (tidak pernah mengingatkan atau
+                                mengunci).
+                            </div>
                         </div>
                     </div>
 
@@ -247,8 +317,7 @@ export default function SubscriptionCreate({
                             type="submit"
                             disabled={processing}
                             style={{
-                                ...btnP,
-                                background: C.green,
+                                ...btnSave,
                                 height: 44,
                                 justifyContent: 'center',
                                 opacity: processing ? 0.7 : 1,

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import HelpdeskController from '@/actions/App/Http/Controllers/Avana/HelpdeskController';
 import { SearchableSelect } from '@/components/searchable-select';
-import { ActionBtn, AIcon, btnP, C, card, thCell } from '@/lib/avana';
+import { ActionBtn, AIcon, btnP, btnSave, C, card, thCell } from '@/lib/avana';
 import {
     ConfirmModal,
     fieldLabelStyle,
@@ -603,8 +603,7 @@ export default function HelpdeskIndex({
                             <button
                                 type="submit"
                                 style={{
-                                    ...btnP,
-                                    background: C.green,
+                                    ...btnSave,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',

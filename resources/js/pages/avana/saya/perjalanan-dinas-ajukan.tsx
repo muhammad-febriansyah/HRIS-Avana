@@ -1,7 +1,7 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { DatePicker } from '@/components/avana/date-picker';
-import { AIcon, btnOut, btnP, C, RupiahInput } from '@/lib/avana';
+import { AIcon, btnOut, btnProcess, C, RupiahInput } from '@/lib/avana';
 import {
     Field,
     inputStyle,
@@ -242,8 +242,7 @@ export default function SayaPerjalananDinasAjukan() {
                                 type="submit"
                                 disabled={form.processing}
                                 style={{
-                                    ...btnP,
-                                    background: C.violet,
+                                    ...btnProcess,
                                     height: 44,
                                     justifyContent: 'center',
                                     opacity: form.processing ? 0.7 : 1,

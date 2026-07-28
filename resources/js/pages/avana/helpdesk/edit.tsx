@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import HelpdeskController from '@/actions/App/Http/Controllers/Avana/HelpdeskController';
-import { AIcon, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnProcess, C, card } from '@/lib/avana';
 import { StatusBadge, textareaStyle } from './components';
 import { HelpdeskForm } from './helpdesk-form';
 import type {
@@ -234,8 +234,7 @@ export default function HelpdeskEdit({
                                     replyForm.data.message.trim() === ''
                                 }
                                 style={{
-                                    ...btnP,
-                                    background: C.violet,
+                                    ...btnProcess,
                                     height: 44,
                                     justifyContent: 'center',
                                     opacity:

@@ -1,7 +1,7 @@
 import { useForm } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { LocationPicker } from '@/components/map/location-picker';
-import { AIcon, btnOut, btnP, C } from '@/lib/avana';
+import { AIcon, btnOut, btnSave, C } from '@/lib/avana';
 import {
     FieldError,
     fieldLabelStyle,
@@ -267,8 +267,7 @@ export function EntityModal({
                             type="submit"
                             disabled={form.processing}
                             style={{
-                                ...btnP,
-                                background: C.green,
+                                ...btnSave,
                                 flex: 1,
                                 justifyContent: 'center',
                                 opacity: form.processing ? 0.7 : 1,

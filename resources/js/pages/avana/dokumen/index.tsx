@@ -4,7 +4,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import DokumenController from '@/actions/App/Http/Controllers/Avana/DokumenController';
 import { SearchableSelect } from '@/components/searchable-select';
-import { ActionBtn, AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
+import {
+    ActionBtn,
+    AIcon,
+    btnOut,
+    btnProcess,
+    btnSave,
+    C,
+    card,
+    thCell,
+} from '@/lib/avana';
 import {
     ConfirmModal,
     FieldError,
@@ -171,8 +180,7 @@ export default function DokumenIndex({
                             onClick={openUpload}
                             disabled={employees.length === 0}
                             style={{
-                                ...btnP,
-                                background: C.violet,
+                                ...btnProcess,
                                 opacity: employees.length === 0 ? 0.6 : 1,
                                 cursor:
                                     employees.length === 0
@@ -616,8 +624,7 @@ export default function DokumenIndex({
                                 type="submit"
                                 disabled={form.processing}
                                 style={{
-                                    ...btnP,
-                                    background: C.green,
+                                    ...btnSave,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',

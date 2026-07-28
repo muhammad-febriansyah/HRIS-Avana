@@ -1,7 +1,16 @@
 import { useForm } from '@inertiajs/react';
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
 import PayrollConfigController from '@/actions/App/Http/Controllers/Avana/PayrollConfigController';
-import { ActionBtn, AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
+import {
+    ActionBtn,
+    AIcon,
+    btnOut,
+    btnP,
+    btnSave,
+    C,
+    card,
+    thCell,
+} from '@/lib/avana';
 import { asPercent, asRupiah, buildInitialForm } from './types';
 import type { ColumnDef, FlatRecord, SectionDef } from './types';
 
@@ -569,8 +578,7 @@ export function ConfigModal({ section, record, onClose }: ConfigModalProps) {
                             type="submit"
                             disabled={form.processing}
                             style={{
-                                ...btnP,
-                                background: C.green,
+                                ...btnSave,
                                 flex: 1,
                                 justifyContent: 'center',
                                 opacity: form.processing ? 0.7 : 1,

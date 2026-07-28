@@ -4,7 +4,16 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import AttendancePenaltyController from '@/actions/App/Http/Controllers/Avana/AttendancePenaltyController';
 import { DatePicker } from '@/components/avana/date-picker';
-import { ActionBtn, AIcon, btnOut, btnP, C, rp, thCell } from '@/lib/avana';
+import {
+    ActionBtn,
+    AIcon,
+    btnOut,
+    btnP,
+    btnProcess,
+    C,
+    rp,
+    thCell,
+} from '@/lib/avana';
 import {
     ConfirmModal,
     FieldError,
@@ -703,8 +712,7 @@ export default function SanksiIndex({ penalties, filters }: SanksiIndexProps) {
                                 type="submit"
                                 disabled={generateForm.processing}
                                 style={{
-                                    ...btnP,
-                                    background: C.violet,
+                                    ...btnProcess,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',

@@ -1,7 +1,7 @@
 import { Head, Link, router } from '@inertiajs/react';
 import type { CSSProperties, ReactNode } from 'react';
 import AssetController from '@/actions/App/Http/Controllers/Avana/AssetController';
-import { AIcon, btnOut, btnP, C, card, rp } from '@/lib/avana';
+import { AIcon, btnExport, btnOut, btnP, C, card, rp } from '@/lib/avana';
 import { ConditionBadge, StatusPill } from './components';
 import { conditionLabel, statusLabel } from './types';
 import type { AsetShowProps } from './types';
@@ -204,8 +204,7 @@ export default function AsetShow({ asset, history, qrUrl }: AsetShowProps) {
                             type="button"
                             onClick={printLabel}
                             style={{
-                                ...btnP,
-                                background: C.amber,
+                                ...btnExport,
                                 width: '100%',
                                 justifyContent: 'center',
                             }}

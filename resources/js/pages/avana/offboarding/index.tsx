@@ -10,6 +10,7 @@ import {
     AIcon,
     btnOut,
     btnP,
+    btnSave,
     C,
     card,
     RupiahInput,
@@ -899,8 +900,7 @@ export default function OffboardingIndex({
                                 type="submit"
                                 disabled={settleForm.processing}
                                 style={{
-                                    ...btnP,
-                                    background: C.green,
+                                    ...btnSave,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',
@@ -1068,8 +1068,7 @@ function ModalActions({
                 type="submit"
                 disabled={processing}
                 style={{
-                    ...btnP,
-                    background: C.green,
+                    ...btnSave,
                     flex: 1,
                     height: 44,
                     justifyContent: 'center',

@@ -2,7 +2,7 @@ import { Head, useForm } from '@inertiajs/react';
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
 import { toast } from 'sonner';
 import AttendancePolicyController from '@/actions/App/Http/Controllers/Avana/AttendancePolicyController';
-import { AIcon, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnSave, C, card } from '@/lib/avana';
 
 /** Mirrors AttendancePolicy::SCOPES, loosest last. */
 const SCOPE_OPTIONS = [
@@ -590,8 +590,7 @@ export default function AbsensiKebijakan({
                     <button
                         type="submit"
                         style={{
-                            ...btnP,
-                            background: C.green,
+                            ...btnSave,
                             opacity: form.processing ? 0.6 : 1,
                         }}
                         disabled={form.processing}

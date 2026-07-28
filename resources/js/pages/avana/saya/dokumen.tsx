@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { FileDropzone, formatFileSize } from '@/components/avana/file-dropzone';
-import { AIcon, btnP, C, thCell } from '@/lib/avana';
+import { AIcon, btnProcess, C, thCell } from '@/lib/avana';
 import {
     EmptyState,
     Field,
@@ -205,8 +205,7 @@ export default function SayaDokumen({
                                     type="submit"
                                     disabled={form.processing}
                                     style={{
-                                        ...btnP,
-                                        background: C.violet,
+                                        ...btnProcess,
                                         height: 44,
                                         justifyContent: 'center',
                                         opacity: form.processing ? 0.7 : 1,

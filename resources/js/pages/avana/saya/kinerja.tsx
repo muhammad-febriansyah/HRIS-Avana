@@ -2,7 +2,7 @@ import { Head, useForm, usePage } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnOut, btnP, btnProcess, C, card } from '@/lib/avana';
 import {
     EmptyState,
     Field,
@@ -474,8 +474,7 @@ export default function SayaKinerja({ reviews, summary }: Props) {
                                                     type="submit"
                                                     disabled={form.processing}
                                                     style={{
-                                                        ...btnP,
-                                                        background: C.violet,
+                                                        ...btnProcess,
                                                         height: 42,
                                                         opacity: form.processing
                                                             ? 0.7

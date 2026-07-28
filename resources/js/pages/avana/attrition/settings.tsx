@@ -2,7 +2,7 @@ import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
-import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
+import { AIcon, btnOut, btnSave, C, card } from '@/lib/avana';
 
 interface FactorRow {
     key: string;
@@ -309,8 +309,7 @@ export default function AttritionSettings({
                             type="button"
                             disabled={form.processing}
                             style={{
-                                ...btnP,
-                                background: C.green,
+                                ...btnSave,
                                 opacity: form.processing ? 0.6 : 1,
                             }}
                         >

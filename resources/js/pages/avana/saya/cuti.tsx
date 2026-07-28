@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { DatePicker } from '@/components/avana/date-picker';
 import { LeaveTypeOptions } from '@/components/avana/leave-type-options';
 import type { LeaveTypeNode } from '@/components/avana/leave-type-options';
-import { AIcon, btnP, C, card, thCell } from '@/lib/avana';
+import { AIcon, btnProcess, C, card, thCell } from '@/lib/avana';
 import {
     EmptyState,
     Field,
@@ -296,8 +296,7 @@ export default function SayaCuti({
                                     type="submit"
                                     disabled={form.processing}
                                     style={{
-                                        ...btnP,
-                                        background: C.violet,
+                                        ...btnProcess,
                                         height: 44,
                                         justifyContent: 'center',
                                         opacity: form.processing ? 0.7 : 1,

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import MenuBuilderController from '@/actions/App/Http/Controllers/Avana/MenuBuilderController';
 import { SearchableSelect } from '@/components/searchable-select';
-import { AIcon, ActionBtn, btnOut, btnP, C, card } from '@/lib/avana';
+import { ActionBtn, AIcon, btnOut, btnP, btnSave, C, card } from '@/lib/avana';
 
 interface MenuRow {
     id: number;
@@ -665,8 +665,7 @@ export default function MenuBuilder({
                                     type="submit"
                                     disabled={form.processing}
                                     style={{
-                                        ...btnP,
-                                        background: C.green,
+                                        ...btnSave,
                                         flex: 1,
                                         justifyContent: 'center',
                                     }}

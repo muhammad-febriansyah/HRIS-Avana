@@ -9,6 +9,7 @@ import {
     AIcon,
     btnOut,
     btnP,
+    btnSave,
     C,
     card,
     rp,
@@ -469,8 +470,7 @@ export default function SalaryStructureIndex({
                                 type="submit"
                                 disabled={form.processing}
                                 style={{
-                                    ...btnP,
-                                    background: C.green,
+                                    ...btnSave,
                                     flex: 1,
                                     height: 44,
                                     justifyContent: 'center',

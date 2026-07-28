@@ -167,7 +167,9 @@ export default function Langganan({
     invoices,
 }: PageProps) {
     const { flash, website } = usePage<FlashProps>().props;
-    const [cycle, setCycle] = useState<string>(terms[terms.length - 1]?.cycle ?? 'monthly');
+    const [cycle, setCycle] = useState<string>(
+        terms[terms.length - 1]?.cycle ?? 'monthly',
+    );
     const [paying, setPaying] = useState<number | null>(null);
 
     useEffect(() => {
@@ -184,7 +186,8 @@ export default function Langganan({
         }
     }, [flash?.success, flash?.error, flash?.info]);
 
-    const whatsapp = website?.contact?.whatsapp || website?.contact?.phone || '';
+    const whatsapp =
+        website?.contact?.whatsapp || website?.contact?.phone || '';
     const waHref = `https://wa.me/${whatsapp.replace(/[^\d]/g, '')}`;
 
     const renew = (packageId: number) => {
@@ -381,7 +384,9 @@ export default function Langganan({
                                         cursor: 'pointer',
                                         fontSize: 13,
                                         fontWeight: active ? 600 : 500,
-                                        background: active ? '#fff' : 'transparent',
+                                        background: active
+                                            ? '#fff'
+                                            : 'transparent',
                                         color: active ? C.navy : C.muted,
                                         boxShadow: active
                                             ? '0 1px 3px rgba(15,26,58,.12)'
@@ -970,11 +975,7 @@ function FeatureLine({
 }) {
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <AIcon
-                name="check"
-                size={13}
-                color={muted ? C.faint : C.green}
-            />
+            <AIcon name="check" size={13} color={muted ? C.faint : C.green} />
             <span style={{ color: muted ? C.muted : C.text }}>{label}</span>
         </div>
     );

@@ -5,7 +5,15 @@ import { toast } from 'sonner';
 import RecruitmentController from '@/actions/App/Http/Controllers/Avana/RecruitmentController';
 import { DatePicker } from '@/components/avana/date-picker';
 import { usePermission } from '@/hooks/use-permission';
-import { AIcon, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
+import {
+    AIcon,
+    btnOut,
+    btnP,
+    btnSave,
+    C,
+    card,
+    RupiahInput,
+} from '@/lib/avana';
 import { StageBadge } from './components';
 import {
     fieldLabelStyle,
@@ -454,8 +462,7 @@ export default function Candidate({
                                             type="submit"
                                             disabled={profileForm.processing}
                                             style={{
-                                                ...btnP,
-                                                background: C.green,
+                                                ...btnSave,
                                             }}
                                         >
                                             <AIcon name="check" size={15} />
@@ -684,8 +691,7 @@ export default function Candidate({
                                             type="submit"
                                             disabled={medicalForm.processing}
                                             style={{
-                                                ...btnP,
-                                                background: C.green,
+                                                ...btnSave,
                                             }}
                                         >
                                             <AIcon name="save" size={15} />
@@ -890,8 +896,7 @@ export default function Candidate({
                                             type="submit"
                                             disabled={backgroundForm.processing}
                                             style={{
-                                                ...btnP,
-                                                background: C.green,
+                                                ...btnSave,
                                             }}
                                         >
                                             <AIcon name="save" size={15} />
@@ -1291,8 +1296,7 @@ export default function Candidate({
                                         type="submit"
                                         disabled={interviewForm.processing}
                                         style={{
-                                            ...btnP,
-                                            background: C.green,
+                                            ...btnSave,
                                             width: '100%',
                                             justifyContent: 'center',
                                         }}

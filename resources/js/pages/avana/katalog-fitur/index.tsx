@@ -2,7 +2,7 @@ import { Head, router, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import FeatureCatalogController from '@/actions/App/Http/Controllers/Avana/FeatureCatalogController';
-import { AIcon, btnP, C, card } from '@/lib/avana';
+import { ActionBtn, AIcon, btnP, C, card } from '@/lib/avana';
 
 interface Feature {
     id: number;
@@ -371,23 +371,22 @@ export default function KatalogFitur({
                                                 }}
                                             />
                                         </button>
-                                        <button
+                                        <ActionBtn
+                                            icon="pencil"
+                                            label="Edit"
+                                            variant="warning"
+                                            iconOnly
+                                            title={`Ubah ${feature.name}`}
                                             onClick={() => openEdit(feature)}
-                                            title="Ubah"
-                                            style={iconBtn}
-                                        >
-                                            <AIcon name="pencil" size={15} />
-                                        </button>
-                                        <button
+                                        />
+                                        <ActionBtn
+                                            icon="trash-2"
+                                            label="Hapus"
+                                            variant="danger"
+                                            iconOnly
+                                            title={`Hapus ${feature.name}`}
                                             onClick={() => remove(feature)}
-                                            title="Hapus"
-                                            style={{
-                                                ...iconBtn,
-                                                color: '#DC2626',
-                                            }}
-                                        >
-                                            <AIcon name="trash-2" size={15} />
-                                        </button>
+                                        />
                                     </div>
                                 </div>
                             ))}
@@ -412,19 +411,6 @@ export default function KatalogFitur({
         </>
     );
 }
-
-const iconBtn: React.CSSProperties = {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    border: `1px solid ${C.border}`,
-    background: '#fff',
-    color: C.muted,
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-};
 
 function FeatureModal({
     mode,
