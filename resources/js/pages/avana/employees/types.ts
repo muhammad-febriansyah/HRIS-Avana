@@ -36,6 +36,7 @@ export type EmployeeDocumentRow = {
     id: number;
     name: string;
     type: string | null;
+    extension: string | null;
     size_label: string | null;
     uploaded_at: string | null;
     download_url: string | null;

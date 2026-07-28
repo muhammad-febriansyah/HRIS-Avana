@@ -157,6 +157,11 @@ final class EmployeeResource extends JsonResource
                     'id' => $document->id,
                     'name' => $document->name,
                     'type' => $document->type,
+                    // The stored path keeps the real extension; the display
+                    // name often does not ("KTP"), so the icon reads the path.
+                    'extension' => $document->file_path !== null
+                        ? mb_strtolower(pathinfo($document->file_path, PATHINFO_EXTENSION))
+                        : null,
                     'size_label' => self::fileSize($document->file_size),
                     'uploaded_at' => $document->uploaded_at?->format('d M Y'),
                     'download_url' => $document->file_path !== null

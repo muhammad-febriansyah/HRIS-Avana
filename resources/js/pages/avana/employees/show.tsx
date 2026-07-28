@@ -597,8 +597,13 @@ function statusColor(status: string): string {
 }
 
 /** Pick the file icon and tint from the document's extension. */
-function documentIcon(name: string): { icon: string; color: string } {
-    const extension = name.split('.').pop()?.toLowerCase() ?? '';
+function documentIcon(document: EmployeeDocumentRow): {
+    icon: string;
+    color: string;
+} {
+    const extension = (
+        document.extension ?? document.name.split('.').pop() ?? ''
+    ).toLowerCase();
 
     if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension)) {
         return { icon: 'image', color: C.primary };
@@ -625,7 +630,7 @@ function DokumenTab({ documents }: { documents: EmployeeDocumentRow[] }) {
     return (
         <div style={{ ...card, padding: '14px 22px' }}>
             {documents.map((document, index) => {
-                const { icon, color } = documentIcon(document.name);
+                const { icon, color } = documentIcon(document);
                 const meta = [document.size_label, document.uploaded_at]
                     .filter(Boolean)
                     .join(' · diunggah ');
