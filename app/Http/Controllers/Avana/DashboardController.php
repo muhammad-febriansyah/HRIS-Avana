@@ -168,11 +168,13 @@ class DashboardController extends Controller
             ->sum('work_minutes');
 
         $leaveAvailable = (float) LeaveBalance::forTenant($tenantId)
+            ->forLiveTypes()
             ->where('employee_id', $employee->id)
             ->where('year', $today->year)
             ->sum('remaining');
 
         $leaveQuota = (float) LeaveBalance::forTenant($tenantId)
+            ->forLiveTypes()
             ->where('employee_id', $employee->id)
             ->where('year', $today->year)
             ->sum('quota');

@@ -25,6 +25,18 @@ final class LeaveBalance extends Model
         return $query->where('tenant_id', $tenantId);
     }
 
+    /**
+     * Balances whose leave type is still offered.
+     *
+     * A balance is a live counter, not history: once a type is retired its
+     * rows must stop contributing, or the employee is told they still hold
+     * days of a leave nobody can file for any more.
+     */
+    public function scopeForLiveTypes(Builder $query): Builder
+    {
+        return $query->whereHas('leaveType');
+    }
+
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);

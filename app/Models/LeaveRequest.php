@@ -50,9 +50,16 @@ final class LeaveRequest extends Model
         return $this->belongsTo(Branch::class);
     }
 
+    /**
+     * Retiring a leave type is a soft delete precisely so its history stays
+     * readable, but the relation hid the trashed row and every past request
+     * of that type went back to showing a bare dash where its name was. What
+     * the leave was is a historical fact; it does not disappear when the type
+     * stops being offered.
+     */
     public function leaveType(): BelongsTo
     {
-        return $this->belongsTo(LeaveType::class);
+        return $this->belongsTo(LeaveType::class)->withTrashed();
     }
 
     public function currentApprover(): BelongsTo

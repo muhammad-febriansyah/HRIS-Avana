@@ -49,6 +49,7 @@ class DashboardController extends Controller
         $employeeId = $employee->id;
 
         $leaveAvailable = (float) LeaveBalance::forTenant($tenantId)
+            ->forLiveTypes()
             ->where('employee_id', $employeeId)
             ->where('year', now()->year)
             ->sum('remaining');

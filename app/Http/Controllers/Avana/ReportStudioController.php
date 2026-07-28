@@ -259,6 +259,7 @@ class ReportStudioController extends Controller
 
         // Sum of remaining leave across all leave types for the current year.
         $sisaCuti = LeaveBalance::forTenant($tenantId)
+            ->forLiveTypes()
             ->where('year', (int) $today->year)
             ->selectRaw('employee_id, SUM(remaining) as total')
             ->groupBy('employee_id')

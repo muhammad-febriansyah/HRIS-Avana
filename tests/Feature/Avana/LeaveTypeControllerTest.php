@@ -1,5 +1,8 @@
 <?php
 
+use App\Models\Employee;
+use App\Models\LeaveBalance;
+use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\Role;
 use App\Models\Tenant;
@@ -205,4 +208,76 @@ it('forbids users without leave permissions from creating leave types', function
             'status' => 'active',
         ])
         ->assertForbidden();
+});
+
+it('keeps past leave requests readable after their type is retired', function (): void {
+    $type = LeaveType::forTenant($this->tenant->id)->whereNull('parent_id')->firstOrFail();
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    $leave = LeaveRequest::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $employee->id,
+        'branch_id' => $employee->branch_id,
+        'leave_type_id' => $type->id,
+        'start_date' => '2026-03-02',
+        'end_date' => '2026-03-03',
+        'total_days' => 2,
+        'status' => 'approved',
+    ]);
+
+    actingAs($this->admin)
+        ->delete(route('avana.cuti.jenis.destroy', $type))
+        ->assertSessionHas('success');
+
+    // The type is gone from the pickers...
+    expect(LeaveType::forTenant($this->tenant->id)->find($type->id))->toBeNull();
+
+    // ...but the request still says what kind of leave it was, rather than
+    // falling back to a bare dash.
+    expect($leave->fresh()->leaveType?->name)->toBe($type->name);
+});
+
+it('stops a retired leave type counting toward the remaining balance', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $year = (int) date('Y');
+
+    LeaveBalance::query()->where('employee_id', $employee->id)->delete();
+
+    $kept = LeaveType::forTenant($this->tenant->id)->whereNull('parent_id')->firstOrFail();
+    $retired = LeaveType::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'CUTI-PENSIUN',
+        'name' => 'Cuti Yang Dihapus',
+        'default_quota' => 5,
+        'status' => 'active',
+    ]);
+
+    foreach ([$kept->id => 8, $retired->id => 5] as $typeId => $remaining) {
+        LeaveBalance::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $employee->id,
+            'leave_type_id' => $typeId,
+            'year' => $year,
+            'quota' => $remaining,
+            'used' => 0,
+            'remaining' => $remaining,
+        ]);
+    }
+
+    $total = fn (): float => (float) LeaveBalance::forTenant($this->tenant->id)
+        ->forLiveTypes()
+        ->where('employee_id', $employee->id)
+        ->where('year', $year)
+        ->sum('remaining');
+
+    expect($total())->toBe(13.0);
+
+    actingAs($this->admin)
+        ->delete(route('avana.cuti.jenis.destroy', $retired))
+        ->assertSessionHas('success');
+
+    // The retired type's row survives for auditing, but an employee must not
+    // be told they still hold days of a leave nobody can file for.
+    expect(LeaveBalance::where('leave_type_id', $retired->id)->count())->toBe(1)
+        ->and($total())->toBe(8.0);
 });

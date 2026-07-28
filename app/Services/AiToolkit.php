@@ -145,6 +145,7 @@ final class AiToolkit
                 $names = LeaveType::where('tenant_id', $this->tenantId())->pluck('name', 'id');
 
                 $balances = LeaveBalance::where('tenant_id', $this->tenantId())
+                    ->forLiveTypes()
                     ->where('employee_id', $employee->id)
                     ->where('year', (int) Carbon::now()->year)
                     ->get();

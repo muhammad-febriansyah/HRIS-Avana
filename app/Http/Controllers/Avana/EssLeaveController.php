@@ -42,6 +42,7 @@ class EssLeaveController extends Controller
             ->pluck('days', 'leave_type_id');
 
         $balances = LeaveBalance::forTenant($employee->tenant_id)
+            ->forLiveTypes()
             ->where('employee_id', $employee->id)
             ->where('year', $year)
             ->with('leaveType:id,name,code')
