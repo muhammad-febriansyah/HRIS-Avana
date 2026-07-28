@@ -41,9 +41,38 @@ export function RolePanel({
     onDetachUser,
 }: RolePanelProps) {
     const [search, setSearch] = useState('');
-    const [onlyHidden, setOnlyHidden] = useState(false);
+    const [status, setStatus] = useState<MenuStatus>('all');
     const [memberPickerOpen, setMemberPickerOpen] = useState(false);
     const [memberSearch, setMemberSearch] = useState('');
+
+    /**
+     * "Not visible" splits in two, and the two have different fixes: a menu the
+     * role was denied is switched back on right here, while one the company
+     * turned off entirely can only be revived on the Menu Perusahaan tab.
+     */
+    const statusOf = (module: AccessModule, rowIdx: number): MenuStatus => {
+        if (!module.menuActive || !module.featureEnabled) {
+            return 'blocked';
+        }
+
+        return cells[rowIdx]?.visible === false ? 'hidden' : 'shown';
+    };
+
+    const counts = useMemo(() => {
+        const tally: Record<MenuStatus, number> = {
+            all: modules.length,
+            shown: 0,
+            hidden: 0,
+            blocked: 0,
+        };
+
+        modules.forEach((module, rowIdx) => {
+            tally[statusOf(module, rowIdx)] += 1;
+        });
+
+        return tally;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [modules, cells]);
 
     const rows = useMemo(() => {
         const term = search.trim().toLowerCase();
@@ -60,13 +89,12 @@ export function RolePanel({
                     return false;
                 }
 
-                return onlyHidden ? cells[rowIdx]?.visible === false : true;
+                return status === 'all' || statusOf(module, rowIdx) === status;
             });
-    }, [modules, cells, search, onlyHidden]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [modules, cells, search, status]);
 
-    const shownCount = modules.filter(
-        (_, rowIdx) => cells[rowIdx]?.visible !== false,
-    ).length;
+    const shownCount = counts.shown;
 
     const candidates = useMemo(() => {
         const term = memberSearch.trim().toLowerCase();
@@ -393,27 +421,45 @@ export function RolePanel({
                                 />
                             </span>
                         </span>
-                        <span
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                height: 34,
-                                padding: '0 12px',
-                                borderRadius: 9,
-                                border: `1px solid ${onlyHidden ? C.primary : C.border}`,
-                                background: onlyHidden
-                                    ? hexA(C.primary, 0.08)
-                                    : '#fff',
-                            }}
-                        >
-                            <Switch
-                                on={onlyHidden}
-                                tone={C.primary}
-                                label="Hanya yang disembunyikan"
-                                title="Saring daftar menjadi menu yang tidak dilihat peran ini"
-                                onToggle={() => setOnlyHidden((v) => !v)}
-                            />
-                        </span>
+                        <div style={segmentGroupStyle}>
+                            {STATUS_FILTERS.map((option) => {
+                                const active = status === option.key;
+
+                                return (
+                                    <button
+                                        key={option.key}
+                                        type="button"
+                                        title={option.title}
+                                        onClick={() => setStatus(option.key)}
+                                        style={{
+                                            ...segmentStyle,
+                                            background: active
+                                                ? '#fff'
+                                                : 'transparent',
+                                            color: active ? C.navy : C.muted,
+                                            boxShadow: active
+                                                ? '0 1px 3px rgba(14,26,58,.12)'
+                                                : 'none',
+                                        }}
+                                    >
+                                        {option.label}
+                                        <span
+                                            style={{
+                                                ...segmentCountStyle,
+                                                background: active
+                                                    ? hexA(option.tone, 0.14)
+                                                    : '#EEF1F7',
+                                                color: active
+                                                    ? option.tone
+                                                    : C.faint,
+                                            }}
+                                        >
+                                            {counts[option.key]}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
 
@@ -592,6 +638,72 @@ export function RolePanel({
         </div>
     );
 }
+
+/** Where a menu stands for this role, and what the list can be filtered to. */
+type MenuStatus = 'all' | 'shown' | 'hidden' | 'blocked';
+
+const STATUS_FILTERS: {
+    key: MenuStatus;
+    label: string;
+    tone: string;
+    title: string;
+}[] = [
+    {
+        key: 'all',
+        label: 'Semua',
+        tone: C.primary,
+        title: 'Seluruh menu, apa pun statusnya',
+    },
+    {
+        key: 'shown',
+        label: 'Tampil',
+        tone: C.green,
+        title: 'Menu yang dilihat peran ini',
+    },
+    {
+        key: 'hidden',
+        label: 'Disembunyikan',
+        tone: C.muted,
+        title: 'Menu yang disembunyikan dari peran ini — bisa dinyalakan di sini',
+    },
+    {
+        key: 'blocked',
+        label: 'Nonaktif',
+        tone: '#B45309',
+        title: 'Menu atau fitur yang dimatikan untuk seluruh perusahaan — atur di tab Menu Perusahaan',
+    },
+];
+
+const segmentGroupStyle: CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 2,
+    padding: 3,
+    borderRadius: 10,
+    background: '#EEF1F7',
+};
+
+const segmentStyle: CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    height: 28,
+    padding: '0 10px',
+    border: 'none',
+    borderRadius: 8,
+    fontSize: 12.5,
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'background .14s ease',
+};
+
+const segmentCountStyle: CSSProperties = {
+    fontSize: 11,
+    fontWeight: 700,
+    lineHeight: 1,
+    padding: '3px 6px',
+    borderRadius: 999,
+};
 
 /**
  * A fixed three-column row — name, visibility, actions — so the switches and
