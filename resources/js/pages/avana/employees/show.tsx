@@ -135,19 +135,11 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                 <div style={{ ...card, overflow: 'hidden', marginBottom: 18 }}>
                     <div
                         style={{
-                            height: 84,
-                            background:
-                                'linear-gradient(120deg,#0E1A3A,#2F54C9)',
-                        }}
-                    />
-                    <div
-                        style={{
-                            padding: '0 26px 22px',
+                            padding: '22px 26px',
                             display: 'flex',
-                            alignItems: 'flex-end',
+                            alignItems: 'center',
                             gap: 18,
                             flexWrap: 'wrap',
-                            marginTop: -38,
                         }}
                     >
                         {emp.photo_url ? (
@@ -159,7 +151,6 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                                     height: 84,
                                     borderRadius: 20,
                                     objectFit: 'cover',
-                                    border: '4px solid #fff',
                                     flex: 'none',
                                 }}
                             />
@@ -176,16 +167,13 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                                     justifyContent: 'center',
                                     fontSize: 30,
                                     fontWeight: 600,
-                                    border: '4px solid #fff',
                                     flex: 'none',
                                 }}
                             >
                                 {emp.initials}
                             </div>
                         )}
-                        <div
-                            style={{ flex: 1, minWidth: 200, paddingBottom: 2 }}
-                        >
+                        <div style={{ flex: 1, minWidth: 200 }}>
                             <div
                                 style={{
                                     display: 'flex',
@@ -229,13 +217,7 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                                 {dash(emp.department?.name)}
                             </div>
                         </div>
-                        <div
-                            style={{
-                                display: 'flex',
-                                gap: 10,
-                                paddingBottom: 4,
-                            }}
-                        >
+                        <div style={{ display: 'flex', gap: 10 }}>
                             <a
                                 href={`/avana/payroll/1721/${emp.id}?year=${new Date().getFullYear()}`}
                                 style={{ ...btnOut, textDecoration: 'none' }}
