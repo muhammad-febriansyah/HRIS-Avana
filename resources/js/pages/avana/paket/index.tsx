@@ -104,6 +104,36 @@ const CYCLE_LABEL: Record<string, string> = {
  */
 type TokenMode = 'none' | 'custom' | number;
 
+/**
+ * Pricing points shown before the card collapses the rest. Tiers list wildly
+ * different numbers of points, and letting every one render in full leaves the
+ * grid ragged — the cheapest card ends half a screen above the priciest.
+ */
+const FEATURE_PREVIEW = 6;
+
+/** A quota of null or 0 is uncapped, the same rule `TenantQuota` enforces. */
+function limitLabel(value: number | null): string {
+    return value === null || value === 0 ? '∞' : value.toLocaleString('id-ID');
+}
+
+/** `500000` → `500 rb`, `2000000` → `2 jt`; the tiles are too narrow for digits. */
+function tokenLabel(value: number | null): string {
+    if (value === null || value === 0) {
+        return '—';
+    }
+
+    const compact = (amount: number, unit: string): string =>
+        `${amount.toLocaleString('id-ID', { maximumFractionDigits: 1 })} ${unit}`;
+
+    if (value >= 1_000_000) {
+        return compact(value / 1_000_000, 'jt');
+    }
+
+    return value >= 1_000
+        ? compact(value / 1_000, 'rb')
+        : value.toLocaleString('id-ID');
+}
+
 export default function PaketIndex({
     packages,
     cycles,
@@ -115,6 +145,7 @@ export default function PaketIndex({
     const [editing, setEditing] = useState<Package | null>(null);
     const [confirm, setConfirm] = useState<Package | null>(null);
     const [tokenMode, setTokenMode] = useState<TokenMode>('none');
+    const [expanded, setExpanded] = useState<number[]>([]);
     const form = useForm<PackageForm>({ ...emptyForm });
     // The custom pack's errors come back dot-keyed (`token_pack.name`), which
     // the form's own key type doesn't cover.
@@ -129,6 +160,12 @@ export default function PaketIndex({
             toast.error(flash.error, { id: flash.error });
         }
     }, [flash?.success, flash?.error]);
+
+    /** Show or re-collapse one card's full pricing list. */
+    const toggleExpanded = (id: number) =>
+        setExpanded((ids) =>
+            ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id],
+        );
 
     const openCreate = () => {
         setEditing(null);
@@ -307,167 +344,208 @@ export default function PaketIndex({
                         display: 'grid',
                         gridTemplateColumns:
                             'repeat(auto-fill, minmax(280px, 1fr))',
+                        // Each card sizes to its own content: expanding one tier's
+                        // pricing list must not blow an empty void into its
+                        // neighbours. Collapsed cards still line up, because the
+                        // feature block holds a floor height.
+                        alignItems: 'start',
                         gap: 16,
                     }}
                 >
-                    {packages.map((pkg) => (
-                        <div
-                            key={pkg.id}
-                            style={{
-                                ...card,
-                                padding: 20,
-                                border: pkg.is_popular
-                                    ? `1.5px solid ${C.primary}`
-                                    : `1px solid ${C.border}`,
-                                opacity: pkg.is_active ? 1 : 0.6,
-                                display: 'flex',
-                                flexDirection: 'column',
-                            }}
-                        >
+                    {packages.map((pkg) => {
+                        const open = expanded.includes(pkg.id);
+                        const shown = open
+                            ? pkg.feature_list
+                            : pkg.feature_list.slice(0, FEATURE_PREVIEW);
+                        const hidden =
+                            pkg.feature_list.length - FEATURE_PREVIEW;
+
+                        return (
                             <div
+                                key={pkg.id}
                                 style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 8,
-                                    marginBottom: 4,
-                                }}
-                            >
-                                {pkg.tagline ? (
-                                    <span style={taglineBadge}>
-                                        {pkg.tagline}
-                                    </span>
-                                ) : null}
-                                {pkg.is_popular ? (
-                                    <span style={popularBadge}>Populer</span>
-                                ) : null}
-                                {!pkg.is_active ? (
-                                    <span style={inactiveBadge}>Nonaktif</span>
-                                ) : null}
-                            </div>
-                            <div
-                                style={{
-                                    fontSize: 18,
-                                    fontWeight: 700,
-                                    color: C.navy,
-                                }}
-                            >
-                                {pkg.name}
-                            </div>
-                            <div style={{ margin: '8px 0 12px' }}>
-                                <span
-                                    style={{
-                                        fontSize: 22,
-                                        fontWeight: 700,
-                                        color: C.navy,
-                                    }}
-                                >
-                                    {rp(pkg.price)}
-                                </span>
-                                <span
-                                    style={{ fontSize: 12.5, color: C.muted }}
-                                >
-                                    {' '}
-                                    {CYCLE_LABEL[pkg.billing_cycle] ?? ''}
-                                </span>
-                            </div>
-                            <div
-                                style={{
-                                    fontSize: 11.5,
-                                    color: C.muted,
-                                    marginBottom: 12,
-                                }}
-                            >
-                                {pkg.max_employees ?? '∞'} karyawan ·{' '}
-                                {pkg.max_users ?? '∞'} user ·{' '}
-                                {pkg.tenants_count} tenant
-                            </div>
-                            <div
-                                style={{
-                                    fontSize: 11.5,
-                                    fontWeight: 600,
-                                    color:
-                                        pkg.feature_ids.length === 0
-                                            ? C.green
-                                            : C.primary,
-                                    background:
-                                        pkg.feature_ids.length === 0
-                                            ? 'rgba(22,163,74,.1)'
-                                            : 'rgba(47,84,201,.1)',
-                                    borderRadius: 999,
-                                    padding: '4px 10px',
-                                    alignSelf: 'flex-start',
-                                    marginBottom: 12,
-                                }}
-                            >
-                                {pkg.feature_ids.length === 0
-                                    ? 'Semua modul'
-                                    : `${pkg.feature_ids.length} modul aktif`}
-                            </div>
-                            <div
-                                style={{
+                                    ...card,
+                                    padding: 0,
+                                    overflow: 'hidden',
+                                    border: pkg.is_popular
+                                        ? `1.5px solid ${C.primary}`
+                                        : `1px solid ${C.border}`,
+                                    boxShadow: pkg.is_popular
+                                        ? '0 8px 24px -14px rgba(47,84,201,.55)'
+                                        : undefined,
+                                    opacity: pkg.is_active ? 1 : 0.62,
                                     display: 'flex',
                                     flexDirection: 'column',
-                                    gap: 7,
-                                    flex: 1,
-                                    marginBottom: 16,
                                 }}
                             >
-                                {pkg.feature_list.map((feature, i) => (
-                                    <div
-                                        key={i}
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'flex-start',
-                                            gap: 8,
-                                            fontSize: 12.5,
-                                            color: C.text,
-                                        }}
-                                    >
-                                        <AIcon
-                                            name="check"
-                                            size={14}
-                                            color={C.primary}
-                                        />
-                                        {feature}
+                                <div
+                                    style={{
+                                        padding: '18px 20px 16px',
+                                        background: pkg.is_popular
+                                            ? 'linear-gradient(180deg,#F5F7FF 0%,#fff 100%)'
+                                            : undefined,
+                                        borderBottom: `1px solid ${C.line}`,
+                                    }}
+                                >
+                                    <div style={badgeRowStyle}>
+                                        {pkg.tagline ? (
+                                            <span style={taglineBadge}>
+                                                {pkg.tagline}
+                                            </span>
+                                        ) : null}
+                                        {pkg.is_popular ? (
+                                            <span style={popularBadge}>
+                                                Populer
+                                            </span>
+                                        ) : null}
+                                        {!pkg.is_active ? (
+                                            <span style={inactiveBadge}>
+                                                Nonaktif
+                                            </span>
+                                        ) : null}
                                     </div>
-                                ))}
-                                {pkg.feature_list.length === 0 ? (
-                                    <span
+                                    <div style={packageNameStyle}>
+                                        {pkg.name}
+                                    </div>
+                                    <div style={priceRowStyle}>
+                                        <span style={priceStyle}>
+                                            {rp(pkg.price)}
+                                        </span>
+                                        <span style={cycleStyle}>
+                                            {CYCLE_LABEL[pkg.billing_cycle] ??
+                                                ''}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div style={quotaGridStyle}>
+                                    <Quota
+                                        label="Karyawan"
+                                        value={limitLabel(pkg.max_employees)}
+                                    />
+                                    <Quota
+                                        label="User"
+                                        value={limitLabel(pkg.max_users)}
+                                    />
+                                    <Quota
+                                        label="Cabang"
+                                        value={limitLabel(pkg.max_branches)}
+                                    />
+                                    <Quota
+                                        label="Token AI / bln"
+                                        value={tokenLabel(pkg.ai_token_quota)}
+                                    />
+                                </div>
+
+                                <div style={featureBlockStyle}>
+                                    <div
                                         style={{
-                                            fontSize: 12,
-                                            color: C.faint,
+                                            ...moduleBadge,
+                                            color:
+                                                pkg.feature_ids.length === 0
+                                                    ? C.green
+                                                    : C.primary,
+                                            background:
+                                                pkg.feature_ids.length === 0
+                                                    ? 'rgba(22,163,74,.1)'
+                                                    : 'rgba(47,84,201,.1)',
                                         }}
                                     >
-                                        Belum ada fitur.
+                                        {pkg.feature_ids.length === 0
+                                            ? 'Semua modul'
+                                            : `${pkg.feature_ids.length} modul aktif`}
+                                    </div>
+
+                                    {pkg.feature_list.length === 0 ? (
+                                        <span
+                                            style={{
+                                                fontSize: 12,
+                                                color: C.faint,
+                                            }}
+                                        >
+                                            Belum ada poin pricing.
+                                        </span>
+                                    ) : (
+                                        <div style={featureListStyle}>
+                                            {shown.map((feature, i) => (
+                                                <div
+                                                    key={i}
+                                                    style={featureItemStyle}
+                                                >
+                                                    <AIcon
+                                                        name="check"
+                                                        size={13}
+                                                        color={C.primary}
+                                                    />
+                                                    {feature}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {hidden > 0 ? (
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                toggleExpanded(pkg.id)
+                                            }
+                                            style={moreButtonStyle}
+                                        >
+                                            {open
+                                                ? 'Tampilkan lebih sedikit'
+                                                : `+${hidden} poin lainnya`}
+                                            <AIcon
+                                                name={
+                                                    open
+                                                        ? 'chevron-up'
+                                                        : 'chevron-down'
+                                                }
+                                                size={13}
+                                                color={C.primary}
+                                            />
+                                        </button>
+                                    ) : null}
+                                </div>
+
+                                <div style={cardFooterStyle}>
+                                    <span style={tenantCountStyle}>
+                                        <AIcon
+                                            name="building-2"
+                                            size={13}
+                                            color={C.faint}
+                                        />
+                                        {pkg.tenants_count === 0
+                                            ? 'Belum dipakai klien'
+                                            : `${pkg.tenants_count} klien`}
                                     </span>
-                                ) : null}
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                        <button
+                                            onClick={() => openEdit(pkg)}
+                                            style={btnGhost}
+                                        >
+                                            <AIcon
+                                                name="pencil"
+                                                size={14}
+                                                color={C.text}
+                                            />
+                                            Edit
+                                        </button>
+                                        <button
+                                            onClick={() => setConfirm(pkg)}
+                                            style={btnDanger}
+                                            title="Hapus"
+                                        >
+                                            <AIcon
+                                                name="trash-2"
+                                                size={15}
+                                                color={C.red}
+                                            />
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                            <div style={{ display: 'flex', gap: 8 }}>
-                                <button
-                                    onClick={() => openEdit(pkg)}
-                                    style={{ ...btnGhost, flex: 1 }}
-                                >
-                                    <AIcon
-                                        name="pencil"
-                                        size={14}
-                                        color={C.text}
-                                    />
-                                    Edit
-                                </button>
-                                <button
-                                    onClick={() => setConfirm(pkg)}
-                                    style={btnDanger}
-                                    title="Hapus"
-                                >
-                                    <AIcon
-                                        name="trash-2"
-                                        size={15}
-                                        color={C.red}
-                                    />
-                                </button>
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
 
@@ -919,6 +997,16 @@ function Row({ children }: { children: React.ReactNode }) {
     return <div style={{ display: 'flex', gap: 12 }}>{children}</div>;
 }
 
+/** One ceiling the tier sells, as a labelled tile on the pricing card. */
+function Quota({ label, value }: { label: string; value: string }) {
+    return (
+        <div style={quotaTileStyle}>
+            <div style={quotaValueStyle}>{value}</div>
+            <div style={quotaLabelStyle}>{label}</div>
+        </div>
+    );
+}
+
 function Field({
     label,
     error,
@@ -1155,6 +1243,133 @@ const inputStyle: CSSProperties = {
     outline: 'none',
     boxSizing: 'border-box',
     background: '#fff',
+};
+
+const badgeRowStyle: CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    minHeight: 22,
+};
+
+const packageNameStyle: CSSProperties = {
+    fontSize: 18,
+    fontWeight: 700,
+    color: C.navy,
+    marginTop: 8,
+};
+
+const priceRowStyle: CSSProperties = {
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: 5,
+    marginTop: 6,
+};
+
+const priceStyle: CSSProperties = {
+    fontSize: 23,
+    fontWeight: 700,
+    color: C.navy,
+    letterSpacing: '-0.02em',
+};
+
+const cycleStyle: CSSProperties = {
+    fontSize: 12.5,
+    fontWeight: 500,
+    color: C.muted,
+};
+
+const quotaGridStyle: CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: 1,
+    background: C.line,
+    borderBottom: `1px solid ${C.line}`,
+};
+
+const quotaTileStyle: CSSProperties = {
+    background: '#fff',
+    padding: '11px 20px',
+};
+
+const quotaValueStyle: CSSProperties = {
+    fontSize: 15,
+    fontWeight: 700,
+    color: C.navy,
+    lineHeight: 1.25,
+};
+
+const quotaLabelStyle: CSSProperties = {
+    fontSize: 11,
+    color: C.faint,
+    marginTop: 2,
+};
+
+const featureBlockStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+    padding: '16px 20px',
+    flex: 1,
+    // Room for the badge plus a full preview list, so a tier with two pricing
+    // points still ends its card level with a tier that has six.
+    minHeight: 214,
+};
+
+const moduleBadge: CSSProperties = {
+    fontSize: 11.5,
+    fontWeight: 600,
+    borderRadius: 999,
+    padding: '4px 10px',
+    alignSelf: 'flex-start',
+};
+
+const featureListStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 7,
+};
+
+const featureItemStyle: CSSProperties = {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 8,
+    fontSize: 12.5,
+    lineHeight: 1.45,
+    color: C.text,
+};
+
+const moreButtonStyle: CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    padding: 0,
+    border: 'none',
+    background: 'none',
+    fontSize: 12,
+    fontWeight: 600,
+    color: C.primary,
+    cursor: 'pointer',
+};
+
+const cardFooterStyle: CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    padding: '12px 20px',
+    borderTop: `1px solid ${C.line}`,
+    background: '#FCFDFF',
+};
+
+const tenantCountStyle: CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    fontSize: 11.5,
+    color: C.faint,
 };
 
 const tokenPackBoxStyle: CSSProperties = {
