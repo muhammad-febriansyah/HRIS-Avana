@@ -11,6 +11,7 @@ use App\Models\Position;
 use App\Models\Shift;
 use App\Models\User;
 use App\Models\WorkLocation;
+use App\Support\TenantQuota;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -180,6 +181,12 @@ class CompanySetupController extends Controller
         $tenantId = $request->user()->tenant_id;
 
         $data = $request->validate($this->rulesFor($entity, $tenantId), $this->messages());
+
+        // Only branches are sold by the package; the rest of the org structure is
+        // uncapped.
+        if ($entity === 'branches') {
+            TenantQuota::assertRoom($request->user()->tenant, 'branches', 1, 'name');
+        }
 
         $model = $config['model'];
         $model::create(array_merge(

@@ -8,6 +8,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Models\UserPermissionOverride;
 use App\Support\PermissionCatalog;
+use App\Support\TenantQuota;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -182,6 +183,8 @@ class UserController extends Controller
             'branch_ids' => ['array'],
             'branch_ids.*' => ['integer', $this->branchOwnedByTenant($request)],
         ]);
+
+        TenantQuota::assertRoom($request->user()->tenant, 'users', 1, 'email');
 
         $user = User::create([
             'tenant_id' => $request->user()->tenant_id,

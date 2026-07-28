@@ -17,6 +17,7 @@ use App\Models\Notification;
 use App\Models\SalesOrder;
 use App\Models\TalentPool;
 use App\Models\User;
+use App\Support\TenantQuota;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -986,6 +987,11 @@ class RecruitmentController extends Controller
         if (! in_array($applicant->stage, ['offer', 'hired'], true) || $applicant->offer_status !== 'accepted') {
             return back()->withErrors(['applicant' => 'Aktivasi hanya untuk kandidat dengan penawaran diterima.']);
         }
+
+        // Hiring is a headcount addition, so it spends the same package allowance
+        // as adding an employee by hand. Checked before the onboarding checklist:
+        // there is no point walking someone through it when there is no seat.
+        TenantQuota::assertRoom($request->user()->tenant, 'employees', 1, 'applicant');
 
         // Business rule: Employee is activated only after the full onboarding
         // checklist is complete. Seed it on first attempt if it is missing.

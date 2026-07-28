@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\PakasirGateway;
 use App\Services\SubscriptionRenewalService;
 use App\Support\SubscriptionStatus;
+use App\Support\TenantQuota;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -95,8 +96,9 @@ class TenantSubscriptionController extends Controller
                 'max_users' => (int) $tenant->max_users,
                 'max_employees' => (int) $tenant->max_employees,
                 'max_branches' => (int) $tenant->max_branches,
-                'users_count' => $tenant->users()->count(),
-                'employees_count' => $tenant->employees()->count(),
+                'users_count' => TenantQuota::used($tenant, 'users'),
+                'employees_count' => TenantQuota::used($tenant, 'employees'),
+                'branches_count' => TenantQuota::used($tenant, 'branches'),
             ],
             'packages' => $packages->values()->all(),
             'terms' => array_map(

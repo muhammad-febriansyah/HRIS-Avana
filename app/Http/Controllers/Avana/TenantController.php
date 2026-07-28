@@ -65,7 +65,9 @@ class TenantController extends Controller
         $this->authorize('viewAny', Tenant::class);
 
         $tenants = Tenant::query()
-            ->withCount(['users', 'employees', 'branches'])
+            // Staff logins only, matching what the quota actually meters — an
+            // employee's ESS account belongs to the karyawan line.
+            ->withCount(['users' => fn ($query) => $query->whereDoesntHave('employee'), 'employees', 'branches'])
             ->with([
                 'package:id,name,ai_token_quota',
                 'company:id,tenant_id,logo_path',
@@ -267,7 +269,7 @@ class TenantController extends Controller
     {
         $this->authorize('view', $tenant);
 
-        $tenant->loadCount(['users', 'employees', 'branches']);
+        $tenant->loadCount(['users' => fn ($query) => $query->whereDoesntHave('employee'), 'employees', 'branches']);
         $tenant->load('package:id,name,code,price,billing_cycle', 'company:id,tenant_id,logo_path');
 
         $tenantId = $tenant->id;

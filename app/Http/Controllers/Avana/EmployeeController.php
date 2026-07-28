@@ -19,6 +19,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Models\UserDevice;
 use App\Models\WorkLocation;
+use App\Support\TenantQuota;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -134,6 +135,8 @@ class EmployeeController extends Controller
 
         $tenantId = $request->user()->tenant_id;
 
+        TenantQuota::assertRoom($request->user()->tenant, 'employees', 1, 'full_name');
+
         $data = $request->validated();
         $password = $data['password'] ?? null;
         $roleId = $data['role_id'] ?? null;
@@ -191,6 +194,13 @@ class EmployeeController extends Controller
         ]);
 
         $this->validateBulkLogins($validated['employees']);
+
+        TenantQuota::assertRoom(
+            $request->user()->tenant,
+            'employees',
+            count($validated['employees']),
+            'employees',
+        );
 
         DB::transaction(function () use ($validated, $tenantId): void {
             foreach ($validated['employees'] as $row) {
