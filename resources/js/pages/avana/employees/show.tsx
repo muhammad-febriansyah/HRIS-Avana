@@ -589,7 +589,9 @@ function documentIcon(document: EmployeeDocumentRow): {
     color: string;
 } {
     const extension = (
-        document.extension ?? document.name.split('.').pop() ?? ''
+        document.extension ??
+        document.name.split('.').pop() ??
+        ''
     ).toLowerCase();
 
     if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension)) {

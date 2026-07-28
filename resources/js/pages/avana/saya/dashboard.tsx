@@ -215,9 +215,7 @@ function ProgressCard({
                 <div style={sectionLabel}>{label}</div>
                 <AIcon name={icon} size={17} color={tone} />
             </div>
-            <div
-                style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}
-            >
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                 <div
                     style={{
                         fontSize: 26,
@@ -355,6 +353,7 @@ export default function SayaDashboard({
         end.setDate(end.getDate() + (6 - end.getDay()));
 
         const days: { iso: string; day: number; inMonth: boolean }[] = [];
+
         for (
             const cursor = new Date(start);
             cursor <= end;
@@ -391,14 +390,15 @@ export default function SayaDashboard({
     const selectedEvents = eventsByDate.get(selectedDate) ?? [];
     const todayEvents = eventsByDate.get(todayIso) ?? [];
 
-    /** Load another month into the calendar panel without a full page visit. */
-    const shiftMonth = (offset: number) => {
-        const [year, month] = calendar.month.split('-').map(Number);
-        const target = new Date(year, month - 1 + offset, 1);
+    /** Load a month into the calendar panel without a full page visit. */
+    const loadMonth = (month: string) => {
+        if (month === calendar.month) {
+            return;
+        }
 
         router.get(
             window.location.pathname,
-            { month: `${target.getFullYear()}-${`${target.getMonth() + 1}`.padStart(2, '0')}` },
+            { month },
             {
                 only: ['calendar'],
                 preserveState: true,
@@ -408,13 +408,25 @@ export default function SayaDashboard({
         );
     };
 
+    /** The month `offset` months away from the one currently shown. */
+    const shiftMonth = (offset: number) => {
+        const [year, month] = calendar.month.split('-').map(Number);
+        const target = new Date(year, month - 1 + offset, 1);
+
+        loadMonth(
+            `${target.getFullYear()}-${`${target.getMonth() + 1}`.padStart(2, '0')}`,
+        );
+    };
+
     const attendanceDone = todayAttendance.clock_out !== null;
     const weekRatio =
         stats.week_target > 0 ? stats.week_hours / stats.week_target : null;
     const taskRatio =
         stats.tasks.total > 0 ? stats.tasks.done / stats.tasks.total : null;
     const leaveRatio =
-        stats.leave_quota > 0 ? stats.leave_available / stats.leave_quota : null;
+        stats.leave_quota > 0
+            ? stats.leave_available / stats.leave_quota
+            : null;
 
     return (
         <>
@@ -982,7 +994,7 @@ export default function SayaDashboard({
                                 <button
                                     onClick={() => {
                                         setSelectedDate(todayIso);
-                                        shiftMonth(0);
+                                        loadMonth(todayIso.slice(0, 7));
                                     }}
                                     style={{
                                         padding: '5px 11px',

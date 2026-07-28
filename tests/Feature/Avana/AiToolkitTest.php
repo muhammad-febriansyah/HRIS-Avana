@@ -91,6 +91,6 @@ it('filters the feature list by keyword and refuses to invent a menu', function 
 
     $tool = collect(AiToolkit::forUser($user))->firstWhere(fn ($t): bool => $t->name() === 'fitur_tersedia');
 
-    expect($tool->handle(kata_kunci: 'cuti'))->toContain('Cuti Saya')
+    expect($tool->handle(kata_kunci: 'cuti'))->toContain('Cuti (/avana/saya/cuti)')
         ->and($tool->handle(kata_kunci: 'zzz tidak ada'))->toContain('Jangan mengarang nama menu');
 });

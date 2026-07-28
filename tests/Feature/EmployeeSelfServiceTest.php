@@ -32,7 +32,7 @@ it('shows the self-service group in an employee sidebar', function (): void {
 
     expect($group)->not->toBeNull()
         ->and(collect($group['items'])->pluck('label'))
-        ->toContain('Profil Saya', 'Absensi Saya', 'Cuti Saya', 'Slip Gaji Saya');
+        ->toContain('Profil', 'Absensi', 'Cuti', 'Slip Gaji');
 });
 
 it('hides the self-service group from an account with no employee record', function (): void {

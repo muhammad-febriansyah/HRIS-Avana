@@ -10,6 +10,7 @@ use App\Models\Training;
 use App\Models\TrainingEnrollment;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
+use Illuminate\Support\Carbon;
 
 beforeEach(function (): void {
     $this->seed(AvanaDemoSeeder::class);
@@ -322,6 +323,11 @@ it('keeps an open-ended event from an earlier month out of this month', function
 });
 
 it('shows company, department, and personal events but not another department', function (): void {
+    // The calendar loads one month at a time, so pin today to mid-month:
+    // otherwise the events seeded a few days out land in the next month and
+    // the assertions fail purely on when the suite happens to run.
+    $this->travelTo(Carbon::create(2026, 6, 10, 9));
+
     CalendarEvent::query()->delete();
 
     $otherDepartment = Employee::forTenant($this->tenantId)
