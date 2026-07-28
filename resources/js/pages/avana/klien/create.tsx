@@ -23,6 +23,7 @@ import {
     CYCLE_LABELS,
     formatDate,
     formatRupiah,
+    formatTokens,
     periodDays,
     periodEnd,
     STEP_FIELDS,
@@ -35,7 +36,10 @@ interface KlienCreateProps {
 }
 
 const STEPS = [
-    { title: 'Paket & Langganan', hint: 'Pilih harga, periode dihitung otomatis' },
+    {
+        title: 'Paket & Langganan',
+        hint: 'Pilih harga, periode dihitung otomatis',
+    },
     { title: 'Data Klien', hint: 'Identitas dan kuota' },
     { title: 'Akun Admin', hint: 'Login pertama klien' },
 ];
@@ -52,7 +56,8 @@ export default function KlienCreate({ packages }: KlienCreateProps) {
     const { data, setData, errors, processing } = form;
 
     const selectedPackage = useMemo(
-        () => packages.find((pkg) => String(pkg.id) === data.package_id) ?? null,
+        () =>
+            packages.find((pkg) => String(pkg.id) === data.package_id) ?? null,
         [packages, data.package_id],
     );
 
@@ -116,6 +121,12 @@ export default function KlienCreate({ packages }: KlienCreateProps) {
     const days = periodDays(data.start_date, data.end_date);
     const isTrial = data.status === 'trial';
 
+    // A client without a package gets no free monthly allowance at all — its AI
+    // tokens can only come from a purchased pack, so say so rather than "0".
+    const tokenQuotaLabel = selectedPackage?.ai_token_quota
+        ? `${formatTokens(selectedPackage.ai_token_quota)} / bulan`
+        : 'Beli paket token';
+
     return (
         <>
             <Head title="Tambah Klien" />
@@ -129,14 +140,18 @@ export default function KlienCreate({ packages }: KlienCreateProps) {
                 </div>
                 <h1 style={titleStyle}>Tambah Klien Baru</h1>
 
-                <Stepper current={step} onJump={setStep} complete={stepComplete} />
+                <Stepper
+                    current={step}
+                    onJump={setStep}
+                    complete={stepComplete}
+                />
 
                 <div style={{ ...card, marginTop: 18 }}>
                     {step === 0 && (
                         <div style={{ padding: '22px 24px' }}>
                             <SectionTitle
                                 title="Paket Langganan"
-                                hint="Kuota pengguna, karyawan dan cabang mengikuti paket yang dipilih."
+                                hint="Kuota pengguna, karyawan, cabang dan token AI bulanan mengikuti paket yang dipilih."
                             />
                             <div style={packageGridStyle}>
                                 {packages.map((pkg) => {
@@ -208,6 +223,16 @@ export default function KlienCreate({ packages }: KlienCreateProps) {
                                                 {pkg.max_employees} karyawan ·{' '}
                                                 {pkg.max_branches} cabang
                                             </div>
+                                            <div style={packageTokenStyle}>
+                                                <AIcon
+                                                    name="sparkles"
+                                                    size={12}
+                                                    color={C.faint}
+                                                />
+                                                {pkg.ai_token_quota
+                                                    ? `${formatTokens(pkg.ai_token_quota)} token AI / bulan`
+                                                    : 'Tanpa token AI bulanan'}
+                                            </div>
                                         </button>
                                     );
                                 })}
@@ -241,7 +266,16 @@ export default function KlienCreate({ packages }: KlienCreateProps) {
                                         Tanpa Paket
                                     </div>
                                     <div style={packageMetaStyle}>
-                                        Kuota diisi manual di langkah berikutnya.
+                                        Kuota diisi manual di langkah
+                                        berikutnya.
+                                    </div>
+                                    <div style={packageTokenStyle}>
+                                        <AIcon
+                                            name="sparkles"
+                                            size={12}
+                                            color={C.faint}
+                                        />
+                                        Token AI hanya dari beli paket token
                                     </div>
                                 </button>
                             </div>
@@ -255,7 +289,9 @@ export default function KlienCreate({ packages }: KlienCreateProps) {
 
                             <div style={twoColStyle}>
                                 <div>
-                                    <label style={fieldLabelStyle}>Status</label>
+                                    <label style={fieldLabelStyle}>
+                                        Status
+                                    </label>
                                     <select
                                         value={data.status}
                                         onChange={(event) =>
@@ -433,6 +469,10 @@ export default function KlienCreate({ packages }: KlienCreateProps) {
                                 <SummaryItem
                                     label="Lama"
                                     value={days === null ? '—' : `${days} hari`}
+                                />
+                                <SummaryItem
+                                    label="Token AI"
+                                    value={tokenQuotaLabel}
                                 />
                             </div>
                         </div>
@@ -697,6 +737,10 @@ export default function KlienCreate({ packages }: KlienCreateProps) {
                                 <SummaryItem
                                     label="Kuota"
                                     value={`${data.max_users || 0} pengguna · ${data.max_employees || 0} karyawan · ${data.max_branches || 0} cabang`}
+                                />
+                                <SummaryItem
+                                    label="Token AI"
+                                    value={tokenQuotaLabel}
                                 />
                                 <SummaryItem
                                     label="Admin"
@@ -1061,6 +1105,17 @@ const packageMetaStyle: CSSProperties = {
     color: C.faint,
     marginTop: 8,
     lineHeight: 1.5,
+};
+
+const packageTokenStyle: CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 5,
+    fontSize: 12,
+    color: C.muted,
+    marginTop: 6,
+    paddingTop: 6,
+    borderTop: `1px solid ${C.line}`,
 };
 
 const chipStyle: CSSProperties = {

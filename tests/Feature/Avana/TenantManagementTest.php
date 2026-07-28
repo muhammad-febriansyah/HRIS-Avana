@@ -48,6 +48,27 @@ it('renders the klien index for a super admin with tenants, packages and feature
             ->has('filters'));
 });
 
+it('carries the free monthly AI token quota on every package the wizard offers', function (): void {
+    Package::query()->orderBy('price')->firstOrFail()->update(['ai_token_quota' => 500_000]);
+
+    actingAs($this->superAdmin)
+        ->get(route('avana.klien.create'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/klien/create', false)
+            ->has('packages')
+            ->has('packages.0', fn (Assert $package) => $package
+                ->has('max_users')
+                ->has('max_employees')
+                ->has('max_branches')
+                ->has('ai_token_quota')
+                ->etc()));
+
+    $quotas = Package::query()->orderBy('price')->pluck('ai_token_quota');
+
+    expect($quotas->first())->toBe(500_000);
+});
+
 it('forbids an admin_tenant_hr from viewing the klien index', function (): void {
     actingAs($this->admin)
         ->get(route('avana.klien'))

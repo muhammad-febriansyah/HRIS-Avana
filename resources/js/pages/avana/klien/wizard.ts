@@ -122,6 +122,25 @@ export function formatRupiah(value: number): string {
     return `Rp ${Math.round(value).toLocaleString('id-ID')}`;
 }
 
+/**
+ * `500000` → `500rb`, `2000000` → `2 jt`. Package cards are narrow, so the free
+ * monthly AI allowance is shortened rather than spelled out in full digits.
+ */
+export function formatTokens(value: number): string {
+    const compact = (amount: number, unit: string): string =>
+        `${amount.toLocaleString('id-ID', { maximumFractionDigits: 1 })} ${unit}`;
+
+    if (value >= 1_000_000) {
+        return compact(value / 1_000_000, 'jt');
+    }
+
+    if (value >= 1_000) {
+        return compact(value / 1_000, 'rb');
+    }
+
+    return value.toLocaleString('id-ID');
+}
+
 /** Apply a package's quota and billing cycle to the form data. */
 export function applyPackage(
     data: TenantFormData,
@@ -150,7 +169,14 @@ export function applyPackage(
 
 /** Fields each wizard step owns, so a step can be validated on its own. */
 export const STEP_FIELDS: Record<number, (keyof TenantFormData)[]> = {
-    0: ['package_id', 'status', 'billing_cycle', 'trial_days', 'start_date', 'end_date'],
+    0: [
+        'package_id',
+        'status',
+        'billing_cycle',
+        'trial_days',
+        'start_date',
+        'end_date',
+    ],
     1: [
         'name',
         'company_name',
