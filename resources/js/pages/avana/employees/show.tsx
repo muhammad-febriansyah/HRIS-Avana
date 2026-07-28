@@ -367,14 +367,11 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                                     fontWeight: active ? 600 : 500,
                                     color: active ? C.primary : C.muted,
                                     border: 'none',
-                                    borderBottom: active
-                                        ? `2px solid ${C.primary}`
-                                        : '2px solid transparent',
                                     cursor: 'pointer',
                                     background: active
                                         ? 'rgba(47,84,201,.07)'
                                         : C.surface,
-                                    borderRadius: '8px 8px 0 0',
+                                    borderRadius: 8,
                                     whiteSpace: 'nowrap',
                                     transition: '.15s',
                                 }}
@@ -547,20 +544,28 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
     );
 }
 
-/** Centered placeholder shown when a tab has no rows to list. */
+/**
+ * Centered placeholder shown when a tab has no rows to list. The icon needs
+ * the flex column because the global reset makes every `svg` a block element,
+ * which `text-align` cannot center.
+ */
 function EmptyTab({ icon, message }: { icon: string; message: string }) {
     return (
         <div
             style={{
                 ...card,
                 padding: '40px 22px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 10,
                 textAlign: 'center',
                 color: C.faint,
                 fontSize: 13.5,
             }}
         >
             <AIcon name={icon} size={26} color={C.faint} />
-            <div style={{ marginTop: 10 }}>{message}</div>
+            <div>{message}</div>
         </div>
     );
 }
@@ -851,20 +856,10 @@ function PayrollTab({ rows }: { rows: PayrollHistoryRow[] }) {
 function AssetTab({ assets }: { assets: HeldAsset[] }) {
     if (assets.length === 0) {
         return (
-            <div
-                style={{
-                    ...card,
-                    padding: '40px 22px',
-                    textAlign: 'center',
-                    color: C.faint,
-                    fontSize: 13.5,
-                }}
-            >
-                <AIcon name="package" size={26} color={C.faint} />
-                <div style={{ marginTop: 10 }}>
-                    Belum ada aset yang dipegang karyawan ini.
-                </div>
-            </div>
+            <EmptyTab
+                icon="package"
+                message="Belum ada aset yang dipegang karyawan ini."
+            />
         );
     }
 
