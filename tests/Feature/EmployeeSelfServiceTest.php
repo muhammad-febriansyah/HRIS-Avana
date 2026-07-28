@@ -1,8 +1,11 @@
 <?php
 
+use App\Models\Announcement;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
+use App\Models\CalendarEvent;
 use App\Models\Employee;
+use App\Models\EmployeeDocument;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\OvertimeRequest;
@@ -12,6 +15,8 @@ use App\Models\PermissionRequest;
 use App\Models\User;
 use App\Support\AvanaNav;
 use Database\Seeders\AvanaDemoSeeder;
+use Illuminate\Support\Carbon;
+use Inertia\Testing\AssertableInertia as Assert;
 
 beforeEach(function (): void {
     $this->seed(AvanaDemoSeeder::class);
@@ -289,4 +294,93 @@ it('updates only the personal fields an employee owns', function (): void {
         ->and($this->employee->address)->toBe('Jl. Merdeka 10')
         // full_name is org-owned: the mass-assignment must not have taken it.
         ->and($this->employee->full_name)->toBe($originalName);
+});
+
+it('feeds the employee dashboard with their own documents, colleagues, announcements and calendar', function (): void {
+    $tenantId = $this->employee->tenant_id;
+    $colleague = Employee::forTenant($tenantId)
+        ->where('id', '!=', $this->employee->id)
+        ->firstOrFail();
+
+    EmployeeDocument::create([
+        'tenant_id' => $tenantId,
+        'employee_id' => $this->employee->id,
+        'name' => 'Sertifikat.pdf',
+        'file_path' => 'documents/sertifikat.pdf',
+        'file_size' => 524_288,
+        'uploaded_at' => Carbon::today()->toDateString(),
+    ]);
+    EmployeeDocument::create([
+        'tenant_id' => $tenantId,
+        'employee_id' => $colleague->id,
+        'name' => 'Bukan Milik Saya.pdf',
+        'file_path' => 'documents/lain.pdf',
+    ]);
+
+    Announcement::create([
+        'tenant_id' => $tenantId,
+        'title' => 'Libur Bersama',
+        'body' => 'Kantor tutup pekan depan.',
+        'category' => 'Kebijakan',
+        'status' => 'published',
+        'published_at' => Carbon::now(),
+    ]);
+    Announcement::create([
+        'tenant_id' => $tenantId,
+        'title' => 'Draf Internal',
+        'body' => 'Belum terbit.',
+        'status' => 'draft',
+    ]);
+
+    CalendarEvent::create([
+        'tenant_id' => $tenantId,
+        'title' => 'Rapat Tim',
+        'type' => 'meeting',
+        'start_date' => Carbon::today()->toDateString(),
+        'all_day' => true,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get('/dashboard')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/saya/dashboard')
+            ->has('documents', 1)
+            ->where('documents.0.name', 'Sertifikat.pdf')
+            ->where('documents.0.meta', fn (string $meta): bool => str_contains($meta, '512.0 KB'))
+            ->has('announcements', 1)
+            ->where('announcements.0.title', 'Libur Bersama')
+            ->has('calendar.events', 1)
+            ->where('calendar.events.0.type_label', 'Rapat')
+            ->where('calendar.month', Carbon::today()->format('Y-m'))
+            ->has('stats.tasks')
+            ->has('stats.week_hours')
+            ->etc());
+});
+
+it('loads another month into the dashboard calendar without leaking other months', function (): void {
+    $tenantId = $this->employee->tenant_id;
+    $nextMonth = Carbon::today()->startOfMonth()->addMonth();
+
+    CalendarEvent::create([
+        'tenant_id' => $tenantId,
+        'title' => 'Bulan Ini',
+        'type' => 'event',
+        'start_date' => Carbon::today()->toDateString(),
+    ]);
+    CalendarEvent::create([
+        'tenant_id' => $tenantId,
+        'title' => 'Bulan Depan',
+        'type' => 'event',
+        'start_date' => $nextMonth->copy()->addDays(3)->toDateString(),
+    ]);
+
+    $this->actingAs($this->user)
+        ->get('/dashboard?month='.$nextMonth->format('Y-m'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('calendar.month', $nextMonth->format('Y-m'))
+            ->has('calendar.events', 1)
+            ->where('calendar.events.0.title', 'Bulan Depan')
+            ->etc());
 });

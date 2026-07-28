@@ -3,8 +3,12 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
+use App\Models\Announcement;
 use App\Models\Attendance;
+use App\Models\CalendarEvent;
 use App\Models\Employee;
+use App\Models\EmployeeDocument;
+use App\Models\FieldVisitTask;
 use App\Models\Invoice;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
@@ -18,6 +22,8 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -166,6 +172,11 @@ class DashboardController extends Controller
             ->where('year', $today->year)
             ->sum('remaining');
 
+        $leaveQuota = (float) LeaveBalance::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->where('year', $today->year)
+            ->sum('quota');
+
         $pending = 0;
         foreach ([LeaveRequest::class, OvertimeRequest::class, PermissionRequest::class] as $model) {
             $pending += $model::forTenant($tenantId)
@@ -174,9 +185,15 @@ class DashboardController extends Controller
                 ->count();
         }
 
+        $weekHours = $this->weekHours($tenantId, (int) $employee->id, $today);
+        $month = $this->resolveDashboardMonth($request, $today);
+        $events = $this->calendarEvents($employee, $month);
+
         return Inertia::render('avana/saya/dashboard', [
             'userName' => explode(' ', trim((string) $request->user()->name))[0],
+            'greeting' => $this->greeting($today),
             'today' => $today->copy()->locale('id')->translatedFormat('l, d M Y'),
+            'todayIso' => $today->toDateString(),
             'todayAttendance' => [
                 'clock_in' => $todayRecord?->clock_in_at?->format('H:i'),
                 'clock_out' => $todayRecord?->clock_out_at?->format('H:i'),
@@ -185,11 +202,335 @@ class DashboardController extends Controller
             'stats' => [
                 'work_hours_month' => round($monthMinutes / 60, 1),
                 'leave_available' => $leaveAvailable,
+                'leave_quota' => $leaveQuota,
                 'pending_requests' => $pending,
+                'week_hours' => $weekHours['current'],
+                'week_target' => self::WEEKLY_HOUR_TARGET,
+                'week_delta' => $weekHours['delta'],
+                'tasks' => $this->taskProgress($tenantId, (int) $employee->id, $today),
+                'next_leave' => $this->nextLeave($tenantId, (int) $employee->id, $today),
             ],
             'attendanceWeek' => $this->ownAttendanceWeek($tenantId, (int) $employee->id, $today),
             'awayToday' => $this->awayToday($tenantId, $employee->department_id, $today),
+            'documents' => $this->ownDocuments((int) $employee->id),
+            'newColleagues' => $this->newColleagues($tenantId, (int) $employee->id, $today),
+            'announcements' => $this->latestAnnouncements($tenantId),
+            'calendar' => [
+                'month' => $month->format('Y-m'),
+                'label' => $month->copy()->locale('id')->translatedFormat('F Y'),
+                'events' => $events,
+            ],
+            'birthdays' => $this->upcomingBirthdays($tenantId, (int) $employee->id, $today),
         ]);
+    }
+
+    /**
+     * Contracted hours a full week is measured against.
+     */
+    private const WEEKLY_HOUR_TARGET = 40;
+
+    /**
+     * Time-of-day greeting, following the Indonesian convention of splitting
+     * the day into four rather than three parts.
+     */
+    private function greeting(Carbon $today): string
+    {
+        $hour = (int) Carbon::now()->format('G');
+
+        return match (true) {
+            $hour < 11 => 'Selamat pagi',
+            $hour < 15 => 'Selamat siang',
+            $hour < 19 => 'Selamat sore',
+            default => 'Selamat malam',
+        };
+    }
+
+    /**
+     * Hours worked in the running week and how that compares with the week
+     * before, as a rounded percentage.
+     *
+     * @return array{current: float, delta: int|null}
+     */
+    private function weekHours(int $tenantId, int $employeeId, Carbon $today): array
+    {
+        $sum = function (Carbon $start, Carbon $end) use ($tenantId, $employeeId): float {
+            $minutes = (int) Attendance::forTenant($tenantId)
+                ->where('employee_id', $employeeId)
+                ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
+                ->sum('work_minutes');
+
+            return round($minutes / 60, 1);
+        };
+
+        $current = $sum($today->copy()->startOfWeek(), $today->copy()->endOfWeek());
+        $previous = $sum(
+            $today->copy()->subWeek()->startOfWeek(),
+            $today->copy()->subWeek()->endOfWeek(),
+        );
+
+        return [
+            'current' => $current,
+            // A zero baseline makes a percentage meaningless, so say nothing.
+            'delta' => $previous > 0 ? (int) round((($current - $previous) / $previous) * 100) : null,
+        ];
+    }
+
+    /**
+     * Field-visit checklist progress for the running month.
+     *
+     * @return array{done: int, total: int}
+     */
+    private function taskProgress(int $tenantId, int $employeeId, Carbon $today): array
+    {
+        $tasks = FieldVisitTask::forTenant($tenantId)
+            ->whereHas('fieldVisit', fn ($query) => $query
+                ->where('employee_id', $employeeId)
+                ->whereYear('visit_date', $today->year)
+                ->whereMonth('visit_date', $today->month))
+            ->get(['is_done']);
+
+        return [
+            'done' => $tasks->where('is_done', true)->count(),
+            'total' => $tasks->count(),
+        ];
+    }
+
+    /**
+     * The employee's next approved leave, so the balance tile can say when it
+     * is next being spent.
+     *
+     * @return array{start: string, end: string}|null
+     */
+    private function nextLeave(int $tenantId, int $employeeId, Carbon $today): ?array
+    {
+        $leave = LeaveRequest::forTenant($tenantId)
+            ->where('employee_id', $employeeId)
+            ->where('status', 'approved')
+            ->whereDate('start_date', '>=', $today->toDateString())
+            ->orderBy('start_date')
+            ->first(['start_date', 'end_date']);
+
+        if ($leave === null) {
+            return null;
+        }
+
+        return [
+            'start' => $leave->start_date->format('d M'),
+            'end' => ($leave->end_date ?? $leave->start_date)->format('d M'),
+        ];
+    }
+
+    /**
+     * The employee's own uploaded documents, newest first.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function ownDocuments(int $employeeId): array
+    {
+        return EmployeeDocument::where('employee_id', $employeeId)
+            ->latest('id')
+            ->limit(4)
+            ->get()
+            ->map(fn (EmployeeDocument $document): array => [
+                'id' => $document->id,
+                'name' => $document->name,
+                'meta' => trim(implode(' · ', array_filter([
+                    $document->uploaded_at?->format('d M Y'),
+                    $this->humanBytes($document->file_size),
+                ]))),
+                'extension' => $document->file_path !== null
+                    ? mb_strtolower(pathinfo($document->file_path, PATHINFO_EXTENSION))
+                    : null,
+                'download_url' => $document->file_path !== null
+                    ? Storage::disk('public')->url($document->file_path)
+                    : null,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Colleagues who joined within the last month, excluding the viewer.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function newColleagues(int $tenantId, int $employeeId, Carbon $today): array
+    {
+        return Employee::forTenant($tenantId)
+            ->where('status', 'active')
+            ->where('id', '!=', $employeeId)
+            ->whereNotNull('join_date')
+            ->whereDate('join_date', '>=', $today->copy()->subDays(30)->toDateString())
+            ->whereDate('join_date', '<=', $today->toDateString())
+            ->with(['position:id,name', 'department:id,name'])
+            ->orderByDesc('join_date')
+            ->limit(4)
+            ->get()
+            ->map(fn (Employee $colleague): array => [
+                'id' => $colleague->id,
+                'name' => $colleague->full_name,
+                'role' => $colleague->position?->name ?? $colleague->department?->name,
+                'join_date' => $colleague->join_date?->format('d M Y'),
+                'photo_url' => $colleague->photo_path !== null
+                    ? Storage::disk('public')->url($colleague->photo_path)
+                    : null,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Published company announcements, pinned ones first.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function latestAnnouncements(int $tenantId): array
+    {
+        return Announcement::forTenant($tenantId)
+            ->where('status', 'published')
+            ->orderByDesc('pinned')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->limit(3)
+            ->get()
+            ->map(fn (Announcement $announcement): array => [
+                'id' => $announcement->id,
+                'title' => $announcement->title,
+                'excerpt' => Str::limit(strip_tags((string) $announcement->body), 110),
+                'category' => $announcement->category,
+                'pinned' => (bool) $announcement->pinned,
+                'published_at' => $announcement->published_at?->locale('id')->diffForHumans(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Calendar events visible to the employee within the given month: the
+     * tenant-wide ones, their department's, and their own.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function calendarEvents(Employee $employee, Carbon $month): array
+    {
+        $start = $month->copy()->startOfMonth();
+        $end = $month->copy()->endOfMonth();
+
+        return CalendarEvent::forTenant($employee->tenant_id)
+            ->where(fn ($query) => $query
+                ->where(fn ($scoped) => $scoped
+                    ->whereNull('employee_id')
+                    ->whereNull('department_id'))
+                ->orWhere('employee_id', $employee->id)
+                ->orWhere(fn ($scoped) => $scoped
+                    ->whereNotNull('department_id')
+                    ->where('department_id', $employee->department_id)))
+            ->whereDate('start_date', '<=', $end->toDateString())
+            // A one-day event stores no end date, so it overlaps the month
+            // only through its start.
+            ->where(fn ($query) => $query
+                ->whereDate('end_date', '>=', $start->toDateString())
+                ->orWhere(fn ($openEnded) => $openEnded
+                    ->whereNull('end_date')
+                    ->whereDate('start_date', '>=', $start->toDateString())))
+            ->orderBy('start_date')
+            ->get()
+            ->map(fn (CalendarEvent $event): array => [
+                'id' => $event->id,
+                'title' => $event->title,
+                'type' => $event->type,
+                'type_label' => self::EVENT_TYPE_LABELS[$event->type] ?? $event->type,
+                'start_date' => $event->start_date->toDateString(),
+                'end_date' => ($event->end_date ?? $event->start_date)->toDateString(),
+                'all_day' => (bool) $event->all_day,
+                'color' => $event->color,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Indonesian labels for the calendar event type enum.
+     *
+     * @var array<string, string>
+     */
+    private const EVENT_TYPE_LABELS = [
+        'holiday' => 'Libur',
+        'meeting' => 'Rapat',
+        'training' => 'Pelatihan',
+        'event' => 'Acara',
+        'deadline' => 'Tenggat',
+        'birthday' => 'Ulang Tahun',
+    ];
+
+    /**
+     * The month the calendar panel is showing, defaulting to the current one.
+     */
+    private function resolveDashboardMonth(Request $request, Carbon $today): Carbon
+    {
+        $month = $request->query('month');
+
+        if (is_string($month) && preg_match('/^\d{4}-\d{2}$/', $month) === 1) {
+            return Carbon::parse($month.'-01')->startOfMonth();
+        }
+
+        return $today->copy()->startOfMonth();
+    }
+
+    /**
+     * Birthdays falling in the next 30 days, the viewer's own included.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function upcomingBirthdays(int $tenantId, int $employeeId, Carbon $today): array
+    {
+        $window = collect(range(0, 30))
+            ->map(fn (int $offset): string => $today->copy()->addDays($offset)->format('m-d'));
+
+        return Employee::forTenant($tenantId)
+            ->where('status', 'active')
+            ->whereNotNull('birth_date')
+            ->get(['id', 'full_name', 'birth_date', 'photo_path'])
+            ->filter(fn (Employee $person): bool => $window->contains($person->birth_date->format('m-d')))
+            ->sortBy(fn (Employee $person): int => $window->search($person->birth_date->format('m-d')))
+            ->take(4)
+            ->map(fn (Employee $person): array => [
+                'id' => $person->id,
+                'name' => $person->full_name,
+                'is_self' => $person->id === $employeeId,
+                'date' => $person->birth_date->format('d M'),
+                'is_today' => $person->birth_date->format('m-d') === $today->format('m-d'),
+                'photo_url' => $person->photo_path !== null
+                    ? Storage::disk('public')->url($person->photo_path)
+                    : null,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Render a byte count as a human-readable size label.
+     */
+    private function humanBytes(?int $bytes): ?string
+    {
+        if ($bytes === null) {
+            return null;
+        }
+
+        if ($bytes < 1024) {
+            return "{$bytes} B";
+        }
+
+        $units = ['KB', 'MB', 'GB'];
+        $value = $bytes / 1024;
+        $unitIndex = 0;
+
+        while ($value >= 1024 && $unitIndex < count($units) - 1) {
+            $value /= 1024;
+            $unitIndex++;
+        }
+
+        return number_format($value, 1).' '.$units[$unitIndex];
     }
 
     /**
