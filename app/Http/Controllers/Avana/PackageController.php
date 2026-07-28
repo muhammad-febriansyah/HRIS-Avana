@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
+use App\Models\AiTokenPack;
 use App\Models\Feature;
 use App\Models\Package;
 use App\Models\User;
 use App\Support\FeatureGroups;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -59,6 +61,7 @@ class PackageController extends Controller
             'packages' => $packages->values()->all(),
             'cycles' => self::CYCLES,
             'featureCatalog' => $this->featureCatalog(),
+            'tokenPacks' => $this->tokenPacks(),
         ]);
     }
 
@@ -73,8 +76,10 @@ class PackageController extends Controller
         $features = $data['features'];
         unset($data['features']);
 
-        $package = Package::create($data);
-        $this->syncFeatures($package, $features);
+        DB::transaction(function () use ($data, $features): void {
+            $package = Package::create($this->withTokenPack($data));
+            $this->syncFeatures($package, $features);
+        });
 
         return back()->with('success', 'Paket dibuat');
     }
@@ -90,10 +95,68 @@ class PackageController extends Controller
         $features = $data['features'];
         unset($data['features']);
 
-        $package->update($data);
-        $this->syncFeatures($package, $features);
+        DB::transaction(function () use ($package, $data, $features): void {
+            $package->update($this->withTokenPack($data));
+            $this->syncFeatures($package, $features);
+        });
 
         return back()->with('success', 'Paket diperbarui');
+    }
+
+    /**
+     * The sellable AI token packs the package form can point its monthly quota at.
+     *
+     * @return array<int, array{id: int, name: string, token_amount: int, price: int}>
+     */
+    private function tokenPacks(): array
+    {
+        return AiTokenPack::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['id', 'name', 'token_amount', 'price'])
+            ->map(fn (AiTokenPack $pack): array => [
+                'id' => $pack->id,
+                'name' => $pack->name,
+                'token_amount' => (int) $pack->token_amount,
+                'price' => (int) $pack->price,
+            ])
+            ->all();
+    }
+
+    /**
+     * Resolve the "custom" branch of the token quota picker: the super admin typed
+     * an allowance that no pack sells yet, so the same numbers are also filed as a
+     * new {@see AiTokenPack} — the catalogue and the package tier stay in step.
+     *
+     * An identical pack (same tokens, same price) is reused rather than duplicated.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function withTokenPack(array $data): array
+    {
+        $pack = $data['token_pack'] ?? null;
+        unset($data['token_pack']);
+
+        if ($pack === null) {
+            return $data;
+        }
+
+        $existing = AiTokenPack::query()
+            ->where('token_amount', $pack['token_amount'])
+            ->where('price', $pack['price'])
+            ->first();
+
+        $data['ai_token_quota'] = (int) ($existing?->token_amount ?? AiTokenPack::create([
+            'name' => $pack['name'],
+            'token_amount' => $pack['token_amount'],
+            'price' => $pack['price'],
+            'description' => $pack['description'] ?? null,
+            'is_active' => true,
+        ])->token_amount);
+
+        return $data;
     }
 
     /**
@@ -162,6 +225,13 @@ class PackageController extends Controller
             'max_employees' => ['nullable', 'integer', 'min:0'],
             'max_branches' => ['nullable', 'integer', 'min:0'],
             'ai_token_quota' => ['nullable', 'integer', 'min:0'],
+            // Present only when the quota was typed by hand and should also be
+            // filed as a sellable pack; a pack it points at instead sends null.
+            'token_pack' => ['nullable', 'array'],
+            'token_pack.name' => ['required_with:token_pack', 'string', 'max:120'],
+            'token_pack.token_amount' => ['required_with:token_pack', 'integer', 'min:1'],
+            'token_pack.price' => ['required_with:token_pack', 'integer', 'min:0'],
+            'token_pack.description' => ['nullable', 'string', 'max:255'],
             'feature_list' => ['nullable', 'array'],
             // Blank lines arrive as null (ConvertEmptyStringsToNull); allow them
             // and drop them below so the textarea can have empty rows.

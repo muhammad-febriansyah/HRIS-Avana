@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AiTokenPack;
 use App\Models\Feature;
 use App\Models\Package;
 use App\Models\SubscriptionOrder;
@@ -38,6 +39,89 @@ it('stores the modules a super admin ticks for a package', function (): void {
     $package = Package::where('name', 'Paket Dashboard Saja')->firstOrFail();
 
     expect($package->entitledFeatureIds())->toEqualCanonicalizing($features);
+});
+
+it('files a custom AI token allowance as a sellable pack and uses it as the quota', function (): void {
+    actingAs($this->superAdmin)
+        ->post(route('avana.paket.store'), [
+            'name' => 'Paket Token Custom',
+            'price' => 750_000,
+            'billing_cycle' => 'monthly',
+            'token_pack' => [
+                'name' => 'Paket Kilat',
+                'token_amount' => 750_000,
+                'price' => 200_000,
+            ],
+        ])
+        ->assertSessionHas('success');
+
+    $pack = AiTokenPack::where('name', 'Paket Kilat')->firstOrFail();
+
+    expect($pack->token_amount)->toBe(750_000)
+        ->and($pack->price)->toBe(200_000)
+        ->and($pack->is_active)->toBeTrue()
+        ->and(Package::where('name', 'Paket Token Custom')->firstOrFail()->ai_token_quota)->toBe(750_000);
+});
+
+it('reuses an identical token pack instead of duplicating the catalogue', function (): void {
+    $pack = AiTokenPack::create([
+        'name' => 'Paket Starter',
+        'token_amount' => 500_000,
+        'price' => 150_000,
+        'is_active' => true,
+    ]);
+
+    actingAs($this->superAdmin)
+        ->post(route('avana.paket.store'), [
+            'name' => 'Paket Pakai Ulang',
+            'price' => 1_000_000,
+            'billing_cycle' => 'monthly',
+            'token_pack' => [
+                'name' => 'Nama Lain Tapi Sama',
+                'token_amount' => 500_000,
+                'price' => 150_000,
+            ],
+        ])
+        ->assertSessionHas('success');
+
+    expect(AiTokenPack::where('token_amount', 500_000)->where('price', 150_000)->count())->toBe(1)
+        ->and(AiTokenPack::where('name', 'Nama Lain Tapi Sama')->exists())->toBeFalse()
+        ->and(Package::where('name', 'Paket Pakai Ulang')->firstOrFail()->ai_token_quota)->toBe($pack->token_amount);
+});
+
+it('rejects a custom token allowance that has no name or price', function (): void {
+    actingAs($this->superAdmin)
+        ->post(route('avana.paket.store'), [
+            'name' => 'Paket Tanpa Harga',
+            'price' => 300_000,
+            'billing_cycle' => 'monthly',
+            'token_pack' => ['token_amount' => 250_000],
+        ])
+        ->assertSessionHasErrors(['token_pack.name', 'token_pack.price']);
+
+    expect(Package::where('name', 'Paket Tanpa Harga')->exists())->toBeFalse();
+});
+
+it('offers the active token packs to the paket screen', function (): void {
+    AiTokenPack::create([
+        'name' => 'Paket Aktif',
+        'token_amount' => 100_000,
+        'price' => 50_000,
+        'is_active' => true,
+    ]);
+    AiTokenPack::create([
+        'name' => 'Paket Arsip',
+        'token_amount' => 200_000,
+        'price' => 80_000,
+        'is_active' => false,
+    ]);
+
+    $packs = collect(
+        actingAs($this->superAdmin)->get(route('avana.paket'))->viewData('page')['props']['tokenPacks']
+    );
+
+    expect($packs->pluck('name'))->toContain('Paket Aktif')
+        ->and($packs->pluck('name'))->not->toContain('Paket Arsip');
 });
 
 it('exposes the module catalog and each package selection to the paket screen', function (): void {

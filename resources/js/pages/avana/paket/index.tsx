@@ -31,12 +31,34 @@ interface FeatureOption {
     group: string;
 }
 
+/** A sellable AI token pack the monthly quota can be pointed at. */
+interface TokenPack {
+    id: number;
+    name: string;
+    token_amount: number;
+    price: number;
+}
+
 interface PageProps {
     packages: Package[];
     cycles: string[];
     featureCatalog: FeatureOption[];
+    tokenPacks: TokenPack[];
     flash?: { success?: string; error?: string };
 }
+
+/** The custom branch of the quota picker, filed as a new pack on save. */
+interface TokenPackDraft {
+    name: string;
+    token_amount: number | null;
+    price: number;
+}
+
+const emptyTokenPack: TokenPackDraft = {
+    name: '',
+    token_amount: null,
+    price: 0,
+};
 
 interface PackageForm {
     name: string;
@@ -47,6 +69,8 @@ interface PackageForm {
     max_employees: number | null;
     max_branches: number | null;
     ai_token_quota: number | null;
+    /** Set only when a brand-new pack should be created from the typed numbers. */
+    token_pack: TokenPackDraft | null;
     feature_list: string[];
     features: number[];
     is_active: boolean;
@@ -62,6 +86,7 @@ const emptyForm: PackageForm = {
     max_employees: null,
     max_branches: null,
     ai_token_quota: null,
+    token_pack: null,
     feature_list: [],
     features: [],
     is_active: true,
@@ -73,16 +98,27 @@ const CYCLE_LABEL: Record<string, string> = {
     yearly: '/tahun',
 };
 
+/**
+ * How the monthly AI allowance was chosen: nothing, an existing pack (by id), or
+ * numbers typed by hand that get filed as a new pack on save.
+ */
+type TokenMode = 'none' | 'custom' | number;
+
 export default function PaketIndex({
     packages,
     cycles,
     featureCatalog,
+    tokenPacks,
 }: PageProps) {
     const { flash } = usePage<PageProps>().props;
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<Package | null>(null);
     const [confirm, setConfirm] = useState<Package | null>(null);
+    const [tokenMode, setTokenMode] = useState<TokenMode>('none');
     const form = useForm<PackageForm>({ ...emptyForm });
+    // The custom pack's errors come back dot-keyed (`token_pack.name`), which
+    // the form's own key type doesn't cover.
+    const nestedErrors = form.errors as Record<string, string | undefined>;
 
     useEffect(() => {
         if (flash?.success) {
@@ -98,12 +134,24 @@ export default function PaketIndex({
         setEditing(null);
         form.clearErrors();
         form.setData({ ...emptyForm });
+        setTokenMode('none');
         setModalOpen(true);
     };
 
     const openEdit = (pkg: Package) => {
         setEditing(pkg);
         form.clearErrors();
+
+        // An allowance a pack already sells re-opens on that pack; anything else
+        // (a quota typed before the picker existed) re-opens as a plain number,
+        // and only becomes a new pack if the super admin names and prices it.
+        const match = tokenPacks.find(
+            (pack) => pack.token_amount === pkg.ai_token_quota,
+        );
+
+        setTokenMode(
+            pkg.ai_token_quota === null ? 'none' : (match?.id ?? 'custom'),
+        );
         form.setData({
             name: pkg.name,
             tagline: pkg.tagline ?? '',
@@ -113,6 +161,7 @@ export default function PaketIndex({
             max_employees: pkg.max_employees,
             max_branches: pkg.max_branches,
             ai_token_quota: pkg.ai_token_quota,
+            token_pack: null,
             feature_list: pkg.feature_list,
             features: pkg.feature_ids,
             is_active: pkg.is_active,
@@ -124,7 +173,55 @@ export default function PaketIndex({
     const closeModal = () => {
         setModalOpen(false);
         setEditing(null);
+        setTokenMode('none');
         form.reset();
+    };
+
+    /** Switch how the monthly allowance is sourced, and re-derive the quota. */
+    const pickTokenMode = (mode: TokenMode) => {
+        setTokenMode(mode);
+
+        if (mode === 'none') {
+            form.setData({
+                ...form.data,
+                ai_token_quota: null,
+                token_pack: null,
+            });
+
+            return;
+        }
+
+        if (mode === 'custom') {
+            form.setData({ ...form.data, token_pack: { ...emptyTokenPack } });
+
+            return;
+        }
+
+        const pack = tokenPacks.find((option) => option.id === mode);
+
+        form.setData({
+            ...form.data,
+            ai_token_quota: pack?.token_amount ?? null,
+            token_pack: null,
+        });
+    };
+
+    // A quota saved before the picker existed has no draft behind it, so the
+    // custom fields open on the number the package already carries.
+    const tokenDraft: TokenPackDraft = form.data.token_pack ?? {
+        ...emptyTokenPack,
+        token_amount: form.data.ai_token_quota,
+    };
+
+    /** Edit one field of the custom pack, keeping the quota mirrored to it. */
+    const setTokenPack = (patch: Partial<TokenPackDraft>) => {
+        const next = { ...tokenDraft, ...patch };
+
+        form.setData({
+            ...form.data,
+            token_pack: next,
+            ai_token_quota: next.token_amount,
+        });
     };
 
     const submit = () => {
@@ -501,28 +598,126 @@ export default function PaketIndex({
                                     style={inputStyle}
                                 />
                             </Field>
-                            <Field label="Kuota Token AI">
-                                <input
-                                    type="number"
-                                    value={form.data.ai_token_quota ?? ''}
+                            <Field
+                                label="Kuota Token AI / bulan"
+                                error={form.errors.ai_token_quota}
+                            >
+                                <select
+                                    value={String(tokenMode)}
                                     onChange={(e) =>
-                                        form.setData(
-                                            'ai_token_quota',
-                                            e.target.value === ''
-                                                ? null
+                                        pickTokenMode(
+                                            e.target.value === 'none' ||
+                                                e.target.value === 'custom'
+                                                ? (e.target.value as TokenMode)
                                                 : Number(e.target.value),
                                         )
                                     }
-                                    placeholder="∞"
                                     style={inputStyle}
-                                />
+                                >
+                                    <option value="none">
+                                        Tanpa kuota bulanan
+                                    </option>
+                                    {tokenPacks.map((pack) => (
+                                        <option key={pack.id} value={pack.id}>
+                                            {pack.name} —{' '}
+                                            {pack.token_amount.toLocaleString(
+                                                'id-ID',
+                                            )}{' '}
+                                            token
+                                        </option>
+                                    ))}
+                                    <option value="custom">
+                                        Custom — bikin paket token baru
+                                    </option>
+                                </select>
                             </Field>
                         </Row>
+                        {tokenMode === 'custom' && (
+                            <div style={tokenPackBoxStyle}>
+                                <div style={tokenPackHintStyle}>
+                                    <AIcon
+                                        name="sparkles"
+                                        size={13}
+                                        color={C.primary}
+                                    />
+                                    Angka di bawah dipakai jadi kuota bulanan
+                                    paket ini, sekaligus disimpan sebagai paket
+                                    baru di menu Paket Token AI supaya bisa
+                                    dibeli tenant.
+                                </div>
+                                <Row>
+                                    <Field
+                                        label="Jumlah Token"
+                                        error={
+                                            nestedErrors[
+                                                'token_pack.token_amount'
+                                            ]
+                                        }
+                                    >
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            value={
+                                                tokenDraft.token_amount ?? ''
+                                            }
+                                            onChange={(e) =>
+                                                setTokenPack({
+                                                    token_amount:
+                                                        e.target.value === ''
+                                                            ? null
+                                                            : Number(
+                                                                  e.target
+                                                                      .value,
+                                                              ),
+                                                })
+                                            }
+                                            placeholder="500000"
+                                            style={inputStyle}
+                                        />
+                                    </Field>
+                                    <Field
+                                        label="Nama Paket Token"
+                                        error={nestedErrors['token_pack.name']}
+                                    >
+                                        <input
+                                            value={tokenDraft.name}
+                                            onChange={(e) =>
+                                                setTokenPack({
+                                                    name: e.target.value,
+                                                })
+                                            }
+                                            placeholder="mis. Paket Starter"
+                                            style={inputStyle}
+                                        />
+                                    </Field>
+                                    <Field
+                                        label="Harga Jual"
+                                        error={nestedErrors['token_pack.price']}
+                                    >
+                                        <RupiahInput
+                                            value={tokenDraft.price}
+                                            onChange={(raw) =>
+                                                setTokenPack({
+                                                    price:
+                                                        raw === ''
+                                                            ? 0
+                                                            : Number(raw),
+                                                })
+                                            }
+                                            style={inputStyle}
+                                            placeholder="0"
+                                        />
+                                    </Field>
+                                </Row>
+                            </div>
+                        )}
                         <Field label="Modul yang Didapat">
                             <ModulePicker
                                 catalog={featureCatalog}
                                 selected={form.data.features}
-                                onChange={(ids) => form.setData('features', ids)}
+                                onChange={(ids) =>
+                                    form.setData('features', ids)
+                                }
                             />
                         </Field>
                         <Field label="Poin Tambahan di Pricing">
@@ -960,6 +1155,24 @@ const inputStyle: CSSProperties = {
     outline: 'none',
     boxSizing: 'border-box',
     background: '#fff',
+};
+
+const tokenPackBoxStyle: CSSProperties = {
+    display: 'grid',
+    gap: 10,
+    padding: '12px 14px',
+    borderRadius: 10,
+    border: `1px solid ${C.border}`,
+    background: '#F8FAFF',
+};
+
+const tokenPackHintStyle: CSSProperties = {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 7,
+    fontSize: 12,
+    lineHeight: 1.55,
+    color: C.muted,
 };
 
 const modalTitle: CSSProperties = {
