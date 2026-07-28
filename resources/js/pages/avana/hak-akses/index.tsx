@@ -10,7 +10,7 @@ import type { FeatureForm } from './feature-modal';
 import { PermissionMatrix } from './permission-matrix';
 import { RoleCards } from './role-cards';
 import { RoleModal } from './role-modal';
-import type { AccessModule, FlashProps, HakAksesProps } from './types';
+import type { FlashProps, HakAksesProps } from './types';
 
 type Tab = 'akses' | 'menu';
 
@@ -92,6 +92,30 @@ export default function AvanaHakAkses({
         );
     };
 
+    const toggleMenu = (rowIdx: number, active: boolean) => {
+        router.post(
+            AccessController.toggleMenu().url,
+            { menu_key: modules[rowIdx].key, active },
+            { preserveScroll: true },
+        );
+    };
+
+    const toggleVisible = (
+        rowIdx: number,
+        colIdx: number,
+        visible: boolean,
+    ) => {
+        router.post(
+            AccessController.toggleMenuVisibility().url,
+            {
+                menu_key: modules[rowIdx].key,
+                role_id: roles[colIdx].id,
+                visible,
+            },
+            { preserveScroll: true },
+        );
+    };
+
     const submitRole = () => {
         router.post(
             AccessController.storeRole().url,
@@ -105,18 +129,6 @@ export default function AvanaHakAkses({
         setFeatureForm(blankFeatureForm);
         setFeatureErrors({});
         setFeatureOpen({ mode: 'create', id: null });
-    };
-
-    const openEditFeature = (module: AccessModule) => {
-        setFeatureForm({
-            code: module.key,
-            name: module.label,
-            module_group: module.moduleGroup ?? '',
-            permission_modules: module.permissionModules.join(', '),
-            is_active: true,
-        });
-        setFeatureErrors({});
-        setFeatureOpen({ mode: 'edit', id: module.featureId });
     };
 
     const submitFeature = () => {
@@ -145,21 +157,6 @@ export default function AvanaHakAkses({
         } else {
             router.post(FeatureCatalogController.store().url, payload, opts);
         }
-    };
-
-    const deleteFeature = (module: AccessModule) => {
-        if (
-            module.featureId === null ||
-            !window.confirm(
-                `Hapus fitur "${module.label}"? Baris & menu terkait akan hilang.`,
-            )
-        ) {
-            return;
-        }
-
-        router.delete(FeatureCatalogController.destroy(module.featureId).url, {
-            preserveScroll: true,
-        });
     };
 
     return (
@@ -324,9 +321,9 @@ export default function AvanaHakAkses({
                             hasTenant={hasTenant}
                             canManageFeatures={canManageFeatures}
                             onToggle={toggleCell}
+                            onToggleVisible={toggleVisible}
+                            onToggleMenu={toggleMenu}
                             onToggleFeature={toggleFeature}
-                            onEditFeature={openEditFeature}
-                            onDeleteFeature={deleteFeature}
                         />
                     </>
                 )}

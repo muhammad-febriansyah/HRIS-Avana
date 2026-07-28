@@ -16,14 +16,25 @@ interface Package {
     max_branches: number | null;
     ai_token_quota: number | null;
     feature_list: string[];
+    /** Feature modules this tier unlocks; empty means the whole catalogue. */
+    feature_ids: number[];
     is_active: boolean;
     is_popular: boolean;
     tenants_count: number;
 }
 
+/** One selectable module in the entitlement picker. */
+interface FeatureOption {
+    id: number;
+    code: string;
+    name: string;
+    group: string;
+}
+
 interface PageProps {
     packages: Package[];
     cycles: string[];
+    featureCatalog: FeatureOption[];
     flash?: { success?: string; error?: string };
 }
 
@@ -37,6 +48,7 @@ interface PackageForm {
     max_branches: number | null;
     ai_token_quota: number | null;
     feature_list: string[];
+    features: number[];
     is_active: boolean;
     is_popular: boolean;
 }
@@ -51,6 +63,7 @@ const emptyForm: PackageForm = {
     max_branches: null,
     ai_token_quota: null,
     feature_list: [],
+    features: [],
     is_active: true,
     is_popular: false,
 };
@@ -60,7 +73,11 @@ const CYCLE_LABEL: Record<string, string> = {
     yearly: '/tahun',
 };
 
-export default function PaketIndex({ packages, cycles }: PageProps) {
+export default function PaketIndex({
+    packages,
+    cycles,
+    featureCatalog,
+}: PageProps) {
     const { flash } = usePage<PageProps>().props;
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<Package | null>(null);
@@ -97,6 +114,7 @@ export default function PaketIndex({ packages, cycles }: PageProps) {
             max_branches: pkg.max_branches,
             ai_token_quota: pkg.ai_token_quota,
             feature_list: pkg.feature_list,
+            features: pkg.feature_ids,
             is_active: pkg.is_active,
             is_popular: pkg.is_popular,
         });
@@ -268,6 +286,28 @@ export default function PaketIndex({ packages, cycles }: PageProps) {
                             </div>
                             <div
                                 style={{
+                                    fontSize: 11.5,
+                                    fontWeight: 600,
+                                    color:
+                                        pkg.feature_ids.length === 0
+                                            ? C.green
+                                            : C.primary,
+                                    background:
+                                        pkg.feature_ids.length === 0
+                                            ? 'rgba(22,163,74,.1)'
+                                            : 'rgba(47,84,201,.1)',
+                                    borderRadius: 999,
+                                    padding: '4px 10px',
+                                    alignSelf: 'flex-start',
+                                    marginBottom: 12,
+                                }}
+                            >
+                                {pkg.feature_ids.length === 0
+                                    ? 'Semua modul'
+                                    : `${pkg.feature_ids.length} modul aktif`}
+                            </div>
+                            <div
+                                style={{
                                     display: 'flex',
                                     flexDirection: 'column',
                                     gap: 7,
@@ -335,7 +375,7 @@ export default function PaketIndex({ packages, cycles }: PageProps) {
             </div>
 
             {modalOpen ? (
-                <Modal onClose={closeModal}>
+                <Modal onClose={closeModal} width={900}>
                     <div style={modalTitle}>
                         {editing ? 'Edit Paket' : 'Tambah Paket'}
                     </div>
@@ -478,7 +518,14 @@ export default function PaketIndex({ packages, cycles }: PageProps) {
                                 />
                             </Field>
                         </Row>
-                        <Field label="Fitur">
+                        <Field label="Modul yang Didapat">
+                            <ModulePicker
+                                catalog={featureCatalog}
+                                selected={form.data.features}
+                                onChange={(ids) => form.setData('features', ids)}
+                            />
+                        </Field>
+                        <Field label="Poin Tambahan di Pricing">
                             <div
                                 style={{
                                     display: 'flex',
@@ -542,7 +589,7 @@ export default function PaketIndex({ packages, cycles }: PageProps) {
                                         size={14}
                                         color={C.text}
                                     />
-                                    Tambah Fitur
+                                    Tambah Poin
                                 </button>
                             </div>
                         </Field>
@@ -710,6 +757,168 @@ function Field({
         </div>
     );
 }
+
+/**
+ * Which modules the tier unlocks for a tenant. Grouped exactly like Kelola Fitur
+ * so a super admin reads one taxonomy in both places. Selecting nothing means
+ * "everything", which keeps older packages behaving as they always did.
+ */
+function ModulePicker({
+    catalog,
+    selected,
+    onChange,
+}: {
+    catalog: FeatureOption[];
+    selected: number[];
+    onChange: (ids: number[]) => void;
+}) {
+    const groups = catalog.reduce<Record<string, FeatureOption[]>>(
+        (acc, feature) => {
+            (acc[feature.group] ??= []).push(feature);
+
+            return acc;
+        },
+        {},
+    );
+
+    const has = (id: number) => selected.includes(id);
+    const toggle = (id: number) =>
+        onChange(
+            has(id) ? selected.filter((x) => x !== id) : [...selected, id],
+        );
+    const toggleGroup = (features: FeatureOption[], on: boolean) => {
+        const ids = features.map((f) => f.id);
+
+        onChange(
+            on
+                ? [...new Set([...selected, ...ids])]
+                : selected.filter((id) => !ids.includes(id)),
+        );
+    };
+
+    return (
+        <div style={{ display: 'grid', gap: 10 }}>
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    flexWrap: 'wrap',
+                    fontSize: 12.5,
+                    color: C.muted,
+                }}
+            >
+                <span>
+                    {selected.length === 0
+                        ? 'Belum dipilih — tenant mendapat semua modul.'
+                        : `${selected.length} modul dipilih.`}
+                </span>
+                <button
+                    type="button"
+                    onClick={() => onChange(catalog.map((f) => f.id))}
+                    style={linkBtn}
+                >
+                    Pilih semua
+                </button>
+                <button
+                    type="button"
+                    onClick={() => onChange([])}
+                    style={linkBtn}
+                >
+                    Kosongkan
+                </button>
+            </div>
+
+            <div
+                style={{
+                    maxHeight: 340,
+                    overflowY: 'auto',
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 10,
+                    padding: 12,
+                    display: 'grid',
+                    gap: 14,
+                }}
+            >
+                {Object.entries(groups).map(([group, features]) => {
+                    const allOn = features.every((f) => has(f.id));
+
+                    return (
+                        <div key={group} style={{ display: 'grid', gap: 7 }}>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: 10,
+                                }}
+                            >
+                                <span
+                                    style={{
+                                        fontSize: 11,
+                                        fontWeight: 700,
+                                        letterSpacing: '.04em',
+                                        color: C.faint,
+                                    }}
+                                >
+                                    {group.toUpperCase()}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        toggleGroup(features, !allOn)
+                                    }
+                                    style={linkBtn}
+                                >
+                                    {allOn ? 'Hapus grup' : 'Pilih grup'}
+                                </button>
+                            </div>
+                            <div
+                                style={{
+                                    display: 'grid',
+                                    gridTemplateColumns:
+                                        'repeat(auto-fill, minmax(180px, 1fr))',
+                                    gap: 6,
+                                }}
+                            >
+                                {features.map((feature) => (
+                                    <label
+                                        key={feature.id}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 8,
+                                            fontSize: 12.5,
+                                            color: C.text,
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={has(feature.id)}
+                                            onChange={() => toggle(feature.id)}
+                                        />
+                                        {feature.name}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+const linkBtn: CSSProperties = {
+    border: 'none',
+    background: 'none',
+    padding: 0,
+    cursor: 'pointer',
+    fontSize: 12,
+    fontWeight: 600,
+    color: C.primary,
+};
 
 function Checkbox({
     label,

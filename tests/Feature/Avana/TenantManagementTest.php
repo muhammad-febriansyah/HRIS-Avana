@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\AiTokenLedger;
+use App\Models\AiTokenOrder;
 use App\Models\Feature;
 use App\Models\MenuItem;
 use App\Models\Package;
@@ -446,4 +448,114 @@ it('keeps an explicit end date over the derived one', function (): void {
 
     expect(Tenant::where('name', 'PT Periode Khusus')->firstOrFail()->end_date->toDateString())
         ->toBe('2026-12-31');
+});
+
+it('reports how many AI tokens a client bought on the klien index', function (): void {
+    $this->tenant->update(['ai_token_balance' => 1_600, 'ai_token_quota' => 5_000]);
+
+    AiTokenOrder::create([
+        'order_number' => 'AIT-CREDITED',
+        'tenant_id' => $this->tenant->id,
+        'user_id' => $this->admin->id,
+        'pack_name' => 'Paket 2K',
+        'token_amount' => 2_000,
+        'amount' => 100_000,
+        'status' => AiTokenOrder::STATUS_COMPLETED,
+        'completed_at' => now(),
+        'credited_at' => now(),
+    ]);
+
+    // Never paid, so it is not tokens the client owns.
+    AiTokenOrder::create([
+        'order_number' => 'AIT-PENDING',
+        'tenant_id' => $this->tenant->id,
+        'user_id' => $this->admin->id,
+        'pack_name' => 'Paket 5K',
+        'token_amount' => 5_000,
+        'amount' => 220_000,
+        'status' => AiTokenOrder::STATUS_PENDING,
+    ]);
+
+    AiTokenLedger::create([
+        'tenant_id' => $this->tenant->id,
+        'user_id' => $this->admin->id,
+        'type' => AiTokenLedger::TYPE_DEBIT,
+        'source' => 'chat',
+        'tokens' => 400,
+        'wallet_delta' => 0,
+        'balance_after' => 1_600,
+        'period' => now()->format('Y-m'),
+    ]);
+
+    $rows = actingAs($this->superAdmin)
+        ->get(route('avana.klien'))
+        ->assertOk()
+        ->viewData('page')['props']['tenants']['data'];
+
+    $row = collect($rows)->firstWhere('id', $this->tenant->id);
+
+    expect($row['ai_token'])->toMatchArray([
+        'purchased' => 2_000,
+        'orders' => 1,
+        'balance' => 1_600,
+        'quota' => 5_000,
+        'used' => 400,
+    ]);
+});
+
+it('breaks the AI token account down per karyawan on the tenant detail page', function (): void {
+    $this->tenant->update(['ai_token_balance' => 900]);
+
+    AiTokenOrder::create([
+        'order_number' => 'AIT-DETAIL',
+        'tenant_id' => $this->tenant->id,
+        'user_id' => $this->admin->id,
+        'pack_name' => 'Paket 1K',
+        'token_amount' => 1_000,
+        'amount' => 60_000,
+        'status' => AiTokenOrder::STATUS_COMPLETED,
+        'completed_at' => now(),
+        'credited_at' => now(),
+    ]);
+
+    AiTokenLedger::create([
+        'tenant_id' => $this->tenant->id,
+        'user_id' => $this->admin->id,
+        'type' => AiTokenLedger::TYPE_DEBIT,
+        'source' => 'chat',
+        'tokens' => 100,
+        'wallet_delta' => -100,
+        'balance_after' => 900,
+        'period' => now()->format('Y-m'),
+    ]);
+
+    // Last month's burn counts to the lifetime total, not to this month's.
+    AiTokenLedger::create([
+        'tenant_id' => $this->tenant->id,
+        'user_id' => $this->admin->id,
+        'type' => AiTokenLedger::TYPE_DEBIT,
+        'source' => 'chat',
+        'tokens' => 250,
+        'wallet_delta' => 0,
+        'balance_after' => 900,
+        'period' => now()->subMonthNoOverflow()->format('Y-m'),
+    ]);
+
+    actingAs($this->superAdmin)
+        ->get(route('avana.klien.show', $this->tenant))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/klien/show', false)
+            ->where('aiToken.purchased', 1_000)
+            ->where('aiToken.orders_count', 1)
+            ->where('aiToken.paid_total', 60_000)
+            ->where('aiToken.balance', 900)
+            ->where('aiToken.used_this_month', 100)
+            ->where('aiToken.used_all_time', 350)
+            ->has('aiToken.orders', 1)
+            ->has('aiToken.consumers', 1)
+            ->where('aiToken.consumers.0.email', 'rina.a@nusantara.co.id')
+            ->where('aiToken.consumers.0.this_month', 100)
+            ->where('aiToken.consumers.0.all_time', 350)
+            ->etc());
 });

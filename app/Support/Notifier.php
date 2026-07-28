@@ -500,6 +500,102 @@ final class Notifier
         );
     }
 
+    /**
+     * Warn the client's own admins that their subscription is running out.
+     *
+     * The platform alert ({@see subscriptionExpiring()}) goes to super admins;
+     * this is the tenant-facing half, so recipients are the tenant's Admin
+     * Tenant / HR accounts. `$milestone` (end date + days-left tag) both dedupes
+     * the reminder and lets a renewal start a fresh series.
+     */
+    public static function tenantSubscriptionExpiring(
+        Tenant $tenant,
+        string $endDateLabel,
+        int $daysLeft,
+        string $milestone,
+        ?string $packageName = null,
+    ): int {
+        $recipients = User::where('tenant_id', $tenant->id)
+            ->whereHas('roles', fn ($query) => $query->where('code', 'admin_tenant_hr'))
+            ->pluck('id')
+            ->reject(fn (int $userId): bool => Notification::query()
+                ->where('user_id', $userId)
+                ->where('type', 'subscription_expiring')
+                ->where('data->milestone', $milestone)
+                ->exists())
+            ->values();
+
+        if ($recipients->isEmpty()) {
+            return 0;
+        }
+
+        $title = $daysLeft < 0 ? 'Langganan telah berakhir' : 'Langganan akan berakhir';
+        $body = 'Langganan AvanaHR'.($packageName !== null ? ' ('.$packageName.')' : '')
+            .' '.SubscriptionStatus::countdownLabel($daysLeft).' — '.$endDateLabel
+            .'. Hubungi tim AvanaHR untuk perpanjangan.';
+
+        self::insertMany($recipients->map(fn (int $userId): array => [
+            'tenant_id' => $tenant->id,
+            'user_id' => $userId,
+            'type' => 'subscription_expiring',
+            'title' => $title,
+            'body' => $body,
+            'data' => [
+                'milestone' => $milestone,
+                'days_left' => $daysLeft,
+                'end_date' => $endDateLabel,
+                'event' => $daysLeft < 0 ? 'expired' : 'expiring',
+            ],
+        ])->all());
+
+        app(FcmService::class)->pushToUsers(
+            $recipients->all(),
+            $title,
+            $body,
+            ['type' => 'subscription', 'id' => $tenant->id],
+        );
+
+        return $recipients->count();
+    }
+
+    /**
+     * Confirm a self-service renewal to the tenant's own admins, naming the new
+     * expiry so the receipt answers the only question they have.
+     */
+    public static function tenantSubscriptionRenewed(Tenant $tenant, string $endDateLabel, string $packageName): void
+    {
+        $recipients = User::where('tenant_id', $tenant->id)
+            ->whereHas('roles', fn ($query) => $query->where('code', 'admin_tenant_hr'))
+            ->pluck('id');
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        $title = 'Langganan diperpanjang';
+        $body = 'Pembayaran diterima. Langganan '.$packageName.' aktif sampai '.$endDateLabel.'.';
+
+        self::insertMany($recipients->map(fn (int $userId): array => [
+            'tenant_id' => $tenant->id,
+            'user_id' => $userId,
+            'type' => 'subscription_renewed',
+            'title' => $title,
+            'body' => $body,
+            'data' => [
+                'link' => ['type' => 'subscription', 'id' => $tenant->id],
+                'end_date' => $endDateLabel,
+                'event' => 'renewed',
+            ],
+        ])->all());
+
+        app(FcmService::class)->pushToUsers(
+            $recipients->all(),
+            $title,
+            $body,
+            ['type' => 'subscription', 'id' => $tenant->id],
+        );
+    }
+
     // ── Platform (super admin) tenant-lifecycle notifications ────────────
     //
     // Tier 2: client growth + churn signals. Same recipients/scoping as the

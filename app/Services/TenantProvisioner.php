@@ -42,10 +42,35 @@ class TenantProvisioner
     public function provision(Tenant $tenant): void
     {
         DB::transaction(function () use ($tenant): void {
-            $this->enableAllFeatures($tenant);
+            $this->applyPackageFeatures($tenant);
             $this->provisionRoles($tenant);
             AvanaNav::seedDefaultsFor($tenant->id);
         });
+    }
+
+    /**
+     * Line the tenant's enabled features up with what their package entitles them
+     * to: modules in the package are switched on, everything else off. A package
+     * that scopes nothing (or no package at all) grants the whole catalogue, so
+     * pricing tiers stay opt-in rather than silently stripping existing clients.
+     */
+    public function applyPackageFeatures(Tenant $tenant): void
+    {
+        $tenant->loadMissing('package');
+        $entitled = $tenant->package?->entitledFeatureIds() ?? [];
+
+        if ($entitled === []) {
+            $this->enableAllFeatures($tenant);
+
+            return;
+        }
+
+        foreach (Feature::query()->pluck('id') as $featureId) {
+            $tenant->features()->updateOrCreate(
+                ['feature_id' => $featureId],
+                ['is_enabled' => in_array((int) $featureId, $entitled, true)],
+            );
+        }
     }
 
     /**

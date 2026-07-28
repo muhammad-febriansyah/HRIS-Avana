@@ -77,38 +77,52 @@ it('rejects toggling a core menu that has no feature', function (): void {
         ->assertStatus(422);
 });
 
-it('generates a matrix row for every feature plus fixed core rows', function (): void {
+it('generates a matrix row for every real menu, self-service screens included', function (): void {
     actingAs($this->admin)
         ->get(route('avana.hak-akses'))
         ->assertInertia(fn ($page) => $page
             ->component('avana/hak-akses/index')
             ->where('hasTenant', true)
-            // learning: a normal feature row (switch + per-role actions).
-            ->where('modules', fn ($modules) => collect($modules)->firstWhere('key', 'learning')['hasFeature'] === true
-                && collect($modules)->firstWhere('key', 'learning')['actionable'] === true
-                // cash_advance: feature-only row (switch, no per-role actions).
-                && collect($modules)->firstWhere('key', 'cash_advance')['hasFeature'] === true
-                && collect($modules)->firstWhere('key', 'cash_advance')['actionable'] === false
-                // audit: fixed core row (no feature switch).
-                && collect($modules)->firstWhere('key', 'audit')['hasFeature'] === false
-                // rows carry a section group.
-                && collect($modules)->firstWhere('key', 'learning')['group'] === 'TALENTA'));
+            ->where('modules', function ($modules) {
+                $rows = collect($modules);
+                $learning = $rows->firstWhere('key', 'pembelajaran');
+                $payslip = $rows->firstWhere('key', 'saya-slip');
+                $audit = $rows->firstWhere('key', 'audit');
+
+                return
+                    // A feature-gated admin menu: switch + per-role actions.
+                    $learning['hasFeature'] === true
+                    && $learning['actionable'] === true
+                    && $learning['permissionModules'] === ['learning']
+                    // An ESS menu now has its own row — the whole point: it is
+                    // controllable per role even though it grants no action.
+                    && $payslip !== null
+                    && $payslip['selfService'] === true
+                    && $payslip['actionable'] === false
+                    // A menu with no feature behind it still gets a row.
+                    && $audit['hasFeature'] === false
+                    && $audit['actionable'] === true;
+            }));
 });
 
-it('auto-adds a newly created feature to the matrix without code changes', function (): void {
-    Feature::create([
-        'code' => 'brand_new_module',
-        'name' => 'Modul Baru',
-        'module_group' => 'core',
-        'permission_modules' => ['brand_new_module'],
+it('auto-adds a newly created menu to the matrix without code changes', function (): void {
+    MenuItem::create([
+        'tenant_id' => $this->tenant->id,
+        'key' => 'menu-baru',
+        'section' => 'SISTEM',
+        'label' => 'Menu Baru',
+        'icon' => 'star',
+        'href' => '/avana/menu-baru',
+        'modules' => ['audit'],
         'is_active' => true,
+        'sort_order' => 999,
     ]);
 
     actingAs($this->admin)
         ->get(route('avana.hak-akses'))
         ->assertInertia(fn ($page) => $page
-            ->where('modules', fn ($modules) => collect($modules)->firstWhere('key', 'brand_new_module') !== null
-                && collect($modules)->firstWhere('key', 'brand_new_module')['hasFeature'] === true));
+            ->where('modules', fn ($modules) => collect($modules)->firstWhere('key', 'menu-baru') !== null
+                && collect($modules)->firstWhere('key', 'menu-baru')['label'] === 'Menu Baru'));
 });
 
 it('keeps every feature-gated menu toggleable from Hak Akses', function (): void {

@@ -8,10 +8,10 @@ use App\Models\Feature;
 use App\Models\MenuItem;
 use App\Models\Permission;
 use App\Models\Role;
+use App\Models\RoleMenuVisibility;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\AvanaNav;
-use App\Support\FeatureGroups;
 use App\Support\PermissionCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -61,68 +61,53 @@ class AccessController extends Controller
     ];
 
     /**
-     * Section titles for each feature `module_group`, in display order. Feature
-     * rows are grouped under these; codes not listed fall back to a generic
-     * "LAINNYA" section so a new module_group never disappears from the matrix.
+     * The matrix rows: **one per real menu**, in sidebar order, straight from the
+     * tenant's own menu (so a renamed, added, or hidden menu shows up here too).
      *
-     * @var array<string, string>
-     */
-    private const GROUP_LABELS = FeatureGroups::LABELS;
-
-    /**
-     * Fixed core/system rows that are NOT tenant features (always available, no
-     * master switch). Rendered before (UTAMA) and after (SISTEM) the feature rows.
+     * Earlier this screen listed one row per *feature*, which is why it never
+     * matched what a role actually saw: a single feature can own a dozen menus
+     * (`payroll` owns eleven) and the twenty self-service screens shared one
+     * feature row with no per-role control at all.
      *
-     * @var array<int, array{key: string, label: string, modules: array<int, string>, group: string}>
-     */
-    private const CORE_HEAD = [
-        ['key' => 'dashboard', 'label' => 'Dashboard', 'modules' => [], 'group' => 'UTAMA'],
-    ];
-
-    private const CORE_TAIL = [
-        ['key' => 'pengguna', 'label' => 'Pengguna', 'modules' => ['user'], 'group' => 'SISTEM'],
-        ['key' => 'pengaturan', 'label' => 'Pengaturan', 'modules' => ['settings', 'role', 'permission'], 'group' => 'SISTEM'],
-        ['key' => 'audit', 'label' => 'Audit Trail', 'modules' => ['audit'], 'group' => 'SISTEM'],
-    ];
-
-    /**
-     * The matrix rows, generated from the `features` table so a newly-added
-     * feature appears automatically. Each feature is one row: its master "Aktif"
-     * switch toggles that feature, and its per-role action columns come from the
-     * feature's `permission_modules`. Fixed core/system rows (no feature) bookend
-     * the list.
+     * `permissionModules` drops the `own` pseudo-module: every employee holds it,
+     * so it grants nothing and can only be controlled by visibility.
      *
-     * @return array<int, array{key: string, label: string, modules: array<int, string>, features: array<int, string>, group: string}>
+     * @return array<int, array{key: string, label: string, group: string, parent: string|null, href: string|null, feature: string|null, modules: array<int, string>, permissionModules: array<int, string>, isActive: bool, menuItemId: int|null}>
      */
-    private function matrixRows(): array
+    private function matrixRows(?int $tenantId): array
     {
-        $groupOrder = array_keys(self::GROUP_LABELS);
-
-        $featureRows = Feature::query()
-            ->orderBy('name')
-            ->get()
-            ->sortBy(fn (Feature $feature): int => array_search($feature->module_group, $groupOrder, true) === false
-                ? count($groupOrder)
-                : array_search($feature->module_group, $groupOrder, true))
-            ->values()
-            ->map(fn (Feature $feature): array => [
-                'key' => $feature->code,
-                'label' => $feature->name,
-                'modules' => $feature->permission_modules ?? [],
-                'features' => [$feature->code],
-                'group' => self::GROUP_LABELS[$feature->module_group] ?? 'LAINNYA',
-                'featureId' => $feature->id,
-                'moduleGroup' => $feature->module_group,
+        return collect(AvanaNav::menuRows($tenantId))
+            ->map(fn (array $row): array => [
+                ...$row,
+                'permissionModules' => array_values(array_filter(
+                    $row['modules'],
+                    fn (string $module): bool => $module !== 'own',
+                )),
             ])
+            ->values()
             ->all();
+    }
 
-        $core = fn (array $row): array => [...$row, 'features' => [], 'featureId' => null, 'moduleGroup' => null];
+    /**
+     * The permission modules a matrix key covers. A key is a menu key, but the
+     * legacy feature code is still accepted so an integration (or an older cached
+     * page) that toggles by feature keeps working.
+     *
+     * @return array<int, string>|null Null when the key matches nothing.
+     */
+    private function modulesForKey(string $key, ?int $tenantId): ?array
+    {
+        $menu = collect($this->matrixRows($tenantId))->firstWhere('key', $key);
 
-        return [
-            ...array_map($core, self::CORE_HEAD),
-            ...$featureRows,
-            ...array_map($core, self::CORE_TAIL),
-        ];
+        if ($menu !== null) {
+            return $menu['permissionModules'];
+        }
+
+        $feature = Feature::query()->where('code', $key)->first();
+
+        return $feature === null
+            ? null
+            : array_values(array_filter($feature->permission_modules ?? [], fn (string $m): bool => $m !== 'own'));
     }
 
     /**
@@ -170,30 +155,48 @@ class AccessController extends Controller
             ? collect()
             : Feature::whereIn('id', $tenant->features()->where('is_enabled', true)->pluck('feature_id'))->pluck('code');
 
-        $rows = $this->matrixRows();
+        $rows = $this->matrixRows($tenantId);
+
+        $featureNames = Feature::query()->pluck('name', 'code');
 
         $modules = collect($rows)
-            ->map(fn (array $module): array => [
-                'key' => $module['key'],
-                'label' => $module['label'],
-                'group' => $module['group'],
-                'actionable' => $module['modules'] !== [],
-                'hasFeature' => $module['features'] !== [],
-                // Enabled only when EVERY feature the row covers is on, so the
-                // switch flips the whole menu consistently.
-                'featureEnabled' => $module['features'] !== []
-                    && collect($module['features'])->every(fn (string $code): bool => $enabledFeatureCodes->contains($code)),
-                // Feature-catalog handles: null on fixed core rows.
-                'featureId' => $module['featureId'] ?? null,
-                'moduleGroup' => $module['moduleGroup'] ?? null,
-                'permissionModules' => $module['modules'],
+            ->map(fn (array $row): array => [
+                'key' => $row['key'],
+                'label' => $row['label'],
+                'group' => $row['group'],
+                // The collapsible parent this menu sits under, e.g. "Kehadiran".
+                'parent' => $row['parent'],
+                'href' => $row['href'],
+                'actionable' => $row['permissionModules'] !== [],
+                'permissionModules' => $row['permissionModules'],
+                // Tenant-wide on/off for this one menu (Menu Builder's is_active).
+                'menuActive' => $row['isActive'],
+                'menuItemId' => $row['menuItemId'],
+                // The package feature behind the menu: off = no role can reach it.
+                'feature' => $row['feature'],
+                'featureLabel' => $row['feature'] !== null ? ($featureNames[$row['feature']] ?? $row['feature']) : null,
+                'hasFeature' => $row['feature'] !== null,
+                'featureEnabled' => $row['feature'] === null || $enabledFeatureCodes->contains($row['feature']),
+                // Self-service rows: every employee holds `own`, so per-role
+                // control is visibility only — there is no action to grant.
+                'selfService' => $row['modules'] === ['own'],
             ])
             ->all();
 
-        // matrix[rowIdx][roleIdx] = { view: bool, create: bool, ... }
+        $hiddenByRole = RoleMenuVisibility::query()
+            ->whereIn('role_id', $roleModels->pluck('id'))
+            ->where('is_visible', false)
+            ->get(['role_id', 'menu_key'])
+            ->groupBy('role_id')
+            ->map(fn ($group) => $group->pluck('menu_key')->flip());
+
+        // matrix[rowIdx][roleIdx] = { visible: bool, view: bool, create: bool, ... }
         $matrix = collect($rows)
-            ->map(fn (array $module): array => $roleModels
-                ->map(fn (Role $role): array => $this->roleActionCells($role, $module))
+            ->map(fn (array $row): array => $roleModels
+                ->map(fn (Role $role): array => [
+                    'visible' => ! ($hiddenByRole[$role->id] ?? collect())->has($row['key']),
+                    ...$this->roleActionCells($role, ['modules' => $row['permissionModules']]),
+                ])
                 ->all())
             ->all();
 
@@ -309,13 +312,13 @@ class AccessController extends Controller
             'role_id' => ['required', 'integer', 'exists:roles,id'],
         ]);
 
-        $module = collect($this->matrixRows())->firstWhere('key', $validated['module_key']);
-
-        abort_if($module === null || $module['modules'] === [], 422, 'Module cannot be toggled.');
-
         /** @var User $user */
         $user = $request->user();
         $isSuperAdmin = $user->isSuperAdmin();
+
+        $modules = $this->modulesForKey($validated['module_key'], $user->tenant_id);
+
+        abort_if($modules === null || $modules === [], 422, 'Module cannot be toggled.');
 
         $role = $this->tenantRoles($user->tenant_id, $isSuperAdmin)
             ->whereKey($validated['role_id'])
@@ -332,7 +335,7 @@ class AccessController extends Controller
             'Anda tidak dapat mengubah izin peran Anda sendiri.',
         );
 
-        $codes = collect($module['modules'])->map(fn (string $m): string => $m.'.'.$validated['action']);
+        $codes = collect($modules)->map(fn (string $m): string => $m.'.'.$validated['action']);
         $permissionIds = Permission::query()->whereIn('code', $codes)->pluck('id');
 
         $before = $role->permissions()->pluck('code');
@@ -352,10 +355,87 @@ class AccessController extends Controller
     }
 
     /**
-     * Toggle a menu's master "Aktif" switch: enable/disable every tenant feature
-     * the menu depends on. A disabled menu is hidden from the sidebar and its
-     * routes 403 (via {@see AvanaNav} + EnsureAvanaAccess). Replaces the separate
-     * Menu & Fitur screen so all menu control lives on the Hak Akses page.
+     * Show or hide one menu for one role — the control the permission columns
+     * cannot express, because self-service menus are gated by the `own` module
+     * every employee holds.
+     *
+     * Hiding removes the menu from that role's sidebar AND closes its URL
+     * (the `EnsureAvanaAccess` gate). A user holding several
+     * roles keeps the menu while any one of their roles still shows it.
+     */
+    public function toggleMenuVisibility(Request $request): RedirectResponse
+    {
+        $this->ensureCanManageAccess($request);
+
+        $validated = $request->validate([
+            'menu_key' => ['required', 'string'],
+            'role_id' => ['required', 'integer', 'exists:roles,id'],
+            'visible' => ['required', 'boolean'],
+        ]);
+
+        /** @var User $user */
+        $user = $request->user();
+        $isSuperAdmin = $user->isSuperAdmin();
+
+        $menu = collect($this->matrixRows($user->tenant_id))->firstWhere('key', $validated['menu_key']);
+
+        abort_if($menu === null, 422, 'Menu tidak dikenal.');
+
+        $role = $this->tenantRoles($user->tenant_id, $isSuperAdmin)
+            ->whereKey($validated['role_id'])
+            ->firstOrFail();
+
+        abort_if($role->code === 'super_admin', 403, 'Super admin access cannot be modified.');
+
+        abort_if(
+            ! $isSuperAdmin && $user->roles()->whereKey($role->id)->exists(),
+            403,
+            'Anda tidak dapat mengubah izin peran Anda sendiri.',
+        );
+
+        RoleMenuVisibility::updateOrCreate(
+            ['role_id' => $role->id, 'menu_key' => $menu['key']],
+            ['tenant_id' => $role->tenant_id ?? $user->tenant_id, 'is_visible' => $validated['visible']],
+        );
+
+        return back()->with('success', $validated['visible']
+            ? 'Menu ditampilkan untuk '.$role->name
+            : 'Menu disembunyikan dari '.$role->name);
+    }
+
+    /**
+     * Turn one menu on or off for the whole tenant (the "Aktif" column). Off
+     * hides it from every role and closes its URL, same as the Menu Builder
+     * switch this shares its column with.
+     */
+    public function toggleMenu(Request $request): RedirectResponse
+    {
+        $this->ensureCanManageAccess($request);
+
+        $validated = $request->validate([
+            'menu_key' => ['required', 'string'],
+            'active' => ['required', 'boolean'],
+        ]);
+
+        /** @var User $user */
+        $user = $request->user();
+
+        abort_if($user->tenant_id === null, 404, 'Tidak ada tenant yang dipilih.');
+
+        $item = MenuItem::forTenant($user->tenant_id)
+            ->where('key', $validated['menu_key'])
+            ->where('super_admin_only', false)
+            ->firstOrFail();
+
+        $item->update(['is_active' => $validated['active']]);
+
+        return back()->with('success', $validated['active'] ? 'Menu diaktifkan' : 'Menu dinonaktifkan');
+    }
+
+    /**
+     * Toggle a tenant feature (the package module behind a menu). Kept as its own
+     * action because a feature can back several menus at once, and because the
+     * package — not this screen — is what normally decides it.
      */
     public function toggleFeature(Request $request): RedirectResponse
     {
@@ -366,23 +446,29 @@ class AccessController extends Controller
             'enabled' => ['required', 'boolean'],
         ]);
 
-        $module = collect($this->matrixRows())->firstWhere('key', $validated['module_key']);
+        // Accepts a feature code, or a menu key whose feature is then resolved.
+        $code = $validated['module_key'];
 
-        abort_if($module === null || $module['features'] === [], 422, 'Menu ini tidak memiliki fitur untuk diaktifkan.');
+        if (Feature::query()->where('code', $code)->doesntExist()) {
+            $menu = collect($this->matrixRows($request->user()->tenant_id))->firstWhere('key', $code);
+            $code = $menu['feature'] ?? null;
+        }
+
+        abort_if($code === null, 422, 'Menu ini tidak memiliki fitur untuk diaktifkan.');
+
+        $feature = Feature::query()->where('code', $code)->first();
+
+        abort_if($feature === null, 422, 'Menu ini tidak memiliki fitur untuk diaktifkan.');
 
         $tenant = $request->user()->tenant;
         abort_if($tenant === null, 404);
 
-        $featureIds = Feature::whereIn('code', $module['features'])->pluck('id');
+        $tenant->features()->updateOrCreate(
+            ['feature_id' => $feature->id],
+            ['is_enabled' => $validated['enabled']],
+        );
 
-        foreach ($featureIds as $featureId) {
-            $tenant->features()->updateOrCreate(
-                ['feature_id' => $featureId],
-                ['is_enabled' => $validated['enabled']],
-            );
-        }
-
-        return back()->with('success', $validated['enabled'] ? 'Menu diaktifkan' : 'Menu dinonaktifkan');
+        return back()->with('success', $validated['enabled'] ? 'Fitur diaktifkan' : 'Fitur dinonaktifkan');
     }
 
     /**

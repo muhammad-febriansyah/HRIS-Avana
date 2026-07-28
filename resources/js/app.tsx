@@ -32,6 +32,9 @@ createInertiaApp({
     layout: (name) => {
         switch (true) {
             case name === 'welcome':
+            // The error page stands alone: a 404 can land on a visitor with no
+            // session, and the app chrome would render with nothing behind it.
+            case name === 'error':
                 return null;
             case name.startsWith('auth/'):
                 return AuthLayout;

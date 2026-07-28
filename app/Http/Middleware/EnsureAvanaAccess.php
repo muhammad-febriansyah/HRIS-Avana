@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Feature;
 use App\Models\Permission;
+use App\Models\RoleMenuVisibility;
 use App\Support\AvanaNav;
 use Closure;
 use Illuminate\Http\Request;
@@ -47,6 +48,13 @@ class EnsureAvanaAccess
 
         // A hidden menu blocks access entirely (sidebar + route).
         if (($requirement['is_active'] ?? true) === false) {
+            abort(403);
+        }
+
+        // Hidden for every role this user holds (Hak Akses → kolom Tampil): the
+        // menu is gone from the sidebar, so the URL must be closed too.
+        if (($requirement['key'] ?? null) !== null
+            && in_array($requirement['key'], RoleMenuVisibility::keysHiddenForAll($user->roles->pluck('id')), true)) {
             abort(403);
         }
 

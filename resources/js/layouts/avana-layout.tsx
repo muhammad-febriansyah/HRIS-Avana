@@ -6,6 +6,7 @@ import {
     NotificationSheet,
     type NotificationItem,
 } from '@/components/avana-ui/notification-sheet';
+import { WaIcon } from '@/components/avana-ui/wa-icon';
 import { SearchableSelect } from '@/components/searchable-select';
 import {
     DropdownMenu,
@@ -58,6 +59,169 @@ import { logout } from '@/routes';
 import { edit as editProfile } from '@/routes/profile';
 
 type AuthUser = { name?: string; email?: string };
+
+/**
+ * Shared by `HandleInertiaRequests` only while the tenant's subscription is
+ * inside the warning window (or already past its end date); null otherwise.
+ */
+type SubscriptionNotice = {
+    end_date: string;
+    end_date_label: string;
+    days_left: number;
+    level: 'expired' | 'critical' | 'warning';
+    package: string | null;
+};
+
+const NOTICE_TONE: Record<
+    SubscriptionNotice['level'],
+    { bg: string; border: string; color: string; icon: string }
+> = {
+    expired: {
+        bg: 'rgba(220,38,38,.09)',
+        border: 'rgba(220,38,38,.28)',
+        color: '#B91C1C',
+        icon: 'circle-alert',
+    },
+    critical: {
+        bg: 'rgba(220,38,38,.07)',
+        border: 'rgba(220,38,38,.22)',
+        color: '#DC2626',
+        icon: 'triangle-alert',
+    },
+    warning: {
+        bg: 'rgba(217,119,6,.09)',
+        border: 'rgba(217,119,6,.25)',
+        color: '#B45309',
+        icon: 'clock',
+    },
+};
+
+/** How long is left, phrased the way the notification phrases it. */
+function countdownLabel(daysLeft: number): string {
+    if (daysLeft < 0) {
+        return 'sudah berakhir';
+    }
+
+    if (daysLeft === 0) {
+        return 'berakhir hari ini';
+    }
+
+    if (daysLeft === 1) {
+        return 'berakhir besok';
+    }
+
+    return `berakhir ${daysLeft} hari lagi`;
+}
+
+/**
+ * Card above the page content warning a client that their subscription is
+ * running out, with the two ways to act on it: renew and pay, or ask on
+ * WhatsApp. Only warns — nothing in the app is blocked when it lapses.
+ */
+function SubscriptionBanner({
+    notice,
+    waHref,
+}: {
+    notice: SubscriptionNotice;
+    waHref: string;
+}) {
+    const tone = NOTICE_TONE[notice.level] ?? NOTICE_TONE.warning;
+
+    return (
+        <div
+            role="status"
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                flexWrap: 'wrap',
+                margin: '18px 28px 0',
+                padding: '13px 16px',
+                background: tone.bg,
+                border: `1px solid ${tone.border}`,
+                borderRadius: 12,
+                fontSize: 13,
+                color: tone.color,
+            }}
+        >
+            <span
+                style={{
+                    width: 32,
+                    height: 32,
+                    flex: 'none',
+                    borderRadius: 9,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: '#fff',
+                    border: `1px solid ${tone.border}`,
+                }}
+            >
+                <AIcon name={tone.icon} size={16} color={tone.color} />
+            </span>
+            <span style={{ display: 'grid', gap: 2, minWidth: 240 }}>
+                <span style={{ fontWeight: 600 }}>
+                    Langganan{notice.package ? ` ${notice.package}` : ''}{' '}
+                    {countdownLabel(notice.days_left)}
+                </span>
+                <span style={{ color: hexA(tone.color, 0.8) }}>
+                    Masa aktif sampai {notice.end_date_label}. Perpanjang
+                    sekarang agar layanan tidak terganggu.
+                </span>
+            </span>
+            <span
+                style={{
+                    marginLeft: 'auto',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    flexWrap: 'wrap',
+                }}
+            >
+                <a
+                    href={waHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 7,
+                        height: 36,
+                        padding: '0 13px',
+                        borderRadius: 9,
+                        border: '1px solid rgba(37,211,102,.4)',
+                        background: '#fff',
+                        color: '#128C7E',
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                    }}
+                >
+                    <WaIcon size={15} color="#25D366" />
+                    Tanya via WhatsApp
+                </a>
+                <Link
+                    href="/avana/langganan"
+                    style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 7,
+                        height: 36,
+                        padding: '0 14px',
+                        borderRadius: 9,
+                        border: 'none',
+                        background: tone.color,
+                        color: '#fff',
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                    }}
+                >
+                    <AIcon name="refresh-cw" size={14} color="#fff" />
+                    Perpanjang
+                </Link>
+            </span>
+        </div>
+    );
+}
 
 /** A single contact row in the sidebar "Butuh Bantuan?" card. */
 function HelpRow({
@@ -180,6 +344,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
             tenants: { id: number; name: string }[];
         };
         notifications?: { items: NotificationItem[]; unread: number };
+        subscription?: SubscriptionNotice | null;
     }>();
     const vars = themeVars(page.props.theme);
     const url = page.url;
@@ -215,6 +380,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
         !page.props.auth?.isSuperAdmin && Boolean(tenantLogo);
     const brandName = page.props.auth?.tenant?.company_name || 'AvanaHR';
     const notif = page.props.notifications ?? { items: [], unread: 0 };
+    const subscriptionNotice = page.props.subscription ?? null;
     const [notifOpen, setNotifOpen] = useState(false);
     const [collapsed, setCollapsed] = useState(false);
     const [mobileNav, setMobileNav] = useState(false);
@@ -852,7 +1018,15 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                 </header>
 
                 {/* CONTENT */}
-                <main style={{ flex: 1, overflowY: 'auto' }}>{children}</main>
+                <main style={{ flex: 1, overflowY: 'auto' }}>
+                    {subscriptionNotice && (
+                        <SubscriptionBanner
+                            notice={subscriptionNotice}
+                            waHref={waHref}
+                        />
+                    )}
+                    {children}
+                </main>
             </div>
 
             <NotificationSheet

@@ -27,6 +27,7 @@ use App\Observers\SubscriptionObserver;
 use App\Observers\TenantObserver;
 use App\Policies\PayrollPolicy;
 use App\Support\GeneratedImageBag;
+use App\Support\SubscriptionStatusCache;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +35,8 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Inertia\ExceptionResponse;
+use Inertia\Inertia;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -46,6 +49,11 @@ class AppServiceProvider extends ServiceProvider
         // chat controller reads it back after the stream, so it must never be
         // shared between two users' requests.
         $this->app->scoped(GeneratedImageBag::class);
+
+        // The subscription lock gate reads a tenant's term on every request, and
+        // the Inertia banner reads it again; memoise it for the request only —
+        // never across requests, or a renewal would not unlock anything.
+        $this->app->scoped(SubscriptionStatusCache::class);
     }
 
     /**
@@ -57,6 +65,35 @@ class AppServiceProvider extends ServiceProvider
         $this->registerPolicies();
         $this->registerNotificationObservers();
         $this->shareBranding();
+        $this->renderErrorsWithInertia();
+    }
+
+    /**
+     * Send HTTP failures to the branded `error` page instead of Laravel's bare
+     * default, keeping the app's own look (and the tenant's branding, via the
+     * shared props the Inertia middleware resolves).
+     *
+     * A 500 is left to Laravel while developing so the stack trace stays
+     * reachable; every other status is branded in every environment. Statuses not
+     * listed fall through to the Blade views in `resources/views/errors`.
+     */
+    protected function renderErrorsWithInertia(): void
+    {
+        Inertia::handleExceptionsUsing(function (ExceptionResponse $response) {
+            $branded = [403, 404, 419, 429, 503];
+
+            if (! app()->environment(['local', 'testing'])) {
+                $branded[] = 500;
+            }
+
+            if (! in_array($response->statusCode(), $branded, true)) {
+                return null;
+            }
+
+            return $response
+                ->render('error', ['status' => $response->statusCode()])
+                ->withSharedData();
+        });
     }
 
     /**

@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
+use App\Models\Feature;
 use App\Models\Package;
 use App\Models\User;
+use App\Support\FeatureGroups;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -30,11 +32,13 @@ class PackageController extends Controller
 
         $packages = Package::query()
             ->withCount('tenants')
+            ->with(['features' => fn ($query) => $query->wherePivot('is_enabled', true)->select('features.id')])
             ->orderByDesc('is_active')
             ->orderBy('price')
             ->orderBy('id')
             ->get()
             ->map(fn (Package $package): array => [
+                'feature_ids' => $package->features->pluck('id')->map(fn ($id): int => (int) $id)->all(),
                 'id' => $package->id,
                 'name' => $package->name,
                 'tagline' => $package->tagline,
@@ -54,6 +58,7 @@ class PackageController extends Controller
         return Inertia::render('avana/paket/index', [
             'packages' => $packages->values()->all(),
             'cycles' => self::CYCLES,
+            'featureCatalog' => $this->featureCatalog(),
         ]);
     }
 
@@ -64,7 +69,12 @@ class PackageController extends Controller
     {
         $this->ensureSuperAdmin($request);
 
-        Package::create($this->validated($request));
+        $data = $this->validated($request);
+        $features = $data['features'];
+        unset($data['features']);
+
+        $package = Package::create($data);
+        $this->syncFeatures($package, $features);
 
         return back()->with('success', 'Paket dibuat');
     }
@@ -76,9 +86,52 @@ class PackageController extends Controller
     {
         $this->ensureSuperAdmin($request);
 
-        $package->update($this->validated($request, $package));
+        $data = $this->validated($request, $package);
+        $features = $data['features'];
+        unset($data['features']);
+
+        $package->update($data);
+        $this->syncFeatures($package, $features);
 
         return back()->with('success', 'Paket diperbarui');
+    }
+
+    /**
+     * The feature modules a package can grant, grouped the way the Hak Akses and
+     * Kelola Fitur screens group them so a super admin reads one taxonomy.
+     *
+     * @return array<int, array{id: int, code: string, name: string, group: string}>
+     */
+    private function featureCatalog(): array
+    {
+        return Feature::query()
+            ->get(['id', 'code', 'name', 'module_group'])
+            ->sortBy(fn (Feature $feature): string => sprintf('%02d-%s', FeatureGroups::sortIndex($feature->module_group), $feature->name))
+            ->values()
+            ->map(fn (Feature $feature): array => [
+                'id' => $feature->id,
+                'code' => $feature->code,
+                'name' => $feature->name,
+                'group' => FeatureGroups::label($feature->module_group),
+            ])
+            ->all();
+    }
+
+    /**
+     * Replace the package's entitlement set. An empty selection is stored as
+     * "no rows", which downstream reads as the whole catalogue — the same
+     * behaviour packages had before entitlements existed.
+     *
+     * @param  array<int, int>  $featureIds
+     */
+    private function syncFeatures(Package $package, array $featureIds): void
+    {
+        $package->features()->sync(
+            collect($featureIds)
+                ->unique()
+                ->mapWithKeys(fn (int $id): array => [$id => ['is_enabled' => true]])
+                ->all(),
+        );
     }
 
     /**
@@ -113,9 +166,14 @@ class PackageController extends Controller
             // Blank lines arrive as null (ConvertEmptyStringsToNull); allow them
             // and drop them below so the textarea can have empty rows.
             'feature_list.*' => ['nullable', 'string', 'max:120'],
+            // The modules this tier actually unlocks for a tenant. Empty = all.
+            'features' => ['nullable', 'array'],
+            'features.*' => ['integer', 'exists:features,id'],
             'is_active' => ['boolean'],
             'is_popular' => ['boolean'],
         ]);
+
+        $data['features'] = array_map('intval', $data['features'] ?? []);
 
         // Keep only non-empty, trimmed feature strings.
         $data['feature_list'] = array_values(array_filter(

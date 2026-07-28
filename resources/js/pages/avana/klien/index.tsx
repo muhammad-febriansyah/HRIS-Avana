@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import TenantController from '@/actions/App/Http/Controllers/Avana/TenantController';
 import { AIcon, ActionBtn, btnP, C, card, thCell } from '@/lib/avana';
-import { ConfirmModal, StatusBadge, Usage } from './components';
+import { ConfirmModal, StatusBadge, TokenCell, Usage } from './components';
 import { STATUS_OPTIONS } from './types';
 import type { FlashProps, KlienFilters, TenantRow } from './types';
 import type { FeatureOption, PackageOption, PaginationMeta } from './types';
@@ -266,6 +266,7 @@ export default function KlienIndex({
                                     <th style={thCell}>Pengguna</th>
                                     <th style={thCell}>Karyawan</th>
                                     <th style={thCell}>Cabang</th>
+                                    <th style={thCell}>Token AI Dibeli</th>
                                     <th
                                         style={{
                                             ...thCell,
@@ -285,7 +286,7 @@ export default function KlienIndex({
                                         }}
                                     >
                                         <td
-                                            colSpan={7}
+                                            colSpan={8}
                                             style={{
                                                 padding: '48px 18px',
                                                 textAlign: 'center',
@@ -428,6 +429,11 @@ export default function KlienIndex({
                                             <Usage
                                                 used={tenant.branches_count}
                                                 limit={tenant.max_branches}
+                                            />
+                                        </td>
+                                        <td style={{ padding: '13px 16px' }}>
+                                            <TokenCell
+                                                token={tenant.ai_token}
                                             />
                                         </td>
                                         <td

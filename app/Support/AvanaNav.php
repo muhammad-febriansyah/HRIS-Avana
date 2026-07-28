@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Feature;
 use App\Models\MenuItem;
 use App\Models\Permission;
+use App\Models\RoleMenuVisibility;
 use App\Models\User;
 use Illuminate\Support\Collection;
 
@@ -185,6 +186,7 @@ final class AvanaNav
                 self::leaf('approval-workflow', 'Alur Persetujuan', 'git-branch', '/avana/approval-workflow', null, self::MANAGE_MODULES, true),
                 self::leaf('email-settings', 'Pengaturan Email', 'mail', '/avana/email-settings', null, self::MANAGE_MODULES, true),
                 self::leaf('tampilan', 'Tampilan & Tema', 'palette', '/avana/tampilan', null, ['appearance'], false),
+                self::leaf('langganan', 'Langganan', 'badge-check', '/avana/langganan', null, ['langganan'], false),
                 self::leaf('token-ai', 'Token AI', 'coins', '/avana/token-ai', null, ['ai_topup'], false),
                 self::leaf('audit', 'Audit Trail', 'history', '/avana/audit', null, ['audit']),
             ]],
@@ -257,8 +259,14 @@ final class AvanaNav
         // account without one (a bare HR/admin login) would only reach a 403.
         $hasEmployee = $user->employee !== null;
 
-        $visible = function (array $leaf) use ($isSuperAdmin, $enabledCodes, $userModules, $canManage, $hasEmployee): bool {
+        // Menus this user's roles have all hidden (Hak Akses → kolom Tampil).
+        $hiddenKeys = $isSuperAdmin ? [] : RoleMenuVisibility::keysHiddenForAll($roleIds);
+
+        $visible = function (array $leaf) use ($isSuperAdmin, $enabledCodes, $userModules, $canManage, $hasEmployee, $hiddenKeys): bool {
             if (($leaf['superAdminOnly'] ?? false) && ! $isSuperAdmin) {
+                return false;
+            }
+            if (in_array($leaf['id'] ?? '', $hiddenKeys, true)) {
                 return false;
             }
             if (($leaf['modules'] ?? []) === ['own'] && ! $hasEmployee) {
@@ -432,6 +440,112 @@ final class AvanaNav
     }
 
     /**
+     * Every menu of a tenant as a flat list, in sidebar order, for the Hak Akses
+     * matrix: one row per real menu (hidden ones included, so they can be switched
+     * back on) with the section it sits under and the gating it carries.
+     *
+     * Platform-only menus are left out — they belong to the super admin's own
+     * chrome, not to a tenant's role matrix.
+     *
+     * @return array<int, array{key: string, label: string, group: string, parent: string|null, href: string|null, feature: string|null, modules: array<int, string>, adminOnly: bool, isActive: bool, menuItemId: int|null}>
+     */
+    public static function menuRows(?int $tenantId): array
+    {
+        $rows = $tenantId === null
+            ? collect()
+            : MenuItem::forTenant($tenantId)->orderBy('sort_order')->orderBy('id')->get();
+
+        return $rows->isNotEmpty()
+            ? self::menuRowsFromDb($rows)
+            : self::menuRowsFromDefaults();
+    }
+
+    /**
+     * @param  Collection<int, MenuItem>  $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private static function menuRowsFromDb(Collection $rows): array
+    {
+        $byParent = $rows->groupBy(fn (MenuItem $row): int => (int) ($row->parent_id ?? 0));
+        $flat = [];
+
+        foreach ($byParent->get(0, collect()) as $item) {
+            $children = $byParent->get($item->id, collect());
+
+            if ($children->isEmpty()) {
+                $flat[] = self::menuRow($item, $item->section, null);
+
+                continue;
+            }
+
+            foreach ($children as $child) {
+                $flat[] = self::menuRow($child, $item->section, $item->label);
+            }
+        }
+
+        return array_values(array_filter($flat, fn (array $row): bool => ! $row['superAdminOnly']));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function menuRow(MenuItem $item, ?string $section, ?string $parentLabel): array
+    {
+        return [
+            'key' => $item->key,
+            'label' => $item->label,
+            'group' => $section ?? 'LAINNYA',
+            'parent' => $parentLabel,
+            'href' => $item->href,
+            'feature' => $item->feature,
+            'modules' => $item->modules ?? [],
+            'adminOnly' => (bool) $item->admin_only,
+            'superAdminOnly' => (bool) $item->super_admin_only,
+            'isActive' => (bool) $item->is_active,
+            'menuItemId' => $item->id,
+        ];
+    }
+
+    /**
+     * Fallback for a context with no DB menu (a super admin with no tenant in
+     * view): the built-in definition, shaped like the DB rows.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private static function menuRowsFromDefaults(): array
+    {
+        $flat = [];
+
+        foreach (self::groups() as $group) {
+            foreach ($group['items'] as $item) {
+                $children = $item['children'] ?? [[...$item, '__self' => true]];
+
+                foreach ($children as $leaf) {
+                    if ($leaf['superAdminOnly'] ?? false) {
+                        continue;
+                    }
+
+                    $flat[] = [
+                        'key' => $leaf['id'],
+                        'label' => $leaf['label'],
+                        'group' => $group['title'] ?? 'LAINNYA',
+                        'parent' => isset($item['children']) ? $item['label'] : null,
+                        'href' => $leaf['href'] ?? null,
+                        'feature' => $leaf['feature'] ?? null,
+                        'modules' => $leaf['modules'] ?? [],
+                        'adminOnly' => (bool) ($leaf['adminOnly'] ?? false),
+                        'superAdminOnly' => false,
+                        'isActive' => true,
+                        'menuItemId' => null,
+                    ];
+                }
+            }
+        }
+
+        return $flat;
+    }
+
+    /**
      * The access requirement for a request path, resolved by the longest leaf
      * href that prefixes it (so sub-routes like /avana/crm/{id} inherit the CRM
      * gate). Returns null when the path maps to no gated menu.
@@ -439,7 +553,7 @@ final class AvanaNav
      * A hidden (is_active=false) menu is reported with is_active=false so the
      * access gate can block it — hiding a menu removes both sidebar AND access.
      *
-     * @return array{modules: array<int, string>, adminOnly: bool, superAdminOnly: bool, feature: ?string, is_active: bool}|null
+     * @return array{key: ?string, modules: array<int, string>, adminOnly: bool, superAdminOnly: bool, feature: ?string, is_active: bool}|null
      */
     public static function requirementFor(string $path, ?int $tenantId = null): ?array
     {
@@ -472,6 +586,7 @@ final class AvanaNav
                 }
 
                 return [
+                    'key' => $best->key,
                     'modules' => $best->modules ?? [],
                     'adminOnly' => (bool) $best->admin_only,
                     'superAdminOnly' => (bool) $best->super_admin_only,
@@ -502,6 +617,7 @@ final class AvanaNav
         }
 
         return [
+            'key' => $best['id'] ?? null,
             'modules' => $best['modules'] ?? [],
             'adminOnly' => $best['adminOnly'] ?? false,
             'superAdminOnly' => $best['superAdminOnly'] ?? false,

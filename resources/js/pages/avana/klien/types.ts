@@ -5,6 +5,18 @@
 
 export type { FlashProps, PaginationMeta } from '../employees/types';
 
+/**
+ * A client's AI token standing on the list page: `purchased` counts only credited
+ * (paid) orders, `quota` is the free monthly allowance (null = unlimited).
+ */
+export interface TenantTokenStanding {
+    purchased: number;
+    orders: number;
+    balance: number;
+    quota: number | null;
+    used: number;
+}
+
 /** A single tenant row as serialized by `TenantController@index`. */
 export interface TenantRow {
     id: number;
@@ -24,6 +36,7 @@ export interface TenantRow {
     start_date: string | null;
     end_date: string | null;
     feature_codes: string[];
+    ai_token: TenantTokenStanding;
 }
 
 /** A selectable subscription package option, with the pricing behind it. */

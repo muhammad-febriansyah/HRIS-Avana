@@ -101,6 +101,7 @@ use App\Http\Controllers\Avana\TalentController;
 use App\Http\Controllers\Avana\TenantAiTokenController;
 use App\Http\Controllers\Avana\TenantAppearanceController;
 use App\Http\Controllers\Avana\TenantController;
+use App\Http\Controllers\Avana\TenantSubscriptionController;
 use App\Http\Controllers\Avana\TimesheetController;
 use App\Http\Controllers\Avana\UserController;
 use App\Http\Controllers\Avana\ViewTenantController;
@@ -265,6 +266,8 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::get('hak-akses', [AccessController::class, 'index'])->name('hak-akses');
     Route::post('hak-akses/permission/toggle', [AccessController::class, 'togglePermission'])->name('hak-akses.permission.toggle');
     Route::post('hak-akses/feature/toggle', [AccessController::class, 'toggleFeature'])->name('hak-akses.feature.toggle');
+    Route::post('hak-akses/menu/toggle', [AccessController::class, 'toggleMenu'])->name('hak-akses.menu.toggle');
+    Route::post('hak-akses/menu/visibility', [AccessController::class, 'toggleMenuVisibility'])->name('hak-akses.menu.visibility');
     Route::post('hak-akses/roles', [AccessController::class, 'storeRole'])->name('hak-akses.roles.store');
 
     Route::get('fitur', [FeatureController::class, 'index'])->name('fitur');
@@ -830,6 +833,14 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
         Route::get('onboarding', [EssOnboardingController::class, 'index'])->name('onboarding');
         Route::patch('onboarding/tugas/{task}', [EssOnboardingController::class, 'toggleTask'])->name('onboarding.task');
     });
+
+    // Langganan (tenant admin/HR) — self-service renewal paid via Pakasir.
+    // `terkunci` is the lock notice a lapsed tenant is redirected to; it stays
+    // open to every role while everything else is closed.
+    Route::get('terkunci', [TenantSubscriptionController::class, 'locked'])->name('locked');
+    Route::get('langganan', [TenantSubscriptionController::class, 'index'])->name('langganan');
+    Route::post('langganan/perpanjang', [TenantSubscriptionController::class, 'purchase'])->name('langganan.purchase');
+    Route::get('langganan/callback', [TenantSubscriptionController::class, 'callback'])->name('langganan.callback');
 
     // Token AI (tenant admin/HR) — top up wallet via Pakasir + per-user caps
     Route::get('token-ai', [TenantAiTokenController::class, 'index'])->name('token-ai');

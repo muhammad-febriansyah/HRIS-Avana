@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\WebsiteSetting;
 use App\Support\Access;
 use App\Support\AvanaNav;
+use App\Support\SubscriptionStatus;
 use App\Support\TenantTheme;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -72,18 +73,16 @@ class HandleInertiaRequests extends Middleware
                     return TenantTheme::resolve(WebsiteSetting::cached()->theme);
                 }
 
-                $viewTenantId = (int) ($request->session()->get('view_tenant_id') ?? 0);
-                $tenant = $viewTenantId > 0 ? Tenant::find($viewTenantId) : $user->tenant;
-
-                return TenantTheme::resolve($tenant?->theme);
+                return TenantTheme::resolve($this->scopedTenant($request, $user)?->theme);
             },
             'notifications' => fn (): array => $this->notifications($user),
+            'subscription' => fn (): ?array => $this->subscriptionNotice($request, $user),
             'superAdminView' => fn (): array => $this->superAdminView($request, $user),
             'flash' => [
-                'success' => fn () => $request->session()->get('success'),
-                'error' => fn () => $request->session()->get('error'),
+                'success' => fn () => $this->session($request, 'success'),
+                'error' => fn () => $this->session($request, 'error'),
                 // One-time hand-off of a freshly issued tenant admin password.
-                'credentials' => fn () => $request->session()->get('credentials'),
+                'credentials' => fn () => $this->session($request, 'credentials'),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
@@ -106,14 +105,10 @@ class HandleInertiaRequests extends Middleware
             return null;
         }
 
-        // Only a super admin may be viewing as someone else; for anyone else a
-        // `view_tenant_id` in the session is tampering, and honouring it would
-        // put another tenant's name and logo on their chrome.
-        $viewTenantId = $user->roles()->where('code', 'super_admin')->exists()
-            ? (int) ($request->session()->get('view_tenant_id') ?? 0)
-            : 0;
-
-        $tenant = $viewTenantId > 0 ? Tenant::find($viewTenantId) : $user->tenant;
+        // Only a super admin may be viewing as someone else; honouring anyone
+        // else's `view_tenant_id` would put another tenant's name and logo on
+        // their chrome, so {@see scopedTenant()} ignores it for them.
+        $tenant = $this->scopedTenant($request, $user);
 
         if ($tenant === null) {
             return null;
@@ -127,6 +122,71 @@ class HandleInertiaRequests extends Middleware
             'company_name' => $tenant->company_name,
             'logo_url' => $logoPath !== null ? Storage::disk('public')->url($logoPath) : null,
         ];
+    }
+
+    /**
+     * The subscription-expiry banner for the tenant chrome: null unless the
+     * client's subscription ends within {@see SubscriptionStatus::WARNING_DAYS}
+     * (or has already ended). Only warns — access is never blocked here.
+     *
+     * Platform scope returns null: a super admin's own account sits in a tenant,
+     * and their banner would be about that tenant rather than the client they are
+     * looking at. While viewing as a tenant they see that tenant's banner.
+     *
+     * Shown only to the accounts that can act on it — the tenant's Admin Tenant /
+     * HR — so an ESS employee is not nagged about their employer's billing.
+     *
+     * @return array{end_date: string, end_date_label: string, days_left: int, level: string, package: string|null}|null
+     */
+    private function subscriptionNotice(Request $request, ?User $user): ?array
+    {
+        if ($user === null || $this->isPlatformScope($request, $user)) {
+            return null;
+        }
+
+        $canSee = $user->roles()
+            ->whereIn('code', ['admin_tenant_hr', 'super_admin'])
+            ->exists();
+
+        if (! $canSee) {
+            return null;
+        }
+
+        $tenant = $this->scopedTenant($request, $user);
+
+        if ($tenant === null) {
+            return null;
+        }
+
+        $notice = SubscriptionStatus::forTenant($tenant);
+
+        return $notice !== null && $notice['level'] !== 'ok' ? $notice : null;
+    }
+
+    /**
+     * The tenant whose data the chrome speaks for: the user's own, or the one a
+     * super admin is currently viewing as. A `view_tenant_id` in anyone else's
+     * session is tampering and is ignored.
+     */
+    private function scopedTenant(Request $request, User $user): ?Tenant
+    {
+        $viewTenantId = $user->roles()->where('code', 'super_admin')->exists()
+            ? (int) ($this->session($request, 'view_tenant_id') ?? 0)
+            : 0;
+
+        return $viewTenantId > 0 ? Tenant::find($viewTenantId) : $user->tenant;
+    }
+
+    /**
+     * Read a session value, tolerating a request that never went through the
+     * session middleware.
+     *
+     * The error page shares these props too, and a 404 is rendered outside the
+     * middleware stack — so there is no session store on the request at all.
+     */
+    private function session(Request $request, string $key): mixed
+    {
+        return $request->hasSession() ? $request->session()->get($key) : null;
     }
 
     /**
@@ -154,7 +214,7 @@ class HandleInertiaRequests extends Middleware
             return false;
         }
 
-        return (int) ($request->session()->get('view_tenant_id') ?? 0) === 0;
+        return (int) ($this->session($request, 'view_tenant_id') ?? 0) === 0;
     }
 
     /**
@@ -201,7 +261,7 @@ class HandleInertiaRequests extends Middleware
 
         return [
             'is_super' => $isSuper,
-            'view_tenant_id' => (string) ($request->session()->get('view_tenant_id') ?? ''),
+            'view_tenant_id' => (string) ($this->session($request, 'view_tenant_id') ?? ''),
             'tenants' => $isSuper
                 ? Tenant::orderBy('name')->get(['id', 'name'])->map(fn (Tenant $t): array => ['id' => $t->id, 'name' => $t->name])->all()
                 : [],

@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { AIcon, btnOut, C } from '@/lib/avana';
+import type { TenantTokenStanding } from './types';
 
 /* ---------- shared field styles (mirror benefit/components.tsx) ---------- */
 
@@ -134,6 +135,40 @@ export function Usage({ used, limit }: { used: number; limit: number }) {
                 / {limit > 0 ? limit.toLocaleString('id-ID') : '∞'}
             </span>
         </span>
+    );
+}
+
+/**
+ * How many AI tokens this client has bought, with the wallet left underneath —
+ * bought and remaining are different numbers (usage eats the wallet, purchases
+ * never shrink), so the cell shows both rather than implying one is the other.
+ */
+export function TokenCell({ token }: { token?: TenantTokenStanding }) {
+    if (!token) {
+        return <span style={{ fontSize: 13, color: C.faint }}>—</span>;
+    }
+
+    const bought = token.purchased > 0;
+
+    return (
+        <div>
+            <div
+                style={{
+                    fontSize: 13,
+                    fontWeight: bought ? 600 : 400,
+                    color: bought ? C.navy : C.faint,
+                }}
+            >
+                {bought ? token.purchased.toLocaleString('id-ID') : 'Belum beli'}
+            </div>
+            <div style={{ fontSize: 11.5, color: C.faint, marginTop: 2 }}>
+                Sisa {token.balance.toLocaleString('id-ID')}
+                {' · '}
+                {token.quota === null
+                    ? 'kuota ∞'
+                    : `kuota ${token.quota.toLocaleString('id-ID')}/bln`}
+            </div>
+        </div>
     );
 }
 

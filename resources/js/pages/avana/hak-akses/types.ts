@@ -24,23 +24,33 @@ export interface AccessAction {
     label: string;
 }
 
-/** A matrix row: a UI menu group. `actionable` false = always-on row (Dashboard). */
+/**
+ * A matrix row = one real menu of the tenant's sidebar, in sidebar order.
+ * `actionable` false = the menu has no permission module to grant (self-service
+ * screens, Dashboard), so only its visibility can be set per role.
+ */
 export interface AccessModule {
     key: string;
     label: string;
     /** Section title this row belongs to (e.g. "TALENTA", "SISTEM"). */
     group: string;
+    /** Collapsible parent this menu sits under, when nested. */
+    parent: string | null;
+    href: string | null;
     actionable: boolean;
-    /** True when the menu maps to tenant features and its master switch is operable. */
-    hasFeature: boolean;
-    /** True when every feature the menu depends on is enabled for the tenant. */
-    featureEnabled: boolean;
-    /** Catalog feature id (null on fixed core rows) — drives inline edit/delete. */
-    featureId: number | null;
-    /** The feature's module_group (null on core rows) — for the edit modal. */
-    moduleGroup: string | null;
-    /** Permission prefixes the row owns — for the edit modal prefill. */
+    /** Permission prefixes the menu is gated by (`own` excluded). */
     permissionModules: string[];
+    /** Tenant-wide on/off for this menu (Menu Builder's is_active). */
+    menuActive: boolean;
+    menuItemId: number | null;
+    /** The package feature behind the menu, if any. */
+    feature: string | null;
+    featureLabel: string | null;
+    hasFeature: boolean;
+    /** False when the tenant's package does not include the menu's feature. */
+    featureEnabled: boolean;
+    /** True for self-service (ESS) menus — visibility is the only control. */
+    selfService: boolean;
 }
 
 /** Menu Builder tab payload — passed straight to the shared MenuBuilder page. */
@@ -55,7 +65,10 @@ export interface MenuBuilderData {
     tenants: { id: number; name: string }[];
 }
 
-/** Per-action checked state for a menu/role pairing: `{ view: true, ... }`. */
+/**
+ * State of one menu/role pairing: `visible` (does the role see the menu) plus
+ * one entry per action, e.g. `{ visible: true, view: true, create: false }`.
+ */
 export type MatrixCell = Record<string, boolean>;
 
 export interface HakAksesProps {

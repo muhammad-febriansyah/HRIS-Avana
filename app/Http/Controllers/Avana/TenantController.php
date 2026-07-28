@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
+use App\Models\AiTokenLedger;
+use App\Models\AiTokenOrder;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Models\Employee;
@@ -12,6 +14,7 @@ use App\Models\Package;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\AiTokenService;
 use App\Services\TenantProvisioner;
 use App\Support\FeatureGroups;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -64,7 +67,7 @@ class TenantController extends Controller
         $tenants = Tenant::query()
             ->withCount(['users', 'employees', 'branches'])
             ->with([
-                'package:id,name',
+                'package:id,name,ai_token_quota',
                 'company:id,tenant_id,logo_path',
                 'features' => fn ($query) => $query->where('is_enabled', true)->with('feature:id,code'),
             ])
@@ -81,6 +84,8 @@ class TenantController extends Controller
             ->orderBy('name')
             ->paginate($request->integer('per_page', 10))
             ->withQueryString();
+
+        $tokens = $this->aiTokenStanding($tenants->getCollection());
 
         $tenants->getCollection()->transform(fn (Tenant $tenant): array => [
             'id' => $tenant->id,
@@ -108,6 +113,7 @@ class TenantController extends Controller
                 ->filter()
                 ->values()
                 ->all(),
+            'ai_token' => $tokens[$tenant->id],
         ]);
 
         return Inertia::render('avana/klien/index', [
@@ -165,6 +171,54 @@ class TenantController extends Controller
             ...$features,
             ...array_map($core, FeatureGroups::CORE_TAIL),
         ];
+    }
+
+    /**
+     * AI token standing for one page of tenants: how many tokens each client has
+     * BOUGHT (only credited orders count — a pending checkout is not tokens), what
+     * is left in the permanent wallet, and this month's burn against the free
+     * quota. Two grouped queries for the whole page, so the list stays flat.
+     *
+     * @param  SupportCollection<int, Tenant>  $tenants
+     * @return array<int, array{purchased: int, orders: int, balance: int, quota: int|null, used: int}>
+     */
+    private function aiTokenStanding(SupportCollection $tenants): array
+    {
+        $tenantIds = $tenants->pluck('id')->all();
+
+        if ($tenantIds === []) {
+            return [];
+        }
+
+        $purchases = AiTokenOrder::query()
+            ->whereIn('tenant_id', $tenantIds)
+            ->whereNotNull('credited_at')
+            ->selectRaw('tenant_id, COUNT(*) as order_count, SUM(token_amount) as token_total')
+            ->groupBy('tenant_id')
+            ->get()
+            ->keyBy('tenant_id');
+
+        $used = AiTokenLedger::query()
+            ->whereIn('tenant_id', $tenantIds)
+            ->where('type', AiTokenLedger::TYPE_DEBIT)
+            ->where('period', now()->format('Y-m'))
+            ->selectRaw('tenant_id, SUM(tokens) as token_total')
+            ->groupBy('tenant_id')
+            ->pluck('token_total', 'tenant_id');
+
+        $service = app(AiTokenService::class);
+
+        return $tenants
+            ->mapWithKeys(fn (Tenant $tenant): array => [
+                $tenant->id => [
+                    'purchased' => (int) ($purchases->get($tenant->id)?->token_total ?? 0),
+                    'orders' => (int) ($purchases->get($tenant->id)?->order_count ?? 0),
+                    'balance' => (int) $tenant->ai_token_balance,
+                    'quota' => $service->freeQuotaRaw($tenant),
+                    'used' => (int) ($used->get($tenant->id) ?? 0),
+                ],
+            ])
+            ->all();
     }
 
     /**
@@ -336,7 +390,127 @@ class TenantController extends Controller
                 ])->all(),
             ],
             'admins' => $this->adminAccounts($tenant),
+            'aiToken' => $this->aiTokenDetail($tenant),
         ]);
+    }
+
+    /**
+     * The client's AI token account: tokens bought and paid for, what remains in
+     * the wallet, the free monthly quota it burns first, and who inside the tenant
+     * is actually spending it (the Superadmin → Tenant → karyawan drill-down).
+     *
+     * @return array<string, mixed>
+     */
+    private function aiTokenDetail(Tenant $tenant): array
+    {
+        $period = now()->format('Y-m');
+        $service = app(AiTokenService::class);
+
+        $purchase = AiTokenOrder::query()
+            ->forTenant($tenant->id)
+            ->whereNotNull('credited_at')
+            ->selectRaw('COUNT(*) as order_count, SUM(token_amount) as token_total, SUM(amount) as paid_total')
+            ->first();
+
+        $pendingCount = AiTokenOrder::query()
+            ->forTenant($tenant->id)
+            ->whereNull('credited_at')
+            ->where('status', AiTokenOrder::STATUS_PENDING)
+            ->count();
+
+        $orders = AiTokenOrder::query()
+            ->forTenant($tenant->id)
+            ->with('user:id,name')
+            ->latest('id')
+            ->limit(10)
+            ->get()
+            ->map(fn (AiTokenOrder $order): array => [
+                'id' => $order->id,
+                'order_number' => $order->order_number,
+                'pack_name' => $order->pack_name,
+                'token_amount' => (int) $order->token_amount,
+                'amount' => (int) $order->amount,
+                'status' => $order->status,
+                'payment_method' => $order->payment_method,
+                'buyer' => $order->user?->name,
+                'credited' => $order->credited_at !== null,
+                'created_at' => $order->created_at?->toDateTimeString(),
+            ])
+            ->all();
+
+        $spend = AiTokenLedger::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('type', AiTokenLedger::TYPE_DEBIT)
+            ->selectRaw('SUM(tokens) as all_time, SUM(CASE WHEN period = ? THEN tokens ELSE 0 END) as this_month', [$period])
+            ->first();
+
+        return [
+            'purchased' => (int) ($purchase->token_total ?? 0),
+            'orders_count' => (int) ($purchase->order_count ?? 0),
+            'paid_total' => (float) ($purchase->paid_total ?? 0),
+            'pending_orders' => $pendingCount,
+            'balance' => (int) $tenant->ai_token_balance,
+            'quota' => $service->freeQuotaRaw($tenant),
+            'used_this_month' => (int) ($spend->this_month ?? 0),
+            'used_all_time' => (int) ($spend->all_time ?? 0),
+            'default_user_cap' => $tenant->ai_token_user_cap !== null ? (int) $tenant->ai_token_user_cap : null,
+            'period' => now()->locale('id')->translatedFormat('F Y'),
+            'orders' => $orders,
+            'consumers' => $this->aiTokenConsumers($tenant->id, $period),
+        ];
+    }
+
+    /**
+     * Who burned the tenant's AI tokens, ranked by lifetime spend. Keyed on the
+     * ledger (not `ai_messages`, which a deleted chat takes with it) and joined to
+     * the employee record so a super admin sees the karyawan, not just a login.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function aiTokenConsumers(int $tenantId, string $period): array
+    {
+        $usage = AiTokenLedger::query()
+            ->where('tenant_id', $tenantId)
+            ->where('type', AiTokenLedger::TYPE_DEBIT)
+            ->whereNotNull('user_id')
+            ->selectRaw(
+                'user_id, SUM(tokens) as all_time, '
+                .'SUM(CASE WHEN period = ? THEN tokens ELSE 0 END) as this_month, '
+                .'MAX(created_at) as last_used_at',
+                [$period],
+            )
+            ->groupBy('user_id')
+            ->orderByDesc('all_time')
+            ->limit(50)
+            ->get();
+
+        if ($usage->isEmpty()) {
+            return [];
+        }
+
+        $users = User::query()
+            ->whereIn('id', $usage->pluck('user_id')->all())
+            ->with(['employee:id,user_id,full_name,position_id', 'employee.position:id,name'])
+            ->get(['id', 'name', 'email'])
+            ->keyBy('id');
+
+        return $usage
+            ->map(function ($row) use ($users): array {
+                $user = $users->get($row->user_id);
+
+                return [
+                    'user_id' => (int) $row->user_id,
+                    'name' => $user?->employee?->full_name ?? $user?->name ?? 'Pengguna dihapus',
+                    'email' => $user?->email,
+                    'position' => $user?->employee?->position?->name,
+                    'this_month' => (int) $row->this_month,
+                    'all_time' => (int) $row->all_time,
+                    'last_used_at' => $row->last_used_at
+                        ? Carbon::parse($row->last_used_at)->toDateTimeString()
+                        : null,
+                ];
+            })
+            ->all();
     }
 
     /**
@@ -530,6 +704,8 @@ class TenantController extends Controller
 
         $validated = $request->validate($this->rules($tenant));
 
+        $packageChanged = ($validated['package_id'] ?? null) !== $tenant->package_id;
+
         $tenant->update([
             'name' => $validated['name'],
             'company_name' => $validated['company_name'] ?? null,
@@ -543,6 +719,12 @@ class TenantController extends Controller
             'start_date' => $validated['start_date'] ?? null,
             'end_date' => $validated['end_date'] ?? null,
         ]);
+
+        // Moving a client to another tier hands them that tier's modules; the
+        // per-tenant Kelola Fitur switches can still override afterwards.
+        if ($packageChanged) {
+            $this->provisioner->applyPackageFeatures($tenant->refresh());
+        }
 
         return back()->with('success', 'Klien berhasil diperbarui');
     }

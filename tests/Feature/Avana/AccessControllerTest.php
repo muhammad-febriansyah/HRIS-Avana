@@ -2,7 +2,7 @@
 
 use App\Http\Controllers\Avana\AccessController;
 use App\Models\AuditLog;
-use App\Models\Feature;
+use App\Models\MenuItem;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Tenant;
@@ -47,8 +47,9 @@ it('renders the hak-akses screen with roles, actions and the per-action matrix',
             ->has('actions.0', fn (Assert $action) => $action->has('key')->has('label'))
             ->has('modules')
             ->has('modules.0', fn (Assert $module) => $module->has('key')->has('label')->has('group')
-                ->has('actionable')->has('hasFeature')->has('featureEnabled')
-                ->has('featureId')->has('moduleGroup')->has('permissionModules'))
+                ->has('parent')->has('href')->has('actionable')->has('permissionModules')
+                ->has('menuActive')->has('menuItemId')->has('feature')->has('featureLabel')
+                ->has('hasFeature')->has('featureEnabled')->has('selfService'))
             ->has('permHeaders')
             ->has('matrix')
             ->where('isSuperAdmin', true));
@@ -64,8 +65,12 @@ it('exposes a matrix cell per action for every module/role pairing', function ()
                 ->orWhereNull('tenant_id')
                 ->count();
 
-            // Rows = 1 core head (Dashboard) + every feature + 3 core tail rows.
-            $rowCount = Feature::count() + 4;
+            // One row per real menu of the tenant's sidebar (platform-only menus
+            // excluded), so the matrix mirrors what a role actually sees.
+            $rowCount = MenuItem::where('tenant_id', $this->superAdmin->tenant_id)
+                ->where('super_admin_only', false)
+                ->whereNotNull('href')
+                ->count();
 
             $page->has('roles', $roleCount)
                 ->has('permHeaders', $roleCount)
@@ -73,6 +78,7 @@ it('exposes a matrix cell per action for every module/role pairing', function ()
                 ->has('matrix', $rowCount)
                 ->has('matrix.0', $roleCount)
                 ->has('matrix.1.0', fn (Assert $cell) => $cell
+                    ->has('visible')
                     ->has('view')->has('create')->has('update')
                     ->has('archive')->has('export')->has('approve'));
         });

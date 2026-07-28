@@ -46,6 +46,50 @@ type Invoice = {
     due_date: string | null;
 };
 
+type AiTokenOrderRow = {
+    id: number;
+    order_number: string;
+    pack_name: string | null;
+    token_amount: number;
+    amount: number;
+    status: string;
+    payment_method: string | null;
+    buyer: string | null;
+    credited: boolean;
+    created_at: string | null;
+};
+
+/** One person inside the tenant and the tokens they burned. */
+type AiTokenConsumer = {
+    user_id: number;
+    name: string;
+    email: string | null;
+    position: string | null;
+    this_month: number;
+    all_time: number;
+    last_used_at: string | null;
+};
+
+/**
+ * The client's AI token account. `purchased` counts only credited (paid) orders,
+ * `quota` is the free monthly allowance (null = unlimited), and `balance` is the
+ * permanent wallet that top-ups fill and usage drains.
+ */
+type AiTokenDetail = {
+    purchased: number;
+    orders_count: number;
+    paid_total: number;
+    pending_orders: number;
+    balance: number;
+    quota: number | null;
+    used_this_month: number;
+    used_all_time: number;
+    default_user_cap: number | null;
+    period: string;
+    orders: AiTokenOrderRow[];
+    consumers: AiTokenConsumer[];
+};
+
 type ShowProps = {
     tenant: TenantData;
     subscription: {
@@ -68,6 +112,7 @@ type ShowProps = {
     };
     features: string[];
     admins: TenantAdmin[];
+    aiToken: AiTokenDetail;
     branches: { name: string; employees_count: number }[];
     departments: { name: string; employees_count: number }[];
     employees: {
@@ -126,6 +171,19 @@ const INVOICE_META: Record<
     },
 };
 
+const TOKEN_ORDER_META: Record<
+    string,
+    { label: string; color: string; bg: string }
+> = {
+    completed: { label: 'Lunas', color: '#16A34A', bg: 'rgba(22,163,74,.1)' },
+    pending: {
+        label: 'Menunggu Bayar',
+        color: '#D97706',
+        bg: 'rgba(217,119,6,.1)',
+    },
+    failed: { label: 'Gagal', color: '#DC2626', bg: 'rgba(220,38,38,.1)' },
+};
+
 const EMPLOYMENT_META: Record<string, { label: string; color: string }> = {
     permanent: { label: 'Tetap', color: '#16A34A' },
     contract: { label: 'Kontrak', color: '#2F54C9' },
@@ -137,6 +195,7 @@ const TABS = [
     { id: 'ringkasan', label: 'Ringkasan', icon: 'layout-dashboard' },
     { id: 'admin', label: 'Akun Admin', icon: 'shield' },
     { id: 'tagihan', label: 'Langganan & Tagihan', icon: 'receipt' },
+    { id: 'token', label: 'Token AI', icon: 'sparkles' },
     { id: 'fitur', label: 'Fitur Aktif', icon: 'layers' },
     { id: 'organisasi', label: 'Organisasi', icon: 'building-2' },
 ];
@@ -169,6 +228,25 @@ function fmtDate(value: string | null): string {
     }
 
     return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+/**
+ * `YYYY-MM-DD HH:MM:SS` to `d Mon Y HH:MM`. Split by hand rather than parsed:
+ * a space-separated datetime is not a format every browser accepts.
+ */
+function fmtDateTime(value: string | null): string {
+    if (!value) {
+        return '—';
+    }
+
+    const [date, time] = value.split(' ');
+
+    return `${fmtDate(date)}${time ? ` ${time.slice(0, 5)}` : ''}`;
+}
+
+/** Thousand-separated token count. */
+function num(value: number): string {
+    return value.toLocaleString('id-ID');
 }
 
 /** Clamp a used/quota ratio to a 0–100 integer percentage. */
@@ -708,6 +786,7 @@ export default function KlienShow({
     billing,
     features,
     admins,
+    aiToken,
     branches,
     departments,
     employees,
@@ -780,6 +859,43 @@ export default function KlienShow({
             value: String(billing.invoice_count),
             color: C.primary,
             icon: 'receipt',
+        },
+    ];
+
+    const tokenTiles = [
+        {
+            label: 'Token Dibeli',
+            value: num(aiToken.purchased),
+            sub:
+                aiToken.orders_count > 0
+                    ? `${aiToken.orders_count} pesanan · ${rp(aiToken.paid_total)}`
+                    : 'Belum pernah top-up',
+            color: C.primary,
+            icon: 'shopping-cart',
+        },
+        {
+            label: 'Sisa Saldo Token',
+            value: num(aiToken.balance),
+            sub: 'Wallet permanen, tidak hangus',
+            color: C.green,
+            icon: 'wallet',
+        },
+        {
+            label: 'Kuota Gratis / Bulan',
+            value: aiToken.quota === null ? '∞' : num(aiToken.quota),
+            sub:
+                aiToken.quota === null
+                    ? 'Tanpa batas'
+                    : `Terpakai ${num(Math.min(aiToken.used_this_month, aiToken.quota))}`,
+            color: C.amber,
+            icon: 'gauge',
+        },
+        {
+            label: `Terpakai ${aiToken.period}`,
+            value: num(aiToken.used_this_month),
+            sub: `Total sepanjang waktu ${num(aiToken.used_all_time)}`,
+            color: C.navy,
+            icon: 'activity',
         },
     ];
 
@@ -1407,6 +1523,446 @@ export default function KlienShow({
                                                     </tr>
                                                 );
                                             })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </SectionCard>
+                    </div>
+                )}
+
+                {/* ---- Token AI ---- */}
+                {activeTab === 'token' && (
+                    <div
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 16,
+                        }}
+                    >
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(4,1fr)',
+                                gap: 12,
+                            }}
+                        >
+                            {tokenTiles.map((tile) => (
+                                <div
+                                    key={tile.label}
+                                    style={{
+                                        ...card,
+                                        padding: '14px 16px',
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 6,
+                                            fontSize: 11.5,
+                                            color: C.muted,
+                                        }}
+                                    >
+                                        <AIcon
+                                            name={tile.icon}
+                                            size={13}
+                                            color={tile.color}
+                                        />
+                                        {tile.label}
+                                    </div>
+                                    <div
+                                        style={{
+                                            fontSize: 22,
+                                            fontWeight: 700,
+                                            color: C.navy,
+                                            marginTop: 6,
+                                        }}
+                                    >
+                                        {tile.value}
+                                    </div>
+                                    <div
+                                        style={{
+                                            fontSize: 11.5,
+                                            color: C.faint,
+                                            marginTop: 2,
+                                        }}
+                                    >
+                                        {tile.sub}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <SectionCard
+                            title="Riwayat Pembelian Token"
+                            action={
+                                aiToken.pending_orders > 0 ? (
+                                    <span
+                                        style={{
+                                            background: 'rgba(217,119,6,.1)',
+                                            color: '#D97706',
+                                            fontSize: 11.5,
+                                            fontWeight: 600,
+                                            padding: '3px 10px',
+                                            borderRadius: 100,
+                                        }}
+                                    >
+                                        {aiToken.pending_orders} pesanan belum
+                                        dibayar
+                                    </span>
+                                ) : undefined
+                            }
+                        >
+                            {aiToken.orders.length === 0 ? (
+                                <div style={{ fontSize: 13, color: C.faint }}>
+                                    Klien ini belum pernah membeli token AI.
+                                </div>
+                            ) : (
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table
+                                        style={{
+                                            width: '100%',
+                                            borderCollapse: 'collapse',
+                                            fontSize: 13,
+                                            minWidth: 720,
+                                        }}
+                                    >
+                                        <thead>
+                                            <tr
+                                                style={{
+                                                    textAlign: 'left',
+                                                    color: C.faint,
+                                                    fontSize: 11.5,
+                                                }}
+                                            >
+                                                <th
+                                                    style={{
+                                                        padding: '8px 10px',
+                                                    }}
+                                                >
+                                                    NO. PESANAN
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: '8px 10px',
+                                                    }}
+                                                >
+                                                    PAKET
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: '8px 10px',
+                                                    }}
+                                                >
+                                                    DIBELI OLEH
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: '8px 10px',
+                                                        textAlign: 'right',
+                                                    }}
+                                                >
+                                                    TOKEN
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: '8px 10px',
+                                                        textAlign: 'right',
+                                                    }}
+                                                >
+                                                    NILAI
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: '8px 10px',
+                                                    }}
+                                                >
+                                                    TANGGAL
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: '8px 10px',
+                                                    }}
+                                                >
+                                                    STATUS
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {aiToken.orders.map((order) => {
+                                                const meta =
+                                                    TOKEN_ORDER_META[
+                                                        order.status
+                                                    ] ??
+                                                    TOKEN_ORDER_META.pending;
+
+                                                return (
+                                                    <tr
+                                                        key={order.id}
+                                                        style={{
+                                                            borderTop: `1px solid ${C.line}`,
+                                                        }}
+                                                    >
+                                                        <td
+                                                            style={{
+                                                                padding: '10px',
+                                                                fontWeight: 500,
+                                                                color: C.text,
+                                                            }}
+                                                        >
+                                                            {order.order_number}
+                                                        </td>
+                                                        <td
+                                                            style={{
+                                                                padding: '10px',
+                                                                color: C.muted,
+                                                            }}
+                                                        >
+                                                            {order.pack_name ??
+                                                                '—'}
+                                                        </td>
+                                                        <td
+                                                            style={{
+                                                                padding: '10px',
+                                                                color: C.muted,
+                                                            }}
+                                                        >
+                                                            {order.buyer ?? '—'}
+                                                        </td>
+                                                        <td
+                                                            style={{
+                                                                padding: '10px',
+                                                                textAlign:
+                                                                    'right',
+                                                                fontWeight: 600,
+                                                                color: C.navy,
+                                                            }}
+                                                        >
+                                                            {num(
+                                                                order.token_amount,
+                                                            )}
+                                                        </td>
+                                                        <td
+                                                            style={{
+                                                                padding: '10px',
+                                                                textAlign:
+                                                                    'right',
+                                                                color: C.text,
+                                                            }}
+                                                        >
+                                                            {rp(order.amount)}
+                                                        </td>
+                                                        <td
+                                                            style={{
+                                                                padding: '10px',
+                                                                color: C.muted,
+                                                            }}
+                                                        >
+                                                            {fmtDateTime(
+                                                                order.created_at,
+                                                            )}
+                                                        </td>
+                                                        <td
+                                                            style={{
+                                                                padding: '10px',
+                                                            }}
+                                                        >
+                                                            <span
+                                                                style={{
+                                                                    background:
+                                                                        meta.bg,
+                                                                    color: meta.color,
+                                                                    fontSize: 11,
+                                                                    fontWeight: 600,
+                                                                    padding:
+                                                                        '3px 9px',
+                                                                    borderRadius: 100,
+                                                                }}
+                                                            >
+                                                                {meta.label}
+                                                            </span>
+                                                            {order.status ===
+                                                                'completed' &&
+                                                                !order.credited && (
+                                                                    <span
+                                                                        style={{
+                                                                            marginLeft: 6,
+                                                                            fontSize: 11,
+                                                                            color: C.red,
+                                                                        }}
+                                                                    >
+                                                                        belum
+                                                                        masuk
+                                                                        saldo
+                                                                    </span>
+                                                                )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </SectionCard>
+
+                        <SectionCard
+                            title="Pemakaian per Karyawan"
+                            action={
+                                <span
+                                    style={{
+                                        fontSize: 11.5,
+                                        color: C.faint,
+                                    }}
+                                >
+                                    Jatah default per pengguna:{' '}
+                                    {aiToken.default_user_cap === null
+                                        ? 'tanpa batas'
+                                        : `${num(aiToken.default_user_cap)}/bln`}
+                                </span>
+                            }
+                        >
+                            {aiToken.consumers.length === 0 ? (
+                                <div style={{ fontSize: 13, color: C.faint }}>
+                                    Belum ada karyawan yang memakai AI.
+                                </div>
+                            ) : (
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table
+                                        style={{
+                                            width: '100%',
+                                            borderCollapse: 'collapse',
+                                            fontSize: 13,
+                                            minWidth: 640,
+                                        }}
+                                    >
+                                        <thead>
+                                            <tr
+                                                style={{
+                                                    textAlign: 'left',
+                                                    color: C.faint,
+                                                    fontSize: 11.5,
+                                                }}
+                                            >
+                                                <th
+                                                    style={{
+                                                        padding: '8px 10px',
+                                                    }}
+                                                >
+                                                    KARYAWAN
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: '8px 10px',
+                                                    }}
+                                                >
+                                                    JABATAN
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: '8px 10px',
+                                                        textAlign: 'right',
+                                                    }}
+                                                >
+                                                    {aiToken.period.toUpperCase()}
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: '8px 10px',
+                                                        textAlign: 'right',
+                                                    }}
+                                                >
+                                                    TOTAL
+                                                </th>
+                                                <th
+                                                    style={{
+                                                        padding: '8px 10px',
+                                                    }}
+                                                >
+                                                    TERAKHIR PAKAI
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {aiToken.consumers.map(
+                                                (consumer) => (
+                                                    <tr
+                                                        key={consumer.user_id}
+                                                        style={{
+                                                            borderTop: `1px solid ${C.line}`,
+                                                        }}
+                                                    >
+                                                        <td
+                                                            style={{
+                                                                padding: '10px',
+                                                            }}
+                                                        >
+                                                            <div
+                                                                style={{
+                                                                    fontWeight: 500,
+                                                                    color: C.text,
+                                                                }}
+                                                            >
+                                                                {consumer.name}
+                                                            </div>
+                                                            <div
+                                                                style={{
+                                                                    fontSize: 11.5,
+                                                                    color: C.faint,
+                                                                }}
+                                                            >
+                                                                {consumer.email ??
+                                                                    '—'}
+                                                            </div>
+                                                        </td>
+                                                        <td
+                                                            style={{
+                                                                padding: '10px',
+                                                                color: C.muted,
+                                                            }}
+                                                        >
+                                                            {consumer.position ??
+                                                                '—'}
+                                                        </td>
+                                                        <td
+                                                            style={{
+                                                                padding: '10px',
+                                                                textAlign:
+                                                                    'right',
+                                                                fontWeight: 600,
+                                                                color: C.navy,
+                                                            }}
+                                                        >
+                                                            {num(
+                                                                consumer.this_month,
+                                                            )}
+                                                        </td>
+                                                        <td
+                                                            style={{
+                                                                padding: '10px',
+                                                                textAlign:
+                                                                    'right',
+                                                                color: C.text,
+                                                            }}
+                                                        >
+                                                            {num(
+                                                                consumer.all_time,
+                                                            )}
+                                                        </td>
+                                                        <td
+                                                            style={{
+                                                                padding: '10px',
+                                                                color: C.muted,
+                                                            }}
+                                                        >
+                                                            {fmtDateTime(
+                                                                consumer.last_used_at,
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ),
+                                            )}
                                         </tbody>
                                     </table>
                                 </div>

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureFreshToken;
+use App\Http\Middleware\EnsureSubscriptionActive;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ResolveActiveTenant;
@@ -27,8 +28,15 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             HandleAppearance::class,
             ResolveActiveTenant::class,
+            EnsureSubscriptionActive::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
+        ]);
+
+        // A lapsed tenant is locked out of the mobile API too, not just the web
+        // app — otherwise the phone keeps working after the web app stops.
+        $middleware->api(append: [
+            EnsureSubscriptionActive::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

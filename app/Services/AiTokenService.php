@@ -278,8 +278,11 @@ final class AiTokenService
 
     /**
      * Raw free quota (tenant override, then package), nullable = unlimited.
+     *
+     * Public because reporting screens must tell "unlimited" apart from "none",
+     * a distinction {@see freeQuota()} flattens to 0.
      */
-    private function freeQuotaRaw(Tenant $tenant): ?int
+    public function freeQuotaRaw(Tenant $tenant): ?int
     {
         if ($tenant->ai_token_quota !== null) {
             return (int) $tenant->ai_token_quota;

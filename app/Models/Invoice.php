@@ -30,6 +30,25 @@ final class Invoice extends Model
         return $query->where('tenant_id', $tenantId);
     }
 
+    /**
+     * The next invoice number in this month's `INV-YYYYMM-####` series. Shared by
+     * the super admin's manual invoicing and self-service renewals so both draw
+     * from one sequence.
+     */
+    public static function nextNumber(): string
+    {
+        $prefix = 'INV-'.now()->format('Ym').'-';
+
+        $last = self::query()
+            ->where('invoice_number', 'like', $prefix.'%')
+            ->orderByDesc('invoice_number')
+            ->value('invoice_number');
+
+        $sequence = $last !== null ? ((int) substr($last, -4)) + 1 : 1;
+
+        return $prefix.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
+    }
+
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);
