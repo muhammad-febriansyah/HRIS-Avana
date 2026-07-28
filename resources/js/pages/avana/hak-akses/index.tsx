@@ -434,7 +434,8 @@ export default function AvanaHakAkses({
                         actions={actions}
                         modules={modules}
                         cells={modules.map(
-                            (_, rowIdx) => matrix[rowIdx]?.[activeRoleIdx] ?? {},
+                            (_, rowIdx) =>
+                                matrix[rowIdx]?.[activeRoleIdx] ?? {},
                         )}
                         assignableUsers={assignableUsers}
                         onToggle={toggleCell}
