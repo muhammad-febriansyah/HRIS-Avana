@@ -41,7 +41,7 @@ export default function EmployeesEdit({
         phone: data.phone ?? '',
         nik: data.nik ?? '',
         gender: data.gender ?? '',
-        birth_date: data.birth_date ?? '',
+        birth_date: data.birth_date_raw ?? '',
         birth_place: data.birth_place ?? '',
         religion: data.religion ?? '',
         marital_status: data.marital_status ?? '',

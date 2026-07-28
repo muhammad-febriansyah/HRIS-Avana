@@ -70,7 +70,9 @@ export type Employee = {
     phone: string | null;
     nik: string | null;
     gender: string | null;
+    /** Display form, `d M Y`. Use `birth_date_raw` to fill a date input. */
     birth_date: string | null;
+    birth_date_raw: string | null;
     birth_place: string | null;
     religion: string | null;
     marital_status: string | null;

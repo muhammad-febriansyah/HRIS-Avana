@@ -788,3 +788,23 @@ it('shows empty document, leave and payroll tabs for a freshly created employee'
             ->has('employee.data.payroll_history', 0)
             ->has('employee.data.held_assets', 0));
 });
+
+it('sends the birth date formatted for display and raw for the edit form', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $employee->update(['birth_date' => '1978-03-11']);
+
+    actingAs($this->admin)
+        ->get(route('avana.employees.show', $employee))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('employee.data.birth_date', '11 Mar 1978')
+            ->where('employee.data.birth_date_raw', '1978-03-11')
+            ->etc());
+
+    actingAs($this->admin)
+        ->get(route('avana.employees.edit', $employee))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('employee.data.birth_date_raw', '1978-03-11')
+            ->etc());
+});
