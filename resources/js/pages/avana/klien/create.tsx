@@ -584,6 +584,7 @@ export default function KlienCreate({ packages }: KlienCreateProps) {
                                     selectedPackage ? (
                                         <button
                                             type="button"
+                                            title={`Isi ulang ketiga kuota dengan angka bawaan paket ${selectedPackage.name}`}
                                             onClick={() =>
                                                 pickPackage(selectedPackage)
                                             }
@@ -594,7 +595,7 @@ export default function KlienCreate({ packages }: KlienCreateProps) {
                                                 size={14}
                                                 color={C.text}
                                             />
-                                            Ikuti paket
+                                            Kembalikan ke paket
                                         </button>
                                     ) : undefined
                                 }
