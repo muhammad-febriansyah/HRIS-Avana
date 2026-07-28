@@ -1,5 +1,7 @@
+import type { CSSProperties } from 'react';
 import { Fragment, useMemo, useState } from 'react';
 import { AIcon, C, card, hexA } from '@/lib/avana';
+import { Switch } from './components';
 import type { AccessModule } from './types';
 
 interface CompanyMenuPanelProps {
@@ -23,7 +25,21 @@ export function CompanyMenuPanel({
     onToggleFeature,
 }: CompanyMenuPanelProps) {
     const [search, setSearch] = useState('');
-    const [onlyOff, setOnlyOff] = useState(false);
+    const [status, setStatus] = useState<CompanyMenuStatus>('all');
+
+    /** A menu counts as live only when both its own switch and its feature are on. */
+    const isLive = (module: AccessModule): boolean =>
+        module.menuActive && module.featureEnabled;
+
+    const counts = useMemo(() => {
+        const live = modules.filter(isLive).length;
+
+        return {
+            all: modules.length,
+            active: live,
+            off: modules.length - live,
+        };
+    }, [modules]);
 
     const rows = useMemo(() => {
         const term = search.trim().toLowerCase();
@@ -36,11 +52,12 @@ export function CompanyMenuPanel({
                         `${module.label} ${module.parent ?? ''} ${module.group}`
                             .toLowerCase()
                             .includes(term)) &&
-                    (!onlyOff || !module.menuActive || !module.featureEnabled),
+                    (status === 'all' ||
+                        (status === 'active') === isLive(module)),
             );
-    }, [modules, search, onlyOff]);
+    }, [modules, search, status]);
 
-    const activeCount = modules.filter((m) => m.menuActive).length;
+    const activeCount = counts.active;
 
     return (
         <div style={{ ...card, overflow: 'hidden' }}>
@@ -62,10 +79,9 @@ export function CompanyMenuPanel({
                         Menu Perusahaan
                     </div>
                     <div style={{ fontSize: 12, color: C.faint, marginTop: 3 }}>
-                        Matikan di sini dan menu hilang untuk{' '}
-                        <b>semua peran</b>. Untuk satu peran saja, pakai tab
-                        peran. <b>{activeCount}</b> dari {modules.length} menu
-                        aktif.
+                        Matikan di sini dan menu hilang untuk <b>semua peran</b>
+                        . Untuk satu peran saja, pakai tab peran.{' '}
+                        <b>{activeCount}</b> dari {modules.length} menu aktif.
                     </div>
                 </div>
                 <div
@@ -102,25 +118,45 @@ export function CompanyMenuPanel({
                             <AIcon name="search" size={14} color={C.faint} />
                         </span>
                     </span>
-                    <button
-                        type="button"
-                        onClick={() => setOnlyOff((v) => !v)}
-                        style={{
-                            height: 34,
-                            padding: '0 12px',
-                            borderRadius: 9,
-                            border: `1px solid ${onlyOff ? C.primary : C.border}`,
-                            background: onlyOff
-                                ? hexA(C.primary, 0.08)
-                                : '#fff',
-                            color: onlyOff ? C.primary : C.muted,
-                            fontSize: 12.5,
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                        }}
-                    >
-                        Hanya yang nonaktif
-                    </button>
+                    <div style={segmentGroupStyle}>
+                        {STATUS_FILTERS.map((option) => {
+                            const active = status === option.key;
+
+                            return (
+                                <button
+                                    key={option.key}
+                                    type="button"
+                                    title={option.title}
+                                    onClick={() => setStatus(option.key)}
+                                    style={{
+                                        ...segmentStyle,
+                                        background: active
+                                            ? '#fff'
+                                            : 'transparent',
+                                        color: active ? C.navy : C.muted,
+                                        boxShadow: active
+                                            ? '0 1px 3px rgba(14,26,58,.12)'
+                                            : 'none',
+                                    }}
+                                >
+                                    {option.label}
+                                    <span
+                                        style={{
+                                            ...segmentCountStyle,
+                                            background: active
+                                                ? hexA(option.tone, 0.14)
+                                                : '#EEF1F7',
+                                            color: active
+                                                ? option.tone
+                                                : C.faint,
+                                        }}
+                                    >
+                                        {counts[option.key]}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
 
@@ -277,6 +313,7 @@ export function CompanyMenuPanel({
     );
 }
 
+/** Company-wide on/off, drawn by the same switch the role tabs use. */
 function MasterSwitch({
     on,
     title,
@@ -287,37 +324,66 @@ function MasterSwitch({
     onToggle: () => void;
 }) {
     return (
-        <button
-            type="button"
-            role="switch"
-            aria-checked={on}
-            title={title}
-            onClick={onToggle}
-            style={{
-                width: 40,
-                height: 23,
-                borderRadius: 100,
-                border: 'none',
-                cursor: 'pointer',
-                position: 'relative',
-                transition: 'background .15s',
-                background: on ? C.primary : '#D5DCEA',
-                flex: 'none',
-            }}
-        >
-            <span
-                style={{
-                    position: 'absolute',
-                    top: 3,
-                    left: on ? 20 : 3,
-                    width: 17,
-                    height: 17,
-                    borderRadius: '50%',
-                    background: '#fff',
-                    transition: 'left .15s',
-                    boxShadow: '0 1px 3px rgba(15,23,42,.2)',
-                }}
-            />
-        </button>
+        <Switch on={on} title={title} tone={C.primary} onToggle={onToggle} />
     );
 }
+
+/** Filter states for the company menu list: everything, live, or switched off. */
+type CompanyMenuStatus = 'all' | 'active' | 'off';
+
+const STATUS_FILTERS: {
+    key: CompanyMenuStatus;
+    label: string;
+    tone: string;
+    title: string;
+}[] = [
+    {
+        key: 'all',
+        label: 'Semua',
+        tone: C.primary,
+        title: 'Seluruh menu, apa pun statusnya',
+    },
+    {
+        key: 'active',
+        label: 'Aktif',
+        tone: C.green,
+        title: 'Menu yang hidup untuk perusahaan ini',
+    },
+    {
+        key: 'off',
+        label: 'Nonaktif',
+        tone: '#B45309',
+        title: 'Menu yang dimatikan, atau yang fiturnya tidak dibeli',
+    },
+];
+
+const segmentGroupStyle: CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 2,
+    padding: 3,
+    borderRadius: 10,
+    background: '#EEF1F7',
+};
+
+const segmentStyle: CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    height: 28,
+    padding: '0 10px',
+    border: 'none',
+    borderRadius: 8,
+    fontSize: 12.5,
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'background .14s ease',
+};
+
+const segmentCountStyle: CSSProperties = {
+    fontSize: 11,
+    fontWeight: 700,
+    lineHeight: 1,
+    padding: '3px 6px',
+    borderRadius: 999,
+};
