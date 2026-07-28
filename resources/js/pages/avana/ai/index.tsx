@@ -139,7 +139,14 @@ function renderMarkdown(text: string, citations: SopCitation[] = []): string {
         .replace(
             AI_IMAGE,
             (_match, alt: string, path: string) =>
-                `<img src="${path}" alt="${alt}" loading="lazy" style="display:block;width:100%;max-width:420px;height:auto;border-radius:10px;margin:10px 0" />`,
+                // A bare <img> leaves saving the picture to right-click, which
+                // is no help on a phone, so the drawing carries its own link.
+                `<span style="display:block;margin:10px 0">` +
+                `<img src="${path}" alt="${alt}" loading="lazy" style="display:block;width:100%;max-width:420px;height:auto;border-radius:10px" />` +
+                `<a href="${path}" download style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;padding:5px 11px;border:1px solid ${C.border};border-radius:8px;font-size:12.5px;font-weight:600;color:${C.text};text-decoration:none">` +
+                `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>` +
+                `Unduh gambar</a>` +
+                `</span>`,
         )
         .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
         .replace(

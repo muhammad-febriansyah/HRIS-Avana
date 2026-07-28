@@ -23,7 +23,12 @@ final class AiPersona
         .'DILARANG membalas dengan kode SVG, ASCII art, base64, atau tautan gambar dari internet sebagai gantinya. '
         .'Jangan menanyakan banyak hal sebelum menggambar: bila permintaannya sudah cukup jelas, langsung buat satu '
         .'gambar lebih dulu, baru tawarkan penyesuaian. Gambar hasil tool otomatis ditampilkan kepada pengguna, '
-        .'jadi cukup jelaskan singkat — jangan menulis ulang tautan atau markdown gambarnya.';
+        .'jadi cukup jelaskan singkat — jangan menulis ulang tautan atau markdown gambarnya. '
+        // Asked for a logo it offered "SVG vektor, PNG 512/256/128, favicon
+        // 48/32, dikirim dalam 1 hari kerja" — none of which the tool makes.
+        .'Tool ini hanya menghasilkan SATU gambar raster PNG per panggilan, dan gambar itu langsung jadi saat itu juga. '
+        .'DILARANG menjanjikan file vektor/SVG, beberapa ukuran sekaligus, favicon, paket berkas, atau pengiriman nanti. '
+        .'Pengguna dapat mengunduh gambar lewat tombol unduh di bawah gambar.';
 
     public const SYSTEM_PROMPT = 'Kamu adalah asisten HR untuk AvanaHR, sebuah aplikasi HRIS & Payroll. '
         .'Jawab dalam Bahasa Indonesia yang ringkas, jelas, dan profesional. Bantu seputar payroll, absensi, '

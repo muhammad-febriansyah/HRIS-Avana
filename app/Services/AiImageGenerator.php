@@ -101,10 +101,11 @@ final class AiImageGenerator
         $binary = $this->binaryOf($generated->base64, $generated->url);
 
         $path = sprintf(
-            '%s/%s/%s.png',
+            '%s/%s/%s.%s',
             self::DIRECTORY,
             $user->tenant_id ?? 'platform',
             (string) Str::ulid(),
+            $this->extensionOf($binary),
         );
 
         Storage::disk('public')->put($path, $binary);
@@ -119,6 +120,25 @@ final class AiImageGenerator
             // caption and the better alt text.
             'prompt' => $generated->revisedPrompt ?: $prompt,
         ];
+    }
+
+    /**
+     * The extension the bytes actually deserve.
+     *
+     * The file is offered as a download, so naming a WebP or JPEG ".png"
+     * hands the user a file their image editor will refuse to open. Providers
+     * differ — and gpt-image-1 returns WebP when asked to — so the magic
+     * number decides, with PNG as the fallback.
+     */
+    private function extensionOf(string $binary): string
+    {
+        return match (true) {
+            str_starts_with($binary, "\x89PNG\x0d\x0a\x1a\x0a") => 'png',
+            str_starts_with($binary, "\xff\xd8\xff") => 'jpg',
+            str_starts_with($binary, 'GIF8') => 'gif',
+            str_starts_with($binary, 'RIFF') && substr($binary, 8, 4) === 'WEBP' => 'webp',
+            default => 'png',
+        };
     }
 
     /**

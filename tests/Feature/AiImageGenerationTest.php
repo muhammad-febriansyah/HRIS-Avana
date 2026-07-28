@@ -179,3 +179,27 @@ it('gives the drawing call a timeout long enough for an image model', function (
             ->toBeGreaterThanOrEqual(120);
     });
 });
+
+it('names the stored file after the bytes the provider actually sent', function (): void {
+    // A WebP body: "RIFF" + size + "WEBP". Naming it .png would hand the user
+    // a download their image editor refuses to open.
+    $webp = base64_encode('RIFF'.pack('V', 20).'WEBPVP8 '.str_repeat("\0", 12));
+
+    Prism::fake([
+        ImageResponseFake::make()->withImages([
+            new GeneratedImage(base64: $webp),
+        ]),
+    ]);
+
+    $result = app(AiImageGenerator::class)->generate($this->user, 'ikon');
+
+    expect($result['path'])->toEndWith('.webp');
+    Storage::disk('public')->assertExists($result['path']);
+});
+
+it('still names a PNG body .png', function (): void {
+    Prism::fake([fakeImageResponse()]);
+
+    expect(app(AiImageGenerator::class)->generate($this->user, 'logo')['path'])
+        ->toEndWith('.png');
+});
