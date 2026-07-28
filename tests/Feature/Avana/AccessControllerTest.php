@@ -78,7 +78,9 @@ it('exposes a matrix cell per action for every module/role pairing', function ()
                 ->has('matrix', $rowCount)
                 ->has('matrix.0', $roleCount)
                 ->has('matrix.1.0', fn (Assert $cell) => $cell
-                    ->has('visible')
+                    // `visible` is the effective answer; `hidden` and `granted`
+                    // say which of the two gates is the reason when it is false.
+                    ->has('visible')->has('hidden')->has('granted')
                     ->has('view')->has('create')->has('update')
                     ->has('archive')->has('export')->has('approve'));
         });

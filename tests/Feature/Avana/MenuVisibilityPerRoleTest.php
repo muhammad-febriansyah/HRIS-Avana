@@ -271,3 +271,69 @@ it('creates an empty role when no source is given', function (): void {
 
     expect($created->permissions()->count())->toBe(0);
 });
+
+it('reports an admin menu as not visible until the role holds a permission', function (): void {
+    $props = actingAs($this->admin)
+        ->get(route('avana.hak-akses'))
+        ->assertOk()
+        ->viewData('page')['props'];
+
+    $rowIdx = collect($props['modules'])->search(fn (array $row): bool => $row['key'] === 'karyawan');
+    $colIdx = collect($props['roles'])->search(fn (array $role): bool => $role['id'] === $this->employeeRole->id);
+    $cell = $props['matrix'][$rowIdx][$colIdx];
+
+    // Karyawan holds no `employee` permission, so Data Karyawan is not in their
+    // sidebar — the panel must say so instead of claiming "Tampil".
+    expect(navLabels($this->employee))->not->toContain('Data Karyawan')
+        ->and($cell['visible'])->toBeFalse()
+        ->and($cell['granted'])->toBeFalse()
+        ->and($cell['hidden'])->toBeFalse();
+});
+
+it('grants the view permission when an admin menu is switched on for a role', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.hak-akses.menu.visibility'), [
+            'menu_key' => 'karyawan',
+            'role_id' => $this->employeeRole->id,
+            'visible' => true,
+        ])
+        ->assertSessionHas('success');
+
+    expect($this->employeeRole->fresh()->permissions()->where('code', 'employee.view')->exists())
+        ->toBeTrue();
+
+    // And the menu really is in their sidebar now.
+    expect(navLabels($this->employee->fresh()))->toContain('Data Karyawan');
+});
+
+it('reports a self-service menu as visible without any permission', function (): void {
+    $props = actingAs($this->admin)
+        ->get(route('avana.hak-akses'))
+        ->assertOk()
+        ->viewData('page')['props'];
+
+    $rowIdx = collect($props['modules'])->search(fn (array $row): bool => $row['key'] === 'saya-slip');
+    $colIdx = collect($props['roles'])->search(fn (array $role): bool => $role['id'] === $this->employeeRole->id);
+
+    expect($props['matrix'][$rowIdx][$colIdx])
+        ->toMatchArray(['visible' => true, 'granted' => true, 'hidden' => false]);
+});
+
+it('reports a menu switched off for the whole tenant as not visible for any role', function (): void {
+    actingAs($this->admin)->post(route('avana.hak-akses.menu.toggle'), [
+        'menu_key' => 'saya-slip',
+        'active' => false,
+    ]);
+
+    $props = actingAs($this->admin)
+        ->get(route('avana.hak-akses'))
+        ->assertOk()
+        ->viewData('page')['props'];
+
+    $rowIdx = collect($props['modules'])->search(fn (array $row): bool => $row['key'] === 'saya-slip');
+    $colIdx = collect($props['roles'])->search(fn (array $role): bool => $role['id'] === $this->employeeRole->id);
+
+    expect($props['matrix'][$rowIdx][$colIdx]['visible'])->toBeFalse()
+        // The hide switch was never touched, so the fix is the company tab.
+        ->and($props['matrix'][$rowIdx][$colIdx]['hidden'])->toBeFalse();
+});

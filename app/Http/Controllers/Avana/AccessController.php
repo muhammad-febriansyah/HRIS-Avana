@@ -204,14 +204,36 @@ class AccessController extends Controller
             ->groupBy('role_id')
             ->map(fn ($group) => $group->pluck('menu_key')->flip());
 
-        // matrix[rowIdx][roleIdx] = { visible: bool, view: bool, create: bool, ... }
+        $blockedKeys = collect($modules)
+            ->filter(fn (array $module): bool => ! $module['menuActive'] || ! $module['featureEnabled'])
+            ->pluck('key')
+            ->flip();
+
+        // matrix[rowIdx][roleIdx] = { visible, hidden, granted, view, create, ... }
+        //
+        // `visible` is what the role ACTUALLY sees, not merely what the hide
+        // switch says: a menu also needs a permission on its module (an admin
+        // menu with no action granted never reaches the sidebar) and needs to be
+        // on for the company. The panel would otherwise claim "Tampil" for rows
+        // the role cannot open — which is exactly how this screen used to lie.
         $matrix = collect($rows)
-            ->map(fn (array $row): array => $roleModels
-                ->map(fn (Role $role): array => [
-                    'visible' => ! ($hiddenByRole[$role->id] ?? collect())->has($row['key']),
-                    ...$this->roleActionCells($role, ['modules' => $row['permissionModules']]),
-                ])
-                ->all())
+            ->map(function (array $row) use ($roleModels, $hiddenByRole, $blockedKeys): array {
+                return $roleModels
+                    ->map(function (Role $role) use ($row, $hiddenByRole, $blockedKeys): array {
+                        $hidden = ($hiddenByRole[$role->id] ?? collect())->has($row['key']);
+                        $actions = $this->roleActionCells($role, ['modules' => $row['permissionModules']]);
+                        $granted = $this->roleGrantsMenu($role, $row['permissionModules']);
+                        $blocked = $blockedKeys->has($row['key']);
+
+                        return [
+                            'visible' => ! $hidden && $granted && ! $blocked,
+                            'hidden' => $hidden,
+                            'granted' => $granted,
+                            ...$actions,
+                        ];
+                    })
+                    ->all();
+            })
             ->all();
 
         return Inertia::render('avana/hak-akses/index', [
@@ -520,9 +542,30 @@ class AccessController extends Controller
             ['tenant_id' => $role->tenant_id ?? $user->tenant_id, 'is_visible' => $validated['visible']],
         );
 
-        return back()->with('success', $validated['visible']
-            ? 'Menu ditampilkan untuk '.$role->name
-            : 'Menu disembunyikan dari '.$role->name);
+        if (! $validated['visible']) {
+            return back()->with('success', 'Menu disembunyikan dari '.$role->name);
+        }
+
+        // Showing a menu means the role can open it. Lifting the hide flag alone
+        // would leave an admin menu still absent, because the sidebar also wants
+        // a permission on its module — so grant the minimum (Lihat) when the role
+        // holds nothing on it yet. Existing actions are never touched.
+        $role->load('permissions:id,code');
+
+        if (! $this->roleGrantsMenu($role, $menu['permissionModules'])) {
+            $before = $role->permissions()->pluck('code');
+
+            $viewIds = Permission::query()
+                ->whereIn('code', collect($menu['permissionModules'])->map(fn (string $m): string => $m.'.view'))
+                ->pluck('id');
+
+            $role->permissions()->syncWithoutDetaching($viewIds);
+            $this->recordPermissionChange($user, $role, $before, $role->permissions()->pluck('code'));
+
+            return back()->with('success', 'Menu ditampilkan untuk '.$role->name.' beserta izin Lihat');
+        }
+
+        return back()->with('success', 'Menu ditampilkan untuk '.$role->name);
     }
 
     /**
@@ -689,6 +732,28 @@ class AccessController extends Controller
         }
 
         return $cells;
+    }
+
+    /**
+     * Whether the role holds any permission on the menu's modules — the gate the
+     * sidebar and the `EnsureAvanaAccess` gate apply. A menu with
+     * no module (Dashboard, self-service) needs nothing.
+     *
+     * @param  array<int, string>  $modules
+     */
+    private function roleGrantsMenu(Role $role, array $modules): bool
+    {
+        if ($modules === []) {
+            return true;
+        }
+
+        if (in_array($role->code, self::PRIVILEGED_ROLES, true)) {
+            return true;
+        }
+
+        return $role->permissions
+            ->pluck('code')
+            ->contains(fn (string $code): bool => in_array(Str::before($code, '.'), $modules, true));
     }
 
     /**

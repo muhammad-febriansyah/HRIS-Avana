@@ -548,7 +548,16 @@ export function RolePanel({
 
                                     <VisibleToggle
                                         on={shown}
-                                        disabled={role.locked}
+                                        reason={
+                                            shown
+                                                ? null
+                                                : blocked
+                                                  ? 'Menu nonaktif'
+                                                  : cell.hidden
+                                                    ? 'Disembunyikan'
+                                                    : 'Belum ada izin'
+                                        }
+                                        disabled={role.locked || blocked}
                                         label={module.label}
                                         roleName={role.name}
                                         onToggle={() =>
@@ -565,7 +574,9 @@ export function RolePanel({
                                             justifyContent: 'flex-end',
                                         }}
                                     >
-                                        {module.actionable && shown ? (
+                                        {module.actionable &&
+                                        !cell.hidden &&
+                                        !blocked ? (
                                             actions.map((action) => (
                                                 <ActionCheckbox
                                                     key={action.key}
@@ -593,7 +604,7 @@ export function RolePanel({
                                                 }}
                                             >
                                                 {module.actionable
-                                                    ? 'sembunyikan/tampilkan untuk mengatur izin'
+                                                    ? 'tampilkan dulu untuk mengatur izin'
                                                     : 'tanpa izin aksi'}
                                             </span>
                                         )}
@@ -608,15 +619,20 @@ export function RolePanel({
     );
 }
 
-/** The one control that answers "does this role see the menu". */
+/**
+ * The one control that answers "does this role see the menu". Off carries the
+ * reason, because "not visible" has three different fixes.
+ */
 function VisibleToggle({
     on,
+    reason,
     disabled,
     label,
     roleName,
     onToggle,
 }: {
     on: boolean;
+    reason: string | null;
     disabled: boolean;
     label: string;
     roleName: string;
@@ -630,10 +646,12 @@ function VisibleToggle({
             disabled={disabled}
             title={
                 disabled
-                    ? `${roleName}: peran ini tidak dapat diubah`
+                    ? reason === 'Menu nonaktif'
+                        ? `${label} dimatikan untuk seluruh perusahaan — atur di tab Menu Perusahaan`
+                        : `${roleName}: peran ini tidak dapat diubah`
                     : on
                       ? `Sembunyikan ${label} dari ${roleName}`
-                      : `Tampilkan ${label} untuk ${roleName}`
+                      : `Tampilkan ${label} untuk ${roleName} (izin Lihat diberikan bila belum ada)`
             }
             onClick={disabled ? undefined : onToggle}
             style={{
@@ -658,7 +676,7 @@ function VisibleToggle({
                 size={13}
                 color={on ? C.green : C.faint}
             />
-            {on ? 'Tampil' : 'Disembunyikan'}
+            {on ? 'Tampil' : (reason ?? 'Tidak tampil')}
         </button>
     );
 }
