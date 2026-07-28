@@ -451,6 +451,15 @@ class EmployeeController extends Controller
                 ->whereNull('returned_date')
                 ->with('asset:id,code,name,category,condition')
                 ->latest('assigned_date'),
+            'documents' => fn ($query) => $query->latest('id'),
+            'leaveRequests' => fn ($query) => $query
+                ->with('leaveType:id,name')
+                ->latest('start_date')
+                ->limit(20),
+            'payrollItems' => fn ($query) => $query
+                ->with(['period:id,name,pay_date', 'run:id,status'])
+                ->latest('id')
+                ->limit(12),
         ]);
 
         return Inertia::render('avana/employees/show', [

@@ -5,6 +5,12 @@ use App\Models\AssetAssignment;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\EmployeeDocument;
+use App\Models\LeaveRequest;
+use App\Models\LeaveType;
+use App\Models\PayrollPeriod;
+use App\Models\PayrollRun;
+use App\Models\PayrollRunItem;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -661,4 +667,124 @@ it('does not flag a director as missing a manager on the chart', function (): vo
                     && $row['manager_id'] === null;
             })
             ->etc());
+});
+
+it('lists only the employee own documents, leave and payroll history on the detail page', function (): void {
+    $other = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $leaveType = LeaveType::forTenant($this->tenant->id)->firstOrFail();
+
+    // A brand-new employee starts with no history, so every row the page shows
+    // must be one this test created for them.
+    $employee = Employee::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_number' => 'EMP-DETAIL',
+        'full_name' => 'Karyawan Detail',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+        'branch_id' => $other->branch_id,
+    ]);
+
+    EmployeeDocument::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $employee->id,
+        'name' => 'Kontrak Kerja.pdf',
+        'type' => 'kontrak',
+        'file_path' => 'documents/kontrak.pdf',
+        'file_size' => 1_258_291,
+        'uploaded_at' => '2026-01-12',
+    ]);
+    EmployeeDocument::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $other->id,
+        'name' => 'Milik Orang Lain.pdf',
+        'file_path' => 'documents/lain.pdf',
+    ]);
+
+    LeaveRequest::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $employee->id,
+        'branch_id' => $employee->branch_id,
+        'leave_type_id' => $leaveType->id,
+        'start_date' => '2026-03-12',
+        'end_date' => '2026-03-14',
+        'total_days' => 3,
+        'status' => 'approved',
+    ]);
+    LeaveRequest::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $other->id,
+        'branch_id' => $other->branch_id,
+        'leave_type_id' => $leaveType->id,
+        'start_date' => '2026-04-01',
+        'end_date' => '2026-04-01',
+        'total_days' => 1,
+        'status' => 'pending',
+    ]);
+
+    $period = PayrollPeriod::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'PR-2026-05-DETAIL',
+        'name' => 'Mei 2026',
+        'start_date' => '2026-05-01',
+        'end_date' => '2026-05-31',
+        'status' => 'locked',
+    ]);
+    $run = PayrollRun::create([
+        'tenant_id' => $this->tenant->id,
+        'payroll_period_id' => $period->id,
+        'branch_id' => $employee->branch_id,
+        'status' => 'locked',
+    ]);
+    PayrollRunItem::create([
+        'tenant_id' => $this->tenant->id,
+        'payroll_run_id' => $run->id,
+        'payroll_period_id' => $period->id,
+        'employee_id' => $employee->id,
+        'net_salary' => 11_323_000,
+    ]);
+    PayrollRunItem::create([
+        'tenant_id' => $this->tenant->id,
+        'payroll_run_id' => $run->id,
+        'payroll_period_id' => $period->id,
+        'employee_id' => $other->id,
+        'net_salary' => 9_000_000,
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.employees.show', $employee))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/employees/show', false)
+            ->has('employee.data.documents', 1)
+            ->where('employee.data.documents.0.name', 'Kontrak Kerja.pdf')
+            ->where('employee.data.documents.0.size_label', '1.2 MB')
+            ->where('employee.data.documents.0.uploaded_at', '12 Jan 2026')
+            ->has('employee.data.leave_history', 1)
+            ->where('employee.data.leave_history.0.type', $leaveType->name)
+            ->where('employee.data.leave_history.0.date_label', '12–14 Mar 2026')
+            ->where('employee.data.leave_history.0.duration_label', '3 hari')
+            ->where('employee.data.leave_history.0.status_label', 'Disetujui')
+            ->has('employee.data.payroll_history', 1)
+            ->where('employee.data.payroll_history.0.period', 'Mei 2026')
+            ->where('employee.data.payroll_history.0.net_salary_label', 'Rp 11.323.000')
+            ->where('employee.data.payroll_history.0.status_label', 'Terkunci'));
+});
+
+it('shows empty document, leave and payroll tabs for a freshly created employee', function (): void {
+    $employee = Employee::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_number' => 'EMP-BARU',
+        'full_name' => 'Karyawan Baru',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.employees.show', $employee))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('employee.data.documents', 0)
+            ->has('employee.data.leave_history', 0)
+            ->has('employee.data.payroll_history', 0)
+            ->has('employee.data.held_assets', 0));
 });

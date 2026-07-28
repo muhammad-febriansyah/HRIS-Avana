@@ -140,6 +140,19 @@ final class Employee extends Model
         return $this->hasMany(AssetAssignment::class);
     }
 
+    public function leaveRequests(): HasMany
+    {
+        return $this->hasMany(LeaveRequest::class);
+    }
+
+    /**
+     * Payslip lines produced for this employee, one per payroll run.
+     */
+    public function payrollItems(): HasMany
+    {
+        return $this->hasMany(PayrollRunItem::class);
+    }
+
     public function taxProfile(): HasOne
     {
         return $this->hasOne(TaxProfile::class);

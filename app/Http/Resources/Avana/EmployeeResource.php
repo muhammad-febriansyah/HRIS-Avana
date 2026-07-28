@@ -4,6 +4,10 @@ namespace App\Http\Resources\Avana;
 
 use App\Models\AssetAssignment;
 use App\Models\Employee;
+use App\Models\EmployeeDocument;
+use App\Models\LeaveRequest;
+use App\Models\PayrollRunItem;
+use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Storage;
@@ -44,6 +48,18 @@ final class EmployeeResource extends JsonResource
         'good' => 'Baik',
         'fair' => 'Cukup',
         'damaged' => 'Rusak',
+    ];
+
+    /**
+     * Indonesian labels for the leave request status enum.
+     *
+     * @var array<string, string>
+     */
+    private const LEAVE_STATUS_LABELS = [
+        'pending' => 'Menunggu',
+        'approved' => 'Disetujui',
+        'rejected' => 'Ditolak',
+        'cancelled' => 'Dibatalkan',
     ];
 
     /**
@@ -136,7 +152,96 @@ final class EmployeeResource extends JsonResource
                     ],
                 ])
                 ->values()),
+            'documents' => $this->whenLoaded('documents', fn () => $this->documents
+                ->map(fn (EmployeeDocument $document): array => [
+                    'id' => $document->id,
+                    'name' => $document->name,
+                    'type' => $document->type,
+                    'size_label' => self::fileSize($document->file_size),
+                    'uploaded_at' => $document->uploaded_at?->format('d M Y'),
+                    'download_url' => $document->file_path !== null
+                        ? Storage::disk('public')->url($document->file_path)
+                        : null,
+                ])
+                ->values()),
+            'leave_history' => $this->whenLoaded('leaveRequests', fn () => $this->leaveRequests
+                ->map(fn (LeaveRequest $leave): array => [
+                    'id' => $leave->id,
+                    'type' => $leave->leaveType?->name ?? 'Cuti',
+                    'date_label' => self::dateRange($leave->start_date, $leave->end_date),
+                    'duration_label' => self::daysLabel($leave->total_days),
+                    'status' => $leave->status,
+                    'status_label' => self::LEAVE_STATUS_LABELS[$leave->status] ?? $leave->status,
+                ])
+                ->values()),
+            'payroll_history' => $this->whenLoaded('payrollItems', fn () => $this->payrollItems
+                ->map(fn (PayrollRunItem $item): array => [
+                    'id' => $item->id,
+                    'period' => $item->period?->name ?? '—',
+                    'net_salary_label' => 'Rp '.number_format((float) $item->net_salary, 0, ',', '.'),
+                    'status' => $item->run?->status ?? $item->status,
+                    'status_label' => PayrollPeriodResource::statusLabel($item->run?->status ?? $item->status),
+                ])
+                ->values()),
         ];
+    }
+
+    /**
+     * Render a stored byte count as a human-readable size label.
+     */
+    private static function fileSize(?int $bytes): ?string
+    {
+        if ($bytes === null) {
+            return null;
+        }
+
+        if ($bytes < 1024) {
+            return "{$bytes} B";
+        }
+
+        $units = ['KB', 'MB', 'GB'];
+        $value = $bytes / 1024;
+        $unitIndex = 0;
+
+        while ($value >= 1024 && $unitIndex < count($units) - 1) {
+            $value /= 1024;
+            $unitIndex++;
+        }
+
+        return number_format($value, 1).' '.$units[$unitIndex];
+    }
+
+    /**
+     * Collapse a start/end date pair into one label, dropping the repeated
+     * month and year when the range stays inside a single month.
+     */
+    private static function dateRange(?CarbonInterface $start, ?CarbonInterface $end): string
+    {
+        if ($start === null) {
+            return '—';
+        }
+
+        if ($end === null || $start->isSameDay($end)) {
+            return $start->format('d M Y');
+        }
+
+        if ($start->isSameMonth($end)) {
+            return $start->format('d').'–'.$end->format('d M Y');
+        }
+
+        return $start->format('d M Y').' – '.$end->format('d M Y');
+    }
+
+    /**
+     * Render a decimal day count without a trailing `.00`.
+     */
+    private static function daysLabel(int|float|string|null $days): string
+    {
+        $value = (float) $days;
+
+        return ($value === floor($value)
+            ? number_format($value, 0, ',', '.')
+            : rtrim(number_format($value, 2, ',', '.'), '0')).' hari';
     }
 
     /**

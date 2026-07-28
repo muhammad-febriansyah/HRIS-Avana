@@ -31,6 +31,35 @@ export type HeldAsset = {
     } | null;
 };
 
+/** An uploaded document belonging to the employee. */
+export type EmployeeDocumentRow = {
+    id: number;
+    name: string;
+    type: string | null;
+    size_label: string | null;
+    uploaded_at: string | null;
+    download_url: string | null;
+};
+
+/** One leave request in the employee's leave history. */
+export type LeaveHistoryRow = {
+    id: number;
+    type: string;
+    date_label: string;
+    duration_label: string;
+    status: string;
+    status_label: string;
+};
+
+/** One payslip line in the employee's payroll history. */
+export type PayrollHistoryRow = {
+    id: number;
+    period: string;
+    net_salary_label: string;
+    status: string;
+    status_label: string;
+};
+
 /** A single employee record as serialized by `EmployeeResource`. */
 export type Employee = {
     id: number;
@@ -76,6 +105,9 @@ export type Employee = {
     manager?: ManagerRef | null;
     custom_data?: Record<string, string>;
     held_assets?: HeldAsset[];
+    documents?: EmployeeDocumentRow[];
+    leave_history?: LeaveHistoryRow[];
+    payroll_history?: PayrollHistoryRow[];
 };
 
 /** Laravel paginator `meta` block carried by a resource collection. */
