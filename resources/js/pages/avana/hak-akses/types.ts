@@ -24,6 +24,8 @@ export interface AccessRole {
     users: number;
     color: string;
     isSystem: boolean;
+    /** May its holders sign in to the Flutter app — separate from web access. */
+    canAccessMobile: boolean;
     /** True when the current actor may not edit this role (self-lockout / super_admin). */
     locked: boolean;
     /** Who holds the role — answers "peran ini dipakai siapa?". */
@@ -62,6 +64,8 @@ export interface AccessModule {
     permissionModules: string[];
     /** Tenant-wide on/off for this menu (Menu Builder's is_active). */
     menuActive: boolean;
+    /** True for this very screen: turning it off would lock the admin out. */
+    lockedActive: boolean;
     menuItemId: number | null;
     /** The package feature behind the menu, if any. */
     feature: string | null;

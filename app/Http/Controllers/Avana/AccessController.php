@@ -112,6 +112,53 @@ class AccessController extends Controller
     }
 
     /**
+     * The menu rows as the screens consume them: sidebar order, with the
+     * tenant-wide state (menu on/off, package feature) each row depends on.
+     *
+     * @param  array<int, array<string, mixed>>  $rows  Output of {@see matrixRows}.
+     * @return array<int, array<string, mixed>>
+     */
+    private function menuPayload(array $rows, ?Tenant $tenant): array
+    {
+        // Feature codes currently enabled for the tenant (a super admin without an
+        // impersonated tenant has none). Drives each row's master "Aktif" switch.
+        $enabledFeatureCodes = $tenant === null
+            ? collect()
+            : Feature::whereIn('id', $tenant->features()->where('is_enabled', true)->pluck('feature_id'))->pluck('code');
+
+        $featureNames = Feature::query()->pluck('name', 'code');
+
+        $accessPath = trim((string) parse_url(route('avana.hak-akses'), PHP_URL_PATH), '/');
+
+        return collect($rows)
+            ->map(fn (array $row): array => [
+                'key' => $row['key'],
+                'label' => $row['label'],
+                'group' => $row['group'],
+                // The collapsible parent this menu sits under, e.g. "Kehadiran".
+                'parent' => $row['parent'],
+                'href' => $row['href'],
+                'actionable' => $row['permissionModules'] !== [],
+                'permissionModules' => $row['permissionModules'],
+                // Tenant-wide on/off for this one menu (Menu Builder's is_active).
+                'menuActive' => $row['isActive'],
+                // This row IS the access screen: its switch is shown locked,
+                // because switching it off would close the way back in.
+                'lockedActive' => $this->gatesRequest($row['href'], $accessPath),
+                'menuItemId' => $row['menuItemId'],
+                // The package feature behind the menu: off = no role can reach it.
+                'feature' => $row['feature'],
+                'featureLabel' => $row['feature'] !== null ? ($featureNames[$row['feature']] ?? $row['feature']) : null,
+                'hasFeature' => $row['feature'] !== null,
+                'featureEnabled' => $row['feature'] === null || $enabledFeatureCodes->contains($row['feature']),
+                // Self-service rows: every employee holds `own`, so per-role
+                // control is visibility only — there is no action to grant.
+                'selfService' => $row['modules'] === ['own'],
+            ])
+            ->all();
+    }
+
+    /**
      * Render the access-control (RBAC) screen: role cards and the per-action
      * permission matrix (menu × role × action).
      */
@@ -139,10 +186,15 @@ class AccessController extends Controller
             'id' => $role->id,
             'name' => $role->name,
             'code' => $role->code,
-            'desc' => self::ROLE_DESCRIPTIONS[$role->code] ?? '',
+            // What the admin typed when creating the role wins; the seeded roles
+            // have no description of their own, so they fall back to the blurbs.
+            'desc' => $role->description ?? self::ROLE_DESCRIPTIONS[$role->code] ?? '',
             'users' => $role->users_count,
             'color' => self::ROLE_COLORS[$index % count(self::ROLE_COLORS)],
             'isSystem' => (bool) $role->is_system,
+            // May the holders of this role sign in to the Flutter app? Separate
+            // from every web permission — the phone is its own decision.
+            'canAccessMobile' => (bool) $role->can_access_mobile,
             // A locked role cannot be edited by the current actor: super_admin is
             // always immutable, and a tenant admin can never edit their own role.
             'locked' => $role->code === 'super_admin' || $actorRoleIds->contains($role->id),
@@ -162,40 +214,9 @@ class AccessController extends Controller
             ->values()
             ->all();
 
-        // Feature codes currently enabled for the tenant (super admin without an
-        // impersonated tenant has none). Drives each row's master "Aktif" switch.
         $tenant = $user->tenant;
-        $enabledFeatureCodes = $tenant === null
-            ? collect()
-            : Feature::whereIn('id', $tenant->features()->where('is_enabled', true)->pluck('feature_id'))->pluck('code');
-
         $rows = $this->matrixRows($tenantId);
-
-        $featureNames = Feature::query()->pluck('name', 'code');
-
-        $modules = collect($rows)
-            ->map(fn (array $row): array => [
-                'key' => $row['key'],
-                'label' => $row['label'],
-                'group' => $row['group'],
-                // The collapsible parent this menu sits under, e.g. "Kehadiran".
-                'parent' => $row['parent'],
-                'href' => $row['href'],
-                'actionable' => $row['permissionModules'] !== [],
-                'permissionModules' => $row['permissionModules'],
-                // Tenant-wide on/off for this one menu (Menu Builder's is_active).
-                'menuActive' => $row['isActive'],
-                'menuItemId' => $row['menuItemId'],
-                // The package feature behind the menu: off = no role can reach it.
-                'feature' => $row['feature'],
-                'featureLabel' => $row['feature'] !== null ? ($featureNames[$row['feature']] ?? $row['feature']) : null,
-                'hasFeature' => $row['feature'] !== null,
-                'featureEnabled' => $row['feature'] === null || $enabledFeatureCodes->contains($row['feature']),
-                // Self-service rows: every employee holds `own`, so per-role
-                // control is visibility only — there is no action to grant.
-                'selfService' => $row['modules'] === ['own'],
-            ])
-            ->all();
+        $modules = $this->menuPayload($rows, $tenant);
 
         $hiddenByRole = RoleMenuVisibility::query()
             ->whereIn('role_id', $roleModels->pluck('id'))
@@ -338,6 +359,43 @@ class AccessController extends Controller
         $role->users()->detach($member->id);
 
         return back()->with('success', $member->name.' dikeluarkan dari peran '.$role->name);
+    }
+
+    /**
+     * Allow or bar this role from the mobile (Flutter) app.
+     *
+     * Turning it off also revokes the outstanding phone sessions of everyone who
+     * loses the app by it — otherwise a signed-in device keeps working until its
+     * JWT expires, which reads as "the switch does nothing". Holders who keep the
+     * app through another role are left alone.
+     */
+    public function toggleRoleMobile(Request $request, Role $role): RedirectResponse
+    {
+        $this->ensureCanManageAccess($request);
+
+        $validated = $request->validate([
+            'enabled' => ['required', 'boolean'],
+        ]);
+
+        /** @var User $actor */
+        $actor = $request->user();
+        $role = $this->assertManageableRole($actor, $role);
+
+        $role->update(['can_access_mobile' => $validated['enabled']]);
+
+        if ($validated['enabled'] === false) {
+            $locked = $role->users()->with('roles:id,can_access_mobile')->get()
+                ->reject(fn (User $member): bool => $member->canAccessMobile())
+                ->pluck('id');
+
+            if ($locked->isNotEmpty()) {
+                User::whereIn('id', $locked)->increment('token_version');
+            }
+        }
+
+        return back()->with('success', $validated['enabled']
+            ? 'Peran '.$role->name.' sekarang bisa memakai aplikasi mobile.'
+            : 'Peran '.$role->name.' tidak bisa lagi masuk aplikasi mobile.');
     }
 
     /**
@@ -592,9 +650,42 @@ class AccessController extends Controller
             ->where('super_admin_only', false)
             ->firstOrFail();
 
+        // Unlike the per-role switches, this one is tenant-wide, so the usual
+        // self-lockout guard (you cannot edit your own role) does not cover it.
+        abort_if(
+            ! $validated['active'] && $this->gatesRequest($item->href, $request->path()),
+            422,
+            'Menu ini adalah layar yang sedang Anda pakai — mematikannya akan mengunci Anda dari sini.',
+        );
+
         $item->update(['is_active' => $validated['active']]);
 
         return back()->with('success', $validated['active'] ? 'Menu diaktifkan' : 'Menu dinonaktifkan');
+    }
+
+    /**
+     * Whether this menu is the very screen serving the current request.
+     *
+     * Turning such a menu off closes every route beneath its href — including
+     * the endpoint that would turn it back on — because {@see EnsureAvanaAccess}
+     * resolves a path to the longest menu href that prefixes it. A tenant admin
+     * who flipped the Hak Akses row's own "Aktif" switch was then locked out of
+     * access control for good, with only a super admin able to undo it.
+     *
+     * Matching by href rather than by menu key keeps the guard correct if the
+     * screen ever moves, and leaves every other menu freely toggleable — those
+     * can always be switched back on from here.
+     */
+    private function gatesRequest(?string $href, string $path): bool
+    {
+        if ($href === null) {
+            return false;
+        }
+
+        $href = trim($href, '/');
+        $path = trim($path, '/');
+
+        return $href !== '' && ($path === $href || str_starts_with($path, $href.'/'));
     }
 
     /**
@@ -637,7 +728,72 @@ class AccessController extends Controller
     }
 
     /**
-     * Create a new custom role for the current (or impersonated) tenant.
+     * The "Buat Peran" screen: the role's own details on top, every menu of the
+     * tenant below it. A whole page rather than a dialog — picking menus is the
+     * bulk of creating a role, and a modal cannot hold a hundred rows.
+     */
+    public function createRole(Request $request): Response
+    {
+        $this->ensureCanManageAccess($request);
+
+        /** @var User $user */
+        $user = $request->user();
+        $isSuperAdmin = $user->isSuperAdmin();
+
+        $rows = $this->matrixRows($user->tenant_id);
+
+        // Existing roles as optional starting points. Sent with their current
+        // selection so "tiru" fills the checkboxes in the browser — the admin sees
+        // what they inherit before saving, and can edit it first.
+        $sources = $this->tenantRoles($user->tenant_id, $isSuperAdmin)
+            ->where('code', '!=', 'super_admin')
+            ->with('permissions:id,code')
+            ->orderBy('name')
+            ->get();
+
+        $hiddenByRole = RoleMenuVisibility::query()
+            ->whereIn('role_id', $sources->pluck('id'))
+            ->where('is_visible', false)
+            ->get(['role_id', 'menu_key'])
+            ->groupBy('role_id')
+            ->map(fn ($group) => $group->pluck('menu_key')->flip());
+
+        $templates = $sources->map(function (Role $role) use ($rows, $hiddenByRole): array {
+            $selection = [];
+
+            foreach ($rows as $row) {
+                $hidden = ($hiddenByRole[$role->id] ?? collect())->has($row['key']);
+
+                if ($hidden || ! $this->roleGrantsMenu($role, $row['permissionModules'])) {
+                    continue;
+                }
+
+                $cells = $this->roleActionCells($role, ['modules' => $row['permissionModules']]);
+
+                $selection[$row['key']] = array_keys(array_filter($cells));
+            }
+
+            return [
+                'id' => $role->id,
+                'name' => $role->name,
+                'canAccessMobile' => (bool) $role->can_access_mobile,
+                'selection' => $selection,
+            ];
+        })->values()->all();
+
+        return Inertia::render('avana/hak-akses/role-create', [
+            'modules' => $this->menuPayload($rows, $user->tenant),
+            'actions' => collect(PermissionCatalog::ACTIONS)
+                ->map(fn (string $label, string $key): array => ['key' => $key, 'label' => $label])
+                ->values()
+                ->all(),
+            'templates' => $templates,
+        ]);
+    }
+
+    /**
+     * Create a new custom role for the current (or impersonated) tenant, together
+     * with the menus and actions picked on the create screen.
      */
     public function storeRole(Request $request): RedirectResponse
     {
@@ -645,9 +801,17 @@ class AccessController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:255'],
             // Starting from an existing role beats starting from nothing: a blank
             // role sees no menu at all, which reads as "the role is broken".
             'copy_from_role_id' => ['nullable', 'integer', 'exists:roles,id'],
+            'can_access_mobile' => ['nullable', 'boolean'],
+            // The menu picks made on the create screen: every menu listed is shown
+            // to the role, with the actions it may perform there.
+            'menus' => ['nullable', 'array'],
+            'menus.*.key' => ['required', 'string'],
+            'menus.*.actions' => ['nullable', 'array'],
+            'menus.*.actions.*' => ['string', 'in:'.implode(',', PermissionCatalog::actionKeys())],
         ]);
 
         /** @var User $user */
@@ -655,10 +819,20 @@ class AccessController extends Controller
 
         $role = Role::create([
             'tenant_id' => $user->tenant_id,
-            'code' => Str::slug($validated['name']),
+            'code' => $this->uniqueRoleCode($validated['name'], $user->tenant_id),
             'name' => $validated['name'],
+            'description' => $validated['description'] ?? null,
             'is_system' => false,
+            'can_access_mobile' => $validated['can_access_mobile'] ?? true,
         ]);
+
+        if (($validated['menus'] ?? null) !== null) {
+            $this->applyMenuSelection($role, $validated['menus'], $user->tenant_id);
+
+            return redirect()
+                ->route('avana.hak-akses', ['tab' => $role->code])
+                ->with('success', 'Peran '.$role->name.' dibuat dengan '.count($validated['menus']).' menu. Tambahkan penggunanya di tab ini.');
+        }
 
         if (($validated['copy_from_role_id'] ?? null) !== null) {
             $source = $this->tenantRoles($user->tenant_id, $user->isSuperAdmin())
@@ -681,6 +855,69 @@ class AccessController extends Controller
         }
 
         return back()->with('success', 'Peran '.$role->name.' dibuat. Tambahkan penggunanya, lalu atur menunya.');
+    }
+
+    /**
+     * A slug that no other role of the tenant holds. Two roles named alike would
+     * otherwise share a code, and the screen keys its tabs by code.
+     */
+    private function uniqueRoleCode(string $name, ?int $tenantId): string
+    {
+        $base = Str::slug($name) ?: 'peran';
+        $code = $base;
+        $suffix = 2;
+
+        while (Role::query()->where('tenant_id', $tenantId)->where('code', $code)->exists()) {
+            $code = $base.'-'.$suffix++;
+        }
+
+        return $code;
+    }
+
+    /**
+     * Write the create screen's menu picks onto a role: the listed menus become
+     * visible with the actions chosen, and every other menu of the tenant is
+     * explicitly hidden — an unlisted menu is a menu the admin left out, not one
+     * they forgot, and self-service rows would otherwise show up regardless.
+     *
+     * A picked menu with no action still gets `view`; without it the sidebar drops
+     * the row and the pick would silently do nothing.
+     *
+     * @param  array<int, array{key: string, actions?: array<int, string>|null}>  $menus
+     */
+    private function applyMenuSelection(Role $role, array $menus, ?int $tenantId): void
+    {
+        $picked = collect($menus)->keyBy('key');
+        $codes = [];
+
+        foreach ($this->matrixRows($tenantId) as $row) {
+            $pick = $picked->get($row['key']);
+
+            RoleMenuVisibility::updateOrCreate(
+                ['role_id' => $role->id, 'menu_key' => $row['key']],
+                ['tenant_id' => $role->tenant_id ?? $tenantId, 'is_visible' => $pick !== null],
+            );
+
+            if ($pick === null || $row['permissionModules'] === []) {
+                continue;
+            }
+
+            $actions = $pick['actions'] ?? [];
+
+            if ($actions === []) {
+                $actions = ['view'];
+            }
+
+            foreach ($row['permissionModules'] as $module) {
+                foreach ($actions as $action) {
+                    $codes[] = $module.'.'.$action;
+                }
+            }
+        }
+
+        $role->permissions()->sync(
+            Permission::query()->whereIn('code', array_unique($codes))->pluck('id'),
+        );
     }
 
     /**

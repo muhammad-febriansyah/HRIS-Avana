@@ -282,10 +282,13 @@ export function CompanyMenuPanel({
                                 {hasTenant && module.menuItemId !== null ? (
                                     <MasterSwitch
                                         on={module.menuActive}
+                                        disabled={module.lockedActive}
                                         title={
-                                            module.menuActive
-                                                ? `Nonaktifkan ${module.label} untuk seluruh perusahaan`
-                                                : `Aktifkan ${module.label}`
+                                            module.lockedActive
+                                                ? `${module.label} tidak bisa dimatikan — ini layar yang sedang Anda pakai`
+                                                : module.menuActive
+                                                  ? `Nonaktifkan ${module.label} untuk seluruh perusahaan`
+                                                  : `Aktifkan ${module.label}`
                                         }
                                         onToggle={() =>
                                             onToggleMenu(
@@ -316,15 +319,23 @@ export function CompanyMenuPanel({
 /** Company-wide on/off, drawn by the same switch the role tabs use. */
 function MasterSwitch({
     on,
+    disabled = false,
     title,
     onToggle,
 }: {
     on: boolean;
+    disabled?: boolean;
     title: string;
     onToggle: () => void;
 }) {
     return (
-        <Switch on={on} title={title} tone={C.primary} onToggle={onToggle} />
+        <Switch
+            on={on}
+            disabled={disabled}
+            title={title}
+            tone={C.primary}
+            onToggle={onToggle}
+        />
     );
 }
 

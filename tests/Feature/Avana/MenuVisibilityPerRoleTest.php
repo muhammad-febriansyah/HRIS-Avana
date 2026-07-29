@@ -142,6 +142,54 @@ it('turns a single menu off for the whole tenant', function (): void {
     actingAs($this->employee)->get(route('avana.saya.slip-gaji'))->assertForbidden();
 });
 
+it('refuses to switch off the access screen itself', function (): void {
+    // Without this guard the tenant admin closes every route under
+    // /avana/hak-akses — including the one that turns the menu back on — and is
+    // locked out of access control with no way back.
+    actingAs($this->admin)
+        ->post(route('avana.hak-akses.menu.toggle'), [
+            'menu_key' => 'hak-akses',
+            'active' => false,
+        ])
+        ->assertStatus(422);
+
+    expect((bool) MenuItem::forTenant($this->tenant->id)->where('key', 'hak-akses')->value('is_active'))
+        ->toBeTrue();
+
+    actingAs($this->admin)->get(route('avana.hak-akses'))->assertOk();
+});
+
+it('marks the access screens own row as locked in the payload', function (): void {
+    $modules = actingAs($this->admin)
+        ->get(route('avana.hak-akses'))
+        ->assertOk()
+        ->viewData('page')['props']['modules'];
+
+    $locked = collect($modules)->where('lockedActive', true)->pluck('key');
+
+    expect($locked->all())->toBe(['hak-akses']);
+});
+
+it('still switches off a menu that is not the access screen', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.hak-akses.menu.toggle'), [
+            'menu_key' => 'custom-fields',
+            'active' => false,
+        ])
+        ->assertSessionHas('success');
+
+    expect((bool) MenuItem::forTenant($this->tenant->id)->where('key', 'custom-fields')->value('is_active'))
+        ->toBeFalse();
+
+    // And the way back is still open, because Hak Akses stayed up.
+    actingAs($this->admin)
+        ->post(route('avana.hak-akses.menu.toggle'), [
+            'menu_key' => 'custom-fields',
+            'active' => true,
+        ])
+        ->assertSessionHas('success');
+});
+
 it('never hides anything from a super admin', function (): void {
     RoleMenuVisibility::create([
         'tenant_id' => $this->tenant->id,
