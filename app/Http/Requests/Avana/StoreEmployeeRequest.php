@@ -110,6 +110,14 @@ class StoreEmployeeRequest extends FormRequest
                 } elseif (User::where('email', $email)->exists()) {
                     $validator->errors()->add('email', 'Email sudah digunakan akun lain.');
                 }
+
+                // A new login must be told which role it holds. There is no
+                // "default employee role" to fall back on any more — a tenant
+                // names its own roles, so an unpicked role would leave the
+                // account with an empty sidebar and a 403 on every page.
+                if (blank($this->input('role_id'))) {
+                    $validator->errors()->add('role_id', 'Pilih peran untuk akun ini — peran menentukan menu yang dilihat karyawan.');
+                }
             }
         });
     }

@@ -254,9 +254,11 @@ it('provisions roles, menu and a working admin login with the new tenant', funct
 
     $tenant = Tenant::where('slug', 'sinar-baru')->firstOrFail();
 
-    // The four system roles, so the user form has something to assign.
-    expect(Role::where('tenant_id', $tenant->id)->pluck('code')->sort()->values()->all())
-        ->toBe(['admin_tenant_hr', 'employee', 'finance', 'manager']);
+    // Exactly one role: the Admin Tenant / HR account that builds the rest. No
+    // Manager / Finance / Karyawan is assumed — the tenant names its own roles
+    // on Buat Peran, choosing the menus each one sees.
+    expect(Role::where('tenant_id', $tenant->id)->pluck('code')->all())
+        ->toBe(['admin_tenant_hr']);
 
     // The sidebar the tenant admin will actually see.
     expect(MenuItem::where('tenant_id', $tenant->id)->count())->toBeGreaterThan(0);
@@ -377,7 +379,7 @@ it('back-fills features, roles and menu when an admin is added to a bare tenant'
         ])
         ->assertSessionHas('credentials');
 
-    expect(Role::where('tenant_id', $bare->id)->count())->toBe(4);
+    expect(Role::where('tenant_id', $bare->id)->pluck('code')->all())->toBe(['admin_tenant_hr']);
     expect(MenuItem::where('tenant_id', $bare->id)->count())->toBeGreaterThan(0);
     expect($bare->features()->where('is_enabled', true)->count())->toBe(Feature::count());
 });

@@ -326,6 +326,7 @@ it('rejects a bulk work location from another tenant', function (): void {
 
 it('creates a mobile login account when a password is set on store', function (): void {
     $branch = Branch::forTenant($this->tenant->id)->first();
+    $role = Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->firstOrFail();
 
     actingAs($this->admin)
         ->post(route('avana.employees.store'), [
@@ -334,6 +335,7 @@ it('creates a mobile login account when a password is set on store', function ()
             'employment_status' => 'permanent',
             'status' => 'active',
             'branch_id' => $branch->id,
+            'role_id' => $role->id,
             'password' => 'rahasia123',
         ])
         ->assertRedirect(route('avana.employees.index'));
@@ -389,6 +391,7 @@ it('changes an existing account role on update without a password', function ():
         'employment_status' => 'permanent',
         'status' => 'active',
         'branch_id' => $branch->id,
+        'role_id' => Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->value('id'),
         'password' => 'rahasia123',
     ]);
 
@@ -461,6 +464,7 @@ it('resets an existing login password on update', function (): void {
         'email' => 'reset.target@avanahr.test',
         'employment_status' => 'permanent',
         'status' => 'active',
+        'role_id' => Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->value('id'),
         'password' => 'lamalama1',
     ]);
 
@@ -478,18 +482,56 @@ it('resets an existing login password on update', function (): void {
 });
 
 it('creates login accounts within a bulk submit', function (): void {
+    $role = Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->firstOrFail();
+
     actingAs($this->admin)->post(route('avana.employees.bulk.store'), [
+        'role_id' => $role->id,
         'employees' => [
             ['full_name' => 'Bulk Login A', 'email' => 'bulk.a@avanahr.test', 'employment_status' => 'permanent', 'status' => 'active', 'password' => 'rahasia123'],
             ['full_name' => 'Bulk NoLogin', 'employment_status' => 'contract', 'status' => 'active'],
         ],
     ])->assertRedirect(route('avana.employees.index'));
 
-    expect(Employee::where('full_name', 'Bulk Login A')->firstOrFail()->user_id)->not->toBeNull();
+    $withLogin = Employee::where('full_name', 'Bulk Login A')->firstOrFail();
+
+    expect($withLogin->user_id)->not->toBeNull();
+    expect($withLogin->user->roles->pluck('id'))->toContain($role->id);
     expect(Employee::where('full_name', 'Bulk NoLogin')->firstOrFail()->user_id)->toBeNull();
 
     $this->postJson('/api/v1/auth/login', ['email' => 'bulk.a@avanahr.test', 'password' => 'rahasia123'])
         ->assertOk()->assertJsonStructure(['access_token']);
+});
+
+it('refuses a bulk login batch with no role picked', function (): void {
+    actingAs($this->admin)->post(route('avana.employees.bulk.store'), [
+        'employees' => [
+            ['full_name' => 'Bulk NoRole', 'email' => 'bulk.norole@avanahr.test', 'employment_status' => 'permanent', 'status' => 'active', 'password' => 'rahasia123'],
+        ],
+    ])->assertSessionHasErrors('role_id');
+
+    expect(Employee::where('full_name', 'Bulk NoRole')->exists())->toBeFalse();
+});
+
+it('allows a bulk batch with no role when no row creates a login', function (): void {
+    actingAs($this->admin)->post(route('avana.employees.bulk.store'), [
+        'employees' => [
+            ['full_name' => 'Bulk Plain', 'employment_status' => 'contract', 'status' => 'active'],
+        ],
+    ])->assertRedirect(route('avana.employees.index'));
+
+    expect(Employee::where('full_name', 'Bulk Plain')->firstOrFail()->user_id)->toBeNull();
+});
+
+it('refuses to create a login on the employee form with no role picked', function (): void {
+    actingAs($this->admin)->post(route('avana.employees.store'), [
+        'full_name' => 'No Role Login',
+        'email' => 'norole.login@avanahr.test',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+        'password' => 'rahasia123',
+    ])->assertSessionHasErrors('role_id');
+
+    expect(Employee::where('full_name', 'No Role Login')->exists())->toBeFalse();
 });
 
 it('rejects a bulk row that sets a password without an email', function (): void {
@@ -622,6 +664,43 @@ it('turns the "Tidak ada — Approver Puncak" choice into a director', function 
 
     expect($employee->is_top_approver)->toBeTrue()
         ->and($employee->manager_id)->toBeNull();
+});
+
+it('keeps the "Belum ditentukan" choice out of the director flag', function (): void {
+    // The first hires of a company have nobody above them yet, but they are not
+    // the board either. Before this sentinel existed the picker offered them
+    // only "Tidak ada — Approver Puncak", so a fresh tenant could not record a
+    // rank-and-file employee without granting them self-approval.
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), [
+            'full_name' => 'Sari Staf',
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'manager_id' => 'unassigned',
+        ])
+        ->assertRedirect(route('avana.employees.index'));
+
+    $employee = Employee::where('full_name', 'Sari Staf')->firstOrFail();
+
+    expect($employee->is_top_approver)->toBeFalse()
+        ->and($employee->manager_id)->toBeNull();
+});
+
+it('drops the director flag when a director is moved to "Belum ditentukan"', function (): void {
+    $director = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $director->update(['manager_id' => null, 'is_top_approver' => true]);
+
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $director), [
+            'full_name' => $director->full_name,
+            'employment_status' => $director->employment_status,
+            'status' => 'active',
+            'manager_id' => 'unassigned',
+        ])
+        ->assertRedirect();
+
+    expect($director->fresh()->is_top_approver)->toBeFalse()
+        ->and($director->fresh()->manager_id)->toBeNull();
 });
 
 it('clears the director flag once somebody is given a manager', function (): void {

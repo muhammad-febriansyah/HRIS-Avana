@@ -20,6 +20,17 @@ trait ResolvesTopApprover
     public const NO_MANAGER = 'none';
 
     /**
+     * Sentinel for "belum ditentukan": nobody is recorded above this person
+     * *yet*, which is not the same as declaring them the top of the chain.
+     *
+     * Without it the very first employee of a new tenant could only be saved as
+     * an approver puncak — the picker had no colleagues to offer, so the sole
+     * selectable entry was NO_MANAGER, and a rank-and-file hire silently gained
+     * self-approving leave, overtime and reimbursement.
+     */
+    public const UNASSIGNED_MANAGER = 'unassigned';
+
+    /**
      * Translate the sentinel into the two columns the app actually stores.
      */
     protected function resolveTopApprover(): void
@@ -32,6 +43,12 @@ trait ResolvesTopApprover
 
         if ($manager === self::NO_MANAGER) {
             $this->merge(['manager_id' => null, 'is_top_approver' => true]);
+
+            return;
+        }
+
+        if ($manager === self::UNASSIGNED_MANAGER) {
+            $this->merge(['manager_id' => null, 'is_top_approver' => false]);
 
             return;
         }

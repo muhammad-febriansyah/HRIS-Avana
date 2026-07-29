@@ -9,7 +9,6 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Support\AvanaNav;
 use App\Support\PermissionCatalog;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -25,15 +24,19 @@ use Illuminate\Support\Str;
 class TenantProvisioner
 {
     /**
-     * The base permission set each system role holds. Mirrors the demo seeder so
-     * a tenant created from the UI behaves exactly like a seeded one.
+     * The single role a brand-new tenant is given: the Admin Tenant / HR account
+     * that will build the rest.
+     *
+     * Manager, Finance and Karyawan used to be seeded alongside it. They are not
+     * every company's org chart — a factory needs Supervisor Shift, an agency
+     * needs Account Manager — and a role nobody asked for is a role nobody
+     * curates, so tenants inherited three half-right roles they then had to work
+     * around. The admin now creates exactly the roles they need on Buat Peran,
+     * choosing the menus each one sees.
      */
-    private const ROLES = [
-        'admin_tenant_hr' => 'Admin Tenant / HR',
-        'manager' => 'Manager',
-        'finance' => 'Finance',
-        'employee' => 'Karyawan',
-    ];
+    private const ADMIN_ROLE_CODE = 'admin_tenant_hr';
+
+    private const ADMIN_ROLE_NAME = 'Admin Tenant / HR';
 
     /**
      * Give the tenant its feature modules, roles, and menu. Safe to re-run:
@@ -88,7 +91,7 @@ class TenantProvisioner
             // A tenant created before this service existed may still have no
             // roles, features or menu — provision on demand, otherwise the new
             // admin logs into a near-empty sidebar.
-            if (Role::where('tenant_id', $tenant->id)->where('code', 'admin_tenant_hr')->doesntExist()) {
+            if (Role::where('tenant_id', $tenant->id)->where('code', self::ADMIN_ROLE_CODE)->doesntExist()) {
                 $this->enableAllFeatures($tenant);
                 $this->provisionRoles($tenant);
                 AvanaNav::seedDefaultsFor($tenant->id);
@@ -103,7 +106,7 @@ class TenantProvisioner
                 'email_verified_at' => now(),
             ]);
 
-            $role = Role::where('tenant_id', $tenant->id)->where('code', 'admin_tenant_hr')->first();
+            $role = Role::where('tenant_id', $tenant->id)->where('code', self::ADMIN_ROLE_CODE)->first();
 
             if ($role !== null) {
                 $user->roles()->syncWithoutDetaching([$role->id]);
@@ -143,64 +146,35 @@ class TenantProvisioner
     }
 
     /**
-     * Create the four system roles for the tenant and attach their permissions.
+     * Create the tenant's Admin Tenant / HR role and attach its permissions:
+     * everything except the platform-level tenant administration, which belongs
+     * to the super admin alone.
      */
     private function provisionRoles(Tenant $tenant): void
     {
-        $permissions = Permission::all();
+        $role = Role::firstOrCreate(
+            ['tenant_id' => $tenant->id, 'code' => self::ADMIN_ROLE_CODE],
+            ['name' => self::ADMIN_ROLE_NAME, 'is_system' => true],
+        );
 
-        foreach (self::ROLES as $code => $name) {
-            $role = Role::firstOrCreate(
-                ['tenant_id' => $tenant->id, 'code' => $code],
-                ['name' => $name, 'is_system' => true],
-            );
+        $assigned = Permission::query()
+            ->where('code', 'not like', 'tenant.%')
+            ->get();
 
-            $assigned = $this->permissionsFor($code, $permissions);
-
-            if ($assigned->isEmpty()) {
-                continue;
-            }
-
-            $role->permissions()->syncWithoutDetaching($assigned->pluck('id'));
-
-            // Fail-open baseline: for every module the role holds, grant its full
-            // action set so action-level checks never remove access it should have.
-            $role->permissions()->syncWithoutDetaching(
-                Permission::whereIn(
-                    'code',
-                    PermissionCatalog::actionCodesForModules($assigned->pluck('module')->all()),
-                )->pluck('id'),
-            );
+        if ($assigned->isEmpty()) {
+            return;
         }
-    }
 
-    /**
-     * The slice of the permission table a system role starts with.
-     *
-     * @param  Collection<int, Permission>  $permissions
-     * @return Collection<int, Permission>
-     */
-    private function permissionsFor(string $code, Collection $permissions): Collection
-    {
-        return match ($code) {
-            // Everything except the platform-level tenant administration.
-            'admin_tenant_hr' => $permissions->reject(
-                fn (Permission $permission): bool => str_starts_with($permission->code, 'tenant.'),
-            ),
-            'manager' => $permissions->filter(
-                fn (Permission $permission): bool => str_starts_with($permission->code, 'team.')
-                    || str_starts_with($permission->code, 'own.'),
-            ),
-            // Finance settles the money, not the people administration.
-            'finance' => $permissions->filter(
-                fn (Permission $permission): bool => in_array($permission->module, [
-                    'claim', 'loan', 'journal', 'budget', 'salary_structure', 'payroll', 'report',
-                ], true) || str_starts_with($permission->code, 'own.'),
-            ),
-            default => $permissions->filter(
-                fn (Permission $permission): bool => str_starts_with($permission->code, 'own.'),
-            ),
-        };
+        $role->permissions()->syncWithoutDetaching($assigned->pluck('id'));
+
+        // Fail-open baseline: for every module the role holds, grant its full
+        // action set so action-level checks never remove access it should have.
+        $role->permissions()->syncWithoutDetaching(
+            Permission::whereIn(
+                'code',
+                PermissionCatalog::actionCodesForModules($assigned->pluck('module')->all()),
+            )->pluck('id'),
+        );
     }
 
     /**

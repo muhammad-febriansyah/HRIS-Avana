@@ -135,6 +135,17 @@ export type NamedOption = {
     name: string;
 };
 
+/**
+ * Role option, carrying whether the role may use the Flutter app — the picker
+ * sits in the "Akun Aplikasi Mobile" section, so a role that bars the phone has
+ * to say so before it is picked.
+ */
+export type RoleOption = {
+    id: number;
+    name: string;
+    can_access_mobile: boolean;
+};
+
 /** Work-location option carries its branch so the picker can filter by branch. */
 export type WorkLocationOption = {
     id: number;
@@ -149,7 +160,7 @@ export type EmployeeFormOptions = {
     departments: NamedOption[];
     positions: NamedOption[];
     jobLevels: NamedOption[];
-    roles: NamedOption[];
+    roles: RoleOption[];
     managers: ManagerRef[];
     genders: SelectOption[];
     statuses: SelectOption[];
@@ -189,6 +200,13 @@ export type EmployeeFormData = {
  * backend turns this into `manager_id: null` + `is_top_approver: true`.
  */
 export const NO_MANAGER = 'none';
+
+/**
+ * Sentinel for "atasannya belum ditentukan" — `manager_id: null` +
+ * `is_top_approver: false`. The escape hatch for the first hires of a company,
+ * who have nobody to report to yet but are not the board either.
+ */
+export const UNASSIGNED_MANAGER = 'unassigned';
 
 /** The six religions recognised by the Indonesian state, plus an escape hatch. */
 export const RELIGIONS = [

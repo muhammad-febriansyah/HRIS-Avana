@@ -11,6 +11,7 @@ import {
     NO_MANAGER,
     RELIGIONS,
     STEP_FIELDS,
+    UNASSIGNED_MANAGER,
 } from './types';
 import type {
     CustomFieldDef,
@@ -588,7 +589,14 @@ export function EmployeeForm({
                     <div className="avn-2col" style={sectionGrid}>
                         <Field
                             htmlFor="role_id"
-                            label="Role / Hak Akses"
+                            // Creating a login means picking a role: the company
+                            // names its own roles, so there is no default one to
+                            // fall back on.
+                            label={
+                                hasLogin
+                                    ? 'Role / Hak Akses'
+                                    : 'Role / Hak Akses *'
+                            }
                             error={errors.role_id}
                         >
                             <select
@@ -602,7 +610,7 @@ export function EmployeeForm({
                                 <option value="">
                                     {hasLogin
                                         ? '— Biarkan role saat ini —'
-                                        : '— Role default (Karyawan) —'}
+                                        : '— pilih peran —'}
                                 </option>
                                 {options.roles.map((role) => (
                                     <option
@@ -610,6 +618,9 @@ export function EmployeeForm({
                                         value={String(role.id)}
                                     >
                                         {role.name}
+                                        {role.can_access_mobile === false
+                                            ? ' — tanpa aplikasi mobile'
+                                            : ''}
                                     </option>
                                 ))}
                             </select>
@@ -747,6 +758,10 @@ export function EmployeeForm({
                                 }
                                 options={[
                                     {
+                                        value: UNASSIGNED_MANAGER,
+                                        label: 'Belum ditentukan — atur setelah atasannya ada',
+                                    },
+                                    {
                                         value: NO_MANAGER,
                                         label: 'Tidak ada — Approver Puncak (Direktur / Direksi)',
                                     },
@@ -793,6 +808,19 @@ export function EmployeeForm({
                                         tanpa diperiksa siapa pun. Pilih ini
                                         hanya untuk direksi.
                                     </div>
+                                </div>
+                            )}
+                            {data.manager_id === UNASSIGNED_MANAGER && (
+                                <div
+                                    style={{
+                                        fontSize: 12.5,
+                                        color: C.muted,
+                                        lineHeight: 1.55,
+                                        marginTop: 9,
+                                    }}
+                                >
+                                    Pengajuan karyawan ini menunggu sampai
+                                    atasannya diisi — tidak disetujui otomatis.
                                 </div>
                             )}
                         </Field>

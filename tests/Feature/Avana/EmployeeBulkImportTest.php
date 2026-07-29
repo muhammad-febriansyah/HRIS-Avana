@@ -2,6 +2,7 @@
 
 use App\Models\Branch;
 use App\Models\Employee;
+use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Http\UploadedFile;
@@ -69,6 +70,9 @@ it('imports the reviewed rows via bulk store', function (): void {
     $before = Employee::count();
 
     actingAs($this->admin)->post('/avana/employees/bulk', [
+        // The batch's logins all take this role — the tenant's own, not a
+        // built-in "employee" default.
+        'role_id' => Role::where('tenant_id', $this->admin->tenant_id)->value('id'),
         'employees' => [
             ['full_name' => 'Import A', 'email' => 'import.a@contoh.co', 'employment_status' => 'permanent', 'status' => 'active', 'branch_id' => $branchId, 'password' => 'password123'],
             ['full_name' => 'Import B', 'email' => null, 'employment_status' => 'contract', 'status' => 'active'],

@@ -91,11 +91,16 @@ export default function EmployeesBulkCreate({
     options: EmployeeFormOptions;
 }) {
     const { flash } = usePage<FlashProps>().props;
-    const form = useForm<{ employees: BulkRow[] }>({
+    const form = useForm<{ employees: BulkRow[]; role_id: string }>({
         employees: [emptyRow(), emptyRow(), emptyRow()],
+        role_id: '',
     });
     const { data, setData, processing, errors } = form;
     const rows = data.employees;
+
+    // Rows carrying a password become login accounts, and every one of them
+    // takes the role picked here — the tenant's own roles, not a built-in list.
+    const createsLogins = rows.some((row) => row.password.trim() !== '');
 
     const fileInput = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
@@ -435,7 +440,7 @@ export default function EmployeesBulkCreate({
             status: row.status,
             password: row.password || null,
         }));
-        form.transform(() => ({ employees }));
+        form.transform(() => ({ employees, role_id: data.role_id || null }));
         form.post('/avana/employees/bulk', { preserveScroll: true });
     };
 
@@ -905,11 +910,60 @@ export default function EmployeesBulkCreate({
                 <div
                     style={{
                         display: 'flex',
+                        alignItems: 'flex-end',
                         justifyContent: 'flex-end',
                         gap: 10,
                         marginTop: 18,
                     }}
                 >
+                    {createsLogins && (
+                        <div style={{ marginRight: 'auto', maxWidth: 340 }}>
+                            <label
+                                style={{
+                                    display: 'block',
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    color: C.text,
+                                    marginBottom: 6,
+                                }}
+                            >
+                                Peran untuk akun login *
+                            </label>
+                            <select
+                                value={data.role_id}
+                                onChange={(e) =>
+                                    setData('role_id', e.target.value)
+                                }
+                                style={{
+                                    ...cell,
+                                    cursor: 'pointer',
+                                    borderColor: errors.role_id
+                                        ? C.red
+                                        : C.border,
+                                }}
+                            >
+                                <option value="">— pilih peran —</option>
+                                {options.roles.map((role) => (
+                                    <option key={role.id} value={role.id}>
+                                        {role.name}
+                                        {role.can_access_mobile
+                                            ? ''
+                                            : ' — tanpa aplikasi mobile'}
+                                    </option>
+                                ))}
+                            </select>
+                            <div
+                                style={{
+                                    fontSize: 11.5,
+                                    color: errors.role_id ? C.red : C.faint,
+                                    marginTop: 5,
+                                }}
+                            >
+                                {errors.role_id ??
+                                    'Semua akun dalam impor ini memakai peran yang sama.'}
+                            </div>
+                        </div>
+                    )}
                     <button
                         type="button"
                         onClick={() => router.visit('/avana/employees')}

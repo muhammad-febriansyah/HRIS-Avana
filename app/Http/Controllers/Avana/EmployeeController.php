@@ -187,6 +187,9 @@ class EmployeeController extends Controller
             'employees.*.department_id' => ['nullable', Rule::exists('departments', 'id')->where('tenant_id', $tenantId)],
             'employees.*.position_id' => ['nullable', Rule::exists('positions', 'id')->where('tenant_id', $tenantId)],
             'employees.*.password' => ['nullable', 'string', 'min:8'],
+            // One role for the whole batch: the import screen picks it once
+            // rather than repeating it on every row.
+            'role_id' => ['nullable', Rule::exists('roles', 'id')->where('tenant_id', $tenantId)],
         ], [
             'employees.*.full_name.required' => 'Nama lengkap wajib diisi.',
             'employees.*.employment_status.required' => 'Status kepegawaian wajib dipilih.',
@@ -195,6 +198,17 @@ class EmployeeController extends Controller
 
         $this->validateBulkLogins($validated['employees']);
 
+        $roleId = isset($validated['role_id']) ? (int) $validated['role_id'] : null;
+
+        // Required as soon as any row creates a login, for the same reason as on
+        // the single-employee form: the tenant names its own roles, so there is
+        // no built-in one to fall back on and a role-less account sees nothing.
+        if ($roleId === null && collect($validated['employees'])->contains(fn (array $row): bool => filled($row['password'] ?? null))) {
+            throw ValidationException::withMessages([
+                'role_id' => 'Pilih peran untuk akun login yang dibuat dari impor ini.',
+            ]);
+        }
+
         TenantQuota::assertRoom(
             $request->user()->tenant,
             'employees',
@@ -202,7 +216,7 @@ class EmployeeController extends Controller
             'employees',
         );
 
-        DB::transaction(function () use ($validated, $tenantId): void {
+        DB::transaction(function () use ($validated, $tenantId, $roleId): void {
             foreach ($validated['employees'] as $row) {
                 $employee = Employee::create([
                     'tenant_id' => $tenantId,
@@ -217,7 +231,7 @@ class EmployeeController extends Controller
                     'position_id' => $row['position_id'] ?? null,
                 ]);
 
-                $this->syncEmployeeLogin($employee, $row['password'] ?? null, $tenantId);
+                $this->syncEmployeeLogin($employee, $row['password'] ?? null, $tenantId, $roleId);
             }
         });
 
@@ -571,8 +585,9 @@ class EmployeeController extends Controller
      *
      * Rules: an existing account keeps its login; a password resets it and a
      * chosen role replaces its role. A brand-new account is only created when a
-     * password is set (a login needs one), and it takes the chosen role or falls
-     * back to the tenant's default "employee" role.
+     * password is set (a login needs one), and it takes the role picked on the
+     * form — the form request makes that pick mandatory, because a tenant names
+     * its own roles and there is no built-in "employee" role to fall back on.
      */
     private function syncEmployeeLogin(Employee $employee, ?string $password, int $tenantId, ?int $roleId = null): void
     {
@@ -606,8 +621,6 @@ class EmployeeController extends Controller
             'status' => 'active',
             'email_verified_at' => now(),
         ]);
-
-        $role ??= Role::where('tenant_id', $tenantId)->where('code', 'employee')->first();
 
         if ($role !== null) {
             $user->roles()->sync([$role->id]);
@@ -740,7 +753,9 @@ class EmployeeController extends Controller
             'departments' => Department::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
             'positions' => Position::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
             'jobLevels' => JobLevel::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
-            'roles' => Role::where('tenant_id', $tenantId)->select('id', 'name')->orderBy('name')->get(),
+            // `can_access_mobile` rides along so the picker can warn that the role
+            // has no phone access — the dropdown sits in the mobile-account section.
+            'roles' => Role::where('tenant_id', $tenantId)->select('id', 'name', 'can_access_mobile')->orderBy('name')->get(),
             'managers' => Employee::forTenant($tenantId)
                 ->select('id', 'full_name', 'employee_number')
                 ->orderBy('full_name')

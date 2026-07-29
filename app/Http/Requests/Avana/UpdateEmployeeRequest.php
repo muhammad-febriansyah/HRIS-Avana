@@ -122,6 +122,12 @@ class UpdateEmployeeRequest extends FormRequest
                     } elseif (User::where('email', $email)->exists()) {
                         $validator->errors()->add('email', 'Email sudah digunakan akun lain.');
                     }
+
+                    // Same as on create: a brand-new login has no role to inherit,
+                    // and the tenant's roles are whatever it named them.
+                    if (blank($this->input('role_id'))) {
+                        $validator->errors()->add('role_id', 'Pilih peran untuk akun ini — peran menentukan menu yang dilihat karyawan.');
+                    }
                 }
             }
         });
