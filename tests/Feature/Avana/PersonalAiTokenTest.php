@@ -212,6 +212,37 @@ it('serves packs and balance to the mobile app', function (): void {
         ->assertJsonPath('data.packs.0.name', 'Paket Hemat');
 });
 
+it('serves a usage series the app can chart', function (): void {
+    $this->tokens->debit($this->employee, 3_000);
+
+    AiTokenLedger::create([
+        'tenant_id' => $this->tenant->id,
+        'user_id' => $this->employee->id,
+        'type' => AiTokenLedger::TYPE_DEBIT,
+        'source' => 'chat',
+        'tokens' => 1_200,
+        'period' => now()->subDays(2)->format('Y-m'),
+        'created_at' => now()->subDays(2),
+        'updated_at' => now()->subDays(2),
+    ]);
+
+    $usage = $this->actingAs($this->employee, 'api')
+        ->getJson('/api/v1/me/ai/tokens')
+        ->assertOk()
+        ->assertJsonPath('data.usage.today', 3_000)
+        ->json('data.usage');
+
+    // Seven days ending today, quiet days included as zero so the chart has no
+    // gaps, and the day before yesterday carries its own spend.
+    expect($usage['daily'])->toHaveCount(7)
+        ->and($usage['daily'][6]['date'])->toBe(now()->format('Y-m-d'))
+        ->and($usage['daily'][6]['tokens'])->toBe(3_000)
+        ->and($usage['daily'][4]['tokens'])->toBe(1_200)
+        ->and($usage['week'])->toBe(4_200)
+        ->and($usage['monthly'])->toHaveCount(6)
+        ->and($usage['monthly'][5]['month'])->toBe(now()->format('Y-m'));
+});
+
 it('opens a personal order from the mobile app and hands back a pay url', function (): void {
     $pack = AiTokenPack::create(['name' => 'Paket Hemat', 'token_amount' => 50_000, 'price' => 25_000]);
 

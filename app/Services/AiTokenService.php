@@ -8,6 +8,7 @@ use App\Models\AiTokenOrder;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\TokenGate;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -365,6 +366,81 @@ final class AiTokenService
             'personal_balance' => $personal,
             'company_remaining' => $fromCompany,
             'effective_remaining' => $effectiveRemaining,
+        ];
+    }
+
+    /**
+     * How much of their own AI budget somebody has been spending lately, as two
+     * series a screen can chart: the last [$days] days, and the last [$months]
+     * calendar months.
+     *
+     * Buckets are filled in PHP rather than grouped in SQL so the result is the
+     * same on every database, and so quiet days appear as a zero-height bar
+     * instead of a gap the reader has to notice is missing.
+     *
+     * @return array{
+     *     today: int,
+     *     week: int,
+     *     month: int,
+     *     daily: list<array{label: string, date: string, tokens: int}>,
+     *     monthly: list<array{label: string, month: string, tokens: int}>
+     * }
+     */
+    public function usageSeriesForUser(User $user, int $days = 7, int $months = 6): array
+    {
+        $from = now()->startOfDay()->subMonths($months - 1)->startOfMonth();
+
+        /** @var Collection<int, AiTokenLedger> $debits */
+        $debits = AiTokenLedger::query()
+            ->where('user_id', $user->id)
+            ->where('type', AiTokenLedger::TYPE_DEBIT)
+            ->where('created_at', '>=', $from)
+            ->get(['tokens', 'created_at']);
+
+        $byDay = [];
+        $byMonth = [];
+
+        foreach ($debits as $debit) {
+            $at = $debit->created_at;
+
+            if ($at === null) {
+                continue;
+            }
+
+            $byDay[$at->format('Y-m-d')] = ($byDay[$at->format('Y-m-d')] ?? 0) + (int) $debit->tokens;
+            $byMonth[$at->format('Y-m')] = ($byMonth[$at->format('Y-m')] ?? 0) + (int) $debit->tokens;
+        }
+
+        $daily = [];
+
+        for ($i = $days - 1; $i >= 0; $i--) {
+            $day = now()->subDays($i);
+
+            $daily[] = [
+                'label' => $day->locale('id')->translatedFormat('D'),
+                'date' => $day->format('Y-m-d'),
+                'tokens' => $byDay[$day->format('Y-m-d')] ?? 0,
+            ];
+        }
+
+        $monthly = [];
+
+        for ($i = $months - 1; $i >= 0; $i--) {
+            $month = now()->startOfMonth()->subMonths($i);
+
+            $monthly[] = [
+                'label' => $month->locale('id')->translatedFormat('M'),
+                'month' => $month->format('Y-m'),
+                'tokens' => $byMonth[$month->format('Y-m')] ?? 0,
+            ];
+        }
+
+        return [
+            'today' => $byDay[now()->format('Y-m-d')] ?? 0,
+            'week' => array_sum(array_column($daily, 'tokens')),
+            'month' => $byMonth[now()->format('Y-m')] ?? 0,
+            'daily' => $daily,
+            'monthly' => $monthly,
         ];
     }
 

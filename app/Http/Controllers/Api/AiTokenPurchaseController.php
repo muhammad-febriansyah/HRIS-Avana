@@ -36,6 +36,7 @@ class AiTokenPurchaseController extends Controller
         return response()->json([
             'data' => [
                 'summary' => $this->tokens->remainingForUser($user),
+                'usage' => $this->tokens->usageSeriesForUser($user),
                 'packs' => AiTokenPack::query()
                     ->active()
                     ->orderBy('price')
