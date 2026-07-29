@@ -948,6 +948,7 @@ export default function PayrollKomponen({
                                 <label style={label}>Kode</label>
                                 <input
                                     style={input}
+                                    placeholder="cth. TJ-MKN"
                                     value={form.data.code}
                                     onChange={(e) =>
                                         form.setData('code', e.target.value)
@@ -958,6 +959,7 @@ export default function PayrollKomponen({
                                 <label style={label}>Nama Komponen</label>
                                 <input
                                     style={input}
+                                    placeholder="cth. Tunjangan Makan"
                                     value={form.data.name}
                                     onChange={(e) =>
                                         form.setData('name', e.target.value)

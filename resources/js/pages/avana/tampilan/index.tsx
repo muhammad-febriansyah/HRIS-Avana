@@ -648,6 +648,7 @@ export default function TampilanTema({
                                             />
                                             <input
                                                 type="text"
+                                                placeholder="#2F54C9"
                                                 value={value}
                                                 onChange={(e) =>
                                                     set(

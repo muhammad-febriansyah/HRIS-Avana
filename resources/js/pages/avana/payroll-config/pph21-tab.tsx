@@ -146,6 +146,7 @@ export default function Pph21Tab({
                             <input
                                 type="number"
                                 style={input}
+                                placeholder="cth. 2026"
                                 value={ptkpForm.data.year}
                                 onChange={(e) =>
                                     ptkpForm.setData(
@@ -167,6 +168,7 @@ export default function Pph21Tab({
                         <Field label="Keterangan">
                             <input
                                 style={input}
+                                placeholder="cth. Kawin, 1 tanggungan"
                                 value={ptkpForm.data.note}
                                 onChange={(e) =>
                                     ptkpForm.setData('note', e.target.value)
@@ -288,6 +290,7 @@ export default function Pph21Tab({
                             <input
                                 type="number"
                                 style={input}
+                                placeholder="cth. 2026"
                                 value={pkpForm.data.year}
                                 onChange={(e) =>
                                     pkpForm.setData(
@@ -312,6 +315,7 @@ export default function Pph21Tab({
                                 type="number"
                                 step="0.01"
                                 style={input}
+                                placeholder="cth. 0.05"
                                 value={pkpForm.data.rate}
                                 onChange={(e) =>
                                     pkpForm.setData('rate', e.target.value)
@@ -322,6 +326,7 @@ export default function Pph21Tab({
                             <input
                                 type="number"
                                 style={input}
+                                placeholder="cth. 1"
                                 value={pkpForm.data.sort_order}
                                 onChange={(e) =>
                                     pkpForm.setData(

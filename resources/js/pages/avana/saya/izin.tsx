@@ -222,6 +222,7 @@ export default function SayaIzin({ requests, types }: Props) {
                                     hint="Jam hanya bisa diisi untuk izin satu hari."
                                 >
                                     <textarea
+                                        placeholder="cth. Mengurus dokumen di kelurahan"
                                         value={form.data.reason}
                                         onChange={(event) =>
                                             form.setData(

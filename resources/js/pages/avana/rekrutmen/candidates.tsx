@@ -440,6 +440,7 @@ function AddCandidateModal({
                     <label style={label}>Nama Lengkap</label>
                     <input
                         style={input}
+                        placeholder="Masukkan nama sesuai KTP"
                         value={form.data.name}
                         onChange={(e) => form.setData('name', e.target.value)}
                     />
@@ -464,6 +465,7 @@ function AddCandidateModal({
                         <label style={label}>Email</label>
                         <input
                             style={input}
+                            placeholder="nama@email.com"
                             value={form.data.email}
                             onChange={(e) =>
                                 form.setData('email', e.target.value)
@@ -485,6 +487,7 @@ function AddCandidateModal({
                         <label style={label}>Telepon (opsional)</label>
                         <input
                             style={input}
+                            placeholder="08xx-xxxx-xxxx"
                             value={form.data.phone}
                             onChange={(e) =>
                                 form.setData('phone', e.target.value)

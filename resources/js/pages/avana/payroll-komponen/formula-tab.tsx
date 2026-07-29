@@ -109,6 +109,7 @@ export default function FormulaTab({
                     </label>
                     <input
                         style={input}
+                        placeholder="cth. Berlaku mulai periode Januari"
                         value={nameForm.data.note}
                         onChange={(e) =>
                             nameForm.setData('note', e.target.value)

@@ -399,6 +399,7 @@ export default function AiSettings({
                                         type="number"
                                         min={0}
                                         style={input}
+                                        placeholder="cth. 1000"
                                         value={form.data.image_token_cost}
                                         onChange={(e) =>
                                             form.setData(

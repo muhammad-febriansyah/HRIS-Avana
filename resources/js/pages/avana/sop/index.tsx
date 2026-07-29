@@ -1140,6 +1140,7 @@ export default function SopIndex({ sops, categories, kpis }: SopIndexProps) {
                         <label style={fieldLabelStyle}>Keterangan</label>
                         <textarea
                             name="description"
+                            placeholder="cth. Prosedur baku untuk tim operasional cabang"
                             value={categoryForm.data.description}
                             onChange={(event) =>
                                 categoryForm.setData(

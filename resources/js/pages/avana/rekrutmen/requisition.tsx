@@ -429,6 +429,7 @@ export default function RequisitionPage({
                     <Field label="Posisi" error={form.errors.position_title}>
                         <input
                             style={input}
+                            placeholder="cth. Software Engineer"
                             value={form.data.position_title}
                             onChange={(e) =>
                                 form.setData('position_title', e.target.value)
@@ -466,6 +467,7 @@ export default function RequisitionPage({
                                 type="number"
                                 min={1}
                                 style={input}
+                                placeholder="cth. 2"
                                 value={form.data.vacancy}
                                 onChange={(e) =>
                                     form.setData(
@@ -504,6 +506,7 @@ export default function RequisitionPage({
                         <Field label="Lokasi">
                             <input
                                 style={input}
+                                placeholder="cth. Jakarta Selatan"
                                 value={form.data.location}
                                 onChange={(e) =>
                                     form.setData('location', e.target.value)
@@ -518,6 +521,7 @@ export default function RequisitionPage({
                                 minHeight: 64,
                                 resize: 'vertical',
                             }}
+                            placeholder="cth. S1 Teknik Informatika, pengalaman 2 tahun, menguasai React"
                             value={form.data.qualification}
                             onChange={(e) =>
                                 form.setData('qualification', e.target.value)
@@ -531,6 +535,7 @@ export default function RequisitionPage({
                                 minHeight: 64,
                                 resize: 'vertical',
                             }}
+                            placeholder="cth. Membangun dan memelihara aplikasi internal perusahaan"
                             value={form.data.job_description}
                             onChange={(e) =>
                                 form.setData('job_description', e.target.value)

@@ -268,6 +268,7 @@ export default function SayaProfil({ profile }: { profile: Profile }) {
                                 <Field label="Email" error={form.errors.email}>
                                     <input
                                         type="email"
+                                        placeholder="nama@perusahaan.co.id"
                                         value={form.data.email}
                                         onChange={(event) =>
                                             form.setData(
@@ -348,6 +349,7 @@ export default function SayaProfil({ profile }: { profile: Profile }) {
                                     error={form.errors.birth_place}
                                 >
                                     <input
+                                        placeholder="cth. Jakarta"
                                         value={form.data.birth_place}
                                         onChange={(event) =>
                                             form.setData(
@@ -380,6 +382,7 @@ export default function SayaProfil({ profile }: { profile: Profile }) {
                                     error={form.errors.religion}
                                 >
                                     <input
+                                        placeholder="cth. Islam"
                                         value={form.data.religion}
                                         onChange={(event) =>
                                             form.setData(
@@ -398,6 +401,7 @@ export default function SayaProfil({ profile }: { profile: Profile }) {
                                     error={form.errors.marital_status}
                                 >
                                     <input
+                                        placeholder="cth. Menikah"
                                         value={form.data.marital_status}
                                         onChange={(event) =>
                                             form.setData(
@@ -419,6 +423,7 @@ export default function SayaProfil({ profile }: { profile: Profile }) {
                                     error={form.errors.address}
                                 >
                                     <textarea
+                                        placeholder="cth. Jl. Merdeka No. 10, RT 01/RW 02, Jakarta Pusat"
                                         value={form.data.address}
                                         onChange={(event) =>
                                             form.setData(

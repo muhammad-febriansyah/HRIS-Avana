@@ -359,6 +359,7 @@ export default function KlienCreate({ packages }: KlienCreateProps) {
                                             <input
                                                 type="number"
                                                 min={1}
+                                                placeholder="cth. 30"
                                                 value={data.trial_days}
                                                 onChange={(event) =>
                                                     reprice({

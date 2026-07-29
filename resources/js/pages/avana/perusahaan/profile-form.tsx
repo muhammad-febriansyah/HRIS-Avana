@@ -100,16 +100,22 @@ export function ProfileForm({ company }: { company: CompanyProfile }) {
                     gap: 16,
                 }}
             >
-                {field('name', 'Nama Perusahaan')}
+                {field('name', 'Nama Perusahaan', {
+                    placeholder: 'PT Nusantara Jaya',
+                })}
                 {field('legal_name', 'Nama Badan Hukum', {
                     placeholder: 'PT / CV …',
                 })}
-                {field('npwp', 'NPWP')}
+                {field('npwp', 'NPWP', {
+                    placeholder: '00.000.000.0-000.000',
+                })}
                 {field('email', 'Email', {
                     type: 'email',
                     placeholder: 'info@perusahaan.co.id',
                 })}
-                {field('phone', 'Telepon')}
+                {field('phone', 'Telepon', {
+                    placeholder: '(021) 1234-5678',
+                })}
             </div>
 
             <div style={{ marginTop: 16 }}>
@@ -121,6 +127,7 @@ export function ProfileForm({ company }: { company: CompanyProfile }) {
                         padding: '10px 12px',
                         resize: 'vertical',
                     }}
+                    placeholder="cth. Jl. Merdeka No. 10, Jakarta Pusat 10110"
                     value={form.address ?? ''}
                     onChange={(event) => set('address', event.target.value)}
                 />

@@ -491,6 +491,7 @@ export default function SosmedIndex({
                                 type="number"
                                 name="sort_order"
                                 min={0}
+                                placeholder="cth. 1"
                                 value={form.data.sort_order}
                                 onChange={(event) =>
                                     form.setData(

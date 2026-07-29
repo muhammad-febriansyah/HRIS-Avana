@@ -230,6 +230,7 @@ export default function RecruitmentPools({ pools }: { pools: Pool[] }) {
                             </label>
                             <input
                                 style={input}
+                                placeholder="cth. Talent Pool Engineering 2026"
                                 value={form.data.name}
                                 onChange={(e) =>
                                     form.setData('name', e.target.value)
@@ -265,6 +266,7 @@ export default function RecruitmentPools({ pools }: { pools: Pool[] }) {
                                     minHeight: 72,
                                     resize: 'vertical',
                                 }}
+                                placeholder="cth. Kandidat lolos tahap akhir yang belum dapat slot"
                                 value={form.data.description}
                                 onChange={(e) =>
                                     form.setData('description', e.target.value)

@@ -413,6 +413,7 @@ export default function SayaKinerja({ reviews, summary }: Props) {
                                                     min="0"
                                                     max="100"
                                                     step="0.01"
+                                                    placeholder="cth. 85"
                                                     value={form.data.self_score}
                                                     onChange={(event) =>
                                                         form.setData(

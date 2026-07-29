@@ -407,6 +407,7 @@ export default function TaxProfileTab({
                                 <label style={label}>NPWP</label>
                                 <input
                                     style={input}
+                                    placeholder="00.000.000.0-000.000"
                                     value={form.data.npwp}
                                     onChange={(e) =>
                                         form.setData('npwp', e.target.value)
@@ -417,6 +418,7 @@ export default function TaxProfileTab({
                                 <label style={label}>NIK</label>
                                 <input
                                     style={input}
+                                    placeholder="16 digit NIK"
                                     value={form.data.nik}
                                     onChange={(e) =>
                                         form.setData('nik', e.target.value)

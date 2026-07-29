@@ -468,6 +468,7 @@ export default function AttritionSettings({
                                         type="number"
                                         min={0}
                                         max={98}
+                                        placeholder="cth. 30"
                                         value={form.data.band_low}
                                         onChange={(e) =>
                                             form.setData(
@@ -484,6 +485,7 @@ export default function AttritionSettings({
                                         type="number"
                                         min={1}
                                         max={99}
+                                        placeholder="cth. 60"
                                         value={form.data.band_medium}
                                         onChange={(e) =>
                                             form.setData(
@@ -566,6 +568,7 @@ export default function AttritionSettings({
                                     type="number"
                                     min={0}
                                     max={100}
+                                    placeholder="cth. 70"
                                     value={form.data.alert_threshold}
                                     disabled={!form.data.alerts_enabled}
                                     onChange={(e) =>

@@ -302,6 +302,7 @@ export default function RecruitmentHeadcount({
                             </label>
                             <input
                                 style={input}
+                                placeholder="cth. Software Engineer"
                                 value={form.data.position_title}
                                 onChange={(e) =>
                                     form.setData(
@@ -376,6 +377,7 @@ export default function RecruitmentHeadcount({
                                     type="number"
                                     min={1}
                                     style={input}
+                                    placeholder="cth. 2"
                                     value={form.data.count}
                                     onChange={(e) =>
                                         form.setData(
@@ -404,6 +406,7 @@ export default function RecruitmentHeadcount({
                                     minHeight: 72,
                                     resize: 'vertical',
                                 }}
+                                placeholder="cth. Ekspansi tim produksi cabang Bandung"
                                 value={form.data.reason}
                                 onChange={(e) =>
                                     form.setData('reason', e.target.value)

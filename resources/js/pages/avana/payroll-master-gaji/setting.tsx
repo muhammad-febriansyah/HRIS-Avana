@@ -351,6 +351,7 @@ export default function MasterGajiSetting({
                 <input
                     style={{ ...input, width: 72 }}
                     type="number"
+                    placeholder="tgl 1"
                     value={form.data[startKey] as number | string}
                     onChange={(e) => form.setData(startKey, e.target.value)}
                 />
@@ -358,6 +359,7 @@ export default function MasterGajiSetting({
                 <input
                     style={{ ...input, width: 72 }}
                     type="number"
+                    placeholder="tgl 31"
                     value={form.data[endKey] as number | string}
                     onChange={(e) => form.setData(endKey, e.target.value)}
                 />
@@ -495,6 +497,7 @@ export default function MasterGajiSetting({
                         <div style={label}>Kode</div>
                         <input
                             style={input}
+                            placeholder="cth. GP01"
                             value={form.data.code}
                             onChange={(e) =>
                                 form.setData('code', e.target.value)
@@ -503,6 +506,7 @@ export default function MasterGajiSetting({
                         <div style={label}>Kategori Gaji</div>
                         <input
                             style={input}
+                            placeholder="cth. Gaji Pokok Bulanan"
                             value={form.data.category}
                             onChange={(e) =>
                                 form.setData('category', e.target.value)
@@ -511,6 +515,7 @@ export default function MasterGajiSetting({
                         <div style={label}>Keterangan</div>
                         <input
                             style={input}
+                            placeholder="cth. Dipakai untuk karyawan tetap"
                             value={form.data.note}
                             onChange={(e) =>
                                 form.setData('note', e.target.value)
@@ -594,6 +599,7 @@ export default function MasterGajiSetting({
                                 <input
                                     style={{ ...input, width: 100 }}
                                     type="number"
+                                    placeholder="cth. 25"
                                     value={form.data.cut_off_day}
                                     onChange={(e) =>
                                         form.setData(
@@ -629,6 +635,7 @@ export default function MasterGajiSetting({
                                 <input
                                     style={{ ...input, width: 100 }}
                                     type="number"
+                                    placeholder="cth. 21"
                                     value={form.data.day_divisor}
                                     onChange={(e) =>
                                         form.setData(
@@ -783,6 +790,7 @@ export default function MasterGajiSetting({
                                 <input
                                     style={{ ...input, width: 100 }}
                                     type="number"
+                                    placeholder="cth. 3"
                                     value={form.data.probation_months}
                                     onChange={(e) =>
                                         form.setData(

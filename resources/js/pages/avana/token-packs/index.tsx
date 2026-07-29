@@ -647,6 +647,7 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
                                     <input
                                         type="number"
                                         min={0}
+                                        placeholder="cth. 1"
                                         value={form.data.sort_order}
                                         onChange={(e) =>
                                             form.setData(
