@@ -14,6 +14,24 @@ final class Employee extends Model
 {
     use Auditable, SoftDeletes;
 
+    /**
+     * Sentinel the Atasan Langsung pickers post for "Tidak ada — Approver
+     * Puncak". A deliberate choice, unlike an empty value which only means the
+     * field was left untouched.
+     */
+    public const NO_MANAGER = 'none';
+
+    /**
+     * Sentinel for "belum ditentukan": nobody is recorded above this person
+     * *yet*, which is not the same as declaring them the top of the chain.
+     *
+     * Without it the very first employee of a new tenant could only be saved as
+     * an approver puncak — the picker had no colleagues to offer, so the sole
+     * selectable entry was NO_MANAGER, and a rank-and-file hire silently gained
+     * self-approving leave, overtime and reimbursement.
+     */
+    public const UNASSIGNED_MANAGER = 'unassigned';
+
     protected $guarded = [];
 
     protected function casts(): array

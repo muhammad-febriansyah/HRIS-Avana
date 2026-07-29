@@ -120,6 +120,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
     Route::get('search', [SearchController::class, 'index'])->name('search');
     Route::get('organisasi', [EmployeeController::class, 'orgChart'])->name('organisasi');
+    Route::put('organisasi/{employee}/atasan', [EmployeeController::class, 'updateManager'])->name('organisasi.atasan');
     Route::get('menu-builder', [MenuBuilderController::class, 'index'])->name('menu-builder');
     Route::post('menu-builder', [MenuBuilderController::class, 'store'])->name('menu-builder.store');
     Route::put('menu-builder/{menuItem}', [MenuBuilderController::class, 'update'])->name('menu-builder.update');

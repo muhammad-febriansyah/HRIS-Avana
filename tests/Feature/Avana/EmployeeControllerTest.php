@@ -666,6 +666,98 @@ it('turns the "Tidak ada — Approver Puncak" choice into a director', function 
         ->and($employee->manager_id)->toBeNull();
 });
 
+it('rearranges the reporting line straight from the org chart', function (): void {
+    $staff = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $boss = Employee::forTenant($this->tenant->id)->whereKeyNot($staff->id)->firstOrFail();
+
+    // The seeded demo already has a hierarchy; detach both so the assertion is
+    // about this request and not about whatever line they started on.
+    $staff->update(['manager_id' => null]);
+    $boss->update(['manager_id' => null]);
+
+    actingAs($this->admin)
+        ->put(route('avana.organisasi.atasan', $staff), ['manager_id' => (string) $boss->id])
+        ->assertSessionHas('success');
+
+    expect($staff->fresh()->manager_id)->toBe($boss->id)
+        ->and($staff->fresh()->is_top_approver)->toBeFalse();
+});
+
+it('takes both sentinels from the org chart too', function (): void {
+    $staff = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->put(route('avana.organisasi.atasan', $staff), ['manager_id' => 'none'])
+        ->assertSessionHas('success');
+
+    expect($staff->fresh())
+        ->manager_id->toBeNull()
+        ->is_top_approver->toBeTrue();
+
+    actingAs($this->admin)
+        ->put(route('avana.organisasi.atasan', $staff), ['manager_id' => 'unassigned'])
+        ->assertSessionHas('success');
+
+    expect($staff->fresh())
+        ->manager_id->toBeNull()
+        ->is_top_approver->toBeFalse();
+});
+
+it('refuses to point somebody at their own subordinate', function (): void {
+    // boss → middle → junior. Making boss report to junior would close the
+    // chain into a loop the chart walks forever.
+    $boss = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $middle = Employee::forTenant($this->tenant->id)->whereKeyNot($boss->id)->firstOrFail();
+    $junior = Employee::forTenant($this->tenant->id)->whereKeyNot([$boss->id, $middle->id])->firstOrFail();
+
+    $middle->update(['manager_id' => $boss->id]);
+    $junior->update(['manager_id' => $middle->id]);
+    $boss->update(['manager_id' => null]);
+
+    actingAs($this->admin)
+        ->put(route('avana.organisasi.atasan', $boss), ['manager_id' => (string) $junior->id])
+        ->assertSessionHas('error');
+
+    expect($boss->fresh()->manager_id)->toBeNull();
+});
+
+it('refuses to make somebody their own manager', function (): void {
+    $staff = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->put(route('avana.organisasi.atasan', $staff), ['manager_id' => (string) $staff->id])
+        ->assertSessionHas('error');
+
+    expect($staff->fresh()->manager_id)->not->toBe($staff->id);
+});
+
+it('will not rearrange another tenant reporting line', function (): void {
+    $other = Tenant::create(['name' => 'PT Lain', 'slug' => 'pt-lain', 'status' => 'active']);
+    $stranger = Employee::create([
+        'tenant_id' => $other->id,
+        'employee_number' => 'X-001',
+        'full_name' => 'Orang Luar',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+    ]);
+
+    actingAs($this->admin)
+        ->put(route('avana.organisasi.atasan', $stranger), ['manager_id' => 'none'])
+        ->assertStatus(404);
+
+    expect($stranger->fresh()->is_top_approver)->toBeFalse();
+});
+
+it('tells the chart whether the reader may rearrange it', function (): void {
+    actingAs($this->admin)
+        ->get(route('avana.organisasi'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/employees/org-chart', false)
+            ->where('canManage', true)
+            ->has('nodes'));
+});
+
 it('keeps the "Belum ditentukan" choice out of the director flag', function (): void {
     // The first hires of a company have nobody above them yet, but they are not
     // the board either. Before this sentinel existed the picker offered them

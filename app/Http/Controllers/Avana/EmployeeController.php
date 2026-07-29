@@ -453,7 +453,86 @@ class EmployeeController extends Controller
                 'is_top_approver' => (bool) $employee->is_top_approver,
                 'manager_name' => $employee->manager_id !== null ? $names->get($employee->manager_id) : null,
             ])->values(),
+            // Whether the reporting line can be rearranged from here, rather
+            // than one employee form at a time. Checked by permission code
+            // because EmployeePolicy::update needs a concrete employee, and the
+            // answer here is about the screen, not about one row.
+            'canManage' => $request->user()->hasPermissionTo('employee.update'),
         ]);
+    }
+
+    /**
+     * Move one employee under a different manager, straight from the chart.
+     *
+     * Building the reporting line by opening each employee's form in turn made
+     * the shape of the company invisible while you worked on it. Here the chart
+     * redraws as you go, which is the whole point of the screen.
+     *
+     * Accepts the same three answers the employee form does: a colleague, the
+     * "Tidak ada" sentinel that declares an approver puncak, or "Belum
+     * ditentukan" for somebody whose line is not decided yet.
+     */
+    public function updateManager(Request $request, Employee $employee): RedirectResponse
+    {
+        $this->ensureTenantOwnership($request, $employee);
+        $this->authorize('update', $employee);
+
+        $validated = $request->validate([
+            'manager_id' => ['nullable', 'string'],
+        ]);
+
+        $choice = $validated['manager_id'] ?? Employee::UNASSIGNED_MANAGER;
+
+        if ($choice === Employee::NO_MANAGER) {
+            $employee->update(['manager_id' => null, 'is_top_approver' => true]);
+
+            return back()->with('success', $employee->full_name.' ditandai sebagai approver puncak.');
+        }
+
+        if ($choice === Employee::UNASSIGNED_MANAGER || $choice === '') {
+            $employee->update(['manager_id' => null, 'is_top_approver' => false]);
+
+            return back()->with('success', 'Atasan '.$employee->full_name.' dikosongkan.');
+        }
+
+        $manager = Employee::forTenant($employee->tenant_id)->whereKey((int) $choice)->first();
+
+        abort_if($manager === null, 404);
+
+        // Nobody reports to themselves, and nobody reports to their own
+        // subordinate — either would close the chain into a loop that the chart
+        // walks forever and the approval routing can never leave.
+        if ($manager->id === $employee->id || $this->reportsTo($manager, $employee)) {
+            return back()->with('error', $manager->full_name.' ada di bawah '.$employee->full_name.' — atasan tidak boleh melingkar.');
+        }
+
+        $employee->update(['manager_id' => $manager->id, 'is_top_approver' => false]);
+
+        return back()->with('success', 'Atasan '.$employee->full_name.' sekarang '.$manager->full_name.'.');
+    }
+
+    /**
+     * Whether $candidate sits anywhere below $ancestor in the reporting chain.
+     *
+     * Walks upward from the candidate rather than downward from the ancestor:
+     * one row per level instead of the whole subtree. The visited set stops a
+     * loop that already exists in the data from hanging the request.
+     */
+    private function reportsTo(Employee $candidate, Employee $ancestor): bool
+    {
+        $seen = [];
+        $current = $candidate->manager_id;
+
+        while ($current !== null && ! isset($seen[$current])) {
+            if ($current === $ancestor->id) {
+                return true;
+            }
+
+            $seen[$current] = true;
+            $current = Employee::whereKey($current)->value('manager_id');
+        }
+
+        return false;
     }
 
     /**

@@ -2,34 +2,23 @@
 
 namespace App\Concerns;
 
+use App\Models\Employee;
+
 /**
  * Derives the "approver puncak" flag from the Atasan Langsung field.
  *
  * The employee form has one control for the reporting line. Picking a colleague
- * sets a manager; picking the explicit {@see self::NO_MANAGER} entry declares
- * that nobody sits above this person, which is what makes their own requests
- * auto-approve. Leaving the field untouched stays untouched, so the bulk import
- * and the mobile API keep working unchanged.
+ * sets a manager; picking the explicit {@see Employee::NO_MANAGER} entry
+ * declares that nobody sits above this person, which is what makes their own
+ * requests auto-approve. Leaving the field untouched stays untouched, so the
+ * bulk import and the mobile API keep working unchanged.
+ *
+ * The two sentinels live on {@see Employee} rather than here: the org chart
+ * reads them from a controller that does not use this trait, and a trait
+ * constant cannot be reached through the trait's own name.
  */
 trait ResolvesTopApprover
 {
-    /**
-     * Sentinel the form posts for "Tidak ada — Approver Puncak". A deliberate
-     * choice, unlike an empty value which just means "not filled in yet".
-     */
-    public const NO_MANAGER = 'none';
-
-    /**
-     * Sentinel for "belum ditentukan": nobody is recorded above this person
-     * *yet*, which is not the same as declaring them the top of the chain.
-     *
-     * Without it the very first employee of a new tenant could only be saved as
-     * an approver puncak — the picker had no colleagues to offer, so the sole
-     * selectable entry was NO_MANAGER, and a rank-and-file hire silently gained
-     * self-approving leave, overtime and reimbursement.
-     */
-    public const UNASSIGNED_MANAGER = 'unassigned';
-
     /**
      * Translate the sentinel into the two columns the app actually stores.
      */
@@ -41,13 +30,13 @@ trait ResolvesTopApprover
 
         $manager = $this->input('manager_id');
 
-        if ($manager === self::NO_MANAGER) {
+        if ($manager === Employee::NO_MANAGER) {
             $this->merge(['manager_id' => null, 'is_top_approver' => true]);
 
             return;
         }
 
-        if ($manager === self::UNASSIGNED_MANAGER) {
+        if ($manager === Employee::UNASSIGNED_MANAGER) {
             $this->merge(['manager_id' => null, 'is_top_approver' => false]);
 
             return;

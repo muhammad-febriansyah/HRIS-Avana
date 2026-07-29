@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, { Background, Controls, Handle, Position } from 'reactflow';
 import type { Edge, Node, NodeProps, NodeTypes } from 'reactflow';
@@ -12,6 +12,7 @@ import {
     SheetTitle,
 } from '@/components/ui/sheet';
 import { AIcon, C } from '@/lib/avana';
+import { NO_MANAGER, UNASSIGNED_MANAGER } from './types';
 
 interface OrgNode {
     id: number;
@@ -34,6 +35,11 @@ interface OrgChartProps {
      * lives behind EmployeePolicy, so linking there would only 403.
      */
     canOpenProfile?: boolean;
+    /**
+     * Whether the reader may rearrange the reporting line from the drawer.
+     * False on the employee self-service copy, which is read-only.
+     */
+    canManage?: boolean;
 }
 
 const COL_WIDTH = 220;
@@ -484,9 +490,143 @@ function DetailRow({ label, value }: { label: string; value: string | null }) {
     );
 }
 
+/**
+ * The reporting line, editable in place.
+ *
+ * Everyone below `employee` is left out of the list: making somebody report to
+ * their own subordinate closes the chain into a loop. The server refuses it too
+ * — this only keeps the impossible choice off the screen.
+ */
+function ManagerPicker({
+    employee,
+    nodes,
+    onSaved,
+}: {
+    employee: OrgNode;
+    nodes: OrgNode[];
+    /** Close the drawer once saved, so the chart redraws in plain view. */
+    onSaved: () => void;
+}) {
+    const current = employee.is_top_approver
+        ? NO_MANAGER
+        : employee.manager_id !== null
+          ? String(employee.manager_id)
+          : UNASSIGNED_MANAGER;
+
+    // Seeded once per employee: the drawer mounts this with key={employee.id},
+    // so pointing it at somebody else remounts rather than needing a re-sync.
+    const [choice, setChoice] = useState(current);
+    const [saving, setSaving] = useState(false);
+
+    const candidates = useMemo(() => {
+        const below = new Set<number>([employee.id]);
+        let grew = true;
+
+        while (grew) {
+            grew = false;
+
+            for (const node of nodes) {
+                if (
+                    node.manager_id !== null &&
+                    below.has(node.manager_id) &&
+                    !below.has(node.id)
+                ) {
+                    below.add(node.id);
+                    grew = true;
+                }
+            }
+        }
+
+        return nodes.filter((node) => !below.has(node.id));
+    }, [employee.id, nodes]);
+
+    const save = () => {
+        setSaving(true);
+        router.put(
+            `/avana/organisasi/${employee.id}/atasan`,
+            { manager_id: choice },
+            {
+                preserveScroll: true,
+                onSuccess: onSaved,
+                onFinish: () => setSaving(false),
+            },
+        );
+    };
+
+    return (
+        <div style={{ padding: '10px 0', borderBottom: `1px solid ${C.line}` }}>
+            <div style={{ fontSize: 11, color: C.faint, marginBottom: 6 }}>
+                Atasan Langsung
+            </div>
+            <select
+                value={choice}
+                onChange={(event) => setChoice(event.target.value)}
+                style={{
+                    width: '100%',
+                    height: 36,
+                    padding: '0 10px',
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 8,
+                    background: '#fff',
+                    fontSize: 13,
+                    color: C.text,
+                    cursor: 'pointer',
+                }}
+            >
+                <option value={UNASSIGNED_MANAGER}>Belum ditentukan</option>
+                <option value={NO_MANAGER}>
+                    Tidak ada — Approver Puncak (Direktur / Direksi)
+                </option>
+                {candidates.map((node) => (
+                    <option key={node.id} value={String(node.id)}>
+                        {node.name}
+                        {node.position ? ` — ${node.position}` : ''}
+                    </option>
+                ))}
+            </select>
+            {choice === NO_MANAGER && (
+                <div
+                    style={{
+                        fontSize: 11.5,
+                        color: C.red,
+                        lineHeight: 1.5,
+                        marginTop: 6,
+                    }}
+                >
+                    Pengajuan cuti, lembur, dan reimbursement orang ini langsung
+                    disetujui tanpa diperiksa siapa pun.
+                </div>
+            )}
+            {choice !== current && (
+                <button
+                    type="button"
+                    onClick={save}
+                    disabled={saving}
+                    style={{
+                        marginTop: 9,
+                        width: '100%',
+                        height: 36,
+                        border: 'none',
+                        borderRadius: 8,
+                        background: C.primary,
+                        color: '#fff',
+                        fontSize: 13,
+                        fontWeight: 500,
+                        cursor: saving ? 'not-allowed' : 'pointer',
+                        opacity: saving ? 0.7 : 1,
+                    }}
+                >
+                    {saving ? 'Menyimpan…' : 'Simpan Atasan'}
+                </button>
+            )}
+        </div>
+    );
+}
+
 export default function OrgChart({
     nodes,
     canOpenProfile = true,
+    canManage = false,
 }: OrgChartProps) {
     const tree = useMemo(() => buildTree(nodes), [nodes]);
 
@@ -835,10 +975,19 @@ export default function OrgChart({
                                     label="Cabang"
                                     value={selected.branch}
                                 />
-                                <DetailRow
-                                    label="Atasan"
-                                    value={selected.manager_name}
-                                />
+                                {canManage ? (
+                                    <ManagerPicker
+                                        key={selected.id}
+                                        employee={selected}
+                                        nodes={nodes}
+                                        onSaved={() => setSelected(null)}
+                                    />
+                                ) : (
+                                    <DetailRow
+                                        label="Atasan"
+                                        value={selected.manager_name}
+                                    />
+                                )}
                                 <DetailRow
                                     label="Tanggal Masuk"
                                     value={selected.join_date}
