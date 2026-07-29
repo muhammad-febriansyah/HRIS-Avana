@@ -191,18 +191,23 @@ export default function TokenPacks({ packs, orders, kpis }: PageProps) {
 
     const submit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        const url = editing
-            ? AiTokenPackController.update(editing.id).url
-            : AiTokenPackController.store().url;
         form.transform((data) => ({
             ...data,
             token_amount: Number(data.token_amount) || 0,
             price: Number(data.price) || 0,
         }));
-        form.post(url, {
+
+        const options = {
             preserveScroll: true,
             onSuccess: () => closeModal(),
-        });
+        };
+
+        if (editing) {
+            form.put(AiTokenPackController.update(editing.id).url, options);
+            return;
+        }
+
+        form.post(AiTokenPackController.store().url, options);
     };
 
     const remove = () => {
