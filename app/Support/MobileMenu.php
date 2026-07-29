@@ -46,6 +46,7 @@ class MobileMenu
             ['key' => 'kunjungan', 'label' => 'Kunjungan', 'icon' => 'location', 'color' => '#E11D48', 'route' => '/visiting'],
             ['key' => 'dokumen', 'label' => 'Dokumen', 'icon' => 'document_text', 'color' => '#9333EA', 'route' => '/dokumen'],
             ['key' => 'perasaan', 'label' => 'Perasaan', 'icon' => 'emoji_happy', 'color' => '#2547F9', 'route' => '/mood'],
+            ['key' => 'token_ai', 'label' => 'Token AI', 'icon' => 'flash_1', 'color' => '#7C3AED', 'route' => '/ai-tokens'],
         ];
     }
 
