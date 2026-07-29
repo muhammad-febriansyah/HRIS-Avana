@@ -1058,7 +1058,22 @@ class AccessController extends Controller
                 ['tenant_id' => $role->tenant_id ?? $tenantId, 'is_visible' => $pick !== null],
             );
 
-            if ($pick === null || $row['permissionModules'] === []) {
+            if ($pick === null) {
+                continue;
+            }
+
+            // Self-service rows carry no action of their own — `own` is filtered
+            // out of permissionModules because everybody holds it. But "holds it"
+            // was only ever true of the seeded roles: a role built here started
+            // with nothing, so picking Cuti Saya showed the menu and then 403'd
+            // the page, because EnsureAvanaAccess still wants the module.
+            if ($row['modules'] === ['own']) {
+                $codes[] = 'own';
+
+                continue;
+            }
+
+            if ($row['permissionModules'] === []) {
                 continue;
             }
 
@@ -1075,9 +1090,15 @@ class AccessController extends Controller
             }
         }
 
-        $role->permissions()->sync(
-            Permission::query()->whereIn('code', array_unique($codes))->pluck('id'),
-        );
+        $wanted = Permission::query()->whereIn('code', array_unique($codes))->pluck('id');
+
+        // `own` is a whole module rather than a `{module}.{action}` pair — its
+        // four permissions are the self-service baseline, granted together.
+        if (in_array('own', $codes, true)) {
+            $wanted = $wanted->merge(Permission::query()->where('module', 'own')->pluck('id'));
+        }
+
+        $role->permissions()->sync($wanted->unique()->values());
     }
 
     /**

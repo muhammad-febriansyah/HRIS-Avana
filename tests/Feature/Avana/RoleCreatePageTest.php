@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Avana\AccessController;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\RoleMenuVisibility;
 use App\Models\User;
@@ -148,4 +149,28 @@ it('shows the typed description on the access screen', function (): void {
 
             expect($role['desc'])->toBe('Pegang stok & aset gudang');
         });
+});
+
+it('grants the self-service baseline when a Layanan Saya menu is picked', function (): void {
+    // Picking Cuti Saya used to show the menu and then 403 the page: `own` is
+    // filtered out of permissionModules because every seeded role already holds
+    // it, but a role built here starts with nothing, so it held nothing.
+    actingAs($this->admin)
+        ->post('/__access/roles', [
+            'name' => 'Staf Lapangan',
+            'menus' => [['key' => 'saya-cuti', 'actions' => []]],
+        ])
+        ->assertRedirect();
+
+    $role = Role::where('code', 'staf-lapangan')->firstOrFail();
+
+    expect($role->permissions()->where('module', 'own')->count())
+        ->toBe(Permission::where('module', 'own')->count());
+
+    // And the page it was picked for actually opens. Uses a seeded account
+    // because ESS screens also need an employee record behind the login.
+    $member = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail();
+    $member->roles()->sync([$role->id]);
+
+    actingAs($member->fresh())->get(route('avana.saya.cuti'))->assertOk();
 });
