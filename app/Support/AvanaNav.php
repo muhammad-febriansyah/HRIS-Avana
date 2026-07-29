@@ -51,6 +51,7 @@ final class AvanaNav
                 self::leaf('saya-koreksi', 'Koreksi Absensi', 'clock-alert', '/avana/saya/koreksi-absensi', 'ess', ['own']),
                 self::leaf('saya-jadwal', 'Jadwal', 'calendar-clock', '/avana/saya/jadwal', 'ess', ['own']),
                 self::leaf('saya-organisasi', 'Struktur Organisasi', 'network', '/avana/saya/organisasi', 'ess', ['own']),
+                self::leaf('saya-token-ai', 'Token AI Saya', 'wallet', '/avana/saya/token-ai', 'ess', ['own']),
                 self::leaf('saya-cuti', 'Cuti', 'palmtree', '/avana/saya/cuti', 'ess', ['own']),
                 self::leaf('saya-lembur', 'Lembur', 'timer', '/avana/saya/lembur', 'ess', ['own']),
                 self::leaf('saya-izin', 'Izin', 'file-clock', '/avana/saya/izin', 'ess', ['own']),

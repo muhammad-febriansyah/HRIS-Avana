@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\AiAssistantController;
+use App\Http\Controllers\Api\AiTokenPurchaseController;
 use App\Http\Controllers\Api\AnnouncementController;
 use App\Http\Controllers\Api\AppConfigController;
 use App\Http\Controllers\Api\AttendanceController;
@@ -178,6 +179,10 @@ Route::prefix('v1')->group(function (): void {
             Route::post('ai/chat', [AiAssistantController::class, 'chat']);
             Route::get('ai/conversations/{conversation}', [AiAssistantController::class, 'conversation'])->whereNumber('conversation');
             Route::delete('ai/conversations/{conversation}', [AiAssistantController::class, 'destroyConversation'])->whereNumber('conversation');
+
+            Route::get('ai/tokens', [AiTokenPurchaseController::class, 'index']);
+            Route::post('ai/tokens', [AiTokenPurchaseController::class, 'store']);
+            Route::get('ai/tokens/{orderNumber}', [AiTokenPurchaseController::class, 'show']);
         });
 
         // Finance/payroll: reimbursement disbursement (role-gated in-controller).

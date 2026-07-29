@@ -32,6 +32,7 @@ use App\Http\Controllers\Avana\DutyTravelController;
 use App\Http\Controllers\Avana\DynamicReportController;
 use App\Http\Controllers\Avana\EmailSettingController;
 use App\Http\Controllers\Avana\EmployeeController;
+use App\Http\Controllers\Avana\EssAiTokenController;
 use App\Http\Controllers\Avana\EssAttendanceController;
 use App\Http\Controllers\Avana\EssBenefitController;
 use App\Http\Controllers\Avana\EssCalendarController;
@@ -791,6 +792,10 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
         Route::get('jadwal', [EssScheduleController::class, 'index'])->name('jadwal');
 
         Route::get('organisasi', [EssDirectoryController::class, 'index'])->name('organisasi');
+
+        Route::get('token-ai', [EssAiTokenController::class, 'index'])->name('token-ai');
+        Route::post('token-ai/beli', [EssAiTokenController::class, 'purchase'])->name('token-ai.purchase');
+        Route::get('token-ai/callback', [EssAiTokenController::class, 'callback'])->name('token-ai.callback');
 
         Route::get('cuti', [EssLeaveController::class, 'index'])->name('cuti');
         Route::post('cuti', [EssLeaveController::class, 'store'])->name('cuti.store');

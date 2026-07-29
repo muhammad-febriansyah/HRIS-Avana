@@ -13,13 +13,22 @@ use Illuminate\Support\Facades\DB;
 /**
  * Single home for AI token accounting and enforcement.
  *
- * Two pools fund a tenant's AI usage:
- *  - a monthly FREE quota (`tenant.ai_token_quota ?? package.ai_token_quota`)
- *    that resets each calendar month, and
- *  - a permanent WALLET (`tenants.ai_token_balance`) topped up via purchases.
+ * Three pools fund a message, drawn in this order:
+ *  1. the company's monthly FREE quota
+ *     (`tenant.ai_token_quota ?? package.ai_token_quota`), which resets each
+ *     calendar month,
+ *  2. the company's permanent WALLET (`tenants.ai_token_balance`), topped up by
+ *     the admin, and
+ *  3. the user's own permanent wallet (`users.ai_token_balance`), which they
+ *     bought themselves.
  *
- * Consumption draws the free quota first, then the wallet. Per-user monthly caps
- * (override `?? tenant default`, null = unlimited) provide fair distribution.
+ * Per-user monthly caps (role override `?? tenant default`, null = unlimited)
+ * ration the two company pools so one person cannot drain them. They do not
+ * touch the personal wallet: the cap exists to share out what the company paid
+ * for, and this is not that. So somebody at their cap, or in a company whose
+ * pools are dry, keeps working on tokens they own — and their money is not
+ * burned while the company still has budget, because personal comes last.
+ *
  * All usage is read from {@see AiTokenLedger} (never `ai_messages`, which can be
  * erased by deleting a conversation).
  */
@@ -46,7 +55,8 @@ final class AiTokenService
     }
 
     /**
-     * Tokens a single user has consumed this calendar month (from the ledger).
+     * Tokens a single user has consumed this calendar month (from the ledger),
+     * whoever paid for them.
      */
     public function userMonthlyUsed(User $user): int
     {
@@ -55,6 +65,26 @@ final class AiTokenService
             ->where('type', AiTokenLedger::TYPE_DEBIT)
             ->where('period', $this->period())
             ->sum('tokens');
+    }
+
+    /**
+     * Of that, the part the COMPANY paid for — the only part the per-user cap
+     * rations.
+     *
+     * Counting the whole lot would make buying your own tokens self-defeating:
+     * spending them would eat the company allowance you were topping up, and a
+     * heavy user would end up worse off for having paid.
+     */
+    public function userCompanyUsed(User $user): int
+    {
+        $rows = AiTokenLedger::query()
+            ->where('user_id', $user->id)
+            ->where('type', AiTokenLedger::TYPE_DEBIT)
+            ->where('period', $this->period())
+            ->selectRaw('COALESCE(SUM(tokens), 0) AS total, COALESCE(SUM(ABS(personal_delta)), 0) AS personal')
+            ->first();
+
+        return max(0, (int) ($rows->total ?? 0) - (int) ($rows->personal ?? 0));
     }
 
     /**
@@ -108,19 +138,23 @@ final class AiTokenService
             return TokenGate::allow();
         }
 
+        // Tokens they paid for themselves answer both refusals below, so the
+        // wallet is checked before either of them is raised.
+        $personal = $this->personalBalance($user);
+
         $cap = $this->resolveUserCap($user, $tenant);
 
-        $used = $this->userMonthlyUsed($user);
+        $used = $this->userCompanyUsed($user);
 
-        if ($cap !== null && $used >= $cap) {
+        if ($cap !== null && $used >= $cap && $personal <= 0) {
             // Name the personal allowance and its size: the company pool can be
             // nearly untouched while this user is out, and a bare "token habis"
             // reads as though the whole tenant had run dry.
             return TokenGate::block(
                 'user_cap',
                 sprintf(
-                    'Jatah token AI pribadi Anda bulan ini sudah terpakai (%s dari %s). '
-                    .'Kuota perusahaan masih tersedia — minta admin menaikkan jatah Anda di menu Token AI.',
+                    'Jatah token AI Anda dari perusahaan bulan ini sudah terpakai (%s dari %s). '
+                    .'Minta admin menaikkan jatah Anda, atau beli token pribadi di menu Token AI Saya.',
                     number_format($used, 0, ',', '.'),
                     number_format($cap, 0, ',', '.'),
                 ),
@@ -129,14 +163,23 @@ final class AiTokenService
 
         $freeRemaining = max(0, $this->freeQuota($tenant) - $this->tenantMonthlyUsed($tenant));
 
-        if ($freeRemaining <= 0 && (int) $tenant->ai_token_balance <= 0) {
+        if ($freeRemaining <= 0 && (int) $tenant->ai_token_balance <= 0 && $personal <= 0) {
             return TokenGate::block(
                 'pool_empty',
-                'Kuota token AI perusahaan telah habis. Hubungi admin untuk menambah token.',
+                'Kuota token AI perusahaan telah habis. Hubungi admin untuk menambah token, '
+                .'atau beli token pribadi di menu Token AI Saya.',
             );
         }
 
         return TokenGate::allow();
+    }
+
+    /**
+     * Tokens this user bought for themselves and has not spent yet.
+     */
+    public function personalBalance(User $user): int
+    {
+        return max(0, (int) $user->ai_token_balance);
     }
 
     /**
@@ -160,12 +203,30 @@ final class AiTokenService
                 return;
             }
 
-            $freeRemaining = max(0, $this->freeQuota($tenant) - $this->tenantMonthlyUsed($tenant));
-            $walletDebit = max(0, $tokens - $freeRemaining);
-            $applied = min($walletDebit, (int) $tenant->ai_token_balance);
+            $fresh = User::query()->whereKey($user->id)->lockForUpdate()->first() ?? $user;
 
-            if ($applied > 0) {
-                $tenant->decrement('ai_token_balance', $applied);
+            // How much of this message the company is still willing to fund:
+            // whatever is left of the user's monthly cap. Past it, the rest
+            // falls to the wallet they bought themselves.
+            $cap = $this->resolveUserCap($fresh, $tenant);
+            $companyAllowance = $cap === null
+                ? $tokens
+                : max(0, min($tokens, $cap - $this->userCompanyUsed($fresh)));
+
+            $freeRemaining = max(0, $this->freeQuota($tenant) - $this->tenantMonthlyUsed($tenant));
+            $fromFree = min($companyAllowance, $freeRemaining);
+            $fromWallet = min($companyAllowance - $fromFree, (int) $tenant->ai_token_balance);
+
+            // Everything the company could not cover — capped out, quota spent,
+            // wallet empty — comes off the personal wallet.
+            $fromPersonal = min($tokens - $fromFree - $fromWallet, $this->personalBalance($fresh));
+
+            if ($fromWallet > 0) {
+                $tenant->decrement('ai_token_balance', $fromWallet);
+            }
+
+            if ($fromPersonal > 0) {
+                $fresh->decrement('ai_token_balance', $fromPersonal);
             }
 
             AiTokenLedger::create([
@@ -174,16 +235,18 @@ final class AiTokenService
                 'type' => AiTokenLedger::TYPE_DEBIT,
                 'source' => $source,
                 'tokens' => $tokens,
-                'wallet_delta' => -$applied,
+                'wallet_delta' => -$fromWallet,
                 'balance_after' => (int) $tenant->ai_token_balance,
+                'personal_delta' => -$fromPersonal,
+                'personal_after' => (int) $fresh->ai_token_balance,
                 'period' => $this->period(),
             ]);
         });
     }
 
     /**
-     * Credit a paid order's tokens to the tenant wallet. Idempotent — a no-op if
-     * the order was already credited.
+     * Credit a paid order's tokens to whichever wallet it was bought for — the
+     * company's, or the buyer's own. Idempotent: a no-op if already credited.
      */
     public function creditWallet(AiTokenOrder $order): void
     {
@@ -200,16 +263,32 @@ final class AiTokenService
                 return;
             }
 
-            $tenant->increment('ai_token_balance', $fresh->token_amount);
+            $buyer = $fresh->scope === AiTokenOrder::SCOPE_USER && $fresh->user_id !== null
+                ? User::query()->whereKey($fresh->user_id)->lockForUpdate()->first()
+                : null;
+
+            // A personal order with a buyer who has since been deleted would
+            // otherwise silently credit nobody and still mark itself done.
+            if ($fresh->scope === AiTokenOrder::SCOPE_USER && $buyer === null) {
+                return;
+            }
+
+            if ($buyer !== null) {
+                $buyer->increment('ai_token_balance', $fresh->token_amount);
+            } else {
+                $tenant->increment('ai_token_balance', $fresh->token_amount);
+            }
 
             AiTokenLedger::create([
                 'tenant_id' => $tenant->id,
                 'user_id' => $fresh->user_id,
                 'type' => AiTokenLedger::TYPE_CREDIT,
-                'source' => 'purchase',
+                'source' => $buyer !== null ? 'purchase_personal' : 'purchase',
                 'tokens' => $fresh->token_amount,
-                'wallet_delta' => $fresh->token_amount,
+                'wallet_delta' => $buyer !== null ? 0 : $fresh->token_amount,
                 'balance_after' => (int) $tenant->ai_token_balance,
+                'personal_delta' => $buyer !== null ? $fresh->token_amount : 0,
+                'personal_after' => (int) ($buyer->ai_token_balance ?? 0),
                 'period' => $this->period(),
                 'ai_token_order_id' => $fresh->id,
             ]);
@@ -240,6 +319,8 @@ final class AiTokenService
                 'user_cap' => null,
                 'user_used' => 0,
                 'user_remaining' => null,
+                'personal_balance' => 0,
+                'company_remaining' => null,
                 'effective_remaining' => null,
             ];
         }
@@ -253,13 +334,19 @@ final class AiTokenService
         $wallet = (int) ($tenant->ai_token_balance ?? 0);
 
         $cap = $tenant ? $this->resolveUserCap($user, $tenant) : null;
-        $userUsed = $this->userMonthlyUsed($user);
+        $userUsed = $this->userCompanyUsed($user);
         $userRemaining = $cap !== null ? max(0, $cap - $userUsed) : null;
 
+        $personal = $this->personalBalance($user);
+
         $poolRemaining = $freeRemaining + $wallet;
-        $effectiveRemaining = $userRemaining !== null
+        $fromCompany = $userRemaining !== null
             ? min($userRemaining, $poolRemaining)
             : $poolRemaining;
+
+        // Personal tokens sit outside the cap, so they add to what the company
+        // allows rather than being clamped by it.
+        $effectiveRemaining = $fromCompany + $personal;
 
         return [
             'used' => $tenantUsed,
@@ -272,6 +359,8 @@ final class AiTokenService
             'user_cap' => $cap,
             'user_used' => $userUsed,
             'user_remaining' => $userRemaining,
+            'personal_balance' => $personal,
+            'company_remaining' => $fromCompany,
             'effective_remaining' => $effectiveRemaining,
         ];
     }

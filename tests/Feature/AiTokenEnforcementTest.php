@@ -134,13 +134,16 @@ it('names the personal allowance and says the company pool is still available', 
 
     $gate = $this->service->canChat($this->admin->fresh());
 
+    // The refusal names the allowance and its size, so it cannot be mistaken
+    // for the whole company having run dry, and points at both ways out: the
+    // admin can raise the cap, or they can buy tokens of their own.
     expect($gate->allowed)->toBeFalse()
         ->and($gate->reason)->toBe('user_cap')
         ->and($gate->message)
-        ->toContain('pribadi')
+        ->toContain('dari perusahaan')
         ->toContain('10.571')
         ->toContain('10.000')
-        ->toContain('Kuota perusahaan masih tersedia');
+        ->toContain('beli token pribadi');
 });
 
 it('reports the per-user cap to the meter, not just the company pool', function (): void {

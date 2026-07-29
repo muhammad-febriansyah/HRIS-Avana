@@ -7,8 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * A tenant's Pakasir-paid purchase of an {@see AiTokenPack}. The wallet is
- * credited once payment is verified, guarded by `credited_at`.
+ * A Pakasir-paid purchase of an {@see AiTokenPack}. The wallet is credited once
+ * payment is verified, guarded by `credited_at`.
+ *
+ * {@see SCOPE_TENANT} orders top up the company wallet everyone draws on;
+ * {@see SCOPE_USER} orders top up the buyer's own, which no cap rations.
  */
 final class AiTokenOrder extends Model
 {
@@ -17,6 +20,12 @@ final class AiTokenOrder extends Model
     public const STATUS_COMPLETED = 'completed';
 
     public const STATUS_FAILED = 'failed';
+
+    /** Tokens land on the company wallet, shared by the whole tenant. */
+    public const SCOPE_TENANT = 'tenant';
+
+    /** Tokens land on the wallet of the person who bought them. */
+    public const SCOPE_USER = 'user';
 
     protected $guarded = [];
 

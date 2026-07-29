@@ -52,6 +52,10 @@ class User extends Authenticatable implements JWTSubject, PasskeyUser
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'token_version' => 'integer',
+            // Deliberately absent from #[Fillable]: the personal AI token
+            // wallet only ever moves through AiTokenService, so no request can
+            // set it by naming the field.
+            'ai_token_balance' => 'integer',
         ];
     }
 
