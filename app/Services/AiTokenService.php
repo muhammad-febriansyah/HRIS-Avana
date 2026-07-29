@@ -14,20 +14,23 @@ use Illuminate\Support\Facades\DB;
  * Single home for AI token accounting and enforcement.
  *
  * Three pools fund a message, drawn in this order:
- *  1. the company's monthly FREE quota
+ *  1. the user's own permanent wallet (`users.ai_token_balance`), bought by the
+ *     person spending it,
+ *  2. the company's monthly FREE quota
  *     (`tenant.ai_token_quota ?? package.ai_token_quota`), which resets each
- *     calendar month,
- *  2. the company's permanent WALLET (`tenants.ai_token_balance`), topped up by
- *     the admin, and
- *  3. the user's own permanent wallet (`users.ai_token_balance`), which they
- *     bought themselves.
+ *     calendar month, and
+ *  3. the company's permanent WALLET (`tenants.ai_token_balance`), topped up by
+ *     the admin.
+ *
+ * Personal first: the balance somebody bought is the one they watch, so it is
+ * the one that moves. The company pools are the fallback once it is empty.
  *
  * Per-user monthly caps (role override `?? tenant default`, null = unlimited)
  * ration the two company pools so one person cannot drain them. They do not
- * touch the personal wallet: the cap exists to share out what the company paid
- * for, and this is not that. So somebody at their cap, or in a company whose
- * pools are dry, keeps working on tokens they own — and their money is not
- * burned while the company still has budget, because personal comes last.
+ * touch the personal wallet — the cap shares out what the company paid for, and
+ * this is not that — which also means personal spending must not count against
+ * the cap, or buying tokens would eat the allowance it was meant to extend.
+ * Hence {@see userCompanyUsed()} beside the plain total.
  *
  * All usage is read from {@see AiTokenLedger} (never `ai_messages`, which can be
  * erased by deleting a conversation).
@@ -205,21 +208,21 @@ final class AiTokenService
 
             $fresh = User::query()->whereKey($user->id)->lockForUpdate()->first() ?? $user;
 
-            // How much of this message the company is still willing to fund:
-            // whatever is left of the user's monthly cap. Past it, the rest
-            // falls to the wallet they bought themselves.
+            // Your own tokens go first. Somebody who topped up did so to keep
+            // working, so the balance they can see is the one that moves.
+            $fromPersonal = min($tokens, $this->personalBalance($fresh));
+            $rest = $tokens - $fromPersonal;
+
+            // What is left falls to the company, bounded by whatever remains of
+            // this user's monthly cap.
             $cap = $this->resolveUserCap($fresh, $tenant);
             $companyAllowance = $cap === null
-                ? $tokens
-                : max(0, min($tokens, $cap - $this->userCompanyUsed($fresh)));
+                ? $rest
+                : max(0, min($rest, $cap - $this->userCompanyUsed($fresh)));
 
             $freeRemaining = max(0, $this->freeQuota($tenant) - $this->tenantMonthlyUsed($tenant));
             $fromFree = min($companyAllowance, $freeRemaining);
             $fromWallet = min($companyAllowance - $fromFree, (int) $tenant->ai_token_balance);
-
-            // Everything the company could not cover — capped out, quota spent,
-            // wallet empty — comes off the personal wallet.
-            $fromPersonal = min($tokens - $fromFree - $fromWallet, $this->personalBalance($fresh));
 
             if ($fromWallet > 0) {
                 $tenant->decrement('ai_token_balance', $fromWallet);

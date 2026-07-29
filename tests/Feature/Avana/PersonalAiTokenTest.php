@@ -74,52 +74,59 @@ it('credits a paid personal order to the buyer, not the company', function (): v
     expect($this->employee->fresh()->ai_token_balance)->toBe(50_000);
 });
 
-it('spends the company pools before touching the personal wallet', function (): void {
+it('spends the personal wallet before touching the company pools', function (): void {
     $this->tenant->forceFill(['ai_token_balance' => 1_000])->save();
     $this->employee->forceFill(['ai_token_balance' => 5_000])->save();
 
     $this->tokens->debit($this->employee, 400);
 
-    expect($this->tenant->fresh()->ai_token_balance)->toBe(600)
-        ->and($this->employee->fresh()->ai_token_balance)->toBe(5_000);
+    // The balance the buyer watches is the one that moves.
+    expect($this->employee->fresh()->ai_token_balance)->toBe(4_600)
+        ->and($this->tenant->fresh()->ai_token_balance)->toBe(1_000);
 });
 
-it('falls through to the personal wallet once the company runs dry', function (): void {
-    $this->tenant->forceFill(['ai_token_balance' => 300])->save();
-    $this->employee->forceFill(['ai_token_balance' => 5_000])->save();
+it('falls through to the company once the personal wallet runs dry', function (): void {
+    $this->tenant->forceFill(['ai_token_balance' => 1_000])->save();
+    $this->employee->forceFill(['ai_token_balance' => 300])->save();
 
-    // 800 needed, only 300 of company money left.
+    // 800 needed, only 300 of their own left.
     $this->tokens->debit($this->employee, 800);
 
-    expect($this->tenant->fresh()->ai_token_balance)->toBe(0)
-        ->and($this->employee->fresh()->ai_token_balance)->toBe(4_500);
+    expect($this->employee->fresh()->ai_token_balance)->toBe(0)
+        ->and($this->tenant->fresh()->ai_token_balance)->toBe(500);
 
     $ledger = AiTokenLedger::latest('id')->firstOrFail();
 
-    expect($ledger->wallet_delta)->toBe(-300)
-        ->and($ledger->personal_delta)->toBe(-500)
+    expect($ledger->personal_delta)->toBe(-300)
+        ->and($ledger->wallet_delta)->toBe(-500)
         ->and($ledger->tokens)->toBe(800);
 });
 
 it('keeps serving a user who is over their cap from their own wallet', function (): void {
     $this->tenant->update(['ai_token_balance' => 100_000, 'ai_token_user_cap' => 1_000]);
-    $this->employee->forceFill(['ai_token_balance' => 5_000])->save();
+    $this->employee->forceFill(['ai_token_balance' => 500])->save();
 
-    $this->tokens->debit($this->employee, 1_000);   // exactly the cap, all company
-    $this->tokens->debit($this->employee, 400);     // past it, so personal pays
+    // 500 of their own, then the company covers the rest up to the cap.
+    $this->tokens->debit($this->employee, 1_500);
 
-    expect($this->employee->fresh()->ai_token_balance)->toBe(4_600)
-        ->and($this->tenant->fresh()->ai_token_balance)->toBe(99_000);
+    expect($this->employee->fresh()->ai_token_balance)->toBe(0)
+        ->and($this->tenant->fresh()->ai_token_balance)->toBe(99_000)
+        ->and($this->tokens->userCompanyUsed($this->employee->fresh()))->toBe(1_000);
 
-    // And the gate still lets them chat, because they have their own tokens.
+    // Their own wallet is empty and the cap is spent, so the gate closes.
+    expect($this->tokens->canChat($this->employee->fresh())->allowed)->toBeFalse();
+
+    // Topping up reopens it without the admin touching the cap.
+    $this->employee->forceFill(['ai_token_balance' => 2_000])->save();
+
     expect($this->tokens->canChat($this->employee->fresh())->allowed)->toBeTrue();
 });
 
 it('does not let personal spending eat the company allowance', function (): void {
-    $this->tenant->update(['ai_token_balance' => 0, 'ai_token_user_cap' => 1_000]);
+    $this->tenant->update(['ai_token_balance' => 100_000, 'ai_token_user_cap' => 1_000]);
     $this->employee->forceFill(['ai_token_balance' => 5_000])->save();
 
-    // Company has nothing, so all 900 comes from the buyer's own wallet.
+    // All 900 comes from the buyer's own wallet, since personal goes first.
     $this->tokens->debit($this->employee, 900);
 
     // Their company allowance is untouched: spending what they bought must not

@@ -117,7 +117,7 @@ export default function SayaTokenAi({
                                 ? 'Tanpa batas'
                                 : num(summary.effective_remaining)
                         }
-                        note="Jatah perusahaan dipakai lebih dulu"
+                        note="Token pribadi dipakai lebih dulu"
                     />
                 </div>
 
@@ -138,10 +138,10 @@ export default function SayaTokenAi({
                 >
                     <AIcon name="info" size={16} color={C.primary} />
                     <span>
-                        Token pribadi baru terpakai setelah jatah perusahaan
-                        habis, jadi uang Anda tidak terbuang selama perusahaan
-                        masih punya kuota. Token pribadi juga tidak dibatasi
-                        jatah bulanan dari admin.
+                        Token pribadi Anda dipakai lebih dulu; jatah perusahaan
+                        baru dipakai setelah token pribadi habis. Token pribadi
+                        tidak dibatasi jatah bulanan dari admin dan tidak hangus
+                        tiap bulan.
                     </span>
                 </div>
 
