@@ -499,11 +499,29 @@ class EmployeeController extends Controller
 
         abort_if($manager === null, 404);
 
-        // Nobody reports to themselves, and nobody reports to their own
-        // subordinate — either would close the chain into a loop that the chart
-        // walks forever and the approval routing can never leave.
-        if ($manager->id === $employee->id || $this->reportsTo($manager, $employee)) {
-            return back()->with('error', $manager->full_name.' ada di bawah '.$employee->full_name.' — atasan tidak boleh melingkar.');
+        // The one move with no sensible reading: reporting to yourself.
+        if ($manager->id === $employee->id) {
+            return back()->with('error', $employee->full_name.' tidak bisa jadi atasannya sendiri.');
+        }
+
+        // Picking somebody already below you is how you swap two people, and it
+        // is the move an org chart is most often opened for — promoting the
+        // deputy over the person they reported to. Naively pointing the arrow
+        // would close the chain into a loop, so the new manager first takes the
+        // place the employee is leaving. Their ancestors become exactly the
+        // employee's old ancestors, which by definition exclude the employee and
+        // everyone under them, so the result cannot loop.
+        if ($this->reportsTo($manager, $employee)) {
+            DB::transaction(function () use ($employee, $manager): void {
+                $manager->update([
+                    'manager_id' => $employee->manager_id,
+                    'is_top_approver' => $employee->is_top_approver,
+                ]);
+
+                $employee->update(['manager_id' => $manager->id, 'is_top_approver' => false]);
+            });
+
+            return back()->with('success', $manager->full_name.' dan '.$employee->full_name.' bertukar posisi.');
         }
 
         $employee->update(['manager_id' => $manager->id, 'is_top_approver' => false]);

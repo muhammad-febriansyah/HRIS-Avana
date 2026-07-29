@@ -493,9 +493,10 @@ function DetailRow({ label, value }: { label: string; value: string | null }) {
 /**
  * The reporting line, editable in place.
  *
- * Everyone below `employee` is left out of the list: making somebody report to
- * their own subordinate closes the chain into a loop. The server refuses it too
- * — this only keeps the impossible choice off the screen.
+ * Subordinates stay in the list rather than being hidden: picking one is how you
+ * promote a deputy over the person they reported to, and the server handles it
+ * by swapping the two. Hiding them made that move look impossible and left the
+ * admin to work out that they had to detach one side first, in the right order.
  */
 function ManagerPicker({
     employee,
@@ -518,8 +519,9 @@ function ManagerPicker({
     const [choice, setChoice] = useState(current);
     const [saving, setSaving] = useState(false);
 
-    const candidates = useMemo(() => {
-        const below = new Set<number>([employee.id]);
+    /** Everyone under this employee — picking one of them means a swap. */
+    const below = useMemo(() => {
+        const found = new Set<number>([employee.id]);
         let grew = true;
 
         while (grew) {
@@ -528,17 +530,29 @@ function ManagerPicker({
             for (const node of nodes) {
                 if (
                     node.manager_id !== null &&
-                    below.has(node.manager_id) &&
-                    !below.has(node.id)
+                    found.has(node.manager_id) &&
+                    !found.has(node.id)
                 ) {
-                    below.add(node.id);
+                    found.add(node.id);
                     grew = true;
                 }
             }
         }
 
-        return nodes.filter((node) => !below.has(node.id));
+        found.delete(employee.id);
+
+        return found;
     }, [employee.id, nodes]);
+
+    // Only the employee themselves is left out: nobody reports to themselves.
+    const candidates = useMemo(
+        () => nodes.filter((node) => node.id !== employee.id),
+        [employee.id, nodes],
+    );
+
+    const swapWith = below.has(Number(choice))
+        ? nodes.find((node) => node.id === Number(choice))
+        : undefined;
 
     const save = () => {
         setSaving(true);
@@ -581,9 +595,30 @@ function ManagerPicker({
                     <option key={node.id} value={String(node.id)}>
                         {node.name}
                         {node.position ? ` — ${node.position}` : ''}
+                        {below.has(node.id) ? ' (bawahan — tukar posisi)' : ''}
                     </option>
                 ))}
             </select>
+            {swapWith && (
+                <div
+                    style={{
+                        fontSize: 11.5,
+                        color: C.text,
+                        lineHeight: 1.55,
+                        marginTop: 7,
+                        padding: '9px 11px',
+                        borderRadius: 8,
+                        background: `${C.primary}0f`,
+                        border: `1px solid ${C.primary}33`,
+                    }}
+                >
+                    <strong>{swapWith.name}</strong> sekarang ada di bawah{' '}
+                    {employee.name}. Menyimpan akan menukar posisi keduanya:{' '}
+                    {swapWith.name} naik ke posisi {employee.name}, dan{' '}
+                    {employee.name} jadi bawahannya. Bawahan {employee.name}{' '}
+                    yang lain tetap ikut {employee.name}.
+                </div>
+            )}
             {choice === NO_MANAGER && (
                 <div
                     style={{

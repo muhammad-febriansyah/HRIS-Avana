@@ -703,22 +703,64 @@ it('takes both sentinels from the org chart too', function (): void {
         ->is_top_approver->toBeFalse();
 });
 
-it('refuses to point somebody at their own subordinate', function (): void {
-    // boss → middle → junior. Making boss report to junior would close the
-    // chain into a loop the chart walks forever.
+it('swaps two people when pointed at a subordinate', function (): void {
+    // boss → deputy, plus a peer who stays put. Promoting the deputy over the
+    // boss is a single choice: the deputy takes the boss's old place.
     $boss = Employee::forTenant($this->tenant->id)->firstOrFail();
-    $middle = Employee::forTenant($this->tenant->id)->whereKeyNot($boss->id)->firstOrFail();
-    $junior = Employee::forTenant($this->tenant->id)->whereKeyNot([$boss->id, $middle->id])->firstOrFail();
+    $deputy = Employee::forTenant($this->tenant->id)->whereKeyNot($boss->id)->firstOrFail();
+    $peer = Employee::forTenant($this->tenant->id)->whereKeyNot([$boss->id, $deputy->id])->firstOrFail();
 
-    $middle->update(['manager_id' => $boss->id]);
-    $junior->update(['manager_id' => $middle->id]);
-    $boss->update(['manager_id' => null]);
+    $boss->update(['manager_id' => null, 'is_top_approver' => true]);
+    $deputy->update(['manager_id' => $boss->id, 'is_top_approver' => false]);
+    $peer->update(['manager_id' => $boss->id, 'is_top_approver' => false]);
 
     actingAs($this->admin)
-        ->put(route('avana.organisasi.atasan', $boss), ['manager_id' => (string) $junior->id])
-        ->assertSessionHas('error');
+        ->put(route('avana.organisasi.atasan', $boss), ['manager_id' => (string) $deputy->id])
+        ->assertSessionHas('success');
 
-    expect($boss->fresh()->manager_id)->toBeNull();
+    expect($deputy->fresh())
+        ->manager_id->toBeNull()
+        ->is_top_approver->toBeTrue();
+
+    expect($boss->fresh())
+        ->manager_id->toBe($deputy->id)
+        ->is_top_approver->toBeFalse();
+
+    // The boss's other reports follow the boss down rather than being orphaned.
+    expect($peer->fresh()->manager_id)->toBe($boss->id);
+});
+
+it('swaps across several levels without looping the chain', function (): void {
+    // head → middle → junior, then point head at junior. Junior must land in
+    // head's old slot, leaving head under junior and middle under head.
+    $head = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $middle = Employee::forTenant($this->tenant->id)->whereKeyNot($head->id)->firstOrFail();
+    $junior = Employee::forTenant($this->tenant->id)->whereKeyNot([$head->id, $middle->id])->firstOrFail();
+
+    $head->update(['manager_id' => null, 'is_top_approver' => false]);
+    $middle->update(['manager_id' => $head->id]);
+    $junior->update(['manager_id' => $middle->id]);
+
+    actingAs($this->admin)
+        ->put(route('avana.organisasi.atasan', $head), ['manager_id' => (string) $junior->id])
+        ->assertSessionHas('success');
+
+    expect($junior->fresh()->manager_id)->toBeNull()
+        ->and($head->fresh()->manager_id)->toBe($junior->id)
+        ->and($middle->fresh()->manager_id)->toBe($head->id);
+
+    // Walking up from every node terminates, so no cycle was created.
+    foreach ([$head, $middle, $junior] as $employee) {
+        $steps = 0;
+        $cursor = $employee->fresh()->manager_id;
+
+        while ($cursor !== null && $steps < 10) {
+            $cursor = Employee::whereKey($cursor)->value('manager_id');
+            $steps++;
+        }
+
+        expect($cursor)->toBeNull();
+    }
 });
 
 it('refuses to make somebody their own manager', function (): void {
