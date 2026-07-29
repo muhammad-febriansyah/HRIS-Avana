@@ -72,10 +72,14 @@ class AiTokenPurchaseController extends Controller
                 'order_number' => $order->order_number,
                 'amount' => (int) $order->amount,
                 'token_amount' => (int) $order->token_amount,
+                // The public return page, not the signed-in one: payment opens
+                // in an external browser that carries no Laravel session, so
+                // the /avana callback would only redirect the buyer to login
+                // after they had already paid.
                 'pay_url' => app(PakasirGateway::class)->payUrl(
                     $order->order_number,
                     (int) $order->amount,
-                    route('avana.saya.token-ai.callback', ['order' => $order->order_number]),
+                    route('bayar.token-ai.selesai', ['order' => $order->order_number]),
                 ),
             ],
         ], 201);

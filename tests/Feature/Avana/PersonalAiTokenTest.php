@@ -219,3 +219,77 @@ it('opens a personal order from the mobile app and hands back a pay url', functi
     expect(AiTokenOrder::where('order_number', $body['order_number'])->firstOrFail()->scope)
         ->toBe(AiTokenOrder::SCOPE_USER);
 });
+
+it('sends the mobile buyer to a return page that needs no session', function (): void {
+    $pack = AiTokenPack::create(['name' => 'Paket Hemat', 'token_amount' => 50_000, 'price' => 25_000]);
+
+    $payUrl = $this->actingAs($this->employee, 'api')
+        ->postJson('/api/v1/me/ai/tokens', ['pack_id' => $pack->id])
+        ->assertCreated()
+        ->json('data.pay_url');
+
+    // The gateway sends the browser back here; /avana would bounce to login.
+    expect($payUrl)->toContain(urlencode(route('bayar.token-ai.selesai')))
+        ->and($payUrl)->not->toContain('avana%2Fsaya');
+});
+
+it('tells a returning buyer where they stand without a login', function (): void {
+    $order = AiTokenOrder::create([
+        'order_number' => 'AIU-RETURN-1',
+        'tenant_id' => $this->tenant->id,
+        'user_id' => $this->employee->id,
+        'scope' => AiTokenOrder::SCOPE_USER,
+        'pack_name' => 'Paket Hemat',
+        'token_amount' => 50_000,
+        'amount' => 25_000,
+        'status' => AiTokenOrder::STATUS_COMPLETED,
+        'credited_at' => now(),
+    ]);
+
+    // No actingAs: this is an external browser with no session at all.
+    $this->get(route('bayar.token-ai.selesai', ['order' => $order->order_number]))
+        ->assertOk()
+        ->assertSee('Pembayaran berhasil');
+});
+
+it('reveals nothing about the buyer from a guessed order number', function (): void {
+    AiTokenOrder::create([
+        'order_number' => 'AIU-SECRET-1',
+        'tenant_id' => $this->tenant->id,
+        'user_id' => $this->employee->id,
+        'scope' => AiTokenOrder::SCOPE_USER,
+        'pack_name' => 'Paket Rahasia',
+        'token_amount' => 50_000,
+        'amount' => 25_000,
+        'status' => AiTokenOrder::STATUS_COMPLETED,
+        'credited_at' => now(),
+    ]);
+
+    $page = $this->get(route('bayar.token-ai.selesai', ['order' => 'AIU-SECRET-1']))->assertOk();
+
+    // A stranger learns only that some payment cleared — not who, nor what.
+    $page->assertDontSee($this->employee->name)
+        ->assertDontSee($this->employee->email)
+        ->assertDontSee('Paket Rahasia')
+        ->assertDontSee('50.000');
+});
+
+it('does not credit an unpaid order from the public return page', function (): void {
+    $order = AiTokenOrder::create([
+        'order_number' => 'AIU-UNPAID-1',
+        'tenant_id' => $this->tenant->id,
+        'user_id' => $this->employee->id,
+        'scope' => AiTokenOrder::SCOPE_USER,
+        'pack_name' => 'Paket Hemat',
+        'token_amount' => 50_000,
+        'amount' => 25_000,
+        'status' => AiTokenOrder::STATUS_PENDING,
+    ]);
+
+    $this->get(route('bayar.token-ai.selesai', ['order' => $order->order_number]))
+        ->assertOk()
+        ->assertSee('Pembayaran belum selesai');
+
+    expect($order->fresh()->credited_at)->toBeNull()
+        ->and($this->employee->fresh()->ai_token_balance)->toBe(0);
+});
