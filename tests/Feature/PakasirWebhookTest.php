@@ -92,6 +92,19 @@ it('does not credit when server-side verification is not completed', function ()
         ->and($order->fresh()->credited_at)->toBeNull();
 });
 
+it('accepts the unversioned callback URL configured in the Pakasir dashboard', function (): void {
+    Http::fake(['app.pakasir.com/*' => Http::response(['transaction' => ['status' => 'completed', 'payment_method' => 'qris']])]);
+
+    $order = pendingOrder();
+
+    postJson('/api/pakasir/webhook', webhookPayload($order))
+        ->assertOk()
+        ->assertJson(['ok' => true]);
+
+    expect($order->tenant->fresh()->ai_token_balance)->toBe(100_000)
+        ->and($order->fresh()->credited_at)->not->toBeNull();
+});
+
 it('returns 404 for an unknown order', function (): void {
     postJson('/api/v1/pakasir/webhook', [
         'amount' => 1000,

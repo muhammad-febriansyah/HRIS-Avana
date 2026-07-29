@@ -28,6 +28,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex">
+    @if ($state === 'pending')
+        {{-- A buyer who lands here a second before the gateway settles would
+             otherwise stare at "belum selesai" forever; recheck on its own. --}}
+        <meta http-equiv="refresh" content="8">
+    @endif
     <title>{{ $copy['title'] }} &middot; AvanaHR</title>
     <style>
         body {

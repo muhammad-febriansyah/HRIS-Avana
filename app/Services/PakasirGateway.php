@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Thin client for the Pakasir payment gateway. Builds the hosted-checkout URL a
@@ -64,12 +65,27 @@ final class PakasirGateway
             ]);
 
         if ($response->failed()) {
+            Log::warning('Pakasir verify failed', [
+                'order' => $orderNumber,
+                'status' => $response->status(),
+                'has_api_key' => $this->apiKey !== '',
+            ]);
+
             return null;
         }
 
         $transaction = $response->json('transaction');
 
-        return is_array($transaction) ? $transaction : null;
+        if (! is_array($transaction)) {
+            Log::warning('Pakasir verify returned no transaction', [
+                'order' => $orderNumber,
+                'has_api_key' => $this->apiKey !== '',
+            ]);
+
+            return null;
+        }
+
+        return $transaction;
     }
 
     /**

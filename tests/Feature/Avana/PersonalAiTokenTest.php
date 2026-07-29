@@ -295,7 +295,8 @@ it('does not credit an unpaid order from the public return page', function (): v
 
     $this->get(route('bayar.token-ai.selesai', ['order' => $order->order_number]))
         ->assertOk()
-        ->assertSee('Pembayaran belum selesai');
+        ->assertSee('Pembayaran belum selesai')
+        ->assertSee('http-equiv="refresh"', escape: false);
 
     expect($order->fresh()->credited_at)->toBeNull()
         ->and($this->employee->fresh()->ai_token_balance)->toBe(0);

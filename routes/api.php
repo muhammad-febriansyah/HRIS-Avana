@@ -43,12 +43,16 @@ use Illuminate\Support\Facades\Route;
  * (/me/*) are scoped to the caller's own employee; MSS endpoints (/mss/*) to a
  * manager's team.
  */
+// Public Pakasir payment callback for AI token top-ups and subscription
+// renewals (tenant resolved from the order; verified server-to-server before
+// crediting). Unversioned: the callback URL is configured in the Pakasir
+// dashboard without the /v1 prefix, and it is answered identically below.
+Route::post('pakasir/webhook', [PakasirWebhookController::class, 'handle'])->middleware('throttle:60,1');
+
 Route::prefix('v1')->group(function (): void {
     Route::get('app-config', [AppConfigController::class, 'show']);
     Route::get('onboarding-slides', [OnboardingSlideController::class, 'index']);
 
-    // Public Pakasir payment callback for AI token top-ups (tenant resolved from
-    // the order; verified server-to-server before crediting).
     Route::post('pakasir/webhook', [PakasirWebhookController::class, 'handle'])->middleware('throttle:60,1');
 
     Route::prefix('auth')->group(function (): void {
