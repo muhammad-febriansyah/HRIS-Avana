@@ -268,7 +268,9 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('hak-akses/feature/toggle', [AccessController::class, 'toggleFeature'])->name('hak-akses.feature.toggle');
     Route::post('hak-akses/menu/toggle', [AccessController::class, 'toggleMenu'])->name('hak-akses.menu.toggle');
     Route::post('hak-akses/menu/visibility', [AccessController::class, 'toggleMenuVisibility'])->name('hak-akses.menu.visibility');
+    Route::get('hak-akses/peran/baru', [AccessController::class, 'createRole'])->name('hak-akses.roles.create');
     Route::post('hak-akses/roles', [AccessController::class, 'storeRole'])->name('hak-akses.roles.store');
+    Route::post('hak-akses/roles/{role}/mobile', [AccessController::class, 'toggleRoleMobile'])->name('hak-akses.roles.mobile');
     Route::post('hak-akses/roles/{role}/users', [AccessController::class, 'attachRoleUser'])->name('hak-akses.roles.users.attach');
     Route::delete('hak-akses/roles/{role}/users/{member}', [AccessController::class, 'detachRoleUser'])->name('hak-akses.roles.users.detach');
 

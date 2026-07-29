@@ -22,6 +22,7 @@ interface RolePanelProps {
     onToggleVisible: (rowIdx: number, visible: boolean) => void;
     onAttachUser: (userId: number) => void;
     onDetachUser: (userId: number) => void;
+    onToggleMobile: (enabled: boolean) => void;
 }
 
 /**
@@ -39,6 +40,7 @@ export function RolePanel({
     onToggleVisible,
     onAttachUser,
     onDetachUser,
+    onToggleMobile,
 }: RolePanelProps) {
     const [search, setSearch] = useState('');
     const [status, setStatus] = useState<MenuStatus>('all');
@@ -346,6 +348,83 @@ export function RolePanel({
                         ))}
                     </div>
                 )}
+            </div>
+
+            {/* ---- Mobile (Flutter) app access ---- */}
+            <div
+                style={{
+                    ...card,
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 14,
+                    flexWrap: 'wrap',
+                }}
+            >
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 11,
+                    }}
+                >
+                    <span
+                        style={{
+                            width: 34,
+                            height: 34,
+                            borderRadius: 10,
+                            flex: 'none',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: hexA(
+                                role.canAccessMobile ? C.green : C.faint,
+                                0.12,
+                            ),
+                        }}
+                    >
+                        <AIcon
+                            name="smartphone"
+                            size={17}
+                            color={role.canAccessMobile ? C.green : C.faint}
+                        />
+                    </span>
+                    <span>
+                        <div
+                            style={{
+                                fontSize: 14.5,
+                                fontWeight: 600,
+                                color: C.navy,
+                            }}
+                        >
+                            Aplikasi Mobile
+                        </div>
+                        <div
+                            style={{
+                                fontSize: 12.5,
+                                color: C.muted,
+                                marginTop: 3,
+                                lineHeight: 1.5,
+                            }}
+                        >
+                            {role.canAccessMobile
+                                ? `Pemegang peran ${role.name} boleh masuk aplikasi HP (absensi, cuti, slip gaji).`
+                                : `Pemegang peran ${role.name} ditolak saat login di aplikasi HP — akses web tidak terpengaruh.`}
+                        </div>
+                    </span>
+                </div>
+                <Switch
+                    on={role.canAccessMobile}
+                    disabled={role.locked}
+                    title={
+                        role.locked
+                            ? 'Peran ini tidak dapat Anda ubah'
+                            : 'Izinkan peran ini memakai aplikasi mobile'
+                    }
+                    label={role.canAccessMobile ? 'Diizinkan' : 'Ditutup'}
+                    onToggle={() => onToggleMobile(!role.canAccessMobile)}
+                />
             </div>
 
             {/* ---- Menus this role sees ---- */}

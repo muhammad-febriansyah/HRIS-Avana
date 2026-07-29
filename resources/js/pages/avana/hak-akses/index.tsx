@@ -1,4 +1,4 @@
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import AccessController from '@/actions/App/Http/Controllers/Avana/AccessController';
@@ -8,7 +8,6 @@ import MenuBuilder from '../menu-builder';
 import { CompanyMenuPanel } from './company-menu-panel';
 import { blankFeatureForm, FeatureModal } from './feature-modal';
 import type { FeatureForm } from './feature-modal';
-import { RoleModal } from './role-modal';
 import { RolePanel } from './role-panel';
 import type { HakAksesProps } from './types';
 
@@ -61,10 +60,6 @@ export default function AvanaHakAkses({
         url.searchParams.set('tab', next);
         window.history.replaceState({}, '', url.toString());
     };
-
-    const [roleModalOpen, setRoleModalOpen] = useState(false);
-    const [roleName, setRoleName] = useState('');
-    const [copyFromRole, setCopyFromRole] = useState<string>('');
 
     // Feature create modal state (super admin registers a new module).
     const [featureOpen, setFeatureOpen] = useState<null | {
@@ -169,21 +164,15 @@ export default function AvanaHakAkses({
         );
     };
 
-    const closeRoleModal = () => {
-        setRoleModalOpen(false);
-        setRoleName('');
-        setCopyFromRole('');
-    };
+    const toggleRoleMobile = (enabled: boolean) => {
+        if (activeRole === null) {
+            return;
+        }
 
-    const submitRole = () => {
         router.post(
-            AccessController.storeRole().url,
-            {
-                name: roleName,
-                copy_from_role_id:
-                    copyFromRole === '' ? null : Number(copyFromRole),
-            },
-            { preserveScroll: true, onSuccess: closeRoleModal },
+            AccessController.toggleRoleMobile(activeRole.id).url,
+            { enabled },
+            visitOpts,
         );
     };
 
@@ -289,16 +278,77 @@ export default function AvanaHakAkses({
                                     Tambah Fitur
                                 </button>
                             )}
-                            <button
-                                onClick={() => setRoleModalOpen(true)}
-                                style={btnCreate}
+                            <Link
+                                href={AccessController.createRole().url}
+                                style={{
+                                    ...btnCreate,
+                                    textDecoration: 'none',
+                                }}
                                 title="Buat peran baru untuk perusahaan ini"
                             >
                                 <AIcon name="plus" size={16} color="#fff" />
                                 Buat Peran
-                            </button>
+                            </Link>
                         </div>
                     </div>
+                </div>
+
+                {/* ---- The order the setup is meant to run in ---- */}
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        flexWrap: 'wrap',
+                        background: hexA(C.primary, 0.05),
+                        border: `1px solid ${hexA(C.primary, 0.15)}`,
+                        borderRadius: 10,
+                        padding: '11px 14px',
+                        marginBottom: 18,
+                        fontSize: 12.5,
+                        color: C.muted,
+                    }}
+                >
+                    {[
+                        'Buat peran (mis. Manager Cabang)',
+                        'Atur menu & akses aplikasi mobile peran itu',
+                        'Baru input karyawan, lalu pilih perannya',
+                    ].map((step, idx) => (
+                        <span
+                            key={step}
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 7,
+                            }}
+                        >
+                            {idx > 0 && (
+                                <AIcon
+                                    name="chevron-right"
+                                    size={14}
+                                    color={C.faint}
+                                />
+                            )}
+                            <span
+                                style={{
+                                    width: 19,
+                                    height: 19,
+                                    borderRadius: 999,
+                                    flex: 'none',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    background: C.primary,
+                                    color: '#fff',
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                }}
+                            >
+                                {idx + 1}
+                            </span>
+                            {step}
+                        </span>
+                    ))}
                 </div>
 
                 {/* ---- Tabs: one per role, then the company-wide switches ---- */}
@@ -439,6 +489,7 @@ export default function AvanaHakAkses({
                         onToggleVisible={toggleVisible}
                         onAttachUser={attachUser}
                         onDetachUser={detachUser}
+                        onToggleMobile={toggleRoleMobile}
                     />
                 )}
 
@@ -489,18 +540,6 @@ export default function AvanaHakAkses({
                     </>
                 )}
             </div>
-
-            {roleModalOpen && (
-                <RoleModal
-                    roleName={roleName}
-                    onChangeName={setRoleName}
-                    copyFromRole={copyFromRole}
-                    onChangeCopyFrom={setCopyFromRole}
-                    roles={roles}
-                    onSubmit={submitRole}
-                    onClose={closeRoleModal}
-                />
-            )}
 
             {featureOpen && (
                 <FeatureModal

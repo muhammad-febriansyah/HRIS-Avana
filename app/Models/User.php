@@ -103,6 +103,25 @@ class User extends Authenticatable implements JWTSubject, PasskeyUser
     }
 
     /**
+     * Whether the user may sign in to the mobile (Flutter) app. Decided by the
+     * roles they hold: one role that allows the app is enough, since a user with
+     * several roles should keep the widest access.
+     *
+     * A user with no role at all keeps the app — the flag is an opt-out an admin
+     * sets on a role, not a licence every account must first be granted.
+     */
+    public function canAccessMobile(): bool
+    {
+        $roles = $this->relationLoaded('roles') ? $this->roles : $this->roles()->get();
+
+        if ($roles->isEmpty()) {
+            return true;
+        }
+
+        return $roles->contains(fn (Role $role): bool => (bool) $role->can_access_mobile);
+    }
+
+    /**
      * The permission codes effective for this user: every code granted by their
      * roles, plus per-user grants, minus per-user revokes. A super admin holds
      * every permission. Overrides win over role permissions.

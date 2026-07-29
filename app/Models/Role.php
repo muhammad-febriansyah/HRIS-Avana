@@ -19,6 +19,7 @@ final class Role extends Model
     {
         return [
             'is_system' => 'boolean',
+            'can_access_mobile' => 'boolean',
         ];
     }
 

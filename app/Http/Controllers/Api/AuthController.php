@@ -58,6 +58,16 @@ class AuthController extends Controller
             ]);
         }
 
+        // Web access and phone access are set separately: a role can hold every
+        // web menu and still be barred from the app (Hak Akses → "Aplikasi Mobile").
+        if (! $user->canAccessMobile()) {
+            auth('api')->logout();
+
+            throw ValidationException::withMessages([
+                'email' => ['Peran akun ini tidak diizinkan memakai aplikasi mobile.'],
+            ]);
+        }
+
         if ($user->tenant === null || $user->tenant->company()->doesntExist()) {
             auth('api')->logout();
 
