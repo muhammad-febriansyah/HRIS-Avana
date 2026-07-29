@@ -274,6 +274,9 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('hak-akses/roles/{role}/mobile', [AccessController::class, 'toggleRoleMobile'])->name('hak-akses.roles.mobile');
     Route::post('hak-akses/roles/{role}/users', [AccessController::class, 'attachRoleUser'])->name('hak-akses.roles.users.attach');
     Route::delete('hak-akses/roles/{role}/users/{member}', [AccessController::class, 'detachRoleUser'])->name('hak-akses.roles.users.detach');
+    Route::post('hak-akses/mobile-menu/visibility', [AccessController::class, 'toggleMobileMenuVisibility'])->name('hak-akses.mobile-menu.visibility');
+    Route::put('hak-akses/mobile-menu', [AccessController::class, 'updateMobileMenu'])->name('hak-akses.mobile-menu.update');
+    Route::put('hak-akses/mobile-menu/order', [AccessController::class, 'reorderMobileMenu'])->name('hak-akses.mobile-menu.order');
 
     Route::get('fitur', [FeatureController::class, 'index'])->name('fitur');
     Route::post('fitur/toggle', [FeatureController::class, 'toggle'])->name('fitur.toggle');

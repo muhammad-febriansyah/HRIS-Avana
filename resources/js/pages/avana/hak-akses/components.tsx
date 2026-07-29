@@ -19,6 +19,31 @@ interface SwitchProps {
  * setting never reads like a button that performs an action: the track shows
  * the current state, not what a click would do.
  */
+/**
+ * Lucide stand-ins for the Iconsax names the phone app uses.
+ *
+ * The stored icon is the app's own name, because that is what the app has to
+ * render; the web only needs something recognisable beside the label, so the
+ * mapping lives here rather than becoming a second column to keep in sync.
+ */
+export const MOBILE_WEB_ICON: Record<string, string> = {
+    category: 'layout-grid',
+    sun_1: 'sun',
+    calendar_remove: 'calendar-x',
+    timer_1: 'timer',
+    house: 'house',
+    calendar_1: 'calendar',
+    clock: 'clock',
+    arrow_swap_horizontal: 'arrow-left-right',
+    receipt_2: 'receipt',
+    wallet_money: 'wallet',
+    wallet_add: 'hand-coins',
+    receipt_2_1: 'receipt-text',
+    location: 'map-pin',
+    document_text: 'file-text',
+    emoji_happy: 'smile',
+};
+
 export function Switch({
     on,
     disabled = false,

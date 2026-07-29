@@ -32,14 +32,6 @@ export interface AccessRole {
     members: RoleMember[];
 }
 
-/** A tenant account that can be put into a role, with the roles it already has. */
-export interface AssignableUser {
-    id: number;
-    name: string;
-    email: string;
-    role_ids: number[];
-}
-
 /** A single togglable action (view/create/update/archive/export/approve). */
 export interface AccessAction {
     key: string;
@@ -115,6 +107,22 @@ export interface HakAksesProps {
     canManageMenu: boolean;
     /** Menu Builder tab data. */
     menu: MenuBuilderData;
-    /** Tenant accounts available for role assignment. */
-    assignableUsers: AssignableUser[];
+    /** The Flutter app's Menu Cepat tiles, in the order the phone shows them. */
+    mobileMenu: MobileMenuTile[];
+}
+
+/** One shortcut on the mobile app's home screen. */
+export interface MobileMenuTile {
+    id: number;
+    key: string;
+    label: string;
+    /** Iconsax name, as the Flutter app spells it. */
+    icon: string;
+    color: string;
+    /** GetX route the tile opens. */
+    route: string;
+    /** Off hides the tile from the whole company, whatever the roles say. */
+    isActive: boolean;
+    /** Shown to each role, in the same order as `roles`. */
+    visible: boolean[];
 }

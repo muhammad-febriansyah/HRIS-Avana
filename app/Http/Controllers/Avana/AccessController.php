@@ -6,12 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Feature;
 use App\Models\MenuItem;
+use App\Models\MobileMenuItem;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\RoleMenuVisibility;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\AvanaNav;
+use App\Support\MobileMenu;
 use App\Support\PermissionCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -273,44 +275,144 @@ class AccessController extends Controller
             // Menu-builder (super-admin only) folded in as the "Struktur Menu" tab.
             'canManageMenu' => $isSuperAdmin,
             'menu' => $this->menuBuilderData($request, $user, $isSuperAdmin),
-            // Everyone in the tenant who can be put into a role, so assigning a
-            // member never means leaving for the Pengguna screen and back.
-            'assignableUsers' => $this->assignableUsers($tenantId, $roleModels),
+            // The Flutter app's Menu Cepat, so the tiles on the phone are set
+            // from the same screen as everything else.
+            'mobileMenu' => $this->mobileMenuPayload($tenantId, $roleModels),
         ]);
     }
 
     /**
-     * Tenant accounts that may be added to a role, with the roles they already
-     * hold so the picker can say "sudah di peran ini".
+     * The Menu Cepat tiles with, per tile, which roles currently show it.
      *
      * @param  Collection<int, Role>  $roles
-     * @return array<int, array{id: int, name: string, email: string, role_ids: array<int, int>}>
+     * @return array<int, array<string, mixed>>
      */
-    private function assignableUsers(?int $tenantId, Collection $roles): array
+    private function mobileMenuPayload(?int $tenantId, Collection $roles): array
     {
         if ($tenantId === null) {
             return [];
         }
 
-        $byUser = DB::table('user_roles')
+        $hiddenByRole = RoleMenuVisibility::query()
             ->whereIn('role_id', $roles->pluck('id'))
-            ->get(['user_id', 'role_id'])
-            ->groupBy('user_id')
-            ->map(fn ($rows) => $rows->pluck('role_id')->map(fn ($id): int => (int) $id)->values()->all());
+            ->where('is_visible', false)
+            ->where('menu_key', 'like', MobileMenuItem::VISIBILITY_PREFIX.'%')
+            ->get(['role_id', 'menu_key'])
+            ->groupBy('role_id')
+            ->map(fn ($group) => $group->pluck('menu_key')->flip());
 
-        return User::query()
-            ->where('tenant_id', $tenantId)
-            ->with('employee:id,user_id,full_name')
-            ->orderBy('name')
-            ->get(['id', 'name', 'email'])
-            ->map(fn (User $member): array => [
-                'id' => $member->id,
-                'name' => $member->employee?->full_name ?? $member->name,
-                'email' => $member->email,
-                'role_ids' => $byUser[$member->id] ?? [],
+        return MobileMenu::forTenant($tenantId)
+            ->map(fn (MobileMenuItem $tile): array => [
+                'id' => $tile->id,
+                'key' => $tile->key,
+                'label' => $tile->label,
+                'icon' => $tile->icon,
+                'color' => $tile->color,
+                'route' => $tile->route,
+                'isActive' => $tile->is_active,
+                // One entry per role column, in the same order as `roles`.
+                'visible' => $roles
+                    ->map(fn (Role $role): bool => ! ($hiddenByRole[$role->id] ?? collect())->has($tile->visibilityKey()))
+                    ->all(),
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * Show or hide one Menu Cepat tile for one role.
+     */
+    public function toggleMobileMenuVisibility(Request $request): RedirectResponse
+    {
+        $this->ensureCanManageAccess($request);
+
+        $validated = $request->validate([
+            'menu_id' => ['required', 'integer'],
+            'role_id' => ['required', 'integer', 'exists:roles,id'],
+            'visible' => ['required', 'boolean'],
+        ]);
+
+        /** @var User $user */
+        $user = $request->user();
+
+        $tile = $this->assertTenantTile($user, $validated['menu_id']);
+        $role = $this->assertManageableRole($user, Role::findOrFail($validated['role_id']));
+
+        RoleMenuVisibility::updateOrCreate(
+            ['role_id' => $role->id, 'menu_key' => $tile->visibilityKey()],
+            ['tenant_id' => $role->tenant_id ?? $user->tenant_id, 'is_visible' => $validated['visible']],
+        );
+
+        return back()->with('success', $validated['visible']
+            ? $tile->label.' ditampilkan untuk '.$role->name
+            : $tile->label.' disembunyikan dari '.$role->name);
+    }
+
+    /**
+     * Turn one Menu Cepat tile on or off for the whole tenant, or rename it.
+     */
+    public function updateMobileMenu(Request $request): RedirectResponse
+    {
+        $this->ensureCanManageAccess($request);
+
+        $validated = $request->validate([
+            'menu_id' => ['required', 'integer'],
+            'label' => ['nullable', 'string', 'max:30'],
+            'active' => ['nullable', 'boolean'],
+        ]);
+
+        /** @var User $user */
+        $user = $request->user();
+
+        $tile = $this->assertTenantTile($user, $validated['menu_id']);
+
+        $tile->update(array_filter([
+            'label' => $validated['label'] ?? null,
+        ], fn ($value): bool => $value !== null) + (
+            array_key_exists('active', $validated) && $validated['active'] !== null
+                ? ['is_active' => $validated['active']]
+                : []
+        ));
+
+        return back()->with('success', 'Menu '.$tile->label.' diperbarui.');
+    }
+
+    /**
+     * Reorder the Menu Cepat: the tiles arrive in the order they should appear.
+     */
+    public function reorderMobileMenu(Request $request): RedirectResponse
+    {
+        $this->ensureCanManageAccess($request);
+
+        $validated = $request->validate([
+            'order' => ['required', 'array', 'min:1'],
+            'order.*' => ['integer'],
+        ]);
+
+        /** @var User $user */
+        $user = $request->user();
+
+        // Resolved before anything is written: an id from another tenant part
+        // way down the list would otherwise leave the earlier tiles reordered
+        // and the rest untouched, which is worse than refusing outright.
+        $tiles = collect($validated['order'])
+            ->map(fn ($menuId): MobileMenuItem => $this->assertTenantTile($user, (int) $menuId));
+
+        DB::transaction(function () use ($tiles): void {
+            $tiles->each(fn (MobileMenuItem $tile, int $position) => $tile->update(['sort_order' => $position]));
+        });
+
+        return back()->with('success', 'Urutan Menu Cepat disimpan.');
+    }
+
+    /**
+     * The tile must belong to the actor's tenant — a phone menu is per company.
+     */
+    private function assertTenantTile(User $user, int $menuId): MobileMenuItem
+    {
+        abort_if($user->tenant_id === null, 404, 'Tidak ada tenant yang dipilih.');
+
+        return MobileMenuItem::forTenant($user->tenant_id)->whereKey($menuId)->firstOrFail();
     }
 
     /**
@@ -758,7 +860,13 @@ class AccessController extends Controller
             ->groupBy('role_id')
             ->map(fn ($group) => $group->pluck('menu_key')->flip());
 
-        $templates = $sources->map(function (Role $role) use ($rows, $hiddenByRole): array {
+        // Only tiles the company still runs: a switched-off one cannot be given
+        // to a new role either.
+        $tiles = $user->tenant_id === null
+            ? collect()
+            : MobileMenu::forTenant($user->tenant_id)->where('is_active', true);
+
+        $templates = $sources->map(function (Role $role) use ($rows, $hiddenByRole, $tiles): array {
             $selection = [];
 
             foreach ($rows as $row) {
@@ -778,6 +886,13 @@ class AccessController extends Controller
                 'name' => $role->name,
                 'canAccessMobile' => (bool) $role->can_access_mobile,
                 'selection' => $selection,
+                // The phone shortcuts this role shows, so "tiru" copies the
+                // Menu Cepat along with the web menus.
+                'mobileSelection' => $tiles
+                    ->reject(fn (MobileMenuItem $tile): bool => ($hiddenByRole[$role->id] ?? collect())->has($tile->visibilityKey()))
+                    ->pluck('key')
+                    ->values()
+                    ->all(),
             ];
         })->values()->all();
 
@@ -788,6 +903,17 @@ class AccessController extends Controller
                 ->values()
                 ->all(),
             'templates' => $templates,
+            // Menu Cepat of the phone app, so the role's shortcuts are picked
+            // here too rather than needing a second visit to Hak Akses.
+            'mobileMenu' => $tiles
+                ->map(fn (MobileMenuItem $tile): array => [
+                    'key' => $tile->key,
+                    'label' => $tile->label,
+                    'icon' => $tile->icon,
+                    'color' => $tile->color,
+                ])
+                ->values()
+                ->all(),
         ]);
     }
 
@@ -812,6 +938,10 @@ class AccessController extends Controller
             'menus.*.key' => ['required', 'string'],
             'menus.*.actions' => ['nullable', 'array'],
             'menus.*.actions.*' => ['string', 'in:'.implode(',', PermissionCatalog::actionKeys())],
+            // Menu Cepat keys the role shows on the phone. Absent means "leave
+            // the defaults" so the older create paths keep working.
+            'mobile_menus' => ['nullable', 'array'],
+            'mobile_menus.*' => ['string'],
         ]);
 
         /** @var User $user */
@@ -825,6 +955,10 @@ class AccessController extends Controller
             'is_system' => false,
             'can_access_mobile' => $validated['can_access_mobile'] ?? true,
         ]);
+
+        if (($validated['mobile_menus'] ?? null) !== null) {
+            $this->applyMobileSelection($role, $validated['mobile_menus'], $user->tenant_id);
+        }
 
         if (($validated['menus'] ?? null) !== null) {
             $this->applyMenuSelection($role, $validated['menus'], $user->tenant_id);
@@ -885,6 +1019,32 @@ class AccessController extends Controller
      *
      * @param  array<int, array{key: string, actions?: array<int, string>|null}>  $menus
      */
+    /**
+     * Write the create screen's Menu Cepat picks onto a role: every tile the
+     * company runs gets a row, visible only for the ones listed.
+     *
+     * Written for every tile rather than only the hidden ones, so the role's
+     * answer is recorded rather than inferred — a tile added to the company
+     * later then defaults to visible without silently appearing as "chosen".
+     *
+     * @param  array<int, string>  $keys
+     */
+    private function applyMobileSelection(Role $role, array $keys, ?int $tenantId): void
+    {
+        if ($tenantId === null) {
+            return;
+        }
+
+        $picked = array_flip($keys);
+
+        foreach (MobileMenu::forTenant($tenantId) as $tile) {
+            RoleMenuVisibility::updateOrCreate(
+                ['role_id' => $role->id, 'menu_key' => $tile->visibilityKey()],
+                ['tenant_id' => $role->tenant_id ?? $tenantId, 'is_visible' => isset($picked[$tile->key])],
+            );
+        }
+    }
+
     private function applyMenuSelection(Role $role, array $menus, ?int $tenantId): void
     {
         $picked = collect($menus)->keyBy('key');

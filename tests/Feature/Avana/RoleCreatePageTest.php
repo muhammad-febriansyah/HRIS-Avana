@@ -42,7 +42,10 @@ it('renders the create-role page from the tenant own menus', function (): void {
                 ->has('hasFeature')->has('featureEnabled')->has('selfService'))
             ->has('actions', 6)
             ->has('templates.0', fn (Assert $template) => $template
-                ->has('id')->has('name')->has('canAccessMobile')->has('selection')));
+                ->has('id')->has('name')->has('canAccessMobile')->has('selection')
+                ->has('mobileSelection'))
+            // The phone's Menu Cepat is picked here too, not on a second visit.
+            ->has('mobileMenu'));
 });
 
 it('never offers super admin as a template', function (): void {

@@ -8,6 +8,7 @@ use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\AvanaNav;
+use App\Support\MobileMenu;
 use App\Support\PermissionCatalog;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -48,6 +49,7 @@ class TenantProvisioner
             $this->applyPackageFeatures($tenant);
             $this->provisionRoles($tenant);
             AvanaNav::seedDefaultsFor($tenant->id);
+            MobileMenu::seedDefaultsFor($tenant->id);
         });
     }
 

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AttendancePolicy;
 use App\Models\User;
 use App\Models\UserDevice;
+use App\Support\MobileMenu;
 use App\Support\TenantTheme;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -202,6 +203,11 @@ class AuthController extends Controller
                 ? Storage::disk('public')->url($user->avatar_path)
                 : ($employee?->photo_path !== null ? Storage::disk('public')->url($employee->photo_path) : null),
             'employee' => $employee !== null ? $this->employeeProfile($employee) : null,
+            // Menu Cepat, resolved for this account: the tenant's active tiles
+            // minus the ones hidden from every role they hold. Sent from the
+            // server so an admin can change the phone's menu from Hak Akses
+            // without a new build.
+            'menu' => MobileMenu::forUser($user),
             // Tenant branding for the mobile splash / white-label after login.
             'tenant' => $tenant !== null ? [
                 'id' => $tenant->id,

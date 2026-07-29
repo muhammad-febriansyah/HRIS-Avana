@@ -8,6 +8,7 @@ import MenuBuilder from '../menu-builder';
 import { CompanyMenuPanel } from './company-menu-panel';
 import { blankFeatureForm, FeatureModal } from './feature-modal';
 import type { FeatureForm } from './feature-modal';
+import { MobileMenuPanel } from './mobile-menu-panel';
 import { RolePanel } from './role-panel';
 import type { HakAksesProps } from './types';
 
@@ -27,7 +28,7 @@ export default function AvanaHakAkses({
     moduleOptions,
     canManageMenu,
     menu,
-    assignableUsers,
+    mobileMenu,
 }: HakAksesProps) {
     const { flash } = usePage<{
         flash?: { success?: string; error?: string };
@@ -53,6 +54,10 @@ export default function AvanaHakAkses({
     };
 
     const [tab, setTab] = useState<string>(initialTab);
+    /** Which platform the company-wide menu tab is showing. */
+    const [companyPlatform, setCompanyPlatform] = useState<'web' | 'mobile'>(
+        'web',
+    );
     const selectTab = (next: string) => {
         setTab(next);
 
@@ -138,28 +143,38 @@ export default function AvanaHakAkses({
         );
     };
 
-    const attachUser = (userId: number) => {
-        if (activeRole === null) {
-            return;
-        }
-
+    const toggleMobileTile = (
+        menuId: number,
+        roleId: number,
+        visible: boolean,
+    ) => {
         router.post(
-            AccessController.attachRoleUser(activeRole.id).url,
-            { user_id: userId },
+            AccessController.toggleMobileMenuVisibility().url,
+            { menu_id: menuId, role_id: roleId, visible },
             visitOpts,
         );
     };
 
-    const detachUser = (userId: number) => {
-        if (activeRole === null) {
-            return;
-        }
+    const toggleMobileTileActive = (menuId: number, active: boolean) => {
+        router.put(
+            AccessController.updateMobileMenu().url,
+            { menu_id: menuId, active },
+            visitOpts,
+        );
+    };
 
-        router.delete(
-            AccessController.detachRoleUser({
-                role: activeRole.id,
-                member: userId,
-            }).url,
+    const renameMobileTile = (menuId: number, label: string) => {
+        router.put(
+            AccessController.updateMobileMenu().url,
+            { menu_id: menuId, label },
+            visitOpts,
+        );
+    };
+
+    const reorderMobileTiles = (order: number[]) => {
+        router.put(
+            AccessController.reorderMobileMenu().url,
+            { order },
             visitOpts,
         );
     };
@@ -484,23 +499,99 @@ export default function AvanaHakAkses({
                             (_, rowIdx) =>
                                 matrix[rowIdx]?.[activeRoleIdx] ?? {},
                         )}
-                        assignableUsers={assignableUsers}
+                        mobileMenu={mobileMenu}
                         onToggle={toggleCell}
                         onToggleVisible={toggleVisible}
-                        onAttachUser={attachUser}
-                        onDetachUser={detachUser}
                         onToggleMobile={toggleRoleMobile}
+                        onToggleMobileTile={(menuId, visible) =>
+                            toggleMobileTile(menuId, activeRole.id, visible)
+                        }
                     />
                 )}
 
+                {/* Company level, both platforms: which menus this company uses
+                at all. Per-role choices live on each role's own tab. */}
                 {tab === 'menu-perusahaan' && (
-                    <CompanyMenuPanel
-                        modules={modules}
-                        hasTenant={hasTenant}
-                        canManageFeatures={canManageFeatures}
-                        onToggleMenu={toggleMenu}
-                        onToggleFeature={toggleFeature}
-                    />
+                    <>
+                        <div
+                            style={{
+                                display: 'inline-flex',
+                                gap: 4,
+                                padding: 4,
+                                borderRadius: 11,
+                                background: C.surface,
+                                border: `1px solid ${C.border}`,
+                                marginBottom: 14,
+                            }}
+                        >
+                            {(
+                                [
+                                    {
+                                        key: 'web',
+                                        label: 'Web',
+                                        icon: 'monitor',
+                                    },
+                                    {
+                                        key: 'mobile',
+                                        label: 'Aplikasi HP',
+                                        icon: 'smartphone',
+                                    },
+                                ] as const
+                            ).map((platform) => {
+                                const on = companyPlatform === platform.key;
+
+                                return (
+                                    <button
+                                        key={platform.key}
+                                        type="button"
+                                        onClick={() =>
+                                            setCompanyPlatform(platform.key)
+                                        }
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 7,
+                                            padding: '7px 14px',
+                                            borderRadius: 8,
+                                            border: 'none',
+                                            background: on ? '#fff' : 'none',
+                                            boxShadow: on
+                                                ? '0 1px 2px rgba(15,26,58,.08)'
+                                                : 'none',
+                                            fontSize: 13,
+                                            fontWeight: on ? 600 : 500,
+                                            color: on ? C.primary : C.muted,
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        <AIcon
+                                            name={platform.icon}
+                                            size={14}
+                                            color={on ? C.primary : C.faint}
+                                        />
+                                        {platform.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {companyPlatform === 'web' ? (
+                            <CompanyMenuPanel
+                                modules={modules}
+                                hasTenant={hasTenant}
+                                canManageFeatures={canManageFeatures}
+                                onToggleMenu={toggleMenu}
+                                onToggleFeature={toggleFeature}
+                            />
+                        ) : (
+                            <MobileMenuPanel
+                                tiles={mobileMenu}
+                                onToggleActive={toggleMobileTileActive}
+                                onRename={renameMobileTile}
+                                onReorder={reorderMobileTiles}
+                            />
+                        )}
+                    </>
                 )}
 
                 {tab === 'struktur-menu' && canManageMenu && (

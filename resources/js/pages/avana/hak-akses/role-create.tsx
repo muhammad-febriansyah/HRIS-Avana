@@ -2,7 +2,7 @@ import { Head, router } from '@inertiajs/react';
 import { Fragment, useMemo, useState } from 'react';
 import AccessController from '@/actions/App/Http/Controllers/Avana/AccessController';
 import { AIcon, btnCreate, C, card, hexA } from '@/lib/avana';
-import { ActionCheckbox, Switch } from './components';
+import { ActionCheckbox, MOBILE_WEB_ICON, Switch } from './components';
 import type { AccessAction, AccessModule } from './types';
 
 /** An existing role offered as a starting point, with what it can reach today. */
@@ -12,12 +12,23 @@ interface RoleTemplate {
     canAccessMobile: boolean;
     /** menu key → the actions the role holds there. */
     selection: Record<string, string[]>;
+    /** Menu Cepat keys the role shows on the phone. */
+    mobileSelection: string[];
+}
+
+/** One Menu Cepat shortcut of the phone app, as offered on this page. */
+interface MobileTileOption {
+    key: string;
+    label: string;
+    icon: string;
+    color: string;
 }
 
 interface RoleCreateProps {
     modules: AccessModule[];
     actions: AccessAction[];
     templates: RoleTemplate[];
+    mobileMenu: MobileTileOption[];
 }
 
 /**
@@ -30,10 +41,16 @@ export default function AvanaRoleCreate({
     modules,
     actions,
     templates,
+    mobileMenu,
 }: RoleCreateProps) {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [canAccessMobile, setCanAccessMobile] = useState(true);
+    // A new role starts with every shortcut, then the admin trims — the phone
+    // is meant to be usable the moment somebody is given the role.
+    const [mobileKeys, setMobileKeys] = useState<string[]>(() =>
+        mobileMenu.map((tile) => tile.key),
+    );
     const [template, setTemplate] = useState('');
     const [search, setSearch] = useState('');
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -148,6 +165,16 @@ export default function AvanaRoleCreate({
             ),
         );
         setCanAccessMobile(source.canAccessMobile);
+        setMobileKeys(source.mobileSelection);
+    };
+
+    const toggleMobileTile = (key: string) => {
+        setMobileKeys((current) =>
+            current.includes(key)
+                ? current.filter((chosen) => chosen !== key)
+                : [...current, key],
+        );
+        setTemplate('');
     };
 
     const selectAll = () => {
@@ -176,6 +203,7 @@ export default function AvanaRoleCreate({
                 name,
                 description,
                 can_access_mobile: canAccessMobile,
+                mobile_menus: canAccessMobile ? mobileKeys : [],
                 menus: Object.entries(selection).map(([key, chosen]) => ({
                     key,
                     actions: chosen,
@@ -428,6 +456,119 @@ export default function AvanaRoleCreate({
                             }
                         />
                     </div>
+
+                    {canAccessMobile && mobileMenu.length > 0 && (
+                        <div
+                            style={{
+                                marginTop: 14,
+                                paddingTop: 14,
+                                borderTop: `1px solid ${C.line}`,
+                            }}
+                        >
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'baseline',
+                                    justifyContent: 'space-between',
+                                    gap: 10,
+                                    flexWrap: 'wrap',
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        fontSize: 13,
+                                        fontWeight: 600,
+                                        color: C.navy,
+                                    }}
+                                >
+                                    Menu Cepat di beranda HP
+                                    <span
+                                        style={{
+                                            fontWeight: 400,
+                                            color: C.faint,
+                                            marginLeft: 6,
+                                        }}
+                                    >
+                                        {mobileKeys.length}/{mobileMenu.length}
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setMobileKeys(
+                                            mobileKeys.length ===
+                                                mobileMenu.length
+                                                ? []
+                                                : mobileMenu.map((t) => t.key),
+                                        )
+                                    }
+                                    style={{
+                                        border: 'none',
+                                        background: 'none',
+                                        padding: 0,
+                                        fontSize: 12.5,
+                                        color: C.primary,
+                                        cursor: 'pointer',
+                                    }}
+                                >
+                                    {mobileKeys.length === mobileMenu.length
+                                        ? 'Kosongkan'
+                                        : 'Pilih semua'}
+                                </button>
+                            </div>
+
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    gap: 7,
+                                    marginTop: 11,
+                                }}
+                            >
+                                {mobileMenu.map((tile) => {
+                                    const on = mobileKeys.includes(tile.key);
+
+                                    return (
+                                        <button
+                                            key={tile.key}
+                                            type="button"
+                                            onClick={() =>
+                                                toggleMobileTile(tile.key)
+                                            }
+                                            style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 7,
+                                                padding: '6px 11px 6px 8px',
+                                                borderRadius: 999,
+                                                border: `1px solid ${on ? hexA(C.primary, 0.4) : C.line}`,
+                                                background: on
+                                                    ? hexA(C.primary, 0.06)
+                                                    : '#fff',
+                                                fontSize: 12.5,
+                                                fontWeight: 500,
+                                                color: on ? C.text : C.faint,
+                                                cursor: 'pointer',
+                                            }}
+                                        >
+                                            <AIcon
+                                                name={
+                                                    MOBILE_WEB_ICON[
+                                                        tile.icon
+                                                    ] ?? tile.icon
+                                                }
+                                                size={14}
+                                                color={
+                                                    on ? tile.color : C.faint
+                                                }
+                                            />
+                                            {tile.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* ---- 2. Which menus the role gets ---- */}

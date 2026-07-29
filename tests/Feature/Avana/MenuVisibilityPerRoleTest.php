@@ -245,9 +245,9 @@ it('lists who holds each role in the payload', function (): void {
         ->and(collect($employeeRole['members'])->pluck('email'))
         ->toContain('bagus.p@nusantara.co.id');
 
-    // Tenant accounts available for assignment come along too.
-    expect(collect($props['assignableUsers'])->pluck('email'))
-        ->toContain('bagus.p@nusantara.co.id');
+    // The list of who holds the role is all this screen needs; assigning one
+    // happens on the employee form, so the pool of candidates is not sent.
+    expect($props)->not->toHaveKey('assignableUsers');
 });
 
 it('puts a user into a role and takes them out again', function (): void {

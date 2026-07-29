@@ -1,13 +1,13 @@
 import type { CSSProperties } from 'react';
 import { Fragment, useMemo, useState } from 'react';
 import { AIcon, C, card, hexA } from '@/lib/avana';
-import { ActionCheckbox, Switch } from './components';
+import { ActionCheckbox, MOBILE_WEB_ICON, Switch } from './components';
 import type {
     AccessAction,
     AccessModule,
     AccessRole,
-    AssignableUser,
     MatrixCell,
+    MobileMenuTile,
 } from './types';
 
 interface RolePanelProps {
@@ -17,12 +17,12 @@ interface RolePanelProps {
     modules: AccessModule[];
     /** cells[rowIdx] for the selected role only. */
     cells: MatrixCell[];
-    assignableUsers: AssignableUser[];
+    /** The Menu Cepat tiles of the phone app, company-wide. */
+    mobileMenu: MobileMenuTile[];
     onToggle: (rowIdx: number, action: string) => void;
     onToggleVisible: (rowIdx: number, visible: boolean) => void;
-    onAttachUser: (userId: number) => void;
-    onDetachUser: (userId: number) => void;
     onToggleMobile: (enabled: boolean) => void;
+    onToggleMobileTile: (menuId: number, visible: boolean) => void;
 }
 
 /**
@@ -32,20 +32,18 @@ interface RolePanelProps {
  */
 export function RolePanel({
     role,
+    roleIdx,
     actions,
     modules,
     cells,
-    assignableUsers,
+    mobileMenu,
     onToggle,
     onToggleVisible,
-    onAttachUser,
-    onDetachUser,
     onToggleMobile,
+    onToggleMobileTile,
 }: RolePanelProps) {
     const [search, setSearch] = useState('');
     const [status, setStatus] = useState<MenuStatus>('all');
-    const [memberPickerOpen, setMemberPickerOpen] = useState(false);
-    const [memberSearch, setMemberSearch] = useState('');
 
     /**
      * "Not visible" splits in two, and the two have different fixes: a menu the
@@ -98,20 +96,8 @@ export function RolePanel({
 
     const shownCount = counts.shown;
 
-    const candidates = useMemo(() => {
-        const term = memberSearch.trim().toLowerCase();
-
-        return assignableUsers
-            .filter((candidate) => !candidate.role_ids.includes(role.id))
-            .filter(
-                (candidate) =>
-                    term === '' ||
-                    `${candidate.name} ${candidate.email}`
-                        .toLowerCase()
-                        .includes(term),
-            )
-            .slice(0, 30);
-    }, [assignableUsers, memberSearch, role.id]);
+    /** Only tiles the company still has switched on can be given to a role. */
+    const liveTiles = mobileMenu.filter((tile) => tile.isActive);
 
     return (
         <div style={{ display: 'grid', gap: 16 }}>
@@ -184,118 +170,31 @@ export function RolePanel({
                         </div>
                     </div>
 
-                    {!role.locked && (
-                        <button
-                            type="button"
-                            onClick={() => setMemberPickerOpen((v) => !v)}
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 7,
-                                height: 38,
-                                padding: '0 14px',
-                                borderRadius: 10,
-                                border: `1px solid ${C.primary}`,
-                                background: memberPickerOpen
-                                    ? hexA(C.primary, 0.08)
-                                    : '#fff',
-                                color: C.primary,
-                                fontSize: 13,
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                            }}
-                        >
-                            <AIcon name="user-plus" size={15} />
-                            Tambah Pengguna
-                        </button>
-                    )}
-                </div>
-
-                {memberPickerOpen && (
-                    <div
+                    {/* Assigning a role happens on the employee form, where the
+                    person is being set up anyway. A second way in from here
+                    only made two places to look when somebody's access is
+                    wrong. */}
+                    <a
+                        href="/avana/employees"
                         style={{
-                            marginTop: 14,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 7,
+                            height: 38,
+                            padding: '0 14px',
+                            borderRadius: 10,
                             border: `1px solid ${C.border}`,
-                            borderRadius: 11,
-                            padding: 12,
-                            background: C.surface,
+                            background: '#fff',
+                            color: C.muted,
+                            fontSize: 12.5,
+                            fontWeight: 500,
+                            textDecoration: 'none',
                         }}
                     >
-                        <input
-                            value={memberSearch}
-                            onChange={(e) => setMemberSearch(e.target.value)}
-                            placeholder="Cari nama atau email…"
-                            style={{
-                                width: '100%',
-                                height: 36,
-                                padding: '0 11px',
-                                borderRadius: 9,
-                                border: `1px solid ${C.border}`,
-                                fontSize: 13,
-                                outline: 'none',
-                                marginBottom: 10,
-                            }}
-                        />
-                        <div
-                            style={{
-                                display: 'grid',
-                                gap: 6,
-                                maxHeight: 210,
-                                overflowY: 'auto',
-                            }}
-                        >
-                            {candidates.length === 0 && (
-                                <div style={{ fontSize: 12.5, color: C.faint }}>
-                                    Semua pengguna sudah memakai peran ini.
-                                </div>
-                            )}
-                            {candidates.map((candidate) => (
-                                <button
-                                    key={candidate.id}
-                                    type="button"
-                                    onClick={() => onAttachUser(candidate.id)}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        gap: 10,
-                                        padding: '9px 11px',
-                                        borderRadius: 9,
-                                        border: `1px solid ${C.line}`,
-                                        background: '#fff',
-                                        cursor: 'pointer',
-                                        textAlign: 'left',
-                                    }}
-                                >
-                                    <span>
-                                        <div
-                                            style={{
-                                                fontSize: 13,
-                                                fontWeight: 500,
-                                                color: C.text,
-                                            }}
-                                        >
-                                            {candidate.name}
-                                        </div>
-                                        <div
-                                            style={{
-                                                fontSize: 11.5,
-                                                color: C.faint,
-                                            }}
-                                        >
-                                            {candidate.email}
-                                        </div>
-                                    </span>
-                                    <AIcon
-                                        name="plus"
-                                        size={15}
-                                        color={C.primary}
-                                    />
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                        <AIcon name="users" size={15} color={C.faint} />
+                        Atur di Data Karyawan
+                    </a>
+                </div>
 
                 {role.members.length > 0 && (
                     <div
@@ -314,7 +213,7 @@ export function RolePanel({
                                     display: 'inline-flex',
                                     alignItems: 'center',
                                     gap: 7,
-                                    padding: '5px 9px 5px 11px',
+                                    padding: '5px 11px',
                                     borderRadius: 999,
                                     border: `1px solid ${C.line}`,
                                     background: '#fff',
@@ -323,27 +222,6 @@ export function RolePanel({
                                 }}
                             >
                                 {member.name}
-                                {!role.locked && (
-                                    <button
-                                        type="button"
-                                        title={`Keluarkan ${member.name} dari peran ini`}
-                                        onClick={() => onDetachUser(member.id)}
-                                        style={{
-                                            border: 'none',
-                                            background: 'none',
-                                            padding: 0,
-                                            cursor: 'pointer',
-                                            display: 'inline-flex',
-                                            color: C.faint,
-                                        }}
-                                    >
-                                        <AIcon
-                                            name="x"
-                                            size={13}
-                                            color={C.faint}
-                                        />
-                                    </button>
-                                )}
                             </span>
                         ))}
                     </div>
@@ -426,6 +304,116 @@ export function RolePanel({
                     onToggle={() => onToggleMobile(!role.canAccessMobile)}
                 />
             </div>
+
+            {/* ---- Which phone shortcuts this role gets ---- */}
+            {role.canAccessMobile && liveTiles.length > 0 && (
+                <div style={{ ...card, padding: '18px 20px' }}>
+                    <div
+                        style={{ fontSize: 15, fontWeight: 600, color: C.navy }}
+                    >
+                        Menu Cepat di HP
+                    </div>
+                    <div
+                        style={{
+                            fontSize: 12.5,
+                            color: C.muted,
+                            marginTop: 4,
+                            lineHeight: 1.55,
+                        }}
+                    >
+                        Pintasan yang muncul di beranda aplikasi untuk pemegang
+                        peran {role.name}. Urutan dan daftar lengkapnya diatur
+                        di tab Menu Perusahaan.
+                    </div>
+
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns:
+                                'repeat(auto-fill, minmax(190px, 1fr))',
+                            gap: 8,
+                            marginTop: 14,
+                        }}
+                    >
+                        {liveTiles.map((tile) => {
+                            const visible = tile.visible[roleIdx] ?? true;
+
+                            return (
+                                <label
+                                    key={tile.id}
+                                    title={
+                                        role.locked
+                                            ? 'Peran ini tidak dapat Anda ubah'
+                                            : `${tile.label} di aplikasi HP`
+                                    }
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 10,
+                                        padding: '9px 11px',
+                                        borderRadius: 10,
+                                        border: `1px solid ${visible ? hexA(C.primary, 0.35) : C.line}`,
+                                        background: visible
+                                            ? hexA(C.primary, 0.05)
+                                            : '#fff',
+                                        cursor: role.locked
+                                            ? 'not-allowed'
+                                            : 'pointer',
+                                        opacity: role.locked ? 0.6 : 1,
+                                    }}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={visible}
+                                        disabled={role.locked}
+                                        onChange={() =>
+                                            onToggleMobileTile(
+                                                tile.id,
+                                                !visible,
+                                            )
+                                        }
+                                        style={{
+                                            width: 16,
+                                            height: 16,
+                                            cursor: 'inherit',
+                                        }}
+                                    />
+                                    <span
+                                        style={{
+                                            width: 26,
+                                            height: 26,
+                                            flex: 'none',
+                                            borderRadius: 8,
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            background: `${tile.color}1f`,
+                                        }}
+                                    >
+                                        <AIcon
+                                            name={
+                                                MOBILE_WEB_ICON[tile.icon] ??
+                                                tile.icon
+                                            }
+                                            size={14}
+                                            color={tile.color}
+                                        />
+                                    </span>
+                                    <span
+                                        style={{
+                                            fontSize: 13,
+                                            color: C.text,
+                                            fontWeight: 500,
+                                        }}
+                                    >
+                                        {tile.label}
+                                    </span>
+                                </label>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* ---- Menus this role sees ---- */}
             <div style={{ ...card, overflow: 'hidden' }}>
