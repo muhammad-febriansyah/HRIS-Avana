@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\FaceController;
 use App\Http\Controllers\Api\FieldVisitController;
 use App\Http\Controllers\Api\FinanceController;
 use App\Http\Controllers\Api\LeaveController;
+use App\Http\Controllers\Api\MeetingController;
 use App\Http\Controllers\Api\MoodController;
 use App\Http\Controllers\Api\MssController;
 use App\Http\Controllers\Api\NotificationController;
@@ -183,6 +184,21 @@ Route::prefix('v1')->group(function (): void {
             Route::post('ai/chat', [AiAssistantController::class, 'chat']);
             Route::get('ai/conversations/{conversation}', [AiAssistantController::class, 'conversation'])->whereNumber('conversation');
             Route::delete('ai/conversations/{conversation}', [AiAssistantController::class, 'destroyConversation'])->whereNumber('conversation');
+
+            // AI Recorder — the phone records, the speech provider transcribes,
+            // and the finished text is posted back here as it arrives.
+            Route::get('meetings/status', [MeetingController::class, 'status']);
+            Route::get('meetings', [MeetingController::class, 'index']);
+            Route::post('meetings', [MeetingController::class, 'store']);
+            Route::get('meetings/{meeting}', [MeetingController::class, 'show'])->whereNumber('meeting');
+            // Throttled: a grant is minted per socket open, and a loop that
+            // reconnects in a tight cycle would hammer the provider's key API.
+            Route::get('meetings/{meeting}/stt-token', [MeetingController::class, 'sttToken'])
+                ->whereNumber('meeting')
+                ->middleware('throttle:60,1');
+            Route::post('meetings/{meeting}/segments', [MeetingController::class, 'segments'])->whereNumber('meeting');
+            Route::post('meetings/{meeting}/stop', [MeetingController::class, 'stop'])->whereNumber('meeting');
+            Route::post('meetings/{meeting}/audio', [MeetingController::class, 'audio'])->whereNumber('meeting');
 
             Route::get('ai/tokens', [AiTokenPurchaseController::class, 'index']);
             Route::post('ai/tokens', [AiTokenPurchaseController::class, 'store']);

@@ -838,6 +838,7 @@ final class AvanaDemoSeeder extends Seeder
             'calendar' => ['Kalender Acara', 'engagement', ['calendar']],
             'budget' => ['Anggaran (Budget)', 'payroll', ['budget']],
             'ai' => ['AI Assistant', 'analytics', ['ai']],
+            'meeting_ai' => ['Rapat & Transkrip AI', 'engagement', ['meeting']],
         ];
 
         return collect($codes)->map(fn ($meta, $code) => Feature::updateOrCreate(
@@ -867,7 +868,7 @@ final class AvanaDemoSeeder extends Seeder
             'claim.view', 'loan.view', 'journal.view', 'budget.view', 'salary_structure.view',
             'recruitment.view', 'onboarding.view',
             'performance.view', 'okr.view', 'competency.view', 'talent.view', 'learning.view',
-            'helpdesk.view', 'announcement.view', 'social.view', 'survey.view', 'calendar.view', 'ai.view',
+            'helpdesk.view', 'announcement.view', 'social.view', 'survey.view', 'calendar.view', 'meeting.view', 'ai.view',
             'ai_topup.view', 'langganan.view', 'appearance.view', 'asset.view', 'crm.view', 'dynamic_report.view', 'attrition.view',
         ];
         $permModels = collect($perms)->map(function (string $code) {

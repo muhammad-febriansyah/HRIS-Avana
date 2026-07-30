@@ -46,7 +46,7 @@ final class PermissionCatalog
         'claim', 'loan', 'journal', 'budget', 'salary_structure',
         'recruitment', 'onboarding',
         'performance', 'okr', 'competency', 'talent', 'learning',
-        'helpdesk', 'announcement', 'social', 'survey', 'calendar', 'ai', 'ai_topup', 'langganan', 'asset', 'crm',
+        'helpdesk', 'announcement', 'social', 'survey', 'calendar', 'meeting', 'ai', 'ai_topup', 'langganan', 'asset', 'crm',
         'report', 'dynamic_report', 'attrition', 'audit',
         'branch', 'department', 'position', 'organization',
         'user', 'settings', 'role', 'permission', 'appearance',

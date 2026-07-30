@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\MeetingTranscriber;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -60,6 +61,32 @@ final class AiSetting extends Model
      */
     private const DEFAULT_MODEL = 'gpt-4o-mini';
 
+    /**
+     * Speech-to-text model per provider, first entry used when none is chosen.
+     * Deepgram is the only provider wired: it diarizes (tells speakers apart)
+     * on the same request, which is the part a meeting transcript lives or dies
+     * on, and it bills per second of audio rather than per token.
+     *
+     * @var array<string, list<string>>
+     */
+    public const STT_MODELS = [
+        'deepgram' => ['nova-2', 'nova-3', 'nova-2-meeting'],
+    ];
+
+    /**
+     * Default speech model and language. Indonesian is what these meetings are
+     * held in, and nova-2 is the model that supports it.
+     */
+    private const DEFAULT_STT_MODEL = 'nova-2';
+
+    private const DEFAULT_STT_LANGUAGE = 'id';
+
+    /**
+     * Default embedding model for transcript recall. Small on purpose: recall
+     * quality barely moves with a larger one, and it is called once per chunk.
+     */
+    private const DEFAULT_EMBEDDING_MODEL = 'text-embedding-3-small';
+
     protected function casts(): array
     {
         return [
@@ -67,6 +94,11 @@ final class AiSetting extends Model
             'is_enabled' => 'boolean',
             'image_enabled' => 'boolean',
             'image_token_cost' => 'integer',
+            'stt_enabled' => 'boolean',
+            'stt_api_key' => 'encrypted',
+            'stt_token_cost_per_minute' => 'integer',
+            'meeting_max_minutes' => 'integer',
+            'meeting_audio_keep' => 'boolean',
         ];
     }
 
@@ -138,11 +170,79 @@ final class AiSetting extends Model
     }
 
     /**
+     * Speech-to-text settings, or null when meeting recording is not usable:
+     * switched off, or no project key anywhere.
+     *
+     * The key stored in Pengaturan AI wins; otherwise it falls back to the
+     * deployment's own `DEEPGRAM_API_KEY`, the same way {@see resolved()} falls
+     * back for chat — so a server can be provisioned from `.env` without anyone
+     * pasting a credential into a form.
+     *
+     * Either way it is the project key, which is never handed to a phone — see
+     * {@see MeetingTranscriber::grantToken()}.
+     *
+     * @return array{provider: string, model: string, language: string, api_key: string, token_cost_per_minute: int, max_minutes: int, keep_audio: bool}|null
+     */
+    public function resolvedStt(): ?array
+    {
+        $provider = (string) ($this->stt_provider ?: 'deepgram');
+
+        $apiKey = (string) ($this->stt_api_key ?: config("services.{$provider}.api_key", ''));
+
+        if (! $this->stt_enabled || $apiKey === '') {
+            return null;
+        }
+
+        return [
+            'provider' => $provider,
+            'model' => (string) ($this->stt_model ?: (self::STT_MODELS[$provider][0] ?? self::DEFAULT_STT_MODEL)),
+            'language' => (string) ($this->stt_language ?: self::DEFAULT_STT_LANGUAGE),
+            'api_key' => $apiKey,
+            'token_cost_per_minute' => max(0, (int) $this->stt_token_cost_per_minute),
+            'max_minutes' => max(1, (int) ($this->meeting_max_minutes ?: 180)),
+            'keep_audio' => (bool) $this->meeting_audio_keep,
+        ];
+    }
+
+    /**
+     * The model each meeting text job should use.
+     *
+     * The automatic summary rides the cheap chat model — it runs for every
+     * recording, whether anyone reads it or not. `pro` is the costly reasoning
+     * model, reached only by an analysis somebody clicked, and falls back to the
+     * chat model when no separate one is configured.
+     *
+     * @return array{provider: string, summary: string, pro: string, embedding: string, api_key: string}
+     */
+    public function resolvedMeetingModels(): array
+    {
+        $chat = $this->resolved();
+
+        return [
+            'provider' => $chat['provider'],
+            'summary' => $chat['model'],
+            'pro' => (string) ($this->meeting_pro_model ?: $chat['model']),
+            'embedding' => (string) ($this->embedding_model ?: self::DEFAULT_EMBEDDING_MODEL),
+            'api_key' => $chat['api_key'],
+        ];
+    }
+
+    /**
      * The last 4 characters of the stored key for a masked UI preview, or null.
      */
     public function keyPreview(): ?string
     {
         $key = (string) $this->api_key;
+
+        return $key === '' ? null : str_repeat('•', 8).substr($key, -4);
+    }
+
+    /**
+     * Masked preview of the speech provider's project key, or null.
+     */
+    public function sttKeyPreview(): ?string
+    {
+        $key = (string) $this->stt_api_key;
 
         return $key === '' ? null : str_repeat('•', 8).substr($key, -4);
     }

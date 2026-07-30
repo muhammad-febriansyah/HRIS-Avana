@@ -10,6 +10,7 @@ use App\Models\Employee;
 use App\Models\EotmPeriod;
 use App\Models\Invoice;
 use App\Models\LeaveRequest;
+use App\Models\Meeting;
 use App\Models\Notification;
 use App\Models\OvertimeRequest;
 use App\Models\PayrollRun;
@@ -165,6 +166,48 @@ final class Notifier
             'Reimbursement Anda telah dibayar',
             ['Reimbursement '.($claim->title ?: 'Anda').' sebesar '.$amount.' telah dibayar.'],
             array_filter(['Keperluan' => $claim->title ?: null, 'Jumlah' => $amount]),
+        );
+    }
+
+    /**
+     * Tell whoever recorded a meeting that its transcript and summary are ready.
+     *
+     * The processing happens on a queue after the phone stops recording, which
+     * can be minutes later — by then the app has usually been closed, so a push
+     * is the only way they find out without going back to look.
+     */
+    public static function meetingSummaryReady(Meeting $meeting): void
+    {
+        $userId = $meeting->created_by;
+
+        if ($userId === null) {
+            return;
+        }
+
+        $ready = $meeting->status === Meeting::STATUS_READY;
+
+        $title = $ready ? 'Ringkasan rapat siap' : 'Ringkasan rapat gagal';
+        $body = $ready
+            ? 'Transkrip & ringkasan "'.$meeting->title.'" sudah bisa dibuka.'
+            : 'Rapat "'.$meeting->title.'" gagal diringkas. '.($meeting->failure_reason ?? '');
+
+        self::insertMany([[
+            'tenant_id' => $meeting->tenant_id,
+            'user_id' => $userId,
+            'type' => 'meeting',
+            'title' => $title,
+            'body' => trim($body),
+            'data' => [
+                'link' => ['type' => 'meeting', 'id' => $meeting->id],
+                'status' => $meeting->status,
+            ],
+        ]]);
+
+        app(FcmService::class)->pushToUsers(
+            [$userId],
+            $title,
+            trim($body),
+            ['type' => 'meeting', 'id' => $meeting->id],
         );
     }
 

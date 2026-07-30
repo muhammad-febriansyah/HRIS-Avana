@@ -41,10 +41,23 @@ class AiSettingController extends Controller
                 'image_model' => $settings->image_model ?? '',
                 'image_token_cost' => (int) $settings->image_token_cost,
                 'can_generate_images' => $settings->resolvedImage() !== null,
+                'stt_enabled' => (bool) $settings->stt_enabled,
+                'stt_provider' => $settings->stt_provider ?: 'deepgram',
+                'stt_model' => $settings->stt_model ?? '',
+                'stt_language' => $settings->stt_language ?? '',
+                'has_stt_key' => $settings->stt_api_key !== null && $settings->stt_api_key !== '',
+                'stt_key_preview' => $settings->sttKeyPreview(),
+                'stt_token_cost_per_minute' => (int) $settings->stt_token_cost_per_minute,
+                'meeting_max_minutes' => (int) $settings->meeting_max_minutes,
+                'meeting_audio_keep' => (bool) $settings->meeting_audio_keep,
+                'meeting_pro_model' => $settings->meeting_pro_model ?? '',
+                'embedding_model' => $settings->embedding_model ?? '',
+                'can_record_meetings' => $settings->resolvedStt() !== null,
             ],
             'providers' => AiSetting::PROVIDERS,
             'suggestedModels' => AiSetting::SUGGESTED_MODELS,
             'imageModels' => AiSetting::IMAGE_MODELS,
+            'sttModels' => AiSetting::STT_MODELS,
         ]);
     }
 
@@ -65,6 +78,17 @@ class AiSettingController extends Controller
             'image_model' => ['nullable', 'string', 'max:120'],
             // Images are billed from the same wallet as chat, priced in tokens.
             'image_token_cost' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+            'stt_enabled' => ['boolean'],
+            'stt_provider' => ['nullable', 'string', Rule::in(array_keys(AiSetting::STT_MODELS))],
+            'stt_api_key' => ['nullable', 'string', 'max:255'],
+            'stt_model' => ['nullable', 'string', 'max:120'],
+            'stt_language' => ['nullable', 'string', 'max:16'],
+            // Audio is billed per second by the provider, in tokens here.
+            'stt_token_cost_per_minute' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+            'meeting_max_minutes' => ['nullable', 'integer', 'min:1', 'max:1440'],
+            'meeting_audio_keep' => ['boolean'],
+            'meeting_pro_model' => ['nullable', 'string', 'max:120'],
+            'embedding_model' => ['nullable', 'string', 'max:120'],
         ]);
 
         $settings = AiSetting::current();
@@ -79,9 +103,29 @@ class AiSettingController extends Controller
             $settings->image_token_cost = (int) $validated['image_token_cost'];
         }
 
-        // Only overwrite the stored key when a new one is actually supplied.
+        $settings->stt_enabled = (bool) ($validated['stt_enabled'] ?? false);
+        $settings->stt_provider = ($validated['stt_provider'] ?? null) ?: 'deepgram';
+        $settings->stt_model = ($validated['stt_model'] ?? null) ?: null;
+        $settings->stt_language = ($validated['stt_language'] ?? null) ?: null;
+        $settings->meeting_audio_keep = (bool) ($validated['meeting_audio_keep'] ?? false);
+        $settings->meeting_pro_model = ($validated['meeting_pro_model'] ?? null) ?: null;
+        $settings->embedding_model = ($validated['embedding_model'] ?? null) ?: null;
+
+        if (isset($validated['stt_token_cost_per_minute'])) {
+            $settings->stt_token_cost_per_minute = (int) $validated['stt_token_cost_per_minute'];
+        }
+
+        if (isset($validated['meeting_max_minutes'])) {
+            $settings->meeting_max_minutes = (int) $validated['meeting_max_minutes'];
+        }
+
+        // Only overwrite the stored keys when new ones are actually supplied.
         if (! empty($validated['api_key'])) {
             $settings->api_key = $validated['api_key'];
+        }
+
+        if (! empty($validated['stt_api_key'])) {
+            $settings->stt_api_key = $validated['stt_api_key'];
         }
 
         $settings->save();

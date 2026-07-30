@@ -165,6 +165,7 @@ final class AvanaNav
                 self::leaf('sosmed', 'Ruang Kita', 'users-round', '/avana/sosmed', 'social', ['social']),
                 self::leaf('survei', 'Survei Karyawan', 'clipboard-list', '/avana/survei', 'survey', ['survey']),
                 self::leaf('kalender', 'Kalender Acara', 'calendar-days', '/avana/kalender', 'calendar', ['calendar']),
+                self::leaf('rapat', 'Rapat & Transkrip', 'mic', '/avana/rapat', 'meeting_ai', ['meeting']),
                 self::leaf('ai', 'AI Assistant', 'sparkles', '/avana/ai', 'ai', ['ai']),
                 self::leaf('aset', 'Manajemen Aset', 'package', '/avana/aset', 'asset', ['asset']),
                 self::leaf('crm', 'CRM', 'briefcase', '/avana/crm', 'crm', ['crm']),

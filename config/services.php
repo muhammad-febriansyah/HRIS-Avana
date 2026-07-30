@@ -41,6 +41,14 @@ return [
         'api_key' => env('PAKASIR_API_KEY'),
     ],
 
+    // Speech-to-text for the meeting recorder. The project key belongs here
+    // rather than in code: it is read as a fallback when no key has been saved
+    // in Pengaturan AI, and it never reaches the phone — the app is handed a
+    // short-lived grant minted from it. See App\Services\MeetingTranscriber.
+    'deepgram' => [
+        'api_key' => env('DEEPGRAM_API_KEY'),
+    ],
+
     'firebase' => [
         // Path to the FCM service-account JSON (Firebase → Project settings →
         // Service accounts → Generate new private key). Defaults to the

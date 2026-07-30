@@ -64,6 +64,7 @@ use App\Http\Controllers\Avana\LeaveController;
 use App\Http\Controllers\Avana\LeaveTypeController;
 use App\Http\Controllers\Avana\LetterTemplateController;
 use App\Http\Controllers\Avana\LoanController;
+use App\Http\Controllers\Avana\MeetingController;
 use App\Http\Controllers\Avana\MenuBuilderController;
 use App\Http\Controllers\Avana\MoodController;
 use App\Http\Controllers\Avana\MovementController;
@@ -561,6 +562,19 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     // POST (not PUT) so the edit form can carry a replacement PDF upload.
     Route::post('sop/{sop}', [SopController::class, 'update'])->name('sop.update');
     Route::delete('sop/{sop}', [SopController::class, 'destroy'])->name('sop.destroy');
+
+    // Rapat & Transkrip — recorded on the phone, reviewed here.
+    Route::get('rapat', [MeetingController::class, 'index'])->name('rapat');
+    Route::get('rapat/{meeting}', [MeetingController::class, 'show'])->whereNumber('meeting')->name('rapat.show');
+    Route::put('rapat/{meeting}/pembicara', [MeetingController::class, 'updateSpeakers'])->whereNumber('meeting')->name('rapat.pembicara');
+    Route::put('rapat/{meeting}/akses', [MeetingController::class, 'updateVisibility'])->whereNumber('meeting')->name('rapat.akses');
+    Route::post('rapat/{meeting}/analisis/{type}', [MeetingController::class, 'generateInsight'])->whereNumber('meeting')->name('rapat.analisis');
+    Route::post('rapat/{meeting}/proses-ulang', [MeetingController::class, 'reprocess'])->whereNumber('meeting')->name('rapat.reprocess');
+    Route::get('rapat/{meeting}/audio', [MeetingController::class, 'download'])->whereNumber('meeting')->name('rapat.audio');
+    Route::post('rapat/{meeting}/tindak-lanjut', [MeetingController::class, 'storeActionItem'])->whereNumber('meeting')->name('rapat.tindak-lanjut.store');
+    Route::put('rapat/{meeting}/tindak-lanjut/{actionItem}', [MeetingController::class, 'updateActionItem'])->whereNumber('meeting')->name('rapat.tindak-lanjut.update');
+    Route::delete('rapat/{meeting}/tindak-lanjut/{actionItem}', [MeetingController::class, 'destroyActionItem'])->whereNumber('meeting')->name('rapat.tindak-lanjut.destroy');
+    Route::delete('rapat/{meeting}', [MeetingController::class, 'destroy'])->whereNumber('meeting')->name('rapat.destroy');
 
     // Template Surat (HR letter templates + generated letters)
     Route::get('surat', [LetterTemplateController::class, 'index'])->name('surat');

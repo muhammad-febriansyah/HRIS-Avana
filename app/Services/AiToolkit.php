@@ -11,6 +11,7 @@ use App\Models\JobPosting;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Models\Meeting;
 use App\Models\OvertimeRequest;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
@@ -69,6 +70,14 @@ final class AiToolkit
         // documents the caller may be shown.
         $tools[] = $this->daftarSopTool();
         $tools[] = $this->bacaSopTool();
+
+        // Meeting recall, offered only where the company bought the recorder:
+        // registering it otherwise would let the model promise to look through
+        // meetings that were never recorded.
+        if ($this->user->tenant?->hasFeature('meeting_ai') === true) {
+            $tools[] = $this->daftarRapatTool();
+            $tools[] = $this->cariTranskripRapatTool();
+        }
 
         // Only offered when a super admin has turned image generation on and
         // picked a provider that can actually draw. Registering it otherwise
@@ -416,6 +425,88 @@ final class AiToolkit
         }
 
         return $query;
+    }
+
+    /**
+     * Meetings whose transcript the caller may read: the ones they recorded or
+     * attended, plus anything opened to the whole company. `meeting.view` (HR)
+     * sees all of them.
+     *
+     * @return Builder<Meeting>
+     */
+    private function readableMeetings(): Builder
+    {
+        return Meeting::query()
+            ->forTenant($this->tenantId())
+            ->where('status', Meeting::STATUS_READY)
+            ->readableBy($this->user->employee?->id, $this->user->id, $this->can('meeting.view'));
+    }
+
+    private function daftarRapatTool(): Tool
+    {
+        return (new Tool)
+            ->as('daftar_rapat')
+            ->for('Daftar rapat yang sudah direkam dan boleh dibaca pengguna ini, lengkap dengan tanggal, durasi, dan peserta. Panggil ini bila pengguna bertanya "rapat apa saja yang sudah direkam" atau ingin tahu rapat kapan saja yang ada.')
+            ->withStringParameter('kata_kunci', 'Filter judul rapat. Kosongkan untuk semua rapat terbaru.', false)
+            ->using(function (?string $kata_kunci = null): string {
+                $query = $this->readableMeetings()->with('participants.employee:id,full_name');
+
+                if ($kata_kunci !== null && $kata_kunci !== '') {
+                    $query->where('title', 'like', "%{$kata_kunci}%");
+                }
+
+                $rows = $query->orderByDesc('started_at')->take(20)->get();
+
+                if ($rows->isEmpty()) {
+                    return 'Belum ada rapat terekam yang bisa Anda baca.';
+                }
+
+                return $rows->map(fn (Meeting $meeting): string => sprintf(
+                    '%s — %s, durasi %d menit, peserta: %s',
+                    $meeting->title,
+                    $this->date($meeting->started_at ?? $meeting->created_at),
+                    $meeting->durationMinutes(),
+                    $meeting->participants->isEmpty()
+                        ? 'tidak dicatat'
+                        : $meeting->participants->map(fn ($participant): string => $participant->employee?->full_name ?? '-')->implode(', '),
+                ))->implode('; ');
+            });
+    }
+
+    /**
+     * Answer from what was actually said in a meeting.
+     *
+     * Only the passages closest to the question are quoted — a two-hour
+     * transcript costs more to read than the answer is worth. See
+     * {@see MeetingSearch}.
+     */
+    private function cariTranskripRapatTool(): Tool
+    {
+        return (new Tool)
+            ->as('cari_transkrip_rapat')
+            ->for('Cari isi transkrip rapat berdasarkan pertanyaan atau topik. WAJIB dipakai untuk menjawab pertanyaan tentang apa yang dibahas, diputuskan, atau ditugaskan di rapat — agar jawaban mengutip ucapan yang benar-benar terekam dan bukan karangan.')
+            ->withStringParameter('pertanyaan', 'Pertanyaan atau topik yang dicari, contoh: "keputusan soal integrasi payroll".', true)
+            ->using(function (string $pertanyaan): string {
+                $hits = app(MeetingSearch::class)->search($this->user, $pertanyaan);
+
+                if ($hits->isEmpty()) {
+                    return "Tidak ada bagian rapat yang cocok dengan '{$pertanyaan}'. Jangan mengarang isi rapat — katakan tidak ditemukan dan sarankan pengguna membuka menu Rapat & Transkrip.";
+                }
+
+                return $hits->map(function (array $hit): string {
+                    $meeting = $hit['meeting'];
+                    $chunk = $hit['chunk'];
+                    $minute = intdiv((int) $chunk->start_ms, 60_000);
+
+                    return sprintf(
+                        "Rapat: %s [%s, menit ke-%d]\n%s",
+                        $meeting->title,
+                        $this->date($meeting->started_at ?? $meeting->created_at),
+                        $minute,
+                        $chunk->text,
+                    );
+                })->implode("\n\n---\n\n");
+            });
     }
 
     /**

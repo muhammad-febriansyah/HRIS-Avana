@@ -16,6 +16,18 @@ interface Settings {
     image_model: string;
     image_token_cost: number;
     can_generate_images: boolean;
+    stt_enabled: boolean;
+    stt_provider: string;
+    stt_model: string;
+    stt_language: string;
+    has_stt_key: boolean;
+    stt_key_preview: string | null;
+    stt_token_cost_per_minute: number;
+    meeting_max_minutes: number;
+    meeting_audio_keep: boolean;
+    meeting_pro_model: string;
+    embedding_model: string;
+    can_record_meetings: boolean;
 }
 
 interface PageProps {
@@ -23,6 +35,7 @@ interface PageProps {
     providers: Record<string, string>;
     suggestedModels: Record<string, string[]>;
     imageModels: Record<string, string[]>;
+    sttModels: Record<string, string[]>;
 }
 
 interface FlashProps {
@@ -60,6 +73,7 @@ export default function AiSettings({
     providers,
     suggestedModels,
     imageModels,
+    sttModels,
 }: PageProps) {
     const { flash } = usePage<FlashProps>().props;
 
@@ -71,6 +85,16 @@ export default function AiSettings({
         image_enabled: boolean;
         image_model: string;
         image_token_cost: number;
+        stt_enabled: boolean;
+        stt_provider: string;
+        stt_api_key: string;
+        stt_model: string;
+        stt_language: string;
+        stt_token_cost_per_minute: number;
+        meeting_max_minutes: number;
+        meeting_audio_keep: boolean;
+        meeting_pro_model: string;
+        embedding_model: string;
     }>({
         provider: settings.provider,
         model: settings.model ?? '',
@@ -79,6 +103,16 @@ export default function AiSettings({
         image_enabled: settings.image_enabled,
         image_model: settings.image_model ?? '',
         image_token_cost: settings.image_token_cost,
+        stt_enabled: settings.stt_enabled,
+        stt_provider: settings.stt_provider,
+        stt_api_key: '',
+        stt_model: settings.stt_model ?? '',
+        stt_language: settings.stt_language ?? '',
+        stt_token_cost_per_minute: settings.stt_token_cost_per_minute,
+        meeting_max_minutes: settings.meeting_max_minutes,
+        meeting_audio_keep: settings.meeting_audio_keep,
+        meeting_pro_model: settings.meeting_pro_model ?? '',
+        embedding_model: settings.embedding_model ?? '',
     });
 
     useEffect(() => {
@@ -91,7 +125,7 @@ export default function AiSettings({
         event.preventDefault();
         form.post(AiSettingController.update().url, {
             preserveScroll: true,
-            onSuccess: () => form.reset('api_key'),
+            onSuccess: () => form.reset('api_key', 'stt_api_key'),
         });
     };
 
@@ -102,6 +136,8 @@ export default function AiSettings({
     // nothing after it is turned on.
     const imageSuggestions = imageModels[form.data.provider] ?? [];
     const providerCanDraw = imageSuggestions.length > 0;
+
+    const sttSuggestions = sttModels[form.data.stt_provider] ?? [];
 
     return (
         <>
@@ -418,6 +454,332 @@ export default function AiSettings({
                                         </p>
                                     )}
                                 </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div
+                        style={{
+                            borderTop: `1px solid ${C.border}`,
+                            paddingTop: 20,
+                            marginBottom: 22,
+                        }}
+                    >
+                        <div
+                            style={{
+                                fontSize: 14,
+                                fontWeight: 600,
+                                color: C.navy,
+                                marginBottom: 4,
+                            }}
+                        >
+                            Rapat & Transkrip (AI Recorder)
+                        </div>
+                        <p style={{ ...hint, marginTop: 0, marginBottom: 14 }}>
+                            Transkripsi memakai penyedia suara terpisah — ia
+                            menagih per detik audio dan memisahkan pembicara,
+                            jauh lebih murah daripada mengirim audio ke model
+                            chat. Ringkasan otomatis tetap memakai model chat di
+                            atas; model mahal hanya dipakai untuk analisis
+                            premium yang diklik pengguna.
+                        </p>
+
+                        <label
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 10,
+                                fontSize: 14,
+                                color: C.text,
+                                cursor: 'pointer',
+                                marginBottom: 16,
+                            }}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={form.data.stt_enabled}
+                                onChange={(e) =>
+                                    form.setData(
+                                        'stt_enabled',
+                                        e.target.checked,
+                                    )
+                                }
+                            />
+                            Aktifkan perekaman & transkripsi rapat
+                        </label>
+
+                        {form.data.stt_enabled && (
+                            <div
+                                style={{
+                                    display: 'grid',
+                                    gridTemplateColumns:
+                                        'repeat(auto-fit, minmax(220px, 1fr))',
+                                    gap: 16,
+                                }}
+                            >
+                                <div>
+                                    <label style={label} htmlFor="stt_provider">
+                                        Penyedia Transkripsi
+                                    </label>
+                                    <select
+                                        id="stt_provider"
+                                        style={input}
+                                        value={form.data.stt_provider}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'stt_provider',
+                                                e.target.value,
+                                            )
+                                        }
+                                    >
+                                        {Object.keys(sttModels).map((key) => (
+                                            <option key={key} value={key}>
+                                                {key === 'deepgram'
+                                                    ? 'Deepgram'
+                                                    : key}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <p style={hint}>
+                                        Deepgram memisahkan pembicara
+                                        (diarization) di permintaan yang sama.
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <label style={label} htmlFor="stt_api_key">
+                                        API Key Transkripsi
+                                    </label>
+                                    <input
+                                        id="stt_api_key"
+                                        type="password"
+                                        autoComplete="new-password"
+                                        style={input}
+                                        placeholder={
+                                            settings.has_stt_key
+                                                ? `Tersimpan (${settings.stt_key_preview}) — biarkan kosong untuk mempertahankan`
+                                                : 'Tempel project key Deepgram'
+                                        }
+                                        value={form.data.stt_api_key}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'stt_api_key',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                    <p style={hint}>
+                                        Key ini tidak pernah dikirim ke HP —
+                                        aplikasi hanya menerima token sementara
+                                        berumur 1 menit.
+                                    </p>
+                                    {form.errors.stt_api_key && (
+                                        <p style={{ ...hint, color: C.red }}>
+                                            {form.errors.stt_api_key}
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label style={label} htmlFor="stt_model">
+                                        Model Suara
+                                    </label>
+                                    <input
+                                        id="stt_model"
+                                        list="stt-model-suggestions"
+                                        style={input}
+                                        placeholder={
+                                            sttSuggestions[0] ?? 'nova-2'
+                                        }
+                                        value={form.data.stt_model}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'stt_model',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                    <datalist id="stt-model-suggestions">
+                                        {sttSuggestions.map((m) => (
+                                            <option key={m} value={m} />
+                                        ))}
+                                    </datalist>
+                                    <p style={hint}>
+                                        Kosongkan untuk memakai{' '}
+                                        {sttSuggestions[0] ?? 'nova-2'}.
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <label style={label} htmlFor="stt_language">
+                                        Bahasa
+                                    </label>
+                                    <input
+                                        id="stt_language"
+                                        style={input}
+                                        placeholder="id"
+                                        value={form.data.stt_language}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'stt_language',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                    <p style={hint}>
+                                        Kode bahasa penyedia, mis.{' '}
+                                        <code>id</code> untuk Bahasa Indonesia.
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <label
+                                        style={label}
+                                        htmlFor="stt_token_cost_per_minute"
+                                    >
+                                        Biaya per Menit Audio (token)
+                                    </label>
+                                    <input
+                                        id="stt_token_cost_per_minute"
+                                        type="number"
+                                        min={0}
+                                        style={input}
+                                        placeholder="cth. 500"
+                                        value={
+                                            form.data.stt_token_cost_per_minute
+                                        }
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'stt_token_cost_per_minute',
+                                                Number(e.target.value),
+                                            )
+                                        }
+                                    />
+                                    <p style={hint}>
+                                        Penyedia menagih detik audio, dompet
+                                        menghitung token — konversinya di sini.
+                                    </p>
+                                    {form.errors.stt_token_cost_per_minute && (
+                                        <p style={{ ...hint, color: C.red }}>
+                                            {
+                                                form.errors
+                                                    .stt_token_cost_per_minute
+                                            }
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label
+                                        style={label}
+                                        htmlFor="meeting_max_minutes"
+                                    >
+                                        Batas Durasi Rekaman (menit)
+                                    </label>
+                                    <input
+                                        id="meeting_max_minutes"
+                                        type="number"
+                                        min={1}
+                                        style={input}
+                                        placeholder="180"
+                                        value={form.data.meeting_max_minutes}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'meeting_max_minutes',
+                                                Number(e.target.value),
+                                            )
+                                        }
+                                    />
+                                    <p style={hint}>
+                                        Rekaman berhenti sendiri di batas ini,
+                                        supaya sesi yang terlupa tidak menguras
+                                        token.
+                                    </p>
+                                    {form.errors.meeting_max_minutes && (
+                                        <p style={{ ...hint, color: C.red }}>
+                                            {form.errors.meeting_max_minutes}
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label
+                                        style={label}
+                                        htmlFor="meeting_pro_model"
+                                    >
+                                        Model Analisis Premium
+                                    </label>
+                                    <input
+                                        id="meeting_pro_model"
+                                        list="model-suggestions"
+                                        style={input}
+                                        placeholder={
+                                            suggestions[1] ?? 'model-reasoning'
+                                        }
+                                        value={form.data.meeting_pro_model}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'meeting_pro_model',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                    <p style={hint}>
+                                        Dipakai hanya untuk Executive Summary,
+                                        analisis keputusan, risiko, sentimen,
+                                        dan rekomendasi. Kosongkan untuk memakai
+                                        model chat.
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <label
+                                        style={label}
+                                        htmlFor="embedding_model"
+                                    >
+                                        Model Embedding
+                                    </label>
+                                    <input
+                                        id="embedding_model"
+                                        style={input}
+                                        placeholder="text-embedding-3-small"
+                                        value={form.data.embedding_model}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'embedding_model',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                    <p style={hint}>
+                                        Dipakai agar asisten bisa menjawab
+                                        pertanyaan soal isi rapat tanpa membaca
+                                        transkrip utuh.
+                                    </p>
+                                </div>
+
+                                <label
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 10,
+                                        fontSize: 14,
+                                        color: C.text,
+                                        cursor: 'pointer',
+                                    }}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={form.data.meeting_audio_keep}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'meeting_audio_keep',
+                                                e.target.checked,
+                                            )
+                                        }
+                                    />
+                                    Simpan berkas audio rapat
+                                </label>
                             </div>
                         )}
                     </div>
