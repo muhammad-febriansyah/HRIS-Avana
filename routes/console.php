@@ -23,3 +23,8 @@ Schedule::command('avana:scan-attrition-alerts')->dailyAt('07:30');
 
 // Push a clock-in reminder to employees who haven't clocked in yet (weekdays).
 Schedule::command('avana:remind-attendance')->weekdays()->at('08:30');
+
+// Close meeting recordings a phone never came back from. Nothing else moves
+// them out of "recording", so without this they sit in the list claiming to be
+// live for good.
+Schedule::command('avana:close-stale-meetings')->hourly();
