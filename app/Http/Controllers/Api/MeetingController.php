@@ -17,6 +17,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use RuntimeException;
 
 /**
@@ -282,17 +283,99 @@ class MeetingController extends Controller
      */
     public function show(Request $request, Meeting $meeting): JsonResponse
     {
-        $user = $request->user();
-
-        $readable = Meeting::query()
-            ->whereKey($meeting->id)
-            ->forTenant($user->tenant_id)
-            ->readableBy($user->employee?->id, $user->id, false)
-            ->exists();
-
-        abort_unless($readable, 404);
+        $this->authorizeReader($request, $meeting);
 
         return response()->json(['data' => $this->shapeDetail($meeting, withTranscript: true)]);
+    }
+
+    /**
+     * Tick a follow-up off, or put it back.
+     *
+     * Open to anyone who may read the meeting rather than to an admin: these
+     * get settled on the walk back from the room, by the people who were in it.
+     * Only the done/open state moves here — rewording a task or reassigning it
+     * is an editing job, and that stays on the web.
+     */
+    public function updateActionItem(
+        Request $request,
+        Meeting $meeting,
+        MeetingActionItem $actionItem,
+    ): JsonResponse {
+        $this->authorizeReader($request, $meeting);
+        abort_unless($actionItem->meeting_id === $meeting->id, 404);
+
+        $data = $request->validate([
+            'status' => ['required', Rule::in([
+                MeetingActionItem::STATUS_OPEN,
+                MeetingActionItem::STATUS_DONE,
+            ])],
+        ]);
+
+        $actionItem->update(['status' => $data['status']]);
+
+        return response()->json(['data' => $this->shapeDetail($meeting->fresh())]);
+    }
+
+    /**
+     * Add a follow-up the summary missed.
+     */
+    public function storeActionItem(Request $request, Meeting $meeting): JsonResponse
+    {
+        $this->authorizeReader($request, $meeting);
+
+        $data = $request->validate([
+            'text' => ['required', 'string', 'max:1000'],
+        ]);
+
+        MeetingActionItem::create([
+            'meeting_id' => $meeting->id,
+            'tenant_id' => $meeting->tenant_id,
+            'text' => $data['text'],
+            'status' => MeetingActionItem::STATUS_OPEN,
+            'source' => MeetingActionItem::SOURCE_MANUAL,
+            'sort_order' => (int) $meeting->actionItems()->max('sort_order') + 1,
+        ]);
+
+        return response()->json(['data' => $this->shapeDetail($meeting->fresh())], 201);
+    }
+
+    /**
+     * Ask for the summary to be built again — for one that failed, or one whose
+     * speaker names were corrected afterwards.
+     *
+     * Restricted to whoever recorded it: re-running spends their tokens, and
+     * the gate is checked before the job is queued rather than inside it, so a
+     * refusal is something the person sees rather than something that fails
+     * quietly on a worker.
+     */
+    public function reprocess(Request $request, Meeting $meeting): JsonResponse
+    {
+        $this->authorizeOwner($request, $meeting);
+
+        if ($meeting->status === Meeting::STATUS_RECORDING) {
+            return response()->json(
+                ['message' => 'Rapat masih merekam.'],
+                422,
+            );
+        }
+
+        $gate = $this->tokens->canChat($request->user());
+
+        if (! $gate->allowed) {
+            return response()->json(
+                ['message' => $gate->message, 'reason' => $gate->reason],
+                422,
+            );
+        }
+
+        $meeting->update([
+            'status' => Meeting::STATUS_PROCESSING,
+            'failure_reason' => null,
+        ]);
+
+        ProcessMeetingTranscriptJob::dispatch($meeting->id);
+
+        return response()->json(['data' => $this->shapeDetail($meeting->fresh())]);
     }
 
     /**
@@ -307,6 +390,23 @@ class MeetingController extends Controller
             403,
             'Rapat ini bukan rekaman Anda.',
         );
+    }
+
+    /**
+     * Anyone the meeting is readable by: its recorder, the people listed as
+     * attending, or everyone when it was opened to the company.
+     */
+    private function authorizeReader(Request $request, Meeting $meeting): void
+    {
+        $user = $request->user();
+
+        $readable = Meeting::query()
+            ->whereKey($meeting->id)
+            ->forTenant($user->tenant_id)
+            ->readableBy($user->employee?->id, $user->id, false)
+            ->exists();
+
+        abort_unless($readable, 404);
     }
 
     /**
@@ -347,6 +447,10 @@ class MeetingController extends Controller
             'summary' => $meeting->summary,
             'decisions' => $meeting->decisions ?? [],
             'failure_reason' => $meeting->failure_reason,
+            // Re-running the summary spends the recorder's tokens, so only they
+            // are offered the button. Told to the phone rather than inferred so
+            // the UI and the endpoint agree on who may.
+            'can_reprocess' => $meeting->created_by === auth()->id(),
             // The deep analyses, read-only here: they are written on the web,
             // where somebody chose to spend the tokens on them. Only the ones
             // already paid for are sent, so the phone never shows five empty

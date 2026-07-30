@@ -199,6 +199,11 @@ Route::prefix('v1')->group(function (): void {
             Route::post('meetings/{meeting}/segments', [MeetingController::class, 'segments'])->whereNumber('meeting');
             Route::post('meetings/{meeting}/stop', [MeetingController::class, 'stop'])->whereNumber('meeting');
             Route::post('meetings/{meeting}/audio', [MeetingController::class, 'audio'])->whereNumber('meeting');
+            Route::post('meetings/{meeting}/reprocess', [MeetingController::class, 'reprocess'])->whereNumber('meeting');
+            Route::post('meetings/{meeting}/action-items', [MeetingController::class, 'storeActionItem'])->whereNumber('meeting');
+            Route::put('meetings/{meeting}/action-items/{actionItem}', [MeetingController::class, 'updateActionItem'])
+                ->whereNumber('meeting')
+                ->whereNumber('actionItem');
 
             Route::get('ai/tokens', [AiTokenPurchaseController::class, 'index']);
             Route::post('ai/tokens', [AiTokenPurchaseController::class, 'store']);
