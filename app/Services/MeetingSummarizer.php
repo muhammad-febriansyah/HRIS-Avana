@@ -379,15 +379,13 @@ final class MeetingSummarizer
             $structured['decisions'] ?? [],
         )));
 
-        if ($decisions !== []) {
-            // Decisions live inside the summary text rather than in their own
-            // table: they are read together, and a heading keeps them findable
-            // without a schema nobody queries separately.
-            $summary = trim($summary."\n\n## Keputusan\n".collect($decisions)->map(fn (string $d): string => '- '.$d)->implode("\n"));
-        }
-
+        // Kept as the model handed them over. Flattening them into the summary
+        // text would make a literal heading the contract between this and every
+        // screen that wants them back — and a heading the model worded slightly
+        // differently would lose them with no error to notice.
         $meeting->update([
             'summary' => $summary,
+            'decisions' => $decisions,
             'summary_model' => $models['summary'],
         ]);
 

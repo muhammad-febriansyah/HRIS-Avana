@@ -313,17 +313,72 @@ export default function MeetingDetail({
                                 {meeting.summary_tokens.toLocaleString('id-ID')}{' '}
                                 token
                             </div>
-                            {meeting.summary ? (
-                                <div
-                                    style={{
-                                        fontSize: 13.8,
-                                        color: C.text,
-                                        lineHeight: 1.7,
-                                        whiteSpace: 'pre-wrap',
-                                    }}
-                                >
-                                    {meeting.summary}
-                                </div>
+                            {meeting.summary || meeting.decisions.length > 0 ? (
+                                <>
+                                    {meeting.summary && (
+                                        <div
+                                            style={{
+                                                fontSize: 13.8,
+                                                color: C.text,
+                                                lineHeight: 1.7,
+                                                whiteSpace: 'pre-wrap',
+                                            }}
+                                        >
+                                            {meeting.summary}
+                                        </div>
+                                    )}
+
+                                    {meeting.decisions.length > 0 && (
+                                        <div style={{ marginTop: 18 }}>
+                                            <div
+                                                style={{
+                                                    fontSize: 11.5,
+                                                    fontWeight: 700,
+                                                    letterSpacing: '.06em',
+                                                    color: C.faint,
+                                                    marginBottom: 10,
+                                                }}
+                                            >
+                                                KEPUTUSAN
+                                            </div>
+                                            {meeting.decisions.map(
+                                                (decision, index) => (
+                                                    <div
+                                                        key={index}
+                                                        style={{
+                                                            display: 'flex',
+                                                            gap: 9,
+                                                            alignItems:
+                                                                'flex-start',
+                                                            marginBottom: 8,
+                                                        }}
+                                                    >
+                                                        <span
+                                                            style={{
+                                                                paddingTop: 2,
+                                                            }}
+                                                        >
+                                                            <AIcon
+                                                                name="circle-check"
+                                                                size={14}
+                                                                color={C.green}
+                                                            />
+                                                        </span>
+                                                        <span
+                                                            style={{
+                                                                fontSize: 13.5,
+                                                                color: C.text,
+                                                                lineHeight: 1.6,
+                                                            }}
+                                                        >
+                                                            {decision}
+                                                        </span>
+                                                    </div>
+                                                ),
+                                            )}
+                                        </div>
+                                    )}
+                                </>
                             ) : (
                                 <div style={{ fontSize: 13.5, color: C.faint }}>
                                     Belum ada ringkasan.

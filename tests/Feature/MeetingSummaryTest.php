@@ -97,7 +97,10 @@ it('names speakers, writes the summary, and embeds the transcript', function ():
 
     expect($fresh->status)->toBe(Meeting::STATUS_READY)
         ->and($fresh->summary)->toContain('integrasi payroll')
-        ->and($fresh->summary)->toContain('Keputusan')
+        // Decisions are kept as data, not folded into the prose under a
+        // heading that every reader would then have to find by string search.
+        ->and($fresh->summary)->not->toContain('## Keputusan')
+        ->and($fresh->decisions)->toBe(['Integrasi payroll dijalankan bulan depan'])
         ->and($fresh->summary_model)->toBe('gpt-4o-mini');
 
     $speaker0 = $fresh->speakers->firstWhere('speaker_index', 0);

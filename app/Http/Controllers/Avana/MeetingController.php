@@ -110,6 +110,7 @@ class MeetingController extends Controller
         return Inertia::render('avana/rapat/detail', [
             'meeting' => $this->transformListItem($meeting) + [
                 'summary' => $meeting->summary,
+                'decisions' => $meeting->decisions ?? [],
                 'summary_model' => $meeting->summary_model,
                 'summary_tokens' => (int) $meeting->summary_tokens,
                 'failure_reason' => $meeting->failure_reason,

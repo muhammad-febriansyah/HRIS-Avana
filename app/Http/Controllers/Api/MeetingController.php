@@ -8,6 +8,7 @@ use App\Models\AiSetting;
 use App\Models\Employee;
 use App\Models\Meeting;
 use App\Models\MeetingActionItem;
+use App\Models\MeetingInsight;
 use App\Models\MeetingParticipant;
 use App\Models\MeetingSegment;
 use App\Services\AiTokenService;
@@ -335,11 +336,30 @@ class MeetingController extends Controller
      */
     private function shapeDetail(Meeting $meeting, bool $withTranscript = false): array
     {
-        $meeting->loadMissing(['participants.employee:id,full_name', 'speakers.employee:id,full_name', 'actionItems.assignee:id,full_name']);
+        $meeting->loadMissing([
+            'participants.employee:id,full_name',
+            'speakers.employee:id,full_name',
+            'actionItems.assignee:id,full_name',
+            'insights',
+        ]);
 
         $payload = $this->shapeListItem($meeting) + [
             'summary' => $meeting->summary,
+            'decisions' => $meeting->decisions ?? [],
             'failure_reason' => $meeting->failure_reason,
+            // The deep analyses, read-only here: they are written on the web,
+            // where somebody chose to spend the tokens on them. Only the ones
+            // already paid for are sent, so the phone never shows five empty
+            // headings promising things nobody asked for.
+            'insights' => $meeting->insights
+                ->map(fn (MeetingInsight $insight): array => [
+                    'type' => $insight->type,
+                    'label' => MeetingInsight::label($insight->type),
+                    'payload' => $insight->payload,
+                    'generated_at' => $insight->generated_at?->toIso8601String(),
+                ])
+                ->values()
+                ->all(),
             'action_items' => $meeting->actionItems
                 ->map(fn (MeetingActionItem $item): array => [
                     'id' => $item->id,

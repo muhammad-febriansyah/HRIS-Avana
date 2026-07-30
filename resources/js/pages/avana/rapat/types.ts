@@ -19,6 +19,8 @@ export interface MeetingRow {
 
 export interface MeetingDetail extends MeetingRow {
     summary: string | null;
+    /** Decisions the meeting reached, as the model listed them. */
+    decisions: string[];
     summary_model: string | null;
     summary_tokens: number;
     failure_reason: string | null;

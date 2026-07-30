@@ -44,6 +44,7 @@ final class Meeting extends Model
         return [
             'started_at' => 'datetime',
             'ended_at' => 'datetime',
+            'decisions' => 'array',
             'duration_ms' => 'integer',
             'billed_ms' => 'integer',
             'audio_size' => 'integer',

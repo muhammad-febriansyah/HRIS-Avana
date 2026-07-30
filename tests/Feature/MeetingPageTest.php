@@ -33,7 +33,8 @@ beforeEach(function (): void {
         'started_at' => now()->subHour(),
         'ended_at' => now(),
         'duration_ms' => 765_000,
-        'summary' => "Rapat membahas integrasi payroll.\n\n## Keputusan\n- Integrasi jalan bulan depan",
+        'summary' => 'Rapat membahas integrasi payroll.',
+        'decisions' => ['Integrasi jalan bulan depan', 'Vendor dikunci pekan ini'],
         'summary_model' => 'gpt-4o-mini',
         'summary_tokens' => 410,
     ]);
@@ -96,6 +97,8 @@ it('renders the meeting detail with transcript, speakers, follow-ups and insight
             ->component('avana/rapat/detail')
             ->where('meeting.summary_tokens', 410)
             ->where('meeting.has_audio', false)
+            ->has('meeting.decisions', 2)
+            ->where('meeting.decisions.0', 'Integrasi jalan bulan depan')
             // The date casts phpstan could not see through, exercised for real.
             ->where('meeting.started_at', $this->meeting->started_at->toIso8601String())
             ->has('transcript', 1)
@@ -130,7 +133,37 @@ it('returns the same meeting over the mobile API, transcript included', function
         ->assertOk()
         ->assertJsonPath('data.duration_minutes', 13)
         ->assertJsonPath('data.transcript.0.speaker', $this->employee->full_name)
-        ->assertJsonPath('data.action_items.0.due_date', '2026-08-15');
+        ->assertJsonPath('data.action_items.0.due_date', '2026-08-15')
+        // The phone gets the decisions as a list, not as prose to re-parse.
+        ->assertJsonPath('data.decisions', [
+            'Integrasi jalan bulan depan',
+            'Vendor dikunci pekan ini',
+        ])
+        // ...and the analyses somebody already paid for on the web.
+        ->assertJsonPath('data.insights.0.type', MeetingInsight::TYPE_EXECUTIVE_SUMMARY)
+        ->assertJsonPath('data.insights.0.label', 'Executive Summary')
+        ->assertJsonPath(
+            'data.insights.0.payload.headline',
+            'Integrasi payroll disepakati',
+        );
+});
+
+it('sends the phone no analyses when none have been generated yet', function (): void {
+    $this->meeting->insights()->delete();
+
+    $token = $this->postJson('/api/v1/auth/login', [
+        'email' => 'rina.a@nusantara.co.id',
+        'password' => 'password',
+    ])->json('access_token');
+
+    $this->app['auth']->forgetGuards();
+
+    // An empty list, not five placeholder headings promising work nobody
+    // asked for and nobody has paid for.
+    $this->withHeader('Authorization', 'Bearer '.$token)
+        ->getJson("/api/v1/me/meetings/{$this->meeting->id}")
+        ->assertOk()
+        ->assertJsonPath('data.insights', []);
 });
 
 it('confirms a speaker name and enrols them as a participant', function (): void {
