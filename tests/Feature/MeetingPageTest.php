@@ -148,6 +148,34 @@ it('measures who held the floor and how much is still outstanding', function ():
             ->where('stats.action_items.done', 0));
 });
 
+it('merges consecutive lines into turns for the timeline', function (): void {
+    // Two more from speaker 0, then one from speaker 1: three lines, but only
+    // two turns — the map is of who held the floor, not of every sentence.
+    MeetingSegment::create([
+        'meeting_id' => $this->meeting->id, 'tenant_id' => $this->tenant->id,
+        'speaker_index' => 0, 'start_ms' => 70_000, 'end_ms' => 72_000, 'text' => 'Lanjut.',
+    ]);
+    MeetingSegment::create([
+        'meeting_id' => $this->meeting->id, 'tenant_id' => $this->tenant->id,
+        'speaker_index' => 1, 'start_ms' => 73_000, 'end_ms' => 74_000, 'text' => 'Setuju.',
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.rapat.show', $this->meeting->id))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('stats.turns', 2)
+            ->where('stats.turns.0.speaker_index', 0)
+            ->where('stats.turns.0.lines', 2)
+            ->where('stats.turns.0.start_ms', 65_000)
+            // The turn runs to the end of its last line, not its first.
+            ->where('stats.turns.0.end_ms', 72_000)
+            ->where('stats.turns.1.speaker_index', 1)
+            ->where('stats.turns.1.lines', 1)
+            // Carries an anchor so a click on the map lands in the transcript.
+            ->has('stats.turns.0.line_id'));
+});
+
 it('reports no talk shares for a meeting nobody spoke in', function (): void {
     $silent = Meeting::create([
         'tenant_id' => $this->tenant->id,

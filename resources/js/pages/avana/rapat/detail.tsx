@@ -20,6 +20,7 @@ import {
     ActionItemMeter,
     MeetingStatTiles,
     TalkShareChart,
+    TurnTimeline,
 } from './meeting-stats';
 import type {
     ActionItemRow,
@@ -121,6 +122,24 @@ export default function MeetingDetail({
     proModel,
 }: MeetingDetailProps) {
     const { flash } = usePage<FlashProps>().props;
+
+    /**
+     * Land on a transcript line and mark it briefly, so a click on the timeline
+     * lands somewhere the eye can find rather than merely scrolling.
+     */
+    const seekToLine = (lineId: number): void => {
+        const node = document.getElementById(`ucapan-${lineId}`);
+
+        if (node === null) {
+            return;
+        }
+
+        node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        node.style.background = C.line;
+        window.setTimeout(() => {
+            node.style.background = 'transparent';
+        }, 1600);
+    };
 
     // Local copy so the whole panel can be edited then saved in one request —
     // the names only make sense reviewed together.
@@ -371,6 +390,8 @@ export default function MeetingDetail({
                             and frame everything under them. */}
                         <MeetingStatTiles stats={stats} />
 
+                        <TurnTimeline stats={stats} onSeek={seekToLine} />
+
                         <div style={{ ...card, padding: 22 }}>
                             <div style={sectionTitle}>Ringkasan</div>
                             <div style={sectionHint}>
@@ -563,10 +584,14 @@ export default function MeetingDetail({
                                         {block.lines.map((line) => (
                                             <div
                                                 key={line.id}
+                                                id={`ucapan-${line.id}`}
                                                 style={{
                                                     display: 'flex',
                                                     gap: 12,
                                                     alignItems: 'flex-start',
+                                                    borderRadius: 6,
+                                                    transition:
+                                                        'background 400ms',
                                                 }}
                                             >
                                                 <span

@@ -96,6 +96,16 @@ export interface TalkShare {
     share: number;
 }
 
+/** One unbroken stretch of talking by a single speaker. */
+export interface MeetingTurn {
+    speaker_index: number;
+    start_ms: number;
+    end_ms: number;
+    lines: number;
+    /** First transcript line of the turn — where a click on it lands. */
+    line_id: number;
+}
+
 /** The measurable side of a meeting, as opposed to the prose. */
 export interface MeetingStats {
     duration_ms: number;
@@ -103,6 +113,7 @@ export interface MeetingStats {
     lines: number;
     speakers: number;
     talk: TalkShare[];
+    turns: MeetingTurn[];
     action_items: { total: number; done: number };
 }
 

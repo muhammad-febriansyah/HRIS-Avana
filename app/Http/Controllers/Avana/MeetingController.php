@@ -449,11 +449,49 @@ class MeetingController extends Controller
             'lines' => $segments->count(),
             'speakers' => count($bySpeaker),
             'talk' => $bySpeaker,
+            'turns' => $this->turnsOf($segments),
             'action_items' => [
                 'total' => $items->count(),
                 'done' => $items->where('status', 'done')->count(),
             ],
         ];
+    }
+
+    /**
+     * The meeting as a sequence of turns: consecutive lines from one speaker
+     * merged into a single stretch of talking.
+     *
+     * This is what a reader needs to skip around a long recording — the shape
+     * of the conversation, and somewhere to click to land in the transcript.
+     * It carries the first line's id so the page has an anchor to scroll to.
+     *
+     * @param  Collection<int, MeetingSegment>  $segments
+     * @return array<int, array<string, mixed>>
+     */
+    private function turnsOf($segments): array
+    {
+        $turns = [];
+
+        foreach ($segments->sortBy('start_ms') as $segment) {
+            $last = $turns === [] ? null : $turns[count($turns) - 1];
+
+            if ($last !== null && $last['speaker_index'] === (int) $segment->speaker_index) {
+                $turns[count($turns) - 1]['end_ms'] = (int) $segment->end_ms;
+                $turns[count($turns) - 1]['lines']++;
+
+                continue;
+            }
+
+            $turns[] = [
+                'speaker_index' => (int) $segment->speaker_index,
+                'start_ms' => (int) $segment->start_ms,
+                'end_ms' => (int) $segment->end_ms,
+                'lines' => 1,
+                'line_id' => $segment->id,
+            ];
+        }
+
+        return $turns;
     }
 
     /**

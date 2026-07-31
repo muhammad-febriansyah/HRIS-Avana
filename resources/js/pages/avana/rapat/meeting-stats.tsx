@@ -199,6 +199,160 @@ export function TalkShareChart({ stats }: { stats: MeetingStats }) {
     );
 }
 
+/** Clock label for the timeline axis. */
+function clock(ms: number): string {
+    const total = Math.round(ms / 1000);
+    const minutes = Math.floor(total / 60);
+
+    return `${minutes}:${String(total % 60).padStart(2, '0')}`;
+}
+
+/**
+ * Who spoke when, laid along the meeting's own clock.
+ *
+ * The point is navigation, not measurement: on a long recording nobody reads
+ * the transcript top to bottom, they want the part where a particular person
+ * took the floor. Each block is a turn and lands in the transcript when
+ * clicked.
+ *
+ * Shown only once there is a shape to see — one speaker, or a handful of
+ * turns, is a picture of nothing.
+ */
+export function TurnTimeline({
+    stats,
+    onSeek,
+}: {
+    stats: MeetingStats;
+    onSeek: (lineId: number) => void;
+}) {
+    const span = stats.turns.length
+        ? Math.max(
+              stats.duration_ms,
+              stats.turns[stats.turns.length - 1].end_ms,
+          )
+        : 0;
+
+    if (stats.speakers < 2 || stats.turns.length < 6 || span === 0) {
+        return null;
+    }
+
+    // Same fixed order as the share bars, so a colour means one person across
+    // the whole page.
+    const order = stats.talk.map((row) => row.speaker_index);
+    const hueOf = (speakerIndex: number): string => {
+        const rank = order.indexOf(speakerIndex);
+
+        return rank >= 0 && rank < TALK_HUES.length
+            ? TALK_HUES[rank]
+            : OTHER_HUE;
+    };
+
+    const lanes = stats.talk.slice(0, TALK_HUES.length + 1);
+
+    return (
+        <div style={{ ...card, padding: 22 }}>
+            <div
+                style={{
+                    fontSize: 15,
+                    fontWeight: 600,
+                    color: C.navy,
+                    marginBottom: 4,
+                }}
+            >
+                Peta Giliran Bicara
+            </div>
+            <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 16 }}>
+                Klik bagian mana pun untuk lompat ke transkripnya.
+            </div>
+
+            <div style={{ display: 'grid', gap: 10 }}>
+                {lanes.map((lane) => (
+                    <div
+                        key={lane.speaker_index}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12,
+                        }}
+                    >
+                        <span
+                            style={{
+                                fontSize: 12,
+                                color: C.muted,
+                                width: 110,
+                                flex: 'none',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                            }}
+                            title={lane.name}
+                        >
+                            {lane.name}
+                        </span>
+                        <div
+                            style={{
+                                position: 'relative',
+                                flex: 1,
+                                height: 16,
+                                borderRadius: 6,
+                                background: C.line,
+                                minWidth: 0,
+                            }}
+                        >
+                            {stats.turns
+                                .filter(
+                                    (turn) =>
+                                        turn.speaker_index ===
+                                        lane.speaker_index,
+                                )
+                                .map((turn) => (
+                                    <button
+                                        key={turn.line_id}
+                                        type="button"
+                                        onClick={() => onSeek(turn.line_id)}
+                                        title={`${clock(turn.start_ms)} · ${turn.lines} ucapan`}
+                                        style={{
+                                            position: 'absolute',
+                                            left: `${(turn.start_ms / span) * 100}%`,
+                                            // Never thinner than a thumb can
+                                            // hit, however short the turn.
+                                            width: `${Math.max(((turn.end_ms - turn.start_ms) / span) * 100, 1.2)}%`,
+                                            top: 0,
+                                            bottom: 0,
+                                            padding: 0,
+                                            border: 'none',
+                                            borderRadius: 4,
+                                            background: hueOf(
+                                                lane.speaker_index,
+                                            ),
+                                            cursor: 'pointer',
+                                        }}
+                                    />
+                                ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div
+                style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    marginLeft: 122,
+                    marginTop: 8,
+                    fontSize: 11,
+                    color: C.faint,
+                    fontVariantNumeric: 'tabular-nums',
+                }}
+            >
+                <span>0:00</span>
+                <span>{clock(span / 2)}</span>
+                <span>{clock(span)}</span>
+            </div>
+        </div>
+    );
+}
+
 /**
  * How much of the follow-up list is done — a single ratio against a limit, so a
  * meter rather than a two-slice pie.
