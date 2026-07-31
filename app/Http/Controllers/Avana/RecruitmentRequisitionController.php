@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\HiringRequest;
+use App\Models\HiringRequestItem;
 use App\Models\JobPosting;
 use App\Models\RecruitmentRequisition;
 use App\Models\User;
@@ -40,7 +41,8 @@ class RecruitmentRequisitionController extends Controller
 
         $requisitions = RecruitmentRequisition::forTenant($tenantId)
             ->with([
-                'hiringRequest:id,request_number,position_title',
+                'hiringRequest:id,request_number',
+                'hiringRequestItem:id,position_title',
                 'department:id,name',
                 'jobPosting:id,title',
             ])
@@ -48,26 +50,30 @@ class RecruitmentRequisitionController extends Controller
             ->get()
             ->map(fn (RecruitmentRequisition $r): array => $this->shape($r));
 
+        // One option per need, not per request: a request carrying three needs
+        // is three separate things HR can raise a requisition for.
         $hiringRequests = HiringRequest::forTenant($tenantId)
             ->whereIn('status', ['open', 'in_process'])
-            ->with('department:id,name')
+            ->with(['items.department:id,name'])
             ->latest('id')
             ->get()
-            ->map(fn (HiringRequest $h): array => [
+            ->flatMap(fn (HiringRequest $h) => $h->items->map(fn (HiringRequestItem $i): array => [
                 'id' => $h->id,
+                'item_id' => $i->id,
                 'request_number' => $h->request_number,
-                'position_title' => $h->position_title,
-                'department_id' => $h->department_id,
-                'department' => $h->department?->name,
-                'vacancy' => $h->vacancy,
-                'qualification' => $h->qualification,
-                'job_description' => $h->job_description,
-                'employment_type' => $h->employment_type,
-            ]);
+                'position_title' => $i->position_title,
+                'department_id' => $i->department_id,
+                'department' => $i->department?->name,
+                'vacancy' => $i->vacancy,
+                'qualification' => $i->qualification,
+                'job_description' => $i->job_description,
+                'employment_type' => $i->employment_type,
+            ]))
+            ->values();
 
         return Inertia::render('avana/rekrutmen/requisition', [
             'requisitions' => $requisitions,
-            'hiringRequests' => $hiringRequests,
+            'hiringRequestItems' => $hiringRequests,
             'departments' => $this->departmentOptions($tenantId),
             'employmentTypes' => self::EMPLOYMENT_TYPES,
             'kpis' => [
@@ -90,6 +96,7 @@ class RecruitmentRequisitionController extends Controller
 
         $data = $request->validate([
             'hiring_request_id' => ['required', 'integer', Rule::exists('hiring_requests', 'id')->where('tenant_id', $tenantId)],
+            'hiring_request_item_id' => ['required', 'integer', Rule::exists('hiring_request_items', 'id')->where('tenant_id', $tenantId)],
             'position_title' => ['required', 'string', 'max:255'],
             'department_id' => ['nullable', 'integer', Rule::exists('departments', 'id')->where('tenant_id', $tenantId)],
             'vacancy' => ['required', 'integer', 'min:1', 'max:999'],
@@ -98,6 +105,20 @@ class RecruitmentRequisitionController extends Controller
             'employment_type' => ['required', Rule::in(self::EMPLOYMENT_TYPES)],
             'location' => ['nullable', 'string', 'max:255'],
         ]);
+
+        // The need has to belong to the request it is filed under, and a closed
+        // request is done being worked — neither is worth a requisition.
+        $source = HiringRequest::forTenant($tenantId)->findOrFail($data['hiring_request_id']);
+
+        if ($source->status === 'closed') {
+            return back()->withErrors(['hiring_request_id' => 'Hiring Request ini sudah ditutup.']);
+        }
+
+        $belongs = $source->items()->whereKey($data['hiring_request_item_id'])->exists();
+
+        if (! $belongs) {
+            return back()->withErrors(['hiring_request_item_id' => 'Kebutuhan tersebut bukan milik Hiring Request ini.']);
+        }
 
         $requisition = DB::transaction(function () use ($data, $tenantId) {
             $requisition = RecruitmentRequisition::create([
@@ -213,6 +234,10 @@ class RecruitmentRequisitionController extends Controller
             'id' => $r->id,
             'requisition_number' => $r->requisition_number,
             'hiring_request_number' => $r->hiringRequest?->request_number,
+            'hiring_request_item_id' => $r->hiring_request_item_id,
+            // Which of that request's needs this answers — the request number
+            // alone no longer identifies one.
+            'hiring_request_need' => $r->hiringRequestItem?->position_title,
             'position_title' => $r->position_title,
             'department_id' => $r->department_id,
             'department' => $r->department?->name,

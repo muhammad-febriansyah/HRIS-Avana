@@ -27,25 +27,44 @@ beforeEach(function (): void {
 function hiringPayload(array $overrides = []): array
 {
     return array_merge([
-        'position_title' => 'Backend Engineer',
-        'vacancy' => 2,
-        'job_description' => 'Membangun API.',
-        'qualification' => 'PHP, Laravel.',
-        'employment_type' => 'tetap',
-        'target_join_date' => '2026-09-01',
+        'items' => [
+            [
+                'position_title' => 'Backend Engineer',
+                'vacancy' => 2,
+                'job_description' => 'Membangun API.',
+                'qualification' => 'PHP, Laravel.',
+                'employment_type' => 'tetap',
+                'target_join_date' => '2026-09-01',
+            ],
+        ],
     ], $overrides);
 }
 
-it('renders the hiring request index', function (): void {
-    HiringRequest::create([
-        'tenant_id' => $this->tenant->id,
-        'requester_id' => $this->admin->id,
-        'position_title' => 'QA',
-        'vacancy' => 1,
-        'employment_type' => 'kontrak',
+/**
+ * A request carrying a single need, for the tests that only care about what
+ * happens downstream of it.
+ */
+function hiringRequestWith(Tenant $tenant, User $requester, array $item = []): HiringRequest
+{
+    $request = HiringRequest::create([
+        'tenant_id' => $tenant->id,
+        'requester_id' => $requester->id,
         'status' => 'open',
         'request_number' => 'HR-2026-0001',
     ]);
+
+    $request->items()->create(array_merge([
+        'tenant_id' => $tenant->id,
+        'position_title' => 'Backend Engineer',
+        'vacancy' => 2,
+        'employment_type' => 'tetap',
+    ], $item));
+
+    return $request->load('items');
+}
+
+it('renders the hiring request index', function (): void {
+    hiringRequestWith($this->tenant, $this->admin, ['position_title' => 'QA', 'vacancy' => 1, 'employment_type' => 'kontrak']);
 
     actingAs($this->admin)
         ->get(route('avana.rekrutmen.hiring-request'))
@@ -53,7 +72,9 @@ it('renders the hiring request index', function (): void {
         ->assertInertia(fn (Assert $page) => $page
             ->component('avana/rekrutmen/hiring-request', false)
             ->has('requests.0.request_number')
+            ->has('requests.0.items.0.position_title')
             ->has('departments')
+            ->has('positions')
             ->has('employmentTypes')
             ->has('kpis.open'));
 });
@@ -65,27 +86,50 @@ it('creates a hiring request with an auto request number', function (): void {
 
     $hr = HiringRequest::forTenant($this->tenant->id)->latest('id')->firstOrFail();
 
-    expect($hr->position_title)->toBe('Backend Engineer')
-        ->and($hr->vacancy)->toBe(2)
-        ->and($hr->status)->toBe('open')
+    expect($hr->status)->toBe('open')
         ->and($hr->requester_id)->toBe($this->admin->id)
-        ->and($hr->request_number)->toMatch('/^HR-\d{4}-\d{4}$/');
+        ->and($hr->request_number)->toMatch('/^HR-\d{4}-\d{4}$/')
+        ->and($hr->items)->toHaveCount(1)
+        ->and($hr->items->first()->position_title)->toBe('Backend Engineer')
+        ->and($hr->items->first()->vacancy)->toBe(2);
 });
 
-it('creates a requisition from a hiring request and moves it to in_process', function (): void {
-    $hr = HiringRequest::create([
-        'tenant_id' => $this->tenant->id,
-        'requester_id' => $this->admin->id,
-        'position_title' => 'Backend Engineer',
-        'vacancy' => 2,
-        'employment_type' => 'tetap',
-        'status' => 'open',
-        'request_number' => 'HR-2026-0001',
-    ]);
+it('carries several manpower needs on one request', function (): void {
+    // The spec is explicit: "Hiring Request dapat berisi satu atau lebih
+    // kebutuhan tenaga kerja", each of which HR raises its own requisition for.
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.hiring-request.store'), ['items' => [
+            ['position_title' => 'Backend Engineer', 'vacancy' => 2, 'employment_type' => 'tetap'],
+            ['position_title' => 'UI Designer', 'vacancy' => 1, 'employment_type' => 'kontrak'],
+            ['position_title' => 'QA Engineer', 'vacancy' => 3, 'employment_type' => 'tetap'],
+        ]])
+        ->assertRedirect();
+
+    $hr = HiringRequest::forTenant($this->tenant->id)->latest('id')->firstOrFail();
+
+    expect($hr->items)->toHaveCount(3)
+        ->and($hr->items->pluck('position_title')->all())
+        ->toBe(['Backend Engineer', 'UI Designer', 'QA Engineer'])
+        // The heads asked for are the sum across the needs, not one line's.
+        ->and($hr->totalVacancy())->toBe(6);
+});
+
+it('rejects a hiring request with no manpower need at all', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.hiring-request.store'), ['items' => []])
+        ->assertSessionHasErrors('items');
+
+    expect(HiringRequest::forTenant($this->tenant->id)->count())->toBe(0);
+});
+
+it('creates a requisition from one need and moves the request to in_process', function (): void {
+    $hr = hiringRequestWith($this->tenant, $this->admin);
+    $need = $hr->items->first();
 
     actingAs($this->admin)
         ->post(route('avana.rekrutmen.requisition.store'), [
             'hiring_request_id' => $hr->id,
+            'hiring_request_item_id' => $need->id,
             'position_title' => 'Backend Engineer',
             'vacancy' => 2,
             'qualification' => 'PHP',
@@ -99,8 +143,97 @@ it('creates a requisition from a hiring request and moves it to in_process', fun
 
     expect($req->status)->toBe('draft')
         ->and($req->hiring_request_id)->toBe($hr->id)
+        ->and($req->hiring_request_item_id)->toBe($need->id)
         ->and($req->requisition_number)->toMatch('/^REQ-\d{4}-\d{4}$/')
         ->and($hr->fresh()->status)->toBe('in_process');
+});
+
+it('renders the requisition index with a requisition already raised', function (): void {
+    // Regression: the index eager-loaded `position_title` off hiring_requests,
+    // a column that moved to the needs table. With no requisition on screen the
+    // query never ran, so the page only broke once one existed.
+    $hr = hiringRequestWith($this->tenant, $this->admin);
+
+    RecruitmentRequisition::create([
+        'tenant_id' => $this->tenant->id,
+        'hiring_request_id' => $hr->id,
+        'hiring_request_item_id' => $hr->items->first()->id,
+        'position_title' => 'Backend Engineer',
+        'vacancy' => 2,
+        'employment_type' => 'tetap',
+        'status' => 'draft',
+        'requisition_number' => 'REQ-2026-0001',
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.rekrutmen.requisition'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/rekrutmen/requisition', false)
+            ->where('requisitions.0.hiring_request_number', 'HR-2026-0001')
+            ->where('requisitions.0.hiring_request_need', 'Backend Engineer')
+            // One option per need, so a three-need request offers three.
+            ->has('hiringRequestItems.0.item_id'));
+});
+
+it('refuses a requisition for a need belonging to another request', function (): void {
+    $mine = hiringRequestWith($this->tenant, $this->admin);
+    $other = hiringRequestWith($this->tenant, $this->admin, ['position_title' => 'UI Designer']);
+
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.requisition.store'), [
+            'hiring_request_id' => $mine->id,
+            'hiring_request_item_id' => $other->items->first()->id,
+            'position_title' => 'UI Designer',
+            'vacancy' => 1,
+            'employment_type' => 'tetap',
+        ])
+        ->assertSessionHasErrors('hiring_request_item_id');
+
+    expect(RecruitmentRequisition::forTenant($this->tenant->id)->count())->toBe(0);
+});
+
+it('refuses a requisition raised against a closed hiring request', function (): void {
+    $hr = hiringRequestWith($this->tenant, $this->admin);
+    $hr->update(['status' => 'closed']);
+
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.requisition.store'), [
+            'hiring_request_id' => $hr->id,
+            'hiring_request_item_id' => $hr->items->first()->id,
+            'position_title' => 'Backend Engineer',
+            'vacancy' => 2,
+            'employment_type' => 'tetap',
+        ])
+        ->assertSessionHasErrors('hiring_request_id');
+
+    expect(RecruitmentRequisition::forTenant($this->tenant->id)->count())->toBe(0);
+});
+
+it('keeps a need that a requisition was already raised from', function (): void {
+    $hr = hiringRequestWith($this->tenant, $this->admin);
+    $need = $hr->items->first();
+
+    RecruitmentRequisition::create([
+        'tenant_id' => $this->tenant->id,
+        'hiring_request_id' => $hr->id,
+        'hiring_request_item_id' => $need->id,
+        'position_title' => 'Backend Engineer',
+        'vacancy' => 2,
+        'employment_type' => 'tetap',
+        'status' => 'draft',
+        'requisition_number' => 'REQ-2026-0001',
+    ]);
+
+    // Rewriting the request without that line would strand the requisition.
+    actingAs($this->admin)
+        ->put(route('avana.rekrutmen.hiring-request.update', $hr), ['items' => [
+            ['position_title' => 'UI Designer', 'vacancy' => 1, 'employment_type' => 'tetap'],
+        ]])
+        ->assertSessionHasErrors('items');
+
+    expect($hr->fresh()->items)->toHaveCount(1)
+        ->and($hr->fresh()->items->first()->position_title)->toBe('Backend Engineer');
 });
 
 it('publishing a requisition spawns a live job posting', function (): void {
@@ -248,13 +381,21 @@ it('does not activate a candidate whose offer is not accepted', function (): voi
     expect($applicant->fresh()->employee_id)->toBeNull();
 });
 
-it('renders candidate progress tracking', function (): void {
+it('renders candidate progress tracking grouped by manpower need', function (): void {
+    $hr = hiringRequestWith($this->tenant, $this->admin);
+
     actingAs($this->admin)
         ->get(route('avana.rekrutmen.progress'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('avana/rekrutmen/progress', false)
-            ->has('requests'));
+            ->has('requests')
+            // Candidates hang off the need they applied against, so a request
+            // for three different roles does not pool them into one list.
+            ->has('requests.0.needs.0.position_title')
+            ->has('requests.0.needs.0.candidates'));
+
+    expect($hr->fresh()->items)->toHaveCount(1);
 });
 
 it('forbids a non-recruitment user', function (): void {

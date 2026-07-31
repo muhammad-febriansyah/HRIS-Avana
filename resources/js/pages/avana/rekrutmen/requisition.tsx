@@ -14,11 +14,17 @@ interface Dept {
     name: string;
 }
 
+/**
+ * One manpower need HR can raise a requisition for. A hiring request carrying
+ * three needs appears here as three options, not one.
+ */
 interface HiringOpt {
     id: number;
+    item_id: number;
     request_number: string | null;
     position_title: string;
     department_id: number | null;
+    department: string | null;
     vacancy: number;
     qualification: string | null;
     job_description: string | null;
@@ -29,6 +35,7 @@ interface Requisition {
     id: number;
     requisition_number: string | null;
     hiring_request_number: string | null;
+    hiring_request_need: string | null;
     position_title: string;
     department_id: number | null;
     department: string | null;
@@ -46,7 +53,7 @@ interface Requisition {
 
 interface Props {
     requisitions: Requisition[];
-    hiringRequests: HiringOpt[];
+    hiringRequestItems: HiringOpt[];
     departments: Dept[];
     employmentTypes: string[];
     kpis: { draft: number; published: number; total: number };
@@ -77,6 +84,7 @@ const input: CSSProperties = {
 
 const emptyForm = {
     hiring_request_id: '',
+    hiring_request_item_id: '',
     position_title: '',
     department_id: '',
     vacancy: 1,
@@ -88,7 +96,7 @@ const emptyForm = {
 
 export default function RequisitionPage({
     requisitions,
-    hiringRequests,
+    hiringRequestItems,
     departments,
     employmentTypes,
     kpis,
@@ -112,6 +120,7 @@ export default function RequisitionPage({
         setEditId(r.id);
         form.setData({
             hiring_request_id: '',
+            hiring_request_item_id: '',
             position_title: r.position_title,
             department_id: r.department_id ? String(r.department_id) : '',
             vacancy: r.vacancy,
@@ -124,11 +133,15 @@ export default function RequisitionPage({
         setOpen(true);
     };
 
-    const pickHiring = (id: string) => {
-        const h = hiringRequests.find((x) => String(x.id) === id);
+    // Keyed by the need, not the request: the request only says who asked, the
+    // need says what for.
+    const pickHiring = (itemId: string) => {
+        const h = hiringRequestItems.find((x) => String(x.item_id) === itemId);
+
         form.setData({
             ...form.data,
-            hiring_request_id: id,
+            hiring_request_item_id: itemId,
+            hiring_request_id: h ? String(h.id) : '',
             ...(h
                 ? {
                       position_title: h.position_title,
@@ -190,7 +203,7 @@ export default function RequisitionPage({
                     subtitle="HR menyusun requisition dari Hiring Request, lalu publikasikan lowongan (stage 2–3)."
                     action={
                         can('recruitment.create') &&
-                        hiringRequests.length > 0 ? (
+                        hiringRequestItems.length > 0 ? (
                             <button style={btnP} onClick={openCreate}>
                                 <AIcon name="plus" size={16} color="#fff" />
                                 Buat Requisition
@@ -226,7 +239,7 @@ export default function RequisitionPage({
                             icon="clipboard-list"
                             title="Belum ada requisition"
                             hint={
-                                hiringRequests.length === 0
+                                hiringRequestItems.length === 0
                                     ? 'Buat Hiring Request terlebih dahulu.'
                                     : 'Susun requisition dari hiring request yang masuk.'
                             }
@@ -291,6 +304,18 @@ export default function RequisitionPage({
                                                 >
                                                     {r.hiring_request_number ??
                                                         '—'}
+                                                    {r.hiring_request_need && (
+                                                        <div
+                                                            style={{
+                                                                fontSize: 12,
+                                                                color: C.faint,
+                                                            }}
+                                                        >
+                                                            {
+                                                                r.hiring_request_need
+                                                            }
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td
                                                     style={{
@@ -410,17 +435,25 @@ export default function RequisitionPage({
                     {!editId && (
                         <Field
                             label="Dari Hiring Request"
-                            error={form.errors.hiring_request_id}
+                            error={
+                                form.errors.hiring_request_item_id ??
+                                form.errors.hiring_request_id
+                            }
                         >
                             <select
                                 style={input}
-                                value={form.data.hiring_request_id}
+                                value={form.data.hiring_request_item_id}
                                 onChange={(e) => pickHiring(e.target.value)}
                             >
-                                <option value="">Pilih hiring request…</option>
-                                {hiringRequests.map((h) => (
-                                    <option key={h.id} value={h.id}>
-                                        {h.request_number} — {h.position_title}
+                                <option value="">Pilih kebutuhan…</option>
+                                {hiringRequestItems.map((h) => (
+                                    <option key={h.item_id} value={h.item_id}>
+                                        {h.request_number} — {h.position_title}{' '}
+                                        (×{h.vacancy}
+                                        {h.department
+                                            ? `, ${h.department}`
+                                            : ''}
+                                        )
                                     </option>
                                 ))}
                             </select>

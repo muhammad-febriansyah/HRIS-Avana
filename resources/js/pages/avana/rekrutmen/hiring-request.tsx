@@ -13,10 +13,16 @@ interface Dept {
     name: string;
 }
 
-interface Req {
+interface PositionOption {
     id: number;
-    request_number: string | null;
-    requester: string | null;
+    name: string;
+    department_id: number | null;
+}
+
+/** One manpower need on a request. A request may carry several. */
+interface Need {
+    id: number;
+    position_id: number | null;
     position_title: string;
     department_id: number | null;
     department: string | null;
@@ -25,14 +31,23 @@ interface Req {
     qualification: string | null;
     employment_type: string;
     target_join_date: string | null;
+}
+
+interface Req {
+    id: number;
+    request_number: string | null;
+    requester: string | null;
     status: string;
+    vacancy: number;
     requisitions_count: number;
     created_at: string | null;
+    items: Need[];
 }
 
 interface Props {
     requests: Req[];
     departments: Dept[];
+    positions: PositionOption[];
     employmentTypes: string[];
     canManage: boolean;
     kpis: { open: number; in_process: number; total: number };
@@ -69,7 +84,22 @@ const label: CSSProperties = {
     marginBottom: 6,
 };
 
-const emptyForm = {
+/** A need as the form holds it: ids arrive as strings from `<select>`. */
+interface NeedDraft {
+    id: number | null;
+    position_id: string;
+    position_title: string;
+    department_id: string;
+    vacancy: number;
+    employment_type: string;
+    target_join_date: string;
+    job_description: string;
+    qualification: string;
+}
+
+const emptyNeed = (): NeedDraft => ({
+    id: null,
+    position_id: '',
     position_title: '',
     department_id: '',
     vacancy: 1,
@@ -77,11 +107,12 @@ const emptyForm = {
     target_join_date: '',
     job_description: '',
     qualification: '',
-};
+});
 
 export default function HiringRequestPage({
     requests,
     departments,
+    positions,
     employmentTypes,
     kpis,
 }: Props) {
@@ -89,11 +120,11 @@ export default function HiringRequestPage({
     const [open, setOpen] = useState(false);
     const [editId, setEditId] = useState<number | null>(null);
 
-    const form = useForm<typeof emptyForm>({ ...emptyForm });
+    const form = useForm<{ items: NeedDraft[] }>({ items: [emptyNeed()] });
 
     const openCreate = () => {
         setEditId(null);
-        form.setData({ ...emptyForm });
+        form.setData({ items: [emptyNeed()] });
         form.clearErrors();
         setOpen(true);
     };
@@ -101,16 +132,53 @@ export default function HiringRequestPage({
     const openEdit = (r: Req) => {
         setEditId(r.id);
         form.setData({
-            position_title: r.position_title,
-            department_id: r.department_id ? String(r.department_id) : '',
-            vacancy: r.vacancy,
-            employment_type: r.employment_type,
-            target_join_date: r.target_join_date ?? '',
-            job_description: r.job_description ?? '',
-            qualification: r.qualification ?? '',
+            items: r.items.map((n) => ({
+                id: n.id,
+                position_id: n.position_id ? String(n.position_id) : '',
+                position_title: n.position_title,
+                department_id: n.department_id ? String(n.department_id) : '',
+                vacancy: n.vacancy,
+                employment_type: n.employment_type,
+                target_join_date: n.target_join_date ?? '',
+                job_description: n.job_description ?? '',
+                qualification: n.qualification ?? '',
+            })),
         });
         form.clearErrors();
         setOpen(true);
+    };
+
+    const patchNeed = (index: number, patch: Partial<NeedDraft>) =>
+        form.setData(
+            'items',
+            form.data.items.map((n, i) =>
+                i === index ? { ...n, ...patch } : n,
+            ),
+        );
+
+    const addNeed = () =>
+        form.setData('items', [...form.data.items, emptyNeed()]);
+
+    const removeNeed = (index: number) =>
+        form.setData(
+            'items',
+            form.data.items.filter((_, i) => i !== index),
+        );
+
+    // Picking a master position fills the title, and the department it belongs
+    // to — retyping what the master already knows is only a chance to disagree
+    // with it.
+    const pickPosition = (index: number, value: string) => {
+        const match = positions.find((p) => String(p.id) === value);
+
+        patchNeed(index, {
+            position_id: value,
+            position_title:
+                match?.name ?? form.data.items[index].position_title,
+            department_id: match?.department_id
+                ? String(match.department_id)
+                : form.data.items[index].department_id,
+        });
     };
 
     const submit = () => {
@@ -148,7 +216,7 @@ export default function HiringRequestPage({
             <div style={{ padding: '28px 32px' }}>
                 <RecruitmentHeader
                     title="Hiring Request"
-                    subtitle="Pengajuan kebutuhan tenaga kerja oleh Hiring Manager (stage 1)."
+                    subtitle="Pengajuan kebutuhan tenaga kerja oleh Hiring Manager (stage 1). Satu request boleh memuat beberapa kebutuhan."
                     action={
                         can('recruitment.create') ? (
                             <button style={btnP} onClick={openCreate}>
@@ -200,11 +268,8 @@ export default function HiringRequestPage({
                                     <tr>
                                         {[
                                             'No. Request',
-                                            'Posisi',
-                                            'Departemen',
-                                            'Vacancy',
-                                            'Tipe',
-                                            'Target Join',
+                                            'Kebutuhan',
+                                            'Total Vacancy',
                                             'Status',
                                             'Req.',
                                             'Aksi',
@@ -234,6 +299,7 @@ export default function HiringRequestPage({
                                                         fontWeight: 600,
                                                         color: C.primary,
                                                         whiteSpace: 'nowrap',
+                                                        verticalAlign: 'top',
                                                     }}
                                                 >
                                                     {r.request_number ?? '—'}
@@ -241,25 +307,78 @@ export default function HiringRequestPage({
                                                 <td
                                                     style={{
                                                         ...td,
-                                                        fontWeight: 600,
-                                                        color: C.navy,
+                                                        verticalAlign: 'top',
                                                     }}
                                                 >
-                                                    {r.position_title}
+                                                    <div
+                                                        style={{
+                                                            display: 'grid',
+                                                            gap: 6,
+                                                        }}
+                                                    >
+                                                        {r.items.map((n) => (
+                                                            <div key={n.id}>
+                                                                <div
+                                                                    style={{
+                                                                        fontWeight: 600,
+                                                                        color: C.navy,
+                                                                    }}
+                                                                >
+                                                                    {
+                                                                        n.position_title
+                                                                    }{' '}
+                                                                    <span
+                                                                        style={{
+                                                                            color: C.faint,
+                                                                            fontWeight: 500,
+                                                                        }}
+                                                                    >
+                                                                        ×
+                                                                        {
+                                                                            n.vacancy
+                                                                        }
+                                                                    </span>
+                                                                </div>
+                                                                <div
+                                                                    style={{
+                                                                        fontSize: 12,
+                                                                        color: C.faint,
+                                                                    }}
+                                                                >
+                                                                    {[
+                                                                        n.department,
+                                                                        EMP_LABEL[
+                                                                            n
+                                                                                .employment_type
+                                                                        ] ??
+                                                                            n.employment_type,
+                                                                        n.target_join_date,
+                                                                    ]
+                                                                        .filter(
+                                                                            Boolean,
+                                                                        )
+                                                                        .join(
+                                                                            ' · ',
+                                                                        )}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </td>
-                                                <td style={td}>
-                                                    {r.department ?? '—'}
+                                                <td
+                                                    style={{
+                                                        ...td,
+                                                        verticalAlign: 'top',
+                                                    }}
+                                                >
+                                                    {r.vacancy}
                                                 </td>
-                                                <td style={td}>{r.vacancy}</td>
-                                                <td style={td}>
-                                                    {EMP_LABEL[
-                                                        r.employment_type
-                                                    ] ?? r.employment_type}
-                                                </td>
-                                                <td style={td}>
-                                                    {r.target_join_date ?? '—'}
-                                                </td>
-                                                <td style={td}>
+                                                <td
+                                                    style={{
+                                                        ...td,
+                                                        verticalAlign: 'top',
+                                                    }}
+                                                >
                                                     <span
                                                         style={{
                                                             fontSize: 12,
@@ -273,10 +392,20 @@ export default function HiringRequestPage({
                                                         {st.label}
                                                     </span>
                                                 </td>
-                                                <td style={td}>
+                                                <td
+                                                    style={{
+                                                        ...td,
+                                                        verticalAlign: 'top',
+                                                    }}
+                                                >
                                                     {r.requisitions_count}
                                                 </td>
-                                                <td style={td}>
+                                                <td
+                                                    style={{
+                                                        ...td,
+                                                        verticalAlign: 'top',
+                                                    }}
+                                                >
                                                     <div
                                                         style={{
                                                             display: 'flex',
@@ -348,123 +477,225 @@ export default function HiringRequestPage({
                     onClose={() => setOpen(false)}
                     onSubmit={submit}
                     processing={form.processing}
+                    width={640}
                 >
-                    <Field label="Posisi" error={form.errors.position_title}>
-                        <input
-                            style={input}
-                            placeholder="cth. Software Engineer"
-                            value={form.data.position_title}
-                            onChange={(e) =>
-                                form.setData('position_title', e.target.value)
-                            }
-                        />
-                    </Field>
-                    <div
-                        style={{
-                            display: 'grid',
-                            gridTemplateColumns: '2fr 1fr',
-                            gap: 12,
-                        }}
-                    >
-                        <Field label="Departemen">
-                            <select
-                                style={input}
-                                value={form.data.department_id}
-                                onChange={(e) =>
-                                    form.setData(
-                                        'department_id',
-                                        e.target.value,
-                                    )
+                    {form.errors.items && (
+                        <div
+                            style={{
+                                fontSize: 13,
+                                color: C.red,
+                                marginBottom: 12,
+                            }}
+                        >
+                            {form.errors.items}
+                        </div>
+                    )}
+
+                    {form.data.items.map((need, index) => (
+                        <div
+                            key={index}
+                            style={{
+                                border: `1px solid ${C.line}`,
+                                borderRadius: 12,
+                                padding: 16,
+                                marginBottom: 12,
+                                background: '#FBFDFF',
+                            }}
+                        >
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    marginBottom: 12,
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        fontSize: 13,
+                                        fontWeight: 700,
+                                        color: C.navy,
+                                    }}
+                                >
+                                    Kebutuhan {index + 1}
+                                </div>
+                                {form.data.items.length > 1 && (
+                                    <ActionBtn
+                                        icon="trash-2"
+                                        label="Hapus"
+                                        variant="danger"
+                                        onClick={() => removeNeed(index)}
+                                    />
+                                )}
+                            </div>
+
+                            <Field
+                                label="Posisi (master)"
+                                error={
+                                    form.errors[
+                                        `items.${index}.position_title` as keyof typeof form.errors
+                                    ] as string | undefined
                                 }
                             >
-                                <option value="">—</option>
-                                {departments.map((d) => (
-                                    <option key={d.id} value={d.id}>
-                                        {d.name}
+                                <select
+                                    style={input}
+                                    value={need.position_id}
+                                    onChange={(e) =>
+                                        pickPosition(index, e.target.value)
+                                    }
+                                >
+                                    <option value="">
+                                        — pilih dari master, atau ketik manual —
                                     </option>
-                                ))}
-                            </select>
-                        </Field>
-                        <Field label="Vacancy" error={form.errors.vacancy}>
-                            <input
-                                type="number"
-                                min={1}
-                                style={input}
-                                placeholder="cth. 2"
-                                value={form.data.vacancy}
-                                onChange={(e) =>
-                                    form.setData(
-                                        'vacancy',
-                                        Number(e.target.value),
-                                    )
-                                }
-                            />
-                        </Field>
-                    </div>
-                    <div
-                        style={{
-                            display: 'grid',
-                            gridTemplateColumns: '1fr 1fr',
-                            gap: 12,
-                        }}
-                    >
-                        <Field label="Tipe Kerja">
-                            <select
-                                style={input}
-                                value={form.data.employment_type}
-                                onChange={(e) =>
-                                    form.setData(
-                                        'employment_type',
-                                        e.target.value,
-                                    )
-                                }
+                                    {positions.map((p) => (
+                                        <option key={p.id} value={p.id}>
+                                            {p.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </Field>
+
+                            <Field label="Nama Posisi">
+                                <input
+                                    style={input}
+                                    placeholder="cth. Software Engineer"
+                                    value={need.position_title}
+                                    onChange={(e) =>
+                                        patchNeed(index, {
+                                            position_title: e.target.value,
+                                        })
+                                    }
+                                />
+                            </Field>
+
+                            <div
+                                style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '2fr 1fr',
+                                    gap: 12,
+                                }}
                             >
-                                {employmentTypes.map((t) => (
-                                    <option key={t} value={t}>
-                                        {EMP_LABEL[t] ?? t}
-                                    </option>
-                                ))}
-                            </select>
-                        </Field>
-                        <Field label="Target Join">
-                            <DatePicker
-                                value={form.data.target_join_date}
-                                onChange={(nextValue) =>
-                                    form.setData('target_join_date', nextValue)
-                                }
-                                placeholder="Pilih tanggal"
-                                width="100%"
-                            />
-                        </Field>
-                    </div>
-                    <Field label="Deskripsi Pekerjaan">
-                        <textarea
-                            style={{
-                                ...input,
-                                minHeight: 64,
-                                resize: 'vertical',
-                            }}
-                            placeholder="cth. Membangun dan memelihara aplikasi internal perusahaan"
-                            value={form.data.job_description}
-                            onChange={(e) =>
-                                form.setData('job_description', e.target.value)
-                            }
-                        />
-                    </Field>
-                    <Field label="Kualifikasi">
-                        <textarea
-                            style={{
-                                ...input,
-                                minHeight: 64,
-                                resize: 'vertical',
-                            }}
-                            placeholder="cth. S1 Teknik Informatika, pengalaman 2 tahun"
-                            value={form.data.qualification}
-                            onChange={(e) =>
-                                form.setData('qualification', e.target.value)
-                            }
-                        />
-                    </Field>
+                                <Field label="Departemen">
+                                    <select
+                                        style={input}
+                                        value={need.department_id}
+                                        onChange={(e) =>
+                                            patchNeed(index, {
+                                                department_id: e.target.value,
+                                            })
+                                        }
+                                    >
+                                        <option value="">—</option>
+                                        {departments.map((d) => (
+                                            <option key={d.id} value={d.id}>
+                                                {d.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </Field>
+                                <Field
+                                    label="Vacancy"
+                                    error={
+                                        form.errors[
+                                            `items.${index}.vacancy` as keyof typeof form.errors
+                                        ] as string | undefined
+                                    }
+                                >
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        style={input}
+                                        placeholder="cth. 2"
+                                        value={need.vacancy}
+                                        onChange={(e) =>
+                                            patchNeed(index, {
+                                                vacancy: Number(e.target.value),
+                                            })
+                                        }
+                                    />
+                                </Field>
+                            </div>
+
+                            <div
+                                style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '1fr 1fr',
+                                    gap: 12,
+                                }}
+                            >
+                                <Field label="Tipe Kerja">
+                                    <select
+                                        style={input}
+                                        value={need.employment_type}
+                                        onChange={(e) =>
+                                            patchNeed(index, {
+                                                employment_type: e.target.value,
+                                            })
+                                        }
+                                    >
+                                        {employmentTypes.map((t) => (
+                                            <option key={t} value={t}>
+                                                {EMP_LABEL[t] ?? t}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </Field>
+                                <Field label="Target Join">
+                                    <DatePicker
+                                        value={need.target_join_date}
+                                        onChange={(nextValue) =>
+                                            patchNeed(index, {
+                                                target_join_date: nextValue,
+                                            })
+                                        }
+                                        placeholder="Pilih tanggal"
+                                        width="100%"
+                                    />
+                                </Field>
+                            </div>
+
+                            <Field label="Deskripsi Pekerjaan">
+                                <textarea
+                                    style={{
+                                        ...input,
+                                        minHeight: 64,
+                                        resize: 'vertical',
+                                    }}
+                                    placeholder="cth. Membangun dan memelihara aplikasi internal perusahaan"
+                                    value={need.job_description}
+                                    onChange={(e) =>
+                                        patchNeed(index, {
+                                            job_description: e.target.value,
+                                        })
+                                    }
+                                />
+                            </Field>
+                            <Field label="Kualifikasi">
+                                <textarea
+                                    style={{
+                                        ...input,
+                                        minHeight: 64,
+                                        resize: 'vertical',
+                                    }}
+                                    placeholder="cth. S1 Teknik Informatika, pengalaman 2 tahun"
+                                    value={need.qualification}
+                                    onChange={(e) =>
+                                        patchNeed(index, {
+                                            qualification: e.target.value,
+                                        })
+                                    }
+                                />
+                            </Field>
+                        </div>
+                    ))}
+
+                    <button
+                        style={{ ...btnOut, width: '100%', marginBottom: 8 }}
+                        onClick={addNeed}
+                    >
+                        <AIcon name="plus" size={15} color={C.text} />
+                        Tambah Kebutuhan
+                    </button>
                 </Modal>
             )}
         </>
@@ -500,6 +731,7 @@ export function Modal({
     processing,
     submitLabel = 'Simpan',
     submitIcon = 'save',
+    width = 540,
     children,
 }: {
     title: string;
@@ -508,6 +740,7 @@ export function Modal({
     processing?: boolean;
     submitLabel?: string;
     submitIcon?: string;
+    width?: number;
     children: React.ReactNode;
 }) {
     return (
@@ -528,7 +761,7 @@ export function Modal({
                 onClick={(e) => e.stopPropagation()}
                 style={{
                     ...card,
-                    width: 540,
+                    width,
                     maxWidth: '100%',
                     maxHeight: '90vh',
                     overflowY: 'auto',

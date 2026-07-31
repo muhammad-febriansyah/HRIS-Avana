@@ -5,8 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-final class RecruitmentRequisition extends Model
+/**
+ * One manpower need inside a hiring request: a position, how many of them, and
+ * the terms it is asked for under. HR raises one requisition per need.
+ */
+final class HiringRequestItem extends Model
 {
     protected $guarded = [];
 
@@ -14,8 +19,8 @@ final class RecruitmentRequisition extends Model
     {
         return [
             'vacancy' => 'integer',
-            'publish_date' => 'date',
-            'closing_date' => 'date',
+            'sort_order' => 'integer',
+            'target_join_date' => 'date',
         ];
     }
 
@@ -24,22 +29,14 @@ final class RecruitmentRequisition extends Model
         return $query->where('tenant_id', $tenantId);
     }
 
-    public function tenant(): BelongsTo
-    {
-        return $this->belongsTo(Tenant::class);
-    }
-
     public function hiringRequest(): BelongsTo
     {
         return $this->belongsTo(HiringRequest::class);
     }
 
-    /**
-     * The specific need on that request this requisition answers.
-     */
-    public function hiringRequestItem(): BelongsTo
+    public function position(): BelongsTo
     {
-        return $this->belongsTo(HiringRequestItem::class);
+        return $this->belongsTo(Position::class);
     }
 
     public function department(): BelongsTo
@@ -47,8 +44,8 @@ final class RecruitmentRequisition extends Model
         return $this->belongsTo(Department::class);
     }
 
-    public function jobPosting(): BelongsTo
+    public function requisitions(): HasMany
     {
-        return $this->belongsTo(JobPosting::class);
+        return $this->hasMany(RecruitmentRequisition::class);
     }
 }

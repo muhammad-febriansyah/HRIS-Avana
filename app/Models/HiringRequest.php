@@ -7,17 +7,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * A manager's request for manpower. The positions themselves live in
+ * {@see HiringRequestItem} — a request may carry more than one need, and HR
+ * raises a requisition per need.
+ */
 final class HiringRequest extends Model
 {
     protected $guarded = [];
-
-    protected function casts(): array
-    {
-        return [
-            'vacancy' => 'integer',
-            'target_join_date' => 'date',
-        ];
-    }
 
     public function scopeForTenant(Builder $query, int|string $tenantId): Builder
     {
@@ -34,13 +31,21 @@ final class HiringRequest extends Model
         return $this->belongsTo(User::class, 'requester_id');
     }
 
-    public function department(): BelongsTo
+    public function items(): HasMany
     {
-        return $this->belongsTo(Department::class);
+        return $this->hasMany(HiringRequestItem::class)->orderBy('sort_order');
     }
 
     public function requisitions(): HasMany
     {
         return $this->hasMany(RecruitmentRequisition::class);
+    }
+
+    /**
+     * Total heads asked for across every need on the request.
+     */
+    public function totalVacancy(): int
+    {
+        return (int) $this->items->sum('vacancy');
     }
 }

@@ -10,14 +10,21 @@ interface Candidate {
     last_update: string | null;
 }
 
-interface Row {
+/** One manpower need, with the candidates chasing it. */
+interface Need {
     id: number;
-    request_number: string | null;
     position_title: string;
     department: string | null;
     vacancy: number;
-    status: string;
     candidates: Candidate[];
+}
+
+interface Row {
+    id: number;
+    request_number: string | null;
+    status: string;
+    vacancy: number;
+    needs: Need[];
 }
 
 interface Props {
@@ -84,32 +91,17 @@ export default function CandidateProgressPage({ requests }: Props) {
                                         gap: 10,
                                         padding: '16px 20px',
                                         borderBottom: `1px solid ${C.line}`,
+                                        background: '#F8FAFC',
                                     }}
                                 >
-                                    <div>
-                                        <div
-                                            style={{
-                                                fontSize: 15,
-                                                fontWeight: 600,
-                                                color: C.navy,
-                                            }}
-                                        >
-                                            {r.position_title}
-                                        </div>
-                                        <div
-                                            style={{
-                                                fontSize: 12.5,
-                                                color: C.faint,
-                                                marginTop: 2,
-                                            }}
-                                        >
-                                            {r.request_number ?? '—'}
-                                            {r.department
-                                                ? ` · ${r.department}`
-                                                : ''}{' '}
-                                            · {r.vacancy} lowongan ·{' '}
-                                            {REQ_STATUS[r.status] ?? r.status}
-                                        </div>
+                                    <div
+                                        style={{
+                                            fontSize: 14,
+                                            fontWeight: 700,
+                                            color: C.navy,
+                                        }}
+                                    >
+                                        {r.request_number ?? '—'}
                                     </div>
                                     <div
                                         style={{
@@ -118,104 +110,154 @@ export default function CandidateProgressPage({ requests }: Props) {
                                             fontWeight: 600,
                                         }}
                                     >
-                                        {r.candidates.length} kandidat
+                                        {r.needs.length} kebutuhan · {r.vacancy}{' '}
+                                        lowongan ·{' '}
+                                        {REQ_STATUS[r.status] ?? r.status}
                                     </div>
                                 </div>
 
-                                {r.candidates.length === 0 ? (
-                                    <div
-                                        style={{
-                                            padding: '22px 20px',
-                                            fontSize: 13,
-                                            color: C.faint,
-                                        }}
-                                    >
-                                        Belum ada kandidat.
-                                    </div>
-                                ) : (
-                                    <div style={{ overflowX: 'auto' }}>
-                                        <table
-                                            style={{
-                                                width: '100%',
-                                                borderCollapse: 'collapse',
-                                                minWidth: 480,
-                                            }}
-                                        >
-                                            <thead>
-                                                <tr>
-                                                    {[
-                                                        'Kandidat',
-                                                        'Status',
-                                                        'Update Terakhir',
-                                                    ].map((h) => (
-                                                        <th
-                                                            key={h}
-                                                            style={{
-                                                                ...th,
-                                                                paddingTop: 14,
-                                                            }}
-                                                        >
-                                                            {h}
-                                                        </th>
-                                                    ))}
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {r.candidates.map((c) => {
-                                                    const sc =
-                                                        STAGE_COLOR[c.stage] ??
-                                                        STAGE_COLOR.applied;
-
-                                                    return (
-                                                        <tr key={c.id}>
-                                                            <td
-                                                                style={{
-                                                                    ...td,
-                                                                    fontWeight: 600,
-                                                                    color: C.navy,
-                                                                }}
-                                                            >
-                                                                {c.name}
-                                                            </td>
-                                                            <td style={td}>
-                                                                <span
-                                                                    style={{
-                                                                        fontSize: 12,
-                                                                        fontWeight: 700,
-                                                                        padding:
-                                                                            '4px 10px',
-                                                                        borderRadius: 6,
-                                                                        color: sc.c,
-                                                                        background:
-                                                                            sc.bg,
-                                                                    }}
-                                                                >
-                                                                    {
-                                                                        c.stage_label
-                                                                    }
-                                                                </span>
-                                                            </td>
-                                                            <td
-                                                                style={{
-                                                                    ...td,
-                                                                    color: C.muted,
-                                                                }}
-                                                            >
-                                                                {c.last_update ??
-                                                                    '—'}
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
+                                {/* One block per need: a request for three
+                                    different roles would otherwise pool every
+                                    candidate into one undifferentiated list. */}
+                                {r.needs.map((need) => (
+                                    <NeedBlock key={need.id} need={need} />
+                                ))}
                             </div>
                         ))}
                     </div>
                 )}
             </div>
         </>
+    );
+}
+
+function NeedBlock({ need }: { need: Need }) {
+    return (
+        <div style={{ borderBottom: `1px solid ${C.line}` }}>
+            <div
+                style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 10,
+                    padding: '14px 20px',
+                }}
+            >
+                <div>
+                    <div
+                        style={{
+                            fontSize: 15,
+                            fontWeight: 600,
+                            color: C.navy,
+                        }}
+                    >
+                        {need.position_title}
+                    </div>
+                    <div
+                        style={{
+                            fontSize: 12.5,
+                            color: C.faint,
+                            marginTop: 2,
+                        }}
+                    >
+                        {[need.department, `${need.vacancy} lowongan`]
+                            .filter(Boolean)
+                            .join(' · ')}
+                    </div>
+                </div>
+                <div
+                    style={{
+                        fontSize: 12.5,
+                        color: C.muted,
+                        fontWeight: 600,
+                    }}
+                >
+                    {need.candidates.length} kandidat
+                </div>
+            </div>
+
+            {need.candidates.length === 0 ? (
+                <div
+                    style={{
+                        padding: '22px 20px',
+                        fontSize: 13,
+                        color: C.faint,
+                    }}
+                >
+                    Belum ada kandidat.
+                </div>
+            ) : (
+                <div style={{ overflowX: 'auto' }}>
+                    <table
+                        style={{
+                            width: '100%',
+                            borderCollapse: 'collapse',
+                            minWidth: 480,
+                        }}
+                    >
+                        <thead>
+                            <tr>
+                                {['Kandidat', 'Status', 'Update Terakhir'].map(
+                                    (h) => (
+                                        <th
+                                            key={h}
+                                            style={{
+                                                ...th,
+                                                paddingTop: 14,
+                                            }}
+                                        >
+                                            {h}
+                                        </th>
+                                    ),
+                                )}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {need.candidates.map((c) => {
+                                const sc =
+                                    STAGE_COLOR[c.stage] ?? STAGE_COLOR.applied;
+
+                                return (
+                                    <tr key={c.id}>
+                                        <td
+                                            style={{
+                                                ...td,
+                                                fontWeight: 600,
+                                                color: C.navy,
+                                            }}
+                                        >
+                                            {c.name}
+                                        </td>
+                                        <td style={td}>
+                                            <span
+                                                style={{
+                                                    fontSize: 12,
+                                                    fontWeight: 700,
+                                                    padding: '4px 10px',
+                                                    borderRadius: 6,
+                                                    color: sc.c,
+                                                    background: sc.bg,
+                                                }}
+                                            >
+                                                {c.stage_label}
+                                            </span>
+                                        </td>
+                                        <td
+                                            style={{
+                                                ...td,
+                                                color: C.muted,
+                                            }}
+                                        >
+                                            {c.last_update ?? '—'}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
     );
 }
