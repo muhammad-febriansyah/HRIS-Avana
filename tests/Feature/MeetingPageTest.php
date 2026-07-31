@@ -120,6 +120,55 @@ it('renders the meeting detail with transcript, speakers, follow-ups and insight
             ->has('proModel'));
 });
 
+it('measures who held the floor and how much is still outstanding', function (): void {
+    // A second speaker, quieter than the first, so the shares are not trivially
+    // 100% and the ordering has something to sort.
+    MeetingSegment::create([
+        'meeting_id' => $this->meeting->id, 'tenant_id' => $this->tenant->id,
+        'speaker_index' => 1, 'start_ms' => 70_000, 'end_ms' => 71_000,
+        'text' => 'Setuju.',
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.rapat.show', $this->meeting->id))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('stats.lines', 2)
+            ->where('stats.speakers', 2)
+            // 4.000 ms + 1.000 ms of actual speech; silence belongs to nobody,
+            // so the shares divide the talking, not the wall clock.
+            ->where('stats.spoken_ms', 5_000)
+            ->where('stats.duration_ms', 765_000)
+            // Loudest first, so the bar chart reads top-down.
+            ->where('stats.talk.0.speaker_index', 0)
+            ->where('stats.talk.0.share', 80)
+            ->where('stats.talk.0.name', $this->employee->full_name)
+            ->where('stats.talk.1.share', 20)
+            ->where('stats.action_items.total', 1)
+            ->where('stats.action_items.done', 0));
+});
+
+it('reports no talk shares for a meeting nobody spoke in', function (): void {
+    $silent = Meeting::create([
+        'tenant_id' => $this->tenant->id,
+        'created_by' => $this->admin->id,
+        'title' => 'Rekaman kosong',
+        'status' => Meeting::STATUS_FAILED,
+        'started_at' => now(),
+        'duration_ms' => 21_000,
+    ]);
+
+    // Dividing by a zero total is exactly how a stats panel takes a page down.
+    actingAs($this->admin)
+        ->get(route('avana.rapat.show', $silent->id))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('stats.spoken_ms', 0)
+            ->where('stats.speakers', 0)
+            ->has('stats.talk', 0)
+            ->where('stats.action_items.total', 0));
+});
+
 it('returns the same meeting over the mobile API, transcript included', function (): void {
     $token = $this->postJson('/api/v1/auth/login', [
         'email' => 'rina.a@nusantara.co.id',

@@ -17,6 +17,7 @@ use App\Services\MeetingSummarizer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -108,6 +109,7 @@ class MeetingController extends Controller
         $segments = $meeting->segments()->get();
 
         return Inertia::render('avana/rapat/detail', [
+            'stats' => $this->meetingStats($meeting, $segments),
             'meeting' => $this->transformListItem($meeting) + [
                 'summary' => $meeting->summary,
                 'decisions' => $meeting->decisions ?? [],
@@ -400,6 +402,58 @@ class MeetingController extends Controller
         return redirect()
             ->route('avana.rapat')
             ->with('success', 'Rapat dihapus');
+    }
+
+    /**
+     * The measurable side of a meeting: how long, how much was said, and who
+     * did the saying.
+     *
+     * Talk time comes from the diarised segment boundaries, so it is an
+     * estimate rather than a stopwatch — the screen says so. It answers the
+     * question people actually have after a meeting ("who took the floor?"),
+     * which no amount of summary prose does.
+     *
+     * @param  Collection<int, MeetingSegment>  $segments
+     * @return array<string, mixed>
+     */
+    private function meetingStats(Meeting $meeting, $segments): array
+    {
+        $spoken = $segments->sum(
+            static fn (MeetingSegment $segment): int => max(0, (int) $segment->end_ms - (int) $segment->start_ms),
+        );
+
+        $bySpeaker = $segments
+            ->groupBy('speaker_index')
+            ->map(fn ($rows, $index): array => [
+                'speaker_index' => (int) $index,
+                'name' => $meeting->speakerName((int) $index),
+                'lines' => $rows->count(),
+                'ms' => (int) $rows->sum(
+                    static fn (MeetingSegment $segment): int => max(0, (int) $segment->end_ms - (int) $segment->start_ms),
+                ),
+            ])
+            ->sortByDesc('ms')
+            ->values()
+            ->map(fn (array $row): array => $row + [
+                // Share of the talking, not of the meeting's wall clock —
+                // silence belongs to nobody.
+                'share' => $spoken > 0 ? round($row['ms'] / $spoken * 100) : 0,
+            ])
+            ->all();
+
+        $items = $meeting->actionItems;
+
+        return [
+            'duration_ms' => (int) $meeting->duration_ms,
+            'spoken_ms' => $spoken,
+            'lines' => $segments->count(),
+            'speakers' => count($bySpeaker),
+            'talk' => $bySpeaker,
+            'action_items' => [
+                'total' => $items->count(),
+                'done' => $items->where('status', 'done')->count(),
+            ],
+        ];
     }
 
     /**

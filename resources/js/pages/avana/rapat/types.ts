@@ -86,8 +86,29 @@ export interface MeetingIndexProps {
     recorderReady: boolean;
 }
 
+/** One speaker's share of the talking. */
+export interface TalkShare {
+    speaker_index: number;
+    name: string;
+    lines: number;
+    ms: number;
+    /** Percent of time anyone was speaking — silence belongs to nobody. */
+    share: number;
+}
+
+/** The measurable side of a meeting, as opposed to the prose. */
+export interface MeetingStats {
+    duration_ms: number;
+    spoken_ms: number;
+    lines: number;
+    speakers: number;
+    talk: TalkShare[];
+    action_items: { total: number; done: number };
+}
+
 export interface MeetingDetailProps {
     meeting: MeetingDetail;
+    stats: MeetingStats;
     transcript: TranscriptLine[];
     speakers: SpeakerRow[];
     actionItems: ActionItemRow[];

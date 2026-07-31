@@ -16,6 +16,11 @@ import {
     hexA,
 } from '@/lib/avana';
 import { InsightPanel } from './insight-panel';
+import {
+    ActionItemMeter,
+    MeetingStatTiles,
+    TalkShareChart,
+} from './meeting-stats';
 import type {
     ActionItemRow,
     FlashProps,
@@ -106,6 +111,7 @@ function groupBySpeaker(
 
 export default function MeetingDetail({
     meeting,
+    stats,
     transcript,
     speakers,
     actionItems,
@@ -361,6 +367,10 @@ export default function MeetingDetail({
                             minWidth: 0,
                         }}
                     >
+                        {/* Numbers before prose: they take a second to read
+                            and frame everything under them. */}
+                        <MeetingStatTiles stats={stats} />
+
                         <div style={{ ...card, padding: 22 }}>
                             <div style={sectionTitle}>Ringkasan</div>
                             <div style={sectionHint}>
@@ -598,6 +608,11 @@ export default function MeetingDetail({
                             minWidth: 0,
                         }}
                     >
+                        {/* Sits above the naming panel: seeing who dominated
+                            is what makes a reader want to put names to the
+                            speaker numbers in the first place. */}
+                        <TalkShareChart stats={stats} />
+
                         <div style={{ ...card, padding: 22 }}>
                             <div style={sectionTitle}>Pembicara</div>
                             <div style={sectionHint}>
@@ -750,6 +765,8 @@ export default function MeetingDetail({
                             <div style={sectionHint}>
                                 Diusulkan AI, boleh diubah dan ditambah.
                             </div>
+
+                            <ActionItemMeter stats={stats} />
 
                             <div
                                 style={{
