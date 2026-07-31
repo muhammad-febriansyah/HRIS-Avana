@@ -54,6 +54,29 @@ class PayrollController extends Controller
     private const CYCLES = ['monthly', 'weekly', 'biweekly'];
 
     /**
+     * Company-paid premiums that are the employee's income for PPh 21.
+     *
+     * JKK, JKM and BPJS Kesehatan are a benefit the employee receives now, so
+     * they belong in the month's bruto the TER rate is applied to. JHT and JP
+     * are deliberately absent: those are deferred, and taxed when the employee
+     * draws them, not when the company pays them in.
+     *
+     * @var array<int, string>
+     */
+    private const TAXABLE_COMPANY_PREMIUMS = ['jkk', 'jkm', 'kesehatan'];
+
+    /**
+     * Employee-paid premiums that come off gross in the annual reconciliation.
+     *
+     * The employee's own JHT and JP are pension-type contributions and reduce
+     * the year's taxable income. They do NOT reduce the monthly TER base — TER
+     * is applied to bruto by definition.
+     *
+     * @var array<int, string>
+     */
+    private const DEDUCTIBLE_EMPLOYEE_PREMIUMS = ['jht', 'jp'];
+
+    /**
      * Display the payroll periods list, latest-run summary and a sample payslip.
      */
     public function index(Request $request): Response
@@ -222,6 +245,8 @@ class PayrollController extends Controller
                     'tenant_id' => $tenantId,
                     'payroll_period_id' => $period->id,
                     'gross_salary' => $pay['gross'],
+                    'taxable_gross' => $pay['taxable_gross'],
+                    'tax_deductible_premium' => $pay['tax_deductible_premium'],
                     'total_allowance' => max(0.0, $pay['gross'] - $pay['basic']),
                     'total_deduction' => $pay['deduction'],
                     'bpjs_employee_total' => $pay['bpjs_employee'],
@@ -261,7 +286,53 @@ class PayrollController extends Controller
             'status' => 'calculated',
         ]);
 
+        // Anyone without a PTKP status was taxed as TK/0 — the strictest
+        // category, and almost certainly not what they are. The run still
+        // stands; it just should not go out unnoticed.
+        $missing = $this->employeesMissingPtkp($employees, $tenantId);
+
+        if ($missing !== []) {
+            return back()->with('success', 'Payroll dihitung')->with(
+                'warning',
+                count($missing).' karyawan belum punya status PTKP dan dihitung sebagai TK/0: '
+                    .implode(', ', array_slice($missing, 0, 5))
+                    .(count($missing) > 5 ? ', …' : '')
+                    .'. Lengkapi di Konfigurasi Payroll → Profil Pajak.',
+            );
+        }
+
         return back()->with('success', 'Payroll dihitung');
+    }
+
+    /**
+     * Names of the employees in this run whose tax profile carries no PTKP
+     * status, and who therefore fell back to TK/0.
+     *
+     * @param  Collection<int, Employee>  $employees
+     * @return array<int, string>
+     */
+    private function employeesMissingPtkp(iterable $employees, int $tenantId): array
+    {
+        $statuses = TaxProfile::where('tenant_id', $tenantId)
+            ->whereNotNull('ptkp_status')
+            ->where('ptkp_status', '!=', '')
+            ->pluck('ptkp_status', 'employee_id');
+
+        $missing = [];
+
+        foreach ($employees as $employee) {
+            // Only the subjects whose tax actually depends on PTKP — a peserta
+            // kegiatan or bukan pegawai is taxed without one.
+            if (! Pph21Calculator::needsAnnualReconciliation($this->taxSubjectOf($employee, $tenantId))) {
+                continue;
+            }
+
+            if (! isset($statuses[$employee->id])) {
+                $missing[] = (string) $employee->full_name;
+            }
+        }
+
+        return $missing;
     }
 
     /**
@@ -1290,7 +1361,12 @@ class PayrollController extends Controller
         }
 
         // Statutory deductions computed from internal config (no external API).
+        // Ahead of the tax, not after it: the company's JKK/JKM/Kesehatan
+        // premiums are the employee's income, so PPh 21 cannot be worked out
+        // until they are known.
         $bpjs = $this->computeBpjs($employee, $tenantId, $basic > 0 ? $basic : $gross);
+
+        $taxableGross += (float) ($bpjs['taxable_company'] ?? 0.0);
 
         // December (or the employee's final tax month) reconciles the year against
         // the progressive Pasal 17 tariff — but only for subjects that withhold
@@ -1299,7 +1375,7 @@ class PayrollController extends Controller
         // per masa pajak with no annual reconciliation.
         $pph21 = ($this->isFinalTaxMonth($employee, $period)
             && Pph21Calculator::needsAnnualReconciliation($this->taxSubjectOf($employee, $tenantId)))
-            ? $this->computeAnnualPph21($employee, $tenantId, $period, $taxableGross)
+            ? $this->computeAnnualPph21($employee, $tenantId, $period, $taxableGross, (float) ($bpjs['deductible_employee'] ?? 0.0))
             : $this->computePph21($employee, $tenantId, $taxableGross);
 
         if ($bpjs['employee'] > 0) {
@@ -1331,6 +1407,10 @@ class PayrollController extends Controller
             'bpjs_snapshot' => $bpjs['snapshot'],
             'pph21' => $pph21['amount'],
             'tax_snapshot' => $pph21['snapshot'],
+            // Kept per month so December can add up the same measure it charged
+            // on all year, rather than re-deriving it from the payslip gross.
+            'taxable_gross' => $taxableGross,
+            'tax_deductible_premium' => (float) ($bpjs['deductible_employee'] ?? 0.0),
         ];
     }
 
@@ -1795,7 +1875,13 @@ class PayrollController extends Controller
 
         // BPJS only applies to enrolled employees (those with a profile).
         if ($profile === null) {
-            return ['employee' => 0.0, 'company' => 0.0, 'snapshot' => []];
+            return [
+                'employee' => 0.0,
+                'company' => 0.0,
+                'taxable_company' => 0.0,
+                'deductible_employee' => 0.0,
+                'snapshot' => [],
+            ];
         }
 
         $base = (float) $profile->registered_wage > 0
@@ -1812,6 +1898,8 @@ class PayrollController extends Controller
 
         $employeeTotal = 0.0;
         $companyTotal = 0.0;
+        $taxableCompany = 0.0;
+        $deductibleEmployee = 0.0;
         $lines = [];
 
         $programs = BpjsProgram::where('is_active', true)
@@ -1837,13 +1925,32 @@ class PayrollController extends Controller
 
             $employeeTotal += $employeePortion;
             $companyTotal += $companyPortion;
+
+            if (in_array($code, self::TAXABLE_COMPANY_PREMIUMS, true)) {
+                $taxableCompany += $companyPortion;
+            }
+
+            if (in_array($code, self::DEDUCTIBLE_EMPLOYEE_PREMIUMS, true)) {
+                $deductibleEmployee += $employeePortion;
+            }
+
             $lines[$code] = ['employee' => $employeePortion, 'company' => $companyPortion];
         }
 
         return [
             'employee' => $employeeTotal,
             'company' => $companyTotal,
-            'snapshot' => ['base_wage' => $base, 'programs' => $lines],
+            // What the tax engine needs out of this: the slice of the company's
+            // premium that counts as the employee's income, and the slice of
+            // the employee's own that comes off gross at year end.
+            'taxable_company' => $taxableCompany,
+            'deductible_employee' => $deductibleEmployee,
+            'snapshot' => [
+                'base_wage' => $base,
+                'programs' => $lines,
+                'taxable_company' => $taxableCompany,
+                'deductible_employee' => $deductibleEmployee,
+            ],
         ];
     }
 
@@ -1927,8 +2034,13 @@ class PayrollController extends Controller
      *
      * @return array{amount: float, snapshot: array<string, mixed>}
      */
-    private function computeAnnualPph21(Employee $employee, int $tenantId, PayrollPeriod $period, float $currentGross): array
-    {
+    private function computeAnnualPph21(
+        Employee $employee,
+        int $tenantId,
+        PayrollPeriod $period,
+        float $currentGross,
+        float $currentDeductiblePremium = 0.0,
+    ): array {
         $profile = TaxProfile::where('tenant_id', $tenantId)
             ->where('employee_id', $employee->id)
             ->first();
@@ -1940,16 +2052,20 @@ class PayrollController extends Controller
             ->where('employee_id', $employee->id)
             ->where('payroll_period_id', '!=', $period->id)
             ->whereHas('period', fn ($query) => $query->whereYear('start_date', $year))
-            ->get(['gross_salary', 'pph21_total']);
+            ->get(['taxable_gross', 'tax_deductible_premium', 'pph21_total']);
 
-        $ytdGross = (float) $prior->sum('gross_salary');
+        $ytdGross = (float) $prior->sum('taxable_gross');
         $ytdWithheld = (float) $prior->sum('pph21_total');
+        $ytdPremium = (float) $prior->sum('tax_deductible_premium');
 
         $annualGross = $ytdGross + $currentGross;
         $biayaJabatan = min($annualGross * 0.05, 6_000_000);
         $ptkp = $this->ptkpFor($profile?->ptkp_status, $tenantId, $year);
+        // The employee's own JHT and JP for the year come off gross here — the
+        // monthly TER never allowed for them, because TER is charged on bruto.
+        $pensionPremium = $ytdPremium + $currentDeductiblePremium;
 
-        $pkp = max(0.0, $annualGross - $biayaJabatan - $ptkp);
+        $pkp = max(0.0, $annualGross - $biayaJabatan - $pensionPremium - $ptkp);
         $pkp = floor($pkp / 1000) * 1000; // taxable income is floored to thousands
 
         $annualTax = $this->progressiveTax($pkp, $tenantId, $year);
@@ -1962,6 +2078,7 @@ class PayrollController extends Controller
                 'ptkp_status' => $profile?->ptkp_status,
                 'annual_gross' => round($annualGross),
                 'biaya_jabatan' => round($biayaJabatan),
+                'pension_premium' => round($pensionPremium),
                 'ptkp' => $ptkp,
                 'pkp' => $pkp,
                 'annual_tax' => $annualTax,

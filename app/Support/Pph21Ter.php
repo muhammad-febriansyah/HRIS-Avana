@@ -112,6 +112,14 @@ final class Pph21Ter
     }
 
     /**
+     * The eight PTKP statuses the TER scheme recognises. A dependant count is
+     * capped at three, so nothing outside this list is a legal status.
+     *
+     * @var array<int, string>
+     */
+    public const PTKP_STATUSES = ['TK/0', 'TK/1', 'TK/2', 'TK/3', 'K/0', 'K/1', 'K/2', 'K/3'];
+
+    /**
      * Resolve the TER category (A/B/C) for a PTKP status code such as "TK/0".
      * Unknown or empty statuses default to A (the lowest-allowance category).
      */

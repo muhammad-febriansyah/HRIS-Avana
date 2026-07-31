@@ -38,7 +38,11 @@ it('reconciles PPh 21 with the progressive tariff in December', function (): voi
     ]);
     PayrollRunItem::create([
         'tenant_id' => $this->tenant->id, 'payroll_run_id' => $janRun->id, 'payroll_period_id' => $jan->id,
-        'employee_id' => $this->employee->id, 'gross_salary' => 100_000_000, 'total_allowance' => 0,
+        'employee_id' => $this->employee->id, 'gross_salary' => 100_000_000,
+        // What the month was actually taxed on — December adds these up, not
+        // the payslip gross.
+        'taxable_gross' => 100_000_000, 'tax_deductible_premium' => 0,
+        'total_allowance' => 0,
         'total_deduction' => 0, 'bpjs_employee_total' => 0, 'bpjs_company_total' => 0,
         'pph21_total' => 0, 'net_salary' => 100_000_000, 'status' => 'locked',
     ]);
@@ -65,4 +69,45 @@ it('reconciles PPh 21 with the progressive tariff in December', function (): voi
     expect($item->calculation_snapshot['tax']['method'])->toBe('annual_reconciliation');
     expect((float) $item->pph21_total)->toBe(3_000_000.0);
     expect((float) $item->calculation_snapshot['tax']['pkp'])->toBe(60_000_000.0);
+});
+
+it('takes the year of employee JHT and JP off gross in December', function (): void {
+    // The monthly TER never allowed for them — it is charged on bruto — so the
+    // reconciliation is the only place these come off.
+    $jan = PayrollPeriod::create([
+        'tenant_id' => $this->tenant->id, 'code' => 'MN-2026-01', 'name' => 'Januari 2026',
+        'cycle' => 'monthly', 'start_date' => '2026-01-01', 'end_date' => '2026-01-31',
+        'status' => 'locked',
+    ]);
+    $janRun = PayrollRun::create([
+        'tenant_id' => $this->tenant->id, 'payroll_period_id' => $jan->id, 'status' => 'locked',
+    ]);
+    PayrollRunItem::create([
+        'tenant_id' => $this->tenant->id, 'payroll_run_id' => $janRun->id, 'payroll_period_id' => $jan->id,
+        'employee_id' => $this->employee->id, 'gross_salary' => 100_000_000,
+        'taxable_gross' => 100_000_000, 'tax_deductible_premium' => 5_000_000,
+        'total_allowance' => 0, 'total_deduction' => 0, 'bpjs_employee_total' => 0,
+        'bpjs_company_total' => 0, 'pph21_total' => 0, 'net_salary' => 100_000_000, 'status' => 'locked',
+    ]);
+
+    $dec = PayrollPeriod::create([
+        'tenant_id' => $this->tenant->id, 'code' => 'MN-2026-12', 'name' => 'Desember 2026',
+        'cycle' => 'monthly', 'start_date' => '2026-12-01', 'end_date' => '2026-12-31',
+        'status' => 'draft',
+    ]);
+
+    $basic = PayrollComponent::forTenant($this->tenant->id)->where('code', 'BASIC')->firstOrFail();
+    $basic->update(['calc_basis' => 'fixed']);
+    giveMasterComponent($this->employee, $basic, 20_000_000);
+
+    actingAs($this->admin)->post('spec-tax/payroll/run')->assertSessionHas('success');
+
+    $item = PayrollRunItem::where('payroll_run_id',
+        PayrollRun::where('payroll_period_id', $dec->id)->latest('id')->value('id'))
+        ->where('employee_id', $this->employee->id)->firstOrFail();
+
+    // 120jt − 6jt biaya jabatan − 5jt iuran − 54jt PTKP = PKP 55jt.
+    expect((float) $item->calculation_snapshot['tax']['pension_premium'])->toBe(5_000_000.0);
+    expect((float) $item->calculation_snapshot['tax']['pkp'])->toBe(55_000_000.0);
+    expect((float) $item->pph21_total)->toBe(2_750_000.0);
 });

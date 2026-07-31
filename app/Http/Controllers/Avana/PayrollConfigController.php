@@ -12,6 +12,7 @@ use App\Models\PtkpRate;
 use App\Models\TaxProfile;
 use App\Models\User;
 use App\Support\Pph21Calculator;
+use App\Support\Pph21Ter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -116,7 +117,7 @@ class PayrollConfigController extends Controller
             'pkpRates' => $pkpRates,
             'taxProfiles' => $taxProfiles,
             'taxSubjects' => $this->taxSubjectOptions(),
-            'ptkpStatuses' => ['TK/0', 'TK/1', 'TK/2', 'TK/3', 'K/0', 'K/1', 'K/2', 'K/3'],
+            'ptkpStatuses' => Pph21Ter::PTKP_STATUSES,
             'profileStats' => [
                 'bpjs_profiles' => EmployeeBpjsProfile::where('tenant_id', $tenantId)->count(),
                 'tax_profiles' => TaxProfile::where('tenant_id', $tenantId)->count(),
@@ -133,6 +134,19 @@ class PayrollConfigController extends Controller
      *
      * @return array<int, array{value: string, label: string}>
      */
+    /**
+     * Tidy a PTKP status typed by hand: "tk/0", " K/2 " and "k-3" all name a
+     * real status. Anything else is left as-is for the rule to reject.
+     */
+    private function normalisePtkp(mixed $value): ?string
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        return str_replace(['-', ' '], ['/', ''], strtoupper(trim($value)));
+    }
+
     private function taxSubjectOptions(): array
     {
         $labels = [
@@ -162,10 +176,17 @@ class PayrollConfigController extends Controller
 
         $tenantId = (int) $request->user()->tenant_id;
 
+        // "tk/0" is the same status as "TK/0" — normalise before the rule sees
+        // it, so case is forgiven while a genuine typo is not.
+        $request->merge(['ptkp_status' => $this->normalisePtkp($request->input('ptkp_status'))]);
+
         $validated = $request->validate([
             'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
             'tax_subject' => ['required', Rule::in(Pph21Calculator::SUBJECTS)],
-            'ptkp_status' => ['nullable', 'string', 'max:20'],
+            // Free text used to be accepted here, and a typo like "K/O" (letter
+            // O) fell through to Kategori A without a word — the wrong rate on
+            // every payslip until somebody noticed.
+            'ptkp_status' => ['nullable', Rule::in(Pph21Ter::PTKP_STATUSES)],
             'wage_basis' => ['required', Rule::in(['monthly', 'daily'])],
             'daily_wage' => ['nullable', 'numeric', 'min:0'],
             'npwp' => ['nullable', 'string', 'max:32'],
@@ -294,8 +315,12 @@ class PayrollConfigController extends Controller
 
         $tenantId = (int) $request->user()->tenant_id;
 
+        $request->merge(['ptkp_status' => $this->normalisePtkp($request->input('ptkp_status'))]);
+
         $validated = $request->validate([
-            'ptkp_status' => ['required', 'string', 'max:20'],
+            // A rate row keyed to a status nothing resolves to would never be
+            // read — the lookup falls back to the statutory formula instead.
+            'ptkp_status' => ['required', Rule::in(Pph21Ter::PTKP_STATUSES)],
             'year' => ['required', 'integer', 'min:2000', 'max:2100'],
             'amount' => ['required', 'numeric', 'min:0'],
             'note' => ['nullable', 'string', 'max:255'],

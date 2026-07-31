@@ -279,6 +279,8 @@ export type CustomFieldDef = {
 export type FlashProps = {
     flash?: {
         success?: string;
+        /** The action worked, but with a caveat the user should read. */
+        warning?: string;
     };
     errors?: Record<string, string>;
 };

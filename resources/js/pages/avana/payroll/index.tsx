@@ -141,6 +141,17 @@ export default function AvanaPayroll({
         }
     }, [flash?.success]);
 
+    // A run that fell back to TK/0 for somebody still succeeded — this has to
+    // stay on screen long enough to be acted on, not flash past behind it.
+    useEffect(() => {
+        if (flash?.warning) {
+            toast.warning(flash.warning, {
+                id: flash.warning,
+                duration: 12000,
+            });
+        }
+    }, [flash?.warning]);
+
     useEffect(() => {
         if (errors?.payroll) {
             toast.error(errors.payroll, { id: errors.payroll });

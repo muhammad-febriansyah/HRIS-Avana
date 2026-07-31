@@ -85,6 +85,9 @@ class HandleInertiaRequests extends Middleware
             'flash' => [
                 'success' => fn () => $this->session($request, 'success'),
                 'error' => fn () => $this->session($request, 'error'),
+                // An action that worked but has a caveat worth reading — a
+                // payroll run that fell back to TK/0 for somebody, say.
+                'warning' => fn () => $this->session($request, 'warning'),
                 // One-time hand-off of a freshly issued tenant admin password.
                 'credentials' => fn () => $this->session($request, 'credentials'),
             ],

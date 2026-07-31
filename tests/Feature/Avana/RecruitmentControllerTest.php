@@ -401,6 +401,8 @@ it('records a job offer and advances the stage', function (): void {
     actingAs($this->admin)
         ->post(route('avana.rekrutmen.pelamar.offer', $applicant), [
             'offer_note' => 'Gaji 12jt, mulai 1 Agustus',
+            // Every offer carries a date it must be answered by.
+            'offer_valid_until' => now()->addWeek()->toDateString(),
         ])
         ->assertSessionHas('success');
 

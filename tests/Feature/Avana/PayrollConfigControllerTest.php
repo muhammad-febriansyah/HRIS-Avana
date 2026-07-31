@@ -73,6 +73,29 @@ it('upserts an employee PPh 21 tax profile (daily worker)', function (): void {
         ->and($profile->ptkp_status)->toBe('TK/0');
 });
 
+it('rejects a PTKP status that is not one of the eight', function (): void {
+    // "K/O" is the letter O, not a zero. It used to be accepted and then fall
+    // through to Kategori A — the wrong TER rate on every payslip after it.
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post('spec-payroll-config/tax-profile', [
+            'employee_id' => $employee->id,
+            'tax_subject' => 'pegawai_tetap',
+            'ptkp_status' => 'K/O',
+            'wage_basis' => 'monthly',
+        ])
+        ->assertSessionHasErrors('ptkp_status');
+
+    actingAs($this->admin)
+        ->post('spec-payroll-config/ptkp', [
+            'ptkp_status' => 'K/4',
+            'year' => 2026,
+            'amount' => 76500000,
+        ])
+        ->assertSessionHasErrors('ptkp_status');
+});
+
 it('rejects an unknown tax subject', function (): void {
     $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
 

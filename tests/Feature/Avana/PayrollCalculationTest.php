@@ -155,3 +155,63 @@ it('accumulates total tax on the run', function (): void {
 
     expect((float) $run->total_tax)->toBeGreaterThan(0.0);
 });
+
+it('counts the company BPJS Kesehatan premium as the employee income it is', function (): void {
+    // PMK 168: the company's Kesehatan (and JKK/JKM) premium is a benefit the
+    // employee receives, so it belongs in the bruto the TER rate is applied to.
+    // JHT and JP company shares are deferred and must stay out of it.
+    configureComponent($this->employee, 'BASIC', 'fixed', 5_800_000);
+
+    EmployeeBpjsProfile::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'registered_wage' => 5_800_000,
+        'jht_enabled' => true, 'jkk_enabled' => true, 'jkm_enabled' => true,
+        'jp_enabled' => true, 'kesehatan_enabled' => true,
+        'effective_start_date' => '2026-01-01',
+    ]);
+
+    $item = runAndItem($this);
+
+    // Company Kesehatan 4% of 5.800.000 = 232.000 → bruto 6.032.000, which is
+    // a bracket up: 0,75% instead of 0,5%.
+    expect((float) $item->taxable_gross)->toBe(6_032_000.0);
+    expect((float) $item->calculation_snapshot['tax']['ter_rate'])->toBe(0.0075);
+    expect((float) $item->pph21_total)->toBe(45_240.0);
+
+    // The payslip gross is untouched — the premium is not paid to the employee.
+    expect((float) $item->gross_salary)->toBe(5_800_000.0);
+});
+
+it('keeps the employee JHT and JP aside for the year-end deduction', function (): void {
+    configureComponent($this->employee, 'BASIC', 'fixed', 5_800_000);
+
+    EmployeeBpjsProfile::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'registered_wage' => 5_800_000,
+        'jht_enabled' => true, 'jkk_enabled' => true, 'jkm_enabled' => true,
+        'jp_enabled' => true, 'kesehatan_enabled' => true,
+        'effective_start_date' => '2026-01-01',
+    ]);
+
+    $item = runAndItem($this);
+
+    // Employee JHT 2% + JP 1% of 5.800.000 = 174.000. Recorded, but NOT taken
+    // off the monthly TER base — TER is charged on bruto.
+    expect((float) $item->tax_deductible_premium)->toBe(174_000.0);
+    expect((float) $item->taxable_gross)->toBe(6_032_000.0);
+});
+
+it('warns when a payroll run had to fall back to TK/0', function (): void {
+    configureComponent($this->employee, 'BASIC', 'fixed', 5_800_000);
+
+    // The demo tenant leaves most employees without a tax profile, and TK/0 is
+    // the strictest category — a run that guessed it should say so.
+    actingAs($this->admin)
+        ->post('spec-calc/payroll/run')
+        ->assertSessionHas('success')
+        ->assertSessionHas('warning');
+
+    expect(session('warning'))->toContain('status PTKP');
+});
