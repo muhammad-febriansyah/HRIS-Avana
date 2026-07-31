@@ -108,8 +108,6 @@ final class AvanaNav
                     self::leaf('payroll-rapel', 'Rapel Gaji', 'history', '/avana/payroll/rapel', 'payroll', ['payroll']),
                     self::leaf('payroll-sales-order', 'Sales Order', 'clipboard-list', '/avana/payroll/sales-order', 'payroll', ['payroll']),
                     self::leaf('payroll-perhitungan-hari', 'Perhitungan Hari', 'calendar-days', '/avana/payroll/perhitungan-hari', 'payroll', ['payroll']),
-                    self::leaf('payroll-nilai-upah', 'Nilai Upah', 'coins', '/avana/payroll/nilai-upah', 'payroll', ['payroll']),
-                    self::leaf('payroll-payday', 'Mapping Payday', 'calendar-clock', '/avana/payroll/payday', 'payroll', ['payroll']),
                     self::leaf('struktur-upah', 'Struktur & Skala Upah', 'ruler', '/avana/struktur-upah', 'salary_structure', ['salary_structure']),
                     self::leaf('jurnal', 'Jurnal Akuntansi', 'book-open', '/avana/jurnal', 'journal', ['journal']),
                     self::leaf('anggaran', 'Anggaran (Budget)', 'piggy-bank', '/avana/anggaran', 'budget', ['budget']),

@@ -114,7 +114,7 @@ it('renders the payroll config screen with the expected props', function (): voi
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('avana/payroll-config/index', false)
-            ->has('programs', 3)
+            ->has('programs', 5)
             ->has('programs.0.rates')
             ->has('ptkpRates')
             ->has('pkpRates')
@@ -125,10 +125,10 @@ it('renders the payroll config screen with the expected props', function (): voi
 it('creates a BPJS program together with its primary rate', function (): void {
     actingAs($this->superadmin)
         ->post('spec-payroll-config/bpjs', [
-            'code' => 'JKK',
-            'name' => 'BPJS JKK',
-            'type' => 'jkk',
-            'description' => 'Jaminan kecelakaan kerja',
+            'code' => 'JKP',
+            'name' => 'BPJS JKP',
+            'type' => 'jkp',
+            'description' => 'Jaminan kehilangan pekerjaan',
             'is_active' => true,
             'employee_rate' => 0,
             'company_rate' => 0.0024,
@@ -139,8 +139,8 @@ it('creates a BPJS program together with its primary rate', function (): void {
         ->assertRedirect()
         ->assertSessionHas('success');
 
-    $program = BpjsProgram::where('code', 'JKK')->firstOrFail();
-    expect($program->name)->toBe('BPJS JKK');
+    $program = BpjsProgram::where('code', 'JKP')->firstOrFail();
+    expect($program->name)->toBe('BPJS JKP');
     expect($program->is_active)->toBeTrue();
 
     $rate = $program->rates()->first();
@@ -274,16 +274,16 @@ it('forbids a plain employee from creating a BPJS program', function (): void {
 
     actingAs($staff)
         ->post('spec-payroll-config/bpjs', [
-            'code' => 'JKM',
-            'name' => 'BPJS JKM',
-            'type' => 'jkm',
+            'code' => 'JKP',
+            'name' => 'BPJS JKP',
+            'type' => 'jkp',
             'employee_rate' => 0,
             'company_rate' => 0.003,
             'effective_start_date' => '2026-01-01',
         ])
         ->assertForbidden();
 
-    expect(BpjsProgram::where('code', 'JKM')->exists())->toBeFalse();
+    expect(BpjsProgram::where('code', 'JKP')->exists())->toBeFalse();
 });
 
 it('lets an HR admin view but not edit the global statutory config', function (): void {
@@ -293,9 +293,9 @@ it('lets an HR admin view but not edit the global statutory config', function ()
 
     actingAs($this->admin)
         ->post('spec-payroll-config/bpjs', [
-            'code' => 'JKM',
-            'name' => 'BPJS JKM',
-            'type' => 'jkm',
+            'code' => 'JKP',
+            'name' => 'BPJS JKP',
+            'type' => 'jkp',
             'employee_rate' => 0,
             'company_rate' => 0.003,
             'effective_start_date' => '2026-01-01',
@@ -311,7 +311,7 @@ it('lets an HR admin view but not edit the global statutory config', function ()
         ])
         ->assertRedirect();
 
-    expect(BpjsProgram::where('code', 'JKM')->exists())->toBeFalse();
+    expect(BpjsProgram::where('code', 'JKP')->exists())->toBeFalse();
 });
 
 it('maps each config action to its own permission module', function (): void {

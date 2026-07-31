@@ -27,6 +27,7 @@ use App\Models\SalaryRapel;
 use App\Models\TaxProfile;
 use App\Models\UmrRate;
 use App\Support\Pph21Calculator;
+use App\Support\Pph21Ter;
 use App\Support\TaxForm1721;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -454,6 +455,7 @@ class PayrollController extends Controller
             ->get();
 
         $totalThr = 0.0;
+        $totalThrTax = 0.0;
         $count = 0;
 
         foreach ($employees as $employee) {
@@ -463,9 +465,10 @@ class PayrollController extends Controller
 
             // THR is based on a full month's wage, never the prorated payslip.
             $base = $this->monthlyBaseWage($employee, $tenantId);
+            // The regular month the THR rides on top of, for the tax lookup.
+            $pay = $this->computeEmployeePay($employee, $basePeriod ?? $period, $tenantId);
 
             if ($base <= 0) {
-                $pay = $this->computeEmployeePay($employee, $basePeriod ?? $period, $tenantId);
                 $base = $pay['basic'] > 0 ? $pay['basic'] : $pay['gross'];
             }
 
@@ -475,43 +478,54 @@ class PayrollController extends Controller
             $factor = $monthsWorked >= 1 ? min(1.0, $monthsWorked / 12) : 0.0;
             $thr = round($base * $factor);
 
+            // THR is taxable income in the month it is paid, and it is the
+            // reason a payslip jumps a TER bracket — leaving it untaxed was a
+            // shortfall the December reconciliation would have had to claw
+            // back in one lump.
+            $tax = $this->computeThrPph21($employee, $tenantId, (float) $thr, (float) $pay['taxable_gross']);
+
             PayrollRunItem::updateOrCreate(
                 ['payroll_run_id' => $run->id, 'employee_id' => $employee->id],
                 [
                     'tenant_id' => $tenantId,
                     'payroll_period_id' => $period->id,
                     'gross_salary' => $thr,
+                    'taxable_gross' => $thr,
+                    'tax_deductible_premium' => 0,
                     'total_allowance' => $thr,
-                    'total_deduction' => 0,
+                    'total_deduction' => $tax['amount'],
                     'bpjs_employee_total' => 0,
                     'bpjs_company_total' => 0,
-                    'pph21_total' => 0,
-                    'net_salary' => $thr,
+                    'pph21_total' => $tax['amount'],
+                    'net_salary' => $thr - $tax['amount'],
                     'calculation_snapshot' => [
                         'months_worked' => $monthsWorked,
                         'base' => $base,
                         'factor' => $factor,
                         'thr' => $thr,
                         'formula' => 'THR = base x min(1, months_worked / 12)',
+                        'tax' => $tax['snapshot'],
                     ],
                     'status' => 'calculated',
                 ],
             );
 
             $totalThr += $thr;
+            $totalThrTax += $tax['amount'];
             $count++;
         }
 
         $run->update([
             'total_gross' => $totalThr,
-            'total_deduction' => 0,
-            'total_tax' => 0,
-            'total_net' => $totalThr,
+            'total_deduction' => $totalThrTax,
+            'total_tax' => $totalThrTax,
+            'total_net' => $totalThr - $totalThrTax,
             'employee_count' => $count,
             'status' => 'calculated',
         ]);
 
-        return back()->with('success', 'THR dihitung — total '.$this->rupiah($totalThr));
+        return back()->with('success', 'THR dihitung — total '.$this->rupiah($totalThr)
+            .($totalThrTax > 0 ? ', PPh 21 '.$this->rupiah($totalThrTax) : ''));
     }
 
     /**
@@ -1963,6 +1977,57 @@ class PayrollController extends Controller
      *
      * @return array{amount: float, snapshot: array<string, mixed>}
      */
+    /**
+     * PPh 21 on a THR payment.
+     *
+     * THR is penghasilan tidak teratur: under PMK 168 it joins the month's
+     * regular bruto and the TER rate is looked up on the total, which usually
+     * lands a bracket or two higher than the salary alone. The withholding on
+     * the THR itself is therefore what the combined amount costs minus what the
+     * salary alone would have — not a rate applied to the THR in isolation.
+     *
+     * Only the subjects that withhold monthly via TER get this treatment;
+     * nobody else receives a THR under Permenaker 6/2016 anyway.
+     *
+     * @return array{amount: float, snapshot: array<string, mixed>}
+     */
+    private function computeThrPph21(Employee $employee, int $tenantId, float $thr, float $regularGross): array
+    {
+        $profile = TaxProfile::where('tenant_id', $tenantId)
+            ->where('employee_id', $employee->id)
+            ->first();
+
+        $subject = $profile?->tax_subject ?? 'pegawai_tetap';
+
+        if ($thr <= 0 || ! in_array($subject, ['pegawai_tetap', 'pns', 'komisaris'], true)) {
+            return ['amount' => 0.0, 'snapshot' => []];
+        }
+
+        $category = Pph21Ter::category($profile?->ptkp_status);
+        $combined = $regularGross + $thr;
+
+        $taxOnCombined = $combined * Pph21Ter::monthlyRate($category, $combined);
+        $taxOnRegular = $regularGross * Pph21Ter::monthlyRate($category, $regularGross);
+
+        $amount = max(0.0, round($taxOnCombined - $taxOnRegular));
+
+        return [
+            'amount' => $amount,
+            'snapshot' => [
+                'method' => 'ter_bulanan_thr',
+                'subject' => $subject,
+                'ptkp_status' => $profile?->ptkp_status,
+                'ter_category' => $category,
+                'regular_gross' => round($regularGross),
+                'thr' => round($thr),
+                'combined_gross' => round($combined),
+                'ter_rate_combined' => Pph21Ter::monthlyRate($category, $combined),
+                'ter_rate_regular' => Pph21Ter::monthlyRate($category, $regularGross),
+                'pph21_amount' => $amount,
+            ],
+        ];
+    }
+
     private function computePph21(Employee $employee, int $tenantId, float $gross): array
     {
         $profile = TaxProfile::where('tenant_id', $tenantId)

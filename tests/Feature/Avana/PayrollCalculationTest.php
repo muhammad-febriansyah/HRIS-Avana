@@ -126,7 +126,8 @@ it('deducts internal BPJS computed from the registered wage', function (): void 
 
     $item = runAndItem($this);
 
-    // KESEHATAN 1% + JHT 2% + JP 1% of 5.000.000 = 200.000 (JKK/JKM rates not seeded).
+    // KESEHATAN 1% + JHT 2% + JP 1% of 5.000.000 = 200.000. JKK and JKM are
+    // wholly employer-paid, so they add nothing to the employee's side.
     expect((float) $item->bpjs_employee_total)->toBe(200_000.0);
     expect((float) $item->bpjs_company_total)->toBeGreaterThan(0.0);
     expect(collect($item->calculation_snapshot['deductions'])->firstWhere('name', 'BPJS (Karyawan)'))->not->toBeNull();
@@ -173,11 +174,11 @@ it('counts the company BPJS Kesehatan premium as the employee income it is', fun
 
     $item = runAndItem($this);
 
-    // Company Kesehatan 4% of 5.800.000 = 232.000 → bruto 6.032.000, which is
-    // a bracket up: 0,75% instead of 0,5%.
-    expect((float) $item->taxable_gross)->toBe(6_032_000.0);
+    // Company Kesehatan 4% + JKK 0,24% + JKM 0,30% of 5.800.000 = 263.320 →
+    // bruto 6.063.320, which is a bracket up: 0,75% instead of 0,5%.
+    expect((float) $item->taxable_gross)->toBe(6_063_320.0);
     expect((float) $item->calculation_snapshot['tax']['ter_rate'])->toBe(0.0075);
-    expect((float) $item->pph21_total)->toBe(45_240.0);
+    expect((float) $item->pph21_total)->toBe(45_475.0);
 
     // The payslip gross is untouched — the premium is not paid to the employee.
     expect((float) $item->gross_salary)->toBe(5_800_000.0);
@@ -200,7 +201,7 @@ it('keeps the employee JHT and JP aside for the year-end deduction', function ()
     // Employee JHT 2% + JP 1% of 5.800.000 = 174.000. Recorded, but NOT taken
     // off the monthly TER base — TER is charged on bruto.
     expect((float) $item->tax_deductible_premium)->toBe(174_000.0);
-    expect((float) $item->taxable_gross)->toBe(6_032_000.0);
+    expect((float) $item->taxable_gross)->toBe(6_063_320.0);
 });
 
 it('warns when a payroll run had to fall back to TK/0', function (): void {

@@ -1387,10 +1387,16 @@ final class AvanaDemoSeeder extends Seeder
 
     private function seedStatutory(): void
     {
+        // JKK and JKM are wholly employer-paid, and both count as the
+        // employee's income for PPh 21 — leaving them out of the master meant
+        // the tax base was short by their premiums. The JKK rate shown is the
+        // lowest risk tier (0,24%); a tenant sets their own from BPJS's table.
         $programs = [
             ['code' => 'KESEHATAN', 'name' => 'BPJS Kesehatan', 'type' => 'kesehatan', 'emp' => 0.01, 'co' => 0.04],
             ['code' => 'JHT', 'name' => 'BPJS JHT', 'type' => 'jht', 'emp' => 0.02, 'co' => 0.037],
             ['code' => 'JP', 'name' => 'BPJS JP', 'type' => 'jp', 'emp' => 0.01, 'co' => 0.02],
+            ['code' => 'JKK', 'name' => 'BPJS JKK', 'type' => 'jkk', 'emp' => 0.0, 'co' => 0.0024],
+            ['code' => 'JKM', 'name' => 'BPJS JKM', 'type' => 'jkm', 'emp' => 0.0, 'co' => 0.003],
         ];
         foreach ($programs as $p) {
             $program = BpjsProgram::firstOrCreate(['code' => $p['code']], ['name' => $p['name'], 'type' => $p['type'], 'is_active' => true]);

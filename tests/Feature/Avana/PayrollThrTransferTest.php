@@ -8,6 +8,7 @@ use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
+use App\Models\TaxProfile;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
@@ -80,7 +81,75 @@ it('pays a full month base to an employee with at least a year of tenure', funct
 
     expect((int) $item->calculation_snapshot['months_worked'])->toBeGreaterThanOrEqual(12);
     expect((float) $item->gross_salary)->toBe(6_000_000.0);
-    expect((float) $item->net_salary)->toBe(6_000_000.0);
+    // THR is taxable in the month it is paid, so the take-home is the THR less
+    // the withholding, not the THR itself.
+    expect((float) $item->net_salary)
+        ->toBe(6_000_000.0 - (float) $item->pph21_total);
+});
+
+it('withholds PPh 21 on THR at the bracket the combined income reaches', function (): void {
+    // PMK 168 treats THR as penghasilan tidak teratur: it joins the month's
+    // regular bruto, and the tax on it is what the combined amount costs minus
+    // what the salary alone would have.
+    $tenantId = $this->tenant->id;
+
+    $employee = Employee::forTenant($tenantId)->where('status', 'active')->whereNotNull('position_id')->orderBy('id')->firstOrFail();
+    $employee->update(['join_date' => now()->subYears(3)->toDateString()]);
+
+    TaxProfile::updateOrCreate(
+        ['tenant_id' => $tenantId, 'employee_id' => $employee->id],
+        ['tax_subject' => 'pegawai_tetap', 'ptkp_status' => 'TK/0', 'wage_basis' => 'monthly'],
+    );
+
+    attachBasic($tenantId, $employee, 6_000_000);
+
+    actingAs($this->admin)->post('spec-avana/payroll/thr')->assertSessionHas('success');
+
+    $period = PayrollPeriod::forTenant($tenantId)->where('code', 'THR-'.now()->year)->firstOrFail();
+    $run = PayrollRun::forTenant($tenantId)->where('payroll_period_id', $period->id)->firstOrFail();
+    $item = PayrollRunItem::where('payroll_run_id', $run->id)->where('employee_id', $employee->id)->firstOrFail();
+
+    $tax = $item->calculation_snapshot['tax'];
+
+    expect($tax['method'])->toBe('ter_bulanan_thr')
+        ->and($tax['ter_category'])->toBe('A')
+        // Combined sits in a higher bracket than the salary on its own.
+        ->and((float) $tax['ter_rate_combined'])->toBeGreaterThan((float) $tax['ter_rate_regular'])
+        ->and((float) $item->pph21_total)->toBeGreaterThan(0.0);
+
+    // The withholding is the difference between the two, not a rate on the THR.
+    $expected = round(
+        (float) $tax['combined_gross'] * (float) $tax['ter_rate_combined']
+        - (float) $tax['regular_gross'] * (float) $tax['ter_rate_regular'],
+    );
+    expect((float) $item->pph21_total)->toBe((float) $expected);
+
+    // December has to see this month too, so the THR counts as its own taxable
+    // gross rather than hiding inside the payslip figure.
+    expect((float) $item->taxable_gross)->toBe(6_000_000.0);
+    expect((float) $run->total_tax)->toBeGreaterThan(0.0);
+});
+
+it('leaves THR untaxed for a subject that never withholds via TER', function (): void {
+    $tenantId = $this->tenant->id;
+
+    $employee = Employee::forTenant($tenantId)->where('status', 'active')->whereNotNull('position_id')->orderBy('id')->firstOrFail();
+    $employee->update(['join_date' => now()->subYears(3)->toDateString()]);
+
+    TaxProfile::updateOrCreate(
+        ['tenant_id' => $tenantId, 'employee_id' => $employee->id],
+        ['tax_subject' => 'bukan_pegawai', 'ptkp_status' => 'TK/0', 'wage_basis' => 'monthly'],
+    );
+
+    attachBasic($tenantId, $employee, 6_000_000);
+
+    actingAs($this->admin)->post('spec-avana/payroll/thr')->assertSessionHas('success');
+
+    $period = PayrollPeriod::forTenant($tenantId)->where('code', 'THR-'.now()->year)->firstOrFail();
+    $run = PayrollRun::forTenant($tenantId)->where('payroll_period_id', $period->id)->firstOrFail();
+    $item = PayrollRunItem::where('payroll_run_id', $run->id)->where('employee_id', $employee->id)->firstOrFail();
+
+    expect((float) $item->pph21_total)->toBe(0.0);
 });
 
 it('prorates THR for an employee with less than a year of tenure', function (): void {
