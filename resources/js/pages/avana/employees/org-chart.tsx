@@ -19,6 +19,7 @@ interface OrgNode {
     name: string;
     employee_number: string;
     email: string | null;
+    phone: string | null;
     position: string | null;
     department: string | null;
     branch: string | null;
@@ -1001,6 +1002,10 @@ export default function OrgChart({
                                 <DetailRow
                                     label="Email"
                                     value={selected.email}
+                                />
+                                <DetailRow
+                                    label="No. HP"
+                                    value={selected.phone}
                                 />
                                 <DetailRow
                                     label="Departemen"

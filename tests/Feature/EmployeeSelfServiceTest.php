@@ -72,6 +72,13 @@ it('renders every self-service page for an employee', function (string $path, st
     'ajukan perjalanan dinas' => ['/avana/saya/perjalanan-dinas/ajukan', 'avana/saya/perjalanan-dinas-ajukan'],
 ]);
 
+it('carries the colleague phone number on the self-service org chart', function (): void {
+    $this->actingAs($this->user)
+        ->get('/avana/saya/organisasi')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->has('nodes.0.phone'));
+});
+
 it('covers every self-service menu with a reachable page', function (): void {
     $employeeMenu = collect(AvanaNav::forUser($this->user->fresh()))
         ->firstWhere('title', 'LAYANAN SAYA');

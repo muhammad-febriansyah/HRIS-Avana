@@ -25,6 +25,7 @@ it('renders the org chart with hierarchy nodes', function (): void {
                 ->has('name')
                 ->has('employee_number')
                 ->has('email')
+                ->has('phone')
                 ->has('position')
                 ->has('department')
                 ->has('branch')
