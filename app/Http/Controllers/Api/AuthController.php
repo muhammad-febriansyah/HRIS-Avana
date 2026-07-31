@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use PHPOpenSourceSaver\JWTAuth\Exceptions\JWTException;
 
 /**
  * JWT authentication for the AvanaHR mobile app. Employees sign in with their
@@ -101,17 +102,80 @@ class AuthController extends Controller
 
     /**
      * Issue a fresh token, blacklisting the old one.
+     *
+     * Runs outside the `auth:api` guard so an already-expired token can still
+     * be exchanged: the refresh flow accepts one until `jwt.refresh_ttl` runs
+     * out, which is the whole point of the route. Custom claims are carried
+     * over rather than regenerated, so the `tv` on the new token is still the
+     * one the old session was issued with — and is checked against the user
+     * here, so a revoked session cannot refresh its way back in.
+     *
+     * The account's standing is re-tested on every refresh, so deactivating an
+     * employee or taking away their mobile access ends the session within one
+     * token lifetime instead of lasting the full two-week refresh window.
      */
-    public function refresh(): JsonResponse
+    public function refresh(Request $request): JsonResponse
     {
-        $token = auth('api')->refresh();
+        $guard = auth('api');
+
+        // The JWT holder is a singleton that remembers the last token set on
+        // it and hands that back in place of the current request's header.
+        // Under php-fpm nothing survives the response, but a queue worker,
+        // Octane, or a test run keeps the process — and this is the one route
+        // that retires a token, so a stale one left behind is a blacklisted
+        // one, and every later request in that process reads as unauthorised.
+        // Clear it going in and going out.
+        $guard->unsetToken();
+
+        $bearer = $request->bearerToken();
+
+        if (blank($bearer)) {
+            return $this->sessionEnded();
+        }
+
+        try {
+            $token = $guard->setToken($bearer)->refresh(forceForever: false, resetClaims: false);
+        } catch (JWTException) {
+            // Past the refresh window, already blacklisted, or not a token we
+            // issued. All of them mean the same thing to the caller.
+            $guard->unsetToken();
+
+            return $this->sessionEnded();
+        }
+
+        $payload = $guard->setToken($token)->payload();
+        $user = User::find($payload->get('sub'));
+
+        $guard->unsetToken();
+
+        if ($user === null || (int) ($payload->get('tv') ?? 0) !== (int) $user->token_version) {
+            return $this->sessionEnded();
+        }
+
+        if (($user->status !== null && $user->status !== 'active')
+            || ! $user->canAccessMobile()
+            || $user->tenant === null
+            || $user->tenant->company()->doesntExist()) {
+            return $this->sessionEnded();
+        }
 
         return response()->json([
             'access_token' => $token,
             'token_type' => 'Bearer',
             'expires_in' => auth('api')->factory()->getTTL() * 60,
-            'user' => $this->userPayload(auth('api')->user()),
+            'user' => $this->userPayload($user),
         ]);
+    }
+
+    /**
+     * The one answer every failed refresh gives, worded like the middleware's
+     * so the app shows the same thing however the session ended.
+     */
+    private function sessionEnded(): JsonResponse
+    {
+        return response()->json([
+            'message' => 'Sesi telah berakhir. Silakan masuk kembali.',
+        ], 401);
     }
 
     /**

@@ -59,9 +59,14 @@ Route::prefix('v1')->group(function (): void {
     Route::prefix('auth')->group(function (): void {
         Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
+        // Deliberately outside `auth:api`: the guard rejects an expired token
+        // before the controller runs, which would make this route unreachable
+        // at exactly the moment it is needed. It authenticates the bearer
+        // itself, under the refresh flow that tolerates expiry.
+        Route::post('refresh', [AuthController::class, 'refresh'])->middleware('throttle:30,1');
+
         Route::middleware(['auth:api', 'token.fresh'])->group(function (): void {
             Route::get('me', [AuthController::class, 'me']);
-            Route::post('refresh', [AuthController::class, 'refresh']);
             Route::post('logout', [AuthController::class, 'logout']);
         });
     });
