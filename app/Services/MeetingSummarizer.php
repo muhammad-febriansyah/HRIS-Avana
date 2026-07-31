@@ -62,6 +62,28 @@ final class MeetingSummarizer
      */
     private const INSIGHT_TIMEOUT = 240;
 
+    /**
+     * Seconds to wait for a call on the automatic summary path.
+     *
+     * Prism's shared default is 30s, which fits a short chat completion and
+     * nothing else here: naming speakers, writing the notes and condensing a
+     * long transcript all read the whole meeting first. A forty-utterance
+     * recording already runs past thirty seconds, and the timeout landed as
+     * "Terjadi kesalahan saat meringkas rapat" — a message that says nothing
+     * about the clock, on a job whose own ceiling is fifteen minutes.
+     */
+    private const MODEL_TIMEOUT = 180;
+
+    /**
+     * Client options every call on the summary path shares.
+     *
+     * @return array{timeout: int, connect_timeout: int}
+     */
+    private function clientOptions(int $timeout = self::MODEL_TIMEOUT): array
+    {
+        return ['timeout' => $timeout, 'connect_timeout' => 15];
+    }
+
     public function __construct(private readonly AiTokenService $tokens) {}
 
     /**
@@ -183,10 +205,10 @@ final class MeetingSummarizer
                 ->withSchema($this->insightSchema($type))
                 ->withSystemPrompt($this->insightSystemPrompt())
                 ->withPrompt($this->insightPrompt($meeting, $type, $transcript))
-                // Prism's shared 30s timeout suits a chat completion. A
-                // reasoning model reading an hour of transcript routinely needs
-                // minutes, and the person is watching a button spin.
-                ->withClientOptions(['timeout' => self::INSIGHT_TIMEOUT, 'connect_timeout' => 15])
+                // Longer than the summary path: a reasoning model reading an
+                // hour of transcript routinely needs minutes, and the person is
+                // watching a button spin.
+                ->withClientOptions($this->clientOptions(self::INSIGHT_TIMEOUT))
                 ->asStructured();
         } catch (Throwable $e) {
             Log::error('Meeting insight failed', [
@@ -291,6 +313,7 @@ final class MeetingSummarizer
             ->using($models['provider'], $models['summary'])
             ->withSchema($schema)
             ->withPrompt($prompt)
+            ->withClientOptions($this->clientOptions())
             ->asStructured();
 
         foreach ($response->structured['speakers'] ?? [] as $guess) {
@@ -368,6 +391,7 @@ final class MeetingSummarizer
             ->withSchema($schema)
             ->withSystemPrompt('Anda notulen rapat yang teliti. Jawab dalam Bahasa Indonesia. Hanya gunakan isi transkrip — jangan menyimpulkan hal yang tidak dibahas.')
             ->withPrompt(sprintf("Rapat: %s\nTanggal: %s\n\n%s", $meeting->title, $this->meetingDate($meeting), $source))
+            ->withClientOptions($this->clientOptions())
             ->asStructured();
 
         $spent += $this->usageTokens($response->usage->promptTokens, $response->usage->completionTokens);
@@ -484,6 +508,7 @@ final class MeetingSummarizer
             $response = Prism::embeddings()
                 ->using($models['provider'], $models['embedding'])
                 ->fromArray(array_column($batch, 'text'))
+                ->withClientOptions($this->clientOptions())
                 ->asEmbeddings();
 
             $spent += (int) ($response->usage->tokens ?? 0);
@@ -538,6 +563,7 @@ final class MeetingSummarizer
                     count($windows),
                     $window,
                 ))
+                ->withClientOptions($this->clientOptions())
                 ->asText();
 
             $notes[] = $response->text;
