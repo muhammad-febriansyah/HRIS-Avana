@@ -11,9 +11,12 @@ const rowStyle: CSSProperties = {
 };
 
 const bodyText: CSSProperties = {
-    fontSize: 13.3,
+    fontSize: 14.5,
     color: C.text,
-    lineHeight: 1.65,
+    lineHeight: 1.7,
+    // Analysis is prose too — the same reading measure as the summary, so the
+    // eye does not have to travel the whole card to find the next line.
+    maxWidth: '64ch',
 };
 
 const listStyle: CSSProperties = {

@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import MeetingController from '@/actions/App/Http/Controllers/Avana/MeetingController';
+import { SearchableSelect } from '@/components/searchable-select';
 import {
     AIcon,
     btnDanger,
@@ -20,6 +21,7 @@ import type {
     FlashProps,
     MeetingDetailProps,
     SpeakerRow,
+    TranscriptLine,
 } from './types';
 import { formatDateTime, STATUS_LABELS } from './types';
 
@@ -47,6 +49,60 @@ const sectionHint: CSSProperties = {
     color: C.muted,
     marginBottom: 14,
 };
+
+/**
+ * Prose is capped at a reading measure rather than the card's width.
+ *
+ * A summary set across 110 characters makes the eye lose its place on the
+ * return sweep, which is exactly the wrong thing for the one part of the page
+ * people actually read end to end.
+ */
+const proseStyle: CSSProperties = {
+    fontSize: 15,
+    lineHeight: 1.75,
+    color: C.text,
+    maxWidth: '66ch',
+};
+
+/** Split model prose into paragraphs so blank lines become real spacing. */
+function paragraphsOf(text: string): string[] {
+    return text
+        .split(/\n\s*\n/)
+        .map((part) => part.trim())
+        .filter((part) => part !== '');
+}
+
+/**
+ * Consecutive lines from one speaker, so their name is printed once instead of
+ * on every utterance. A two-minute recording produced forty rows each labelled
+ * "Pembicara 1", which buried what was said under who said it.
+ */
+function groupBySpeaker(
+    lines: TranscriptLine[],
+): { speaker: string; speakerIndex: number; lines: TranscriptLine[] }[] {
+    const blocks: {
+        speaker: string;
+        speakerIndex: number;
+        lines: TranscriptLine[];
+    }[] = [];
+
+    for (const line of lines) {
+        const last = blocks[blocks.length - 1];
+
+        if (last && last.speakerIndex === line.speaker_index) {
+            last.lines.push(line);
+            continue;
+        }
+
+        blocks.push({
+            speaker: line.speaker,
+            speakerIndex: line.speaker_index,
+            lines: [line],
+        });
+    }
+
+    return blocks;
+}
 
 export default function MeetingDetail({
     meeting,
@@ -316,15 +372,24 @@ export default function MeetingDetail({
                             {meeting.summary || meeting.decisions.length > 0 ? (
                                 <>
                                     {meeting.summary && (
-                                        <div
-                                            style={{
-                                                fontSize: 13.8,
-                                                color: C.text,
-                                                lineHeight: 1.7,
-                                                whiteSpace: 'pre-wrap',
-                                            }}
-                                        >
-                                            {meeting.summary}
+                                        <div style={proseStyle}>
+                                            {paragraphsOf(meeting.summary).map(
+                                                (paragraph, index) => (
+                                                    <p
+                                                        key={index}
+                                                        style={{
+                                                            margin:
+                                                                index === 0
+                                                                    ? '0 0 14px'
+                                                                    : '0 0 14px',
+                                                            whiteSpace:
+                                                                'pre-wrap',
+                                                        }}
+                                                    >
+                                                        {paragraph}
+                                                    </p>
+                                                ),
+                                            )}
                                         </div>
                                     )}
 
@@ -366,9 +431,11 @@ export default function MeetingDetail({
                                                         </span>
                                                         <span
                                                             style={{
-                                                                fontSize: 13.5,
+                                                                fontSize: 14.5,
                                                                 color: C.text,
-                                                                lineHeight: 1.6,
+                                                                lineHeight: 1.65,
+                                                                maxWidth:
+                                                                    '62ch',
                                                             }}
                                                         >
                                                             {decision}
@@ -435,7 +502,10 @@ export default function MeetingDetail({
                                 style={{
                                     display: 'flex',
                                     flexDirection: 'column',
-                                    gap: 12,
+                                    // Turns need more air between them than the
+                                    // lines inside one turn, or the grouping
+                                    // reads as a single block again.
+                                    gap: 20,
                                     maxHeight: 620,
                                     overflowY: 'auto',
                                 }}
@@ -450,47 +520,70 @@ export default function MeetingDetail({
                                         Tidak ada ucapan yang tertranskrip.
                                     </div>
                                 )}
-                                {transcript.map((line) => (
+                                {groupBySpeaker(transcript).map((block) => (
                                     <div
-                                        key={line.id}
-                                        style={{
-                                            display: 'flex',
-                                            gap: 12,
-                                            alignItems: 'flex-start',
-                                        }}
+                                        key={`${block.speakerIndex}-${block.lines[0].id}`}
+                                        style={{ minWidth: 0 }}
                                     >
-                                        <span
+                                        <div
                                             style={{
-                                                fontSize: 11.5,
-                                                color: C.faint,
-                                                fontVariantNumeric:
-                                                    'tabular-nums',
-                                                paddingTop: 2,
-                                                minWidth: 42,
+                                                fontSize: 12.5,
+                                                fontWeight: 700,
+                                                color: C.primary,
+                                                marginBottom: 6,
                                             }}
                                         >
-                                            {line.timecode}
-                                        </span>
-                                        <div style={{ minWidth: 0 }}>
-                                            <div
+                                            {block.speaker}
+                                            <span
                                                 style={{
-                                                    fontSize: 12.5,
-                                                    fontWeight: 600,
-                                                    color: C.primary,
+                                                    fontWeight: 500,
+                                                    color: C.faint,
+                                                    fontVariantNumeric:
+                                                        'tabular-nums',
                                                 }}
                                             >
-                                                {line.speaker}
-                                            </div>
-                                            <div
-                                                style={{
-                                                    fontSize: 13.5,
-                                                    color: C.text,
-                                                    lineHeight: 1.65,
-                                                }}
-                                            >
-                                                {line.text}
-                                            </div>
+                                                {' '}
+                                                · {block.lines[0].timecode}
+                                            </span>
                                         </div>
+                                        {/* The whole turn reads as one
+                                            passage: a timecode per line stays
+                                            available in the gutter, but the
+                                            name is printed once. */}
+                                        {block.lines.map((line) => (
+                                            <div
+                                                key={line.id}
+                                                style={{
+                                                    display: 'flex',
+                                                    gap: 12,
+                                                    alignItems: 'flex-start',
+                                                }}
+                                            >
+                                                <span
+                                                    style={{
+                                                        fontSize: 11.5,
+                                                        color: C.faint,
+                                                        fontVariantNumeric:
+                                                            'tabular-nums',
+                                                        paddingTop: 4,
+                                                        minWidth: 42,
+                                                    }}
+                                                >
+                                                    {line.timecode}
+                                                </span>
+                                                <div
+                                                    style={{
+                                                        fontSize: 14.5,
+                                                        color: C.text,
+                                                        lineHeight: 1.7,
+                                                        maxWidth: '62ch',
+                                                        minWidth: 0,
+                                                    }}
+                                                >
+                                                    {line.text}
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 ))}
                             </div>
@@ -565,43 +658,46 @@ export default function MeetingDetail({
                                                 </span>
                                             )}
                                         </div>
-                                        <select
-                                            style={{
-                                                ...inputStyle,
-                                                cursor: 'pointer',
-                                                marginBottom: 6,
-                                            }}
-                                            disabled={!can.update}
-                                            value={speaker.employee_id ?? ''}
-                                            onChange={(event) =>
-                                                patchSpeaker(
-                                                    speaker.speaker_index,
-                                                    {
-                                                        employee_id:
-                                                            event.target
-                                                                .value === ''
-                                                                ? null
-                                                                : Number(
-                                                                      event
-                                                                          .target
-                                                                          .value,
-                                                                  ),
-                                                    },
-                                                )
-                                            }
-                                        >
-                                            <option value="">
-                                                — pilih karyawan —
-                                            </option>
-                                            {employees.map((employee) => (
-                                                <option
-                                                    key={employee.id}
-                                                    value={employee.id}
-                                                >
-                                                    {employee.full_name}
-                                                </option>
-                                            ))}
-                                        </select>
+                                        {/* Searchable: a tenant with a few
+                                            hundred staff makes a plain select
+                                            a scroll hunt, and the reader
+                                            already knows the name they want. */}
+                                        <div style={{ marginBottom: 6 }}>
+                                            <SearchableSelect
+                                                value={
+                                                    speaker.employee_id !== null
+                                                        ? String(
+                                                              speaker.employee_id,
+                                                          )
+                                                        : ''
+                                                }
+                                                options={employees.map(
+                                                    (employee) => ({
+                                                        value: String(
+                                                            employee.id,
+                                                        ),
+                                                        label: employee.full_name,
+                                                    }),
+                                                )}
+                                                onChange={(value) =>
+                                                    patchSpeaker(
+                                                        speaker.speaker_index,
+                                                        {
+                                                            employee_id:
+                                                                value === ''
+                                                                    ? null
+                                                                    : Number(
+                                                                          value,
+                                                                      ),
+                                                        },
+                                                    )
+                                                }
+                                                placeholder="— pilih karyawan —"
+                                                searchPlaceholder="Cari karyawan…"
+                                                disabled={!can.update}
+                                                allowClear
+                                            />
+                                        </div>
                                         <input
                                             style={inputStyle}
                                             disabled={!can.update}
@@ -692,9 +788,12 @@ export default function MeetingDetail({
                                         <div style={{ flex: 1, minWidth: 0 }}>
                                             <div
                                                 style={{
-                                                    fontSize: 13.3,
-                                                    color: C.text,
-                                                    lineHeight: 1.55,
+                                                    fontSize: 14,
+                                                    color:
+                                                        item.status === 'done'
+                                                            ? C.faint
+                                                            : C.text,
+                                                    lineHeight: 1.6,
                                                     textDecoration:
                                                         item.status === 'done'
                                                             ? 'line-through'
@@ -777,33 +876,24 @@ export default function MeetingDetail({
                                             )
                                         }
                                     />
-                                    <select
-                                        style={{
-                                            ...inputStyle,
-                                            cursor: 'pointer',
-                                        }}
+                                    <SearchableSelect
                                         value={
                                             newItem.data.assignee_employee_id
                                         }
-                                        onChange={(event) =>
+                                        options={employees.map((employee) => ({
+                                            value: String(employee.id),
+                                            label: employee.full_name,
+                                        }))}
+                                        onChange={(value) =>
                                             newItem.setData(
                                                 'assignee_employee_id',
-                                                event.target.value,
+                                                value,
                                             )
                                         }
-                                    >
-                                        <option value="">
-                                            — penanggung jawab —
-                                        </option>
-                                        {employees.map((employee) => (
-                                            <option
-                                                key={employee.id}
-                                                value={employee.id}
-                                            >
-                                                {employee.full_name}
-                                            </option>
-                                        ))}
-                                    </select>
+                                        placeholder="— penanggung jawab —"
+                                        searchPlaceholder="Cari karyawan…"
+                                        allowClear
+                                    />
                                     <input
                                         type="date"
                                         style={inputStyle}
