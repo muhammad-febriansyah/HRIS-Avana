@@ -495,9 +495,11 @@ class RecruitmentController extends Controller
 
         $tenantId = (int) $request->user()->tenant_id;
 
+        $userId = (int) $request->user()->id;
+
         $rows = Applicant::forTenant($tenantId)
             ->whereNotNull('interview_at')
-            ->with('jobPosting:id,title')
+            ->with(['jobPosting:id,title', 'interviewer:id,name'])
             ->orderByDesc('interview_at')
             ->get()
             ->map(fn (Applicant $a): array => [
@@ -508,6 +510,10 @@ class RecruitmentController extends Controller
                 'status' => $a->interview_status ?? 'scheduled',
                 'result' => $a->interview_result,
                 'location' => $a->interview_location,
+                'interviewer' => $a->interviewer?->name,
+                // An interviewer answers for their own interviews without
+                // holding recruitment.approve; everyone else needs it.
+                'is_mine' => (int) $a->interviewer_id === $userId,
                 'interview_at' => $a->interview_at?->toDateTimeString(),
             ]);
 
@@ -773,6 +779,17 @@ class RecruitmentController extends Controller
             'offer_status' => ['required', Rule::in(['approved', 'accepted', 'rejected'])],
         ]);
 
+        // A validity date that nothing checks is decoration. Declining a lapsed
+        // offer stays open — that is just closing the candidate out — but
+        // accepting one has to be re-issued at terms somebody still stands by.
+        if ($data['offer_status'] === 'accepted'
+            && $applicant->offer_valid_until !== null
+            && $applicant->offer_valid_until->isBefore(now()->startOfDay())) {
+            return back()->withErrors([
+                'offer_status' => 'Masa berlaku penawaran sudah lewat. Terbitkan penawaran baru.',
+            ]);
+        }
+
         $from = $applicant->stage;
         $applicant->update(['offer_status' => $data['offer_status']]);
 
@@ -937,12 +954,76 @@ class RecruitmentController extends Controller
     }
 
     /**
+     * Stage 5 — Candidate Screening. HR records what the CV, the experience and
+     * the skills were worth, then shortlists or rejects on the strength of it.
+     *
+     * Separate from {@see moveStage()} on purpose: dragging a card records that
+     * somebody moved it and nothing about why. "Kenapa kandidat ini gugur?" is
+     * the question this screen has to be able to answer months later.
+     */
+    public function recordScreening(Request $request, Applicant $applicant): RedirectResponse
+    {
+        $this->ensureCan($request, 'approve');
+        $this->ensureTenantOwnership($request, $applicant);
+
+        if (in_array($applicant->stage, ['hired', 'offer'], true)) {
+            return back()->withErrors(['decision' => 'Kandidat sudah melewati tahap seleksi administrasi.']);
+        }
+
+        $data = $request->validate([
+            'decision' => ['required', Rule::in(['shortlisted', 'rejected'])],
+            'screening_note' => ['required', 'string', 'max:2000'],
+            'screening_score' => ['nullable', 'integer', 'min:1', 'max:5'],
+        ], [], [
+            'screening_note' => 'catatan evaluasi',
+            'screening_score' => 'nilai',
+        ]);
+
+        $from = $applicant->stage;
+
+        $applicant->update([
+            'screening_note' => $data['screening_note'],
+            'screening_score' => $data['screening_score'] ?? null,
+            'screened_by' => $request->user()->id,
+            'screened_at' => now(),
+            'stage' => $data['decision'],
+        ]);
+
+        $this->logStatus(
+            $applicant,
+            $from,
+            $data['decision'],
+            'Seleksi administrasi: '.$data['screening_note'],
+        );
+
+        if ($data['decision'] === 'rejected') {
+            $this->mailCandidate(
+                $applicant->email,
+                'Hasil Seleksi Administrasi',
+                "Halo {$applicant->name},\n\nTerima kasih atas lamaran Anda. Setelah kami tinjau, kami belum dapat melanjutkan proses Anda ke tahap berikutnya.\n\nSalam.",
+            );
+        }
+
+        return back()->with('success', 'Evaluasi seleksi disimpan');
+    }
+
+    /**
      * Stage 6 — record the interviewer's verdict. Passed keeps the candidate in
      * the interview stage ready for an offer; Failed moves them to rejected.
      */
     public function recordInterviewResult(Request $request, Applicant $applicant): RedirectResponse
     {
-        $this->ensureCan($request, 'approve');
+        // The spec makes the Interviewer the one who fills the result in, and
+        // an interviewer is rarely a recruiter — asking for recruitment.approve
+        // meant the person who ran the interview could be invited to it and
+        // then be unable to say how it went. Being the assigned interviewer is
+        // its own licence, for that candidate only.
+        $isAssignedInterviewer = (int) $applicant->interviewer_id === (int) $request->user()->id;
+
+        if (! $isAssignedInterviewer) {
+            $this->ensureCan($request, 'approve');
+        }
+
         $this->ensureTenantOwnership($request, $applicant);
 
         if ($applicant->stage !== 'interview') {
@@ -951,6 +1032,7 @@ class RecruitmentController extends Controller
 
         $data = $request->validate([
             'interview_result' => ['required', Rule::in(['passed', 'failed'])],
+            'interview_note' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $failed = $data['interview_result'] === 'failed';
@@ -962,11 +1044,15 @@ class RecruitmentController extends Controller
             'stage' => $failed ? 'rejected' : $applicant->stage,
         ]);
 
-        if ($failed) {
-            $this->logStatus($applicant, $from, 'rejected', 'Wawancara: Failed');
-        } else {
-            $this->logStatus($applicant, $from, $applicant->stage, 'Wawancara: Passed');
-        }
+        $verdict = $failed ? 'Wawancara: Failed' : 'Wawancara: Passed';
+        $note = trim((string) ($data['interview_note'] ?? ''));
+
+        $this->logStatus(
+            $applicant,
+            $from,
+            $failed ? 'rejected' : $applicant->stage,
+            $note === '' ? $verdict : $verdict.' — '.$note,
+        );
 
         return back()->with('success', 'Hasil wawancara disimpan');
     }
@@ -1138,6 +1224,7 @@ class RecruitmentController extends Controller
         $applicant->load([
             'jobPosting:id,title,employment_type',
             'interviewer:id,name',
+            'screenedBy:id,name',
             'medicalChecks' => fn ($query) => $query->latest('id'),
             'backgroundChecks' => fn ($query) => $query->latest('id'),
             'statusLogs.actor:id,name',
@@ -1295,8 +1382,11 @@ class RecruitmentController extends Controller
             'offer_salary' => ['nullable', 'numeric', 'min:0'],
             'offer_start_date' => ['nullable', 'date'],
             'offer_benefit' => ['nullable', 'string'],
-            'offer_valid_until' => ['nullable', 'date'],
-        ]);
+            // "Offer memiliki masa berlaku" — an offer nobody has to answer by
+            // is not an offer, and a candidate sitting on one indefinitely
+            // blocks the vacancy behind them.
+            'offer_valid_until' => ['required', 'date', 'after_or_equal:today'],
+        ], [], ['offer_valid_until' => 'masa berlaku penawaran']);
 
         $from = $applicant->stage;
         $applicant->update([
@@ -1473,6 +1563,10 @@ class RecruitmentController extends Controller
             'portfolio_url' => $applicant->portfolio_url,
             'cv_url' => $applicant->cv_path ? Storage::disk('public')->url($applicant->cv_path) : null,
             'notes' => $applicant->notes,
+            'screening_note' => $applicant->screening_note,
+            'screening_score' => $applicant->screening_score,
+            'screened_by' => $applicant->screenedBy?->name,
+            'screened_at' => $applicant->screened_at?->toDateTimeString(),
             'applied_date' => $applicant->applied_date?->toDateString(),
             'interview_at' => $applicant->interview_at?->toDateTimeString(),
             'interview_result' => $applicant->interview_result,

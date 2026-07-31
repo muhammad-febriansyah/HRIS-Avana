@@ -26,6 +26,8 @@ final class Applicant extends Model
             'blacklisted' => 'boolean',
             'onboarded_at' => 'datetime',
             'offer_valid_until' => 'date',
+            'screening_score' => 'integer',
+            'screened_at' => 'datetime',
         ];
     }
 
@@ -52,6 +54,14 @@ final class Applicant extends Model
     public function interviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'interviewer_id');
+    }
+
+    /**
+     * Who signed off the administrative screening.
+     */
+    public function screenedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'screened_by');
     }
 
     public function statusLogs(): HasMany

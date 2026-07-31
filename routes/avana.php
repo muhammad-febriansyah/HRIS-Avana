@@ -388,6 +388,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('rekrutmen/pelamar/{applicant}/medical', [RecruitmentController::class, 'storeMedicalCheck'])->name('rekrutmen.pelamar.medical');
     Route::post('rekrutmen/pelamar/{applicant}/background', [RecruitmentController::class, 'storeBackgroundCheck'])->name('rekrutmen.pelamar.background');
     Route::post('rekrutmen/pelamar/{applicant}/blacklist', [RecruitmentController::class, 'toggleBlacklist'])->name('rekrutmen.pelamar.blacklist');
+    Route::post('rekrutmen/pelamar/{applicant}/screening', [RecruitmentController::class, 'recordScreening'])->name('rekrutmen.pelamar.screening');
     Route::post('rekrutmen/pelamar/{applicant}/interview-result', [RecruitmentController::class, 'recordInterviewResult'])->name('rekrutmen.pelamar.interview-result');
     Route::post('rekrutmen/pelamar/{applicant}/activate', [RecruitmentController::class, 'activateEmployee'])->name('rekrutmen.pelamar.activate');
     Route::post('rekrutmen/pelamar/{applicant}/onboarding/start', [RecruitmentController::class, 'startOnboarding'])->name('rekrutmen.pelamar.onboarding.start');

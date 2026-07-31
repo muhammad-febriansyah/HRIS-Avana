@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\HiringRequest;
 use App\Models\JobPosting;
 use App\Models\Notification;
+use App\Models\Permission;
 use App\Models\RecruitmentRequisition;
 use App\Models\Role;
 use App\Models\Tenant;
@@ -38,6 +39,27 @@ function hiringPayload(array $overrides = []): array
             ],
         ],
     ], $overrides);
+}
+
+/**
+ * Somebody who can reach the recruitment screens but approves nothing — the
+ * shape a tenant gives an Interviewer.
+ */
+function interviewerUser(Tenant $tenant): User
+{
+    $role = Role::firstOrCreate(
+        ['code' => 'interviewer', 'tenant_id' => $tenant->id],
+        ['name' => 'Interviewer'],
+    );
+
+    $role->permissions()->syncWithoutDetaching(
+        Permission::where('code', 'recruitment.view')->pluck('id'),
+    );
+
+    $user = User::factory()->create(['tenant_id' => $tenant->id]);
+    $user->roles()->sync([$role->id]);
+
+    return $user;
 }
 
 /**
@@ -471,16 +493,164 @@ it('only offers a candidate who passed the interview', function (): void {
     ]);
 
     actingAs($this->admin)
-        ->post(route('avana.rekrutmen.pelamar.offer', $applicant), ['offer_salary' => 10000000])
+        ->post(route('avana.rekrutmen.pelamar.offer', $applicant), [
+            'offer_salary' => 10000000,
+            'offer_valid_until' => now()->addWeek()->toDateString(),
+        ])
         ->assertSessionHasErrors('offer_salary');
 
     $applicant->update(['interview_result' => 'passed']);
 
     actingAs($this->admin)
-        ->post(route('avana.rekrutmen.pelamar.offer', $applicant), ['offer_salary' => 10000000])
+        ->post(route('avana.rekrutmen.pelamar.offer', $applicant), [
+            'offer_salary' => 10000000,
+            'offer_valid_until' => now()->addWeek()->toDateString(),
+        ])
         ->assertRedirect();
 
     expect($applicant->fresh()->offer_status)->toBe('sent');
+});
+
+it('will not send an offer without a validity date', function (): void {
+    // "Offer memiliki masa berlaku" — an offer nobody has to answer by leaves
+    // the vacancy behind it blocked indefinitely.
+    $posting = JobPosting::create([
+        'tenant_id' => $this->tenant->id, 'title' => 'X', 'employment_type' => 'tetap', 'quota' => 1, 'status' => 'open',
+    ]);
+    $applicant = Applicant::create([
+        'tenant_id' => $this->tenant->id, 'job_posting_id' => $posting->id,
+        'name' => 'Hana', 'email' => 'hana@example.com', 'stage' => 'interview',
+        'interview_result' => 'passed', 'applied_date' => '2026-07-20',
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.pelamar.offer', $applicant), ['offer_salary' => 9000000])
+        ->assertSessionHasErrors('offer_valid_until');
+
+    expect($applicant->fresh()->offer_status)->toBeNull();
+});
+
+it('refuses to accept an offer whose validity has lapsed', function (): void {
+    $posting = JobPosting::create([
+        'tenant_id' => $this->tenant->id, 'title' => 'X', 'employment_type' => 'tetap', 'quota' => 1, 'status' => 'open',
+    ]);
+    $applicant = Applicant::create([
+        'tenant_id' => $this->tenant->id, 'job_posting_id' => $posting->id,
+        'name' => 'Iwan', 'email' => 'iwan@example.com', 'stage' => 'offer',
+        'interview_result' => 'passed', 'offer_status' => 'sent',
+        'offer_valid_until' => now()->subDay()->toDateString(), 'applied_date' => '2026-07-20',
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.offers.decide', $applicant), ['offer_status' => 'accepted'])
+        ->assertSessionHasErrors('offer_status');
+
+    // Declining a lapsed offer is still fine — that only closes the candidate out.
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.offers.decide', $applicant), ['offer_status' => 'rejected'])
+        ->assertRedirect();
+
+    expect($applicant->fresh()->stage)->toBe('rejected');
+});
+
+it('records a screening evaluation alongside the shortlist decision', function (): void {
+    // The spec has HR "memberikan evaluasi" before deciding, and the reasoning
+    // is what answers "kenapa kandidat ini gugur?" months later.
+    $posting = JobPosting::create([
+        'tenant_id' => $this->tenant->id, 'title' => 'X', 'employment_type' => 'tetap', 'quota' => 1, 'status' => 'open',
+    ]);
+    $applicant = Applicant::create([
+        'tenant_id' => $this->tenant->id, 'job_posting_id' => $posting->id,
+        'name' => 'Joko', 'email' => 'joko@example.com', 'stage' => 'applied', 'applied_date' => '2026-07-20',
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.pelamar.screening', $applicant), [
+            'decision' => 'shortlisted',
+            'screening_note' => 'CV rapi, pengalaman 3 tahun di Laravel, skill sesuai kebutuhan.',
+            'screening_score' => 4,
+        ])
+        ->assertRedirect();
+
+    $applicant->refresh();
+
+    expect($applicant->stage)->toBe('shortlisted')
+        ->and($applicant->screening_score)->toBe(4)
+        ->and($applicant->screened_by)->toBe($this->admin->id)
+        ->and($applicant->screened_at)->not->toBeNull()
+        ->and($applicant->screening_note)->toContain('Laravel');
+
+    expect(ApplicantStatusLog::where('applicant_id', $applicant->id)
+        ->where('to_stage', 'shortlisted')
+        ->where('note', 'like', '%Seleksi administrasi%')
+        ->exists())->toBeTrue();
+});
+
+it('will not screen a candidate without written reasoning', function (): void {
+    $posting = JobPosting::create([
+        'tenant_id' => $this->tenant->id, 'title' => 'X', 'employment_type' => 'tetap', 'quota' => 1, 'status' => 'open',
+    ]);
+    $applicant = Applicant::create([
+        'tenant_id' => $this->tenant->id, 'job_posting_id' => $posting->id,
+        'name' => 'Kiki', 'email' => 'kiki@example.com', 'stage' => 'applied', 'applied_date' => '2026-07-20',
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.rekrutmen.pelamar.screening', $applicant), ['decision' => 'rejected'])
+        ->assertSessionHasErrors('screening_note');
+
+    expect($applicant->fresh()->stage)->toBe('applied');
+});
+
+it('lets the assigned interviewer record their own verdict', function (): void {
+    // BR-17.7 puts the result in the Interviewer's hands, and an interviewer is
+    // rarely a recruiter — requiring recruitment.approve meant the person who
+    // ran the interview could not say how it went. Seeing the recruitment menu
+    // is still required, since that is what opens the URL at all.
+    $posting = JobPosting::create([
+        'tenant_id' => $this->tenant->id, 'title' => 'X', 'employment_type' => 'tetap', 'quota' => 1, 'status' => 'open',
+    ]);
+    $interviewer = interviewerUser($this->tenant);
+
+    $applicant = Applicant::create([
+        'tenant_id' => $this->tenant->id, 'job_posting_id' => $posting->id,
+        'name' => 'Lina', 'email' => 'lina@example.com', 'stage' => 'interview',
+        'interviewer_id' => $interviewer->id, 'applied_date' => '2026-07-20',
+    ]);
+
+    actingAs($interviewer)
+        ->post(route('avana.rekrutmen.pelamar.interview-result', $applicant), [
+            'interview_result' => 'passed',
+            'interview_note' => 'Komunikasi baik, paham arsitektur.',
+        ])
+        ->assertRedirect();
+
+    expect($applicant->fresh()->interview_result)->toBe('passed');
+
+    expect(ApplicantStatusLog::where('applicant_id', $applicant->id)
+        ->where('note', 'like', '%Komunikasi baik%')
+        ->exists())->toBeTrue();
+});
+
+it('keeps an unrelated employee out of somebody else interview', function (): void {
+    $posting = JobPosting::create([
+        'tenant_id' => $this->tenant->id, 'title' => 'X', 'employment_type' => 'tetap', 'quota' => 1, 'status' => 'open',
+    ]);
+    $interviewer = interviewerUser($this->tenant);
+    // Same menu access, but not the one who was asked to run this interview.
+    $stranger = interviewerUser($this->tenant);
+
+    $applicant = Applicant::create([
+        'tenant_id' => $this->tenant->id, 'job_posting_id' => $posting->id,
+        'name' => 'Maya', 'email' => 'maya@example.com', 'stage' => 'interview',
+        'interviewer_id' => $interviewer->id, 'applied_date' => '2026-07-20',
+    ]);
+
+    actingAs($stranger)
+        ->post(route('avana.rekrutmen.pelamar.interview-result', $applicant), ['interview_result' => 'passed'])
+        ->assertForbidden();
+
+    expect($applicant->fresh()->interview_result)->toBeNull();
 });
 
 it('notifies recruiters when a hiring request is created', function (): void {

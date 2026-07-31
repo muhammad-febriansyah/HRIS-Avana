@@ -149,10 +149,17 @@ export default function Candidate({
     const { flash } = usePage<FlashProps>().props;
     const { can } = usePermission();
     const canUpdate = can('recruitment.update');
+    const canApprove = can('recruitment.approve');
 
     const [editProfile, setEditProfile] = useState(false);
     const [panel, setPanel] = useState<
-        null | 'interview' | 'offer' | 'medical' | 'background' | 'blacklist'
+        | null
+        | 'screening'
+        | 'interview'
+        | 'offer'
+        | 'medical'
+        | 'background'
+        | 'blacklist'
     >(null);
 
     useEffect(() => {
@@ -176,6 +183,15 @@ export default function Candidate({
         notes: applicant.notes ?? '',
     });
     const cvForm = useForm<{ cv: File | null }>({ cv: null });
+    // Stage 5: the verdict and the reasoning behind it travel together, because
+    // the reasoning is what anyone reviewing a rejection later needs.
+    const screeningForm = useForm({
+        decision: 'shortlisted',
+        screening_note: applicant.screening_note ?? '',
+        screening_score: applicant.screening_score
+            ? String(applicant.screening_score)
+            : '',
+    });
     const interviewForm = useForm({
         interview_at: applicant.interview_at?.slice(0, 16) ?? '',
         interview_type: 'hr',
@@ -1158,6 +1174,142 @@ export default function Candidate({
                                 )}
                             </form>
 
+                            {canApprove && (
+                                <button
+                                    onClick={() =>
+                                        setPanel((p) =>
+                                            p === 'screening'
+                                                ? null
+                                                : 'screening',
+                                        )
+                                    }
+                                    style={{
+                                        ...btnOut,
+                                        width: '100%',
+                                        justifyContent: 'center',
+                                        marginBottom: 10,
+                                    }}
+                                >
+                                    <AIcon name="clipboard-check" size={15} />
+                                    Evaluasi Seleksi
+                                </button>
+                            )}
+                            {panel === 'screening' ? (
+                                <form
+                                    onSubmit={(event) => {
+                                        event.preventDefault();
+                                        screeningForm.submit(
+                                            RecruitmentController.recordScreening(
+                                                applicant.id,
+                                            ),
+                                            { onSuccess: () => setPanel(null) },
+                                        );
+                                    }}
+                                    style={{
+                                        marginBottom: 10,
+                                        padding: 14,
+                                        background: C.surface,
+                                        borderRadius: 10,
+                                    }}
+                                >
+                                    <label style={fieldLabelStyle}>
+                                        Keputusan
+                                    </label>
+                                    <select
+                                        value={screeningForm.data.decision}
+                                        onChange={(e) =>
+                                            screeningForm.setData(
+                                                'decision',
+                                                e.target.value,
+                                            )
+                                        }
+                                        style={{
+                                            ...inputStyle,
+                                            marginBottom: 10,
+                                        }}
+                                    >
+                                        <option value="shortlisted">
+                                            Shortlisted
+                                        </option>
+                                        <option value="rejected">
+                                            Rejected
+                                        </option>
+                                    </select>
+                                    <label style={fieldLabelStyle}>
+                                        Nilai (1–5, opsional)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        max={5}
+                                        value={
+                                            screeningForm.data.screening_score
+                                        }
+                                        onChange={(e) =>
+                                            screeningForm.setData(
+                                                'screening_score',
+                                                e.target.value,
+                                            )
+                                        }
+                                        style={{
+                                            ...inputStyle,
+                                            marginBottom: 10,
+                                        }}
+                                    />
+                                    <label style={fieldLabelStyle}>
+                                        Catatan Evaluasi
+                                    </label>
+                                    <textarea
+                                        value={
+                                            screeningForm.data.screening_note
+                                        }
+                                        placeholder="Hasil review CV, pengalaman, dan skill"
+                                        onChange={(e) =>
+                                            screeningForm.setData(
+                                                'screening_note',
+                                                e.target.value,
+                                            )
+                                        }
+                                        style={{
+                                            ...inputStyle,
+                                            minHeight: 78,
+                                            resize: 'vertical',
+                                            marginBottom: 10,
+                                        }}
+                                    />
+                                    {screeningForm.errors.screening_note && (
+                                        <div
+                                            style={{
+                                                fontSize: 12,
+                                                color: C.red,
+                                                marginBottom: 10,
+                                            }}
+                                        >
+                                            {
+                                                screeningForm.errors
+                                                    .screening_note
+                                            }
+                                        </div>
+                                    )}
+                                    <button
+                                        type="submit"
+                                        disabled={screeningForm.processing}
+                                        style={{
+                                            ...btnP,
+                                            width: '100%',
+                                            justifyContent: 'center',
+                                        }}
+                                    >
+                                        <AIcon
+                                            name="save"
+                                            size={15}
+                                            color="#fff"
+                                        />
+                                        Simpan Evaluasi
+                                    </button>
+                                </form>
+                            ) : null}
+
                             {canUpdate && (
                                 <button
                                     onClick={() =>
@@ -1418,6 +1570,17 @@ export default function Candidate({
                                         placeholder="Pilih tanggal"
                                         width="100%"
                                     />
+                                    {offerForm.errors.offer_valid_until && (
+                                        <div
+                                            style={{
+                                                fontSize: 12,
+                                                color: C.red,
+                                                marginTop: 6,
+                                            }}
+                                        >
+                                            {offerForm.errors.offer_valid_until}
+                                        </div>
+                                    )}
                                     <label style={fieldLabelStyle}>
                                         Catatan Penawaran
                                     </label>

@@ -13,6 +13,9 @@ interface Interview {
     status: string;
     result: string | null;
     location: string | null;
+    interviewer: string | null;
+    /** Whether the signed-in user is the interviewer assigned to this one. */
+    is_mine: boolean;
     interview_at: string | null;
 }
 
@@ -37,15 +40,28 @@ export default function RecruitmentInterviews({
     const { can } = usePermission();
     const canApprove = can('recruitment.approve');
 
-    const recordResult = (id: number, interview_result: 'passed' | 'failed') =>
+    // The verdict carries the interviewer's reasoning onto the candidate's
+    // history — "Passed" on its own tells the next reader nothing.
+    const recordResult = (
+        id: number,
+        interview_result: 'passed' | 'failed',
+    ) => {
+        const interview_note =
+            window.prompt(
+                interview_result === 'passed'
+                    ? 'Catatan hasil wawancara (opsional)'
+                    : 'Alasan tidak lolos (opsional)',
+            ) ?? '';
+
         router.post(
             RecruitmentController.recordInterviewResult(id).url,
-            { interview_result },
+            { interview_result, interview_note },
             {
                 preserveScroll: true,
                 onSuccess: () => toast.success('Hasil wawancara disimpan'),
             },
         );
+    };
 
     return (
         <>
@@ -228,7 +244,8 @@ export default function RecruitmentInterviews({
                                                                 ? 'Passed'
                                                                 : 'Failed'}
                                                         </span>
-                                                    ) : canApprove ? (
+                                                    ) : canApprove ||
+                                                      iv.is_mine ? (
                                                         <div
                                                             style={{
                                                                 display: 'flex',

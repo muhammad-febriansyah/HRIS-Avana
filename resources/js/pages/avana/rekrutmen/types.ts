@@ -77,6 +77,11 @@ export interface ApplicantDetail {
     portfolio_url: string | null;
     cv_url: string | null;
     notes: string | null;
+    /** Stage 5: the reasoning behind the shortlist-or-reject decision. */
+    screening_note: string | null;
+    screening_score: number | null;
+    screened_by: string | null;
+    screened_at: string | null;
     applied_date: string | null;
     interview_at: string | null;
     interview_result: string | null;
