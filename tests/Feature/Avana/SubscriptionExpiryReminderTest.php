@@ -167,9 +167,9 @@ it('shares the expiry banner with a tenant admin inside the warning window', fun
         ->get('/dashboard')
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->where('subscription.days_left', 5)
-            ->where('subscription.level', 'critical')
-            ->has('subscription.end_date_label')
+            ->where('subscriptionNotice.days_left', 5)
+            ->where('subscriptionNotice.level', 'critical')
+            ->has('subscriptionNotice.end_date_label')
             ->etc());
 });
 
@@ -181,7 +181,7 @@ it('keeps the banner away while the subscription is comfortably active', functio
     actingAs($admin)
         ->get('/dashboard')
         ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page->where('subscription', null)->etc());
+        ->assertInertia(fn (Assert $page) => $page->where('subscriptionNotice', null)->etc());
 });
 
 it('keeps the banner away from an ESS employee', function (): void {
@@ -192,5 +192,30 @@ it('keeps the banner away from an ESS employee', function (): void {
     actingAs($employee)
         ->get('/dashboard')
         ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page->where('subscription', null)->etc());
+        ->assertInertia(fn (Assert $page) => $page->where('subscriptionNotice', null)->etc());
+});
+
+it('keeps the client detail screen from overwriting the chrome banner', function (): void {
+    $this->withoutVite();
+    $client = expiringTenant(5);
+    $platform = expiringTenant(400);
+
+    $role = Role::firstOrCreate(
+        ['code' => 'super_admin', 'tenant_id' => $platform->id],
+        ['name' => 'Super Admin'],
+    );
+    $superAdmin = User::factory()->create(['tenant_id' => $platform->id]);
+    $superAdmin->roles()->attach($role->id);
+
+    // The page ships its own `subscription` prop — the client's plan and how
+    // many terms they have had. Sharing the banner under that same name let the
+    // page prop win, so the chrome read `days_left` off a shape with no such
+    // field and rendered "berakhir undefined hari lagi".
+    actingAs($superAdmin)
+        ->get('/avana/klien/'.$client->id)
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('subscription.total')
+            ->where('subscriptionNotice', null)
+            ->etc());
 });

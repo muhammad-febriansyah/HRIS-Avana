@@ -351,7 +351,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
             tenants: { id: number; name: string }[];
         };
         notifications?: { items: NotificationItem[]; unread: number };
-        subscription?: SubscriptionNotice | null;
+        subscriptionNotice?: SubscriptionNotice | null;
     }>();
     const vars = themeVars(page.props.theme);
     const url = page.url;
@@ -386,7 +386,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
     const useTenantLogo = !page.props.auth?.isSuperAdmin && Boolean(tenantLogo);
     const brandName = page.props.auth?.tenant?.company_name || 'AvanaHR';
     const notif = page.props.notifications ?? { items: [], unread: 0 };
-    const subscriptionNotice = page.props.subscription ?? null;
+    const subscriptionNotice = page.props.subscriptionNotice ?? null;
     const [notifOpen, setNotifOpen] = useState(false);
     const [collapsed, setCollapsed] = useState(false);
     const [mobileNav, setMobileNav] = useState(false);

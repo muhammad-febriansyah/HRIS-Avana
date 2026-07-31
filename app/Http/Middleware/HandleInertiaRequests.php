@@ -76,7 +76,11 @@ class HandleInertiaRequests extends Middleware
                 return TenantTheme::resolve($this->scopedTenant($request, $user)?->theme);
             },
             'notifications' => fn (): array => $this->notifications($user),
-            'subscription' => fn (): ?array => $this->subscriptionNotice($request, $user),
+            // Namespaced, not `subscription`: a page prop of the same name wins
+            // over a shared one, and the client detail screen ships its own
+            // `subscription` — which left the chrome's banner reading its
+            // fields off the wrong shape ("berakhir undefined hari lagi").
+            'subscriptionNotice' => fn (): ?array => $this->subscriptionNotice($request, $user),
             'superAdminView' => fn (): array => $this->superAdminView($request, $user),
             'flash' => [
                 'success' => fn () => $this->session($request, 'success'),
