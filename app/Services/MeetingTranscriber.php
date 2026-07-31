@@ -116,6 +116,16 @@ final class MeetingTranscriber
                 'provider_message' => Str::limit((string) $response->body(), 300),
             ]);
 
+            // A refused key never becomes an accepted one by waiting, and
+            // "coba lagi nanti" had people retrying a recording that could not
+            // start until an operator went and issued a new key. Deepgram wants
+            // Member scope or higher to mint a grant; a transcription-only key
+            // is refused here while still passing every /v1/listen call, which
+            // is exactly the combination that reads as "it worked yesterday".
+            if (in_array($response->status(), [401, 403], true)) {
+                throw new RuntimeException('Kunci API transkripsi ditolak penyedia. Hubungi Super Admin untuk memperbarui kunci di Pengaturan AI.');
+            }
+
             throw new RuntimeException('Gagal menyiapkan sesi transkripsi. Coba lagi beberapa saat lagi.');
         }
 

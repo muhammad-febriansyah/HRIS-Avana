@@ -111,6 +111,26 @@ it('hides the provider error behind a message the tenant can act on', function (
         ->and($response->json('message'))->toContain('Coba lagi');
 });
 
+it('tells the tenant to fix the key when the provider refuses it', function (): void {
+    // Deepgram wants Member scope or higher to mint a grant. A transcription-only
+    // key passes every /v1/listen call and is refused here, so "coba lagi nanti"
+    // sent people retrying something that could not start without a new key.
+    Http::fake([
+        'api.deepgram.com/v1/auth/grant' => Http::response(
+            ['err_code' => 'FORBIDDEN', 'err_msg' => 'Insufficient permissions.'],
+            403,
+        ),
+    ]);
+
+    $response = ($this->login)('rina.a@nusantara.co.id')
+        ->getJson("/api/v1/me/meetings/{$this->meeting->id}/stt-token")
+        ->assertStatus(422);
+
+    expect($response->json('message'))->toContain('Super Admin')
+        ->and($response->json('message'))->not->toContain('Coba lagi')
+        ->and($response->json('message'))->not->toContain('permissions');
+});
+
 it('blocks recording before the microphone opens when the wallet is empty', function (): void {
     $this->tenant->update(['ai_token_quota' => 0, 'ai_token_balance' => 0]);
 
