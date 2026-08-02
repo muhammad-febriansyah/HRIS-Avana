@@ -1199,6 +1199,7 @@ class PayrollController extends Controller
         $deductions = [];
         $basic = 0.0;
         $overtimeBasis = 0.0;
+        $bpjsBasis = 0.0;
         $hasCustomOvertime = false;
 
         // "Komponen Overtime" on the Master Gaji: the components that make up the
@@ -1230,13 +1231,19 @@ class PayrollController extends Controller
                 continue;
             }
 
+            // A component switched off in Master Komponen stops being paid —
+            // otherwise "Nonaktifkan" changes nothing on a payslip.
+            if (! $this->componentIsActive($component)) {
+                continue;
+            }
+
             $handledComponentIds[$component->id] = true;
 
             if ($component->basis_type !== null) {
                 [$amount, $proratable] = $this->derivedComponentAmount($component, $employee, (float) $salaryComponent->amount, $presentDays, $overtimeHours, $tenantId);
-                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasisIds, $overtimeBasis);
+                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasisIds, $overtimeBasis, $bpjsBasis);
             } else {
-                $this->collectComponent($component, (float) $salaryComponent->amount, true, $earnings, $deductions, $basic, $overtimeBasisIds, $overtimeBasis);
+                $this->collectComponent($component, (float) $salaryComponent->amount, true, $earnings, $deductions, $basic, $overtimeBasisIds, $overtimeBasis, $bpjsBasis);
             }
         }
 
@@ -1260,6 +1267,10 @@ class PayrollController extends Controller
                 }
 
                 if ($suppressFlatOvertime && $component->calc_basis === 'per_overtime_hour') {
+                    continue;
+                }
+
+                if (! $this->componentIsActive($component)) {
                     continue;
                 }
 
@@ -1295,7 +1306,7 @@ class PayrollController extends Controller
                     $proratable = false;
                 }
 
-                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasisIds, $overtimeBasis);
+                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasisIds, $overtimeBasis, $bpjsBasis);
             }
         }
 
@@ -1379,6 +1390,9 @@ class PayrollController extends Controller
             }
 
             $basic = round($basic * $factor);
+            // The contribution follows the wage actually paid, as the basic
+            // wage already did before the base became configurable.
+            $bpjsBasis = round($bpjsBasis * $factor);
         }
 
         // Statutory overtime pay (PP 35/2021): the basis is Gaji Pokok plus the
@@ -1437,7 +1451,18 @@ class PayrollController extends Controller
         // Ahead of the tax, not after it: the company's JKK/JKM/Kesehatan
         // premiums are the employee's income, so PPh 21 cannot be worked out
         // until they are known.
-        $bpjs = $this->computeBpjs($employee, $tenantId, $basic > 0 ? $basic : $gross);
+        // The contribution base: the components flagged "ikut basis BPJS", or
+        // the basic wage when nothing is flagged. An employee's separately
+        // reported wage still overrides both, inside computeBpjs().
+        $bpjs = $this->computeBpjs(
+            $employee,
+            $tenantId,
+            match (true) {
+                $bpjsBasis > 0 => $bpjsBasis,
+                $basic > 0 => $basic,
+                default => $gross,
+            },
+        );
 
         $taxableGross += (float) ($bpjs['taxable_company'] ?? 0.0);
 
@@ -2315,6 +2340,7 @@ class PayrollController extends Controller
      * @param  list<array{name: string, amount: float, proratable: bool}>  $earnings
      * @param  list<array{name: string, amount: float}>  $deductions
      * @param  array<int, mixed>  $overtimeBasisIds  component ids checked into "Komponen Overtime", keyed by id
+     * @param  float  $bpjsBasis  running total of the earnings flagged "ikut basis BPJS"
      */
     private function collectComponent(
         PayrollComponent $component,
@@ -2325,6 +2351,7 @@ class PayrollController extends Controller
         float &$basic,
         array $overtimeBasisIds,
         float &$overtimeBasis,
+        float &$bpjsBasis,
     ): void {
         $isDeduction = $component->type === 'deduction' || $component->component_group === 'potongan';
 
@@ -2350,6 +2377,27 @@ class PayrollController extends Controller
         if (isset($overtimeBasisIds[$component->id])) {
             $overtimeBasis += $amount;
         }
+
+        // "Ikut basis BPJS" on the Master Komponen: which earnings the
+        // contribution is computed from, when the employee has no separately
+        // reported wage.
+        if ($component->is_bpjs_base) {
+            $bpjsBasis += $amount;
+        }
+    }
+
+    /**
+     * Whether a component is switched on in Master Komponen.
+     *
+     * The column has carried both `active` and null over its life, and a row
+     * that never had a status set was always paid — so only an explicit
+     * non-active value takes a component out of the run.
+     */
+    private function componentIsActive(PayrollComponent $component): bool
+    {
+        $status = $component->status;
+
+        return $status === null || $status === '' || $status === 'active';
     }
 
     /**

@@ -1373,9 +1373,11 @@ final class AvanaDemoSeeder extends Seeder
     /** @param array<string, Branch> $branches */
     private function seedPayroll(Tenant $tenant, array $branches): void
     {
+        // is_bpjs_base marks the earnings the BPJS contribution is computed
+        // from — Gaji Pokok plus the fixed allowances, not the per-day ones.
         $components = [
-            ['code' => 'BASIC', 'name' => 'Gaji Pokok', 'type' => 'earning'],
-            ['code' => 'TJ-JAB', 'name' => 'Tunjangan Jabatan', 'type' => 'earning'],
+            ['code' => 'BASIC', 'name' => 'Gaji Pokok', 'type' => 'earning', 'is_bpjs_base' => true],
+            ['code' => 'TJ-JAB', 'name' => 'Tunjangan Jabatan', 'type' => 'earning', 'is_bpjs_base' => true],
             ['code' => 'TJ-TRP', 'name' => 'Tunjangan Transport', 'type' => 'earning', 'is_taxable' => false],
             ['code' => 'TJ-MKN', 'name' => 'Tunjangan Makan', 'type' => 'earning', 'is_taxable' => false],
             ['code' => 'POT-KOP', 'name' => 'Potongan Koperasi', 'type' => 'deduction'],
@@ -1388,6 +1390,7 @@ final class AvanaDemoSeeder extends Seeder
                     'type' => $c['type'],
                     'component_group' => $c['type'] === 'deduction' ? 'potongan' : 'penerimaan',
                     'is_taxable' => $c['is_taxable'] ?? true,
+                    'is_bpjs_base' => $c['is_bpjs_base'] ?? false,
                     'status' => 'active',
                 ],
             );

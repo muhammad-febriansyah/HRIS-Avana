@@ -71,7 +71,11 @@ class SalaryMasterController extends Controller
 
         $flags = $master->components->keyBy('payroll_component_id');
 
+        // Only active components are offered: the documented setup ends with
+        // "aktifkan komponen — setelah aktif, komponen otomatis tersedia untuk
+        // dipilih di Master Gaji", and a deactivated one is no longer paid.
         $components = PayrollComponent::forTenant($tenantId)
+            ->where(fn ($query) => $query->whereNull('status')->orWhere('status', 'active'))
             ->orderBy('name')
             ->get(['id', 'name', 'component_group'])
             ->map(fn (PayrollComponent $c): array => [

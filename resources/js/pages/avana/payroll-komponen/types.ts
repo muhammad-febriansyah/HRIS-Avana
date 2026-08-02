@@ -26,6 +26,8 @@ export interface Component {
     category: Category;
     calc_type: CalcType;
     is_taxable: boolean;
+    /** Counts toward the BPJS contribution base. */
+    is_bpjs_base: boolean;
     show_on_slip: boolean;
     calc_basis: string;
     period_basis: string | null;

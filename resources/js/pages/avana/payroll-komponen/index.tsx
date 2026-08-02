@@ -77,6 +77,7 @@ interface CForm {
     basis_value: string;
     payroll_formula_id: string;
     is_taxable: boolean;
+    is_bpjs_base: boolean;
     show_on_slip: boolean;
     [key: string]: string | number | boolean | null;
 }
@@ -90,6 +91,7 @@ const emptyForm: CForm = {
     basis_value: '',
     payroll_formula_id: '',
     is_taxable: true,
+    is_bpjs_base: false,
     show_on_slip: true,
 };
 
@@ -178,6 +180,7 @@ export default function PayrollKomponen({
                 ? String(c.payroll_formula_id)
                 : '',
             is_taxable: c.is_taxable,
+            is_bpjs_base: c.is_bpjs_base,
             show_on_slip: c.show_on_slip,
         });
         form.clearErrors();
@@ -204,6 +207,7 @@ export default function PayrollKomponen({
             payroll_formula_id:
                 tipe === 'rumus' ? form.data.payroll_formula_id : '',
             is_taxable: form.data.is_taxable,
+            is_bpjs_base: form.data.is_bpjs_base,
             show_on_slip: form.data.show_on_slip,
         };
         const opts = {
@@ -1099,6 +1103,27 @@ export default function PayrollKomponen({
                             >
                                 <input
                                     type="checkbox"
+                                    checked={form.data.is_bpjs_base}
+                                    onChange={(e) =>
+                                        form.setData(
+                                            'is_bpjs_base',
+                                            e.target.checked,
+                                        )
+                                    }
+                                />
+                                Ikut basis BPJS
+                            </label>
+                            <label
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 7,
+                                    fontSize: 13,
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <input
+                                    type="checkbox"
                                     checked={form.data.show_on_slip}
                                     onChange={(e) =>
                                         form.setData(
@@ -1447,6 +1472,7 @@ function ComponentDetail({
             component.basis_value != null ? rp(component.basis_value) : '—',
         ],
         ['Kena PPh 21', component.is_taxable ? 'Ya' : 'Tidak'],
+        ['Ikut basis BPJS', component.is_bpjs_base ? 'Ya' : 'Tidak'],
         ['Tampil di slip', component.show_on_slip ? 'Ya' : 'Tidak'],
         ['Status', component.status === 'active' ? 'Aktif' : 'Nonaktif'],
     ];

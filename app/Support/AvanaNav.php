@@ -98,20 +98,25 @@ final class AvanaNav
                 ]),
             ]],
             ['title' => 'PAYROLL & KEUANGAN', 'items' => [
+                // Ordered as the payroll setup documentation prescribes —
+                // Master Komponen → Master Gaji → UMR → Struktur & Skala Upah →
+                // BPJS & Pajak → Mapping Payday → Lembur — because each screen
+                // depends on the one before it. The screens that run against
+                // that setup follow after.
                 self::parent('payroll', 'Payroll', 'wallet', [
                     self::leaf('payroll', 'Payroll', 'wallet', '/avana/payroll', 'payroll', ['payroll']),
-                    self::leaf('payroll-config', 'BPJS & Pajak', 'shield-check', '/avana/payroll/konfigurasi', 'payroll', ['bpjs', 'pph21', 'payroll']),
                     self::leaf('payroll-komponen', 'Master Komponen', 'layers', '/avana/payroll/komponen', 'payroll', ['payroll']),
                     self::leaf('payroll-master-gaji', 'Master Gaji', 'file-cog', '/avana/payroll/master-gaji', 'payroll', ['payroll']),
                     self::leaf('payroll-umr', 'UMR', 'map-pin', '/avana/payroll/umr', 'payroll', ['payroll']),
+                    self::leaf('struktur-upah', 'Struktur & Skala Upah', 'ruler', '/avana/struktur-upah', 'salary_structure', ['salary_structure']),
+                    self::leaf('payroll-config', 'BPJS & Pajak', 'shield-check', '/avana/payroll/konfigurasi', 'payroll', ['bpjs', 'pph21', 'payroll']),
                     self::leaf('payroll-ter', 'Tarif TER PPh 21', 'percent', '/avana/payroll/ter', 'payroll', ['payroll']),
-                    self::leaf('payroll-lembur', 'Setup Lembur', 'timer', '/avana/payroll/lembur', 'payroll', ['payroll']),
                     self::leaf('payroll-payday', 'Mapping Payday', 'calendar-check', '/avana/payroll/payday', 'payroll', ['payroll']),
+                    self::leaf('payroll-lembur', 'Setup Lembur', 'timer', '/avana/payroll/lembur', 'payroll', ['payroll']),
+                    self::leaf('payroll-perhitungan-hari', 'Perhitungan Hari', 'calendar-days', '/avana/payroll/perhitungan-hari', 'payroll', ['payroll']),
                     self::leaf('payroll-koreksi', 'Koreksi Gaji', 'pencil', '/avana/payroll/koreksi', 'payroll', ['payroll']),
                     self::leaf('payroll-rapel', 'Rapel Gaji', 'history', '/avana/payroll/rapel', 'payroll', ['payroll']),
                     self::leaf('payroll-sales-order', 'Sales Order', 'clipboard-list', '/avana/payroll/sales-order', 'payroll', ['payroll']),
-                    self::leaf('payroll-perhitungan-hari', 'Perhitungan Hari', 'calendar-days', '/avana/payroll/perhitungan-hari', 'payroll', ['payroll']),
-                    self::leaf('struktur-upah', 'Struktur & Skala Upah', 'ruler', '/avana/struktur-upah', 'salary_structure', ['salary_structure']),
                     self::leaf('jurnal', 'Jurnal Akuntansi', 'book-open', '/avana/jurnal', 'journal', ['journal']),
                     self::leaf('anggaran', 'Anggaran (Budget)', 'piggy-bank', '/avana/anggaran', 'budget', ['budget']),
                 ]),
