@@ -24,11 +24,13 @@ use App\Models\DutyTravel;
 use App\Models\Employee;
 use App\Models\EmployeeBankAccount;
 use App\Models\EmployeeBenefit;
+use App\Models\EmployeeBpjsProfile;
 use App\Models\EmployeeCareerHistory;
 use App\Models\EmployeeCompetency;
 use App\Models\EmployeeContract;
 use App\Models\EmployeeDependent;
 use App\Models\EmployeeEmergencyContact;
+use App\Models\EmployeeSalaryComponent;
 use App\Models\JobPosting;
 use App\Models\KeyResult;
 use App\Models\LeaveBalance;
@@ -366,6 +368,19 @@ class ClientModuleDataSeeder extends Seeder
      *
      * @param  array{employees: array<int, Employee>, admin: ?User, branches: array<int, Branch>, departments: array<int, Department>}  $ctx
      */
+    /**
+     * The employee's basic salary, read from their BASIC payroll component.
+     *
+     * Falls back to zero for anyone without one — the demo only attaches
+     * components to the employees the payroll screens exercise.
+     */
+    private function basicSalaryOf(Employee $employee): float
+    {
+        return (float) EmployeeSalaryComponent::where('employee_id', $employee->id)
+            ->whereHas('component', fn ($query) => $query->where('code', 'BASIC'))
+            ->value('amount');
+    }
+
     private function seedDemoEmployeeDetails(Tenant $tenant, array $ctx): void
     {
         $banks = ['BCA', 'Mandiri', 'BNI', 'BRI'];
@@ -373,6 +388,9 @@ class ClientModuleDataSeeder extends Seeder
         foreach (collect($ctx['employees'])->values() as $index => $employee) {
             $isPermanent = $employee->employment_status === 'permanent';
 
+            // The contract states the basic salary it was signed on, so it is
+            // taken from the employee's own BASIC component. Left unset, every
+            // row on the Kontrak screen reads Rp 0.
             EmployeeContract::create([
                 'tenant_id' => $tenant->id,
                 'employee_id' => $employee->id,
@@ -380,8 +398,23 @@ class ClientModuleDataSeeder extends Seeder
                 'contract_type' => $isPermanent ? 'PKWTT' : 'PKWT',
                 'start_date' => $employee->join_date,
                 'end_date' => $isPermanent ? null : Carbon::parse($employee->join_date)->addYear(),
+                'basic_salary' => $this->basicSalaryOf($employee),
                 'status' => 'active',
             ]);
+
+            // Both membership numbers, so the employee page shows an enrolment
+            // rather than two dashes. Same shape the payroll demo uses.
+            EmployeeBpjsProfile::firstOrCreate(
+                ['tenant_id' => $tenant->id, 'employee_id' => $employee->id],
+                [
+                    'bpjs_ketenagakerjaan_number' => str_pad((string) (20_000_000_000 + $employee->id), 11, '0', STR_PAD_LEFT),
+                    'bpjs_kesehatan_number' => str_pad((string) (1_000_000_000_000 + $employee->id), 13, '0', STR_PAD_LEFT),
+                    'registered_wage' => $this->basicSalaryOf($employee),
+                    'jht_enabled' => true, 'jkk_enabled' => true, 'jkm_enabled' => true,
+                    'jp_enabled' => true, 'kesehatan_enabled' => true,
+                    'effective_start_date' => '2026-01-01',
+                ],
+            );
 
             EmployeeBankAccount::firstOrCreate(
                 ['tenant_id' => $tenant->id, 'employee_id' => $employee->id],

@@ -150,9 +150,14 @@ final class AvanaPayrollDemoSeeder extends Seeder
                 ],
             );
 
+            // The membership numbers matter to whoever reads the employee page:
+            // an enrolled profile with both fields blank reads as "not in the
+            // app yet". Ketenagakerjaan is 11 digits, Kesehatan is 13.
             EmployeeBpjsProfile::firstOrCreate(
                 ['tenant_id' => $tenant->id, 'employee_id' => $employee->id],
                 [
+                    'bpjs_ketenagakerjaan_number' => str_pad((string) (20_000_000_000 + $employee->id), 11, '0', STR_PAD_LEFT),
+                    'bpjs_kesehatan_number' => str_pad((string) (1_000_000_000_000 + $employee->id), 13, '0', STR_PAD_LEFT),
                     'registered_wage' => 6_000_000,
                     'jht_enabled' => true, 'jkk_enabled' => true, 'jkm_enabled' => true,
                     'jp_enabled' => true, 'kesehatan_enabled' => true,

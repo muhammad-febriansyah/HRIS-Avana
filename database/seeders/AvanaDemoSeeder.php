@@ -414,6 +414,7 @@ final class AvanaDemoSeeder extends Seeder
             6 => 10_000_000,  // Ops Supervisor
             7 => 8_500_000,   // QA Engineer
             8 => 8_000_000,   // Accountant
+            9 => 7_500_000,   // Recruiter
             10 => 11_000_000, // Account Manager
         ];
 
