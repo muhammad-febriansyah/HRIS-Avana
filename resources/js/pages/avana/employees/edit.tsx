@@ -53,6 +53,9 @@ export default function EmployeesEdit({
         department_id: relationId(data.department),
         position_id: relationId(data.position),
         job_level_id: relationId(data.job_level),
+        salary_master_id: data.salary_master_id ? String(data.salary_master_id) : '',
+        bpjs_kesehatan_number: data.bpjs_kesehatan_number ?? '',
+        bpjs_ketenagakerjaan_number: data.bpjs_ketenagakerjaan_number ?? '',
         // Neither an approver puncak nor a not-yet-assigned employee has a
         // manager row, so the picker shows whichever sentinel says which of the
         // two they are — an empty field would read as "belum diisi" for both.

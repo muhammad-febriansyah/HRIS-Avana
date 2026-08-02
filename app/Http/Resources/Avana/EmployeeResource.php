@@ -134,6 +134,25 @@ final class EmployeeResource extends JsonResource
                 'radius_meter' => (int) ($this->workLocation->radius_meter ?? 0),
                 'status' => $this->workLocation->status,
             ]),
+            'salary_master_id' => $this->salary_master_id,
+            'salary_master' => $this->whenLoaded('salaryMaster', fn () => $this->salaryMaster === null ? null : [
+                'id' => $this->salaryMaster->id,
+                'code' => $this->salaryMaster->code,
+                'category' => $this->salaryMaster->category,
+            ]),
+            // The BPJS membership numbers live on the profile, not the employee
+            // row, and are printed on the payslip and every filing.
+            'bpjs_kesehatan_number' => $this->whenLoaded('bpjsProfile', fn () => $this->bpjsProfile?->bpjs_kesehatan_number),
+            'bpjs_ketenagakerjaan_number' => $this->whenLoaded('bpjsProfile', fn () => $this->bpjsProfile?->bpjs_ketenagakerjaan_number),
+            'contracts' => $this->whenLoaded('contracts', fn () => $this->contracts
+                ->map(fn ($contract): array => [
+                    'id' => $contract->id,
+                    'contract_number' => $contract->contract_number,
+                    'contract_type' => $contract->contract_type,
+                    'start_date' => $contract->start_date?->format('d M Y'),
+                    'end_date' => $contract->end_date?->format('d M Y'),
+                    'status' => $contract->status,
+                ])->values()),
             'manager' => $this->whenLoaded('manager', fn () => $this->manager === null ? null : [
                 'id' => $this->manager->id,
                 'name' => $this->manager->full_name,

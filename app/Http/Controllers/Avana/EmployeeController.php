@@ -13,9 +13,11 @@ use App\Models\Branch;
 use App\Models\CustomField;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\EmployeeBpjsProfile;
 use App\Models\JobLevel;
 use App\Models\Position;
 use App\Models\Role;
+use App\Models\SalaryMaster;
 use App\Models\User;
 use App\Models\UserDevice;
 use App\Models\WorkLocation;
@@ -140,6 +142,7 @@ class EmployeeController extends Controller
         $data = $request->validated();
         $password = $data['password'] ?? null;
         $roleId = $data['role_id'] ?? null;
+        $bpjs = $this->pullBpjsNumbers($data);
         unset($data['password'], $data['role_id']);
         $data['tenant_id'] = $tenantId;
 
@@ -149,6 +152,7 @@ class EmployeeController extends Controller
 
         $employee = Employee::create($data);
 
+        $this->syncBpjsNumbers($employee, $bpjs);
         $this->syncEmployeeLogin($employee, $password, $tenantId, $roleId !== null ? (int) $roleId : null);
 
         return redirect()->route('avana.employees.index')
@@ -569,6 +573,9 @@ class EmployeeController extends Controller
             'jobLevel:id,name',
             'workLocation:id,name,radius_meter,status',
             'manager:id,full_name,employee_number',
+            'salaryMaster:id,code,category',
+            'bpjsProfile',
+            'contracts' => fn ($query) => $query->latest('start_date')->latest('id'),
             'assetAssignments' => fn ($query) => $query
                 ->whereNull('returned_date')
                 ->with('asset:id,code,name,category,condition')
@@ -627,14 +634,57 @@ class EmployeeController extends Controller
         $data = $request->validated();
         $password = $data['password'] ?? null;
         $roleId = $data['role_id'] ?? null;
+        $bpjs = $this->pullBpjsNumbers($data);
         unset($data['password'], $data['role_id']);
 
         $employee->update($data);
 
+        $this->syncBpjsNumbers($employee, $bpjs);
         $this->syncEmployeeLogin($employee, $password, $request->user()->tenant_id, $roleId !== null ? (int) $roleId : null);
 
         return redirect()->route('avana.employees.index')
             ->with('success', 'Karyawan berhasil diperbarui');
+    }
+
+    /**
+     * Take the BPJS membership numbers out of the employee payload — they are
+     * stored on the employee's BPJS profile, not on the employee row.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, string|null>|null null when the form did not carry them
+     */
+    private function pullBpjsNumbers(array &$data): ?array
+    {
+        if (! array_key_exists('bpjs_kesehatan_number', $data) && ! array_key_exists('bpjs_ketenagakerjaan_number', $data)) {
+            return null;
+        }
+
+        $numbers = [
+            'bpjs_kesehatan_number' => $data['bpjs_kesehatan_number'] ?? null,
+            'bpjs_ketenagakerjaan_number' => $data['bpjs_ketenagakerjaan_number'] ?? null,
+        ];
+
+        unset($data['bpjs_kesehatan_number'], $data['bpjs_ketenagakerjaan_number']);
+
+        return $numbers;
+    }
+
+    /**
+     * Write the membership numbers onto the employee's BPJS profile, creating
+     * the profile when the employee did not have one yet.
+     *
+     * @param  array<string, string|null>|null  $numbers
+     */
+    private function syncBpjsNumbers(Employee $employee, ?array $numbers): void
+    {
+        if ($numbers === null) {
+            return;
+        }
+
+        EmployeeBpjsProfile::updateOrCreate(
+            ['tenant_id' => $employee->tenant_id, 'employee_id' => $employee->id],
+            $numbers,
+        );
     }
 
     /**
@@ -851,6 +901,17 @@ class EmployeeController extends Controller
             'departments' => Department::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
             'positions' => Position::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
             'jobLevels' => JobLevel::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
+            // Which Master Gaji the employee is paid from — payroll reads it,
+            // so it belongs on the employee form rather than only on the
+            // Master Gaji screen's assign panel.
+            'salaryMasters' => SalaryMaster::forTenant($tenantId)
+                ->where('is_active', true)
+                ->orderBy('code')
+                ->get(['id', 'code', 'category'])
+                ->map(fn (SalaryMaster $master): array => [
+                    'id' => $master->id,
+                    'name' => $master->code.($master->category !== null ? ' · '.$master->category : ''),
+                ]),
             // `can_access_mobile` rides along so the picker can warn that the role
             // has no phone access — the dropdown sits in the mobile-account section.
             'roles' => Role::where('tenant_id', $tenantId)->select('id', 'name', 'can_access_mobile')->orderBy('name')->get(),

@@ -106,11 +106,28 @@ export type Employee = {
         status?: string;
     } | null;
     manager?: ManagerRef | null;
+    /** The Master Gaji this employee is attached to, if any. */
+    salary_master_id?: number | null;
+    salary_master?: { id: number; code: string; category: string | null } | null;
+    /** BPJS membership numbers, kept on the employee's BPJS profile. */
+    bpjs_kesehatan_number?: string | null;
+    bpjs_ketenagakerjaan_number?: string | null;
+    contracts?: EmployeeContractRow[];
     custom_data?: Record<string, string>;
     held_assets?: HeldAsset[];
     documents?: EmployeeDocumentRow[];
     leave_history?: LeaveHistoryRow[];
     payroll_history?: PayrollHistoryRow[];
+};
+
+/** One row of the employee's contract history. */
+export type EmployeeContractRow = {
+    id: number;
+    contract_number: string | null;
+    contract_type: string | null;
+    start_date: string | null;
+    end_date: string | null;
+    status: string | null;
 };
 
 /** Laravel paginator `meta` block carried by a resource collection. */
@@ -160,6 +177,7 @@ export type EmployeeFormOptions = {
     departments: NamedOption[];
     positions: NamedOption[];
     jobLevels: NamedOption[];
+    salaryMasters: NamedOption[];
     roles: RoleOption[];
     managers: ManagerRef[];
     genders: SelectOption[];
@@ -186,6 +204,9 @@ export type EmployeeFormData = {
     department_id: string;
     position_id: string;
     job_level_id: string;
+    salary_master_id: string;
+    bpjs_kesehatan_number: string;
+    bpjs_ketenagakerjaan_number: string;
     manager_id: string;
     status: string;
     password: string;
@@ -256,6 +277,9 @@ export const STEP_FIELDS: string[][] = [
         'manager_id',
         'is_top_approver',
         'employment_status',
+        'salary_master_id',
+        'bpjs_ketenagakerjaan_number',
+        'bpjs_kesehatan_number',
         'join_date',
         'branch_id',
         'work_location_id',

@@ -186,6 +186,11 @@ final class Employee extends Model
         return $this->hasOne(TaxProfile::class);
     }
 
+    public function bpjsProfile(): HasOne
+    {
+        return $this->hasOne(EmployeeBpjsProfile::class);
+    }
+
     /**
      * Likes this employee has given, used to mark the feed without a query per
      * post.

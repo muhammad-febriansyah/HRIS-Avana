@@ -858,6 +858,81 @@ export function EmployeeForm({
                         </Field>
 
                         <Field
+                            htmlFor="salary_master_id"
+                            label="Master Gaji"
+                            error={errors.salary_master_id}
+                        >
+                            <select
+                                id="salary_master_id"
+                                value={data.salary_master_id}
+                                onChange={(event) =>
+                                    setData(
+                                        'salary_master_id',
+                                        event.target.value,
+                                    )
+                                }
+                                style={styleFor(
+                                    !!errors.salary_master_id,
+                                    selectStyle,
+                                )}
+                            >
+                                <option value="">Belum ditempel</option>
+                                {options.salaryMasters.map((master) => (
+                                    <option
+                                        key={master.id}
+                                        value={String(master.id)}
+                                    >
+                                        {master.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </Field>
+
+                        <Field
+                            htmlFor="bpjs_ketenagakerjaan_number"
+                            label="No. BPJS Ketenagakerjaan"
+                            error={errors.bpjs_ketenagakerjaan_number}
+                        >
+                            <input
+                                id="bpjs_ketenagakerjaan_number"
+                                value={data.bpjs_ketenagakerjaan_number}
+                                onChange={(event) =>
+                                    setData(
+                                        'bpjs_ketenagakerjaan_number',
+                                        event.target.value,
+                                    )
+                                }
+                                placeholder="mis. 21012345678"
+                                style={styleFor(
+                                    !!errors.bpjs_ketenagakerjaan_number,
+                                    inputStyle,
+                                )}
+                            />
+                        </Field>
+
+                        <Field
+                            htmlFor="bpjs_kesehatan_number"
+                            label="No. BPJS Kesehatan"
+                            error={errors.bpjs_kesehatan_number}
+                        >
+                            <input
+                                id="bpjs_kesehatan_number"
+                                value={data.bpjs_kesehatan_number}
+                                onChange={(event) =>
+                                    setData(
+                                        'bpjs_kesehatan_number',
+                                        event.target.value,
+                                    )
+                                }
+                                placeholder="mis. 0001234567890"
+                                style={styleFor(
+                                    !!errors.bpjs_kesehatan_number,
+                                    inputStyle,
+                                )}
+                            />
+                        </Field>
+
+                        <Field
                             htmlFor="join_date"
                             label="Tanggal Masuk"
                             error={errors.join_date}

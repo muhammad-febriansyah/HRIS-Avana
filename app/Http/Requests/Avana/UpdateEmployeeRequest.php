@@ -72,6 +72,10 @@ class UpdateEmployeeRequest extends FormRequest
             'department_id' => ['nullable', Rule::exists('departments', 'id')->where('tenant_id', $tenantId)],
             'position_id' => ['nullable', Rule::exists('positions', 'id')->where('tenant_id', $tenantId)],
             'job_level_id' => ['nullable', Rule::exists('job_levels', 'id')->where('tenant_id', $tenantId)],
+            'salary_master_id' => ['nullable', Rule::exists('salary_masters', 'id')->where('tenant_id', $tenantId)],
+            // Kept on the employee's BPJS profile, not the employee row.
+            'bpjs_kesehatan_number' => ['nullable', 'string', 'max:32'],
+            'bpjs_ketenagakerjaan_number' => ['nullable', 'string', 'max:32'],
             'manager_id' => [
                 'nullable',
                 Rule::exists('employees', 'id')->where('tenant_id', $tenantId),
@@ -154,6 +158,7 @@ class UpdateEmployeeRequest extends FormRequest
             'department_id.exists' => 'Departemen yang dipilih tidak valid.',
             'position_id.exists' => 'Posisi yang dipilih tidak valid.',
             'job_level_id.exists' => 'Jenjang jabatan yang dipilih tidak valid.',
+            'salary_master_id.exists' => 'Master Gaji yang dipilih tidak valid.',
             'manager_id.exists' => 'Atasan yang dipilih tidak valid.',
             'manager_id.not_in' => 'Karyawan tidak dapat menjadi atasan untuk dirinya sendiri.',
         ];

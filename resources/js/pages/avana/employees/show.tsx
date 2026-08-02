@@ -496,6 +496,35 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                                 label="Tgl Bergabung"
                                 value={dash(emp.join_date)}
                                 indent
+                            />
+                            {/* Yang dipakai payroll: master gaji yang menempel
+                                dan nomor kepesertaan BPJS. */}
+                            <Cell
+                                label="Master Gaji"
+                                value={
+                                    emp.salary_master
+                                        ? `${emp.salary_master.code}${emp.salary_master.category ? ` · ${emp.salary_master.category}` : ''}`
+                                        : 'Belum ditempel'
+                                }
+                            />
+                            <Cell
+                                label="Kontrak Aktif"
+                                value={
+                                    (emp.contracts ?? []).find(
+                                        (c) => c.status === 'active',
+                                    )?.contract_number ?? 'Belum ada'
+                                }
+                                indent
+                            />
+                            <Cell
+                                label="No. BPJS Ketenagakerjaan"
+                                value={dash(emp.bpjs_ketenagakerjaan_number)}
+                                last
+                            />
+                            <Cell
+                                label="No. BPJS Kesehatan"
+                                value={dash(emp.bpjs_kesehatan_number)}
+                                indent
                                 last
                             />
                         </div>
