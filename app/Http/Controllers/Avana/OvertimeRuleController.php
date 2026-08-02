@@ -234,8 +234,11 @@ class OvertimeRuleController extends Controller
      */
     private function workedExample(int $tenantId, OvertimePolicy $policy): ?array
     {
+        // The employee the setup documentation works its example from, falling
+        // back to the first on the books when a tenant has no such record.
         $employee = Employee::forTenant($tenantId)
             ->where('status', 'active')
+            ->orderByRaw("employee_number = 'EMP-0001' DESC")
             ->orderBy('employee_number')
             ->first();
 
@@ -248,7 +251,8 @@ class OvertimeRuleController extends Controller
         $resolved = OvertimeRules::basisFor($fixed, $wage['total'], (float) $policy->fixed_basis_min_ratio);
 
         $divisor = max(1, (int) $policy->hours_divisor);
-        $hourly = $resolved['basis'] / $divisor;
+        // Whole rupiah before the multipliers, exactly as the payroll run does.
+        $hourly = round($resolved['basis'] / $divisor);
         $rates = OvertimeRules::ratesFor($tenantId);
 
         $firstHour = $hourly * OvertimeRules::multiplierFor($rates, 'workday', 1.0);

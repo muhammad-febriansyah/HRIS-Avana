@@ -1413,7 +1413,7 @@ class PayrollController extends Controller
                 $overtimeSnapshot = [
                     'basis' => round($resolved['basis']),
                     'basis_floored' => $resolved['floored'],
-                    'hourly_rate' => round($resolved['basis'] / $divisor, 2),
+                    'hourly_rate' => round($resolved['basis'] / $divisor),
                     'divisor' => $divisor,
                     'hours' => $overtimeHours,
                 ];
@@ -1590,7 +1590,10 @@ class PayrollController extends Controller
             return 0.0;
         }
 
-        $hourlyRate = $monthlyWage / max(1, $divisor);
+        // Rounded to whole rupiah before the multipliers are applied: wages are
+        // paid in rupiah, and the setup documentation works its example the
+        // same way (12.350.000 ÷ 173 = 71.387, then × the multiplier).
+        $hourlyRate = round($monthlyWage / max(1, $divisor));
         $total = 0.0;
 
         foreach ($records as $record) {

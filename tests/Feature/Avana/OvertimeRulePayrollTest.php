@@ -101,10 +101,12 @@ it('builds the overtime basis from every component marked as overtime basis', fu
     $item = overtimeRunItem($this);
     $snapshot = $item->calculation_snapshot['overtime'];
 
-    // Basis 12.350.000 — the worked example of the setup documentation.
+    // Basis 12.350.000 — the worked example of the setup documentation, which
+    // rounds the hourly wage to whole rupiah before applying the multipliers.
     expect((float) $snapshot['basis'])->toBe(12_350_000.0);
     expect($snapshot['basis_floored'])->toBeFalse();
-    expect(overtimeLine($item))->toBe(round(12_350_000 / 173 * 5.5));
+    expect((float) $snapshot['hourly_rate'])->toBe(71_387.0);
+    expect(overtimeLine($item))->toBe(392_629.0);
 });
 
 it('pays the basic wage alone when no allowance is marked as Tetap', function (): void {
@@ -148,7 +150,7 @@ it('pays a rest day at the holiday multipliers, not the workday ones', function 
     $hourly = 8_650_000 / 173;
 
     // 3 hours on a rest day = 2x each, versus 1,5x + 2x + 2x on a workday.
-    expect(overtimeLine($item))->toBe(round($hourly * 6.0));
+    expect(overtimeLine($item))->toBe(round(round($hourly) * 6.0));
 });
 
 it('honours a tenant edit to the hourly divisor', function (): void {
@@ -164,7 +166,7 @@ it('honours a tenant edit to the hourly divisor', function (): void {
 
     $item = overtimeRunItem($this);
 
-    expect(overtimeLine($item))->toBe(round(8_650_000 / 100 * 1.5));
+    expect(overtimeLine($item))->toBe(round(round(8_650_000 / 100) * 1.5));
 });
 
 it('records the payday group cut-off and pay date on the payslip', function (): void {

@@ -32,6 +32,7 @@ use App\Models\PkpRate;
 use App\Models\Position;
 use App\Models\PtkpRate;
 use App\Models\Role;
+use App\Models\SalaryGrade;
 use App\Models\Shift;
 use App\Models\SocialCategory;
 use App\Models\Survey;
@@ -462,13 +463,46 @@ final class AvanaDemoSeeder extends Seeder
             return;
         }
 
-        $amounts = [
+        $this->setDocumentedSalary($tenant, $employee, [
             'BASIC' => 10_000_000,
             'TJ-TRP' => 500_000,
             'TJ-JAB' => 1_500_000,
             'TJ-KES' => 350_000,
-        ];
+        ]);
 
+        // The document's second row: a Grade 1 salary that falls under the DKI
+        // Jakarta UMR, so the validation on Master Gaji has a failing case to
+        // show rather than only passing ones.
+        $andra = Employee::forTenant($tenant->id)->where('employee_number', 'EMP-0011')->first();
+
+        if ($andra !== null) {
+            // Basic wage only: the document shows him with no fixed allowance
+            // at all, so the template's allowances are explicitly zeroed rather
+            // than inherited — which is what puts him under the UMR.
+            $this->setDocumentedSalary($tenant, $andra, [
+                'BASIC' => 4_650_000,
+                'TJ-JAB' => 0,
+                'TJ-KES' => 0,
+                'TJ-TRP' => 0,
+                'TJ-MKN' => 0,
+                'TJ-KIN' => 0,
+            ]);
+
+            $grade = SalaryGrade::forTenant($tenant->id)->where('grade_code', 'G1')->first();
+
+            if ($grade !== null) {
+                $andra->forceFill(['salary_grade_id' => $grade->id])->save();
+            }
+        }
+    }
+
+    /**
+     * Pin an employee's own salary rows to the figures the document tabulates.
+     *
+     * @param  array<string, int>  $amounts
+     */
+    private function setDocumentedSalary(Tenant $tenant, Employee $employee, array $amounts): void
+    {
         foreach ($amounts as $code => $amount) {
             $component = PayrollComponent::where('tenant_id', $tenant->id)->where('code', $code)->first();
 
@@ -1279,6 +1313,9 @@ final class AvanaDemoSeeder extends Seeder
             ['no' => 8, 'nama' => 'Fajar Nugroho', 'email' => 'fajar.n@nusantara.co.id', 'dept' => 'Finance', 'jab' => 'Accountant', 'cabang' => 'Surabaya', 'status' => 'Tetap', 'masuk' => '07 Agu 2022', 'lahir' => '30 Jul 1992'],
             ['no' => 9, 'nama' => 'Intan Permata', 'email' => 'intan.p@nusantara.co.id', 'dept' => 'Human Resources', 'jab' => 'Recruiter', 'cabang' => 'Jakarta Pusat', 'status' => 'Resign', 'masuk' => '22 Apr 2023', 'lahir' => '16 Okt 1994'],
             ['no' => 10, 'nama' => 'Yoga Saputra', 'email' => 'yoga.s@nusantara.co.id', 'dept' => 'Sales', 'jab' => 'Account Manager', 'cabang' => 'Surabaya', 'status' => 'Tetap', 'masuk' => '30 Jan 2021', 'lahir' => '08 Sep 1989'],
+            // The second row of the Master Gaji table in the setup
+            // documentation — the Grade 1 salary that lands below UMR.
+            ['no' => 11, 'nama' => 'Andra Wibowo', 'email' => 'andra.w@nusantara.co.id', 'dept' => 'Operations', 'jab' => 'Ops Supervisor', 'cabang' => 'Jakarta Pusat', 'status' => 'Kontrak', 'masuk' => '05 Jan 2026', 'lahir' => '27 Mar 2000'],
         ];
         $employmentMap = ['Tetap' => 'permanent', 'Kontrak' => 'contract', 'Probation' => 'probation', 'Resign' => 'resigned'];
 

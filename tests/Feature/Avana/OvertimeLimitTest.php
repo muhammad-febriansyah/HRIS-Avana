@@ -156,6 +156,7 @@ it('works the example from the basis actually in force', function (): void {
     // that one the salary the setup documentation works from.
     $subject = Employee::forTenant($this->tenant->id)
         ->where('status', 'active')
+        ->orderByRaw("employee_number = 'EMP-0001' DESC")
         ->orderBy('employee_number')
         ->firstOrFail();
 
