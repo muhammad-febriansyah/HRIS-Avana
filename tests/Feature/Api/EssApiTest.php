@@ -7,6 +7,8 @@ use App\Models\LeaveType;
 use App\Models\MoodCheckin;
 use App\Models\Notification;
 use App\Models\Reimbursement;
+use App\Models\Shift;
+use App\Models\ShiftSchedule;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WorkLocation;
@@ -443,9 +445,27 @@ it('requests and lists a shift swap with a colleague', function (): void {
 
     expect($colleagues)->not->toBeEmpty();
 
+    $me = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail()->employee;
+    $date = now()->addDay()->toDateString();
+
+    // There has to be a shift on the day, or there is nothing to trade.
+    $shift = Shift::create([
+        'tenant_id' => $me->tenant_id,
+        'code' => 'PG-ESS', 'name' => 'Pagi',
+        'start_time' => '08:00:00', 'end_time' => '16:00:00',
+        'late_tolerance_minutes' => 5, 'status' => 'active',
+    ]);
+
+    ShiftSchedule::create([
+        'tenant_id' => $me->tenant_id,
+        'employee_id' => $me->id,
+        'shift_id' => $shift->id,
+        'date' => $date,
+    ]);
+
     ($this->auth)()->postJson('/api/v1/me/shift-swaps', [
         'target_id' => $colleagues[0]['id'],
-        'date' => now()->addDay()->toDateString(),
+        'date' => $date,
         'reason' => 'Ada acara keluarga',
     ])->assertCreated();
 

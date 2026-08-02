@@ -6,6 +6,7 @@ use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\ShiftSwap;
+use App\Support\Roster;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -24,7 +25,12 @@ class ShiftSwapController extends Controller
             ->where(fn ($query) => $query
                 ->where('requester_id', $employee->id)
                 ->orWhere('target_id', $employee->id))
-            ->with(['requester:id,full_name', 'target:id,full_name'])
+            ->with([
+                'requester:id,full_name',
+                'target:id,full_name',
+                'requesterShift:id,name',
+                'targetShift:id,name',
+            ])
             ->orderByDesc('date')
             ->orderByDesc('id')
             ->get()
@@ -34,6 +40,8 @@ class ShiftSwapController extends Controller
                 'requester' => $swap->requester?->full_name,
                 'target' => $swap->target?->full_name,
                 'direction' => $swap->requester_id === $employee->id ? 'outgoing' : 'incoming',
+                'requester_shift' => $swap->requesterShift?->name ?? 'Libur',
+                'target_shift' => $swap->targetShift?->name ?? 'Libur',
                 'reason' => $swap->reason,
                 'status' => $swap->status,
             ]);
@@ -51,17 +59,51 @@ class ShiftSwapController extends Controller
                 Rule::exists('employees', 'id')->where('tenant_id', $employee->tenant_id),
                 Rule::notIn([$employee->id]),
             ],
-            'date' => ['required', 'date'],
+            'date' => ['required', 'date', 'after_or_equal:today'],
             'reason' => ['nullable', 'string', 'max:1000'],
         ], [
             'target_id.not_in' => 'Tidak bisa tukar shift dengan diri sendiri.',
+            'date.after_or_equal' => 'Tidak bisa menukar shift yang sudah lewat.',
         ]);
 
+        $tenantId = (int) $employee->tenant_id;
+        $targetId = (int) $data['target_id'];
+
+        // Trading a day nobody is rostered on trades nothing: an approval would
+        // report success and leave both schedules exactly as they were.
+        $requesterSchedule = Roster::scheduleFor($tenantId, (int) $employee->id, $data['date']);
+        $targetSchedule = Roster::scheduleFor($tenantId, $targetId, $data['date']);
+
+        if ($requesterSchedule === null && $targetSchedule === null) {
+            return response()->json([
+                'message' => 'Belum ada jadwal untuk tanggal itu, jadi tidak ada yang bisa ditukar.',
+            ], 422);
+        }
+
+        $duplicate = ShiftSwap::forTenant($tenantId)
+            ->where('status', 'pending')
+            ->whereDate('date', $data['date'])
+            ->where(fn ($query) => $query
+                ->where(fn ($pair) => $pair->where('requester_id', $employee->id)->where('target_id', $targetId))
+                ->orWhere(fn ($pair) => $pair->where('requester_id', $targetId)->where('target_id', $employee->id)))
+            ->exists();
+
+        if ($duplicate) {
+            return response()->json([
+                'message' => 'Sudah ada pengajuan tukar shift yang menunggu untuk tanggal itu.',
+            ], 422);
+        }
+
+        // The shifts are recorded now so the approver sees what was asked for.
+        // Without them the web approval screen shows a blank trade, and the
+        // request carries no record of the schedule the two agreed on.
         $swap = ShiftSwap::create([
-            'tenant_id' => $employee->tenant_id,
+            'tenant_id' => $tenantId,
             'requester_id' => $employee->id,
-            'target_id' => $data['target_id'],
+            'target_id' => $targetId,
             'date' => $data['date'],
+            'requester_shift_id' => $requesterSchedule?->shift_id,
+            'target_shift_id' => $targetSchedule?->shift_id,
             'reason' => $data['reason'] ?? null,
             'status' => 'pending',
         ]);
