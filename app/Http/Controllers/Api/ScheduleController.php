@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\ShiftSchedule;
+use App\Support\Roster;
 use Carbon\CarbonInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -78,6 +79,9 @@ class ScheduleController extends Controller
             'shift_name' => $shift?->name,
             'start' => $this->shortTime($shift?->start_time),
             'end' => $this->shortTime($shift?->end_time),
+            // A night shift ends the next morning; without this the app shows
+            // "23:00 – 07:00" and leaves the reader to guess which day.
+            'crosses_midnight' => $shift !== null && Roster::crossesMidnight($shift),
         ];
     }
 

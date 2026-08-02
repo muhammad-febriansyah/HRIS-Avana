@@ -261,6 +261,7 @@ class MssController extends Controller
                 'shift_name' => $shift?->name,
                 'start' => $shift !== null ? $this->shortTime($shift->start_time) : null,
                 'end' => $shift !== null ? $this->shortTime($shift->end_time) : null,
+                'crosses_midnight' => $shift !== null && Roster::crossesMidnight($shift),
             ],
         ]);
     }
@@ -462,6 +463,8 @@ class MssController extends Controller
             'shift_name' => $shift?->name,
             'start' => $shift !== null ? $this->shortTime($shift->start_time) : null,
             'end' => $shift !== null ? $this->shortTime($shift->end_time) : null,
+            // A night shift ends the next morning; the card says so.
+            'crosses_midnight' => $shift !== null && Roster::crossesMidnight($shift),
         ];
     }
 

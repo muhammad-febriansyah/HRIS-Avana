@@ -13,6 +13,7 @@ use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
 use App\Models\ShiftSchedule;
 use App\Models\WfhRequest;
+use App\Support\Roster;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -192,6 +193,7 @@ class DashboardController extends Controller
             'shift_name' => $shift?->name,
             'start' => $shift !== null ? substr((string) $shift->start_time, 0, 5) : null,
             'end' => $shift !== null ? substr((string) $shift->end_time, 0, 5) : null,
+            'crosses_midnight' => $shift !== null && Roster::crossesMidnight($shift),
         ];
     }
 }

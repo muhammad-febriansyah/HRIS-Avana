@@ -156,3 +156,38 @@ it('does not reach back to a night shift the employee did not work', function ()
     expect(Attendance::where('employee_id', $this->employee->id)->whereDate('date', '2026-08-11')->count())->toBe(1);
     expect(Attendance::where('employee_id', $this->employee->id)->whereDate('date', $this->night)->whereNotNull('clock_in_at')->count())->toBe(0);
 });
+
+it('tells the app that a night shift ends the next morning', function (): void {
+    ($this->rosterNight)();
+
+    Carbon::setTestNow(Carbon::parse($this->night.' 10:00:00'));
+
+    $day = collect(($this->auth)()->getJson('/api/v1/me/schedule?start='.$this->night)->json('data'))
+        ->firstWhere('date', $this->night);
+
+    expect($day['shift_name'])->toBe('Shift Malam');
+    expect($day['crosses_midnight'])->toBeTrue();
+});
+
+it('does not flag an ordinary day shift as crossing midnight', function (): void {
+    $pagi = Shift::create([
+        'tenant_id' => $this->employee->tenant_id,
+        'code' => 'PAGI-X', 'name' => 'Pagi',
+        'start_time' => '08:00:00', 'end_time' => '17:00:00',
+        'late_tolerance_minutes' => 10, 'status' => 'active',
+    ]);
+
+    ShiftSchedule::create([
+        'tenant_id' => $this->employee->tenant_id,
+        'employee_id' => $this->employee->id,
+        'shift_id' => $pagi->id,
+        'date' => $this->night,
+    ]);
+
+    Carbon::setTestNow(Carbon::parse($this->night.' 10:00:00'));
+
+    $day = collect(($this->auth)()->getJson('/api/v1/me/schedule?start='.$this->night)->json('data'))
+        ->firstWhere('date', $this->night);
+
+    expect($day['crosses_midnight'])->toBeFalse();
+});
