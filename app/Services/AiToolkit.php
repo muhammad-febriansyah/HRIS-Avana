@@ -7,6 +7,7 @@ use App\Models\Attendance;
 use App\Models\Claim;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\EmployeeDocument;
 use App\Models\JobPosting;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
@@ -70,6 +71,12 @@ final class AiToolkit
         // documents the caller may be shown.
         $tools[] = $this->daftarSopTool();
         $tools[] = $this->bacaSopTool();
+
+        // Personnel documents: an employee's own, or the whole tenant's for
+        // whoever holds `document.view`. Without these the assistant had no
+        // way to read an uploaded file at all and answered from nothing.
+        $tools[] = $this->daftarDokumenTool();
+        $tools[] = $this->bacaDokumenTool();
 
         // Meeting recall, offered only where the company bought the recorder:
         // registering it otherwise would let the model promise to look through
@@ -547,6 +554,103 @@ final class AiToolkit
                     .'Jawab singkat saja, jangan menyertakan tautan atau markdown gambar.',
                     $image['prompt'],
                 );
+            });
+    }
+
+    /**
+     * Documents the caller may be shown: their own, plus everyone's for a
+     * holder of `document.view`. A personnel file is nobody else's business,
+     * so this scope is the whole guard the two tools below rely on.
+     *
+     * @return Builder<EmployeeDocument>
+     */
+    private function visibleDocuments(): Builder
+    {
+        $query = EmployeeDocument::query()->where('tenant_id', $this->tenantId());
+
+        if (! $this->can('document.view')) {
+            // No employee record means no documents of one's own, and a query
+            // that can never match is the honest answer.
+            $query->where('employee_id', $this->user->employee?->id ?? 0);
+        }
+
+        return $query;
+    }
+
+    private function daftarDokumenTool(): Tool
+    {
+        return (new Tool)
+            ->as('daftar_dokumen')
+            ->for('Daftar dokumen kepegawaian yang boleh dibaca pengguna ini (miliknya sendiri, atau seluruh perusahaan bila ia HR). Panggil ini bila pengguna bertanya "dokumen apa saja yang saya punya".')
+            ->withStringParameter('kata_kunci', 'Filter nama atau jenis dokumen. Kosongkan untuk semua.', false)
+            ->using(function (?string $kata_kunci = null): string {
+                $rows = $this->visibleDocuments()
+                    ->when($kata_kunci, fn ($query, string $term) => $query
+                        ->where(fn ($q) => $q
+                            ->where('name', 'like', "%{$term}%")
+                            ->orWhere('type', 'like', "%{$term}%")))
+                    ->orderByDesc('uploaded_at')
+                    ->take(20)
+                    ->get(['id', 'name', 'type', 'uploaded_at', 'content']);
+
+                if ($rows->isEmpty()) {
+                    return 'Tidak ada dokumen yang bisa Anda akses.';
+                }
+
+                return $rows->map(fn (EmployeeDocument $document): string => sprintf(
+                    '%s [jenis: %s, diunggah: %s]%s',
+                    $document->name,
+                    $document->type ?? 'Umum',
+                    $this->date($document->uploaded_at),
+                    blank($document->content) ? ' — isi belum terbaca sistem' : '',
+                ))->implode("\n");
+            });
+    }
+
+    private function bacaDokumenTool(): Tool
+    {
+        return (new Tool)
+            ->as('baca_dokumen')
+            ->for('Isi dokumen kepegawaian untuk diringkas atau dijawab pertanyaannya. WAJIB dipakai bila pengguna minta merangkum atau menanyakan isi sebuah dokumen, agar jawaban berasal dari berkasnya dan bukan karangan.')
+            ->withStringParameter('kata_kunci', 'Nama atau jenis dokumen yang dimaksud, contoh: "kontrak kerja", "ijazah".', true)
+            ->using(function (string $kata_kunci): string {
+                $rows = $this->visibleDocuments()
+                    ->where(fn ($q) => $q
+                        ->where('name', 'like', "%{$kata_kunci}%")
+                        ->orWhere('type', 'like', "%{$kata_kunci}%")
+                        ->orWhere('content', 'like', "%{$kata_kunci}%"))
+                    ->orderByDesc('uploaded_at')
+                    ->take(3)
+                    ->get();
+
+                if ($rows->isEmpty()) {
+                    return "Tidak ada dokumen yang cocok dengan '{$kata_kunci}' pada berkas yang boleh Anda baca. Jangan mengarang isinya.";
+                }
+
+                return $rows->map(function (EmployeeDocument $document): string {
+                    $body = trim((string) $document->content);
+
+                    // A scan carries no text at all. Saying so is the only
+                    // honest answer — the alternative is the model filling the
+                    // silence with something plausible.
+                    if ($body === '') {
+                        return sprintf(
+                            '%s [jenis: %s] — isi dokumen tidak terbaca sistem. '
+                            .'Kemungkinan berkas hasil scan/gambar, atau format selain PDF teks. '
+                            .'Sampaikan apa adanya dan sarankan mengunggah ulang versi PDF teks; JANGAN mengarang isinya.',
+                            $document->name,
+                            $document->type ?? 'Umum',
+                        );
+                    }
+
+                    return sprintf(
+                        "%s [jenis: %s, diunggah: %s]\n%s",
+                        $document->name,
+                        $document->type ?? 'Umum',
+                        $this->date($document->uploaded_at),
+                        mb_substr($body, 0, 4000),
+                    );
+                })->implode("\n\n---\n\n");
             });
     }
 

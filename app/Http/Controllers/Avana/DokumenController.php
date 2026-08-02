@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\User;
+use App\Support\PdfTextExtractor;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -71,6 +72,13 @@ class DokumenController extends Controller
         ]);
 
         $file = $request->file('file');
+        $realPath = $file->getRealPath();
+
+        // Read the text out before the upload moves, so the assistant has
+        // something to quote. A scan or an image yields nothing, which is
+        // recorded as an empty string rather than left unknown.
+        $content = $realPath !== false ? PdfTextExtractor::fromFile($realPath) : '';
+
         $path = $file->store("documents/{$tenantId}", 'public');
 
         EmployeeDocument::create([
@@ -80,6 +88,7 @@ class DokumenController extends Controller
             'type' => $data['type'] ?? null,
             'file_path' => $path,
             'file_size' => $file->getSize(),
+            'content' => $content,
             'uploaded_at' => now(),
         ]);
 
