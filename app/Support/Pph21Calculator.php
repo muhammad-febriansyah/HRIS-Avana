@@ -63,14 +63,19 @@ final class Pph21Calculator
     /**
      * Compute the month's PPh 21 for a subject.
      *
-     * @param  array{wage_basis?: string, daily_wage?: float|null}  $opts
+     * `effective_on` picks the TER table in force on that date — the payroll
+     * period's own date, so re-running an old month resolves the tariff that
+     * applied then rather than whatever was entered since.
+     *
+     * @param  array{wage_basis?: string, daily_wage?: float|null, effective_on?: string|null}  $opts
      * @param  callable(float): float  $progressive  Pasal 17 layered tax on a base amount
      * @return array{amount: float, method: string, subject: string, ptkp_status: ?string, ter_category: string, ter_rate: ?float, base: float, gross: float}
      */
     public static function compute(string $subject, ?string $ptkpStatus, float $monthlyGross, array $opts, callable $progressive): array
     {
         $gross = max(0.0, $monthlyGross);
-        $category = Pph21Ter::category($ptkpStatus);
+        $on = $opts['effective_on'] ?? null;
+        $category = Pph21Ter::category($ptkpStatus, $on);
         $subject = in_array($subject, self::SUBJECTS, true) ? $subject : 'pegawai_tetap';
 
         $method = 'ter_bulanan';
@@ -78,7 +83,7 @@ final class Pph21Calculator
         $base = $gross;
 
         if (in_array($subject, self::TER_MONTHLY, true)) {
-            $rate = Pph21Ter::monthlyRate($category, $gross);
+            $rate = Pph21Ter::monthlyRate($category, $gross, $on);
             $amount = round($gross * $rate);
         } elseif ($subject === 'bukan_pegawai') {
             $method = '50pct_pasal17';
@@ -98,7 +103,7 @@ final class Pph21Calculator
 
                 if ($daily <= self::DAILY_THRESHOLD) {
                     $method = 'ter_harian';
-                    $rate = Pph21Ter::dailyRate($daily);
+                    $rate = Pph21Ter::dailyRate($daily, $on);
                     $amount = round($gross * $rate);
                 } else {
                     $method = '50pct_pasal17';
@@ -106,7 +111,7 @@ final class Pph21Calculator
                     $amount = round($progressive($base));
                 }
             } else {
-                $rate = Pph21Ter::monthlyRate($category, $gross);
+                $rate = Pph21Ter::monthlyRate($category, $gross, $on);
                 $amount = round($gross * $rate);
             }
         }

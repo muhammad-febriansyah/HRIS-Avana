@@ -2,6 +2,13 @@
 
 namespace App\Support;
 
+use App\Models\Pph21TerCategory;
+use App\Models\Pph21TerRate;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Schema;
+use Throwable;
+
 /**
  * Monthly PPh 21 withholding using the Tarif Efektif Rata-rata (TER) scheme
  * mandated by PP 58/2023 & PMK 168/2023 (effective 1 January 2024).
@@ -17,15 +24,90 @@ namespace App\Support;
  *   - Kategori B: TK/2, TK/3, K/1, K/2
  *   - Kategori C: K/3
  *
- * Brackets below reproduce the PMK 168/2023 Lampiran (Tarif Efektif Bulanan).
- * Each row is [upper bound of monthly bruto (inclusive), effective rate]; the
- * final row uses PHP_INT_MAX for "and above". Every bracket in all three
- * categories AND the PTKP→category mapping have been validated end-to-end
- * against the client's official "Setup TER PPh21" workbook (PP 58/2023 &
- * PMK 168/2023 Lampiran) — the full range, including the top brackets, matches.
+ * **The rates are master data.** Both the brackets and the PTKP→category
+ * mapping are read from `pph21_ter_rates` / `pph21_ter_categories`, each row
+ * dated, so a new PMK is entered on the Tarif TER screen rather than shipped in
+ * a release — and a payroll run for an earlier month still resolves the table
+ * that was in force then. The constants below are the PP 58/2023 tables as
+ * enacted: they seed the master and stand in whenever no row covers a date, so
+ * a fresh install or an emptied table still withholds the statutory amount
+ * instead of nothing. They have been validated end-to-end against the client's
+ * official "Setup TER PPh21" workbook — the full range matches.
+ *
+ * Each bracket row is [upper bound of monthly bruto (inclusive), effective
+ * rate]; the final row uses PHP_INT_MAX for "and above".
  */
 final class Pph21Ter
 {
+    /**
+     * The categories the scheme recognises. A/B/C are the monthly (bulanan)
+     * tables; HARIAN is the daily one.
+     *
+     * @var array<string, string>
+     */
+    public const CATEGORIES = [
+        'A' => 'Kategori A — TK/0, TK/1, K/0',
+        'B' => 'Kategori B — TK/2, TK/3, K/1, K/2',
+        'C' => 'Kategori C — K/3',
+        'HARIAN' => 'TER Harian — pegawai tidak tetap harian',
+    ];
+
+    /**
+     * Resolved tables, memoised per (category, date) for the request. A payroll
+     * run asks once per employee and the master cannot change mid-run.
+     *
+     * @var array<string, list<array{0: int|float, 1: float}>>
+     */
+    private static array $bracketCache = [];
+
+    /**
+     * @var array<string, array<string, string>>
+     */
+    private static array $categoryMapCache = [];
+
+    /**
+     * Drop the memoised tables — after editing the master, and in tests.
+     */
+    public static function forget(): void
+    {
+        self::$bracketCache = [];
+        self::$categoryMapCache = [];
+    }
+
+    /**
+     * The PP 58/2023 monthly tables as enacted, keyed by category.
+     *
+     * @return array<string, list<array{0: int, 1: float}>>
+     */
+    public static function statutoryMonthly(): array
+    {
+        return ['A' => self::CATEGORY_A, 'B' => self::CATEGORY_B, 'C' => self::CATEGORY_C];
+    }
+
+    /**
+     * The PP 58/2023 daily table as enacted.
+     *
+     * @return list<array{0: int, 1: float}>
+     */
+    public static function statutoryDaily(): array
+    {
+        return self::DAILY;
+    }
+
+    /**
+     * The PMK 168/2023 PTKP→category mapping as enacted.
+     *
+     * @return array<string, string>
+     */
+    public static function statutoryCategoryMap(): array
+    {
+        return [
+            'TK/0' => 'A', 'TK/1' => 'A', 'K/0' => 'A',
+            'TK/2' => 'B', 'TK/3' => 'B', 'K/1' => 'B', 'K/2' => 'B',
+            'K/3' => 'C',
+        ];
+    }
+
     /**
      * TER Kategori A — PTKP TK/0 (54jt), TK/1 & K/0 (58,5jt). 42 brackets.
      *
@@ -96,13 +178,14 @@ final class Pph21Ter
     ];
 
     /**
-     * The effective daily TER rate for a single day's gross wage (≤ Rp2,5jt).
+     * The effective daily TER rate for a single day's gross wage (≤ Rp2,5jt),
+     * from the table in force on `$on` (today when omitted).
      */
-    public static function dailyRate(float $dailyGross): float
+    public static function dailyRate(float $dailyGross, string|CarbonInterface|null $on = null): float
     {
         $gross = max(0.0, $dailyGross);
 
-        foreach (self::DAILY as [$upTo, $rate]) {
+        foreach (self::bracketsFor('HARIAN', $on) as [$upTo, $rate]) {
             if ($gross <= $upTo) {
                 return $rate;
             }
@@ -120,30 +203,28 @@ final class Pph21Ter
     public const PTKP_STATUSES = ['TK/0', 'TK/1', 'TK/2', 'TK/3', 'K/0', 'K/1', 'K/2', 'K/3'];
 
     /**
-     * Resolve the TER category (A/B/C) for a PTKP status code such as "TK/0".
-     * Unknown or empty statuses default to A (the lowest-allowance category).
+     * Resolve the TER category (A/B/C) for a PTKP status code such as "TK/0",
+     * using the mapping in force on `$on`. Unknown or empty statuses default to
+     * A (the lowest-allowance category).
      */
-    public static function category(?string $ptkpStatus): string
+    public static function category(?string $ptkpStatus, string|CarbonInterface|null $on = null): string
     {
         $status = strtoupper(trim((string) $ptkpStatus));
         $status = str_replace([' ', '-'], '', $status);
 
-        return match ($status) {
-            'TK/2', 'TK/3', 'K/1', 'K/2' => 'B',
-            'K/3' => 'C',
-            default => 'A',
-        };
+        return self::categoryMap($on)[$status] ?? 'A';
     }
 
     /**
      * The effective monthly TER rate (as a decimal, e.g. 0.02 = 2%) for a gross
-     * monthly taxable income in the given category.
+     * monthly taxable income in the given category, from the table in force on
+     * `$on` (today when omitted).
      */
-    public static function monthlyRate(string $category, float $monthlyGross): float
+    public static function monthlyRate(string $category, float $monthlyGross, string|CarbonInterface|null $on = null): float
     {
         $gross = max(0.0, $monthlyGross);
 
-        foreach (self::bracketsFor($category) as [$upTo, $rate]) {
+        foreach (self::bracketsFor($category, $on) as [$upTo, $rate]) {
             if ($gross <= $upTo) {
                 return $rate;
             }
@@ -153,14 +234,131 @@ final class Pph21Ter
     }
 
     /**
+     * The bracket table for a category on a date: the master rows in force,
+     * falling back to the statutory table when the master says nothing.
+     *
+     * @return list<array{0: int|float, 1: float}>
+     */
+    public static function bracketsFor(string $category, string|CarbonInterface|null $on = null): array
+    {
+        $key = strtoupper($category);
+        $key = array_key_exists($key, self::CATEGORIES) ? $key : 'A';
+        $date = self::dateKey($on);
+
+        return self::$bracketCache[$key.'|'.$date] ??= self::loadBrackets($key, $date);
+    }
+
+    /**
+     * @return list<array{0: int|float, 1: float}>
+     */
+    private static function loadBrackets(string $category, string $date): array
+    {
+        if (! self::tableExists('pph21_ter_rates')) {
+            return self::statutoryFallback($category);
+        }
+
+        $effective = Pph21TerRate::query()->where('category', $category)->effectiveOn($date);
+
+        // Two sets can overlap if one is published without closing the other.
+        // The newest published table wins rather than the two interleaving into
+        // a tariff nobody wrote. The max is re-formatted because SQLite hands
+        // back "2027-07-01 00:00:00" where MySQL returns a bare date.
+        $latest = (clone $effective)->max('effective_start_date');
+        $latest = $latest !== null ? Carbon::parse($latest)->toDateString() : null;
+
+        $rows = $effective
+            ->when(
+                $latest !== null,
+                fn ($query) => $query->whereDate('effective_start_date', $latest),
+                fn ($query) => $query->whereNull('effective_start_date'),
+            )
+            ->orderByRaw('income_max IS NULL')
+            ->orderBy('income_max')
+            ->get(['income_max', 'rate']);
+
+        if ($rows->isEmpty()) {
+            return self::statutoryFallback($category);
+        }
+
+        return $rows
+            ->map(fn (Pph21TerRate $row): array => [
+                $row->income_max !== null ? (float) $row->income_max : PHP_INT_MAX,
+                (float) $row->rate,
+            ])
+            ->all();
+    }
+
+    /**
      * @return list<array{0: int, 1: float}>
      */
-    private static function bracketsFor(string $category): array
+    private static function statutoryFallback(string $category): array
     {
-        return match (strtoupper($category)) {
+        return match ($category) {
             'B' => self::CATEGORY_B,
             'C' => self::CATEGORY_C,
+            'HARIAN' => self::DAILY,
             default => self::CATEGORY_A,
         };
+    }
+
+    /**
+     * The PTKP→category mapping in force on a date, statutory when unset.
+     *
+     * @return array<string, string>
+     */
+    public static function categoryMap(string|CarbonInterface|null $on = null): array
+    {
+        $date = self::dateKey($on);
+
+        return self::$categoryMapCache[$date] ??= self::loadCategoryMap($date);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function loadCategoryMap(string $date): array
+    {
+        if (! self::tableExists('pph21_ter_categories')) {
+            return self::statutoryCategoryMap();
+        }
+
+        // Newest wins per status, so a status moved to another category is not
+        // read from the row it replaced.
+        $rows = Pph21TerCategory::query()
+            ->effectiveOn($date)
+            ->orderByRaw('effective_start_date IS NULL')
+            ->orderBy('effective_start_date')
+            ->orderBy('id')
+            ->get(['ptkp_status', 'category'])
+            ->pluck('category', 'ptkp_status')
+            ->all();
+
+        return $rows === [] ? self::statutoryCategoryMap() : $rows;
+    }
+
+    /**
+     * Normalise the "as of" argument to a Y-m-d string, defaulting to today.
+     */
+    private static function dateKey(string|CarbonInterface|null $on): string
+    {
+        if ($on instanceof CarbonInterface) {
+            return $on->toDateString();
+        }
+
+        return $on !== null && $on !== '' ? Carbon::parse($on)->toDateString() : Carbon::now()->toDateString();
+    }
+
+    /**
+     * Whether the master table is present. The support class is used by
+     * migrations and by early-boot code where the schema may not exist yet, so
+     * a missing table means "use the statutory numbers", never a crash.
+     */
+    private static function tableExists(string $table): bool
+    {
+        try {
+            return Schema::hasTable($table);
+        } catch (Throwable) {
+            return false;
+        }
     }
 }

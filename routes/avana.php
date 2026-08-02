@@ -84,6 +84,7 @@ use App\Http\Controllers\Avana\PayrollKomponenController;
 use App\Http\Controllers\Avana\PayrollUmrController;
 use App\Http\Controllers\Avana\PerformanceController;
 use App\Http\Controllers\Avana\PermissionRequestController;
+use App\Http\Controllers\Avana\Pph21TerController;
 use App\Http\Controllers\Avana\RecruitmentController;
 use App\Http\Controllers\Avana\RecruitmentRequisitionController;
 use App\Http\Controllers\Avana\ReimbursementController;
@@ -244,6 +245,14 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::get('payroll/umr', [PayrollUmrController::class, 'index'])->name('payroll.umr');
     Route::post('payroll/umr', [PayrollUmrController::class, 'store'])->name('payroll.umr.store');
     Route::delete('payroll/umr/{umr}', [PayrollUmrController::class, 'destroy'])->name('payroll.umr.destroy');
+
+    // Tarif TER PPh 21 (statutory withholding tariff as dated master data)
+    Route::get('payroll/ter', [Pph21TerController::class, 'index'])->name('payroll.ter');
+    Route::post('payroll/ter/import', [Pph21TerController::class, 'import'])->name('payroll.ter.import');
+    Route::post('payroll/ter/reset', [Pph21TerController::class, 'reset'])->name('payroll.ter.reset');
+    Route::put('payroll/ter/bracket/{rate}', [Pph21TerController::class, 'updateBracket'])->name('payroll.ter.bracket.update');
+    Route::delete('payroll/ter/bracket/{rate}', [Pph21TerController::class, 'destroyBracket'])->name('payroll.ter.bracket.destroy');
+    Route::post('payroll/ter/kategori', [Pph21TerController::class, 'updateCategoryMap'])->name('payroll.ter.kategori');
 
     // Setup Lembur (overtime basis, multiplier table and hour ceilings)
     Route::get('payroll/lembur', [OvertimeRuleController::class, 'index'])->name('payroll.lembur');

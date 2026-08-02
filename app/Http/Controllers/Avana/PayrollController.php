@@ -486,7 +486,7 @@ class PayrollController extends Controller
             // reason a payslip jumps a TER bracket — leaving it untaxed was a
             // shortfall the December reconciliation would have had to claw
             // back in one lump.
-            $tax = $this->computeThrPph21($employee, $tenantId, (float) $thr, (float) $pay['taxable_gross']);
+            $tax = $this->computeThrPph21($employee, $tenantId, (float) $thr, (float) $pay['taxable_gross'], $period);
 
             PayrollRunItem::updateOrCreate(
                 ['payroll_run_id' => $run->id, 'employee_id' => $employee->id],
@@ -1449,7 +1449,7 @@ class PayrollController extends Controller
         $pph21 = ($this->isFinalTaxMonth($employee, $period)
             && Pph21Calculator::needsAnnualReconciliation($this->taxSubjectOf($employee, $tenantId)))
             ? $this->computeAnnualPph21($employee, $tenantId, $period, $taxableGross, (float) ($bpjs['deductible_employee'] ?? 0.0))
-            : $this->computePph21($employee, $tenantId, $taxableGross);
+            : $this->computePph21($employee, $tenantId, $taxableGross, $period);
 
         if ($bpjs['employee'] > 0) {
             $deductions[] = ['name' => 'BPJS (Karyawan)', 'amount' => $bpjs['employee']];
@@ -2066,7 +2066,7 @@ class PayrollController extends Controller
      *
      * @return array{amount: float, snapshot: array<string, mixed>}
      */
-    private function computeThrPph21(Employee $employee, int $tenantId, float $thr, float $regularGross): array
+    private function computeThrPph21(Employee $employee, int $tenantId, float $thr, float $regularGross, ?PayrollPeriod $period = null): array
     {
         $profile = TaxProfile::where('tenant_id', $tenantId)
             ->where('employee_id', $employee->id)
@@ -2078,11 +2078,14 @@ class PayrollController extends Controller
             return ['amount' => 0.0, 'snapshot' => []];
         }
 
-        $category = Pph21Ter::category($profile?->ptkp_status);
+        // The TER table in force for the period the THR is paid in.
+        $on = ($period?->end_date ?? now())->toDateString();
+
+        $category = Pph21Ter::category($profile?->ptkp_status, $on);
         $combined = $regularGross + $thr;
 
-        $taxOnCombined = $combined * Pph21Ter::monthlyRate($category, $combined);
-        $taxOnRegular = $regularGross * Pph21Ter::monthlyRate($category, $regularGross);
+        $taxOnCombined = $combined * Pph21Ter::monthlyRate($category, $combined, $on);
+        $taxOnRegular = $regularGross * Pph21Ter::monthlyRate($category, $regularGross, $on);
 
         $amount = max(0.0, round($taxOnCombined - $taxOnRegular));
 
@@ -2096,20 +2099,23 @@ class PayrollController extends Controller
                 'regular_gross' => round($regularGross),
                 'thr' => round($thr),
                 'combined_gross' => round($combined),
-                'ter_rate_combined' => Pph21Ter::monthlyRate($category, $combined),
-                'ter_rate_regular' => Pph21Ter::monthlyRate($category, $regularGross),
+                'ter_rate_combined' => Pph21Ter::monthlyRate($category, $combined, $on),
+                'ter_rate_regular' => Pph21Ter::monthlyRate($category, $regularGross, $on),
                 'pph21_amount' => $amount,
             ],
         ];
     }
 
-    private function computePph21(Employee $employee, int $tenantId, float $gross): array
+    private function computePph21(Employee $employee, int $tenantId, float $gross, ?PayrollPeriod $period = null): array
     {
         $profile = TaxProfile::where('tenant_id', $tenantId)
             ->where('employee_id', $employee->id)
             ->first();
 
-        $year = (int) now()->year;
+        // The period's own date, so a re-run of an old month resolves the TER
+        // table and the PKP brackets that were in force then.
+        $on = $period?->end_date ?? now();
+        $year = (int) $on->year;
 
         $result = Pph21Calculator::compute(
             $profile?->tax_subject ?? 'pegawai_tetap',
@@ -2118,6 +2124,7 @@ class PayrollController extends Controller
             [
                 'wage_basis' => $profile?->wage_basis ?? 'monthly',
                 'daily_wage' => $profile?->daily_wage !== null ? (float) $profile->daily_wage : null,
+                'effective_on' => $on->toDateString(),
             ],
             fn (float $base): float => $this->progressiveTax($base, $tenantId, $year),
         );
