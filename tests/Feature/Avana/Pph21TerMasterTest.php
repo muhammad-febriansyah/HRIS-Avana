@@ -100,6 +100,40 @@ it('follows a PTKP status moved to another category on its own date', function (
     expect(Pph21Ter::category('K/0', '2027-01-01'))->toBe('C');
 });
 
+it('reproduces the worked example of the workbook calculator', function (): void {
+    // Sheet "Kalkulator": K/0 on Rp12.000.000 bruto resolves to Kategori A at
+    // 3,25%, withholding Rp390.000.
+    $category = Pph21Ter::category('K/0');
+    $rate = Pph21Ter::monthlyRate($category, 12_000_000);
+
+    expect($category)->toBe('A');
+    expect($rate)->toBe(0.0325);
+    expect(round(12_000_000 * $rate))->toBe(390_000.0);
+});
+
+it('ships the calculator its own lookup tables', function (): void {
+    // The screen resolves category and rate in the browser, so the brackets
+    // and the PTKP mapping both have to reach it.
+    actingAs($this->hrAdmin)
+        ->get(route('avana.payroll.ter'))
+        ->assertOk()
+        ->assertInertia(function (Assert $page): void {
+            $props = $page->toArray()['props'];
+            $categoryA = collect($props['categories'])->firstWhere('code', 'A');
+            $mapped = collect($props['categoryMap'])->firstWhere('ptkp_status', 'K/0');
+
+            expect($mapped['category'])->toBe('A');
+            expect($categoryA['brackets'])->toHaveCount(42);
+
+            // The same lookup the page does: first band whose ceiling clears
+            // the gross.
+            $band = collect($categoryA['brackets'])
+                ->first(fn (array $b): bool => $b['income_max'] === null || $b['income_max'] >= 12_000_000);
+
+            expect($band['rate'])->toBe(0.0325);
+        });
+});
+
 it('renders the Tarif TER screen for someone who can see payroll', function (): void {
     actingAs($this->hrAdmin)
         ->get(route('avana.payroll.ter'))

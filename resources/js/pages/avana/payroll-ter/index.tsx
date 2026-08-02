@@ -100,6 +100,11 @@ export default function PayrollTer({
     categoryOptions,
 }: Props) {
     const [active, setActive] = useState(categories[0]?.code ?? 'A');
+    // "Kalkulator PPh21 Bulanan (TER)" from the workbook: pick a PTKP status
+    // and a monthly gross, and the category, rate and withholding follow.
+    const [calcName, setCalcName] = useState('');
+    const [calcPtkp, setCalcPtkp] = useState(ptkpStatuses[0] ?? 'TK/0');
+    const [calcGross, setCalcGross] = useState('');
     const fileRef = useRef<HTMLInputElement>(null);
 
     const importForm = useForm<{
@@ -119,6 +124,19 @@ export default function PayrollTer({
     });
 
     const table = categories.find((c) => c.code === active);
+
+    // INDEX/MATCH over Kategori_PTKP, then over the bracket table — the same
+    // two lookups the workbook does.
+    const calcCategory =
+        categoryMap.find((row) => row.ptkp_status === calcPtkp)?.category ?? 'A';
+    const calcGrossValue = Number(calcGross.replace(/[^\d]/g, '')) || 0;
+    const calcRate =
+        categories
+            .find((c) => c.code === calcCategory)
+            ?.brackets.find(
+                (b) => b.income_max === null || calcGrossValue <= b.income_max,
+            )?.rate ?? 0;
+    const calcTax = Math.round(calcGrossValue * calcRate);
 
     const viewAt = (date: string) =>
         router.get(
@@ -607,6 +625,166 @@ export default function PayrollTer({
                                         <td style={td}>{row.category}</td>
                                         <td style={{ ...td, color: C.muted }}>
                                             {row.effective_from ?? 'bawaan'}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* Kalkulator PPh21 Bulanan (TER) — sheet "Kalkulator" */}
+                <div style={{ ...card, padding: 18, marginTop: 18 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: C.navy, marginBottom: 4 }}>
+                        Kalkulator PPh 21 Bulanan (TER)
+                    </div>
+                    <div style={{ fontSize: 12.5, color: C.faint, marginBottom: 14 }}>
+                        Isi status PTKP dan penghasilan bruto bulanan — kategori, tarif dan PPh 21
+                        terhitung otomatis dari tabel yang berlaku pada {asOf}.
+                    </div>
+
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1.4fr 1fr 1.2fr',
+                            gap: 12,
+                            marginBottom: 16,
+                        }}
+                    >
+                        <div>
+                            <span style={label}>Nama karyawan (opsional)</span>
+                            <input
+                                style={input}
+                                placeholder="mis. Andi Wijaya"
+                                value={calcName}
+                                onChange={(e) => setCalcName(e.target.value)}
+                            />
+                        </div>
+                        <div>
+                            <span style={label}>Status PTKP</span>
+                            <select
+                                style={input}
+                                value={calcPtkp}
+                                onChange={(e) => setCalcPtkp(e.target.value)}
+                            >
+                                {ptkpStatuses.map((status) => (
+                                    <option key={status} value={status}>
+                                        {status}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <span style={label}>Penghasilan bruto bulanan (Rp)</span>
+                            <input
+                                style={input}
+                                inputMode="numeric"
+                                placeholder="12.000.000"
+                                value={calcGross}
+                                onChange={(e) => setCalcGross(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(3, 1fr)',
+                            gap: 12,
+                        }}
+                    >
+                        {[
+                            ['Kategori TER (otomatis)', calcCategory],
+                            ['Tarif TER (otomatis)', percent(calcRate)],
+                            ['PPh 21 bulan berjalan', rupiah(calcTax)],
+                        ].map(([caption, value], i) => (
+                            <div
+                                key={i}
+                                style={{
+                                    padding: '14px 16px',
+                                    borderRadius: 8,
+                                    background: i === 2 ? 'rgba(47,84,201,.07)' : C.surface,
+                                }}
+                            >
+                                <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 5 }}>
+                                    {caption}
+                                </div>
+                                <div
+                                    style={{
+                                        fontSize: 18,
+                                        fontWeight: 600,
+                                        color: i === 2 ? C.primary : C.navy,
+                                    }}
+                                >
+                                    {value}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div
+                        style={{
+                            marginTop: 14,
+                            padding: '11px 14px',
+                            borderRadius: 8,
+                            background: '#FFFBEB',
+                            border: `1px solid ${C.amber}33`,
+                            fontSize: 12.5,
+                            color: C.amber,
+                            fontWeight: 500,
+                            lineHeight: 1.55,
+                        }}
+                    >
+                        Berlaku untuk masa pajak Januari–November. Desember / masa pajak terakhir
+                        memakai tarif progresif Pasal 17 UU HPP (rekonsiliasi tahunan), yang
+                        dijalankan otomatis oleh Payroll Run pada masa pajak terakhir.
+                    </div>
+                </div>
+
+                {/* Sumber & Disclaimer — sheet "Sumber" */}
+                <div style={{ ...card, padding: 18, marginTop: 18 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: C.navy, marginBottom: 14 }}>
+                        Sumber &amp; Disclaimer
+                    </div>
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <tbody>
+                                {[
+                                    [
+                                        'Dasar hukum',
+                                        'PP No. 58 Tahun 2023 & PMK No. 168/PMK.03/2023 (berlaku sejak 1 Januari 2024).',
+                                    ],
+                                    [
+                                        'Cakupan',
+                                        'TER Bulanan (masa pajak Januari–November) untuk pegawai tetap. Desember memakai tarif progresif Pasal 17.',
+                                    ],
+                                    [
+                                        'Kompilasi angka',
+                                        'Direkonstruksi dari referensi publik, bukan diketik langsung dari lampiran resmi PP 58/2023.',
+                                    ],
+                                    [
+                                        'Wajib divalidasi',
+                                        'Sebelum dipakai di payroll produksi, cocokkan seluruh baris Kategori A/B/C dengan Lampiran PP 58/2023 asli atau kalkulator.pajak.go.id.',
+                                    ],
+                                    [
+                                        'Update',
+                                        'Cek berkala ke situs resmi Direktorat Jenderal Pajak (pajak.go.id) untuk perubahan aturan, lalu terbitkan versi baru di layar ini.',
+                                    ],
+                                ].map(([caption, body], i) => (
+                                    <tr key={i}>
+                                        <td
+                                            style={{
+                                                ...td,
+                                                width: 180,
+                                                fontWeight: 600,
+                                                color: C.navy,
+                                                verticalAlign: 'top',
+                                            }}
+                                        >
+                                            {caption}
+                                        </td>
+                                        <td style={{ ...td, color: C.muted, lineHeight: 1.55 }}>
+                                            {body}
                                         </td>
                                     </tr>
                                 ))}
