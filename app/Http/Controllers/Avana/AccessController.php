@@ -79,13 +79,63 @@ class AccessController extends Controller
      */
     private function matrixRows(?int $tenantId): array
     {
-        return collect(AvanaNav::menuRows($tenantId))
+        $rows = collect(AvanaNav::menuRows($tenantId))
             ->map(fn (array $row): array => [
                 ...$row,
                 'permissionModules' => array_values(array_filter(
                     $row['modules'],
                     fn (string $module): bool => $module !== 'own',
                 )),
+            ])
+            ->values();
+
+        return $rows->concat($this->catalogOnlyRows($rows))->values()->all();
+    }
+
+    /**
+     * Rows for catalogue features no menu covers yet.
+     *
+     * A feature added from Katalog Fitur creates its permissions immediately,
+     * but its menu leaf is written by hand later. Between the two there was
+     * nowhere to grant it: the screen listed menus, and this feature had none,
+     * so the permissions existed and no role could be given them.
+     *
+     * Normally empty — every shipped feature owns a menu — so this appends
+     * nothing until somebody adds a feature the sidebar has not caught up with.
+     *
+     * @param  Collection<int, array<string, mixed>>  $menuRows
+     * @return array<int, array<string, mixed>>
+     */
+    private function catalogOnlyRows(Collection $menuRows): array
+    {
+        $covered = $menuRows->pluck('permissionModules')->flatten()->unique();
+
+        return Feature::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get()
+            ->map(function (Feature $feature): array {
+                return [
+                    'feature' => $feature,
+                    'modules' => array_values(array_filter(
+                        $feature->permission_modules ?? [],
+                        fn (string $module): bool => $module !== 'own',
+                    )),
+                ];
+            })
+            ->filter(fn (array $row): bool => $row['modules'] !== []
+                && $covered->intersect($row['modules'])->isEmpty())
+            ->map(fn (array $row): array => [
+                'key' => $row['feature']->code,
+                'label' => $row['feature']->name,
+                'group' => 'BELUM ADA MENU',
+                'parent' => null,
+                'href' => null,
+                'feature' => $row['feature']->code,
+                'modules' => $row['modules'],
+                'permissionModules' => $row['modules'],
+                'isActive' => true,
+                'menuItemId' => null,
             ])
             ->values()
             ->all();
