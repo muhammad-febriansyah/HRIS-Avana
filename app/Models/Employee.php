@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 final class Employee extends Model
 {
@@ -33,6 +34,23 @@ final class Employee extends Model
     public const UNASSIGNED_MANAGER = 'unassigned';
 
     protected $guarded = [];
+
+    /**
+     * Employees are addressed in the URL by an opaque key, never by the
+     * auto-incrementing primary key: a sequential id in a link tells anyone
+     * how many employees exist and invites walking the range.
+     */
+    public function getRouteKeyName(): string
+    {
+        return 'public_id';
+    }
+
+    protected static function booted(): void
+    {
+        self::creating(function (self $employee): void {
+            $employee->public_id ??= (string) Str::ulid();
+        });
+    }
 
     protected function casts(): array
     {

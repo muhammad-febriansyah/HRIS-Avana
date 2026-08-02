@@ -22,6 +22,7 @@ it('renders the org chart with hierarchy nodes', function (): void {
             ->component('avana/employees/org-chart')
             ->has('nodes.0', fn (AssertableInertia $node) => $node
                 ->has('id')
+                ->has('route_key')
                 ->has('name')
                 ->has('employee_number')
                 ->has('email')

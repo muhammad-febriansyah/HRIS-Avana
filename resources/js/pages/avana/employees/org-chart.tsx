@@ -15,6 +15,8 @@ import { AIcon, C } from '@/lib/avana';
 import { NO_MANAGER, UNASSIGNED_MANAGER } from './types';
 
 interface OrgNode {
+    /** Opaque key used in URLs; never the primary key. */
+    route_key: string;
     id: number;
     name: string;
     employee_number: string;
@@ -1037,7 +1039,7 @@ export default function OrgChart({
                             {canOpenProfile && (
                                 <SheetFooter className="border-t">
                                     <Link
-                                        href={`/avana/employees/${selected.id}`}
+                                        href={`/avana/employees/${selected.route_key}`}
                                         style={{
                                             display: 'flex',
                                             alignItems: 'center',

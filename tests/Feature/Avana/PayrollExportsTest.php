@@ -74,7 +74,8 @@ it('exports the BPJS contribution report', function (): void {
 it('generates an annual 1721-A1 tax slip PDF', function (): void {
     $year = $this->period->start_date->year;
 
-    $response = actingAs($this->admin)->get("spec-export/payroll/1721/{$this->employee->id}?year={$year}");
+    // Employees are addressed by their opaque route key, not the id.
+    $response = actingAs($this->admin)->get("spec-export/payroll/1721/{$this->employee->getRouteKey()}?year={$year}");
 
     $response->assertOk();
     $response->assertHeader('content-type', 'application/pdf');

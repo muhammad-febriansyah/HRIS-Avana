@@ -227,7 +227,7 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                                 Bukti Potong 1721-A1
                             </a>
                             <Link
-                                href={EmployeeController.edit(emp.id)}
+                                href={EmployeeController.edit(emp.route_key)}
                                 style={{ ...btnP, textDecoration: 'none' }}
                             >
                                 <AIcon name="pencil" size={16} />

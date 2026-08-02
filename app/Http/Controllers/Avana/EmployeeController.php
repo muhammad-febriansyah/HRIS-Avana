@@ -48,7 +48,7 @@ class EmployeeController extends Controller
      * @var array<int, string>
      */
     private const LIST_COLUMNS = [
-        'id', 'tenant_id', 'user_id', 'branch_id', 'department_id', 'position_id',
+        'id', 'public_id', 'tenant_id', 'user_id', 'branch_id', 'department_id', 'position_id',
         'job_level_id', 'manager_id', 'employee_number', 'full_name', 'email',
         'phone', 'nik', 'gender', 'employment_status', 'join_date', 'status', 'photo_path', 'created_at',
     ];
@@ -448,6 +448,7 @@ class EmployeeController extends Controller
         return Inertia::render('avana/employees/org-chart', [
             'nodes' => $employees->map(fn (Employee $employee): array => [
                 'id' => $employee->id,
+                'route_key' => $employee->public_id,
                 'name' => $employee->full_name,
                 'employee_number' => $employee->employee_number,
                 'email' => $employee->email,

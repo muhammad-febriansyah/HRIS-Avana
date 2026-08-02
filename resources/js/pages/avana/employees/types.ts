@@ -94,6 +94,8 @@ export type Employee = {
     } | null;
     initials: string;
     avatar_color: string;
+    /** Opaque key used in URLs; never the primary key. */
+    route_key: string;
     photo_url: string | null;
     branch?: NamedRef | null;
     department?: NamedRef | null;

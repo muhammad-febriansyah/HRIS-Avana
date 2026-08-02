@@ -217,7 +217,7 @@ export default function EmployeesIndex({
             return;
         }
 
-        router.delete(EmployeeController.destroy(confirm.id).url, {
+        router.delete(EmployeeController.destroy(confirm.route_key).url, {
             preserveScroll: true,
             onSuccess: () => setConfirm(null),
         });
@@ -233,7 +233,7 @@ export default function EmployeesIndex({
         }
 
         router.post(
-            EmployeeController.resetDevice(resetTarget.id).url,
+            EmployeeController.resetDevice(resetTarget.route_key).url,
             {},
             {
                 preserveScroll: true,
@@ -744,7 +744,7 @@ export default function EmployeesIndex({
                                                         onClick={() =>
                                                             router.visit(
                                                                 EmployeeController.show(
-                                                                    e.id,
+                                                                    e.route_key,
                                                                 ).url,
                                                             )
                                                         }
@@ -756,7 +756,7 @@ export default function EmployeesIndex({
                                                         onClick={() =>
                                                             router.visit(
                                                                 EmployeeController.edit(
-                                                                    e.id,
+                                                                    e.route_key,
                                                                 ).url,
                                                             )
                                                         }
@@ -793,7 +793,7 @@ export default function EmployeesIndex({
                                                             onClick={() =>
                                                                 router.post(
                                                                     EmployeeController.toggleAccount(
-                                                                        e.id,
+                                                                        e.route_key,
                                                                     ).url,
                                                                     {},
                                                                     {

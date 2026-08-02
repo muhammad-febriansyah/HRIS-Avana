@@ -81,6 +81,9 @@ final class EmployeeResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            // What every link to this employee uses; the primary key stays out
+            // of the URL so it cannot be counted through.
+            'route_key' => $this->public_id,
             'employee_number' => $this->employee_number,
             'full_name' => $this->full_name,
             'email' => $this->email,

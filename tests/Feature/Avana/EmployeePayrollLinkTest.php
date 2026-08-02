@@ -194,3 +194,48 @@ it('requires the dates once a contract number is given', function (): void {
         ]))
         ->assertSessionHasErrors(['contract_type', 'contract_start_date']);
 });
+
+it('addresses an employee by an opaque key, not a countable id', function (): void {
+    $employee = $this->employee->fresh();
+
+    expect($employee->public_id)->toHaveLength(26);
+    expect($employee->getRouteKey())->toBe($employee->public_id);
+    expect(route('avana.employees.show', $employee))->toEndWith('/avana/employees/'.$employee->public_id);
+});
+
+it('no longer answers to the numeric id', function (): void {
+    actingAs($this->admin)
+        ->get('/avana/employees/'.$this->employee->id)
+        ->assertNotFound();
+});
+
+it('gives every newly created employee its own key', function (): void {
+    $created = Employee::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_number' => 'EMP-KEY-1',
+        'full_name' => 'Karyawan Baru',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+    ]);
+
+    expect($created->public_id)->not->toBeNull();
+    expect($created->public_id)->not->toBe($this->employee->public_id);
+});
+
+it('still refuses an employee from another tenant, key or no key', function (): void {
+    $other = Tenant::create(['name' => 'PT Lain', 'slug' => 'pt-lain-key', 'status' => 'active']);
+    $foreign = Employee::create([
+        'tenant_id' => $other->id,
+        'employee_number' => 'EMP-ASING',
+        'full_name' => 'Karyawan Asing',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+    ]);
+
+    // The opaque key is not the protection — the tenant check is, and it holds.
+    // Not found rather than forbidden, so the answer does not confirm the
+    // record exists somewhere else.
+    actingAs($this->admin)
+        ->get(route('avana.employees.show', $foreign))
+        ->assertNotFound();
+});

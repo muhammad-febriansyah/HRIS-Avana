@@ -36,12 +36,13 @@ class SearchController extends Controller
             })
             ->with('position:id,name')
             ->limit(6)
-            ->get(['id', 'full_name', 'employee_number', 'position_id'])
+            // public_id is the route key, so the link cannot be built without it.
+            ->get(['id', 'public_id', 'full_name', 'employee_number', 'position_id'])
             ->map(fn (Employee $employee): array => [
                 'id' => $employee->id,
                 'label' => $employee->full_name,
                 'sub' => $employee->position?->name ?? $employee->employee_number,
-                'href' => route('avana.employees.show', $employee->id),
+                'href' => route('avana.employees.show', $employee),
             ])
             ->all();
 

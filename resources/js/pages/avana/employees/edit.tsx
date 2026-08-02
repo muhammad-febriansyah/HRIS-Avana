@@ -88,7 +88,7 @@ export default function EmployeesEdit({
 
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        form.submit(EmployeeController.update(data.id));
+        form.submit(EmployeeController.update(data.route_key));
     };
 
     return (
@@ -117,7 +117,7 @@ export default function EmployeesEdit({
                     </Link>
                     <AIcon name="chevron-right" size={13} />
                     <Link
-                        href={EmployeeController.show(data.id)}
+                        href={EmployeeController.show(data.route_key)}
                         style={{
                             color: C.faint,
                             textDecoration: 'none',
