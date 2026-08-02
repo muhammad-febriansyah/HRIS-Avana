@@ -40,9 +40,10 @@ beforeEach(function (): void {
 function overtimeBasisComponent(Employee $employee, string $code, float $amount, bool $isBasis): PayrollComponent
 {
     $component = PayrollComponent::forTenant($employee->tenant_id)->where('code', $code)->firstOrFail();
-    $component->update(['calc_basis' => null, 'basis_type' => null]);
+    // "Tetap" lives on the component now, marked from the Setup Lembur screen.
+    $component->update(['calc_basis' => null, 'basis_type' => null, 'is_fixed' => $isBasis]);
 
-    giveMasterComponent($employee, $component, $amount, ['is_overtime_base' => $isBasis]);
+    giveMasterComponent($employee, $component, $amount);
 
     EmployeeSalaryComponent::where('employee_id', $employee->id)
         ->where('payroll_component_id', $component->id)
@@ -106,7 +107,7 @@ it('builds the overtime basis from every component marked as overtime basis', fu
     expect(overtimeLine($item))->toBe(round(12_350_000 / 173 * 5.5));
 });
 
-it('pays the basic wage alone when no component is marked as overtime basis', function (): void {
+it('pays the basic wage alone when no allowance is marked as Tetap', function (): void {
     overtimeBasisComponent($this->employee, 'BASIC', 10_000_000, false);
     overtimeBasisComponent($this->employee, 'TJ-JAB', 1_500_000, false);
     overtimeBasisComponent($this->employee, 'TJ-TRP', 0, false);

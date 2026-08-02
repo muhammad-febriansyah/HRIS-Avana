@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
+use App\Models\Employee;
+use App\Models\EmployeeSalaryComponent;
+use App\Models\OvertimePolicy;
 use App\Models\OvertimeRate;
 use App\Models\PayrollComponent;
-use App\Models\SalaryMaster;
 use App\Models\SalaryMasterComponent;
 use App\Models\User;
 use App\Support\OvertimeRules;
+use App\Support\SalaryCompliance;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -51,6 +54,9 @@ class OvertimeRuleController extends Controller
                 'enforce_hour_limits' => (bool) $policy->enforce_hour_limits,
             ],
             'rates' => OvertimeRate::forTenant($tenantId)
+                // Workday first, as the design tabulates it — alphabetical
+                // order would put "holiday" above it.
+                ->orderByRaw("day_type = 'workday' DESC")
                 ->orderBy('day_type')
                 ->orderBy('hour_from')
                 ->get()
@@ -63,7 +69,8 @@ class OvertimeRuleController extends Controller
                     'multiplier' => (float) $rate->multiplier,
                 ])->values(),
             'dayTypes' => OvertimeRules::dayTypeOptions(),
-            'basis' => $this->basisPerMaster($tenantId),
+            'basis' => $this->basisComponents($tenantId),
+            'example' => $this->workedExample($tenantId, $policy),
         ]);
     }
 
@@ -162,38 +169,135 @@ class OvertimeRuleController extends Controller
     }
 
     /**
-     * What each Master Gaji currently counts as the overtime basis, so the rule
-     * screen shows the basis alongside the multipliers rather than sending the
-     * reader to another page to find out.
-     *
-     * @return list<array{id: int, code: string, category: string|null, components: list<string>, total: float}>
+     * Tick or untick a component as a fixed allowance — the "Tetap" mark the
+     * overtime basis is summed from.
      */
-    private function basisPerMaster(int $tenantId): array
+    public function setBasisComponent(Request $request, PayrollComponent $component): RedirectResponse
     {
-        $components = PayrollComponent::forTenant($tenantId)->get(['id', 'name'])->keyBy('id');
+        $this->ensureCan($request, 'update');
+        abort_if((int) $component->tenant_id !== (int) $request->user()->tenant_id, 404);
 
-        return SalaryMaster::forTenant($tenantId)
-            ->orderBy('code')
-            ->get(['id', 'code', 'category'])
-            ->map(function (SalaryMaster $master) use ($components): array {
-                $rows = SalaryMasterComponent::query()
-                    ->where('salary_master_id', $master->id)
-                    ->where('is_overtime_base', true)
-                    ->get(['payroll_component_id', 'amount']);
+        $data = $request->validate(['is_fixed' => ['required', 'boolean']]);
 
-                return [
-                    'id' => $master->id,
-                    'code' => $master->code,
-                    'category' => $master->category,
-                    'components' => $rows
-                        ->map(fn ($row): string => (string) ($components[$row->payroll_component_id]->name ?? '—'))
-                        ->values()
-                        ->all(),
-                    'total' => (float) $rows->sum('amount'),
-                ];
-            })
+        // Gaji Pokok always counts; PP 35/2021 gives no way to leave it out.
+        if ($component->code === 'BASIC' && ! $data['is_fixed']) {
+            throw ValidationException::withMessages([
+                'is_fixed' => 'Gaji Pokok selalu ikut basis lembur dan tidak bisa dilepas.',
+            ]);
+        }
+
+        $component->update(['is_fixed' => $data['is_fixed']]);
+
+        return back()->with('success', $data['is_fixed']
+            ? $component->name.' ditandai Tetap'
+            : $component->name.' dilepas dari basis lembur');
+    }
+
+    /**
+     * The basis checklist: every earning that could form the overtime rate,
+     * with the ones marked "Tetap" ticked. Gaji Pokok is pinned — PP 35/2021
+     * builds the rate from it plus the fixed allowances, so it can never be
+     * unticked.
+     *
+     * @return list<array{id: int, code: string|null, name: string, is_fixed: bool, locked: bool, variable: bool}>
+     */
+    private function basisComponents(int $tenantId): array
+    {
+        return PayrollComponent::forTenant($tenantId)
+            ->where(fn ($query) => $query->whereNull('status')->orWhere('status', 'active'))
+            ->where(fn ($query) => $query->whereNull('type')->orWhere('type', '!=', 'deduction'))
+            ->where(fn ($query) => $query->whereNull('component_group')->orWhere('component_group', '!=', 'potongan'))
+            ->where('code', '!=', 'LEMBUR')
+            ->orderByRaw("code = 'BASIC' DESC")
+            ->orderBy('name')
+            ->get(['id', 'code', 'name', 'calc_basis', 'is_fixed'])
+            ->map(fn (PayrollComponent $component): array => [
+                'id' => $component->id,
+                'code' => $component->code,
+                'name' => $component->name,
+                'is_fixed' => $component->code === 'BASIC' || (bool) $component->is_fixed,
+                'locked' => $component->code === 'BASIC',
+                // Paid per present day or per overtime hour, so it is not a
+                // fixed allowance however it is ticked.
+                'variable' => in_array($component->calc_basis, ['per_present_day', 'per_overtime_hour'], true),
+            ])
             ->values()
             ->all();
+    }
+
+    /**
+     * The worked example the design puts under the multiplier table, computed
+     * from a real employee rather than typed in — so what the screen promises
+     * and what a payslip pays are the same number by construction.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function workedExample(int $tenantId, OvertimePolicy $policy): ?array
+    {
+        $employee = Employee::forTenant($tenantId)
+            ->where('status', 'active')
+            ->orderBy('employee_number')
+            ->first();
+
+        if ($employee === null) {
+            return null;
+        }
+
+        $wage = SalaryCompliance::monthlyWage($employee, $tenantId);
+        $fixed = $this->fixedWageOf($employee, $tenantId);
+        $resolved = OvertimeRules::basisFor($fixed, $wage['total'], (float) $policy->fixed_basis_min_ratio);
+
+        $divisor = max(1, (int) $policy->hours_divisor);
+        $hourly = $resolved['basis'] / $divisor;
+        $rates = OvertimeRules::ratesFor($tenantId);
+
+        $firstHour = $hourly * OvertimeRules::multiplierFor($rates, 'workday', 1.0);
+        $threeHours = $hourly * OvertimeRules::multiplierFor($rates, 'workday', 3.0);
+
+        return [
+            'employee' => $employee->full_name,
+            'basis' => round($resolved['basis']),
+            'basis_floored' => $resolved['floored'],
+            'divisor' => $divisor,
+            'hourly' => round($hourly),
+            'first_hour' => round($firstHour),
+            'later_hours' => round($threeHours - $firstHour),
+            'total' => round($threeHours),
+        ];
+    }
+
+    /**
+     * An employee's monthly earnings from the components marked "Tetap".
+     */
+    private function fixedWageOf(Employee $employee, int $tenantId): float
+    {
+        $fixedIds = PayrollComponent::forTenant($tenantId)
+            ->where('is_fixed', true)
+            ->pluck('id')
+            ->all();
+
+        $total = (float) EmployeeSalaryComponent::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->effectiveOn()
+            ->whereIn('payroll_component_id', $fixedIds)
+            ->sum('amount');
+
+        $handled = EmployeeSalaryComponent::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->effectiveOn()
+            ->pluck('payroll_component_id')
+            ->all();
+
+        if ($employee->salary_master_id !== null) {
+            $total += (float) SalaryMasterComponent::query()
+                ->where('salary_master_id', $employee->salary_master_id)
+                ->where('included', true)
+                ->whereIn('payroll_component_id', $fixedIds)
+                ->whereNotIn('payroll_component_id', $handled)
+                ->sum('amount');
+        }
+
+        return $total;
     }
 
     private function ensureCan(Request $request, string $action): void

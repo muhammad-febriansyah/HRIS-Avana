@@ -260,6 +260,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('payroll/lembur/rate', [OvertimeRuleController::class, 'storeRate'])->name('payroll.lembur.rate.store');
     Route::delete('payroll/lembur/rate/{rate}', [OvertimeRuleController::class, 'destroyRate'])->name('payroll.lembur.rate.destroy');
     Route::post('payroll/lembur/reset', [OvertimeRuleController::class, 'resetRates'])->name('payroll.lembur.reset');
+    Route::post('payroll/lembur/basis/{component}', [OvertimeRuleController::class, 'setBasisComponent'])->name('payroll.lembur.basis');
 
     // Mapping Payday (pay date + attendance cut-off per employee group)
     Route::get('payroll/payday', [PaydayController::class, 'index'])->name('payroll.payday');

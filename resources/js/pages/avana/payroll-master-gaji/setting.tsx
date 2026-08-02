@@ -847,12 +847,8 @@ export default function MasterGajiSetting({
                     flag="is_prorate"
                     masterId={master.id}
                 />
-                <ChecklistSection
-                    title="KOMPONEN OVERTIME"
-                    components={components}
-                    flag="is_overtime_base"
-                    masterId={master.id}
-                />
+                {/* Komponen basis lembur ditandai "Tetap" di Setup Lembur —
+                    satu daftar untuk seluruh tenant, sesuai desain setup. */}
                 <ChecklistSection
                     title="KOMPONEN KOMPENSASI"
                     components={components}

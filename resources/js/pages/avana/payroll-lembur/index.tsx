@@ -12,11 +12,25 @@ interface Rate {
     multiplier: number;
 }
 
-interface Basis {
+interface BasisComponent {
     id: number;
-    code: string;
-    category: string | null;
-    components: string[];
+    code: string | null;
+    name: string;
+    is_fixed: boolean;
+    /** Gaji Pokok — always part of the basis, cannot be unticked. */
+    locked: boolean;
+    /** Paid per present day or per overtime hour, so never a fixed allowance. */
+    variable: boolean;
+}
+
+interface WorkedExample {
+    employee: string;
+    basis: number;
+    basis_floored: boolean;
+    divisor: number;
+    hourly: number;
+    first_hour: number;
+    later_hours: number;
     total: number;
 }
 
@@ -30,7 +44,8 @@ interface Props {
     };
     rates: Rate[];
     dayTypes: { value: string; label: string }[];
-    basis: Basis[];
+    basis: BasisComponent[];
+    example: WorkedExample | null;
 }
 
 const input: React.CSSProperties = {
@@ -45,10 +60,12 @@ const input: React.CSSProperties = {
 };
 const th: React.CSSProperties = {
     textAlign: 'left',
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: 600,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
     color: C.muted,
-    padding: '12px 14px',
+    padding: '11px 14px',
     borderBottom: `1px solid ${C.line}`,
 };
 const td: React.CSSProperties = {
@@ -79,14 +96,22 @@ const label: React.CSSProperties = {
     display: 'block',
 };
 const sectionTitle: React.CSSProperties = {
-    fontSize: 14,
-    fontWeight: 600,
+    fontSize: 12.5,
+    fontWeight: 700,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
     color: C.navy,
-    marginBottom: 4,
+    marginBottom: 6,
 };
-const hint: React.CSSProperties = { fontSize: 12.5, color: C.faint, marginBottom: 14 };
+const hint: React.CSSProperties = {
+    fontSize: 12.5,
+    color: C.muted,
+    marginBottom: 16,
+    lineHeight: 1.55,
+};
 
 const rupiah = (n: number) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
+const times = (n: number) => n.toLocaleString('id-ID') + '×';
 const bandLabel = (r: Rate) =>
     r.hour_to === null
         ? `Jam ke-${r.hour_from} dst.`
@@ -94,7 +119,13 @@ const bandLabel = (r: Rate) =>
           ? `Jam ke-${r.hour_from}`
           : `Jam ke-${r.hour_from} s.d. ke-${r.hour_to}`;
 
-export default function PayrollLembur({ policy, rates, dayTypes, basis }: Props) {
+export default function PayrollLembur({
+    policy,
+    rates,
+    dayTypes,
+    basis,
+    example,
+}: Props) {
     const policyForm = useForm({
         max_hours_per_day: String(policy.max_hours_per_day),
         max_hours_per_week: String(policy.max_hours_per_week),
@@ -109,6 +140,35 @@ export default function PayrollLembur({ policy, rates, dayTypes, basis }: Props)
         hour_to: '',
         multiplier: '1.5',
     });
+
+    const ratio = Math.round(policy.fixed_basis_min_ratio * 100);
+    const ticked = basis.filter((c) => c.is_fixed);
+    // Gaji Pokok, then the rest of the basis, then what is left out — the
+    // order the setup design shows.
+    const orderedBasis = [...basis].sort((a, b) => {
+        if (a.locked !== b.locked) {
+            return a.locked ? -1 : 1;
+        }
+
+        if (a.is_fixed !== b.is_fixed) {
+            return a.is_fixed ? -1 : 1;
+        }
+
+        return a.name.localeCompare(b.name, 'id');
+    });
+    const firstHourMultiplier =
+        rates.find((r) => r.day_type === 'workday' && r.hour_from === 1)?.multiplier ?? 1.5;
+
+    const toggleBasis = (component: BasisComponent, next: boolean) =>
+        router.post(
+            OvertimeRuleController.setBasisComponent(component.id).url,
+            { is_fixed: next },
+            {
+                preserveScroll: true,
+                onError: (errors) =>
+                    toast.error(errors.is_fixed ?? 'Komponen gagal disimpan'),
+            },
+        );
 
     const savePolicy = () =>
         router.put(
@@ -148,19 +208,15 @@ export default function PayrollLembur({ policy, rates, dayTypes, basis }: Props)
             {},
             {
                 preserveScroll: true,
-                onSuccess: () => toast.success('Tabel pengali dikembalikan ke PP 35/2021'),
+                onSuccess: () =>
+                    toast.success('Tabel pengali dikembalikan ke PP 35/2021'),
             },
         );
-
-    const grouped = dayTypes.map((dt) => ({
-        ...dt,
-        rows: rates.filter((r) => r.day_type === dt.value),
-    }));
 
     return (
         <>
             <Head title="Setup Lembur" />
-            <div style={{ padding: '28px 32px' }}>
+            <div style={{ padding: '28px 32px', maxWidth: 1080 }}>
                 <div
                     style={{
                         display: 'flex',
@@ -175,19 +231,404 @@ export default function PayrollLembur({ policy, rates, dayTypes, basis }: Props)
                     <AIcon name="chevron-right" size={13} />
                     <span style={{ color: C.muted }}>Setup Lembur</span>
                 </div>
-                <h1 style={{ fontSize: 24, fontWeight: 600, color: C.navy, margin: '0 0 4px' }}>
+                <h1
+                    style={{
+                        fontSize: 24,
+                        fontWeight: 600,
+                        color: C.navy,
+                        margin: '0 0 18px',
+                    }}
+                >
                     Setup Lembur
                 </h1>
-                <div style={{ fontSize: 14, color: C.muted, marginBottom: 18 }}>
-                    Basis perhitungan, tabel pengali per jenis hari, dan batas jam — mengacu PP No. 35
-                    Tahun 2021. Dipakai langsung oleh Payroll Run.
+
+                <div style={{ ...card, padding: 22, marginBottom: 18 }}>
+                    <div style={sectionTitle}>Basis Perhitungan Lembur</div>
+                    <div style={hint}>
+                        Sesuai PP No. 35/2021 — basis lembur bukan Gaji Pokok saja, tapi Gaji
+                        Pokok + komponen tunjangan yang ditandai &ldquo;Tetap&rdquo;.
+                    </div>
+
+                    <div
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            padding: '8px 14px',
+                            borderRadius: 999,
+                            background: 'rgba(47,84,201,.07)',
+                            color: C.primary,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            marginBottom: 16,
+                        }}
+                    >
+                        <AIcon name="zap" size={14} color={C.primary} />
+                        Basis aktif: 100% (Gaji Pokok + Tunjangan Tetap)
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        {orderedBasis.map((component) => (
+                            <label
+                                key={component.id}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 11,
+                                    padding: '11px 2px',
+                                    borderBottom: `1px solid ${C.line}`,
+                                    cursor: component.locked ? 'default' : 'pointer',
+                                }}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={component.is_fixed}
+                                    disabled={component.locked}
+                                    onChange={(e) =>
+                                        toggleBasis(component, e.target.checked)
+                                    }
+                                    style={{ width: 17, height: 17 }}
+                                />
+                                <span
+                                    style={{
+                                        flex: 1,
+                                        fontSize: 14,
+                                        color: component.is_fixed ? C.text : C.faint,
+                                    }}
+                                >
+                                    {component.name}
+                                </span>
+                                {component.locked && (
+                                    <span
+                                        style={{
+                                            fontSize: 11.5,
+                                            color: C.muted,
+                                            background: C.surface,
+                                            padding: '4px 11px',
+                                            borderRadius: 999,
+                                        }}
+                                    >
+                                        selalu ikut
+                                    </span>
+                                )}
+                                {!component.is_fixed && !component.locked && (
+                                    <span style={{ fontSize: 11.5, color: C.faint }}>
+                                        {component.variable ? 'tidak tetap' : 'tidak ikut'}
+                                    </span>
+                                )}
+                            </label>
+                        ))}
+                    </div>
+
+                    <div style={{ ...hint, marginTop: 14, marginBottom: 0 }}>
+                        Jika total komponen tetap di atas &lt; {ratio}% dari total penghasilan
+                        karyawan, sistem otomatis beralih ke basis {ratio}% dari total
+                        penghasilan bulanan.
+                    </div>
                 </div>
 
-                <div style={{ ...card, padding: 18, marginBottom: 18 }}>
+                <div style={{ ...card, padding: 22, marginBottom: 18 }}>
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            justifyContent: 'space-between',
+                            gap: 12,
+                        }}
+                    >
+                        <div>
+                            <div style={sectionTitle}>Tabel Pengali (Multiplier)</div>
+                            <div style={hint}>
+                                Upah sejam = basis bulanan ÷ {policy.hours_divisor}, dikalikan
+                                pengali berikut sesuai jenis hari &amp; jam ke-berapa.
+                            </div>
+                        </div>
+                        <ActionBtn
+                            icon="rotate-ccw"
+                            label="Reset ke PP 35/2021"
+                            onClick={reset}
+                        />
+                    </div>
+
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr>
+                                    <th style={th}>Jenis Hari</th>
+                                    <th style={th}>Jam Lembur</th>
+                                    <th style={{ ...th, textAlign: 'right' }}>Pengali</th>
+                                    <th style={th} />
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {rates.length === 0 ? (
+                                    <tr>
+                                        <td
+                                            colSpan={4}
+                                            style={{
+                                                ...td,
+                                                textAlign: 'center',
+                                                color: C.faint,
+                                            }}
+                                        >
+                                            Belum ada pengali.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    rates.map((r) => (
+                                        <tr key={r.id}>
+                                            <td style={td}>{r.day_type_label}</td>
+                                            <td style={{ ...td, color: C.muted }}>
+                                                {bandLabel(r)}
+                                            </td>
+                                            <td
+                                                style={{
+                                                    ...td,
+                                                    textAlign: 'right',
+                                                    fontWeight: 600,
+                                                    color: C.primary,
+                                                }}
+                                            >
+                                                {times(r.multiplier)}
+                                            </td>
+                                            <td
+                                                style={{
+                                                    ...td,
+                                                    textAlign: 'right',
+                                                    width: 90,
+                                                }}
+                                            >
+                                                <ActionBtn
+                                                    icon="trash-2"
+                                                    label="Hapus"
+                                                    variant="danger"
+                                                    onClick={() => delRate(r.id)}
+                                                />
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 9,
+                            marginTop: 16,
+                            padding: '11px 14px',
+                            borderRadius: 8,
+                            background: '#FFFBEB',
+                            border: `1px solid ${C.amber}33`,
+                        }}
+                    >
+                        <AIcon name="triangle-alert" size={15} color={C.amber} />
+                        <span
+                            style={{ fontSize: 12.5, color: C.amber, fontWeight: 500 }}
+                        >
+                            Validasi batas: maks. {policy.max_hours_per_day} jam/hari ·{' '}
+                            {policy.max_hours_per_week} jam/minggu (dari data Cuti &amp;
+                            Lembur yang disetujui)
+                            {!policy.enforce_hour_limits &&
+                                ' — penegakan sedang dimatikan'}
+                        </span>
+                    </div>
+
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1.6fr 1fr 1fr 1fr auto',
+                            gap: 12,
+                            alignItems: 'end',
+                            marginTop: 18,
+                            paddingTop: 18,
+                            borderTop: `1px solid ${C.line}`,
+                        }}
+                    >
+                        <div>
+                            <span style={label}>Jenis hari</span>
+                            <select
+                                style={input}
+                                value={rateForm.data.day_type}
+                                onChange={(e) =>
+                                    rateForm.setData('day_type', e.target.value)
+                                }
+                            >
+                                {dayTypes.map((d) => (
+                                    <option key={d.value} value={d.value}>
+                                        {d.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <span style={label}>Jam ke-</span>
+                            <input
+                                style={input}
+                                type="number"
+                                min={1}
+                                value={rateForm.data.hour_from}
+                                onChange={(e) =>
+                                    rateForm.setData('hour_from', e.target.value)
+                                }
+                            />
+                        </div>
+                        <div>
+                            <span style={label}>s.d. (kosong = dst.)</span>
+                            <input
+                                style={input}
+                                type="number"
+                                min={1}
+                                value={rateForm.data.hour_to}
+                                onChange={(e) =>
+                                    rateForm.setData('hour_to', e.target.value)
+                                }
+                            />
+                        </div>
+                        <div>
+                            <span style={label}>Pengali</span>
+                            <input
+                                style={input}
+                                type="number"
+                                step="0.25"
+                                value={rateForm.data.multiplier}
+                                onChange={(e) =>
+                                    rateForm.setData('multiplier', e.target.value)
+                                }
+                            />
+                        </div>
+                        <button
+                            style={{ ...primaryBtn, background: C.green }}
+                            disabled={rateForm.processing}
+                            onClick={saveRate}
+                        >
+                            <AIcon name="plus" size={15} color="#fff" />
+                            Tambah
+                        </button>
+                    </div>
+                </div>
+
+                {example !== null && (
+                    <div style={{ ...card, padding: 22, marginBottom: 18 }}>
+                        <div style={sectionTitle}>
+                            Contoh Perhitungan — {example.employee}
+                        </div>
+                        <div style={hint}>
+                            Simulasi 3 jam lembur pada hari kerja, memakai basis di atas (
+                            {rupiah(example.basis)}
+                            {example.basis_floored && `, hasil aturan ${ratio}%`}).
+                        </div>
+
+                        <div style={{ overflowX: 'auto' }}>
+                            <table
+                                style={{ width: '100%', borderCollapse: 'collapse' }}
+                            >
+                                <thead>
+                                    <tr>
+                                        <th style={th}>Komponen</th>
+                                        <th style={th}>Perhitungan</th>
+                                        <th style={{ ...th, textAlign: 'right' }}>
+                                            Nilai
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td style={td}>Upah sejam</td>
+                                        <td style={{ ...td, color: C.muted }}>
+                                            {rupiah(example.basis)} ÷ {example.divisor}
+                                        </td>
+                                        <td
+                                            style={{
+                                                ...td,
+                                                textAlign: 'right',
+                                                color: C.primary,
+                                                fontWeight: 600,
+                                            }}
+                                        >
+                                            {rupiah(example.hourly)}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style={td}>Jam ke-1</td>
+                                        <td style={{ ...td, color: C.muted }}>
+                                            {times(firstHourMultiplier)}{' '}
+                                            {rupiah(example.hourly)}
+                                        </td>
+                                        <td
+                                            style={{
+                                                ...td,
+                                                textAlign: 'right',
+                                                color: C.primary,
+                                                fontWeight: 600,
+                                            }}
+                                        >
+                                            {rupiah(example.first_hour)}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style={td}>Jam ke-2 &amp; ke-3</td>
+                                        <td style={{ ...td, color: C.muted }}>
+                                            2 × {rupiah(example.hourly)} × 2 jam
+                                        </td>
+                                        <td
+                                            style={{
+                                                ...td,
+                                                textAlign: 'right',
+                                                color: C.primary,
+                                                fontWeight: 600,
+                                            }}
+                                        >
+                                            {rupiah(example.later_hours)}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                marginTop: 16,
+                                padding: '10px 16px',
+                                borderRadius: 8,
+                                background: '#F0FDF4',
+                                color: C.green,
+                                fontSize: 13.5,
+                                fontWeight: 600,
+                            }}
+                        >
+                            <AIcon name="check" size={15} color={C.green} />
+                            Total Upah Lembur (3 jam) · {rupiah(example.total)}
+                        </div>
+
+                        <div
+                            style={{
+                                marginTop: 18,
+                                padding: '14px 16px',
+                                borderRadius: 8,
+                                background: C.navy,
+                                color: '#E6EAF5',
+                                fontSize: 12.5,
+                                fontFamily:
+                                    'ui-monospace, SFMono-Regular, Menlo, monospace',
+                                lineHeight: 1.6,
+                            }}
+                        >
+                            Upah Lembur = (Basis Bulanan ÷ {policy.hours_divisor}) × Pengali
+                            × Jam Lembur Disetujui
+                        </div>
+                    </div>
+                )}
+
+                <div style={{ ...card, padding: 22 }}>
                     <div style={sectionTitle}>Aturan Dasar</div>
                     <div style={hint}>
-                        Upah Lembur = (Basis Bulanan ÷ {policyForm.data.hours_divisor}) × Pengali × Jam
-                        Lembur.
+                        Batas jam dan pembagi yang dipakai seluruh perhitungan di atas.
                     </div>
                     <div
                         style={{
@@ -204,7 +645,12 @@ export default function PayrollLembur({ policy, rates, dayTypes, basis }: Props)
                                 type="number"
                                 step="0.5"
                                 value={policyForm.data.max_hours_per_day}
-                                onChange={(e) => policyForm.setData('max_hours_per_day', e.target.value)}
+                                onChange={(e) =>
+                                    policyForm.setData(
+                                        'max_hours_per_day',
+                                        e.target.value,
+                                    )
+                                }
                             />
                         </div>
                         <div>
@@ -214,7 +660,12 @@ export default function PayrollLembur({ policy, rates, dayTypes, basis }: Props)
                                 type="number"
                                 step="0.5"
                                 value={policyForm.data.max_hours_per_week}
-                                onChange={(e) => policyForm.setData('max_hours_per_week', e.target.value)}
+                                onChange={(e) =>
+                                    policyForm.setData(
+                                        'max_hours_per_week',
+                                        e.target.value,
+                                    )
+                                }
                             />
                         </div>
                         <div>
@@ -223,7 +674,9 @@ export default function PayrollLembur({ policy, rates, dayTypes, basis }: Props)
                                 style={input}
                                 type="number"
                                 value={policyForm.data.hours_divisor}
-                                onChange={(e) => policyForm.setData('hours_divisor', e.target.value)}
+                                onChange={(e) =>
+                                    policyForm.setData('hours_divisor', e.target.value)
+                                }
                             />
                         </div>
                         <div>
@@ -233,11 +686,17 @@ export default function PayrollLembur({ policy, rates, dayTypes, basis }: Props)
                                 type="number"
                                 value={policyForm.data.fixed_basis_min_ratio}
                                 onChange={(e) =>
-                                    policyForm.setData('fixed_basis_min_ratio', e.target.value)
+                                    policyForm.setData(
+                                        'fixed_basis_min_ratio',
+                                        e.target.value,
+                                    )
                                 }
                             />
                         </div>
-                        <button style={{ ...primaryBtn, background: C.green }} onClick={savePolicy}>
+                        <button
+                            style={{ ...primaryBtn, background: C.green }}
+                            onClick={savePolicy}
+                        >
                             <AIcon name="save" size={15} color="#fff" />
                             Simpan
                         </button>
@@ -256,199 +715,18 @@ export default function PayrollLembur({ policy, rates, dayTypes, basis }: Props)
                         <input
                             type="checkbox"
                             checked={policyForm.data.enforce_hour_limits}
-                            onChange={(e) => policyForm.setData('enforce_hour_limits', e.target.checked)}
+                            onChange={(e) =>
+                                policyForm.setData(
+                                    'enforce_hour_limits',
+                                    e.target.checked,
+                                )
+                            }
                         />
                         Tolak pengajuan lembur yang melewati batas jam
                     </label>
-                    <div style={{ ...hint, marginTop: 8, marginBottom: 0 }}>
-                        Batas minimum basis: jika komponen tetap kurang dari{' '}
-                        {policyForm.data.fixed_basis_min_ratio}% total penghasilan bulanan, basis lembur
-                        otomatis memakai {policyForm.data.fixed_basis_min_ratio}% dari total penghasilan.
-                    </div>
-                </div>
-
-                <div style={{ ...card, padding: 18, marginBottom: 18 }}>
-                    <div
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            marginBottom: 4,
-                        }}
-                    >
-                        <div style={sectionTitle}>Tabel Pengali</div>
-                        <ActionBtn icon="rotate-ccw" label="Reset ke PP 35/2021" onClick={reset} />
-                    </div>
-                    <div style={hint}>
-                        Pengali per jenis hari dan rentang jam. Baris dengan jam awal yang sama akan
-                        ditimpa.
-                    </div>
-
-                    <div
-                        style={{
-                            display: 'grid',
-                            gridTemplateColumns: '1.6fr 1fr 1fr 1fr auto',
-                            gap: 12,
-                            alignItems: 'end',
-                            marginBottom: 16,
-                        }}
-                    >
-                        <div>
-                            <span style={label}>Jenis hari</span>
-                            <select
-                                style={input}
-                                value={rateForm.data.day_type}
-                                onChange={(e) => rateForm.setData('day_type', e.target.value)}
-                            >
-                                {dayTypes.map((d) => (
-                                    <option key={d.value} value={d.value}>
-                                        {d.label}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <span style={label}>Jam ke-</span>
-                            <input
-                                style={input}
-                                type="number"
-                                min={1}
-                                value={rateForm.data.hour_from}
-                                onChange={(e) => rateForm.setData('hour_from', e.target.value)}
-                            />
-                        </div>
-                        <div>
-                            <span style={label}>s.d. jam ke- (kosong = dst.)</span>
-                            <input
-                                style={input}
-                                type="number"
-                                min={1}
-                                value={rateForm.data.hour_to}
-                                onChange={(e) => rateForm.setData('hour_to', e.target.value)}
-                            />
-                        </div>
-                        <div>
-                            <span style={label}>Pengali</span>
-                            <input
-                                style={input}
-                                type="number"
-                                step="0.25"
-                                value={rateForm.data.multiplier}
-                                onChange={(e) => rateForm.setData('multiplier', e.target.value)}
-                            />
-                        </div>
-                        <button
-                            style={{ ...primaryBtn, background: C.green }}
-                            disabled={rateForm.processing}
-                            onClick={saveRate}
-                        >
-                            <AIcon name="plus" size={15} color="#fff" />
-                            Tambah
-                        </button>
-                    </div>
-
-                    {grouped.map((group) => (
-                        <div key={group.value} style={{ marginBottom: 14 }}>
-                            <div
-                                style={{
-                                    fontSize: 12.5,
-                                    fontWeight: 600,
-                                    color: C.navy,
-                                    marginBottom: 6,
-                                }}
-                            >
-                                {group.label}
-                            </div>
-                            <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                    <thead>
-                                        <tr>
-                                            {['Jam Lembur', 'Pengali', ''].map((h, i) => (
-                                                <th key={i} style={th}>
-                                                    {h}
-                                                </th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {group.rows.length === 0 ? (
-                                            <tr>
-                                                <td
-                                                    colSpan={3}
-                                                    style={{ ...td, textAlign: 'center', color: C.faint }}
-                                                >
-                                                    Belum ada pengali untuk jenis hari ini.
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            group.rows.map((r) => (
-                                                <tr key={r.id}>
-                                                    <td style={td}>{bandLabel(r)}</td>
-                                                    <td style={{ ...td, fontWeight: 600, color: C.navy }}>
-                                                        {r.multiplier.toLocaleString('id-ID')}×
-                                                    </td>
-                                                    <td style={{ ...td, textAlign: 'right' }}>
-                                                        <ActionBtn
-                                                            icon="trash-2"
-                                                            label="Hapus"
-                                                            variant="danger"
-                                                            onClick={() => delRate(r.id)}
-                                                        />
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                <div style={{ ...card, padding: 18 }}>
-                    <div style={sectionTitle}>Basis Perhitungan per Master Gaji</div>
-                    <div style={hint}>
-                        Komponen yang dicentang di "Komponen Overtime" pada tiap Master Gaji. Gaji Pokok
-                        wajib ikut; tambahkan tunjangan tetap sesuai kebijakan.
-                    </div>
-                    <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr>
-                                    {['Master Gaji', 'Komponen Basis', 'Total Basis'].map((h, i) => (
-                                        <th key={i} style={th}>
-                                            {h}
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {basis.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={3} style={{ ...td, textAlign: 'center', color: C.faint }}>
-                                            Belum ada Master Gaji.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    basis.map((b) => (
-                                        <tr key={b.id}>
-                                            <td style={{ ...td, fontWeight: 600, color: C.navy }}>
-                                                {b.code}
-                                                <div style={{ fontSize: 12, fontWeight: 400, color: C.muted }}>
-                                                    {b.category ?? '—'}
-                                                </div>
-                                            </td>
-                                            <td style={{ ...td, color: b.components.length ? C.text : C.red }}>
-                                                {b.components.length
-                                                    ? b.components.join(' + ')
-                                                    : 'Belum diatur — basis jatuh ke Gaji Pokok saja'}
-                                            </td>
-                                            <td style={td}>{rupiah(b.total)}</td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
+                    <div style={{ ...hint, marginTop: 10, marginBottom: 0 }}>
+                        Komponen basis ditandai lewat daftar centang di atas ({ticked.length}{' '}
+                        komponen aktif).
                     </div>
                 </div>
             </div>

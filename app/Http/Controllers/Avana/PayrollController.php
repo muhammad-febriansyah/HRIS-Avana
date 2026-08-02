@@ -1202,18 +1202,6 @@ class PayrollController extends Controller
         $bpjsBasis = 0.0;
         $hasCustomOvertime = false;
 
-        // "Komponen Overtime" on the Master Gaji: the components that make up the
-        // overtime basis. PP 35/2021 Pasal 30 counts Gaji Pokok plus the fixed
-        // allowances, not the basic wage alone.
-        $overtimeBasisIds = $master !== null
-            ? SalaryMasterComponent::query()
-                ->where('salary_master_id', $master->id)
-                ->where('is_overtime_base', true)
-                ->pluck('payroll_component_id')
-                ->flip()
-                ->all()
-            : [];
-
         $salaryComponents = EmployeeSalaryComponent::forTenant($tenantId)
             ->where('employee_id', $employee->id)
             ->effectiveOn($period->end_date)
@@ -1241,9 +1229,9 @@ class PayrollController extends Controller
 
             if ($component->basis_type !== null) {
                 [$amount, $proratable] = $this->derivedComponentAmount($component, $employee, (float) $salaryComponent->amount, $presentDays, $overtimeHours, $tenantId);
-                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasisIds, $overtimeBasis, $bpjsBasis);
+                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasis, $bpjsBasis);
             } else {
-                $this->collectComponent($component, (float) $salaryComponent->amount, true, $earnings, $deductions, $basic, $overtimeBasisIds, $overtimeBasis, $bpjsBasis);
+                $this->collectComponent($component, (float) $salaryComponent->amount, true, $earnings, $deductions, $basic, $overtimeBasis, $bpjsBasis);
             }
         }
 
@@ -1306,7 +1294,7 @@ class PayrollController extends Controller
                     $proratable = false;
                 }
 
-                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasisIds, $overtimeBasis, $bpjsBasis);
+                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasis, $bpjsBasis);
             }
         }
 
@@ -2339,7 +2327,7 @@ class PayrollController extends Controller
      *
      * @param  list<array{name: string, amount: float, proratable: bool}>  $earnings
      * @param  list<array{name: string, amount: float}>  $deductions
-     * @param  array<int, mixed>  $overtimeBasisIds  component ids checked into "Komponen Overtime", keyed by id
+     * @param  float  $overtimeBasis  running total of the earnings marked "Tetap"
      * @param  float  $bpjsBasis  running total of the earnings flagged "ikut basis BPJS"
      */
     private function collectComponent(
@@ -2349,7 +2337,6 @@ class PayrollController extends Controller
         array &$earnings,
         array &$deductions,
         float &$basic,
-        array $overtimeBasisIds,
         float &$overtimeBasis,
         float &$bpjsBasis,
     ): void {
@@ -2374,7 +2361,10 @@ class PayrollController extends Controller
             $basic += $amount;
         }
 
-        if (isset($overtimeBasisIds[$component->id])) {
+        // "Tetap" on the Master Komponen, surfaced as the basis checklist on
+        // Setup Lembur: PP 35/2021 Pasal 30 builds the overtime rate from Gaji
+        // Pokok plus the fixed allowances, not the basic wage alone.
+        if ($component->is_fixed) {
             $overtimeBasis += $amount;
         }
 

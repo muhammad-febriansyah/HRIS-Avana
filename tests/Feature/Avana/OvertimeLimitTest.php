@@ -3,6 +3,8 @@
 use App\Models\Employee;
 use App\Models\OvertimeRate;
 use App\Models\OvertimeRequest;
+use App\Models\PayrollComponent;
+use App\Models\SalaryMaster;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\OvertimeRules;
@@ -104,6 +106,88 @@ it('renders the Setup Lembur screen with the statutory table', function (): void
             ->has('rates', 5)
             ->has('dayTypes', 2)
             ->etc());
+});
+
+it('shows the basis as a checklist with Gaji Pokok pinned', function (): void {
+    actingAs($this->admin)
+        ->get(route('avana.payroll.lembur'))
+        ->assertOk()
+        ->assertInertia(function (Assert $page): void {
+            $basis = collect($page->toArray()['props']['basis']);
+            $basic = $basis->firstWhere('code', 'BASIC');
+
+            expect($basic['locked'])->toBeTrue();
+            expect($basic['is_fixed'])->toBeTrue();
+            // The overtime line is a result, never part of its own basis.
+            expect($basis->pluck('code'))->not->toContain('LEMBUR');
+            // Deductions are not a wage basis either.
+            expect($basis->pluck('code'))->not->toContain('POT-KOP');
+        });
+});
+
+it('marks and unmarks an allowance as Tetap', function (): void {
+    $allowance = PayrollComponent::forTenant($this->tenant->id)->where('code', 'TJ-JAB')->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.payroll.lembur.basis', $allowance), ['is_fixed' => true])
+        ->assertSessionHas('success');
+
+    expect($allowance->fresh()->is_fixed)->toBeTrue();
+
+    actingAs($this->admin)
+        ->post(route('avana.payroll.lembur.basis', $allowance), ['is_fixed' => false])
+        ->assertSessionHas('success');
+
+    expect($allowance->fresh()->is_fixed)->toBeFalse();
+});
+
+it('refuses to drop Gaji Pokok from the basis', function (): void {
+    $basic = PayrollComponent::forTenant($this->tenant->id)->where('code', 'BASIC')->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.payroll.lembur.basis', $basic), ['is_fixed' => false])
+        ->assertSessionHasErrors('is_fixed');
+
+    expect($basic->fresh()->is_fixed)->toBeTrue();
+});
+
+it('works the example from the basis actually in force', function (): void {
+    // The screen works its example from the first employee by number, so give
+    // that one the salary the setup documentation works from.
+    $subject = Employee::forTenant($this->tenant->id)
+        ->where('status', 'active')
+        ->orderBy('employee_number')
+        ->firstOrFail();
+
+    $master = SalaryMaster::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'MG-LEMBUR-SPEC',
+        'category' => 'Spec',
+        'is_active' => true,
+    ]);
+    $subject->update(['salary_master_id' => $master->id]);
+
+    foreach (['BASIC' => 10_000_000, 'TJ-JAB' => 1_500_000, 'TJ-TRP' => 850_000] as $code => $amount) {
+        $component = PayrollComponent::forTenant($this->tenant->id)->where('code', $code)->firstOrFail();
+        $component->update(['calc_basis' => null, 'basis_type' => null, 'is_fixed' => true]);
+        giveMasterComponent($subject, $component, $amount);
+    }
+
+    actingAs($this->admin)
+        ->get(route('avana.payroll.lembur'))
+        ->assertOk()
+        ->assertInertia(function (Assert $page): void {
+            $example = $page->toArray()['props']['example'];
+
+            expect($example)->not->toBeNull();
+            // The documented basis of 12.350.000 and its Rp 71.387 hourly wage.
+            expect((float) $example['basis'])->toEqual(12_350_000.0);
+            expect((float) $example['hourly'])->toEqual(71_387.0);
+            // 3 workday hours = 1,5x + 2x + 2x of that.
+            expect((float) $example['first_hour'])->toEqual(107_081.0);
+            expect((float) $example['total'])
+                ->toEqual((float) $example['first_hour'] + (float) $example['later_hours']);
+        });
 });
 
 it('saves an edited multiplier band', function (): void {
