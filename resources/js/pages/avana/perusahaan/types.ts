@@ -57,11 +57,12 @@ export interface ColumnDef {
 export interface FieldDef {
     name: string;
     label: string;
-    type: 'text' | 'number' | 'time' | 'textarea' | 'select' | 'map';
+    type: 'text' | 'number' | 'time' | 'textarea' | 'select' | 'map' | 'days';
     required?: boolean;
     span?: 'half' | 'full';
     default?: string;
     placeholder?: string;
+    hint?: string;
     /** Static `{ value, label }` options for a plain select. */
     options?: { value: string; label: string }[];
     /** Pull `{ id, name }` options from `props.options` for a FK select. */
@@ -381,6 +382,13 @@ export const TABS: TabDef[] = [
                 options: STATUS_OPTIONS,
                 span: 'half',
             },
+            {
+                name: 'work_days',
+                label: 'Hari Kerja',
+                type: 'days',
+                span: 'full',
+                hint: 'Kosongkan bila shift ini berlaku setiap hari.',
+            },
         ],
     },
 ];
@@ -405,6 +413,12 @@ export function buildInitialForm(
 
             if (field.type === 'time') {
                 value = value.slice(0, 5);
+            }
+
+            // The day picker rides in the same flat string payload as every
+            // other field, so an array of day numbers travels as "1,2,3".
+            if (field.type === 'days') {
+                value = Array.isArray(raw) ? raw.join(',') : '';
             }
 
             data[field.name] = value;

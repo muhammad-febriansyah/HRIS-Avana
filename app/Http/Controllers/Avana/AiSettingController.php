@@ -85,7 +85,8 @@ class AiSettingController extends Controller
             'stt_language' => ['nullable', 'string', 'max:16'],
             // Audio is billed per second by the provider, in tokens here.
             'stt_token_cost_per_minute' => ['nullable', 'integer', 'min:0', 'max:1000000'],
-            'meeting_max_minutes' => ['nullable', 'integer', 'min:1', 'max:1440'],
+            // Zero is "no ceiling" — the token wallet becomes the only brake.
+            'meeting_max_minutes' => ['nullable', 'integer', 'min:0', 'max:1440'],
             'meeting_audio_keep' => ['boolean'],
             'meeting_pro_model' => ['nullable', 'string', 'max:120'],
             'embedding_model' => ['nullable', 'string', 'max:120'],
@@ -115,7 +116,10 @@ class AiSettingController extends Controller
             $settings->stt_token_cost_per_minute = (int) $validated['stt_token_cost_per_minute'];
         }
 
-        if (isset($validated['meeting_max_minutes'])) {
+        // `array_key_exists`, not `isset`: a null here means the field was
+        // cleared, which is how the ceiling is lifted. `isset` would read that
+        // as "not submitted" and quietly keep the old limit.
+        if (array_key_exists('meeting_max_minutes', $validated)) {
             $settings->meeting_max_minutes = (int) $validated['meeting_max_minutes'];
         }
 

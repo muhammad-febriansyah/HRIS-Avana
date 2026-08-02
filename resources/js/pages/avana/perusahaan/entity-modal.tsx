@@ -20,6 +20,71 @@ interface EntityModalProps {
     onClose: () => void;
 }
 
+/** Carbon day numbers, Sunday first, as the roster reads them. */
+const DAYS = [
+    { value: 0, label: 'Min' },
+    { value: 1, label: 'Sen' },
+    { value: 2, label: 'Sel' },
+    { value: 3, label: 'Rab' },
+    { value: 4, label: 'Kam' },
+    { value: 5, label: 'Jum' },
+    { value: 6, label: 'Sab' },
+];
+
+/**
+ * Which days of the week a shift runs on. Nothing selected means every day,
+ * which is what the roster does with a shift that names no days.
+ */
+function DayPicker({
+    value,
+    onChange,
+}: {
+    value: string;
+    onChange: (next: string) => void;
+}) {
+    const selected = value
+        .split(',')
+        .filter(Boolean)
+        .map((day) => Number(day));
+
+    const toggle = (day: number) => {
+        const next = selected.includes(day)
+            ? selected.filter((d) => d !== day)
+            : [...selected, day].sort((a, b) => a - b);
+
+        onChange(next.join(','));
+    };
+
+    return (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {DAYS.map((day) => {
+                const on = selected.includes(day.value);
+
+                return (
+                    <button
+                        key={day.value}
+                        type="button"
+                        onClick={() => toggle(day.value)}
+                        style={{
+                            height: 36,
+                            minWidth: 48,
+                            borderRadius: 8,
+                            cursor: 'pointer',
+                            fontSize: 12.5,
+                            fontWeight: 600,
+                            color: on ? '#fff' : C.muted,
+                            background: on ? C.primary : '#fff',
+                            border: `1px solid ${on ? C.primary : C.border}`,
+                        }}
+                    >
+                        {day.label}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
 /** Inline create/edit form for the active tab. */
 export function EntityModal({
     tab,
@@ -201,6 +266,11 @@ export function EntityModal({
                                                 </option>
                                             ))}
                                         </select>
+                                    ) : field.type === 'days' ? (
+                                        <DayPicker
+                                            value={value}
+                                            onChange={onChange}
+                                        />
                                     ) : field.type === 'textarea' ? (
                                         <textarea
                                             value={value}
@@ -240,6 +310,18 @@ export function EntityModal({
                                                 hasError,
                                             )}
                                         />
+                                    )}
+
+                                    {field.hint && (
+                                        <div
+                                            style={{
+                                                fontSize: 11.5,
+                                                color: C.faint,
+                                                marginTop: 5,
+                                            }}
+                                        >
+                                            {field.hint}
+                                        </div>
                                     )}
 
                                     <FieldError

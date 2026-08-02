@@ -25,7 +25,8 @@ export interface RosterShift {
 export interface RosterSchedule {
     id: number;
     employee_id: number;
-    shift_id: number;
+    /** Null is a rostered day off, which is not the same as unscheduled. */
+    shift_id: number | null;
     date: string;
 }
 
@@ -37,11 +38,22 @@ export interface RosterWeekDay {
     label: string;
 }
 
+/** A rotation template the roster can be filled from. */
+export interface RosterPatternOption {
+    id: number;
+    name: string;
+    industry: string | null;
+    /** The cycle written as the client writes it — "3M – 3A – 3N – 2O". */
+    summary: string;
+    cycle_days: number;
+}
+
 /** Props for the roster page (`index.tsx`). */
 export interface RosterProps {
     employees: RosterEmployee[];
     shifts: RosterShift[];
     schedules: RosterSchedule[];
+    patterns: RosterPatternOption[];
     week: RosterWeekDay[];
     week_start: string;
 }

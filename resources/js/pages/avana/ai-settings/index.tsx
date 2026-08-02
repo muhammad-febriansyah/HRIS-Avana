@@ -679,7 +679,7 @@ export default function AiSettings({
                                     <input
                                         id="meeting_max_minutes"
                                         type="number"
-                                        min={1}
+                                        min={0}
                                         style={input}
                                         placeholder="180"
                                         value={form.data.meeting_max_minutes}
@@ -691,9 +691,12 @@ export default function AiSettings({
                                         }
                                     />
                                     <p style={hint}>
-                                        Rekaman berhenti sendiri di batas ini,
-                                        supaya sesi yang terlupa tidak menguras
-                                        token.
+                                        Rekaman berhenti sendiri di batas ini.
+                                        Isi <strong>0</strong> untuk tanpa
+                                        batas — token yang dimiliki tenant jadi
+                                        satu-satunya rem. Sesi yang terlupa
+                                        tetap aman: rekaman berhenti sendiri
+                                        setelah 10 menit tanpa suara.
                                     </p>
                                     {form.errors.meeting_max_minutes && (
                                         <p style={{ ...hint, color: C.red }}>

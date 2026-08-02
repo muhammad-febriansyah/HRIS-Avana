@@ -226,14 +226,18 @@ export function RosterGrid({
                                         employee.id,
                                         day.date,
                                     );
-                                    const shift = schedule
-                                        ? shiftFor(schedule.shift_id)
-                                        : undefined;
+                                    // A rostered day off has a row but no
+                                    // shift, so both lookups need the id first.
+                                    const shift =
+                                        schedule?.shift_id != null
+                                            ? shiftFor(schedule.shift_id)
+                                            : undefined;
                                     const cellKey = `${employee.id}-${day.date}`;
                                     const isOpen = openCell === cellKey;
-                                    const color = schedule
-                                        ? colorForShift(schedule.shift_id)
-                                        : C.faint;
+                                    const color =
+                                        schedule?.shift_id != null
+                                            ? colorForShift(schedule.shift_id)
+                                            : C.faint;
 
                                     return (
                                         <ShiftCell

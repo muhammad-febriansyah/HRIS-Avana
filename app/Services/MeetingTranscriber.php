@@ -44,6 +44,16 @@ final class MeetingTranscriber
     public const BILLING_BLOCK_MS = 15_000;
 
     /**
+     * Silence that ends a recording.
+     *
+     * Long enough that a lull, a break or a slide change never cuts a real
+     * meeting off; short enough that a phone left running costs a few minutes
+     * of provider time rather than an afternoon of it. This is what makes a
+     * recording without a duration ceiling safe to offer at all.
+     */
+    public const IDLE_STOP_MS = 10 * 60_000;
+
+    /**
      * How long a grant may live. Deepgram caps this at an hour; we want the
      * opposite of long — a token that leaks is worthless within the minute.
      * The phone re-asks as it nears expiry, which is a cheap authenticated call.
@@ -52,7 +62,14 @@ final class MeetingTranscriber
 
     private const DEEPGRAM_GRANT_URL = 'https://api.deepgram.com/v1/auth/grant';
 
-    private const DEEPGRAM_LISTEN_URL = 'wss://api.deepgram.com/v1/listen';
+    /**
+     * The port is spelled out on purpose. Dart registers no default port for
+     * `wss`, so on a URL without one `Uri.port` answers 0, and the phone's
+     * socket layer rebuilds the upgrade request as `https://host:0/v1/listen`
+     * — a dial to port zero that fails before a byte leaves the handset, and
+     * never reaches Deepgram's own logs to explain itself.
+     */
+    private const DEEPGRAM_LISTEN_URL = 'wss://api.deepgram.com:443/v1/listen';
 
     public function __construct(private readonly AiTokenService $tokens) {}
 
@@ -72,7 +89,7 @@ final class MeetingTranscriber
      * call made every time the socket is (re)opened, so it is the one place a
      * tenant that has run dry mid-meeting can still be stopped.
      *
-     * @return array{access_token: string, expires_in: int, ws_url: string, params: array<string, string>, max_minutes: int, block_ms: int}
+     * @return array{access_token: string, expires_in: int, ws_url: string, params: array<string, string>, max_minutes: ?int, block_ms: int}
      *
      * @throws RuntimeException when recording is off, blocked, or the provider refuses
      */
@@ -163,29 +180,41 @@ final class MeetingTranscriber
     {
         $stt = AiSetting::current()->resolvedStt();
         $costPerMinute = $stt['token_cost_per_minute'] ?? 0;
-        $maxMinutes = $stt['max_minutes'] ?? 180;
+        $maxMinutes = $stt['max_minutes'] ?? null;
 
         $stored = $this->storeSegments($meeting, $segments);
 
-        // The phone's clock is what we have, but it is not allowed to run past
-        // the ceiling: audio bypasses the server, so an endless socket is
-        // otherwise an endless bill.
-        $ceilingMs = $maxMinutes * 60_000;
-        $elapsedMs = max(0, min($elapsedMs, $ceilingMs));
+        // The phone's clock is what we have. A ceiling, when one is set, is the
+        // outer bound it may report: audio bypasses the server, so a socket the
+        // server cannot see the end of is a bill the server cannot see the end
+        // of either.
+        $ceilingMs = $maxMinutes === null ? null : $maxMinutes * 60_000;
+        $elapsedMs = max(0, $ceilingMs === null ? $elapsedMs : min($elapsedMs, $ceilingMs));
+
+        // How far into the recording anybody was last heard. Silence after that
+        // point is real audio Deepgram meters, but it is not what the tenant
+        // came to buy, so it is neither charged for nor allowed to run forever.
+        $lastSpeechMs = (int) $meeting->segments()->max('end_ms');
+        $silentMs = max(0, $elapsedMs - $lastSpeechMs);
 
         // How much audio is newly chargeable is decided against the LOCKED row,
         // not the copy this request loaded. A phone that resends a batch it was
         // unsure about — the very case the segment unique key exists for — would
         // otherwise have both attempts read the same `billed_ms`, each conclude
         // the same minute was unpaid, and pay for it twice.
-        $chargeable = DB::transaction(function () use ($meeting, $elapsedMs): int {
+        $chargeable = DB::transaction(function () use ($meeting, $elapsedMs, $lastSpeechMs): int {
             $fresh = Meeting::query()->whereKey($meeting->id)->lockForUpdate()->first();
 
             if ($fresh === null) {
                 return 0;
             }
 
-            $newAudio = intdiv(max(0, $elapsedMs - $fresh->billed_ms), self::BILLING_BLOCK_MS) * self::BILLING_BLOCK_MS;
+            // Billed against speech, not the wall clock. The heartbeat now
+            // arrives even in a silent room — that is what keeps the wallet and
+            // the idle cutoff honest — and charging for that silence would bill
+            // a tenant for a phone somebody forgot to stop.
+            $billableMs = min($elapsedMs, $lastSpeechMs);
+            $newAudio = intdiv(max(0, $billableMs - $fresh->billed_ms), self::BILLING_BLOCK_MS) * self::BILLING_BLOCK_MS;
 
             $fresh->update([
                 'duration_ms' => max($fresh->duration_ms, $elapsedMs),
@@ -207,18 +236,29 @@ final class MeetingTranscriber
 
         // Only after charging: whether there is anything left to keep going on.
         $gate = $this->tokens->canChat($user);
-        $atCeiling = $elapsedMs >= $ceilingMs;
+        $atCeiling = $ceilingMs !== null && $elapsedMs >= $ceilingMs;
+
+        // A room that has said nothing for this long is not a meeting any more.
+        // Without a ceiling this is the only thing standing between a handset
+        // left face-down on a desk and an open socket that bills all afternoon.
+        $idle = $silentMs >= self::IDLE_STOP_MS;
 
         return [
             'stored' => $stored,
             'duration_ms' => $meeting->duration_ms,
             'billed_ms' => $meeting->billed_ms,
             'tokens_charged' => $charged,
-            'stop' => $atCeiling || ! $gate->allowed,
-            'reason' => $atCeiling ? 'max_duration' : $gate->reason,
-            'message' => $atCeiling
-                ? sprintf('Batas durasi rekaman %d menit tercapai. Rekaman dihentikan dan tetap diringkas.', $maxMinutes)
-                : $gate->message,
+            'stop' => $atCeiling || $idle || ! $gate->allowed,
+            'reason' => match (true) {
+                $atCeiling => 'max_duration',
+                $idle => 'idle',
+                default => $gate->reason,
+            },
+            'message' => match (true) {
+                $atCeiling => sprintf('Batas durasi rekaman %d menit tercapai. Rekaman dihentikan dan tetap diringkas.', $maxMinutes),
+                $idle => sprintf('Tidak ada suara selama %d menit. Rekaman dihentikan dan tetap diringkas.', intdiv(self::IDLE_STOP_MS, 60_000)),
+                default => $gate->message,
+            },
         ];
     }
 

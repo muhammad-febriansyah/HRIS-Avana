@@ -199,7 +199,10 @@ final class AiSetting extends Model
             'language' => (string) ($this->stt_language ?: self::DEFAULT_STT_LANGUAGE),
             'api_key' => $apiKey,
             'token_cost_per_minute' => max(0, (int) $this->stt_token_cost_per_minute),
-            'max_minutes' => max(1, (int) ($this->meeting_max_minutes ?: 180)),
+            // Zero means no ceiling: the wallet is the only brake, which is
+            // safe now that a recording reports in even while nobody speaks
+            // and stops itself once a room has gone quiet.
+            'max_minutes' => ($minutes = (int) $this->meeting_max_minutes) > 0 ? $minutes : null,
             'keep_audio' => (bool) $this->meeting_audio_keep,
         ];
     }

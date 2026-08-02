@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Employee;
+use App\Models\RosterPattern;
 use App\Models\Shift;
 use App\Models\ShiftSchedule;
 use App\Support\Roster;
@@ -12,6 +13,7 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -95,6 +97,18 @@ class RosterController extends Controller
                     'employee_id' => $schedule->employee_id,
                     'shift_id' => $schedule->shift_id,
                     'date' => $schedule->date->format('Y-m-d'),
+                ]),
+            'patterns' => RosterPattern::forTenant($tenantId)
+                ->where('status', 'active')
+                ->with('steps.shift:id,code')
+                ->orderBy('name')
+                ->get()
+                ->map(fn (RosterPattern $pattern): array => [
+                    'id' => $pattern->id,
+                    'name' => $pattern->name,
+                    'industry' => $pattern->industry,
+                    'summary' => $pattern->summary(),
+                    'cycle_days' => $pattern->cycleDays(),
                 ]),
             'week' => $week,
             'week_start' => $weekStart->format('Y-m-d'),
@@ -298,10 +312,22 @@ class RosterController extends Controller
 
         $now = now();
         $insert = [];
+        $skipped = 0;
+        $shifts = Shift::forTenant($tenantId)->get()->keyBy('id');
 
         foreach ($previous as $schedule) {
             $target = Carbon::parse($schedule->date)->addDays(7)->format('Y-m-d');
             $key = $schedule->employee_id.'|'.$target;
+
+            // Copying must obey the same rule as assigning by hand, or a shift
+            // that only runs on weekdays walks onto a weekend a week later.
+            $shift = $schedule->shift_id !== null ? $shifts->get($schedule->shift_id) : null;
+
+            if ($shift !== null && ! Roster::runsOn($shift, $target)) {
+                $skipped++;
+
+                continue;
+            }
 
             if (isset($existingIds[$key])) {
                 ShiftSchedule::whereKey($existingIds[$key])->update(['shift_id' => $schedule->shift_id]);
@@ -321,7 +347,70 @@ class RosterController extends Controller
             ShiftSchedule::insert($insert);
         }
 
-        return back()->with('success', 'Jadwal minggu lalu disalin ke minggu ini.');
+        $message = 'Jadwal minggu lalu disalin ke minggu ini.';
+
+        if ($skipped > 0) {
+            $message .= " {$skipped} jadwal dilewati karena shift tidak berjalan pada hari itu.";
+        }
+
+        return back()->with('success', $message);
+    }
+
+    /**
+     * Fill the roster for a set of employees from a rotation pattern.
+     *
+     * Everyone starts the cycle on the same date, so a whole crew rotating
+     * together stays together. Someone who should start mid-cycle gets their
+     * own run with an earlier start date.
+     */
+    public function applyPattern(Request $request): RedirectResponse
+    {
+        $this->authorize('create', Attendance::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $data = $request->validate([
+            'pattern_id' => ['required', Rule::exists('roster_patterns', 'id')->where('tenant_id', $tenantId)],
+            'employee_ids' => ['required', 'array', 'min:1'],
+            'employee_ids.*' => [Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+        ], [
+            'employee_ids.required' => 'Pilih minimal satu karyawan.',
+            'end_date.after_or_equal' => 'Tanggal selesai tidak boleh sebelum tanggal mulai.',
+        ]);
+
+        $start = Carbon::parse($data['start_date']);
+        $end = Carbon::parse($data['end_date']);
+
+        // A year of roster per run is already far more than anyone schedules at
+        // once, and it keeps one careless date from writing a decade of rows.
+        if ($start->diffInDays($end) > 366) {
+            throw ValidationException::withMessages([
+                'end_date' => 'Rentang maksimal 1 tahun sekali terapkan.',
+            ]);
+        }
+
+        $pattern = RosterPattern::forTenant($tenantId)->with('steps')->findOrFail($data['pattern_id']);
+
+        $assigned = 0;
+        $skipped = 0;
+
+        DB::transaction(function () use ($pattern, $data, $start, $end, &$assigned, &$skipped): void {
+            foreach ($data['employee_ids'] as $employeeId) {
+                $result = Roster::applyPattern($pattern, (int) $employeeId, $start, $end);
+                $assigned += $result['assigned'];
+                $skipped += $result['skipped'];
+            }
+        });
+
+        $message = "Pola {$pattern->name} diterapkan — {$assigned} jadwal dibuat.";
+
+        if ($skipped > 0) {
+            $message .= " {$skipped} tanggal dilewati karena shift tidak berjalan pada hari itu.";
+        }
+
+        return back()->with('success', $message);
     }
 
     /**

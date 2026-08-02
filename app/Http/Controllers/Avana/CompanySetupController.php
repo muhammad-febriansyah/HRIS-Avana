@@ -180,6 +180,8 @@ class CompanySetupController extends Controller
         $config = $this->resolveEntity($entity);
         $tenantId = $request->user()->tenant_id;
 
+        $this->normaliseWorkDays($request);
+
         $data = $request->validate($this->rulesFor($entity, $tenantId), $this->messages());
 
         // Only branches are sold by the package; the rest of the org structure is
@@ -209,6 +211,8 @@ class CompanySetupController extends Controller
 
         $model = $config['model'];
         $instance = $model::forTenant($tenantId)->findOrFail($record);
+
+        $this->normaliseWorkDays($request);
 
         $data = $request->validate(
             $this->rulesFor($entity, $tenantId, (int) $instance->getKey()),
@@ -303,6 +307,31 @@ class CompanySetupController extends Controller
             ],
             default => abort(404),
         };
+    }
+
+    /**
+     * Accept the shift's work days as the day-picker sends them.
+     *
+     * The setup modal carries every field as a flat string, so the picker
+     * submits "1,2,3,4,5". An array from the API or a test is left alone, and
+     * an empty value stays null — a shift that names no days runs every day.
+     */
+    private function normaliseWorkDays(Request $request): void
+    {
+        if (! $request->has('work_days') || is_array($request->input('work_days'))) {
+            return;
+        }
+
+        $raw = trim((string) $request->input('work_days'));
+
+        $request->merge([
+            'work_days' => $raw === ''
+                ? null
+                : array_values(array_filter(
+                    array_map('intval', explode(',', $raw)),
+                    fn (int $day): bool => $day >= 0 && $day <= 6,
+                )),
+        ]);
     }
 
     /**

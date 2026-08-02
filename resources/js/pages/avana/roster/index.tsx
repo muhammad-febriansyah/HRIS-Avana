@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import RosterController from '@/actions/App/Http/Controllers/Avana/RosterController';
 import { AIcon, C } from '@/lib/avana';
 import { ShiftLegend, WeekNavigator } from './components';
+import { PatternPanel } from './pattern-panel';
 import { RosterGrid } from './roster-grid';
 import { SHIFT_PALETTE, toIso } from './types';
 import type {
@@ -28,6 +29,7 @@ export default function AvanaRoster({
     employees,
     shifts,
     schedules,
+    patterns,
     week,
     week_start,
 }: RosterProps) {
@@ -207,6 +209,12 @@ export default function AvanaRoster({
                         colorForShift={colorForShift}
                     />
                 </div>
+
+                <PatternPanel
+                    patterns={patterns}
+                    employees={employees}
+                    weekStart={week_start}
+                />
 
                 {/* Quick-fill toolbar — assign one shift to every employee for
                     the visible week in a single click (built for large teams). */}

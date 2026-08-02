@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Employee;
+use App\Models\RosterPattern;
 use App\Models\Shift;
 use App\Models\ShiftSchedule;
 use Carbon\CarbonInterface;
@@ -45,19 +46,63 @@ final class Roster
     }
 
     /**
+     * Whether a shift runs past midnight into the next calendar day — an end
+     * time at or before the start time is the only way to say so.
+     */
+    public static function crossesMidnight(Shift $shift): bool
+    {
+        if ($shift->start_time === null || $shift->end_time === null) {
+            return false;
+        }
+
+        return substr((string) $shift->end_time, 0, 8) <= substr((string) $shift->start_time, 0, 8);
+    }
+
+    /**
+     * The roster day a punch belongs to.
+     *
+     * A night shift is worked on the day it started: someone who clocks in at
+     * 22:00 and out at 06:00 has one shift, not two half days. The punch's own
+     * calendar date is the answer unless the previous day's shift crosses
+     * midnight and is still running, in which case the punch is still part of
+     * that night.
+     */
+    public static function workDateFor(int $tenantId, int $employeeId, CarbonInterface $clockedAt): string
+    {
+        $previous = $clockedAt->copy()->subDay()->toDateString();
+        $shift = self::shiftFor($tenantId, $employeeId, $previous);
+
+        if ($shift !== null && self::crossesMidnight($shift)) {
+            $end = $clockedAt->copy()->setTimeFromTimeString((string) $shift->end_time);
+
+            if ($clockedAt->lessThanOrEqualTo($end)) {
+                return $previous;
+            }
+        }
+
+        return $clockedAt->toDateString();
+    }
+
+    /**
      * Judge a clock-in against the shift it belongs to: late once the clock
      * time passes the shift start plus its tolerance. An unscheduled day has
      * nothing to be late for.
      *
+     * `$workDate` is the roster day the punch belongs to, which is not the
+     * punch's own date on a night shift — without it, a 00:30 arrival for a
+     * shift that began at 22:00 would be measured against 22:00 *tonight* and
+     * come out early rather than two and a half hours late.
+     *
      * @return array{status: string, late_minutes: int, shift_id: int|null}
      */
-    public static function evaluate(?Shift $shift, CarbonInterface $clockedAt): array
+    public static function evaluate(?Shift $shift, CarbonInterface $clockedAt, ?string $workDate = null): array
     {
         if ($shift === null || $shift->start_time === null) {
             return ['status' => 'present', 'late_minutes' => 0, 'shift_id' => $shift?->id];
         }
 
-        $start = $clockedAt->copy()->setTimeFromTimeString((string) $shift->start_time);
+        $start = ($workDate !== null ? Carbon::parse($workDate) : $clockedAt->copy())
+            ->setTimeFromTimeString((string) $shift->start_time);
         $allowed = $start->copy()->addMinutes((int) $shift->late_tolerance_minutes);
 
         if ($clockedAt->lessThanOrEqualTo($allowed)) {
@@ -137,16 +182,75 @@ final class Roster
     }
 
     /**
+     * Lay a rotation over a date range for one employee.
+     *
+     * The cycle is read in order from the start date and repeated until the
+     * range runs out, so a 3-3-3-2 pattern started on a Monday keeps rotating
+     * regardless of where weeks fall. Days the shift does not run are skipped
+     * rather than forced, and counted so the caller can say what it left.
+     *
+     * @return array{assigned: int, skipped: int}
+     */
+    public static function applyPattern(
+        RosterPattern $pattern,
+        int $employeeId,
+        string|CarbonInterface $from,
+        string|CarbonInterface $until,
+    ): array {
+        $steps = $pattern->steps;
+
+        if ($steps->isEmpty()) {
+            return ['assigned' => 0, 'skipped' => 0];
+        }
+
+        // The cycle flattened to one shift per day, which is what makes the
+        // repeat a simple modulo rather than a running counter.
+        $days = [];
+        foreach ($steps as $step) {
+            for ($i = 0; $i < max(1, (int) $step->days); $i++) {
+                $days[] = $step->shift_id;
+            }
+        }
+
+        $tenantId = (int) $pattern->tenant_id;
+        $shifts = Shift::forTenant($tenantId)->get()->keyBy('id');
+        $start = Carbon::parse(self::dateString($from));
+        $end = Carbon::parse(self::dateString($until));
+
+        $assigned = 0;
+        $skipped = 0;
+
+        for ($date = $start->copy(), $offset = 0; $date->lessThanOrEqualTo($end); $date->addDay(), $offset++) {
+            $shiftId = $days[$offset % count($days)];
+            $shift = $shiftId !== null ? $shifts->get($shiftId) : null;
+
+            if ($shift !== null && ! self::runsOn($shift, $date)) {
+                $skipped++;
+
+                continue;
+            }
+
+            self::assign($tenantId, $employeeId, $date, $shiftId);
+            $assigned++;
+        }
+
+        return ['assigned' => $assigned, 'skipped' => $skipped];
+    }
+
+    /**
      * Recompute an attendance record's status and late minutes from the roster
      * — used after a correction changes the clock-in it was judged on.
      *
      * @return array{status: string, late_minutes: int, shift_id: int|null}
      */
-    public static function evaluateFor(Employee $employee, CarbonInterface $clockedAt): array
+    public static function evaluateFor(Employee $employee, CarbonInterface $clockedAt, ?string $workDate = null): array
     {
+        $workDate ??= self::workDateFor((int) $employee->tenant_id, (int) $employee->id, $clockedAt);
+
         return self::evaluate(
-            self::shiftFor((int) $employee->tenant_id, (int) $employee->id, $clockedAt),
+            self::shiftFor((int) $employee->tenant_id, (int) $employee->id, $workDate),
             $clockedAt,
+            $workDate,
         );
     }
 

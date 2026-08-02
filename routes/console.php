@@ -21,8 +21,9 @@ Schedule::command('avana:remind-billing')->dailyAt('07:00');
 // decides on/off, threshold, recipient role, and daily vs weekly cadence).
 Schedule::command('avana:scan-attrition-alerts')->dailyAt('07:30');
 
-// Push a clock-in reminder to employees who haven't clocked in yet (weekdays).
-Schedule::command('avana:remind-attendance')->weekdays()->at('08:30');
+// Push a clock-in reminder to employees the roster expects at work today.
+// Runs daily: the command decides who is due, so a weekend shift is covered.
+Schedule::command('avana:remind-attendance')->dailyAt('08:30');
 
 // Close meeting recordings a phone never came back from. Nothing else moves
 // them out of "recording", so without this they sit in the list claiming to be

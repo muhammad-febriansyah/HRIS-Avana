@@ -32,6 +32,7 @@ use App\Models\PkpRate;
 use App\Models\Position;
 use App\Models\PtkpRate;
 use App\Models\Role;
+use App\Models\RosterPattern;
 use App\Models\SalaryGrade;
 use App\Models\Shift;
 use App\Models\SocialCategory;
@@ -43,6 +44,7 @@ use App\Models\User;
 use App\Models\WorkLocation;
 use App\Support\AvanaNav;
 use App\Support\PermissionCatalog;
+use App\Support\Roster;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -127,12 +129,132 @@ final class AvanaDemoSeeder extends Seeder
      *
      * @param  array<int, Employee>  $employees
      */
+    /**
+     * The rotation shifts and the rotation templates built from them.
+     *
+     * M/A/N are the client's own legend — Morning 07:00–15:00, Afternoon
+     * 15:00–23:00, Night 23:00–07:00 — and the two twelve-hour shifts cover
+     * the security pattern. Night runs past midnight, which is exactly the
+     * case a roster has to get right.
+     */
+    private function seedRotationShifts(Tenant $tenant): void
+    {
+        $shifts = [
+            ['code' => 'M', 'name' => 'Pagi (Morning)', 'start_time' => '07:00', 'end_time' => '15:00'],
+            ['code' => 'A', 'name' => 'Siang (Afternoon)', 'start_time' => '15:00', 'end_time' => '23:00'],
+            ['code' => 'N', 'name' => 'Malam (Night)', 'start_time' => '23:00', 'end_time' => '07:00'],
+            ['code' => 'D12', 'name' => 'Siang 12 Jam', 'start_time' => '07:00', 'end_time' => '19:00'],
+            ['code' => 'N12', 'name' => 'Malam 12 Jam', 'start_time' => '19:00', 'end_time' => '07:00'],
+        ];
+
+        foreach ($shifts as $shift) {
+            Shift::firstOrCreate(
+                ['tenant_id' => $tenant->id, 'code' => $shift['code']],
+                [
+                    'name' => $shift['name'],
+                    'start_time' => $shift['start_time'],
+                    'end_time' => $shift['end_time'],
+                    'late_tolerance_minutes' => 15,
+                    'status' => 'active',
+                ],
+            );
+        }
+
+        $this->seedRosterPatterns($tenant);
+        $this->seedRotatedRoster($tenant);
+    }
+
+    /**
+     * Put a few people on the factory rotation for the month around today, so
+     * the roster screen opens on a working example instead of an empty grid.
+     *
+     * Skipped under test, where seeded schedules would collide with the dates
+     * each test rosters for itself.
+     */
+    private function seedRotatedRoster(Tenant $tenant): void
+    {
+        if (app()->runningUnitTests()) {
+            return;
+        }
+
+        $pattern = RosterPattern::forTenant($tenant->id)
+            ->where('code', 'MANUFACTURING-3')
+            ->with('steps')
+            ->first();
+
+        if ($pattern === null) {
+            return;
+        }
+
+        $crew = Employee::forTenant($tenant->id)
+            ->where('status', 'active')
+            ->orderBy('id')
+            ->take(4)
+            ->pluck('id');
+
+        $from = Carbon::today()->startOfMonth();
+        $until = $from->copy()->addDays(45);
+
+        foreach ($crew as $employeeId) {
+            Roster::applyPattern($pattern, (int) $employeeId, $from, $until);
+        }
+    }
+
+    /**
+     * The rotation templates the client asked for, written as the cycles they
+     * describe. Every one is editable — these are starting points, not rules.
+     *
+     * A step naming no shift is time off. "Security" is left as the literal
+     * day/night alternation the template gives; a company that works two on,
+     * two off can say so in the editor.
+     */
+    private function seedRosterPatterns(Tenant $tenant): void
+    {
+        $shiftIds = Shift::forTenant($tenant->id)->pluck('id', 'code');
+
+        // code => [name, industry, [[shift code|null, days], ...]]
+        $patterns = [
+            'OFFICE' => ['Office', 'Perkantoran', [['PAGI', 5], [null, 2]]],
+            'MANUFACTURING-3' => ['Manufacturing', 'Pabrik', [['M', 3], ['A', 3], ['N', 3], [null, 2]]],
+            'MANUFACTURING-2' => ['Manufacturing 24 Jam', 'Pabrik 24 Jam', [['M', 2], ['A', 2], ['N', 2], [null, 2]]],
+            'WAREHOUSE' => ['Warehouse', 'Logistik', [['M', 4], [null, 2]]],
+            'SECURITY' => ['Security 12 Jam', 'Security', [['D12', 1], ['N12', 1]]],
+            'HOSPITAL' => ['Hospital', 'Rumah Sakit', [['M', 1], ['A', 1], ['N', 1], [null, 1]]],
+            'MINING' => ['Mining', 'Tambang', [['M', 14], [null, 14]]],
+            'OILGAS-14' => ['Oil & Gas 14/14', 'Migas', [['M', 14], [null, 14]]],
+            'OILGAS-28' => ['Oil & Gas 28/28', 'Migas', [['M', 28], [null, 28]]],
+            'OFFSHORE' => ['Offshore', 'Offshore', [['M', 28], [null, 28]]],
+        ];
+
+        foreach ($patterns as $code => [$name, $industry, $cycle]) {
+            $pattern = RosterPattern::firstOrCreate(
+                ['tenant_id' => $tenant->id, 'code' => $code],
+                ['name' => $name, 'industry' => $industry, 'status' => 'active'],
+            );
+
+            if ($pattern->steps()->exists()) {
+                continue;
+            }
+
+            foreach ($cycle as $position => [$shiftCode, $days]) {
+                $pattern->steps()->create([
+                    'tenant_id' => $tenant->id,
+                    'position' => $position,
+                    'shift_id' => $shiftCode !== null ? $shiftIds->get($shiftCode) : null,
+                    'days' => $days,
+                ]);
+            }
+        }
+    }
+
     private function seedAttendance(Tenant $tenant, array $employees): void
     {
         $shift = Shift::firstOrCreate(
             ['tenant_id' => $tenant->id, 'code' => 'PAGI'],
-            ['name' => 'Pagi', 'start_time' => '08:00', 'end_time' => '17:00', 'late_tolerance_minutes' => 15, 'status' => 'active'],
+            ['name' => 'Pagi', 'start_time' => '08:00', 'end_time' => '17:00', 'late_tolerance_minutes' => 15, 'work_days' => [1, 2, 3, 4, 5], 'status' => 'active'],
         );
+
+        $this->seedRotationShifts($tenant);
 
         $today = Carbon::today()->toDateString();
 

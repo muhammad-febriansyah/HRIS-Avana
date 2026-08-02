@@ -90,6 +90,7 @@ use App\Http\Controllers\Avana\RecruitmentRequisitionController;
 use App\Http\Controllers\Avana\ReimbursementController;
 use App\Http\Controllers\Avana\ReportStudioController;
 use App\Http\Controllers\Avana\RosterController;
+use App\Http\Controllers\Avana\RosterPatternController;
 use App\Http\Controllers\Avana\SalaryMasterController;
 use App\Http\Controllers\Avana\SalaryRapelController;
 use App\Http\Controllers\Avana\SalaryStructureController;
@@ -331,7 +332,13 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('roster', [RosterController::class, 'store'])->name('roster.store');
     Route::post('roster/bulk', [RosterController::class, 'bulkStore'])->name('roster.bulk');
     Route::post('roster/copy-week', [RosterController::class, 'copyPreviousWeek'])->name('roster.copy-week');
+    Route::post('roster/apply-pattern', [RosterController::class, 'applyPattern'])->name('roster.apply-pattern');
     Route::delete('roster/{schedule}', [RosterController::class, 'destroy'])->name('roster.destroy');
+
+    Route::get('roster-pola', [RosterPatternController::class, 'index'])->name('roster-pola');
+    Route::post('roster-pola', [RosterPatternController::class, 'store'])->name('roster-pola.store');
+    Route::put('roster-pola/{pattern}', [RosterPatternController::class, 'update'])->name('roster-pola.update');
+    Route::delete('roster-pola/{pattern}', [RosterPatternController::class, 'destroy'])->name('roster-pola.destroy');
 
     // Mutasi / pergerakan karir karyawan
     Route::get('mutasi', [MovementController::class, 'index'])->name('mutasi');

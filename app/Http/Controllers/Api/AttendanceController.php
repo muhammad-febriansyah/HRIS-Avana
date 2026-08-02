@@ -300,10 +300,14 @@ class AttendanceController extends Controller
     {
         $clockedAt = $data['clocked_at'];
 
+        // A night shift is worked on the day it started, so the punch does not
+        // always belong to its own calendar date.
+        $workDate = Roster::workDateFor((int) $employee->tenant_id, (int) $employee->id, $clockedAt);
+
         $attendance = Attendance::firstOrNew([
             'tenant_id' => $employee->tenant_id,
             'employee_id' => $employee->id,
-            'date' => $clockedAt->toDateString(),
+            'date' => $workDate,
         ]);
 
         if ($attendance->clock_in_at !== null) {
@@ -313,7 +317,7 @@ class AttendanceController extends Controller
         // An approved leave owns the day — refuse the clock-in rather than let a
         // check-in overwrite the "Cuti" marker. Pending leave deliberately does
         // not block, or submitting one would be a way to dodge a late mark.
-        if (LeaveAttendanceMarker::covers($employee->tenant_id, $employee->id, $clockedAt->toDateString())) {
+        if (LeaveAttendanceMarker::covers($employee->tenant_id, $employee->id, $workDate)) {
             return response()->json(['message' => 'Anda sedang cuti hari ini, tidak perlu absen.'], 422);
         }
 
@@ -321,7 +325,7 @@ class AttendanceController extends Controller
 
         // Working from home is a claim the WFH approval has to back: without it,
         // anyone late or out of town could pick "home" and walk past the radius.
-        if ($workMode === 'home' && ! LeaveAttendanceMarker::wfhCovers($employee->tenant_id, $employee->id, $clockedAt->toDateString())) {
+        if ($workMode === 'home' && ! LeaveAttendanceMarker::wfhCovers($employee->tenant_id, $employee->id, $workDate)) {
             return response()->json([
                 'message' => 'Tidak ada pengajuan WFH yang disetujui untuk hari ini.',
             ], 422);
@@ -338,7 +342,7 @@ class AttendanceController extends Controller
             return $geofence;
         }
 
-        ['status' => $status, 'late_minutes' => $lateMinutes, 'shift_id' => $shiftId] = $this->lateAgainstShift($employee, $clockedAt);
+        ['status' => $status, 'late_minutes' => $lateMinutes, 'shift_id' => $shiftId] = $this->lateAgainstShift($employee, $clockedAt, $workDate);
 
         $attendance->fill([
             'branch_id' => $employee->branch_id,
@@ -395,10 +399,7 @@ class AttendanceController extends Controller
     {
         $clockedAt = $data['clocked_at'];
 
-        $attendance = Attendance::forTenant($employee->tenant_id)
-            ->where('employee_id', $employee->id)
-            ->whereDate('date', $clockedAt->toDateString())
-            ->first();
+        $attendance = $this->openAttendance($employee, $clockedAt);
 
         if ($attendance === null || $attendance->clock_in_at === null) {
             return response()->json(['message' => 'Anda belum clock-in hari ini.'], 422);
@@ -468,9 +469,40 @@ class AttendanceController extends Controller
      *
      * @return array{status: string, late_minutes: int, shift_id: int|null}
      */
-    private function lateAgainstShift(Employee $employee, CarbonInterface $clockedAt): array
+    private function lateAgainstShift(Employee $employee, CarbonInterface $clockedAt, ?string $workDate = null): array
     {
-        return Roster::evaluateFor($employee, $clockedAt);
+        return Roster::evaluateFor($employee, $clockedAt, $workDate);
+    }
+
+    /**
+     * The shift this clock-out closes.
+     *
+     * The roster day is tried first, which is the punch's own date on a normal
+     * shift and the previous one on a night shift. Someone who overruns past
+     * their shift end would fall outside that window and be told they never
+     * clocked in, so a still-open clock-in from the day before is accepted as
+     * long as it is under a day old.
+     */
+    private function openAttendance(Employee $employee, CarbonInterface $clockedAt): ?Attendance
+    {
+        $workDate = Roster::workDateFor((int) $employee->tenant_id, (int) $employee->id, $clockedAt);
+
+        $onWorkDate = Attendance::forTenant($employee->tenant_id)
+            ->where('employee_id', $employee->id)
+            ->whereDate('date', $workDate)
+            ->first();
+
+        if ($onWorkDate !== null) {
+            return $onWorkDate;
+        }
+
+        return Attendance::forTenant($employee->tenant_id)
+            ->where('employee_id', $employee->id)
+            ->whereNotNull('clock_in_at')
+            ->whereNull('clock_out_at')
+            ->where('clock_in_at', '>=', $clockedAt->copy()->subDay())
+            ->orderByDesc('clock_in_at')
+            ->first();
     }
 
     /**
@@ -579,9 +611,11 @@ class AttendanceController extends Controller
 
     private function todayRecord(int $tenantId, int $employeeId): ?Attendance
     {
+        // Mid-shift at 02:00, a night worker's day is still yesterday's roster
+        // row — reading today's would show them as not yet clocked in.
         return Attendance::forTenant($tenantId)
             ->where('employee_id', $employeeId)
-            ->whereDate('date', now()->toDateString())
+            ->whereDate('date', Roster::workDateFor($tenantId, $employeeId, now()))
             ->first();
     }
 
