@@ -277,6 +277,8 @@ class AttritionController extends Controller
 
         return [
             'id' => $employee->id,
+            // Employees are addressed in the URL by their opaque key.
+            'route_key' => $employee->public_id,
             'name' => $employee->full_name,
             'employee_number' => $employee->employee_number,
             'department' => $employee->department?->name,

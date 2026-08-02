@@ -32,7 +32,7 @@ class EssDirectoryController extends Controller
             ->where('status', 'active')
             ->with(['position:id,name', 'department:id,name', 'branch:id,name'])
             ->orderBy('full_name')
-            ->get(['id', 'full_name', 'employee_number', 'email', 'phone', 'position_id', 'department_id', 'branch_id', 'manager_id', 'join_date', 'is_top_approver']);
+            ->get(['id', 'public_id', 'full_name', 'employee_number', 'email', 'phone', 'position_id', 'department_id', 'branch_id', 'manager_id', 'join_date', 'is_top_approver']);
 
         $names = $colleagues->pluck('full_name', 'id');
 
@@ -42,6 +42,9 @@ class EssDirectoryController extends Controller
             'canOpenProfile' => false,
             'nodes' => $colleagues->map(fn (Employee $colleague): array => [
                 'id' => $colleague->id,
+                // The org chart shares its component with the admin screen,
+                // which addresses employees by their opaque key.
+                'route_key' => $colleague->public_id,
                 'name' => $colleague->full_name,
                 'employee_number' => $colleague->employee_number,
                 'email' => $colleague->email,

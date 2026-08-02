@@ -560,7 +560,7 @@ function ManagerPicker({
     const save = () => {
         setSaving(true);
         router.put(
-            `/avana/organisasi/${employee.id}/atasan`,
+            `/avana/organisasi/${employee.route_key}/atasan`,
             { manager_id: choice },
             {
                 preserveScroll: true,

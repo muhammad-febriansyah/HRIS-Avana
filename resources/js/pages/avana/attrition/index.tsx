@@ -7,6 +7,8 @@ import type { Category } from './components';
 
 interface Row {
     id: number;
+    /** Opaque key used in URLs; never the primary key. */
+    route_key: string;
     name: string;
     employee_number: string | null;
     department: string | null;
@@ -289,7 +291,7 @@ export default function AttritionIndex({
                                             key={r.id}
                                             onClick={() =>
                                                 router.visit(
-                                                    `/avana/attrition/${r.id}`,
+                                                    `/avana/attrition/${r.route_key}`,
                                                 )
                                             }
                                             style={{

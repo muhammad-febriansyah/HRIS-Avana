@@ -441,7 +441,7 @@ class EmployeeController extends Controller
             ->where('status', 'active')
             ->with(['position:id,name', 'department:id,name', 'branch:id,name'])
             ->orderBy('full_name')
-            ->get(['id', 'full_name', 'employee_number', 'email', 'phone', 'position_id', 'department_id', 'branch_id', 'manager_id', 'join_date', 'is_top_approver']);
+            ->get(['id', 'public_id', 'full_name', 'employee_number', 'email', 'phone', 'position_id', 'department_id', 'branch_id', 'manager_id', 'join_date', 'is_top_approver']);
 
         $names = $employees->pluck('full_name', 'id');
 
