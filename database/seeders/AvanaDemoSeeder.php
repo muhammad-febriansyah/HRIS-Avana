@@ -441,6 +441,50 @@ final class AvanaDemoSeeder extends Seeder
             ->each(function (Employee $employee) use ($tenant, $basic): void {
                 $this->setSalaryComponent($tenant, $employee, $basic->id, 6_000_000);
             });
+
+        $this->seedDocumentedExample($tenant);
+    }
+
+    /**
+     * Reproduce the worked example of the payroll setup documentation.
+     *
+     * EMP-0001 carries the figures the document tabulates — Gaji Pokok
+     * 10.000.000 with Transport 500.000, Jabatan 1.500.000 and Kesehatan
+     * 350.000 — so the overtime basis on screen is the 12.350.000 the document
+     * computes from, and its worked hourly wage of Rp 71.387 can be checked
+     * against a real payslip rather than taken on faith.
+     */
+    private function seedDocumentedExample(Tenant $tenant): void
+    {
+        $employee = Employee::forTenant($tenant->id)->where('employee_number', 'EMP-0001')->first();
+
+        if ($employee === null) {
+            return;
+        }
+
+        $amounts = [
+            'BASIC' => 10_000_000,
+            'TJ-TRP' => 500_000,
+            'TJ-JAB' => 1_500_000,
+            'TJ-KES' => 350_000,
+        ];
+
+        foreach ($amounts as $code => $amount) {
+            $component = PayrollComponent::where('tenant_id', $tenant->id)->where('code', $code)->first();
+
+            if ($component === null) {
+                continue;
+            }
+
+            EmployeeSalaryComponent::updateOrCreate(
+                ['employee_id' => $employee->id, 'payroll_component_id' => $component->id],
+                [
+                    'tenant_id' => $tenant->id,
+                    'amount' => $amount,
+                    'effective_start_date' => $employee->join_date,
+                ],
+            );
+        }
     }
 
     private function setSalaryComponent(Tenant $tenant, Employee $employee, int $componentId, int $amount): void

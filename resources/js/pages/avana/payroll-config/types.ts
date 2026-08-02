@@ -97,7 +97,7 @@ export interface ColumnDef {
     key: string;
     /** Secondary key for the range renderer. */
     key2?: string;
-    kind?: 'percent' | 'rupiah' | 'rupiah-range' | 'active' | 'date';
+    kind?: 'percent' | 'rupiah' | 'rupiah-range' | 'wage-cap' | 'active' | 'date';
     align?: 'left' | 'right';
 }
 
@@ -160,6 +160,9 @@ export const SECTIONS: SectionDef[] = [
                 key: 'company_rate',
                 kind: 'percent',
             },
+            // Surfaced because an unset cap is not a neutral default: the
+            // premium is then charged on the whole wage.
+            { header: 'Batas Upah', key: 'max_wage', kind: 'wage-cap' },
             { header: 'Status', key: 'is_active', kind: 'active' },
         ],
         fields: [

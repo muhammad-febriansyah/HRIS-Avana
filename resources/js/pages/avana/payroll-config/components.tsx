@@ -135,6 +135,16 @@ export function renderCell(row: FlatRecord, column: ColumnDef): ReactNode {
         return asRupiah(raw);
     }
 
+    if (column.kind === 'wage-cap') {
+        // No cap means the premium is charged on the full wage — say so rather
+        // than showing a dash that reads like "nothing to see here".
+        return raw === null || raw === undefined || raw === '' || Number(raw) <= 0 ? (
+            <span style={{ color: C.amber }}>Tanpa plafon</span>
+        ) : (
+            asRupiah(raw)
+        );
+    }
+
     if (column.kind === 'rupiah-range') {
         const max = column.key2 ? row[column.key2] : null;
 

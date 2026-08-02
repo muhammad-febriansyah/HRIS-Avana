@@ -355,17 +355,26 @@ final class AvanaPayrollDemoSeeder extends Seeder
             ['region' => 'Default', 'amount' => 4_900_000, 'note' => 'UMR default tenant'],
         );
         foreach (Branch::where('tenant_id', $tenant->id)->get() as $branch) {
-            $amount = match (true) {
-                str_contains(strtolower($branch->name), 'jakarta') => 5_396_761,
-                str_contains(strtolower($branch->name), 'bandung') => 4_209_309,
-                str_contains(strtolower($branch->name), 'surabaya') => 4_725_479,
-                default => 4_900_000,
+            // The two rows the setup documentation tabulates, plus the branches
+            // this demo actually has.
+            [$region, $amount] = match (true) {
+                str_contains(strtolower($branch->name), 'jakarta') => ['DKI Jakarta', 5_396_761],
+                str_contains(strtolower($branch->name), 'bandung') => ['Jawa Barat – Bandung', 4_209_309],
+                str_contains(strtolower($branch->name), 'surabaya') => ['Jawa Timur – Surabaya', 4_725_479],
+                default => [$branch->name, 4_900_000],
             };
             UmrRate::updateOrCreate(
                 ['tenant_id' => $tenant->id, 'branch_id' => $branch->id, 'year' => $year],
-                ['region' => $branch->name, 'amount' => $amount],
+                ['region' => $region, 'amount' => $amount],
             );
         }
+
+        // A region without a branch of its own, so the screen shows that UMR is
+        // kept per wilayah and not only per cabang.
+        UmrRate::updateOrCreate(
+            ['tenant_id' => $tenant->id, 'branch_id' => null, 'year' => $year, 'region' => 'Jawa Tengah – Semarang'],
+            ['amount' => 3_454_150],
+        );
 
         return $hariKerja;
     }
@@ -380,10 +389,13 @@ final class AvanaPayrollDemoSeeder extends Seeder
     {
         // Grade bands (Struktur & Skala Upah). The per-step nominal table that
         // used to sit beside this fed nothing, and went with its screen.
+        // Grade 1 and Grade 4 carry the exact bands the setup documentation
+        // tabulates; 2 and 3 fill the ladder between them.
         $grades = [
-            ['grade_code' => 'G1', 'grade_name' => 'Golongan I', 'level' => 1, 'min' => 4_500_000, 'max' => 6_000_000, 'base' => 4_500_000],
-            ['grade_code' => 'G2', 'grade_name' => 'Golongan II', 'level' => 2, 'min' => 6_000_000, 'max' => 9_000_000, 'base' => 6_000_000],
-            ['grade_code' => 'G3', 'grade_name' => 'Golongan III', 'level' => 3, 'min' => 9_000_000, 'max' => 14_000_000, 'base' => 9_000_000],
+            ['grade_code' => 'G1', 'grade_name' => 'Grade 1', 'level' => 1, 'min' => 4_600_000, 'mid' => 5_200_000, 'max' => 5_900_000],
+            ['grade_code' => 'G2', 'grade_name' => 'Grade 2', 'level' => 2, 'min' => 5_900_000, 'mid' => 6_700_000, 'max' => 7_500_000],
+            ['grade_code' => 'G3', 'grade_name' => 'Grade 3', 'level' => 3, 'min' => 7_500_000, 'mid' => 8_000_000, 'max' => 8_500_000],
+            ['grade_code' => 'G4', 'grade_name' => 'Grade 4', 'level' => 4, 'min' => 8_500_000, 'mid' => 10_200_000, 'max' => 12_000_000],
         ];
 
         $created = [];
@@ -393,7 +405,7 @@ final class AvanaPayrollDemoSeeder extends Seeder
                 ['tenant_id' => $tenant->id, 'grade_code' => $g['grade_code']],
                 [
                     'grade_name' => $g['grade_name'], 'level' => $g['level'],
-                    'min_salary' => $g['min'], 'mid_salary' => ($g['min'] + $g['max']) / 2, 'max_salary' => $g['max'],
+                    'min_salary' => $g['min'], 'mid_salary' => $g['mid'], 'max_salary' => $g['max'],
                 ],
             );
         }
@@ -401,7 +413,7 @@ final class AvanaPayrollDemoSeeder extends Seeder
         // Put the sample employees in a grade so the Master Gaji screen has a
         // band to judge their salary against.
         foreach ($sample as $index => $employee) {
-            $code = ['G3', 'G2', 'G1'][$index % 3];
+            $code = ['G4', 'G2', 'G1'][$index % 3];
 
             $employee->forceFill(['salary_grade_id' => $created[$code]->id])->save();
         }
