@@ -17,6 +17,23 @@ use Inertia\Testing\AssertableInertia as Assert;
 
 use function Pest\Laravel\actingAs;
 
+/**
+ * Employees a period can pay: joined by the time it ends, not gone before it
+ * starts. Mirrors PayrollController::payableEmployees(), so the assertion is
+ * about the rule rather than about a headcount that drifts with the seeder.
+ */
+function payableCount(int $tenantId, PayrollPeriod $period): int
+{
+    $start = $period->start_date->toDateString();
+    $end = $period->end_date->toDateString();
+
+    return Employee::forTenant($tenantId)
+        ->where(fn ($query) => $query->whereNull('join_date')->orWhere('join_date', '<=', $end))
+        ->where(fn ($query) => $query->whereNull('resign_date')->orWhere('resign_date', '>=', $start))
+        ->where(fn ($query) => $query->where('status', 'active')->orWhereNotNull('resign_date'))
+        ->count();
+}
+
 beforeEach(function (): void {
     $this->withoutVite();
     $this->seed(AvanaDemoSeeder::class);
@@ -123,13 +140,15 @@ it('computes a payroll run with items for every active employee', function (): v
         'amount' => 500_000,
     ]);
 
-    $activeCount = Employee::forTenant($tenantId)->where('status', 'active')->count();
-
     actingAs($this->admin)
         ->post('spec-avana/payroll/run')
         ->assertSessionHas('success');
 
     $period = PayrollPeriod::forTenant($tenantId)->where('status', 'draft')->orderByDesc('start_date')->firstOrFail();
+
+    // Everyone this period can pay — an employee who joins after it ends has
+    // no month to be paid for.
+    $activeCount = payableCount($tenantId, $period);
     $run = PayrollRun::forTenant($tenantId)->where('payroll_period_id', $period->id)->firstOrFail();
 
     expect($run->status)->toBe('calculated');
@@ -151,13 +170,15 @@ it('computes a payroll run with items for every active employee', function (): v
 
 it('refreshes the existing run without duplicating items on re-run', function (): void {
     $tenantId = $this->tenant->id;
-    $activeCount = Employee::forTenant($tenantId)->where('status', 'active')->count();
 
     actingAs($this->admin)->post('spec-avana/payroll/run')->assertSessionHas('success');
     actingAs($this->admin)->post('spec-avana/payroll/run')->assertSessionHas('success');
 
     $period = PayrollPeriod::forTenant($tenantId)->where('status', 'draft')->orderByDesc('start_date')->firstOrFail();
     $runs = PayrollRun::forTenant($tenantId)->where('payroll_period_id', $period->id)->get();
+
+    // Everyone this period can pay, counted the way the run itself decides.
+    $activeCount = payableCount($tenantId, $period);
 
     expect($runs)->toHaveCount(1);
     expect(PayrollRunItem::where('payroll_run_id', $runs->first()->id)->count())->toBe($activeCount);

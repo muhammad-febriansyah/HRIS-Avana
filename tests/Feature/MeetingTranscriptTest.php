@@ -58,28 +58,52 @@ function segmentBatch(int $start, int $count = 2): array
         ->all();
 }
 
-it('stores segments and charges only the whole blocks of new audio', function (): void {
-    $result = $this->transcriber->ingestSegments($this->user, $this->meeting, segmentBatch(0), 40_000);
+/**
+ * Speech that runs from the start of the recording to `$untilMs`.
+ *
+ * Charging follows what was said, not how long the phone was open, so a test
+ * that claims a minute of audio has to put a minute of speech behind it.
+ *
+ * @return array<int, array{start_ms: int, end_ms: int, speaker: int, text: string}>
+ */
+function speechUpTo(int $untilMs): array
+{
+    $segments = [];
 
-    // 40s of audio = two full 15s blocks (30s) charged at 600 tokens/minute.
-    expect($result['stored'])->toBe(2)
+    for ($start = 0; $start < $untilMs; $start += 5_000) {
+        $segments[] = [
+            'start_ms' => $start,
+            'end_ms' => min($start + 5_000, $untilMs),
+            'speaker' => intdiv($start, 5_000) % 2,
+            'text' => 'Ucapan pada detik '.intdiv($start, 1_000),
+        ];
+    }
+
+    return $segments;
+}
+
+it('stores segments and charges only the whole blocks of new audio', function (): void {
+    $result = $this->transcriber->ingestSegments($this->user, $this->meeting, speechUpTo(40_000), 40_000);
+
+    // 40s of speech = two full 15s blocks (30s) charged at 600 tokens/minute.
+    expect($result['stored'])->toBe(8)
         ->and($result['billed_ms'])->toBe(30_000)
         ->and($result['tokens_charged'])->toBe(300)
         ->and($result['stop'])->toBeFalse()
-        ->and(MeetingSegment::where('meeting_id', $this->meeting->id)->count())->toBe(2);
+        ->and(MeetingSegment::where('meeting_id', $this->meeting->id)->count())->toBe(8);
 
     $ledger = AiTokenLedger::where('source', 'meeting_stt')->firstOrFail();
     expect($ledger->tokens)->toBe(300);
 });
 
 it('ignores a resent batch and never bills the same audio twice', function (): void {
-    $this->transcriber->ingestSegments($this->user, $this->meeting, segmentBatch(0), 30_000);
+    $this->transcriber->ingestSegments($this->user, $this->meeting, speechUpTo(30_000), 30_000);
 
-    $again = $this->transcriber->ingestSegments($this->user, $this->meeting->fresh(), segmentBatch(0), 30_000);
+    $again = $this->transcriber->ingestSegments($this->user, $this->meeting->fresh(), speechUpTo(30_000), 30_000);
 
     expect($again['stored'])->toBe(0)
         ->and($again['tokens_charged'])->toBe(0)
-        ->and(MeetingSegment::where('meeting_id', $this->meeting->id)->count())->toBe(2)
+        ->and(MeetingSegment::where('meeting_id', $this->meeting->id)->count())->toBe(6)
         // 30s billed once at 600 tokens/minute — not 600, and not twice.
         ->and((int) AiTokenLedger::where('source', 'meeting_stt')->sum('tokens'))->toBe(300);
 });
@@ -94,8 +118,8 @@ it('bills the same minute once even when two batches report it concurrently', fu
 
     expect($requestA->billed_ms)->toBe(0)->and($requestB->billed_ms)->toBe(0);
 
-    $first = $this->transcriber->ingestSegments($this->user, $requestA, segmentBatch(0), 60_000);
-    $second = $this->transcriber->ingestSegments($this->user, $requestB, segmentBatch(0), 60_000);
+    $first = $this->transcriber->ingestSegments($this->user, $requestA, speechUpTo(60_000), 60_000);
+    $second = $this->transcriber->ingestSegments($this->user, $requestB, speechUpTo(60_000), 60_000);
 
     expect($first['tokens_charged'])->toBe(600)
         ->and($second['tokens_charged'])->toBe(0)
@@ -105,7 +129,7 @@ it('bills the same minute once even when two batches report it concurrently', fu
 
 it('tells the phone to stop once the duration ceiling is reached', function (): void {
     // The ceiling is 2 minutes; the phone claims 5 and is capped at 2.
-    $result = $this->transcriber->ingestSegments($this->user, $this->meeting, segmentBatch(0), 300_000);
+    $result = $this->transcriber->ingestSegments($this->user, $this->meeting, speechUpTo(300_000), 300_000);
 
     expect($result['stop'])->toBeTrue()
         ->and($result['reason'])->toBe('max_duration')
@@ -116,7 +140,7 @@ it('tells the phone to stop once the duration ceiling is reached', function (): 
 it('tells the phone to stop when the company has run out of tokens', function (): void {
     $this->tenant->update(['ai_token_quota' => 100, 'ai_token_balance' => 0]);
 
-    $result = $this->transcriber->ingestSegments($this->user->fresh(), $this->meeting, segmentBatch(0), 60_000);
+    $result = $this->transcriber->ingestSegments($this->user->fresh(), $this->meeting, speechUpTo(60_000), 60_000);
 
     expect($result['tokens_charged'])->toBe(600)
         ->and($result['stop'])->toBeTrue()
@@ -136,7 +160,7 @@ it('answers 409 on the segments endpoint when the recording must stop', function
     $this->withHeader('Authorization', 'Bearer '.$token)
         ->postJson("/api/v1/me/meetings/{$this->meeting->id}/segments", [
             'elapsed_ms' => 60_000,
-            'segments' => segmentBatch(0),
+            'segments' => speechUpTo(60_000),
         ])
         ->assertStatus(409)
         ->assertJsonPath('data.stop', true);
@@ -176,4 +200,48 @@ it('refuses to feed a meeting recorded by somebody else', function (): void {
             'segments' => segmentBatch(0),
         ])
         ->assertForbidden();
+});
+
+it('does not bill a room that has gone quiet', function (): void {
+    // A minute of speech, then four minutes of an open socket saying nothing.
+    $this->transcriber->ingestSegments($this->user, $this->meeting, speechUpTo(60_000), 60_000);
+    $before = (int) AiTokenLedger::where('source', 'meeting_stt')->sum('tokens');
+
+    $result = $this->transcriber->ingestSegments($this->user, $this->meeting->fresh(), [], 300_000);
+
+    // Silence is real audio the provider meters, but it is not what the tenant
+    // came to buy — a phone left face-down must not run up a bill.
+    expect($result['tokens_charged'])->toBe(0)
+        ->and((int) AiTokenLedger::where('source', 'meeting_stt')->sum('tokens'))->toBe($before);
+});
+
+it('stops a recording nobody has spoken into for ten minutes', function (): void {
+    // No ceiling configured: the idle cutoff is the only thing left standing
+    // between a forgotten handset and an afternoon of provider time.
+    // Zero means no ceiling: resolvedStt() reads it back as null.
+    AiSetting::current()->update(['meeting_max_minutes' => 0]);
+
+    $this->transcriber->ingestSegments($this->user, $this->meeting, speechUpTo(60_000), 60_000);
+
+    $result = $this->transcriber->ingestSegments(
+        $this->user,
+        $this->meeting->fresh(),
+        [],
+        60_000 + MeetingTranscriber::IDLE_STOP_MS,
+    );
+
+    expect($result['stop'])->toBeTrue()
+        ->and($result['reason'])->toBe('idle')
+        ->and($result['message'])->toContain('Tidak ada suara');
+});
+
+it('keeps recording while somebody is still talking', function (): void {
+    // Zero means no ceiling: resolvedStt() reads it back as null.
+    AiSetting::current()->update(['meeting_max_minutes' => 0]);
+
+    // Well past any old ceiling, but the room is still speaking.
+    $result = $this->transcriber->ingestSegments($this->user, $this->meeting, speechUpTo(600_000), 600_000);
+
+    expect($result['stop'])->toBeFalse()
+        ->and($result['reason'])->toBeNull();
 });

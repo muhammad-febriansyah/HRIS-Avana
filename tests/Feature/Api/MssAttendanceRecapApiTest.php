@@ -4,8 +4,15 @@ use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
+use Illuminate\Support\Carbon;
 
 beforeEach(function (): void {
+    // The recap ends at today, so rows planted on the 2nd, 3rd and 4th of the
+    // month only count when the month is already past them. Run from late in
+    // the month and the fixture is always behind the clock, whatever the real
+    // date happens to be.
+    Carbon::setTestNow(Carbon::now()->startOfMonth()->addDays(27)->setTime(12, 0));
+
     $this->seed(AvanaDemoSeeder::class);
 
     $this->token = $this->postJson('/api/v1/auth/login', [
@@ -50,6 +57,10 @@ beforeEach(function (): void {
     $make($month->copy()->addDays(4)->toDateString(), 'absent');
     // A row outside the current month must be excluded from the default range.
     $make($month->copy()->subMonth()->toDateString(), 'present', 480);
+});
+
+afterEach(function (): void {
+    Carbon::setTestNow();
 });
 
 it('recaps team attendance for the current month by default', function (): void {
