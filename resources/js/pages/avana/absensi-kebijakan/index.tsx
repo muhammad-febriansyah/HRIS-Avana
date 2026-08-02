@@ -570,22 +570,11 @@ export default function AbsensiKebijakan({
                         </div>
                     </Section>
 
-                    <Section>
-                        <div style={sectionTitle}>Anti-Replay</div>
-                        <div style={sectionHint}>
-                            Cegah pengiriman ulang data absensi yang sudah
-                            direkam.
-                        </div>
-
-                        <Toggle
-                            on={form.data.require_liveness_challenge}
-                            onChange={(v) =>
-                                form.setData('require_liveness_challenge', v)
-                            }
-                            label="Wajib tantangan liveness (nonce sekali pakai)"
-                            hint="Aplikasi harus meminta kode sesi baru untuk setiap absen."
-                        />
-                    </Section>
+                    {/* Anti-Replay (nonce sekali pakai) is hidden for now: it
+                        rules out offline attendance, since a nonce expires two
+                        minutes after it is issued. The switch is still carried
+                        in the form so whatever a tenant already has stays put
+                        rather than being cleared by a save. */}
 
                     <button
                         type="submit"
