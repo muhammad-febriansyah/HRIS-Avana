@@ -16,6 +16,7 @@ use App\Support\DeviceIntegrity;
 use App\Support\FaceMatcher;
 use App\Support\Notifier;
 use App\Support\Roster;
+use App\Support\TenantTime;
 use Carbon\CarbonInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -34,11 +35,12 @@ class AttendanceController extends Controller
     public function today(Request $request): JsonResponse
     {
         $employee = $this->currentEmployee($request);
-        $record = $this->todayRecord($employee->tenant_id, $employee->id);
+        $zone = TenantTime::zoneForBranch($employee->tenant_id, $employee->branch_id);
+        $record = $this->todayRecord($employee->tenant_id, $employee->id, $zone);
         $policy = AttendancePolicy::resolve($employee->tenant_id);
 
         return response()->json([
-            'data' => $this->todayShape($record),
+            'data' => $this->todayShape($record, $zone),
             // Lets the app decide up front whether to force face enrollment or
             // fetch a liveness challenge before showing the clock button.
             'requirements' => [
@@ -53,8 +55,11 @@ class AttendanceController extends Controller
                 'wfh_approved_today' => LeaveAttendanceMarker::wfhCovers(
                     $employee->tenant_id,
                     $employee->id,
-                    now()->toDateString(),
+                    Carbon::now($zone)->toDateString(),
                 ),
+                // So the app labels times with the clock they were taken on.
+                'timezone' => $zone,
+                'timezone_label' => TenantTime::shortLabel($zone),
             ],
         ]);
     }
@@ -167,9 +172,12 @@ class AttendanceController extends Controller
         ]);
 
         // Resolve the effective clock time; never allow a future timestamp.
-        $clockedAt = isset($data['clocked_at']) ? Carbon::parse($data['clocked_at']) : now();
+        $zone = TenantTime::zoneForBranch($employee->tenant_id, $employee->branch_id);
+        $clockedAt = (isset($data['clocked_at']) ? Carbon::parse($data['clocked_at']) : now())
+            ->setTimezone($zone);
+
         if ($clockedAt->isFuture()) {
-            $clockedAt = now();
+            $clockedAt = Carbon::now($zone);
         }
         $data['clocked_at'] = $clockedAt;
 
@@ -609,21 +617,24 @@ class AttendanceController extends Controller
             ->get();
     }
 
-    private function todayRecord(int $tenantId, int $employeeId): ?Attendance
+    private function todayRecord(int $tenantId, int $employeeId, ?string $zone = null): ?Attendance
     {
+        $zone ??= (string) config('app.timezone');
+
         // Mid-shift at 02:00, a night worker's day is still yesterday's roster
         // row — reading today's would show them as not yet clocked in.
         return Attendance::forTenant($tenantId)
             ->where('employee_id', $employeeId)
-            ->whereDate('date', Roster::workDateFor($tenantId, $employeeId, now()))
+            ->whereDate('date', Roster::workDateFor($tenantId, $employeeId, Carbon::now($zone)))
             ->first();
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function todayShape(?Attendance $a): array
+    private function todayShape(?Attendance $a, ?string $zone = null): array
     {
+        $zone ??= (string) config('app.timezone');
         $nextAction = 'done';
         if ($a === null || $a->clock_in_at === null) {
             $nextAction = 'in';
@@ -632,7 +643,9 @@ class AttendanceController extends Controller
         }
 
         return [
-            'date' => now()->toDateString(),
+            'date' => Carbon::now($zone)->toDateString(),
+            // Stored as the office's own wall clock, so it reads back as the
+            // hour that office saw with no conversion.
             'clock_in' => $a?->clock_in_at?->format('H:i'),
             'clock_out' => $a?->clock_out_at?->format('H:i'),
             // Full ISO timestamp so the app can tick worked-hours to the second.

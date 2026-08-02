@@ -117,7 +117,9 @@ final class AvanaNav
                     self::leaf('payroll-perhitungan-hari', 'Perhitungan Hari', 'calendar-days', '/avana/payroll/perhitungan-hari', 'payroll', ['payroll']),
                     self::leaf('payroll-koreksi', 'Koreksi Gaji', 'pencil', '/avana/payroll/koreksi', 'payroll', ['payroll']),
                     self::leaf('payroll-rapel', 'Rapel Gaji', 'history', '/avana/payroll/rapel', 'payroll', ['payroll']),
-                    self::leaf('payroll-sales-order', 'Sales Order', 'clipboard-list', '/avana/payroll/sales-order', 'payroll', ['payroll']),
+                    // Sales Order is hidden for now at the client's request. The
+                    // screen and its routes still work for anyone holding the
+                    // link; only the menu entry is withdrawn.
                     self::leaf('jurnal', 'Jurnal Akuntansi', 'book-open', '/avana/jurnal', 'journal', ['journal']),
                     self::leaf('anggaran', 'Anggaran (Budget)', 'piggy-bank', '/avana/anggaran', 'budget', ['budget']),
                 ]),

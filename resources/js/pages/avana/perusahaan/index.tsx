@@ -158,7 +158,10 @@ export default function Perusahaan(props: PerusahaanProps) {
 
                 {/* Profile form or entity card */}
                 {activeKey === 'profile' ? (
-                    <ProfileForm company={props.company} />
+                    <ProfileForm
+                        company={props.company}
+                        timezones={props.timezones}
+                    />
                 ) : (
                     <EntityTable
                         tab={tab}

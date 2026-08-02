@@ -3,7 +3,7 @@ import { useState } from 'react';
 import type { CSSProperties } from 'react';
 import { toast } from 'sonner';
 import { AIcon, btnSave, C, card } from '@/lib/avana';
-import type { CompanyProfile } from './types';
+import type { CompanyProfile, TimezoneOption } from './types';
 
 const label: CSSProperties = {
     fontSize: 12.5,
@@ -30,7 +30,13 @@ const input: CSSProperties = {
  * Posts to `PUT /avana/perusahaan/profile`; the logo lives on the appearance
  * page, so this form only covers the legal and contact fields.
  */
-export function ProfileForm({ company }: { company: CompanyProfile }) {
+export function ProfileForm({
+    company,
+    timezones,
+}: {
+    company: CompanyProfile;
+    timezones: TimezoneOption[];
+}) {
     const [form, setForm] = useState<CompanyProfile>({ ...company });
     const [saving, setSaving] = useState(false);
 
@@ -116,6 +122,31 @@ export function ProfileForm({ company }: { company: CompanyProfile }) {
                 {field('phone', 'Telepon', {
                     placeholder: '(021) 1234-5678',
                 })}
+
+                <div>
+                    <label style={label}>Zona Waktu</label>
+                    <select
+                        value={form.timezone}
+                        onChange={(event) => set('timezone', event.target.value)}
+                        style={{ ...input, cursor: 'pointer' }}
+                    >
+                        {timezones.map((zone) => (
+                            <option key={zone.value} value={zone.value}>
+                                {zone.label}
+                            </option>
+                        ))}
+                    </select>
+                    <div
+                        style={{
+                            fontSize: 11.5,
+                            color: C.faint,
+                            marginTop: 5,
+                        }}
+                    >
+                        Jam absensi, keterlambatan dan laporan dibaca pada zona
+                        ini. Cabang yang punya zona sendiri memakai zonanya.
+                    </div>
+                </div>
             </div>
 
             <div style={{ marginTop: 16 }}>

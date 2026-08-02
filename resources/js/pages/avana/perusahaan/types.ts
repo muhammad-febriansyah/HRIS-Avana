@@ -31,11 +31,20 @@ export interface CompanyProfile {
     email: string | null;
     phone: string | null;
     address: string | null;
+    /** The wall clock the whole tenant reads times on (WIB / WITA / WIT). */
+    timezone: string;
+}
+
+/** A selectable time zone for the tenant. */
+export interface TimezoneOption {
+    value: string;
+    label: string;
 }
 
 /** Props for the company setup page (`index.tsx`). */
 export interface PerusahaanProps {
     company: CompanyProfile;
+    timezones: TimezoneOption[];
     branches: EntityRecord[];
     departments: EntityRecord[];
     positions: EntityRecord[];
@@ -79,6 +88,13 @@ export interface TabDef {
     fields: FieldDef[];
 }
 
+/** The three Indonesian wall clocks, mirroring App\Support\TenantTime. */
+export const TIMEZONE_OPTIONS = [
+    { value: 'Asia/Jakarta', label: 'WIB — Waktu Indonesia Barat (UTC+7)' },
+    { value: 'Asia/Makassar', label: 'WITA — Waktu Indonesia Tengah (UTC+8)' },
+    { value: 'Asia/Jayapura', label: 'WIT — Waktu Indonesia Timur (UTC+9)' },
+];
+
 export const STATUS_OPTIONS = [
     { value: 'active', label: 'Aktif' },
     { value: 'inactive', label: 'Nonaktif' },
@@ -115,9 +131,14 @@ export const TABS: TabDef[] = [
             {
                 name: 'timezone',
                 label: 'Zona Waktu',
-                type: 'text',
-                default: 'Asia/Jakarta',
+                type: 'select',
+                default: '',
+                options: [
+                    { value: '', label: 'Ikut zona perusahaan' },
+                    ...TIMEZONE_OPTIONS,
+                ],
                 span: 'half',
+                hint: 'Isi hanya bila cabang ini berada di zona berbeda.',
             },
             {
                 name: 'address',

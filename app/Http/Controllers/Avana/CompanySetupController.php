@@ -12,6 +12,7 @@ use App\Models\Shift;
 use App\Models\User;
 use App\Models\WorkLocation;
 use App\Support\TenantQuota;
+use App\Support\TenantTime;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -82,7 +83,12 @@ class CompanySetupController extends Controller
         $company = Company::forTenant($tenantId)->first();
 
         return Inertia::render('avana/perusahaan/index', [
+            'timezones' => collect(TenantTime::ZONES)
+                ->map(fn (string $label, string $value): array => ['value' => $value, 'label' => $label])
+                ->values()
+                ->all(),
             'company' => [
+                'timezone' => $request->user()->tenant?->timezone ?? config('app.timezone'),
                 'name' => $company?->name ?? $request->user()->tenant?->company_name ?? '',
                 'legal_name' => $company?->legal_name,
                 'npwp' => $company?->npwp,
@@ -158,14 +164,21 @@ class CompanySetupController extends Controller
             'email' => ['nullable', 'email', 'max:150'],
             'phone' => ['nullable', 'string', 'max:40'],
             'address' => ['nullable', 'string', 'max:500'],
+            'timezone' => ['nullable', 'string', Rule::in(array_keys(TenantTime::ZONES))],
         ]);
 
         $company = Company::forTenant($tenantId)->first() ?? new Company(['tenant_id' => $tenantId]);
         $company->tenant_id = $tenantId;
-        $company->fill($data)->save();
+        $company->fill(Arr::except($data, 'timezone'))->save();
 
-        // Keep the tenant's display name (topbar / white-label) in step.
-        $request->user()->tenant?->update(['company_name' => $data['name']]);
+        // Keep the tenant's display name (topbar / white-label) in step, and
+        // the wall clock the whole tenant reads times on.
+        $request->user()->tenant?->update(array_filter([
+            'company_name' => $data['name'],
+            'timezone' => $data['timezone'] ?? null,
+        ]));
+
+        TenantTime::forget();
 
         return back()->with('success', 'Profil perusahaan disimpan');
     }
@@ -181,6 +194,7 @@ class CompanySetupController extends Controller
         $tenantId = $request->user()->tenant_id;
 
         $this->normaliseWorkDays($request);
+        $this->normaliseBranchTimezone($request);
 
         $data = $request->validate($this->rulesFor($entity, $tenantId), $this->messages());
 
@@ -213,6 +227,7 @@ class CompanySetupController extends Controller
         $instance = $model::forTenant($tenantId)->findOrFail($record);
 
         $this->normaliseWorkDays($request);
+        $this->normaliseBranchTimezone($request);
 
         $data = $request->validate(
             $this->rulesFor($entity, $tenantId, (int) $instance->getKey()),
@@ -264,7 +279,7 @@ class CompanySetupController extends Controller
                 'name' => ['required', 'string', 'max:255'],
                 'phone' => ['nullable', 'string', 'max:255'],
                 'address' => ['nullable', 'string', 'max:1000'],
-                'timezone' => ['nullable', 'string', 'max:255'],
+                'timezone' => ['nullable', 'string', Rule::in(array_keys(TenantTime::ZONES))],
                 'status' => $this->statusRule(),
             ],
             'departments' => [
@@ -316,6 +331,17 @@ class CompanySetupController extends Controller
      * submits "1,2,3,4,5". An array from the API or a test is left alone, and
      * an empty value stays null — a shift that names no days runs every day.
      */
+    /**
+     * A branch that names no zone follows the company, so an empty pick is
+     * stored as null rather than an empty string.
+     */
+    private function normaliseBranchTimezone(Request $request): void
+    {
+        if ($request->has('timezone') && trim((string) $request->input('timezone')) === '') {
+            $request->merge(['timezone' => null]);
+        }
+    }
+
     private function normaliseWorkDays(Request $request): void
     {
         if (! $request->has('work_days') || is_array($request->input('work_days'))) {

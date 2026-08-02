@@ -101,7 +101,11 @@ final class Roster
             return ['status' => 'present', 'late_minutes' => 0, 'shift_id' => $shift?->id];
         }
 
-        $start = ($workDate !== null ? Carbon::parse($workDate) : $clockedAt->copy())
+        // Built on the punch's own clock: comparing a Makassar 08:30 against a
+        // Jakarta 08:00 would make a late arrival look half an hour early.
+        $start = ($workDate !== null
+            ? Carbon::parse($workDate, $clockedAt->getTimezone())
+            : $clockedAt->copy())
             ->setTimeFromTimeString((string) $shift->start_time);
         $allowed = $start->copy()->addMinutes((int) $shift->late_tolerance_minutes);
 
