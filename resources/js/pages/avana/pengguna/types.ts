@@ -59,6 +59,8 @@ export interface PenggunaIndexProps {
     roles: RoleOption[];
     branches: BranchOption[];
     filters: PenggunaFilters;
+    /** "1 perangkat 1 akun" — with it off there is no binding to reset. */
+    device_binding_enabled: boolean;
 }
 
 /** A per-user permission override row (`user_permission_overrides`). */

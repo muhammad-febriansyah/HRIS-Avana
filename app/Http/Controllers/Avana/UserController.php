@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
+use App\Models\AttendancePolicy;
 use App\Models\Branch;
 use App\Models\Role;
 use App\Models\User;
@@ -93,6 +94,8 @@ class UserController extends Controller
             'roles' => $this->assignableRoles($tenantId),
             'branches' => $this->tenantBranches($tenantId),
             'filters' => $request->only(['search', 'status', 'sort', 'direction', 'per_page']),
+            // With "1 perangkat 1 akun" off nothing is bound to reset.
+            'device_binding_enabled' => (bool) AttendancePolicy::resolve($tenantId)->device_binding_enabled,
         ]);
     }
 
@@ -360,6 +363,13 @@ class UserController extends Controller
     {
         $this->ensureTenantOwnership($request, $user);
         $this->authorize('update', $user);
+
+        // Hiding the button is not a control: with binding off there is no
+        // slot to free, and the reset would still revoke every token the
+        // account holds.
+        if (! AttendancePolicy::resolve((int) $user->tenant_id)->device_binding_enabled) {
+            return back()->with('error', 'Kebijakan "1 perangkat 1 akun" sedang nonaktif, tidak ada perangkat yang perlu direset.');
+        }
 
         $user->devices()->where('status', 'active')->update([
             'status' => 'reset',

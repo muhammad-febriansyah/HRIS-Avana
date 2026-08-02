@@ -51,6 +51,7 @@ export default function PenggunaIndex({
     users,
     branches = [],
     filters,
+    device_binding_enabled,
 }: PenggunaIndexProps) {
     const { flash } = usePage<FlashProps>().props;
     const meta = users.meta;
@@ -568,7 +569,8 @@ export default function PenggunaIndex({
                                                         toggleStatus(user)
                                                     }
                                                 />
-                                                {user.device ? (
+                                                {user.device &&
+                                                device_binding_enabled ? (
                                                     <ActionBtn
                                                         icon="smartphone"
                                                         label={`Reset perangkat (${user.device.label})`}

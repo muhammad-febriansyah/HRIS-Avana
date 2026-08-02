@@ -9,6 +9,7 @@ use App\Http\Requests\Avana\StoreEmployeeRequest;
 use App\Http\Requests\Avana\UpdateEmployeeRequest;
 use App\Http\Resources\Avana\EmployeeResource;
 use App\Imports\EmployeeBulkRowsImport;
+use App\Models\AttendancePolicy;
 use App\Models\Branch;
 use App\Models\CustomField;
 use App\Models\Department;
@@ -114,6 +115,9 @@ class EmployeeController extends Controller
             ]),
             'branches' => Branch::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
             'departments' => Department::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
+            // With "1 perangkat 1 akun" off nothing is bound to reset, so the
+            // action does not belong on the screen.
+            'device_binding_enabled' => (bool) AttendancePolicy::resolve($tenantId)->device_binding_enabled,
         ]);
     }
 
@@ -859,6 +863,15 @@ class EmployeeController extends Controller
     {
         $this->ensureTenantOwnership($request, $employee);
         $this->authorize('update', $employee);
+
+        $tenantId = (int) $employee->tenant_id;
+
+        // Hiding the button is not a control: with binding off there is no
+        // slot to free, and the reset would still revoke every token the
+        // account holds.
+        if (! AttendancePolicy::resolve($tenantId)->device_binding_enabled) {
+            return back()->with('error', 'Kebijakan "1 perangkat 1 akun" sedang nonaktif, tidak ada perangkat yang perlu direset.');
+        }
 
         // The mobile app binds the device to the login it authenticates by
         // EMAIL, which is not always the same users row as employees.user_id.

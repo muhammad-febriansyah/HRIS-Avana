@@ -27,6 +27,8 @@ interface EmployeesIndexProps {
     filters: Record<string, string | undefined>;
     branches: NamedOption[];
     departments: NamedOption[];
+    /** "1 perangkat 1 akun" — with it off there is no binding to reset. */
+    device_binding_enabled: boolean;
 }
 
 const filterSelectStyle: CSSProperties = {
@@ -95,6 +97,7 @@ export default function EmployeesIndex({
     filters,
     branches,
     departments,
+    device_binding_enabled,
 }: EmployeesIndexProps) {
     const { flash } = usePage<FlashProps>().props;
     const meta = employees.meta;
@@ -761,18 +764,19 @@ export default function EmployeesIndex({
                                                             )
                                                         }
                                                     />
-                                                    {e.has_login && (
-                                                        <ActionBtn
-                                                            icon="smartphone"
-                                                            label="Reset HP"
-                                                            variant="neutral"
-                                                            onClick={() =>
-                                                                setResetTarget(
-                                                                    e,
-                                                                )
-                                                            }
-                                                        />
-                                                    )}
+                                                    {e.has_login &&
+                                                        device_binding_enabled && (
+                                                            <ActionBtn
+                                                                icon="smartphone"
+                                                                label="Reset HP"
+                                                                variant="neutral"
+                                                                onClick={() =>
+                                                                    setResetTarget(
+                                                                        e,
+                                                                    )
+                                                                }
+                                                            />
+                                                        )}
                                                     {e.has_login && (
                                                         <ActionBtn
                                                             icon={
