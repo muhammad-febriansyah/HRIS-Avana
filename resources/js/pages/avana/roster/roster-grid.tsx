@@ -18,6 +18,7 @@ interface ShiftCellProps {
     colorForShift: (shiftId: number) => string;
     onToggle: () => void;
     onSelect: (shiftId: number) => void;
+    onMarkOff: () => void;
     onRemove: () => void;
 }
 
@@ -31,6 +32,7 @@ function ShiftCell({
     colorForShift,
     onToggle,
     onSelect,
+    onMarkOff,
     onRemove,
 }: ShiftCellProps) {
     return (
@@ -82,6 +84,8 @@ function ShiftCell({
                 >
                     {schedule && shift ? (
                         (shift.code ?? shift.name)
+                    ) : schedule ? (
+                        <AIcon name="moon" size={15} color={C.muted} />
                     ) : (
                         <AIcon name="plus" size={15} color={C.faint} />
                     )}
@@ -93,6 +97,7 @@ function ShiftCell({
                         schedule={schedule}
                         colorForShift={colorForShift}
                         onSelect={onSelect}
+                        onMarkOff={onMarkOff}
                         onRemove={onRemove}
                     />
                 )}
@@ -113,7 +118,8 @@ interface RosterGridProps {
     ) => RosterSchedule | undefined;
     shiftFor: (shiftId: number) => RosterShift | undefined;
     colorForShift: (shiftId: number) => string;
-    onAssign: (employeeId: number, date: string, shiftId: number) => void;
+    /** A null shift marks the day off rather than assigning one. */
+    onAssign: (employeeId: number, date: string, shiftId: number | null) => void;
     onRemove: (scheduleId: number) => void;
 }
 
@@ -250,6 +256,13 @@ export function RosterGrid({
                                                     employee.id,
                                                     day.date,
                                                     shiftId,
+                                                )
+                                            }
+                                            onMarkOff={() =>
+                                                onAssign(
+                                                    employee.id,
+                                                    day.date,
+                                                    null,
                                                 )
                                             }
                                             onRemove={() => {

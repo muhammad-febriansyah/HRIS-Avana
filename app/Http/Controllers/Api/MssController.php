@@ -18,6 +18,7 @@ use App\Models\ShiftSchedule;
 use App\Models\WfhRequest;
 use App\Services\ApprovalEngine;
 use App\Services\LeaveAttendanceMarker;
+use App\Support\Roster;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
@@ -240,20 +241,17 @@ class MssController extends Controller
                 ->find($data['shift_id']);
 
             abort_if($shift === null, 422, 'Shift tidak valid.');
+
+            // Same rule the web roster enforces: a shift cannot be put on a day
+            // it does not run.
+            abort_if(
+                ! Roster::runsOn($shift, $data['date']),
+                422,
+                sprintf('%s hanya berjalan pada hari %s.', $shift->name, implode(', ', Roster::dayNames($shift))),
+            );
         }
 
-        $schedule = ShiftSchedule::forTenant($manager->tenant_id)
-            ->where('employee_id', $member->id)
-            ->whereDate('date', $data['date'])
-            ->first()
-            ?? new ShiftSchedule([
-                'tenant_id' => $manager->tenant_id,
-                'employee_id' => $member->id,
-                'date' => $data['date'],
-            ]);
-
-        $schedule->shift_id = $shift?->id;
-        $schedule->save();
+        Roster::assign($manager->tenant_id, (int) $member->id, $data['date'], $shift?->id);
 
         return response()->json([
             'message' => $shift !== null ? 'Shift diatur: '.$shift->name : 'Ditandai libur',

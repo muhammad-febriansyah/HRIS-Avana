@@ -174,13 +174,16 @@ it('updates the existing assignment instead of duplicating on re-store', functio
 });
 
 it('validates required fields on store', function (): void {
+    // shift_id is deliberately absent: a blank shift marks the day off, which
+    // is a real instruction rather than a missing field.
     actingAs($this->admin)
         ->post(route('avana.roster.store'), [
             'employee_id' => '',
             'shift_id' => '',
             'date' => '',
         ])
-        ->assertSessionHasErrors(['employee_id', 'shift_id', 'date']);
+        ->assertSessionHasErrors(['employee_id', 'date'])
+        ->assertSessionDoesntHaveErrors('shift_id');
 });
 
 it('deletes a schedule', function (): void {

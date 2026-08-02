@@ -7,11 +7,13 @@ use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\Shift;
 use App\Models\ShiftSchedule;
+use App\Support\Roster;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -110,30 +112,52 @@ class RosterController extends Controller
 
         $validated = $request->validate([
             'employee_id' => ['required', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
-            'shift_id' => ['required', Rule::exists('shifts', 'id')->where('tenant_id', $tenantId)],
+            // Null marks the day off — the same thing the mobile app can
+            // already record, and what "Jadwal Saya" renders as Libur.
+            'shift_id' => ['nullable', Rule::exists('shifts', 'id')->where('tenant_id', $tenantId)],
             'date' => ['required', 'date'],
         ]);
 
-        // Match on the calendar date rather than the cast value so a single
-        // assignment per employee/date is enforced regardless of how the
-        // database stores the time component.
-        $schedule = ShiftSchedule::forTenant($tenantId)
-            ->where('employee_id', $validated['employee_id'])
-            ->whereDate('date', $validated['date'])
-            ->first();
+        $this->assertShiftRunsOn($tenantId, $validated['shift_id'] ?? null, $validated['date']);
 
-        if ($schedule !== null) {
-            $schedule->update(['shift_id' => $validated['shift_id']]);
-        } else {
-            ShiftSchedule::create([
-                'tenant_id' => $tenantId,
-                'employee_id' => $validated['employee_id'],
-                'shift_id' => $validated['shift_id'],
-                'date' => $validated['date'],
-            ]);
+        Roster::assign(
+            $tenantId,
+            (int) $validated['employee_id'],
+            $validated['date'],
+            $validated['shift_id'] ?? null,
+        );
+
+        return back()->with('success', $validated['shift_id'] === null
+            ? 'Ditandai libur'
+            : 'Jadwal shift disimpan');
+    }
+
+    /**
+     * Refuse to roster a shift onto a day it does not run.
+     *
+     * A shift can name the days it operates; scheduling it outside them makes
+     * a roster nobody can work and an attendance record nobody can satisfy.
+     * A shift that names no days runs every day.
+     */
+    private function assertShiftRunsOn(int $tenantId, ?int $shiftId, string $date): void
+    {
+        if ($shiftId === null) {
+            return;
         }
 
-        return back()->with('success', 'Jadwal shift disimpan');
+        $shift = Shift::forTenant($tenantId)->find($shiftId);
+
+        if ($shift === null || Roster::runsOn($shift, $date)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'shift_id' => sprintf(
+                '%s hanya berjalan pada hari %s.',
+                $shift->name,
+                implode(', ', Roster::dayNames($shift)),
+            ),
+        ]);
     }
 
     /**
@@ -168,6 +192,25 @@ class RosterController extends Controller
             ->map(fn (string $date): string => Carbon::parse($date)->format('Y-m-d'))
             ->unique()
             ->values();
+
+        // Dates the shift does not run on are dropped rather than rostered —
+        // and counted, so a partial fill never reads as a complete one.
+        $shift = Shift::forTenant($tenantId)->find($validated['shift_id']);
+        $requested = $dates->count();
+
+        if ($shift !== null) {
+            $dates = $dates->filter(fn (string $date): bool => Roster::runsOn($shift, $date))->values();
+        }
+
+        $skipped = $requested - $dates->count();
+
+        if ($dates->isEmpty()) {
+            return back()->with('error', sprintf(
+                '%s tidak berjalan pada tanggal yang dipilih (hanya hari %s).',
+                $shift?->name ?? 'Shift',
+                implode(', ', $shift !== null ? Roster::dayNames($shift) : []),
+            ));
+        }
 
         $existing = ShiftSchedule::forTenant($tenantId)
             ->whereIn('employee_id', $employeeIds)
@@ -213,7 +256,13 @@ class RosterController extends Controller
 
         $total = count($employeeIds) * $dates->count();
 
-        return back()->with('success', "Shift diterapkan ke {$total} jadwal.");
+        $message = "Shift diterapkan ke {$total} jadwal.";
+
+        if ($skipped > 0) {
+            $message .= " {$skipped} tanggal dilewati karena shift tidak berjalan pada hari itu.";
+        }
+
+        return back()->with('success', $message);
     }
 
     /**

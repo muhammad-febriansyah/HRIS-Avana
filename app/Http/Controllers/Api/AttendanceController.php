@@ -10,12 +10,12 @@ use App\Models\AttendancePolicy;
 use App\Models\AttendanceSelfie;
 use App\Models\Employee;
 use App\Models\EmployeeFaceEmbedding;
-use App\Models\ShiftSchedule;
 use App\Models\WorkLocation;
 use App\Services\LeaveAttendanceMarker;
 use App\Support\DeviceIntegrity;
 use App\Support\FaceMatcher;
 use App\Support\Notifier;
+use App\Support\Roster;
 use Carbon\CarbonInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -470,30 +470,7 @@ class AttendanceController extends Controller
      */
     private function lateAgainstShift(Employee $employee, CarbonInterface $clockedAt): array
     {
-        $schedule = ShiftSchedule::forTenant($employee->tenant_id)
-            ->where('employee_id', $employee->id)
-            ->whereDate('date', $clockedAt->toDateString())
-            ->with('shift')
-            ->first();
-
-        $shift = $schedule?->shift;
-
-        if ($shift === null || $shift->start_time === null) {
-            return ['status' => 'present', 'late_minutes' => 0, 'shift_id' => $shift?->id];
-        }
-
-        $shiftStart = $clockedAt->copy()->setTimeFromTimeString((string) $shift->start_time);
-        $allowed = $shiftStart->copy()->addMinutes((int) $shift->late_tolerance_minutes);
-
-        if ($clockedAt->lessThanOrEqualTo($allowed)) {
-            return ['status' => 'present', 'late_minutes' => 0, 'shift_id' => $shift->id];
-        }
-
-        return [
-            'status' => 'late',
-            'late_minutes' => (int) $shiftStart->diffInMinutes($clockedAt),
-            'shift_id' => $shift->id,
-        ];
+        return Roster::evaluateFor($employee, $clockedAt);
     }
 
     /**

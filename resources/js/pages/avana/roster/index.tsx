@@ -77,7 +77,11 @@ export default function AvanaRoster({
         );
     };
 
-    const assignShift = (employeeId: number, date: string, shiftId: number) => {
+    const assignShift = (
+        employeeId: number,
+        date: string,
+        shiftId: number | null,
+    ) => {
         router.post(
             RosterController.store().url,
             { employee_id: employeeId, shift_id: shiftId, date },

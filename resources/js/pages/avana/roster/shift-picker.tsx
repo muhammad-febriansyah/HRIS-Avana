@@ -6,6 +6,8 @@ interface ShiftPickerProps {
     schedule: RosterSchedule | undefined;
     colorForShift: (shiftId: number) => string;
     onSelect: (shiftId: number) => void;
+    /** Mark the day off: rostered, but with no shift to work. */
+    onMarkOff: () => void;
     onRemove: () => void;
 }
 
@@ -19,6 +21,7 @@ export function ShiftPicker({
     schedule,
     colorForShift,
     onSelect,
+    onMarkOff,
     onRemove,
 }: ShiftPickerProps) {
     return (
@@ -94,6 +97,40 @@ export function ShiftPicker({
                     </button>
                 );
             })}
+            <div
+                style={{
+                    height: 1,
+                    background: C.line,
+                    margin: '5px 4px',
+                }}
+            />
+            <button
+                onClick={onMarkOff}
+                style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 9,
+                    padding: '8px 9px',
+                    border: 'none',
+                    background:
+                        schedule && schedule.shift_id === null
+                            ? C.surface
+                            : 'none',
+                    borderRadius: 7,
+                    fontSize: 12.5,
+                    fontWeight: 500,
+                    color: C.muted,
+                    cursor: 'pointer',
+                    transition: '.12s',
+                }}
+            >
+                <AIcon name="moon" size={14} color={C.muted} />
+                <span style={{ flex: 1, textAlign: 'left' }}>Libur</span>
+                {schedule && schedule.shift_id === null && (
+                    <AIcon name="check" size={14} color={C.primary} />
+                )}
+            </button>
             {schedule && (
                 <>
                     <div

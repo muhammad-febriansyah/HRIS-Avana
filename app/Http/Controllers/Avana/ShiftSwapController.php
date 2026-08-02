@@ -7,8 +7,10 @@ use App\Models\Employee;
 use App\Models\Shift;
 use App\Models\ShiftSwap;
 use App\Models\User;
+use App\Support\Roster;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -102,9 +104,40 @@ class ShiftSwapController extends Controller
         $this->ensureCan($request, 'approve');
         $this->ensureTenantOwnership($request, $swap);
 
+        // Approving a swap has to move the roster, or the two keep their old
+        // shifts and attendance goes on judging them against the wrong start
+        // time — the approval would be paperwork with no effect.
+        if ($swap->status !== 'approved') {
+            $this->applyToRoster($swap);
+        }
+
         $swap->update(['status' => 'approved']);
 
-        return back()->with('success', 'Tukar shift disetujui');
+        return back()->with('success', 'Tukar shift disetujui — jadwal kedua karyawan sudah ditukar');
+    }
+
+    /**
+     * Exchange the two employees' rostered shifts for the swap's date.
+     *
+     * The shifts are read from the roster rather than from the request, so an
+     * approval that lands after someone edited the roster swaps what is
+     * actually there. A day with no row is treated as a day off and swaps as
+     * one — that is what the requester saw when they asked.
+     */
+    private function applyToRoster(ShiftSwap $swap): void
+    {
+        $tenantId = (int) $swap->tenant_id;
+        $date = $swap->date;
+
+        $requesterShift = Roster::scheduleFor($tenantId, (int) $swap->requester_id, $date)?->shift_id
+            ?? $swap->requester_shift_id;
+        $targetShift = Roster::scheduleFor($tenantId, (int) $swap->target_id, $date)?->shift_id
+            ?? $swap->target_shift_id;
+
+        DB::transaction(function () use ($tenantId, $swap, $date, $requesterShift, $targetShift): void {
+            Roster::assign($tenantId, (int) $swap->requester_id, $date, $targetShift);
+            Roster::assign($tenantId, (int) $swap->target_id, $date, $requesterShift);
+        });
     }
 
     /**

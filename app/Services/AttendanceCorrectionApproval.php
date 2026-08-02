@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
+use App\Support\Roster;
 use Illuminate\Support\Carbon;
 
 class AttendanceCorrectionApproval
@@ -47,7 +48,32 @@ class AttendanceCorrectionApproval
         if ($attendance->branch_id === null) {
             $attendance->branch_id = $correction->employee?->branch_id;
         }
-        $attendance->status = 'present';
+
+        // The corrected clock-in has to be judged against the shift the employee
+        // was rostered onto, not waved through as present: a correction that
+        // moves the arrival to 09:30 on an 08:00 shift is still late, and the
+        // old late_minutes would otherwise stay on the record contradicting it.
+        $clockedAt = $attendance->clock_in_at !== null
+            ? Carbon::parse($attendance->clock_in_at)
+            : null;
+
+        if ($clockedAt !== null) {
+            $shift = Roster::shiftFor(
+                (int) $attendance->tenant_id,
+                (int) $attendance->employee_id,
+                $date,
+            );
+
+            $verdict = Roster::evaluate($shift, $clockedAt);
+
+            $attendance->status = $verdict['status'];
+            $attendance->late_minutes = $verdict['late_minutes'];
+            $attendance->shift_id = $verdict['shift_id'] ?? $attendance->shift_id;
+        } else {
+            // No clock-in to judge — the correction only moved the clock-out.
+            $attendance->status = 'present';
+            $attendance->late_minutes = 0;
+        }
 
         if ($clockIn !== null && $clockOut !== null) {
             $attendance->work_minutes = max(0, (int) $clockIn->diffInMinutes($clockOut));
