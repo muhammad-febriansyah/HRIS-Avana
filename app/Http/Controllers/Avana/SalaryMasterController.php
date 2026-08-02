@@ -5,11 +5,15 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\DayCalcMethod;
 use App\Models\Employee;
+use App\Models\EmployeeSalaryComponent;
 use App\Models\PayrollComponent;
+use App\Models\SalaryGrade;
 use App\Models\SalaryMaster;
 use App\Models\User;
+use App\Support\SalaryCompliance;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -126,6 +130,17 @@ class SalaryMasterController extends Controller
                     'name' => $e->full_name,
                     'salary_master_id' => $e->salary_master_id,
                 ])->all(),
+            'gradeOptions' => SalaryGrade::forTenant($tenantId)
+                ->orderBy('level')
+                ->get(['id', 'grade_code', 'grade_name', 'min_salary', 'mid_salary', 'max_salary'])
+                ->map(fn (SalaryGrade $grade): array => [
+                    'id' => $grade->id,
+                    'label' => $grade->grade_code.' · '.$grade->grade_name,
+                    'min' => (float) $grade->min_salary,
+                    'mid' => (float) $grade->mid_salary,
+                    'max' => (float) $grade->max_salary,
+                ])->all(),
+            'salaries' => $this->employeeSalaries($master, $tenantId),
         ]);
     }
 
@@ -268,6 +283,160 @@ class SalaryMasterController extends Controller
             ->update(['salary_master_id' => $master->id]);
 
         return back()->with('success', 'Master Gaji ditempel ke pegawai');
+    }
+
+    /**
+     * Put an employee in a Struktur & Skala Upah grade, so their salary has a
+     * band to be judged against.
+     */
+    public function setEmployeeGrade(Request $request, SalaryMaster $master): RedirectResponse
+    {
+        $this->ensureCan($request, 'update');
+        $this->ensureOwnership($request, $master->tenant_id);
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $data = $request->validate([
+            'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
+            'salary_grade_id' => ['nullable', 'integer', Rule::exists('salary_grades', 'id')->where('tenant_id', $tenantId)],
+        ]);
+
+        Employee::forTenant($tenantId)
+            ->whereKey($data['employee_id'])
+            ->update(['salary_grade_id' => $data['salary_grade_id'] ?? null]);
+
+        return back()->with('success', 'Grade karyawan disimpan');
+    }
+
+    /**
+     * Set an employee's own Gaji Pokok, overriding the template nominal, and
+     * report back when the result falls under the UMR or outside the grade band
+     * rather than saving it silently.
+     *
+     * The salary is versioned, not overwritten: the row in force is closed the
+     * day before the new one starts, so last year's payslips keep computing
+     * from last year's figure.
+     */
+    public function setEmployeeSalary(Request $request, SalaryMaster $master): RedirectResponse
+    {
+        $this->ensureCan($request, 'update');
+        $this->ensureOwnership($request, $master->tenant_id);
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $data = $request->validate([
+            'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
+            'amount' => ['required', 'numeric', 'min:0'],
+            'effective_start_date' => ['nullable', 'date'],
+        ]);
+
+        $basic = PayrollComponent::forTenant($tenantId)->where('code', 'BASIC')->first();
+
+        if ($basic === null) {
+            return back()->withErrors(['amount' => 'Komponen Gaji Pokok (BASIC) belum ada di Master Komponen.']);
+        }
+
+        $this->recordSalary(
+            $tenantId,
+            (int) $data['employee_id'],
+            (int) $basic->id,
+            (float) $data['amount'],
+            Carbon::parse($data['effective_start_date'] ?? now())->startOfDay(),
+        );
+
+        $employee = Employee::forTenant($tenantId)->with('salaryGrade')->findOrFail($data['employee_id']);
+        $wage = SalaryCompliance::monthlyWage($employee, $tenantId);
+        $verdict = SalaryCompliance::verdict(
+            $wage['total'],
+            SalaryCompliance::umrFor($employee, $tenantId),
+            $employee->salaryGrade,
+        );
+
+        $warnings = array_values(array_filter([
+            $verdict['umr_status'] === 'below' ? $verdict['umr_label'] : null,
+            in_array($verdict['grade_status'], ['below_min', 'above_max'], true) ? $verdict['grade_label'] : null,
+        ]));
+
+        if ($warnings !== []) {
+            return back()->with('warning', 'Gaji tersimpan, tapi: '.implode(' · ', $warnings));
+        }
+
+        return back()->with('success', 'Gaji pokok karyawan disimpan');
+    }
+
+    /**
+     * Version one component's nominal for an employee.
+     *
+     * A row already starting on the same date is corrected in place — that is a
+     * typo being fixed, not a raise. Anything earlier is closed the day before
+     * the new figure takes effect, and rows that would start later are left
+     * alone so a future-dated raise is not silently undone.
+     */
+    private function recordSalary(int $tenantId, int $employeeId, int $componentId, float $amount, Carbon $from): void
+    {
+        $scope = EmployeeSalaryComponent::forTenant($tenantId)
+            ->where('employee_id', $employeeId)
+            ->where('payroll_component_id', $componentId);
+
+        $sameDay = (clone $scope)->whereDate('effective_start_date', $from->toDateString())->first();
+
+        if ($sameDay !== null) {
+            $sameDay->update(['amount' => $amount]);
+
+            return;
+        }
+
+        (clone $scope)
+            ->where(fn ($query) => $query
+                ->whereNull('effective_start_date')
+                ->orWhereDate('effective_start_date', '<', $from->toDateString()))
+            ->where(fn ($query) => $query
+                ->whereNull('effective_end_date')
+                ->orWhereDate('effective_end_date', '>=', $from->toDateString()))
+            ->update(['effective_end_date' => $from->copy()->subDay()->toDateString()]);
+
+        EmployeeSalaryComponent::create([
+            'tenant_id' => $tenantId,
+            'employee_id' => $employeeId,
+            'payroll_component_id' => $componentId,
+            'amount' => $amount,
+            'effective_start_date' => $from->toDateString(),
+        ]);
+    }
+
+    /**
+     * The employees on this Master Gaji with their grade, wage split and the
+     * UMR / skala upah verdict — the "Contoh Data — Master Gaji" table of the
+     * setup documentation, computed rather than typed.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function employeeSalaries(SalaryMaster $master, int $tenantId): array
+    {
+        return Employee::forTenant($tenantId)
+            ->where('salary_master_id', $master->id)
+            ->with(['salaryGrade', 'branch:id,name'])
+            ->orderBy('full_name')
+            ->get()
+            ->map(function (Employee $employee) use ($tenantId): array {
+                $wage = SalaryCompliance::monthlyWage($employee, $tenantId);
+                $umr = SalaryCompliance::umrFor($employee, $tenantId);
+
+                return [
+                    'id' => $employee->id,
+                    'name' => $employee->full_name,
+                    'number' => $employee->employee_number,
+                    'branch' => $employee->branch?->name,
+                    'salary_grade_id' => $employee->salary_grade_id,
+                    'effective_from' => $wage['effective_from'],
+                    'basic' => $wage['basic'],
+                    'allowances' => $wage['allowances'],
+                    'total' => $wage['total'],
+                    ...SalaryCompliance::verdict($wage['total'], $umr, $employee->salaryGrade),
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**

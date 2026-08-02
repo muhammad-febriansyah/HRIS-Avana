@@ -13,6 +13,7 @@ use App\Models\EmployeeBpjsProfile;
 use App\Models\EmployeeSalaryComponent;
 use App\Models\Loan;
 use App\Models\OvertimeRequest;
+use App\Models\Payday;
 use App\Models\PayrollComponent;
 use App\Models\PayrollComponentValue;
 use App\Models\PayrollCorrection;
@@ -26,6 +27,7 @@ use App\Models\SalaryMasterComponent;
 use App\Models\SalaryRapel;
 use App\Models\TaxProfile;
 use App\Models\UmrRate;
+use App\Support\OvertimeRules;
 use App\Support\Pph21Calculator;
 use App\Support\Pph21Ter;
 use App\Support\TaxForm1721;
@@ -259,6 +261,8 @@ class PayrollController extends Controller
                         'deductions' => $pay['deductions'],
                         'present_days' => $pay['present_days'],
                         'overtime_hours' => $pay['overtime_hours'],
+                        'overtime' => $pay['overtime_snapshot'],
+                        'payday' => $pay['payday_snapshot'],
                         'proration_factor' => $pay['proration_factor'],
                         'loan_ids' => $pay['loan_ids'],
                         'gross' => $pay['gross'],
@@ -1139,18 +1143,31 @@ class PayrollController extends Controller
             ? SalaryMaster::forTenant($tenantId)->find($employee->salary_master_id)
             : null;
 
+        // Mapping Payday, when the employee is in a group, states the cut-off the
+        // attendance and overtime windows follow — it is the narrower, more
+        // specific answer, so it wins over the Master Gaji window.
+        $payday = $employee->payday_id !== null
+            ? Payday::forTenant($tenantId)->find($employee->payday_id)
+            : null;
+
         $presentDays = 0;
         $overtimeRecords = collect();
         $attendanceRange = null;
 
         if ($period->start_date !== null && $period->end_date !== null) {
-            $attendanceRange = $master?->attendance_start_day !== null && $master?->attendance_end_day !== null
-                ? $this->masterDateRange($period, $master->attendance_start_day, $master->attendance_end_day, $master->attendance_period)
-                : [$period->start_date->toDateString(), $period->end_date->toDateString()];
+            $paydayRange = $payday?->cut_off_start_day !== null && $payday?->cut_off_end_day !== null
+                ? $this->masterDateRange($period, $payday->cut_off_start_day, $payday->cut_off_end_day, null)
+                : null;
 
-            $overtimeRange = $master?->overtime_start_day !== null && $master?->overtime_end_day !== null
-                ? $this->masterDateRange($period, $master->overtime_start_day, $master->overtime_end_day, $master->overtime_period)
-                : $attendanceRange;
+            $attendanceRange = $paydayRange
+                ?? ($master?->attendance_start_day !== null && $master?->attendance_end_day !== null
+                    ? $this->masterDateRange($period, $master->attendance_start_day, $master->attendance_end_day, $master->attendance_period)
+                    : [$period->start_date->toDateString(), $period->end_date->toDateString()]);
+
+            $overtimeRange = $paydayRange
+                ?? ($master?->overtime_start_day !== null && $master?->overtime_end_day !== null
+                    ? $this->masterDateRange($period, $master->overtime_start_day, $master->overtime_end_day, $master->overtime_period)
+                    : $attendanceRange);
 
             $presentDays = Attendance::forTenant($tenantId)
                 ->where('employee_id', $employee->id)
@@ -1162,7 +1179,7 @@ class PayrollController extends Controller
                 ->where('employee_id', $employee->id)
                 ->where('status', 'approved')
                 ->whereBetween('date', $overtimeRange)
-                ->get(['date', 'hours']);
+                ->get(['date', 'day_type', 'hours']);
         }
 
         $overtimeHours = (float) $overtimeRecords->sum('hours');
@@ -1181,10 +1198,24 @@ class PayrollController extends Controller
         /** @var list<array{name: string, amount: float}> $deductions */
         $deductions = [];
         $basic = 0.0;
+        $overtimeBasis = 0.0;
         $hasCustomOvertime = false;
+
+        // "Komponen Overtime" on the Master Gaji: the components that make up the
+        // overtime basis. PP 35/2021 Pasal 30 counts Gaji Pokok plus the fixed
+        // allowances, not the basic wage alone.
+        $overtimeBasisIds = $master !== null
+            ? SalaryMasterComponent::query()
+                ->where('salary_master_id', $master->id)
+                ->where('is_overtime_base', true)
+                ->pluck('payroll_component_id')
+                ->flip()
+                ->all()
+            : [];
 
         $salaryComponents = EmployeeSalaryComponent::forTenant($tenantId)
             ->where('employee_id', $employee->id)
+            ->effectiveOn($period->end_date)
             ->with('component')
             ->get();
 
@@ -1203,9 +1234,9 @@ class PayrollController extends Controller
 
             if ($component->basis_type !== null) {
                 [$amount, $proratable] = $this->derivedComponentAmount($component, $employee, (float) $salaryComponent->amount, $presentDays, $overtimeHours, $tenantId);
-                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic);
+                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasisIds, $overtimeBasis);
             } else {
-                $this->collectComponent($component, (float) $salaryComponent->amount, true, $earnings, $deductions, $basic);
+                $this->collectComponent($component, (float) $salaryComponent->amount, true, $earnings, $deductions, $basic, $overtimeBasisIds, $overtimeBasis);
             }
         }
 
@@ -1264,7 +1295,7 @@ class PayrollController extends Controller
                     $proratable = false;
                 }
 
-                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic);
+                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasisIds, $overtimeBasis);
             }
         }
 
@@ -1331,8 +1362,10 @@ class PayrollController extends Controller
             }
         }
 
-        // Capture the full monthly basic before proration for the overtime rate.
+        // Capture the full monthly figures before proration: the overtime rate is
+        // built from a whole month's wage even when the month itself is partial.
         $fullBasic = $basic;
+        $fullEarnings = (float) array_sum(array_column($earnings, 'amount'));
 
         // Prorate fixed earnings for mid-period joiners/leavers so a resigning
         // employee is still paid — proportionally — for their final month.
@@ -1348,14 +1381,40 @@ class PayrollController extends Controller
             $basic = round($basic * $factor);
         }
 
-        // Statutory overtime pay (Kepmenaker 102/2004): 1.5x the first hour and
-        // 2x subsequent hours of an hourly wage of 1/173 of the monthly wage.
-        // Skipped when the tenant already models overtime as a position component.
-        if (! $hasCustomOvertime && $overtimeRecords->isNotEmpty() && $fullBasic > 0) {
-            $overtimePay = $this->computeOvertimePay($fullBasic, $overtimeRecords);
+        // Statutory overtime pay (PP 35/2021): the basis is Gaji Pokok plus the
+        // allowances checked into "Komponen Overtime", floored at 75% of monthly
+        // earnings, divided by 173 for an hourly wage and multiplied per the
+        // tenant's rate table. Skipped when the tenant already models overtime as
+        // a position component.
+        $overtimeSnapshot = null;
+
+        if (! $hasCustomOvertime && $overtimeRecords->isNotEmpty()) {
+            $policy = OvertimeRules::policyFor($tenantId);
+
+            // No component is flagged as overtime basis yet: fall back to the
+            // basic wage rather than paying nothing.
+            $configuredBasis = $overtimeBasis > 0.0 ? $overtimeBasis : $fullBasic;
+
+            $resolved = OvertimeRules::basisFor(
+                $configuredBasis,
+                $fullEarnings,
+                (float) $policy->fixed_basis_min_ratio,
+            );
+
+            $divisor = max(1, (int) $policy->hours_divisor);
+            $rates = OvertimeRules::ratesFor($tenantId);
+            $overtimePay = $this->computeOvertimePay($resolved['basis'], $overtimeRecords, $rates, $divisor);
 
             if ($overtimePay > 0) {
                 $earnings[] = ['name' => 'Lembur', 'amount' => $overtimePay, 'proratable' => false, 'taxable' => true];
+
+                $overtimeSnapshot = [
+                    'basis' => round($resolved['basis']),
+                    'basis_floored' => $resolved['floored'],
+                    'hourly_rate' => round($resolved['basis'] / $divisor, 2),
+                    'divisor' => $divisor,
+                    'hours' => $overtimeHours,
+                ];
             }
         }
 
@@ -1413,6 +1472,18 @@ class PayrollController extends Controller
             'net' => $gross - $deduction,
             'present_days' => $presentDays,
             'overtime_hours' => $overtimeHours,
+            'overtime_snapshot' => $overtimeSnapshot,
+            // Which cut-off and pay date the employee's Mapping Payday group
+            // produced, so the configuration is legible from the payslip.
+            'payday_snapshot' => $payday !== null ? [
+                'name' => $payday->name,
+                'pay_label' => $payday->payLabel(),
+                'pay_date' => $period->end_date !== null
+                    ? $payday->payDateFor($period->end_date->copy())->toDateString()
+                    : null,
+                'cut_off' => $payday->cutOffLabel(),
+                'window' => $attendanceRange,
+            ] : null,
             'proration_factor' => $factor,
             'loan_ids' => $loanIds,
             'basic' => $basic,
@@ -1491,14 +1562,22 @@ class PayrollController extends Controller
     }
 
     /**
-     * Compute statutory overtime pay across the approved overtime records using
-     * the Kepmenaker 102/2004 workday multipliers (1.5x first hour, 2x after).
+     * Compute statutory overtime pay (PP 35/2021) across the approved records.
+     *
+     * Each record is paid on its own — the multiplier resets at the start of
+     * every overtime stretch — and against the band its day type selects, so a
+     * Sunday is not paid at workday rates.
      *
      * @param  Collection<int, OvertimeRequest>  $records
+     * @param  array<string, list<array{from: int, to: int|null, multiplier: float}>>  $rates
      */
-    private function computeOvertimePay(float $monthlyWage, Collection $records): float
+    private function computeOvertimePay(float $monthlyWage, Collection $records, array $rates, int $divisor): float
     {
-        $hourlyRate = $monthlyWage / 173;
+        if ($monthlyWage <= 0) {
+            return 0.0;
+        }
+
+        $hourlyRate = $monthlyWage / max(1, $divisor);
         $total = 0.0;
 
         foreach ($records as $record) {
@@ -1508,14 +1587,8 @@ class PayrollController extends Controller
                 continue;
             }
 
-            if ($hours <= 1) {
-                $total += 1.5 * $hourlyRate * $hours;
-
-                continue;
-            }
-
-            $total += 1.5 * $hourlyRate;
-            $total += 2 * $hourlyRate * ($hours - 1);
+            $dayType = OvertimeRules::normaliseDayType($record->day_type);
+            $total += $hourlyRate * OvertimeRules::multiplierFor($rates, $dayType, $hours);
         }
 
         return round($total);
@@ -1563,6 +1636,7 @@ class PayrollController extends Controller
 
         $salaryComponents = EmployeeSalaryComponent::forTenant($tenantId)
             ->where('employee_id', $employee->id)
+            ->effectiveOn()
             ->with('component')
             ->get();
 
@@ -1836,6 +1910,7 @@ class PayrollController extends Controller
 
         $salaryAmount = EmployeeSalaryComponent::forTenant($tenantId)
             ->where('employee_id', $employee->id)
+            ->effectiveOn()
             ->where('payroll_component_id', $component->id)
             ->value('amount');
 
@@ -2232,9 +2307,18 @@ class PayrollController extends Controller
      *
      * @param  list<array{name: string, amount: float, proratable: bool}>  $earnings
      * @param  list<array{name: string, amount: float}>  $deductions
+     * @param  array<int, mixed>  $overtimeBasisIds  component ids checked into "Komponen Overtime", keyed by id
      */
-    private function collectComponent(PayrollComponent $component, float $amount, bool $proratable, array &$earnings, array &$deductions, float &$basic): void
-    {
+    private function collectComponent(
+        PayrollComponent $component,
+        float $amount,
+        bool $proratable,
+        array &$earnings,
+        array &$deductions,
+        float &$basic,
+        array $overtimeBasisIds,
+        float &$overtimeBasis,
+    ): void {
         $isDeduction = $component->type === 'deduction' || $component->component_group === 'potongan';
 
         if ($isDeduction) {
@@ -2254,6 +2338,10 @@ class PayrollController extends Controller
 
         if ($component->code === 'BASIC') {
             $basic += $amount;
+        }
+
+        if (isset($overtimeBasisIds[$component->id])) {
+            $overtimeBasis += $amount;
         }
     }
 

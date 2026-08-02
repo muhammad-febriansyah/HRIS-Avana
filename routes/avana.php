@@ -74,7 +74,9 @@ use App\Http\Controllers\Avana\OkrController;
 use App\Http\Controllers\Avana\OnboardingController;
 use App\Http\Controllers\Avana\OnboardingSlideController;
 use App\Http\Controllers\Avana\OvertimeController;
+use App\Http\Controllers\Avana\OvertimeRuleController;
 use App\Http\Controllers\Avana\PackageController;
+use App\Http\Controllers\Avana\PaydayController;
 use App\Http\Controllers\Avana\PayrollConfigController;
 use App\Http\Controllers\Avana\PayrollController;
 use App\Http\Controllers\Avana\PayrollCorrectionController;
@@ -235,11 +237,27 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('payroll/master-gaji/{master}/component', [SalaryMasterController::class, 'setComponent'])->name('payroll.master-gaji.component');
     Route::post('payroll/master-gaji/{master}/component-amount', [SalaryMasterController::class, 'setComponentAmount'])->name('payroll.master-gaji.component-amount');
     Route::post('payroll/master-gaji/{master}/assign', [SalaryMasterController::class, 'assign'])->name('payroll.master-gaji.assign');
+    Route::post('payroll/master-gaji/{master}/employee-grade', [SalaryMasterController::class, 'setEmployeeGrade'])->name('payroll.master-gaji.employee-grade');
+    Route::post('payroll/master-gaji/{master}/employee-salary', [SalaryMasterController::class, 'setEmployeeSalary'])->name('payroll.master-gaji.employee-salary');
 
     // UMR (regional minimum wage)
     Route::get('payroll/umr', [PayrollUmrController::class, 'index'])->name('payroll.umr');
     Route::post('payroll/umr', [PayrollUmrController::class, 'store'])->name('payroll.umr.store');
     Route::delete('payroll/umr/{umr}', [PayrollUmrController::class, 'destroy'])->name('payroll.umr.destroy');
+
+    // Setup Lembur (overtime basis, multiplier table and hour ceilings)
+    Route::get('payroll/lembur', [OvertimeRuleController::class, 'index'])->name('payroll.lembur');
+    Route::put('payroll/lembur/policy', [OvertimeRuleController::class, 'updatePolicy'])->name('payroll.lembur.policy');
+    Route::post('payroll/lembur/rate', [OvertimeRuleController::class, 'storeRate'])->name('payroll.lembur.rate.store');
+    Route::delete('payroll/lembur/rate/{rate}', [OvertimeRuleController::class, 'destroyRate'])->name('payroll.lembur.rate.destroy');
+    Route::post('payroll/lembur/reset', [OvertimeRuleController::class, 'resetRates'])->name('payroll.lembur.reset');
+
+    // Mapping Payday (pay date + attendance cut-off per employee group)
+    Route::get('payroll/payday', [PaydayController::class, 'index'])->name('payroll.payday');
+    Route::post('payroll/payday', [PaydayController::class, 'store'])->name('payroll.payday.store');
+    Route::put('payroll/payday/{payday}', [PaydayController::class, 'update'])->name('payroll.payday.update');
+    Route::delete('payroll/payday/{payday}', [PaydayController::class, 'destroy'])->name('payroll.payday.destroy');
+    Route::post('payroll/payday/assign', [PaydayController::class, 'assign'])->name('payroll.payday.assign');
 
     // Koreksi Gaji (payroll corrections)
     Route::get('payroll/koreksi', [PayrollCorrectionController::class, 'index'])->name('payroll.koreksi');

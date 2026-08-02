@@ -113,6 +113,16 @@ final class Employee extends Model
         return $this->belongsTo(JobLevel::class);
     }
 
+    public function salaryGrade(): BelongsTo
+    {
+        return $this->belongsTo(SalaryGrade::class);
+    }
+
+    public function payday(): BelongsTo
+    {
+        return $this->belongsTo(Payday::class);
+    }
+
     public function manager(): BelongsTo
     {
         return $this->belongsTo(self::class, 'manager_id');

@@ -753,11 +753,14 @@ class ClientModuleDataSeeder extends Seeder
 
         for ($i = 0; $i < 10; $i++) {
             $employee = $employees[array_rand($employees)];
+            $date = $now->copy()->subDays(mt_rand(1, 30));
             OvertimeRequest::create([
                 'tenant_id' => $tenant->id,
                 'employee_id' => $employee->id,
                 'branch_id' => $employee->branch_id,
-                'date' => $now->copy()->subDays(mt_rand(1, 30))->toDateString(),
+                'date' => $date->toDateString(),
+                'day_type' => $date->isWeekend() ? 'holiday' : 'workday',
+                // Up to the 4-hour daily ceiling of PP 35/2021.
                 'hours' => mt_rand(2, 8) / 2,
                 'reason' => $reasons[array_rand($reasons)],
                 'current_approver_id' => $admin->id,

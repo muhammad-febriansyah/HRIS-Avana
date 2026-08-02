@@ -72,6 +72,9 @@ export interface OvertimeRow {
     id: number;
     employee: RequestEmployee | null;
     date: string | null;
+    /** `workday` | `holiday` — selects the multiplier band payroll applies. */
+    day_type: string;
+    day_type_label: string;
     hours: number;
     /** Null for requests filed before overtime was captured as a range. */
     time_range: string | null;
@@ -116,6 +119,8 @@ export interface CutiProps {
     employees: EmployeeOption[];
     balances: LeaveBalance[];
     overtimeRequests: OvertimeRow[];
+    overtimeDayTypes: OvertimeDayType[];
+    overtimeLimits: OvertimeLimits;
     permissionRequests: PermissionRow[];
     wfhRequests: WfhRow[];
 }
@@ -133,10 +138,23 @@ export interface LeaveFormData {
 export interface OvertimeFormData {
     employee_id: string;
     date: string;
+    /** `workday` | `holiday`; drives the PP 35/2021 multiplier band. */
+    day_type: string;
     /** `HH:MM`. The server derives the hours from the pair. */
     start_time: string;
     end_time: string;
     reason: string;
+}
+
+export interface OvertimeDayType {
+    value: string;
+    label: string;
+}
+
+export interface OvertimeLimits {
+    per_day: number;
+    per_week: number;
+    enforced: boolean;
 }
 
 /** Form payload backing the "Ajukan Izin" form. */

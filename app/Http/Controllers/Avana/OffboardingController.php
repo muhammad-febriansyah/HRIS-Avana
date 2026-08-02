@@ -187,6 +187,7 @@ class OffboardingController extends Controller
 
         $salaryComponents = EmployeeSalaryComponent::forTenant($tenantId)
             ->where('employee_id', $employee->id)
+            ->effectiveOn()
             ->with('component')
             ->get();
 
@@ -264,6 +265,7 @@ class OffboardingController extends Controller
     {
         $salaryAmount = EmployeeSalaryComponent::forTenant($tenantId)
             ->where('employee_id', $employee->id)
+            ->effectiveOn()
             ->where('payroll_component_id', $component->id)
             ->value('amount');
 

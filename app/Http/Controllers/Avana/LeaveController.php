@@ -14,6 +14,7 @@ use App\Models\PermissionRequest;
 use App\Models\WfhRequest;
 use App\Services\ApprovalEngine;
 use App\Services\LeaveApproval;
+use App\Support\OvertimeRules;
 use App\Support\OvertimeWindow;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -129,12 +130,20 @@ class LeaveController extends Controller
                     'id' => $overtime->id,
                     'employee' => $this->shapeEmployee($overtime),
                     'date' => $overtime->date?->format('d M Y'),
+                    'day_type' => OvertimeRules::normaliseDayType($overtime->day_type),
+                    'day_type_label' => OvertimeRules::DAY_TYPES[OvertimeRules::normaliseDayType($overtime->day_type)],
                     'hours' => (float) $overtime->hours,
                     'time_range' => OvertimeWindow::label($overtime->start_time, $overtime->end_time),
                     'reason' => $overtime->reason,
                     'status' => $overtime->status,
                     'status_label' => $this->statusLabel($overtime->status),
                 ]),
+            'overtimeDayTypes' => OvertimeRules::dayTypeOptions(),
+            'overtimeLimits' => [
+                'per_day' => (float) OvertimeRules::policyFor($tenantId)->max_hours_per_day,
+                'per_week' => (float) OvertimeRules::policyFor($tenantId)->max_hours_per_week,
+                'enforced' => (bool) OvertimeRules::policyFor($tenantId)->enforce_hour_limits,
+            ],
             'permissionRequests' => PermissionRequest::forTenant($tenantId)
                 ->with('employee:id,full_name,employee_number,branch_id')
                 ->latest('id')

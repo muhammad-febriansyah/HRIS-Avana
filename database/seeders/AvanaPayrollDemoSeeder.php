@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
 use App\Models\LeaveType;
 use App\Models\OvertimeRequest;
+use App\Models\Payday;
 use App\Models\PayrollComponent;
 use App\Models\PayrollComponentValue;
 use App\Models\PayrollFormula;
@@ -123,9 +124,30 @@ final class AvanaPayrollDemoSeeder extends Seeder
                 );
             }
 
+            // 3 hours on a workday — the worked example in the setup
+            // documentation, and inside the 4-hour daily ceiling of PP 35/2021.
             OvertimeRequest::firstOrCreate(
                 ['tenant_id' => $tenant->id, 'employee_id' => $employee->id, 'date' => '2026-06-10'],
-                ['branch_id' => $employee->branch_id, 'hours' => 6, 'reason' => 'Lembur tutup buku', 'status' => 'approved'],
+                [
+                    'branch_id' => $employee->branch_id,
+                    'day_type' => 'workday',
+                    'hours' => 3,
+                    'reason' => 'Lembur tutup buku',
+                    'status' => 'approved',
+                ],
+            );
+
+            // A rest-day stretch, so the holiday multiplier band is exercised
+            // by the demo data as well.
+            OvertimeRequest::firstOrCreate(
+                ['tenant_id' => $tenant->id, 'employee_id' => $employee->id, 'date' => '2026-06-14'],
+                [
+                    'branch_id' => $employee->branch_id,
+                    'day_type' => 'holiday',
+                    'hours' => 4,
+                    'reason' => 'Lembur akhir pekan',
+                    'status' => 'approved',
+                ],
             );
 
             EmployeeBpjsProfile::firstOrCreate(
@@ -216,15 +238,19 @@ final class AvanaPayrollDemoSeeder extends Seeder
         // Monthly nominals per component (fixed monthly, per-hadir, per-jam).
         // is_prorate stays off so fixed lines are prorated only by mid-period
         // join/resign, matching the previous per-position behaviour.
+        //
+        // is_overtime_base marks the components that form the overtime basis
+        // (PP 35/2021 Pasal 30: Gaji Pokok plus the fixed allowances). "Uang
+        // Lembur" is the result of that calculation, never an input to it.
         $lines = [
-            'BASIC' => ['amount' => 6_000_000 + ($index * 500_000)],
-            'TJ-JAB' => ['amount' => 1_500_000],
-            'TJ-TRP' => ['amount' => 20_000],
+            'BASIC' => ['amount' => 6_000_000 + ($index * 500_000), 'is_overtime_base' => true],
+            'TJ-JAB' => ['amount' => 1_500_000, 'is_overtime_base' => true],
+            'TJ-TRP' => ['amount' => 20_000, 'is_overtime_base' => true],
             'TJ-MKN' => ['amount' => 25_000],
-            'LEMBUR' => ['amount' => 30_000, 'is_overtime_base' => true],
+            'LEMBUR' => ['amount' => 30_000],
             'POT-KOP' => ['amount' => 50_000],
             // Manual-basis lines resolve their own nominal (Tabel / Formula).
-            'TJ-KES' => ['amount' => 0],
+            'TJ-KES' => ['amount' => 0, 'is_overtime_base' => true],
             'TJ-KIN' => ['amount' => 0],
         ];
 
@@ -360,16 +386,67 @@ final class AvanaPayrollDemoSeeder extends Seeder
             ['grade_code' => 'G3', 'grade_name' => 'Golongan III', 'level' => 3, 'min' => 9_000_000, 'max' => 14_000_000, 'base' => 9_000_000],
         ];
 
+        $created = [];
+
         foreach ($grades as $g) {
-            $grade = SalaryGrade::updateOrCreate(
+            $created[$g['grade_code']] = SalaryGrade::updateOrCreate(
                 ['tenant_id' => $tenant->id, 'grade_code' => $g['grade_code']],
                 [
                     'grade_name' => $g['grade_name'], 'level' => $g['level'],
                     'min_salary' => $g['min'], 'mid_salary' => ($g['min'] + $g['max']) / 2, 'max_salary' => $g['max'],
                 ],
             );
-
         }
 
+        // Put the sample employees in a grade so the Master Gaji screen has a
+        // band to judge their salary against.
+        foreach ($sample as $index => $employee) {
+            $code = ['G3', 'G2', 'G1'][$index % 3];
+
+            $employee->forceFill(['salary_grade_id' => $created[$code]->id])->save();
+        }
+
+        $this->seedPaydays($tenant, $sample);
+    }
+
+    /**
+     * The two payday schedules of the setup documentation: head office paid on
+     * the 25th against a 21–20 attendance window, operations paid at month end
+     * against 26–25. The sample employees are split between them so the cut-off
+     * a payroll run picks up is visible in the demo.
+     *
+     * @param  Collection<int, Employee>  $sample
+     */
+    private function seedPaydays(Tenant $tenant, Collection $sample): void
+    {
+        $pusat = Payday::updateOrCreate(
+            ['tenant_id' => $tenant->id, 'code' => 'PD-PUSAT'],
+            [
+                'name' => 'Kantor Pusat & Staff',
+                'pay_mode' => 'date',
+                'pay_day' => 25,
+                'cut_off_start_day' => 21,
+                'cut_off_end_day' => 20,
+                'description' => 'Dibayar tanggal 25, kehadiran 21 s.d. 20.',
+                'is_active' => true,
+            ],
+        );
+
+        $ops = Payday::updateOrCreate(
+            ['tenant_id' => $tenant->id, 'code' => 'PD-OPS'],
+            [
+                'name' => 'Warehouse & Operasional',
+                'pay_mode' => 'end_of_month',
+                'pay_day' => null,
+                'cut_off_start_day' => 26,
+                'cut_off_end_day' => 25,
+                'description' => 'Dibayar akhir bulan, kehadiran 26 s.d. 25.',
+                'is_active' => true,
+            ],
+        );
+
+        foreach ($sample as $index => $employee) {
+            $employee->forceFill(['payday_id' => $index % 2 === 0 ? $pusat->id : $ops->id])->save();
+        }
     }
 }

@@ -31,6 +31,8 @@ export default function AvanaCuti({
     employees,
     balances,
     overtimeRequests,
+    overtimeDayTypes,
+    overtimeLimits,
     permissionRequests,
     wfhRequests,
 }: CutiProps) {
@@ -50,6 +52,7 @@ export default function AvanaCuti({
     const overtimeForm = useForm<OvertimeFormData>({
         employee_id: '',
         date: '',
+        day_type: overtimeDayTypes[0]?.value ?? 'workday',
         start_time: '',
         end_time: '',
         reason: '',
@@ -293,6 +296,8 @@ export default function AvanaCuti({
                         form={overtimeForm}
                         employees={employees}
                         items={overtimeRequests}
+                        dayTypes={overtimeDayTypes}
+                        limits={overtimeLimits}
                         onSubmit={submitOvertime}
                         onApprove={approveOvertime}
                         onReject={rejectOvertime}

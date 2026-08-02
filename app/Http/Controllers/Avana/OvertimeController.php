@@ -7,10 +7,12 @@ use App\Models\Employee;
 use App\Models\OvertimeRequest;
 use App\Services\ApprovalEngine;
 use App\Services\AutoApproval;
+use App\Support\OvertimeRules;
 use App\Support\OvertimeWindow;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -33,6 +35,7 @@ class OvertimeController extends Controller
                 Rule::exists('employees', 'id')->where('tenant_id', $tenantId),
             ],
             'date' => ['required', 'date'],
+            'day_type' => ['nullable', Rule::in(array_keys(OvertimeRules::DAY_TYPES))],
             'start_time' => ['required', 'date_format:H:i'],
             'end_time' => ['required', 'date_format:H:i'],
             'reason' => ['nullable', 'string', 'max:1000'],
@@ -49,15 +52,26 @@ class OvertimeController extends Controller
         }
 
         $employee = Employee::forTenant($tenantId)->findOrFail($data['employee_id']);
+        $hours = OvertimeWindow::hoursBetween($data['start_time'], $data['end_time']);
+        $date = Carbon::parse($data['date']);
+
+        // PP 35/2021 caps overtime at 4 hours a day and 18 a week; the ceilings
+        // themselves are tenant-configurable in Setup Lembur.
+        $violation = OvertimeRules::limitViolation($tenantId, (int) $employee->id, $date, $hours);
+
+        if ($violation !== null) {
+            throw ValidationException::withMessages(['end_time' => $violation]);
+        }
 
         $overtime = OvertimeRequest::create([
             'tenant_id' => $tenantId,
             'employee_id' => $employee->id,
             'branch_id' => $employee->branch_id,
             'date' => $data['date'],
+            'day_type' => OvertimeRules::normaliseDayType($data['day_type'] ?? OvertimeRules::suggestDayType($date)),
             'start_time' => $data['start_time'],
             'end_time' => $data['end_time'],
-            'hours' => OvertimeWindow::hoursBetween($data['start_time'], $data['end_time']),
+            'hours' => $hours,
             'reason' => $data['reason'] ?? null,
             'status' => 'pending',
         ]);

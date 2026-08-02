@@ -284,17 +284,35 @@ final class AvanaDemoSeeder extends Seeder
                 ['tenant_id' => $tenant->id, 'answer' => (string) $cfg['eng']],
             );
 
-            // Heavy overtime across the last three months.
+            // Heavy overtime across the last three months — 52 hours a month,
+            // but spread over 13 weekdays at the lawful 4-hour daily maximum
+            // rather than booked as one impossible 52-hour shift.
             if ($cfg['ot']) {
                 for ($i = 1; $i <= 3; $i++) {
-                    OvertimeRequest::firstOrCreate(
-                        [
-                            'tenant_id' => $tenant->id,
-                            'employee_id' => $employee->id,
-                            'date' => $now->copy()->subMonthsNoOverflow($i)->day(15)->toDateString(),
-                        ],
-                        ['branch_id' => $employee->branch_id, 'hours' => 52, 'reason' => 'Lembur proyek', 'status' => 'approved'],
-                    );
+                    $cursor = $now->copy()->subMonthsNoOverflow($i)->startOfMonth();
+
+                    for ($booked = 0; $booked < 13; $cursor->addDay()) {
+                        if ($cursor->isWeekend()) {
+                            continue;
+                        }
+
+                        OvertimeRequest::firstOrCreate(
+                            [
+                                'tenant_id' => $tenant->id,
+                                'employee_id' => $employee->id,
+                                'date' => $cursor->toDateString(),
+                            ],
+                            [
+                                'branch_id' => $employee->branch_id,
+                                'day_type' => 'workday',
+                                'hours' => 4,
+                                'reason' => 'Lembur proyek',
+                                'status' => 'approved',
+                            ],
+                        );
+
+                        $booked++;
+                    }
                 }
             }
 

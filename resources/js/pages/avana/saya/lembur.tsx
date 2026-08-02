@@ -36,6 +36,8 @@ function hoursBetween(start: string, end: string): number | null {
 interface OvertimeRow {
     id: number;
     date: string | null;
+    day_type: string;
+    day_type_label: string;
     hours: number;
     /** Null for requests filed before overtime was captured as a range. */
     time_range: string | null;
@@ -47,6 +49,8 @@ interface Props {
     requests: OvertimeRow[];
     approvedHours: number;
     pendingCount: number;
+    dayTypes: { value: string; label: string }[];
+    limits: { per_day: number; per_week: number; enforced: boolean };
 }
 
 type FlashProps = { flash?: { success?: string } };
@@ -55,11 +59,14 @@ export default function SayaLembur({
     requests,
     approvedHours,
     pendingCount,
+    dayTypes,
+    limits,
 }: Props) {
     const { flash } = usePage<FlashProps>().props;
 
     const form = useForm({
         date: '',
+        day_type: dayTypes[0]?.value ?? 'workday',
         start_time: '',
         end_time: '',
         reason: '',
@@ -157,6 +164,35 @@ export default function SayaLembur({
                                     />
                                 </Field>
 
+                                <Field
+                                    label="Jenis Hari"
+                                    required
+                                    error={form.errors.day_type}
+                                >
+                                    <select
+                                        value={form.data.day_type}
+                                        onChange={(event) =>
+                                            form.setData(
+                                                'day_type',
+                                                event.target.value,
+                                            )
+                                        }
+                                        style={withError(
+                                            inputStyle,
+                                            !!form.errors.day_type,
+                                        )}
+                                    >
+                                        {dayTypes.map((option) => (
+                                            <option
+                                                key={option.value}
+                                                value={option.value}
+                                            >
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </Field>
+
                                 <div
                                     style={{
                                         display: 'grid',
@@ -224,6 +260,9 @@ export default function SayaLembur({
                                         </strong>
                                         {(duration > 12 || duration < 0.5) &&
                                             ' — di luar batas 0,5–12 jam'}
+                                        {limits.enforced &&
+                                            duration > limits.per_day &&
+                                            ` — melewati batas ${limits.per_day} jam/hari (PP 35/2021)`}
                                     </div>
                                 )}
 
@@ -286,6 +325,7 @@ export default function SayaLembur({
                                     <thead>
                                         <tr style={{ background: '#FAFBFD' }}>
                                             <th style={thCell}>Tanggal</th>
+                                            <th style={thCell}>Jenis Hari</th>
                                             <th style={thCell}>Jam</th>
                                             <th style={thCell}>Alasan</th>
                                             <th style={thCell}>Status</th>
@@ -301,6 +341,9 @@ export default function SayaLembur({
                                             >
                                                 <td style={cell}>
                                                     {formatDate(row.date)}
+                                                </td>
+                                                <td style={cell}>
+                                                    {row.day_type_label}
                                                 </td>
                                                 <td style={cell}>
                                                     <div>

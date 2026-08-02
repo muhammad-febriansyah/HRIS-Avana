@@ -104,6 +104,8 @@ final class AvanaNav
                     self::leaf('payroll-komponen', 'Master Komponen', 'layers', '/avana/payroll/komponen', 'payroll', ['payroll']),
                     self::leaf('payroll-master-gaji', 'Master Gaji', 'file-cog', '/avana/payroll/master-gaji', 'payroll', ['payroll']),
                     self::leaf('payroll-umr', 'UMR', 'map-pin', '/avana/payroll/umr', 'payroll', ['payroll']),
+                    self::leaf('payroll-lembur', 'Setup Lembur', 'timer', '/avana/payroll/lembur', 'payroll', ['payroll']),
+                    self::leaf('payroll-payday', 'Mapping Payday', 'calendar-check', '/avana/payroll/payday', 'payroll', ['payroll']),
                     self::leaf('payroll-koreksi', 'Koreksi Gaji', 'pencil', '/avana/payroll/koreksi', 'payroll', ['payroll']),
                     self::leaf('payroll-rapel', 'Rapel Gaji', 'history', '/avana/payroll/rapel', 'payroll', ['payroll']),
                     self::leaf('payroll-sales-order', 'Sales Order', 'clipboard-list', '/avana/payroll/sales-order', 'payroll', ['payroll']),

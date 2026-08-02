@@ -7,10 +7,13 @@ use App\Http\Controllers\Controller;
 use App\Models\OvertimeRequest;
 use App\Services\ApprovalEngine;
 use App\Services\AutoApproval;
+use App\Support\OvertimeRules;
 use App\Support\OvertimeWindow;
 use DateTimeInterface;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -33,12 +36,16 @@ class EssOvertimeController extends Controller
             ->where('employee_id', $employee->id)
             ->orderByDesc('date')
             ->orderByDesc('id')
-            ->get(['id', 'date', 'start_time', 'end_time', 'hours', 'reason', 'status']);
+            ->get(['id', 'date', 'day_type', 'start_time', 'end_time', 'hours', 'reason', 'status']);
+
+        $policy = OvertimeRules::policyFor((int) $employee->tenant_id);
 
         return Inertia::render('avana/saya/lembur', [
             'requests' => $requests->map(fn (OvertimeRequest $overtime): array => [
                 'id' => $overtime->id,
                 'date' => $this->dateString($overtime->date),
+                'day_type' => $overtime->day_type,
+                'day_type_label' => OvertimeRules::DAY_TYPES[OvertimeRules::normaliseDayType($overtime->day_type)],
                 'hours' => (float) $overtime->hours,
                 'time_range' => OvertimeWindow::label($overtime->start_time, $overtime->end_time),
                 'reason' => $overtime->reason,
@@ -46,6 +53,12 @@ class EssOvertimeController extends Controller
             ])->values(),
             'approvedHours' => (float) $requests->where('status', 'approved')->sum('hours'),
             'pendingCount' => $requests->where('status', 'pending')->count(),
+            'dayTypes' => OvertimeRules::dayTypeOptions(),
+            'limits' => [
+                'per_day' => (float) $policy->max_hours_per_day,
+                'per_week' => (float) $policy->max_hours_per_week,
+                'enforced' => (bool) $policy->enforce_hour_limits,
+            ],
         ]);
     }
 
@@ -58,6 +71,7 @@ class EssOvertimeController extends Controller
 
         $data = $request->validate([
             'date' => ['required', 'date'],
+            'day_type' => ['nullable', Rule::in(array_keys(OvertimeRules::DAY_TYPES))],
             'start_time' => ['required', 'date_format:H:i'],
             'end_time' => ['required', 'date_format:H:i'],
             'reason' => ['nullable', 'string', 'max:1000'],
@@ -80,14 +94,30 @@ class EssOvertimeController extends Controller
             ]);
         }
 
+        $hours = OvertimeWindow::hoursBetween($data['start_time'], $data['end_time']);
+        $date = Carbon::parse($data['date']);
+
+        // PP 35/2021 caps overtime at 4 hours a day and 18 a week.
+        $violation = OvertimeRules::limitViolation(
+            (int) $employee->tenant_id,
+            (int) $employee->id,
+            $date,
+            $hours,
+        );
+
+        if ($violation !== null) {
+            throw ValidationException::withMessages(['end_time' => $violation]);
+        }
+
         $overtime = OvertimeRequest::create([
             'tenant_id' => $employee->tenant_id,
             'employee_id' => $employee->id,
             'branch_id' => $employee->branch_id,
             'date' => $data['date'],
+            'day_type' => OvertimeRules::normaliseDayType($data['day_type'] ?? OvertimeRules::suggestDayType($date)),
             'start_time' => $data['start_time'],
             'end_time' => $data['end_time'],
-            'hours' => OvertimeWindow::hoursBetween($data['start_time'], $data['end_time']),
+            'hours' => $hours,
             'reason' => $data['reason'] ?? null,
             'current_approver_id' => $employee->manager_id,
             'status' => 'pending',

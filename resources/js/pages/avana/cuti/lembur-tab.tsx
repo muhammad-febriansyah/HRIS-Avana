@@ -11,12 +11,20 @@ import {
     textInputStyle,
     withError,
 } from './components';
-import type { EmployeeOption, OvertimeFormData, OvertimeRow } from './types';
+import type {
+    EmployeeOption,
+    OvertimeDayType,
+    OvertimeFormData,
+    OvertimeLimits,
+    OvertimeRow,
+} from './types';
 
 interface LemburTabProps {
     form: InertiaFormProps<OvertimeFormData>;
     employees: EmployeeOption[];
     items: OvertimeRow[];
+    dayTypes: OvertimeDayType[];
+    limits: OvertimeLimits;
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
     onApprove: (id: number) => void;
     onReject: (id: number) => void;
@@ -27,6 +35,8 @@ export function LemburTab({
     form,
     employees,
     items,
+    dayTypes,
+    limits,
     onSubmit,
     onApprove,
     onReject,
@@ -63,6 +73,28 @@ export function LemburTab({
                         hasError={!!form.errors.date}
                         width="100%"
                     />
+                </Field>
+                <Field
+                    label="Jenis Hari"
+                    required
+                    error={form.errors.day_type}
+                >
+                    <select
+                        value={form.data.day_type}
+                        onChange={(event) =>
+                            form.setData('day_type', event.target.value)
+                        }
+                        style={withError(
+                            textInputStyle,
+                            !!form.errors.day_type,
+                        )}
+                    >
+                        {dayTypes.map((option) => (
+                            <option key={option.value} value={option.value}>
+                                {option.label}
+                            </option>
+                        ))}
+                    </select>
                 </Field>
                 <div
                     style={{
@@ -117,11 +149,17 @@ export function LemburTab({
                         style={withError(textareaStyle, !!form.errors.reason)}
                     />
                 </Field>
+                {limits.enforced && (
+                    <div style={{ fontSize: 11.5, color: '#94A3B8' }}>
+                        Batas PP 35/2021: maks. {limits.per_day} jam/hari dan{' '}
+                        {limits.per_week} jam/minggu.
+                    </div>
+                )}
             </RequestFormCard>
 
             <ApprovalTable
                 title="Pengajuan Lembur"
-                headers={['Tanggal', 'Durasi', 'Alasan']}
+                headers={['Tanggal', 'Jenis Hari', 'Durasi', 'Alasan']}
                 emptyIcon="clock"
                 emptyText="Tidak ada pengajuan lembur."
                 onApprove={onApprove}
@@ -133,6 +171,7 @@ export function LemburTab({
                     status_label: row.status_label,
                     cells: [
                         row.date ?? '—',
+                        row.day_type_label,
                         row.time_range
                             ? `${row.hours} jam · ${row.time_range}`
                             : `${row.hours} jam`,

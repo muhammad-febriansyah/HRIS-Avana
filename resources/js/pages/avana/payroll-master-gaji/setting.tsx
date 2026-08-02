@@ -134,11 +134,42 @@ interface DayCalcMethodOption {
     divisor: number | null;
 }
 
+interface GradeOption {
+    id: number;
+    label: string;
+    min: number;
+    mid: number;
+    max: number;
+}
+
+interface EmployeeSalary {
+    id: number;
+    name: string;
+    number: string | null;
+    branch: string | null;
+    salary_grade_id: number | null;
+    /** When the employee's own Gaji Pokok row took effect; null = template. */
+    effective_from: string | null;
+    basic: number;
+    allowances: number;
+    total: number;
+    umr_status: string;
+    umr_label: string;
+    umr_amount: number | null;
+    umr_region: string | null;
+    grade_status: string;
+    grade_label: string;
+    grade_min: number | null;
+    grade_max: number | null;
+}
+
 interface Props {
     master: Master;
     components: Component[];
     dayCalcMethods: DayCalcMethodOption[];
     employeeOptions: EmployeeOption[];
+    gradeOptions: GradeOption[];
+    salaries: EmployeeSalary[];
 }
 
 const input: React.CSSProperties = {
@@ -297,6 +328,8 @@ export default function MasterGajiSetting({
     components,
     dayCalcMethods,
     employeeOptions,
+    gradeOptions,
+    salaries,
 }: Props) {
     const [assignOpen, setAssignOpen] = useState(false);
 
@@ -870,8 +903,240 @@ export default function MasterGajiSetting({
                         />
                     )}
                 </div>
+
+                <SalaryValidationPanel
+                    master={master}
+                    salaries={salaries}
+                    gradeOptions={gradeOptions}
+                />
             </div>
         </>
+    );
+}
+
+/**
+ * Gaji per pegawai beserta putusan UMR & rentang grade — dihitung, bukan
+ * diketik, sesuai bagian 3 dokumentasi setup payroll.
+ */
+function SalaryValidationPanel({
+    master,
+    salaries,
+    gradeOptions,
+}: {
+    master: Master;
+    salaries: EmployeeSalary[];
+    gradeOptions: GradeOption[];
+}) {
+    const [draft, setDraft] = useState<Record<number, string>>({});
+    const [from, setFrom] = useState<Record<number, string>>({});
+
+    const saveSalary = (employeeId: number) => {
+        const raw = draft[employeeId];
+
+        if (raw === undefined || raw === '') {
+            return;
+        }
+
+        router.post(
+            SalaryMasterController.setEmployeeSalary(master.id).url,
+            {
+                employee_id: employeeId,
+                amount: Number(raw),
+                // Blank means "from today"; a date opens a new version of the
+                // salary and closes the one it replaces.
+                effective_start_date: from[employeeId] || null,
+            },
+            {
+                preserveScroll: true,
+                onSuccess: () => setDraft((d) => ({ ...d, [employeeId]: '' })),
+                onError: () => toast.error('Gaji pokok gagal disimpan'),
+            },
+        );
+    };
+
+    const saveGrade = (employeeId: number, gradeId: string) =>
+        router.post(
+            SalaryMasterController.setEmployeeGrade(master.id).url,
+            { employee_id: employeeId, salary_grade_id: gradeId === '' ? null : Number(gradeId) },
+            {
+                preserveScroll: true,
+                onSuccess: () => toast.success('Grade karyawan disimpan'),
+                onError: () => toast.error('Grade gagal disimpan'),
+            },
+        );
+
+    const isBreach = (status: string) =>
+        status === 'below' || status === 'below_min' || status === 'above_max';
+
+    const badge = (status: string): React.CSSProperties => ({
+        display: 'inline-block',
+        padding: '3px 9px',
+        borderRadius: 999,
+        fontSize: 11.5,
+        fontWeight: 600,
+        color: isBreach(status) ? C.red : status === 'unknown' ? C.faint : C.green,
+        background: isBreach(status) ? '#FEF2F2' : status === 'unknown' ? C.surface : '#F0FDF4',
+    });
+
+    return (
+        <div style={{ ...card, padding: 18 }}>
+            <div style={sectionTitle}>VALIDASI UMR &amp; SKALA UPAH</div>
+            <div style={{ fontSize: 12.5, color: C.faint, margin: '-6px 0 14px' }}>
+                Gaji pokok + tunjangan tetap dicek otomatis terhadap UMR cabang dan rentang grade.
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                        <tr>
+                            {[
+                                'Karyawan',
+                                'Grade',
+                                'Gaji Pokok',
+                                'Tunjangan Tetap',
+                                'Total',
+                                'Validasi UMR',
+                                'Skala Upah',
+                            ].map((h, i) => (
+                                <th
+                                    key={i}
+                                    style={{
+                                        textAlign: 'left',
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        color: C.muted,
+                                        padding: '10px 12px',
+                                        borderBottom: `1px solid ${C.line}`,
+                                    }}
+                                >
+                                    {h}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {salaries.length === 0 ? (
+                            <tr>
+                                <td
+                                    colSpan={7}
+                                    style={{
+                                        fontSize: 13,
+                                        color: C.faint,
+                                        padding: '14px 12px',
+                                        textAlign: 'center',
+                                    }}
+                                >
+                                    Belum ada pegawai yang ditempel ke Master Gaji ini.
+                                </td>
+                            </tr>
+                        ) : (
+                            salaries.map((s) => {
+                                const cell: React.CSSProperties = {
+                                    fontSize: 13,
+                                    color: C.text,
+                                    padding: '10px 12px',
+                                    borderBottom: `1px solid ${C.line}`,
+                                };
+
+                                return (
+                                    <tr key={s.id}>
+                                        <td style={{ ...cell, fontWeight: 600, color: C.navy }}>
+                                            {s.name}
+                                            <div style={{ fontSize: 11.5, fontWeight: 400, color: C.muted }}>
+                                                {s.branch ?? '—'}
+                                            </div>
+                                        </td>
+                                        <td style={cell}>
+                                            <select
+                                                style={{ ...input, width: 150 }}
+                                                value={s.salary_grade_id ?? ''}
+                                                onChange={(e) => saveGrade(s.id, e.target.value)}
+                                            >
+                                                <option value="">— Belum diatur —</option>
+                                                {gradeOptions.map((g) => (
+                                                    <option key={g.id} value={g.id}>
+                                                        {g.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </td>
+                                        <td style={cell}>
+                                            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                                <input
+                                                    style={{ ...input, width: 130 }}
+                                                    type="number"
+                                                    placeholder={String(Math.round(s.basic))}
+                                                    value={draft[s.id] ?? ''}
+                                                    onChange={(e) =>
+                                                        setDraft((d) => ({ ...d, [s.id]: e.target.value }))
+                                                    }
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => saveSalary(s.id)}
+                                                    style={{
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        padding: '7px 9px',
+                                                        borderRadius: 8,
+                                                        border: `1px solid ${C.line}`,
+                                                        background: '#fff',
+                                                        cursor: 'pointer',
+                                                    }}
+                                                >
+                                                    <AIcon name="save" size={14} color={C.primary} />
+                                                </button>
+                                            </div>
+                                            <input
+                                                style={{ ...input, width: 168, marginTop: 5 }}
+                                                type="date"
+                                                title="Berlaku mulai"
+                                                value={from[s.id] ?? ''}
+                                                onChange={(e) =>
+                                                    setFrom((d) => ({ ...d, [s.id]: e.target.value }))
+                                                }
+                                            />
+                                            <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3 }}>
+                                                Rp {Math.round(s.basic).toLocaleString('id-ID')}
+                                                {s.effective_from !== null && (
+                                                    <> · berlaku {s.effective_from}</>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td style={cell}>
+                                            Rp {Math.round(s.allowances).toLocaleString('id-ID')}
+                                        </td>
+                                        <td style={{ ...cell, fontWeight: 600 }}>
+                                            Rp {Math.round(s.total).toLocaleString('id-ID')}
+                                        </td>
+                                        <td style={cell}>
+                                            <span style={badge(s.umr_status)}>
+                                                {s.umr_label}
+                                            </span>
+                                            {s.umr_amount !== null && (
+                                                <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3 }}>
+                                                    UMR Rp {Math.round(s.umr_amount).toLocaleString('id-ID')}
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td style={cell}>
+                                            <span style={badge(s.grade_status)}>
+                                                {s.grade_label}
+                                            </span>
+                                            {s.grade_min !== null && s.grade_max !== null && (
+                                                <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3 }}>
+                                                    Rp {Math.round(s.grade_min).toLocaleString('id-ID')} – Rp{' '}
+                                                    {Math.round(s.grade_max).toLocaleString('id-ID')}
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     );
 }
 
