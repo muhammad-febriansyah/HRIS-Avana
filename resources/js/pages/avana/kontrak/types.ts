@@ -71,6 +71,8 @@ export interface ContractFormData {
     basic_salary: string;
     status: string;
     notes: string;
+    /** The signed contract; null keeps whatever is already attached. */
+    document: File | null;
 }
 
 /** Empty defaults for the create form. */
@@ -83,6 +85,7 @@ export const emptyContractForm: ContractFormData = {
     basic_salary: '',
     status: 'active',
     notes: '',
+    document: null,
 };
 
 /** Contract type options surfaced in the create/edit form. */

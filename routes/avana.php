@@ -323,6 +323,8 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('kontrak', [ContractController::class, 'store'])->name('kontrak.store');
     Route::put('kontrak/{contract}', [ContractController::class, 'update'])->name('kontrak.update');
     Route::delete('kontrak/{contract}', [ContractController::class, 'destroy'])->name('kontrak.destroy');
+    Route::get('kontrak/{contract}/dokumen', [ContractController::class, 'download'])->name('kontrak.dokumen');
+    Route::delete('kontrak/{contract}/dokumen', [ContractController::class, 'destroyDocument'])->name('kontrak.dokumen.destroy');
 
     // Roster shift
     Route::get('roster', [RosterController::class, 'index'])->name('roster');

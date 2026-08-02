@@ -18,6 +18,8 @@ interface EditContract {
     basic_salary: number;
     status: string;
     notes: string | null;
+    document_name?: string | null;
+    has_document?: boolean;
 }
 
 interface KontrakEditProps {
@@ -37,6 +39,7 @@ export default function KontrakEdit({ contract, employees }: KontrakEditProps) {
         basic_salary: String(contract.basic_salary),
         status: contract.status,
         notes: contract.notes ?? '',
+        document: null,
     });
 
     useEffect(() => {
@@ -47,7 +50,12 @@ export default function KontrakEdit({ contract, employees }: KontrakEditProps) {
 
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        form.submit(ContractController.update(contract.id));
+        // A PUT cannot carry multipart, so the upload is posted with a method
+        // override — the route stays PUT.
+        form.transform((payload) => ({ ...payload, _method: 'put' }));
+        form.post(ContractController.update(contract.id).url, {
+            forceFormData: true,
+        });
     };
 
     return (
@@ -94,6 +102,14 @@ export default function KontrakEdit({ contract, employees }: KontrakEditProps) {
                 <KontrakForm
                     form={form}
                     employees={employees}
+                    existingDocument={
+                        contract.has_document
+                            ? {
+                                  name: contract.document_name ?? 'Dokumen kontrak',
+                                  href: ContractController.download(contract.id).url,
+                              }
+                            : null
+                    }
                     submitLabel="Simpan Perubahan"
                     submitIcon="check"
                     cancelHref={ContractController.index().url}

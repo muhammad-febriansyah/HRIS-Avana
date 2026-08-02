@@ -25,7 +25,8 @@ export default function KontrakCreate({ employees }: KontrakCreateProps) {
 
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        form.submit(ContractController.store());
+        // forceFormData: the contract document rides along as multipart.
+        form.post(ContractController.store().url, { forceFormData: true });
     };
 
     return (

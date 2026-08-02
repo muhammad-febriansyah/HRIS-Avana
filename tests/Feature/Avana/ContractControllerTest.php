@@ -6,7 +6,9 @@ use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 
 use function Pest\Laravel\actingAs;
@@ -301,4 +303,132 @@ it('forbids users without employee permissions from managing contracts', functio
             'status' => 'active',
         ])
         ->assertForbidden();
+});
+
+it('attaches a document when a contract is created', function (): void {
+    Storage::fake('local');
+
+    actingAs($this->admin)
+        ->post(route('avana.kontrak.store'), [
+            'employee_id' => $this->employee->id,
+            'contract_number' => 'PKWT-DOC-1',
+            'contract_type' => 'pkwt',
+            'start_date' => Carbon::today()->toDateString(),
+            'end_date' => Carbon::today()->addYear()->toDateString(),
+            'basic_salary' => 8_000_000,
+            'status' => 'active',
+            'document' => UploadedFile::fake()->create('kontrak.pdf', 120, 'application/pdf'),
+        ])
+        ->assertRedirect();
+
+    $contract = EmployeeContract::where('contract_number', 'PKWT-DOC-1')->firstOrFail();
+
+    expect($contract->document_name)->toBe('kontrak.pdf');
+    expect($contract->document_path)->not->toBeNull();
+    Storage::disk('local')->assertExists($contract->document_path);
+});
+
+it('serves the document only to someone who may see the contract', function (): void {
+    Storage::fake('local');
+
+    $contract = makeContract(['contract_number' => 'PKWT-DOC-2']);
+
+    actingAs($this->admin)
+        ->put(route('avana.kontrak.update', $contract), [
+            'employee_id' => $contract->employee_id,
+            'contract_number' => $contract->contract_number,
+            'contract_type' => $contract->contract_type,
+            'start_date' => $contract->start_date->toDateString(),
+            'end_date' => $contract->end_date->toDateString(),
+            'basic_salary' => (float) $contract->basic_salary,
+            'status' => $contract->status,
+            'document' => UploadedFile::fake()->create('perjanjian.pdf', 90, 'application/pdf'),
+        ])
+        ->assertRedirect();
+
+    actingAs($this->admin)
+        ->get(route('avana.kontrak.dokumen', $contract))
+        ->assertOk()
+        ->assertDownload('perjanjian.pdf');
+
+    // A contract belonging to another tenant is not reachable at all.
+    $other = Tenant::create(['name' => 'PT Lain', 'slug' => 'pt-lain-kontrak', 'status' => 'active']);
+    $intruder = User::factory()->create(['tenant_id' => $other->id]);
+
+    actingAs($intruder)
+        ->get(route('avana.kontrak.dokumen', $contract))
+        ->assertForbidden();
+});
+
+it('replaces the previous file rather than leaving both behind', function (): void {
+    Storage::fake('local');
+
+    $contract = makeContract(['contract_number' => 'PKWT-DOC-3']);
+
+    $payload = [
+        'employee_id' => $contract->employee_id,
+        'contract_number' => $contract->contract_number,
+        'contract_type' => $contract->contract_type,
+        'start_date' => $contract->start_date->toDateString(),
+        'end_date' => $contract->end_date->toDateString(),
+        'basic_salary' => (float) $contract->basic_salary,
+        'status' => $contract->status,
+    ];
+
+    actingAs($this->admin)->put(route('avana.kontrak.update', $contract), array_merge($payload, [
+        'document' => UploadedFile::fake()->create('lama.pdf', 40, 'application/pdf'),
+    ]));
+
+    $first = $contract->fresh()->document_path;
+
+    actingAs($this->admin)->put(route('avana.kontrak.update', $contract), array_merge($payload, [
+        'document' => UploadedFile::fake()->create('baru.pdf', 40, 'application/pdf'),
+    ]));
+
+    $second = $contract->fresh()->document_path;
+
+    expect($second)->not->toBe($first);
+    Storage::disk('local')->assertMissing($first);
+    Storage::disk('local')->assertExists($second);
+});
+
+it('takes the file with the contract when it is deleted', function (): void {
+    Storage::fake('local');
+
+    $contract = makeContract(['contract_number' => 'PKWT-DOC-4']);
+
+    actingAs($this->admin)->put(route('avana.kontrak.update', $contract), [
+        'employee_id' => $contract->employee_id,
+        'contract_number' => $contract->contract_number,
+        'contract_type' => $contract->contract_type,
+        'start_date' => $contract->start_date->toDateString(),
+        'end_date' => $contract->end_date->toDateString(),
+        'basic_salary' => (float) $contract->basic_salary,
+        'status' => $contract->status,
+        'document' => UploadedFile::fake()->create('hapus.pdf', 40, 'application/pdf'),
+    ]);
+
+    $path = $contract->fresh()->document_path;
+
+    actingAs($this->admin)->delete(route('avana.kontrak.destroy', $contract))->assertRedirect();
+
+    Storage::disk('local')->assertMissing($path);
+});
+
+it('refuses a file that is not a document', function (): void {
+    Storage::fake('local');
+
+    actingAs($this->admin)
+        ->post(route('avana.kontrak.store'), [
+            'employee_id' => $this->employee->id,
+            'contract_number' => 'PKWT-DOC-5',
+            'contract_type' => 'pkwt',
+            'start_date' => Carbon::today()->toDateString(),
+            'basic_salary' => 8_000_000,
+            'status' => 'active',
+            'document' => UploadedFile::fake()->create('virus.exe', 10),
+        ])
+        ->assertSessionHasErrors('document');
+
+    expect(EmployeeContract::where('contract_number', 'PKWT-DOC-5')->exists())->toBeFalse();
 });

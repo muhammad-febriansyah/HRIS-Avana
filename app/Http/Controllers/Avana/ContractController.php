@@ -9,12 +9,20 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ContractController extends Controller
 {
+    /**
+     * Contracts carry salary and personal data, so the file never lands on a
+     * publicly reachable disk.
+     */
+    private const DISK = 'local';
+
     use AuthorizesRequests;
 
     /**
@@ -98,6 +106,9 @@ class ContractController extends Controller
                 'start_date' => $contract->start_date?->toDateString(),
                 'end_date' => $contract->end_date?->toDateString(),
                 'basic_salary' => (float) $contract->basic_salary,
+                'document_name' => $contract->document_name,
+                'document_size' => $contract->document_size !== null ? (int) $contract->document_size : null,
+                'has_document' => $contract->document_path !== null,
                 'status' => $contract->status,
                 'notes' => $contract->notes,
             ],
@@ -115,11 +126,14 @@ class ContractController extends Controller
         $tenantId = $request->user()->tenant_id;
 
         $validated = $this->validateContract($request, $tenantId);
+        unset($validated['document']);
 
-        EmployeeContract::create([
+        $contract = EmployeeContract::create([
             ...$validated,
             'tenant_id' => $tenantId,
         ]);
+
+        $this->storeDocument($request, $contract);
 
         return redirect()->route('avana.kontrak')
             ->with('success', 'Kontrak berhasil ditambahkan');
@@ -134,8 +148,11 @@ class ContractController extends Controller
         $this->authorize('update', $contract);
 
         $validated = $this->validateContract($request, $request->user()->tenant_id, $contract);
+        unset($validated['document']);
 
         $contract->update($validated);
+
+        $this->storeDocument($request, $contract);
 
         return redirect()->route('avana.kontrak')
             ->with('success', 'Kontrak berhasil diperbarui');
@@ -149,9 +166,73 @@ class ContractController extends Controller
         $this->ensureTenantOwnership($request, $contract);
         $this->authorize('delete', $contract);
 
+        // The file goes with the record; a private disk full of orphans is
+        // still personal data nobody is looking after.
+        if ($contract->document_path !== null) {
+            Storage::disk(self::DISK)->delete($contract->document_path);
+        }
+
         $contract->delete();
 
         return back()->with('success', 'Kontrak dihapus');
+    }
+
+    /**
+     * Serve a contract's document to someone allowed to see the contract.
+     */
+    public function download(Request $request, EmployeeContract $contract): StreamedResponse
+    {
+        $this->ensureTenantOwnership($request, $contract);
+        $this->authorize('view', $contract);
+
+        abort_if(
+            $contract->document_path === null || ! Storage::disk(self::DISK)->exists($contract->document_path),
+            404,
+        );
+
+        return Storage::disk(self::DISK)->download(
+            $contract->document_path,
+            $contract->document_name ?? 'kontrak.pdf',
+        );
+    }
+
+    /**
+     * Remove the attached document, keeping the contract itself.
+     */
+    public function destroyDocument(Request $request, EmployeeContract $contract): RedirectResponse
+    {
+        $this->ensureTenantOwnership($request, $contract);
+        $this->authorize('update', $contract);
+
+        if ($contract->document_path !== null) {
+            Storage::disk(self::DISK)->delete($contract->document_path);
+        }
+
+        $contract->update(['document_path' => null, 'document_name' => null, 'document_size' => null]);
+
+        return back()->with('success', 'Dokumen kontrak dihapus');
+    }
+
+    /**
+     * Store an uploaded contract document, replacing whatever it had before.
+     */
+    private function storeDocument(Request $request, EmployeeContract $contract): void
+    {
+        $file = $request->file('document');
+
+        if ($file === null) {
+            return;
+        }
+
+        if ($contract->document_path !== null) {
+            Storage::disk(self::DISK)->delete($contract->document_path);
+        }
+
+        $contract->update([
+            'document_path' => $file->store('kontrak/'.$contract->tenant_id, self::DISK),
+            'document_name' => $file->getClientOriginalName(),
+            'document_size' => $file->getSize(),
+        ]);
     }
 
     /**
@@ -178,6 +259,10 @@ class ContractController extends Controller
             'basic_salary' => ['required', 'numeric', 'min:0'],
             'status' => ['required', 'in:active,expired,terminated'],
             'notes' => ['nullable', 'string'],
+            'document' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+        ], [
+            'document.mimes' => 'Dokumen kontrak harus PDF atau gambar (JPG/PNG).',
+            'document.max' => 'Ukuran dokumen kontrak maksimal 10 MB.',
         ]);
     }
 
