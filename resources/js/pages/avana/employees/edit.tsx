@@ -66,6 +66,7 @@ export default function EmployeesEdit({
         contract_start_date: activeContract?.start_date_raw ?? '',
         contract_end_date: activeContract?.end_date_raw ?? '',
         bpjs_kesehatan_number: data.bpjs_kesehatan_number ?? '',
+        ptkp_status: data.ptkp_status ?? '',
         bpjs_ketenagakerjaan_number: data.bpjs_ketenagakerjaan_number ?? '',
         // Neither an approver puncak nor a not-yet-assigned employee has a
         // manager row, so the picker shows whichever sentinel says which of the

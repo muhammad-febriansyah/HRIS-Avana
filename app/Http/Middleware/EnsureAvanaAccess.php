@@ -6,6 +6,7 @@ use App\Models\Feature;
 use App\Models\Permission;
 use App\Models\RoleMenuVisibility;
 use App\Support\AvanaNav;
+use App\Support\PendingApprover;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -72,7 +73,14 @@ class EnsureAvanaAccess
         }
 
         if ($requirement['modules'] !== [] && $userModules->intersect($requirement['modules'])->isEmpty()) {
-            abort(403);
+            // The approval centre is the exception: a workflow can route a
+            // request to someone who holds none of these modules, and closing
+            // the screen to them strands it on a step its own approver cannot
+            // reach. Only while something is actually waiting on them.
+            abort_unless(
+                ($requirement['key'] ?? null) === 'approval' && PendingApprover::awaits($user),
+                403,
+            );
         }
 
         // A menu whose tenant feature is disabled is not reachable either.

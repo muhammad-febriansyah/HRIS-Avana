@@ -525,6 +525,10 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                                 label="No. BPJS Kesehatan"
                                 value={dash(emp.bpjs_kesehatan_number)}
                                 indent
+                            />
+                            <Cell
+                                label="Status PTKP"
+                                value={emp.ptkp_status ?? 'Belum ditentukan'}
                                 last
                             />
                         </div>

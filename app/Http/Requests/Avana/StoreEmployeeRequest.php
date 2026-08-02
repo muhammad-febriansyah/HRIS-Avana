@@ -7,6 +7,7 @@ use App\Models\AttendancePolicy;
 use App\Models\CustomField;
 use App\Models\Employee;
 use App\Models\User;
+use App\Support\Pph21Ter;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -76,6 +77,7 @@ class StoreEmployeeRequest extends FormRequest
             'contract_end_date' => ['nullable', 'date', 'after:contract_start_date'],
             // Kept on the employee's BPJS profile, not the employee row.
             'bpjs_kesehatan_number' => ['nullable', 'string', 'max:32'],
+            'ptkp_status' => ['nullable', 'string', Rule::in(array_keys(Pph21Ter::statutoryCategoryMap()))],
             'bpjs_ketenagakerjaan_number' => ['nullable', 'string', 'max:32'],
             'manager_id' => ['nullable', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
             'is_top_approver' => ['nullable', 'boolean'],

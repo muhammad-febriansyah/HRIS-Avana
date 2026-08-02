@@ -13,6 +13,7 @@ use App\Services\ApprovalEngine;
 use App\Services\AttendanceCorrectionApproval;
 use App\Services\AutoApproval;
 use App\Services\LeaveApproval;
+use App\Support\PendingApprover;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -410,6 +411,20 @@ class ApprovalController extends Controller
      */
     private function ensureCanApprove(Request $request): void
     {
+        abort_unless($this->canApprove($request), 403);
+    }
+
+    /**
+     * Whether this user may act on approvals at all.
+     *
+     * A workflow may route a request to someone who holds no approval
+     * permission — "atasan langsung" names whoever the employee reports to,
+     * not whoever HR granted a module to. Refusing them here would leave the
+     * request stranded on a step its own approver cannot reach, so anything
+     * currently waiting on them counts as licence.
+     */
+    private function canApprove(Request $request): bool
+    {
         /** @var User $user */
         $user = $request->user();
         $user->loadMissing('roles.permissions');
@@ -423,6 +438,6 @@ class ApprovalController extends Controller
             ->contains(fn (string $code): bool => in_array($code, self::APPROVE_PERMISSIONS, true)
                 || (str_starts_with($code, 'team.') && str_ends_with($code, '.approve')));
 
-        abort_unless($isPrivileged || $hasApprovePermission, 403);
+        return $isPrivileged || $hasApprovePermission || PendingApprover::awaits($user);
     }
 }

@@ -20,6 +20,7 @@ use App\Models\JobLevel;
 use App\Models\Position;
 use App\Models\Role;
 use App\Models\SalaryMaster;
+use App\Models\TaxProfile;
 use App\Models\User;
 use App\Models\UserDevice;
 use App\Models\WorkLocation;
@@ -149,6 +150,7 @@ class EmployeeController extends Controller
         $password = $data['password'] ?? null;
         $roleId = $data['role_id'] ?? null;
         $bpjs = $this->pullBpjsNumbers($data);
+        $ptkp = $this->pullPtkpStatus($data);
         $contract = $this->pullContract($data);
         unset($data['password'], $data['role_id']);
         $data['tenant_id'] = $tenantId;
@@ -160,6 +162,7 @@ class EmployeeController extends Controller
         $employee = Employee::create($data);
 
         $this->syncBpjsNumbers($employee, $bpjs);
+        $this->syncPtkpStatus($employee, $ptkp);
         $this->syncContract($employee, $contract);
         $this->syncEmployeeLogin($employee, $password, $tenantId, $roleId !== null ? (int) $roleId : null);
 
@@ -584,6 +587,7 @@ class EmployeeController extends Controller
             'manager:id,full_name,employee_number',
             'salaryMaster:id,code,category',
             'bpjsProfile',
+            'taxProfile',
             'contracts' => fn ($query) => $query->latest('start_date')->latest('id'),
             'assetAssignments' => fn ($query) => $query
                 ->whereNull('returned_date')
@@ -644,12 +648,14 @@ class EmployeeController extends Controller
         $password = $data['password'] ?? null;
         $roleId = $data['role_id'] ?? null;
         $bpjs = $this->pullBpjsNumbers($data);
+        $ptkp = $this->pullPtkpStatus($data);
         $contract = $this->pullContract($data);
         unset($data['password'], $data['role_id']);
 
         $employee->update($data);
 
         $this->syncBpjsNumbers($employee, $bpjs);
+        $this->syncPtkpStatus($employee, $ptkp);
         $this->syncContract($employee, $contract);
         $this->syncEmployeeLogin($employee, $password, $request->user()->tenant_id, $roleId !== null ? (int) $roleId : null);
 
@@ -686,6 +692,44 @@ class EmployeeController extends Controller
      *
      * @param  array<string, string|null>|null  $numbers
      */
+    /**
+     * Take the PTKP status out of the employee payload.
+     *
+     * It lives on the tax profile, not the employee row, but it is the one
+     * tax field HR fills in while hiring — every PPh 21 figure is computed
+     * from it, so leaving it to a separate screen means payroll runs on a
+     * default nobody chose.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function pullPtkpStatus(array &$data): ?string
+    {
+        if (! array_key_exists('ptkp_status', $data)) {
+            return null;
+        }
+
+        $status = $data['ptkp_status'];
+        unset($data['ptkp_status']);
+
+        return is_string($status) && $status !== '' ? $status : null;
+    }
+
+    /**
+     * Write the PTKP status onto the employee's tax profile, creating the
+     * profile when the employee did not have one yet.
+     */
+    private function syncPtkpStatus(Employee $employee, ?string $status): void
+    {
+        if ($status === null) {
+            return;
+        }
+
+        TaxProfile::updateOrCreate(
+            ['tenant_id' => $employee->tenant_id, 'employee_id' => $employee->id],
+            ['ptkp_status' => $status],
+        );
+    }
+
     private function syncBpjsNumbers(Employee $employee, ?array $numbers): void
     {
         if ($numbers === null) {
@@ -808,15 +852,23 @@ class EmployeeController extends Controller
             ? Role::where('tenant_id', $tenantId)->whereKey($roleId)->first()
             : null;
 
+        $employee->loadMissing('user.roles');
+
         if ($employee->user_id !== null) {
             if (filled($password)) {
                 $employee->user?->update(['password' => $password]);
             }
 
-            // An explicit role choice replaces the account's role; leaving it
-            // blank keeps whatever role the account already has.
-            if ($role !== null) {
-                $employee->user?->roles()->sync([$role->id]);
+            // The form shows one role, but an account may hold several — the
+            // director carries manager and employee both. Saving the employee
+            // with the role the form happened to display would sync the account
+            // down to that one and drop the rest, rewriting someone's access
+            // nobody asked to change. Only a role the account does not already
+            // hold is a real choice, so only that is written.
+            $user = $employee->user;
+
+            if ($role !== null && $user !== null && ! $user->roles->contains('id', $role->id)) {
+                $user->roles()->sync([$role->id]);
             }
 
             return;

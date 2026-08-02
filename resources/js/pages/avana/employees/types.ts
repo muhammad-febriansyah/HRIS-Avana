@@ -113,6 +113,8 @@ export type Employee = {
     salary_master?: { id: number; code: string; category: string | null } | null;
     /** BPJS membership numbers, kept on the employee's BPJS profile. */
     bpjs_kesehatan_number?: string | null;
+    /** PTKP code the PPh 21 calculation is based on. */
+    ptkp_status?: string | null;
     bpjs_ketenagakerjaan_number?: string | null;
     contracts?: EmployeeContractRow[];
     custom_data?: Record<string, string>;
@@ -214,6 +216,7 @@ export type EmployeeFormData = {
     contract_start_date: string;
     contract_end_date: string;
     bpjs_kesehatan_number: string;
+    ptkp_status: string;
     bpjs_ketenagakerjaan_number: string;
     manager_id: string;
     status: string;
@@ -292,6 +295,7 @@ export const STEP_FIELDS: string[][] = [
         'contract_end_date',
         'bpjs_ketenagakerjaan_number',
         'bpjs_kesehatan_number',
+        'ptkp_status',
         'join_date',
         'branch_id',
         'work_location_id',

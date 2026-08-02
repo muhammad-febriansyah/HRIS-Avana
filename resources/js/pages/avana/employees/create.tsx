@@ -47,6 +47,7 @@ export default function EmployeesCreate({
         contract_start_date: '',
         contract_end_date: '',
         bpjs_kesehatan_number: '',
+        ptkp_status: '',
         bpjs_ketenagakerjaan_number: '',
         manager_id: '',
         status: 'active',

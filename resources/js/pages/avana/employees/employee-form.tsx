@@ -42,6 +42,18 @@ const inputStyle: CSSProperties = {
 
 const selectStyle: CSSProperties = { ...inputStyle, cursor: 'pointer' };
 
+/** PTKP codes PPh 21 recognises, mirroring App\Support\Pph21Ter. */
+const PTKP_OPTIONS = [
+    { value: 'TK/0', label: 'TK/0 — Tidak kawin, tanpa tanggungan' },
+    { value: 'TK/1', label: 'TK/1 — Tidak kawin, 1 tanggungan' },
+    { value: 'TK/2', label: 'TK/2 — Tidak kawin, 2 tanggungan' },
+    { value: 'TK/3', label: 'TK/3 — Tidak kawin, 3 tanggungan' },
+    { value: 'K/0', label: 'K/0 — Kawin, tanpa tanggungan' },
+    { value: 'K/1', label: 'K/1 — Kawin, 1 tanggungan' },
+    { value: 'K/2', label: 'K/2 — Kawin, 2 tanggungan' },
+    { value: 'K/3', label: 'K/3 — Kawin, 3 tanggungan' },
+];
+
 const errorBorder: CSSProperties = {
     border: `1px solid ${C.red}`,
     boxShadow: '0 0 0 3px rgba(220,38,38,.08)',
@@ -119,6 +131,7 @@ function Field({
     required = false,
     fullWidth = false,
     error,
+    hint,
     children,
 }: {
     htmlFor: string;
@@ -126,6 +139,7 @@ function Field({
     required?: boolean;
     fullWidth?: boolean;
     error?: string;
+    hint?: string;
     children: ReactNode;
 }) {
     return (
@@ -134,6 +148,11 @@ function Field({
                 {label} {required ? req : null}
             </label>
             {children}
+            {hint && !error ? (
+                <div style={{ fontSize: 11.5, color: C.faint, marginTop: 4 }}>
+                    {hint}
+                </div>
+            ) : null}
             {error ? (
                 <div style={errorTextStyle}>
                     <AIcon name="circle-alert" size={13} color={C.red} />
@@ -998,6 +1017,35 @@ export function EmployeeForm({
                                     inputStyle,
                                 )}
                             />
+                        </Field>
+
+                        <Field
+                            htmlFor="ptkp_status"
+                            label="Status PTKP"
+                            error={errors.ptkp_status}
+                            hint="Dasar perhitungan PPh 21 — tanpa ini payroll memakai TK/0."
+                        >
+                            <select
+                                id="ptkp_status"
+                                value={data.ptkp_status}
+                                onChange={(event) =>
+                                    setData('ptkp_status', event.target.value)
+                                }
+                                style={styleFor(
+                                    !!errors.ptkp_status,
+                                    selectStyle,
+                                )}
+                            >
+                                <option value="">Belum ditentukan</option>
+                                {PTKP_OPTIONS.map((option) => (
+                                    <option
+                                        key={option.value}
+                                        value={option.value}
+                                    >
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
                         </Field>
 
                         <Field

@@ -126,11 +126,24 @@ class DashboardController extends Controller
      *
      * @var array<int, string>
      */
-    private const SELF_SERVICE_MODULES = ['own', 'ai'];
+    /**
+     * Modules that mean a user is looking after other people, not themselves.
+     *
+     * The HR dashboard's own headline is "Total Karyawan" — it is built out of
+     * the whole tenant's figures, so it belongs to whoever can see the whole
+     * tenant. Holding one of these is what makes that true.
+     */
+    private const MANAGEMENT_MODULES = [
+        'employee', 'payroll', 'salary_structure', 'pph21', 'bpjs',
+        'recruitment', 'report', 'dynamic_report', 'attrition', 'team',
+        'user', 'role', 'permission', 'settings', 'tenant', 'langganan',
+        'budget', 'journal', 'audit', 'organization', 'department',
+        'position', 'branch', 'offboarding', 'talent',
+    ];
 
     /**
-     * Whether the user only holds self-service permissions — a plain karyawan,
-     * as opposed to HR, a manager, or finance.
+     * Whether this user is here for themselves — a plain karyawan, as opposed
+     * to HR, a manager, or finance.
      */
     private function isSelfServiceOnly(User $user): bool
     {
@@ -143,7 +156,11 @@ class DashboardController extends Controller
             ->distinct()
             ->pluck('module');
 
-        return $modules->isNotEmpty() && $modules->diff(self::SELF_SERVICE_MODULES)->isEmpty();
+        // Asking what they manage, rather than insisting they hold nothing but
+        // `own` and `ai`. A karyawan given one extra module — leave, to file
+        // their own; attendance, to read their own — used to be handed the
+        // HR dashboard by that one addition.
+        return $modules->intersect(self::MANAGEMENT_MODULES)->isEmpty();
     }
 
     /**
