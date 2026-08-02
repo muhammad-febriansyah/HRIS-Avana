@@ -68,6 +68,12 @@ class StoreEmployeeRequest extends FormRequest
             'position_id' => ['nullable', Rule::exists('positions', 'id')->where('tenant_id', $tenantId)],
             'job_level_id' => ['nullable', Rule::exists('job_levels', 'id')->where('tenant_id', $tenantId)],
             'salary_master_id' => ['nullable', Rule::exists('salary_masters', 'id')->where('tenant_id', $tenantId)],
+            // Contract details typed here create the row that the Kontrak
+            // screen lists, so the same contract is not entered twice.
+            'contract_number' => ['nullable', 'string', 'max:255'],
+            'contract_type' => ['nullable', 'string', 'max:255', 'required_with:contract_number'],
+            'contract_start_date' => ['nullable', 'date', 'required_with:contract_number'],
+            'contract_end_date' => ['nullable', 'date', 'after:contract_start_date'],
             // Kept on the employee's BPJS profile, not the employee row.
             'bpjs_kesehatan_number' => ['nullable', 'string', 'max:32'],
             'bpjs_ketenagakerjaan_number' => ['nullable', 'string', 'max:32'],
@@ -148,6 +154,9 @@ class StoreEmployeeRequest extends FormRequest
             'position_id.exists' => 'Posisi yang dipilih tidak valid.',
             'job_level_id.exists' => 'Jenjang jabatan yang dipilih tidak valid.',
             'salary_master_id.exists' => 'Master Gaji yang dipilih tidak valid.',
+            'contract_type.required_with' => 'Jenis kontrak wajib diisi bila nomor kontrak diisi.',
+            'contract_start_date.required_with' => 'Tanggal mulai kontrak wajib diisi bila nomor kontrak diisi.',
+            'contract_end_date.after' => 'Tanggal berakhir kontrak harus setelah tanggal mulai.',
             'manager_id.exists' => 'Atasan yang dipilih tidak valid.',
         ];
     }

@@ -151,6 +151,8 @@ final class EmployeeResource extends JsonResource
                     'contract_type' => $contract->contract_type,
                     'start_date' => $contract->start_date?->format('d M Y'),
                     'end_date' => $contract->end_date?->format('d M Y'),
+                    'start_date_raw' => $contract->start_date?->format('Y-m-d'),
+                    'end_date_raw' => $contract->end_date?->format('Y-m-d'),
                     'status' => $contract->status,
                 ])->values()),
             'manager' => $this->whenLoaded('manager', fn () => $this->manager === null ? null : [

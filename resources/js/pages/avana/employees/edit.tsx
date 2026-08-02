@@ -35,6 +35,13 @@ export default function EmployeesEdit({
     const { data } = employee;
     const { flash } = usePage<FlashProps>().props;
 
+    // The contract currently in force, so editing an employee corrects that
+    // contract rather than opening another one.
+    const activeContract =
+        (data.contracts ?? []).find((row) => row.status === 'active') ??
+        (data.contracts ?? [])[0] ??
+        null;
+
     const form = useForm<EmployeeFormData>({
         full_name: data.full_name ?? '',
         email: data.email ?? '',
@@ -54,6 +61,10 @@ export default function EmployeesEdit({
         position_id: relationId(data.position),
         job_level_id: relationId(data.job_level),
         salary_master_id: data.salary_master_id ? String(data.salary_master_id) : '',
+        contract_number: activeContract?.contract_number ?? '',
+        contract_type: activeContract?.contract_type ?? '',
+        contract_start_date: activeContract?.start_date_raw ?? '',
+        contract_end_date: activeContract?.end_date_raw ?? '',
         bpjs_kesehatan_number: data.bpjs_kesehatan_number ?? '',
         bpjs_ketenagakerjaan_number: data.bpjs_ketenagakerjaan_number ?? '',
         // Neither an approver puncak nor a not-yet-assigned employee has a

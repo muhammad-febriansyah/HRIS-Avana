@@ -127,6 +127,8 @@ export type EmployeeContractRow = {
     contract_type: string | null;
     start_date: string | null;
     end_date: string | null;
+    start_date_raw: string | null;
+    end_date_raw: string | null;
     status: string | null;
 };
 
@@ -205,6 +207,10 @@ export type EmployeeFormData = {
     position_id: string;
     job_level_id: string;
     salary_master_id: string;
+    contract_number: string;
+    contract_type: string;
+    contract_start_date: string;
+    contract_end_date: string;
     bpjs_kesehatan_number: string;
     bpjs_ketenagakerjaan_number: string;
     manager_id: string;
@@ -278,6 +284,10 @@ export const STEP_FIELDS: string[][] = [
         'is_top_approver',
         'employment_status',
         'salary_master_id',
+        'contract_number',
+        'contract_type',
+        'contract_start_date',
+        'contract_end_date',
         'bpjs_ketenagakerjaan_number',
         'bpjs_kesehatan_number',
         'join_date',

@@ -858,6 +858,74 @@ export function EmployeeForm({
                         </Field>
 
                         <Field
+                            htmlFor="contract_number"
+                            label="Nomor Kontrak"
+                            error={errors.contract_number}
+                        >
+                            <input
+                                id="contract_number"
+                                value={data.contract_number}
+                                onChange={(event) =>
+                                    setData('contract_number', event.target.value)
+                                }
+                                placeholder="mis. PKWT-2026-001"
+                                style={styleFor(
+                                    !!errors.contract_number,
+                                    inputStyle,
+                                )}
+                            />
+                        </Field>
+
+                        <Field
+                            htmlFor="contract_type"
+                            label="Jenis Kontrak"
+                            error={errors.contract_type}
+                        >
+                            <input
+                                id="contract_type"
+                                value={data.contract_type}
+                                onChange={(event) =>
+                                    setData('contract_type', event.target.value)
+                                }
+                                placeholder="mis. PKWT"
+                                style={styleFor(
+                                    !!errors.contract_type,
+                                    inputStyle,
+                                )}
+                            />
+                        </Field>
+
+                        <Field
+                            htmlFor="contract_start_date"
+                            label="Kontrak Mulai"
+                            error={errors.contract_start_date}
+                        >
+                            <DatePicker
+                                value={data.contract_start_date}
+                                onChange={(nextValue) =>
+                                    setData('contract_start_date', nextValue)
+                                }
+                                placeholder="Pilih tanggal"
+                                width="100%"
+                            />
+                        </Field>
+
+                        <Field
+                            htmlFor="contract_end_date"
+                            label="Kontrak Berakhir"
+                            error={errors.contract_end_date}
+                        >
+                            <DatePicker
+                                value={data.contract_end_date}
+                                onChange={(nextValue) =>
+                                    setData('contract_end_date', nextValue)
+                                }
+                                placeholder="Pilih tanggal"
+                                width="100%"
+                            />
+                        </Field>
+
+                        <Field
                             htmlFor="salary_master_id"
                             label="Master Gaji"
                             error={errors.salary_master_id}

@@ -14,6 +14,7 @@ use App\Models\CustomField;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
+use App\Models\EmployeeContract;
 use App\Models\JobLevel;
 use App\Models\Position;
 use App\Models\Role;
@@ -21,6 +22,7 @@ use App\Models\SalaryMaster;
 use App\Models\User;
 use App\Models\UserDevice;
 use App\Models\WorkLocation;
+use App\Support\SalaryCompliance;
 use App\Support\TenantQuota;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
@@ -143,6 +145,7 @@ class EmployeeController extends Controller
         $password = $data['password'] ?? null;
         $roleId = $data['role_id'] ?? null;
         $bpjs = $this->pullBpjsNumbers($data);
+        $contract = $this->pullContract($data);
         unset($data['password'], $data['role_id']);
         $data['tenant_id'] = $tenantId;
 
@@ -153,6 +156,7 @@ class EmployeeController extends Controller
         $employee = Employee::create($data);
 
         $this->syncBpjsNumbers($employee, $bpjs);
+        $this->syncContract($employee, $contract);
         $this->syncEmployeeLogin($employee, $password, $tenantId, $roleId !== null ? (int) $roleId : null);
 
         return redirect()->route('avana.employees.index')
@@ -635,11 +639,13 @@ class EmployeeController extends Controller
         $password = $data['password'] ?? null;
         $roleId = $data['role_id'] ?? null;
         $bpjs = $this->pullBpjsNumbers($data);
+        $contract = $this->pullContract($data);
         unset($data['password'], $data['role_id']);
 
         $employee->update($data);
 
         $this->syncBpjsNumbers($employee, $bpjs);
+        $this->syncContract($employee, $contract);
         $this->syncEmployeeLogin($employee, $password, $request->user()->tenant_id, $roleId !== null ? (int) $roleId : null);
 
         return redirect()->route('avana.employees.index')
@@ -684,6 +690,60 @@ class EmployeeController extends Controller
         EmployeeBpjsProfile::updateOrCreate(
             ['tenant_id' => $employee->tenant_id, 'employee_id' => $employee->id],
             $numbers,
+        );
+    }
+
+    /**
+     * Take the contract details out of the employee payload.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>|null null when the form carried no contract
+     */
+    private function pullContract(array &$data): ?array
+    {
+        $keys = ['contract_number', 'contract_type', 'contract_start_date', 'contract_end_date'];
+        $contract = [];
+
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $data)) {
+                $contract[$key] = $data[$key];
+                unset($data[$key]);
+            }
+        }
+
+        return $contract === [] ? null : $contract;
+    }
+
+    /**
+     * Record the contract typed on the employee form so it shows on the Kontrak
+     * screen without being entered a second time.
+     *
+     * Keyed on the contract number, so editing an employee corrects the same
+     * contract rather than stacking duplicates; a blank number leaves whatever
+     * the Kontrak screen already holds untouched.
+     *
+     * @param  array<string, mixed>|null  $contract
+     */
+    private function syncContract(Employee $employee, ?array $contract): void
+    {
+        $number = trim((string) ($contract['contract_number'] ?? ''));
+
+        if ($contract === null || $number === '') {
+            return;
+        }
+
+        EmployeeContract::updateOrCreate(
+            ['tenant_id' => $employee->tenant_id, 'contract_number' => $number],
+            [
+                'employee_id' => $employee->id,
+                'contract_type' => $contract['contract_type'] ?? null,
+                'start_date' => $contract['contract_start_date'] ?? null,
+                'end_date' => $contract['contract_end_date'] ?? null,
+                // The Kontrak screen requires a figure; the employee's own basic
+                // wage is the honest one, and it stays editable there.
+                'basic_salary' => SalaryCompliance::monthlyWage($employee, (int) $employee->tenant_id)['basic'],
+                'status' => 'active',
+            ],
         );
     }
 

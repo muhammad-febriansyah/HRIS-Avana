@@ -2,6 +2,7 @@
 
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
+use App\Models\EmployeeContract;
 use App\Models\SalaryMaster;
 use App\Models\Tenant;
 use App\Models\User;
@@ -127,4 +128,69 @@ it('offers the Master Gaji list on the employee form', function (): void {
 
             expect($names)->toContain('MG-LINK-SPEC · Spec');
         });
+});
+
+it('lists a contract typed on the employee form on the Kontrak screen', function (): void {
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $this->employee), employeePayload($this, [
+            'contract_number' => 'PKWT-2026-001',
+            'contract_type' => 'PKWT',
+            'contract_start_date' => '2026-01-01',
+            'contract_end_date' => '2026-12-31',
+        ]))
+        ->assertRedirect();
+
+    $contract = EmployeeContract::forTenant($this->tenant->id)
+        ->where('contract_number', 'PKWT-2026-001')
+        ->firstOrFail();
+
+    expect($contract->employee_id)->toBe($this->employee->id);
+    expect($contract->status)->toBe('active');
+
+    actingAs($this->admin)
+        ->get(route('avana.kontrak'))
+        ->assertOk()
+        ->assertInertia(function (Assert $page): void {
+            $numbers = collect($page->toArray()['props']['contracts']['data'])->pluck('contract_number');
+
+            expect($numbers)->toContain('PKWT-2026-001');
+        });
+});
+
+it('corrects the same contract instead of stacking duplicates', function (): void {
+    $payload = employeePayload($this, [
+        'contract_number' => 'PKWT-2026-002',
+        'contract_type' => 'PKWT',
+        'contract_start_date' => '2026-01-01',
+    ]);
+
+    actingAs($this->admin)->put(route('avana.employees.update', $this->employee), $payload)->assertRedirect();
+    actingAs($this->admin)->put(route('avana.employees.update', $this->employee), array_merge($payload, [
+        'contract_type' => 'PKWTT',
+    ]))->assertRedirect();
+
+    $contracts = EmployeeContract::forTenant($this->tenant->id)
+        ->where('contract_number', 'PKWT-2026-002')
+        ->get();
+
+    expect($contracts)->toHaveCount(1);
+    expect($contracts->first()->contract_type)->toBe('PKWTT');
+});
+
+it('leaves the contract alone when no number is typed', function (): void {
+    $before = EmployeeContract::forTenant($this->tenant->id)->count();
+
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $this->employee), employeePayload($this, ['contract_number' => '']))
+        ->assertRedirect();
+
+    expect(EmployeeContract::forTenant($this->tenant->id)->count())->toBe($before);
+});
+
+it('requires the dates once a contract number is given', function (): void {
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $this->employee), employeePayload($this, [
+            'contract_number' => 'PKWT-2026-003',
+        ]))
+        ->assertSessionHasErrors(['contract_type', 'contract_start_date']);
 });
