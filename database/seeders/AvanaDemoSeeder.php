@@ -214,7 +214,7 @@ final class AvanaDemoSeeder extends Seeder
 
         // code => [name, industry, [[shift code|null, days], ...]]
         $patterns = [
-            'OFFICE' => ['Office', 'Perkantoran', [['PAGI', 5], [null, 2]]],
+            'OFFICE' => ['Office', 'Perkantoran', [['M', 5], [null, 2]]],
             'MANUFACTURING-3' => ['Manufacturing', 'Pabrik', [['M', 3], ['A', 3], ['N', 3], [null, 2]]],
             'MANUFACTURING-2' => ['Manufacturing 24 Jam', 'Pabrik 24 Jam', [['M', 2], ['A', 2], ['N', 2], [null, 2]]],
             'WAREHOUSE' => ['Warehouse', 'Logistik', [['M', 4], [null, 2]]],
