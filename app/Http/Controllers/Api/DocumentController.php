@@ -46,7 +46,7 @@ class DocumentController extends Controller
         ]);
 
         $file = $request->file('file');
-        $path = $file->store('employee-documents', 'public');
+        $path = PrivateFile::store($file, 'employee-documents');
 
         $doc = EmployeeDocument::create([
             'tenant_id' => $employee->tenant_id,

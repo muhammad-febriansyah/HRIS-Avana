@@ -98,7 +98,7 @@ it('only lists reimbursements that belong to the current tenant', function (): v
 });
 
 it('creates a pending reimbursement with a receipt and an allocated number', function (): void {
-    Storage::fake('public');
+    Storage::fake('local');
 
     $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
 
@@ -121,7 +121,8 @@ it('creates a pending reimbursement with a receipt and an allocated number', fun
     expect($reimbursement->category)->toBe('komunikasi');
     expect((float) $reimbursement->amount)->toBe(300_000.0);
     expect($reimbursement->number)->toStartWith('RMB-');
-    Storage::disk('public')->assertExists($reimbursement->receipt_path);
+    Storage::disk('local')->assertExists($reimbursement->receipt_path);
+    Storage::disk('public')->assertMissing($reimbursement->receipt_path);
 });
 
 it('auto-approves a reimbursement submitted by a top approver (director)', function (): void {
@@ -375,9 +376,9 @@ it('updates a reimbursement that has not been paid', function (): void {
 });
 
 it('deletes a reimbursement and its receipt', function (): void {
-    Storage::fake('public');
+    Storage::fake('local');
 
-    $receiptPath = UploadedFile::fake()->image('struk.jpg')->store('reimbursements', 'public');
+    $receiptPath = UploadedFile::fake()->image('struk.jpg')->store('reimbursements', 'local');
     $reimbursement = makeReimbursement($this->tenant->id, ['receipt_path' => $receiptPath]);
 
     actingAs($this->admin)
@@ -385,7 +386,7 @@ it('deletes a reimbursement and its receipt', function (): void {
         ->assertSessionHas('success');
 
     expect(Reimbursement::find($reimbursement->id))->toBeNull();
-    Storage::disk('public')->assertMissing($receiptPath);
+    Storage::disk('local')->assertMissing($receiptPath);
 });
 
 it('filters the list by category', function (): void {

@@ -14,7 +14,9 @@ return new class extends Migration
      */
     private const TREES = [
         'documents',
+        'employee-documents',
         'claims',
+        'reimbursements',
         'recruitment',
         'employee-photos',
     ];

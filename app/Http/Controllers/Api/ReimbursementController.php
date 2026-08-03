@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Reimbursement;
 use App\Services\ApprovalEngine;
 use App\Services\AutoApproval;
+use App\Support\PrivateFile;
 use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -67,7 +68,7 @@ class ReimbursementController extends Controller
             'expense_date' => $data['expense_date'] ?? now()->toDateString(),
             'description' => $data['description'] ?? null,
             'receipt_path' => $request->hasFile('receipt')
-                ? $request->file('receipt')->store('reimbursements', 'public')
+                ? PrivateFile::store($request->file('receipt'), 'reimbursements')
                 : null,
             'status' => 'pending',
         ]);

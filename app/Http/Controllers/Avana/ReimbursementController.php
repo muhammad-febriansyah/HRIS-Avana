@@ -8,10 +8,10 @@ use App\Models\Reimbursement;
 use App\Models\User;
 use App\Services\ApprovalEngine;
 use App\Services\AutoApproval;
+use App\Support\PrivateFile;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -175,7 +175,7 @@ class ReimbursementController extends Controller
         $data = $this->validateReimbursement($request, $tenantId);
 
         $receiptPath = $request->hasFile('receipt')
-            ? $request->file('receipt')->store('reimbursements', 'public')
+            ? PrivateFile::store($request->file('receipt'), 'reimbursements')
             : null;
 
         $employee = Employee::forTenant($tenantId)->findOrFail($data['employee_id']);
@@ -232,11 +232,9 @@ class ReimbursementController extends Controller
         ];
 
         if ($request->hasFile('receipt')) {
-            if ($reimbursement->receipt_path !== null) {
-                Storage::disk('public')->delete($reimbursement->receipt_path);
-            }
+            PrivateFile::delete($reimbursement->receipt_path);
 
-            $payload['receipt_path'] = $request->file('receipt')->store('reimbursements', 'public');
+            $payload['receipt_path'] = PrivateFile::store($request->file('receipt'), 'reimbursements');
         }
 
         $reimbursement->update($payload);
@@ -254,9 +252,7 @@ class ReimbursementController extends Controller
         $this->ensureTenantOwnership($request, $reimbursement);
         $this->ensureEditable($reimbursement);
 
-        if ($reimbursement->receipt_path !== null) {
-            Storage::disk('public')->delete($reimbursement->receipt_path);
-        }
+        PrivateFile::delete($reimbursement->receipt_path);
 
         $reimbursement->delete();
 
@@ -431,9 +427,7 @@ class ReimbursementController extends Controller
      */
     private function receiptUrl(Reimbursement $reimbursement): ?string
     {
-        return $reimbursement->receipt_path === null
-            ? null
-            : Storage::disk('public')->url($reimbursement->receipt_path);
+        return PrivateFile::urlFor($reimbursement->receipt_path);
     }
 
     /**
