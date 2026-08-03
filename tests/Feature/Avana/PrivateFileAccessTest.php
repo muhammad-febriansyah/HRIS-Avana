@@ -168,6 +168,7 @@ it('never uploads into a private tree on the public disk', function (): void {
     $trees = [
         'documents', 'employee-documents', 'claims', 'reimbursements', 'recruitment', 'employee-photos',
         'selfies', 'visit-tasks', 'field-visits', 'settlements', 'cash-advances', 'payroll-corrections',
+        'social/',
     ];
     $offenders = [];
 
