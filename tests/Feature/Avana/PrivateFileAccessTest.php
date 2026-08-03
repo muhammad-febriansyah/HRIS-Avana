@@ -10,6 +10,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Inertia\Testing\AssertableInertia as Assert;
+use Symfony\Component\Finder\Finder;
 
 use function Pest\Laravel\actingAs;
 use function Pest\Laravel\get;
@@ -110,4 +111,52 @@ it('leaves a generated avatar on the public disk', function (): void {
 
     expect($url)->toContain('/storage/avatars/user-1.png')
         ->and($url)->not->toContain('signature=');
+});
+
+it('hands the employee their own document as a signed link', function (): void {
+    Storage::fake('public');
+    Storage::fake('local');
+
+    $staff = User::whereHas('employee')->where('tenant_id', $this->tenant->id)->firstOrFail();
+
+    EmployeeDocument::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $staff->employee->id,
+        'name' => 'Slip Gaji',
+        'file_path' => 'documents/'.$this->tenant->id.'/slip.pdf',
+        'file_size' => 1024,
+        'uploaded_at' => now(),
+    ]);
+
+    actingAs($staff)
+        ->get(route('avana.saya.dokumen'))
+        ->assertOk()
+        ->assertInertia(function (Assert $page): void {
+            $url = (string) collect($page->toArray()['props']['documents'])->firstWhere('name', 'Slip Gaji')['url'];
+
+            expect($url)->toContain('/berkas/')
+                ->and($url)->toContain('signature=');
+        });
+});
+
+it('never builds a public URL for a private upload tree', function (): void {
+    $offenders = [];
+
+    foreach (Finder::create()->files()->in(app_path())->name('*.php') as $file) {
+        $body = $file->getContents();
+
+        if (! str_contains($body, "Storage::disk('public')")) {
+            continue;
+        }
+
+        foreach (['photo_path', 'cv_path', 'receipt_path'] as $column) {
+            // The field-visit and settlement trees are still public on purpose;
+            // this guards only the columns that were moved.
+            if (preg_match("/Storage::disk\('public'\)->(url|delete)\(\\\$[^)]*(?<![a-z_])".$column.'/', $body) === 1) {
+                $offenders[] = $file->getRelativePathname().' → '.$column;
+            }
+        }
+    }
+
+    expect($offenders)->toBe([]);
 });

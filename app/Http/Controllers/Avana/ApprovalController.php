@@ -274,7 +274,9 @@ class ApprovalController extends Controller
             return;
         }
 
-        $employeeId = Employee::forTenant($user->tenant_id)
+        // Cast rather than pass through: an account with no tenant matches no
+        // employee, where handing null to the scope would be a type error.
+        $employeeId = Employee::forTenant((int) $user->tenant_id)
             ->where('user_id', $user->id)
             ->value('id');
 

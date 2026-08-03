@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Avana;
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\EmployeeDocument;
+use App\Support\PrivateFile;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -54,9 +54,7 @@ class EssDocumentController extends Controller
                 'type' => self::TYPE_LABELS[$document->type] ?? $document->type,
                 'size' => (int) $document->file_size,
                 'uploaded_at' => $document->uploaded_at?->toDateString(),
-                'url' => $document->file_path !== null
-                    ? Storage::disk('public')->url($document->file_path)
-                    : null,
+                'url' => PrivateFile::urlFor($document->file_path),
             ])->values(),
         ]);
     }
