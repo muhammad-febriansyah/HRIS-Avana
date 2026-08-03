@@ -99,7 +99,7 @@ it('counts fixed allowances alongside the basic wage', function (): void {
 
     $this->master->components()->updateOrCreate(
         ['payroll_component_id' => $allowance->id],
-        ['included' => true, 'amount' => 2_375_000, 'is_prorate' => false, 'is_overtime_base' => true, 'is_kompensasi' => false],
+        ['included' => true, 'amount' => 2_375_000, 'is_prorate' => false, 'is_kompensasi' => false],
     );
 
     setComplianceBasic($this, 4_000_000);

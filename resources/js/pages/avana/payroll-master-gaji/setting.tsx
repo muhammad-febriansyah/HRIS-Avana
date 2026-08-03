@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import SalaryMasterController from '@/actions/App/Http/Controllers/Avana/SalaryMasterController';
 import { AIcon, C, card } from '@/lib/avana';
 
-type FlagKey = 'included' | 'is_prorate' | 'is_overtime_base' | 'is_kompensasi';
+type FlagKey = 'included' | 'is_prorate' | 'is_kompensasi';
 
 interface Component {
     id: number;
@@ -13,7 +13,6 @@ interface Component {
     included: boolean;
     amount: number;
     is_prorate: boolean;
-    is_overtime_base: boolean;
     is_kompensasi: boolean;
 }
 

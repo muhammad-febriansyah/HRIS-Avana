@@ -85,7 +85,6 @@ class SalaryMasterController extends Controller
                 'included' => (bool) ($flags[$c->id]->included ?? false),
                 'amount' => (float) ($flags[$c->id]->amount ?? 0),
                 'is_prorate' => (bool) ($flags[$c->id]->is_prorate ?? false),
-                'is_overtime_base' => (bool) ($flags[$c->id]->is_overtime_base ?? false),
                 'is_kompensasi' => (bool) ($flags[$c->id]->is_kompensasi ?? false),
             ]);
 
@@ -188,7 +187,7 @@ class SalaryMasterController extends Controller
     /**
      * @var array<int, string>
      */
-    private const COMPONENT_FLAGS = ['included', 'is_prorate', 'is_overtime_base', 'is_kompensasi'];
+    private const COMPONENT_FLAGS = ['included', 'is_prorate', 'is_kompensasi'];
 
     /**
      * Toggle one checklist flag (included membership, or the prorate / overtime /
@@ -216,7 +215,6 @@ class SalaryMasterController extends Controller
         if (! $row->exists) {
             $row->included = false;
             $row->is_prorate = false;
-            $row->is_overtime_base = false;
             $row->is_kompensasi = false;
         }
 
@@ -256,7 +254,6 @@ class SalaryMasterController extends Controller
         if (! $row->exists) {
             $row->included = true;
             $row->is_prorate = false;
-            $row->is_overtime_base = false;
             $row->is_kompensasi = false;
         }
 

@@ -247,7 +247,7 @@ function seedOvertimeSetup(object $ctx, SalaryMaster $master): void
     );
     $master->components()->updateOrCreate(
         ['payroll_component_id' => $lembur->id],
-        ['included' => true, 'amount' => 30_000, 'is_overtime_base' => true],
+        ['included' => true, 'amount' => 30_000],
     );
 
     OvertimeRequest::create([

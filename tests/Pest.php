@@ -85,7 +85,6 @@ function giveMasterComponent(
             'included' => true,
             'amount' => $amount,
             'is_prorate' => false,
-            'is_overtime_base' => false,
             'is_kompensasi' => false,
         ], $flags),
     );

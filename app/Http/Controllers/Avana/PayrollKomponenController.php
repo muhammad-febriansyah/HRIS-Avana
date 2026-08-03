@@ -188,6 +188,7 @@ class PayrollKomponenController extends Controller
             'calc_basis' => $data['calc_basis'],
             'period_basis' => $data['period_basis'] ?? null,
             'status' => 'active',
+            'is_fixed' => $this->canBeFixedAllowance($data),
             ...$this->basisAttributes($data),
         ]);
 
@@ -211,10 +212,39 @@ class PayrollKomponenController extends Controller
             'show_on_slip' => $request->boolean('show_on_slip'),
             'calc_basis' => $data['calc_basis'],
             'period_basis' => $data['period_basis'] ?? null,
+            // Setup Lembur owns the "Tetap" flag, so editing a component here
+            // leaves the tenant's choice alone — unless the edit makes the
+            // component one that cannot be a fixed allowance at all.
+            'is_fixed' => $component->is_fixed && $this->canBeFixedAllowance($data),
             ...$this->basisAttributes($data),
         ]);
 
         return back()->with('success', 'Komponen diperbarui');
+    }
+
+    /**
+     * Whether a component could be part of the overtime basis at all.
+     *
+     * `is_fixed` is the "Tetap" mark Setup Lembur puts on the allowances that
+     * join Gaji Pokok in the overtime basis (PP 35/2021 Pasal 30). The column
+     * defaulted to true and this screen never wrote it, so every component
+     * created here — a per-day meal allowance, a co-op deduction, the overtime
+     * line itself — was born inside the basis it had no business being in, and
+     * inflated the hourly wage every overtime hour was paid at.
+     *
+     * A deduction is never a wage. An allowance paid per present day or per
+     * overtime hour is variable, which is the opposite of fixed. What is left
+     * is a fixed monthly allowance, which is exactly what the article means.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function canBeFixedAllowance(array $data): bool
+    {
+        if (($data['group'] ?? null) === 'potongan') {
+            return false;
+        }
+
+        return ! in_array($data['calc_basis'] ?? null, ['per_present_day', 'per_overtime_hour'], true);
     }
 
     public function destroyComponent(Request $request, PayrollComponent $component): RedirectResponse

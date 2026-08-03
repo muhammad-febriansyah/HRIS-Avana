@@ -1579,9 +1579,13 @@ final class AvanaDemoSeeder extends Seeder
     {
         // is_bpjs_base marks the earnings the BPJS contribution is computed
         // from — Gaji Pokok plus the fixed allowances, not the per-day ones.
+        //
+        // is_fixed marks the same shape of thing for the overtime basis (PP
+        // 35/2021 Pasal 30). Transport and makan are paid per present day, so
+        // they vary; a deduction is not a wage at all.
         $components = [
-            ['code' => 'BASIC', 'name' => 'Gaji Pokok', 'type' => 'earning', 'is_bpjs_base' => true],
-            ['code' => 'TJ-JAB', 'name' => 'Tunjangan Jabatan', 'type' => 'earning', 'is_bpjs_base' => true],
+            ['code' => 'BASIC', 'name' => 'Gaji Pokok', 'type' => 'earning', 'is_bpjs_base' => true, 'is_fixed' => true],
+            ['code' => 'TJ-JAB', 'name' => 'Tunjangan Jabatan', 'type' => 'earning', 'is_bpjs_base' => true, 'is_fixed' => true],
             ['code' => 'TJ-TRP', 'name' => 'Tunjangan Transport', 'type' => 'earning', 'is_taxable' => false],
             ['code' => 'TJ-MKN', 'name' => 'Tunjangan Makan', 'type' => 'earning', 'is_taxable' => false],
             ['code' => 'POT-KOP', 'name' => 'Potongan Koperasi', 'type' => 'deduction'],
@@ -1595,6 +1599,7 @@ final class AvanaDemoSeeder extends Seeder
                     'component_group' => $c['type'] === 'deduction' ? 'potongan' : 'penerimaan',
                     'is_taxable' => $c['is_taxable'] ?? true,
                     'is_bpjs_base' => $c['is_bpjs_base'] ?? false,
+                    'is_fixed' => $c['is_fixed'] ?? false,
                     'status' => 'active',
                 ],
             );

@@ -84,6 +84,17 @@ final class AvanaPayrollDemoSeeder extends Seeder
             }
         }
 
+        // The overtime basis, marked where payroll actually reads it: Gaji
+        // Pokok plus the fixed allowances (PP 35/2021 Pasal 30). Transport and
+        // makan are paid per present day, so they vary; "Uang Lembur" is the
+        // result of the calculation, never an input to it; a deduction is not
+        // a wage.
+        foreach (['BASIC' => true, 'TJ-JAB' => true, 'TJ-TRP' => false, 'TJ-MKN' => false, 'LEMBUR' => false, 'POT-KOP' => false] as $code => $isFixed) {
+            if (isset($components[$code])) {
+                $components[$code]->update(['is_fixed' => $isFixed]);
+            }
+        }
+
         $positions = Position::where('tenant_id', $tenant->id)->orderBy('id')->get();
 
         // The manual-basis components (Tabel + Formula) and the named day-calc
@@ -244,18 +255,15 @@ final class AvanaPayrollDemoSeeder extends Seeder
         // is_prorate stays off so fixed lines are prorated only by mid-period
         // join/resign, matching the previous per-position behaviour.
         //
-        // is_overtime_base marks the components that form the overtime basis
-        // (PP 35/2021 Pasal 30: Gaji Pokok plus the fixed allowances). "Uang
-        // Lembur" is the result of that calculation, never an input to it.
         $lines = [
-            'BASIC' => ['amount' => 6_000_000 + ($index * 500_000), 'is_overtime_base' => true],
-            'TJ-JAB' => ['amount' => 1_500_000, 'is_overtime_base' => true],
-            'TJ-TRP' => ['amount' => 20_000, 'is_overtime_base' => true],
+            'BASIC' => ['amount' => 6_000_000 + ($index * 500_000)],
+            'TJ-JAB' => ['amount' => 1_500_000],
+            'TJ-TRP' => ['amount' => 20_000],
             'TJ-MKN' => ['amount' => 25_000],
             'LEMBUR' => ['amount' => 30_000],
             'POT-KOP' => ['amount' => 50_000],
             // Manual-basis lines resolve their own nominal (Tabel / Formula).
-            'TJ-KES' => ['amount' => 0, 'is_overtime_base' => true],
+            'TJ-KES' => ['amount' => 0],
             'TJ-KIN' => ['amount' => 0],
         ];
 
@@ -270,7 +278,6 @@ final class AvanaPayrollDemoSeeder extends Seeder
                     'included' => true,
                     'amount' => $line['amount'],
                     'is_prorate' => false,
-                    'is_overtime_base' => $line['is_overtime_base'] ?? false,
                     'is_kompensasi' => false,
                 ],
             );
