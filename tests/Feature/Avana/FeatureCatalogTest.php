@@ -58,6 +58,14 @@ it('auto-appears in the Hak Akses matrix after creation — no code change', fun
         'permission_modules' => ['e_learning'],
     ]);
 
+    // Switched on for the company, which is what makes it theirs to grant.
+    Tenant::findOrFail($this->superAdmin->tenant_id)
+        ->features()
+        ->create([
+            'feature_id' => Feature::where('code', 'e_learning')->value('id'),
+            'is_enabled' => true,
+        ]);
+
     actingAs($this->superAdmin)
         ->get(route('avana.hak-akses'))
         ->assertInertia(fn ($page) => $page
@@ -127,4 +135,18 @@ it('deletes a feature and cascades its tenant links', function (): void {
 
     expect(Feature::where('code', 'demo_del')->exists())->toBeFalse();
     expect($tenant->features()->where('feature_id', $feature->id)->exists())->toBeFalse();
+});
+
+it('leaves a feature the company is not subscribed to out of the matrix', function (): void {
+    actingAs($this->superAdmin)->post(route('avana.katalog-fitur.store'), [
+        'code' => 'e_learning',
+        'name' => 'E-Learning',
+        'module_group' => 'talent',
+        'permission_modules' => ['e_learning'],
+    ]);
+
+    actingAs($this->superAdmin)
+        ->get(route('avana.hak-akses'))
+        ->assertInertia(fn ($page) => $page
+            ->where('modules', fn ($modules) => collect($modules)->firstWhere('key', 'e_learning') === null));
 });

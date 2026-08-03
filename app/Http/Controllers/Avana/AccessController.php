@@ -11,6 +11,7 @@ use App\Models\Permission;
 use App\Models\Role;
 use App\Models\RoleMenuVisibility;
 use App\Models\Tenant;
+use App\Models\TenantFeature;
 use App\Models\User;
 use App\Support\AvanaNav;
 use App\Support\MobileMenu;
@@ -89,7 +90,7 @@ class AccessController extends Controller
             ])
             ->values();
 
-        return $rows->concat($this->catalogOnlyRows($rows))->values()->all();
+        return $rows->concat($this->catalogOnlyRows($rows, $tenantId))->values()->all();
     }
 
     /**
@@ -100,18 +101,30 @@ class AccessController extends Controller
      * nowhere to grant it: the screen listed menus, and this feature had none,
      * so the permissions existed and no role could be given them.
      *
+     * Only features this tenant is actually subscribed to. The catalogue is
+     * platform-wide, so reading it unfiltered showed every company the name of
+     * every feature built for anybody — including one written for a single
+     * client — and offered to grant it.
+     *
      * Normally empty — every shipped feature owns a menu — so this appends
      * nothing until somebody adds a feature the sidebar has not caught up with.
      *
      * @param  Collection<int, array<string, mixed>>  $menuRows
      * @return array<int, array<string, mixed>>
      */
-    private function catalogOnlyRows(Collection $menuRows): array
+    private function catalogOnlyRows(Collection $menuRows, ?int $tenantId): array
     {
         $covered = $menuRows->pluck('permissionModules')->flatten()->unique();
 
         return Feature::query()
             ->where('is_active', true)
+            // A super admin works the platform catalogue itself and has no
+            // tenant to filter by; everyone else sees only what their company
+            // is subscribed to.
+            ->when($tenantId !== null, fn ($query) => $query->whereIn('id', TenantFeature::query()
+                ->where('tenant_id', $tenantId)
+                ->where('is_enabled', true)
+                ->select('feature_id')))
             ->orderBy('name')
             ->get()
             ->map(function (Feature $feature): array {
