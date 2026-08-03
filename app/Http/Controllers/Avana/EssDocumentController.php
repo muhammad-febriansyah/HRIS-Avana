@@ -78,7 +78,7 @@ class EssDocumentController extends Controller
         ]);
 
         $file = $request->file('file');
-        $path = $file->store("employee-documents/{$employee->tenant_id}", 'public');
+        $path = PrivateFile::store($file, "employee-documents/{$employee->tenant_id}");
 
         EmployeeDocument::create([
             'tenant_id' => $employee->tenant_id,

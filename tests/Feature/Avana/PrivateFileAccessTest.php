@@ -160,3 +160,23 @@ it('never builds a public URL for a private upload tree', function (): void {
 
     expect($offenders)->toBe([]);
 });
+
+it('never uploads into a private tree on the public disk', function (): void {
+    // The trees moved off the public disk. An upload written to one of them
+    // with the public disk is both a leak and a broken screen: the reader
+    // builds a signed link to the private disk and finds nothing there.
+    $trees = ['documents', 'employee-documents', 'claims', 'reimbursements', 'recruitment', 'employee-photos'];
+    $offenders = [];
+
+    foreach (Finder::create()->files()->in(app_path())->name('*.php') as $file) {
+        $body = $file->getContents();
+
+        foreach ($trees as $tree) {
+            if (preg_match('/->(store|put|storeAs)\([^;]*'.preg_quote($tree, '/')."[^;]*'public'/", $body) === 1) {
+                $offenders[] = $file->getRelativePathname().' → '.$tree;
+            }
+        }
+    }
+
+    expect($offenders)->toBe([]);
+});
