@@ -13,6 +13,7 @@ use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
 use App\Models\TaxProfile;
 use App\Models\User;
+use App\Support\TenantTime;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -53,7 +54,9 @@ class LaporanController extends Controller
         $tenantId = $request->user()->tenant_id;
 
         $hadirHariIni = Attendance::forTenant($tenantId)
-            ->whereDate('date', Carbon::today())
+            // The office's own day, as on the dashboard: a Jayapura tenant
+            // just past midnight would otherwise be counted against yesterday.
+            ->whereDate('date', TenantTime::startOfToday($tenantId))
             ->whereIn('status', ['present', 'late'])
             ->count();
 
