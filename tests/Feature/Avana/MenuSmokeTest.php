@@ -25,6 +25,7 @@ function avanaPageUris(): array
         // and HR logins have none, so a 403 there is the designed behaviour.
         ->reject(fn (string $uri) => str_starts_with($uri, 'avana/saya/'))
         ->reject(fn (string $uri) => str_contains($uri, 'export')
+            || str_contains($uri, 'unduh')
             || str_contains($uri, 'transfer')
             || str_contains($uri, 'bpjs-export')
             || str_contains($uri, 'absensi/template')

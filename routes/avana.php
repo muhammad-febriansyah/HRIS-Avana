@@ -15,6 +15,7 @@ use App\Http\Controllers\Avana\AttendancePenaltyController;
 use App\Http\Controllers\Avana\AttendancePolicyController;
 use App\Http\Controllers\Avana\AttritionController;
 use App\Http\Controllers\Avana\AuditController;
+use App\Http\Controllers\Avana\BackupController;
 use App\Http\Controllers\Avana\BenefitController;
 use App\Http\Controllers\Avana\BillingController;
 use App\Http\Controllers\Avana\BudgetController;
@@ -313,6 +314,13 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
 
     // Audit trail
     Route::get('audit', [AuditController::class, 'index'])->name('audit');
+
+    // Platform database export (super admin). Throttled because one request can
+    // read every table in the database, and the controller gates and logs it.
+    Route::middleware('throttle:6,1')->group(function (): void {
+        Route::get('backup', [BackupController::class, 'index'])->name('backup');
+        Route::get('backup/unduh', [BackupController::class, 'download'])->name('backup.download');
+    });
 
     // Mood karyawan (HR view of daily mood check-ins)
     Route::get('mood', [MoodController::class, 'index'])->name('mood');

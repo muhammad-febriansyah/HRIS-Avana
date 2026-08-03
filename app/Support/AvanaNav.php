@@ -759,6 +759,7 @@ final class AvanaNav
                 self::leaf('tampilan', 'Tampilan & Tema', 'palette', '/avana/tampilan', null, [], false, true),
                 self::leaf('onboarding-slides', 'Onboarding App', 'smartphone', '/avana/onboarding-slides', null, [], false, true),
                 self::leaf('audit', 'Audit Trail', 'history', '/avana/audit', null, [], false, true),
+                self::leaf('backup', 'Backup Database', 'database', '/avana/backup', null, [], false, true),
             ]],
         ];
     }
