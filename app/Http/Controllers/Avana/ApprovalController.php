@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Avana;
 
+use App\Concerns\AppliesBranchScope;
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceCorrection;
+use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
@@ -15,6 +17,7 @@ use App\Services\AutoApproval;
 use App\Services\LeaveApproval;
 use App\Support\PendingApprover;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
@@ -27,6 +30,7 @@ use Inertia\Response;
 
 class ApprovalController extends Controller
 {
+    use AppliesBranchScope;
     use AuthorizesRequests;
 
     /**
@@ -48,6 +52,17 @@ class ApprovalController extends Controller
      * @var array<int, string>
      */
     private const APPROVER_ROLES = ['super_admin', 'admin_tenant_hr', 'manager'];
+
+    /**
+     * Roles whose remit is the whole tenant, not one team.
+     *
+     * `manager` is deliberately absent: managing a team is not managing the
+     * company, and the screen has to stop showing one manager another's
+     * people.
+     *
+     * @var array<int, string>
+     */
+    private const COMPANY_WIDE_ROLES = ['super_admin', 'admin_tenant_hr'];
 
     /**
      * Explicit permission codes that grant approval access.
@@ -105,11 +120,11 @@ class ApprovalController extends Controller
 
         $tenantId = (int) $request->user()->tenant_id;
 
-        $pendingItems = $this->collectItems($tenantId, ['pending'])
+        $pendingItems = $this->collectItems($request, $tenantId, ['pending'])
             ->sortByDesc('sort_ts')
             ->values();
 
-        $historyItems = $this->collectItems($tenantId, ['approved', 'rejected'])
+        $historyItems = $this->collectItems($request, $tenantId, ['approved', 'rejected'])
             ->sortByDesc('sort_ts')
             ->take(30)
             ->values();
@@ -203,10 +218,10 @@ class ApprovalController extends Controller
      * @param  array<int, string>  $statuses
      * @return Collection<int, array<string, mixed>>
      */
-    private function collectItems(int $tenantId, array $statuses): Collection
+    private function collectItems(Request $request, int $tenantId, array $statuses): Collection
     {
         return collect(self::TYPE_MODELS)
-            ->flatMap(fn (string $modelClass, string $type): Collection => $this->itemsForType($type, $modelClass, $tenantId, $statuses));
+            ->flatMap(fn (string $modelClass, string $type): Collection => $this->itemsForType($request, $type, $modelClass, $tenantId, $statuses));
     }
 
     /**
@@ -216,12 +231,14 @@ class ApprovalController extends Controller
      * @param  array<int, string>  $statuses
      * @return Collection<int, array<string, mixed>>
      */
-    private function itemsForType(string $type, string $modelClass, int $tenantId, array $statuses): Collection
+    private function itemsForType(Request $request, string $type, string $modelClass, int $tenantId, array $statuses): Collection
     {
         $query = $modelClass::query()
             ->where('tenant_id', $tenantId)
             ->whereIn('status', $statuses)
             ->with('employee:id,full_name,employee_number,branch_id');
+
+        $this->scopeToApprover($query, $request->user());
 
         if ($type === 'leave') {
             $query->with('leaveType:id,name');
@@ -230,6 +247,45 @@ class ApprovalController extends Controller
         return $query->latest('created_at')
             ->get()
             ->map(fn (Model $model): array => $this->mapItem($model, $type));
+    }
+
+    /**
+     * Narrow a request query to what this approver is entitled to see.
+     *
+     * The screen used to answer "every pending request in the tenant" to
+     * anyone who could reach it, so a branch manager in Surabaya read — and
+     * could decide — a Medan employee's leave. Nothing about approving one
+     * team's requests implies the right to read another's.
+     *
+     * Company-wide roles keep the whole tenant, which is the job: HR chases
+     * requests nobody else has picked up. Everyone else sees the requests
+     * routed to them and their own reports', on top of whatever branch scope
+     * the account already carries.
+     *
+     * @param  Builder<Model>  $query
+     */
+    private function scopeToApprover(Builder $query, User $user): void
+    {
+        $user->loadMissing('roles');
+
+        if ($user->roles->whereIn('code', self::COMPANY_WIDE_ROLES)->isNotEmpty()) {
+            $this->applyBranchScopeViaEmployee($query, $user);
+
+            return;
+        }
+
+        $employeeId = Employee::forTenant($user->tenant_id)
+            ->where('user_id', $user->id)
+            ->value('id');
+
+        // No employee record means no reports and nothing routed here, so the
+        // list is empty rather than everyone's.
+        $query->where(function (Builder $scoped) use ($employeeId): void {
+            $scoped->where('current_approver_id', $employeeId ?? 0)
+                ->orWhereHas('employee', fn (Builder $employee) => $employee->where('manager_id', $employeeId ?? 0));
+        });
+
+        $this->applyBranchScopeViaEmployee($query, $user);
     }
 
     /**
@@ -391,6 +447,9 @@ class ApprovalController extends Controller
 
     /**
      * Resolve a request model by its type tag, enforcing tenant ownership.
+     *
+     * Gated on the same scope the list is built from, so a request the user
+     * cannot see is also one they cannot decide by posting its id.
      */
     private function resolveModel(Request $request, string $type, int $id): Model
     {
@@ -401,6 +460,11 @@ class ApprovalController extends Controller
         $model = $modelClass::query()->findOrFail($id);
 
         abort_if((int) $model->tenant_id !== (int) $request->user()->tenant_id, 404);
+
+        $visible = $modelClass::query()->whereKey($id);
+        $this->scopeToApprover($visible, $request->user());
+
+        abort_unless($visible->exists(), 404);
 
         return $model;
     }
