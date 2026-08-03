@@ -7,17 +7,22 @@ use App\Models\Employee;
 use App\Services\FcmService;
 use App\Services\LeaveAttendanceMarker;
 use App\Support\Roster;
+use App\Support\TenantTime;
 use Carbon\CarbonInterface;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 #[Signature('avana:remind-attendance')]
 #[Description('Push a clock-in reminder to active employees who have not clocked in yet today.')]
 class RemindAttendance extends Command
 {
+    /**
+     * The hour, on the tenant's own clock, a reminder goes out.
+     */
+    private const REMINDER_HOUR = 8;
+
     /**
      * Notify (via FCM) every employee the roster expects at work today who has
      * no clock-in recorded yet. A no-op when FCM is not configured.
@@ -36,7 +41,7 @@ class RemindAttendance extends Command
             return self::SUCCESS;
         }
 
-        $employees = $this->dueEmployees(Carbon::today());
+        $employees = $this->dueEmployees();
 
         if ($employees->isEmpty()) {
             $this->info('No one to remind.');
@@ -62,20 +67,66 @@ class RemindAttendance extends Command
      * Kept apart from the push itself so who gets reminded can be checked
      * without standing up a notification sender.
      *
+     * Passing a date reminds every tenant for that date, which is what a test
+     * wants. Passing nothing — how the schedule calls it — asks each tenant
+     * its own clock instead: the command runs every hour, and a tenant is
+     * reminded on the pass where its own wall clock reads the reminder hour.
+     * One WIB schedule pushed "you have not clocked in" to a Jayapura office
+     * at 10:30 their time, two and a half hours after they should have been at
+     * their desk, and to a Makassar office an hour late.
+     *
      * @return Collection<int, Employee>
      */
-    public function dueEmployees(CarbonInterface $today): Collection
+    public function dueEmployees(?CarbonInterface $today = null): Collection
+    {
+        if ($today !== null) {
+            return $this->dueOn($this->activeEmployees(), $today);
+        }
+
+        return $this->activeEmployees()
+            ->groupBy('tenant_id')
+            ->flatMap(function (Collection $employees, int|string $tenantId): Collection {
+                $localNow = TenantTime::now($tenantId);
+
+                if ($localNow->hour !== self::REMINDER_HOUR) {
+                    return collect();
+                }
+
+                return $this->dueOn($employees, $localNow->copy()->startOfDay());
+            })
+            ->values();
+    }
+
+    /**
+     * Active employees who can be pushed to at all.
+     *
+     * @return Collection<int, Employee>
+     */
+    private function activeEmployees(): Collection
+    {
+        return Employee::query()
+            ->where('status', 'active')
+            ->whereNotNull('user_id')
+            ->get(['id', 'tenant_id', 'user_id']);
+    }
+
+    /**
+     * Narrow a set of employees to those due on the given date and not yet in.
+     *
+     * @param  Collection<int, Employee>  $employees
+     * @return Collection<int, Employee>
+     */
+    private function dueOn(Collection $employees, CarbonInterface $today): Collection
     {
         $clockedInEmployeeIds = Attendance::query()
             ->where('date', $today->toDateString())
             ->whereNotNull('clock_in_at')
-            ->pluck('employee_id');
+            ->whereIn('employee_id', $employees->pluck('id'))
+            ->pluck('employee_id')
+            ->all();
 
-        return Employee::query()
-            ->where('status', 'active')
-            ->whereNotNull('user_id')
-            ->whereNotIn('id', $clockedInEmployeeIds)
-            ->get(['id', 'tenant_id', 'user_id'])
+        return $employees
+            ->reject(fn (Employee $employee): bool => in_array($employee->id, $clockedInEmployeeIds, true))
             ->filter(fn (Employee $employee): bool => $this->isDueToday($employee, $today))
             ->values();
     }

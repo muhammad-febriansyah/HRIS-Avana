@@ -20,6 +20,7 @@ use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\PrivateFile;
+use App\Support\TenantTime;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -88,7 +89,10 @@ class DashboardController extends Controller
         }
 
         $tenantId = $request->user()->tenant_id ?? 0;
-        $today = Carbon::today();
+        // The office's own clock, not the server's: a Jayapura tenant just
+        // past midnight is a day ahead of Asia/Jakarta, and asking the server
+        // showed them yesterday's attendance under today's heading.
+        $today = TenantTime::startOfToday($tenantId);
 
         $activeEmployees = Employee::forTenant($tenantId)->where('status', 'active')->count();
         $presentToday = Attendance::forTenant($tenantId)
@@ -171,7 +175,7 @@ class DashboardController extends Controller
     {
         $employee = $request->user()->employee;
         $tenantId = (int) $employee->tenant_id;
-        $today = Carbon::today();
+        $today = TenantTime::startOfToday($tenantId);
 
         $todayRecord = Attendance::forTenant($tenantId)
             ->where('employee_id', $employee->id)

@@ -11,6 +11,7 @@ use App\Models\Branch;
 use App\Models\Employee;
 use App\Services\ApprovalEngine;
 use App\Services\AttendanceCorrectionApproval;
+use App\Support\TenantTime;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -67,8 +68,8 @@ class AttendanceController extends Controller
         // Date range: `date_from`..`date_to`; a lone `date` sets both ends
         // (back-compat with the single-day URLs). Normalised so from <= to.
         $single = $request->query('date');
-        $from = $this->resolveDate($request->query('date_from') ?? $single);
-        $to = $this->resolveDate($request->query('date_to') ?? $single);
+        $from = $this->resolveDate($request->query('date_from') ?? $single, $tenantId);
+        $to = $this->resolveDate($request->query('date_to') ?? $single, $tenantId);
         if ($to->lt($from)) {
             [$from, $to] = [$to, $from];
         }
@@ -159,8 +160,8 @@ class AttendanceController extends Controller
         // (keeps the single-day URLs and older callers working). The range is
         // normalised so `from` never comes after `to`.
         $single = $request->query('date');
-        $from = $this->resolveDate($request->query('date_from') ?? $single);
-        $to = $this->resolveDate($request->query('date_to') ?? $single);
+        $from = $this->resolveDate($request->query('date_from') ?? $single, $tenantId);
+        $to = $this->resolveDate($request->query('date_to') ?? $single, $tenantId);
         if ($to->lt($from)) {
             [$from, $to] = [$to, $from];
         }
@@ -486,18 +487,22 @@ class AttendanceController extends Controller
 
     /**
      * Resolve the requested date (Y-m-d), defaulting to today when absent or invalid.
+     *
+     * "Today" is the tenant's own, not the server's: a Makassar office opening
+     * the screen at 00:30 was shown the previous day's attendance, because the
+     * server was still an hour behind them.
      */
-    private function resolveDate(?string $input): Carbon
+    private function resolveDate(?string $input, int|string|null $tenantId): Carbon
     {
         if (is_string($input) && $input !== '') {
             try {
                 return Carbon::createFromFormat('Y-m-d', $input)->startOfDay();
             } catch (\Throwable) {
-                return Carbon::today();
+                return TenantTime::startOfToday($tenantId);
             }
         }
 
-        return Carbon::today();
+        return TenantTime::startOfToday($tenantId);
     }
 
     /**

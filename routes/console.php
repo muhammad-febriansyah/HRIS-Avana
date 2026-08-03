@@ -22,8 +22,11 @@ Schedule::command('avana:remind-billing')->dailyAt('07:00');
 Schedule::command('avana:scan-attrition-alerts')->dailyAt('07:30');
 
 // Push a clock-in reminder to employees the roster expects at work today.
-// Runs daily: the command decides who is due, so a weekend shift is covered.
-Schedule::command('avana:remind-attendance')->dailyAt('08:30');
+// The command decides who is due, so a weekend shift is covered. Hourly
+// rather than daily because the hour it fires on is the tenant's own: a
+// Jayapura office is reminded at 08:30 WIT, not at 08:30 WIB, which reaches
+// them at half past ten.
+Schedule::command('avana:remind-attendance')->hourlyAt(30);
 
 // Close meeting recordings a phone never came back from. Nothing else moves
 // them out of "recording", so without this they sit in the list claiming to be

@@ -128,6 +128,18 @@ final class TenantTime
     }
 
     /**
+     * Midnight today on the tenant's wall clock.
+     *
+     * The date part of this is what "today" means to the office reading the
+     * screen. A Jayapura tenant at half past midnight is on a new day the
+     * server, still on the previous WIB evening, would put a day behind.
+     */
+    public static function startOfToday(int|string|null $tenantId): Carbon
+    {
+        return self::now($tenantId)->startOfDay();
+    }
+
+    /**
      * Whether a zone name is one PHP actually knows.
      */
     public static function isValid(string $zone): bool
