@@ -7,9 +7,9 @@ use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\User;
 use App\Support\PdfTextExtractor;
+use App\Support\PrivateFile;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -79,7 +79,7 @@ class DokumenController extends Controller
         // recorded as an empty string rather than left unknown.
         $content = $realPath !== false ? PdfTextExtractor::fromFile($realPath) : '';
 
-        $path = $file->store("documents/{$tenantId}", 'public');
+        $path = PrivateFile::store($file, "documents/{$tenantId}");
 
         EmployeeDocument::create([
             'tenant_id' => $tenantId,
@@ -105,7 +105,7 @@ class DokumenController extends Controller
         abort_if((int) $document->tenant_id !== (int) $request->user()->tenant_id, 404);
 
         if ($document->file_path) {
-            Storage::disk('public')->delete($document->file_path);
+            PrivateFile::delete($document->file_path);
         }
 
         $document->delete();
@@ -129,7 +129,7 @@ class DokumenController extends Controller
             'file_size' => $document->file_size,
             'file_size_label' => $this->humanFileSize($document->file_size),
             'uploaded_at' => $document->uploaded_at?->toDateString(),
-            'download_url' => $document->file_path ? Storage::disk('public')->url($document->file_path) : null,
+            'download_url' => PrivateFile::urlFor($document->file_path),
         ];
     }
 

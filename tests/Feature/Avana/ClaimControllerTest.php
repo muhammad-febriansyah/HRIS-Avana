@@ -83,7 +83,7 @@ it('only lists claims that belong to the current tenant', function (): void {
 });
 
 it('creates a claim with an uploaded receipt scoped to the current tenant', function (): void {
-    Storage::fake('public');
+    Storage::fake('local');
 
     $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
 
@@ -109,7 +109,8 @@ it('creates a claim with an uploaded receipt scoped to the current tenant', func
     expect($claim->status)->toBe('pending');
     expect($claim->receipt_path)->not->toBeNull();
 
-    Storage::disk('public')->assertExists($claim->receipt_path);
+    Storage::disk('local')->assertExists($claim->receipt_path);
+    Storage::disk('public')->assertMissing($claim->receipt_path);
 });
 
 it('validates required fields on store', function (): void {

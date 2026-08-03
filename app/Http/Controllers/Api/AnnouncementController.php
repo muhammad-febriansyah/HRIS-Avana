@@ -8,10 +8,10 @@ use App\Models\Announcement;
 use App\Models\AnnouncementComment;
 use App\Models\AnnouncementRead;
 use App\Models\Employee;
+use App\Support\PrivateFile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Employee self-service company announcements (published only), with read
@@ -161,7 +161,7 @@ class AnnouncementController extends Controller
                 'id' => $employee?->id,
                 'name' => $employee?->full_name,
                 'photo_url' => $employee?->photo_path !== null
-                    ? Storage::disk('public')->url($employee->photo_path)
+                    ? PrivateFile::urlFor($employee->photo_path)
                     : null,
             ],
             'created_at' => $c->created_at?->toIso8601String(),

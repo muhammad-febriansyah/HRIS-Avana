@@ -99,7 +99,7 @@ it('only lists documents that belong to the current tenant', function (): void {
 });
 
 it('uploads a document scoped to the current tenant', function (): void {
-    Storage::fake('public');
+    Storage::fake('local');
 
     actingAs($this->admin)
         ->post(route('avana.dokumen.store'), [
@@ -118,7 +118,8 @@ it('uploads a document scoped to the current tenant', function (): void {
     expect($document->type)->toBe('KTP');
     expect($document->file_size)->not->toBeNull();
     expect($document->file_path)->not->toBeNull();
-    Storage::disk('public')->assertExists($document->file_path);
+    Storage::disk('local')->assertExists($document->file_path);
+    Storage::disk('public')->assertMissing($document->file_path);
 });
 
 it('validates required fields on store', function (): void {
@@ -131,22 +132,22 @@ it('validates required fields on store', function (): void {
 });
 
 it('deletes a document and removes its stored file', function (): void {
-    Storage::fake('public');
+    Storage::fake('local');
 
     $path = UploadedFile::fake()
         ->create('ijazah.pdf', 100, 'application/pdf')
-        ->store("documents/{$this->tenant->id}", 'public');
+        ->store("documents/{$this->tenant->id}", 'local');
 
     $document = makeDocument(['file_path' => $path]);
 
-    Storage::disk('public')->assertExists($path);
+    Storage::disk('local')->assertExists($path);
 
     actingAs($this->admin)
         ->delete(route('avana.dokumen.destroy', $document))
         ->assertSessionHas('success');
 
     expect(EmployeeDocument::find($document->id))->toBeNull();
-    Storage::disk('public')->assertMissing($path);
+    Storage::disk('local')->assertMissing($path);
 });
 
 it('returns 404 when deleting a document from another tenant', function (): void {

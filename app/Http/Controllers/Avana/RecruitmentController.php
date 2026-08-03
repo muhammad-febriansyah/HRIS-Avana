@@ -17,12 +17,12 @@ use App\Models\Notification;
 use App\Models\SalesOrder;
 use App\Models\TalentPool;
 use App\Models\User;
+use App\Support\PrivateFile;
 use App\Support\TenantQuota;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -1280,11 +1280,9 @@ class RecruitmentController extends Controller
             'cv' => ['required', 'file', 'mimes:pdf,doc,docx', 'max:5120'],
         ]);
 
-        if ($applicant->cv_path) {
-            Storage::disk('public')->delete($applicant->cv_path);
-        }
+        PrivateFile::delete($applicant->cv_path);
 
-        $path = $request->file('cv')->store("recruitment/cv/{$applicant->tenant_id}", 'public');
+        $path = PrivateFile::store($request->file('cv'), "recruitment/cv/{$applicant->tenant_id}");
         $applicant->update(['cv_path' => $path]);
 
         return back()->with('success', 'CV berhasil diunggah');
@@ -1427,7 +1425,7 @@ class RecruitmentController extends Controller
         ]);
 
         $path = $request->hasFile('document')
-            ? $request->file('document')->store("recruitment/medical/{$applicant->tenant_id}", 'public')
+            ? PrivateFile::store($request->file('document'), "recruitment/medical/{$applicant->tenant_id}")
             : null;
 
         ApplicantMedicalCheck::create([
@@ -1460,7 +1458,7 @@ class RecruitmentController extends Controller
         ]);
 
         $path = $request->hasFile('document')
-            ? $request->file('document')->store("recruitment/background/{$applicant->tenant_id}", 'public')
+            ? PrivateFile::store($request->file('document'), "recruitment/background/{$applicant->tenant_id}")
             : null;
 
         ApplicantBackgroundCheck::create([
@@ -1558,10 +1556,10 @@ class RecruitmentController extends Controller
             'blacklisted' => (bool) $applicant->blacklisted,
             'blacklist_reason' => $applicant->blacklist_reason,
             'position' => $applicant->position ?? $applicant->jobPosting?->title,
-            'photo_url' => $applicant->photo_path ? Storage::disk('public')->url($applicant->photo_path) : null,
+            'photo_url' => PrivateFile::urlFor($applicant->photo_path),
             'linkedin_url' => $applicant->linkedin_url,
             'portfolio_url' => $applicant->portfolio_url,
-            'cv_url' => $applicant->cv_path ? Storage::disk('public')->url($applicant->cv_path) : null,
+            'cv_url' => PrivateFile::urlFor($applicant->cv_path),
             'notes' => $applicant->notes,
             'screening_note' => $applicant->screening_note,
             'screening_score' => $applicant->screening_score,
@@ -1602,7 +1600,7 @@ class RecruitmentController extends Controller
                 'status' => $check->status,
                 'notes' => $check->notes,
                 'checked_at' => $check->checked_at?->toDateString(),
-                'file_url' => $check->file_path ? Storage::disk('public')->url($check->file_path) : null,
+                'file_url' => PrivateFile::urlFor($check->file_path),
             ])->all(),
             'background_checks' => $applicant->backgroundChecks->map(fn (ApplicantBackgroundCheck $check): array => [
                 'id' => $check->id,
@@ -1610,7 +1608,7 @@ class RecruitmentController extends Controller
                 'status' => $check->status,
                 'notes' => $check->notes,
                 'requested_at' => $check->requested_at?->toDateString(),
-                'file_url' => $check->file_path ? Storage::disk('public')->url($check->file_path) : null,
+                'file_url' => PrivateFile::urlFor($check->file_path),
             ])->all(),
         ];
     }

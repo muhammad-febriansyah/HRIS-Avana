@@ -9,13 +9,13 @@ use App\Models\Role;
 use App\Models\User;
 use App\Models\UserPermissionOverride;
 use App\Support\PermissionCatalog;
+use App\Support\PrivateFile;
 use App\Support\TenantQuota;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Exists;
 use Inertia\Inertia;
@@ -506,7 +506,7 @@ class UserController extends Controller
     {
         $path = $user->avatar_path ?? $user->employee?->photo_path;
 
-        return $path !== null ? Storage::disk('public')->url($path) : null;
+        return PrivateFile::urlFor($path);
     }
 
     /**

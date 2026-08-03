@@ -6,9 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Claim;
 use App\Models\Employee;
 use App\Models\User;
+use App\Support\PrivateFile;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -86,9 +86,7 @@ class ClaimController extends Controller
                 'amount' => (float) $claim->amount,
                 'claim_date' => $claim->claim_date?->toDateString(),
                 'description' => $claim->description,
-                'receipt_url' => $claim->receipt_path !== null
-                    ? Storage::disk('public')->url($claim->receipt_path)
-                    : null,
+                'receipt_url' => PrivateFile::urlFor($claim->receipt_path),
                 'status' => $claim->status,
                 'notes' => $claim->notes,
             ],
@@ -111,7 +109,7 @@ class ClaimController extends Controller
         $receiptPath = null;
 
         if ($request->hasFile('receipt')) {
-            $receiptPath = $request->file('receipt')->store('claims', 'public');
+            $receiptPath = PrivateFile::store($request->file('receipt'), 'claims');
         }
 
         Claim::create([
@@ -152,11 +150,9 @@ class ClaimController extends Controller
         ];
 
         if ($request->hasFile('receipt')) {
-            if ($claim->receipt_path !== null) {
-                Storage::disk('public')->delete($claim->receipt_path);
-            }
+            PrivateFile::delete($claim->receipt_path);
 
-            $payload['receipt_path'] = $request->file('receipt')->store('claims', 'public');
+            $payload['receipt_path'] = PrivateFile::store($request->file('receipt'), 'claims');
         }
 
         $claim->update($payload);
@@ -173,9 +169,7 @@ class ClaimController extends Controller
         $this->ensureCan($request, 'archive');
         $this->ensureTenantOwnership($request, $claim);
 
-        if ($claim->receipt_path !== null) {
-            Storage::disk('public')->delete($claim->receipt_path);
-        }
+        PrivateFile::delete($claim->receipt_path);
 
         $claim->delete();
 
@@ -277,9 +271,7 @@ class ClaimController extends Controller
             'amount' => (float) $claim->amount,
             'claim_date' => $claim->claim_date?->toDateString(),
             'description' => $claim->description,
-            'receipt_url' => $claim->receipt_path !== null
-                ? Storage::disk('public')->url($claim->receipt_path)
-                : null,
+            'receipt_url' => PrivateFile::urlFor($claim->receipt_path),
             'status' => $claim->status,
             'notes' => $claim->notes,
             'approver' => $claim->approver?->name,

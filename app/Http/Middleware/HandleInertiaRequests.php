@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\WebsiteSetting;
 use App\Support\Access;
 use App\Support\AvanaNav;
+use App\Support\PrivateFile;
 use App\Support\SubscriptionStatus;
 use App\Support\TenantTheme;
 use Illuminate\Http\Request;
@@ -208,7 +209,7 @@ class HandleInertiaRequests extends Middleware
 
         $path = $user->avatar_path ?? $user->employee?->photo_path;
 
-        return $path !== null ? Storage::disk('public')->url($path) : null;
+        return PrivateFile::urlFor($path);
     }
 
     /**

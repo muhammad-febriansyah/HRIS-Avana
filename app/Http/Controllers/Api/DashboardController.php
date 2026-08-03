@@ -13,11 +13,11 @@ use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
 use App\Models\ShiftSchedule;
 use App\Models\WfhRequest;
+use App\Support\PrivateFile;
 use App\Support\Roster;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Compact home-screen summary for the mobile dashboard: remaining leave,
@@ -125,7 +125,7 @@ class DashboardController extends Controller
                 'name' => $employee->full_name,
                 'role' => $employee->position?->name ?? $employee->department?->name ?? 'Karyawan',
                 'photo_url' => $employee->photo_path !== null
-                    ? Storage::disk('public')->url($employee->photo_path)
+                    ? PrivateFile::urlFor($employee->photo_path)
                     : null,
                 'initials' => $this->initials($employee->full_name),
                 'avatar_color' => $this->avatarColor($employee->full_name),

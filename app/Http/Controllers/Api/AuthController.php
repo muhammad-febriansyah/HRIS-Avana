@@ -8,6 +8,7 @@ use App\Models\AttendancePolicy;
 use App\Models\User;
 use App\Models\UserDevice;
 use App\Support\MobileMenu;
+use App\Support\PrivateFile;
 use App\Support\TenantTheme;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -263,9 +264,7 @@ class AuthController extends Controller
             'name' => $user->name,
             'email' => $user->email,
             'roles' => $user->roles->pluck('code')->all(),
-            'avatar_url' => $user->avatar_path !== null
-                ? Storage::disk('public')->url($user->avatar_path)
-                : ($employee?->photo_path !== null ? Storage::disk('public')->url($employee->photo_path) : null),
+            'avatar_url' => PrivateFile::urlFor($user->avatar_path ?? $employee?->photo_path),
             'employee' => $employee !== null ? $this->employeeProfile($employee) : null,
             // Menu Cepat, resolved for this account: the tenant's active tiles
             // minus the ones hidden from every role they hold. Sent from the

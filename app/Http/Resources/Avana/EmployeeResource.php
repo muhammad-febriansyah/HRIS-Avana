@@ -7,10 +7,10 @@ use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\LeaveRequest;
 use App\Models\PayrollRunItem;
+use App\Support\PrivateFile;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * @mixin Employee
@@ -105,7 +105,7 @@ final class EmployeeResource extends JsonResource
             'custom_data' => $this->custom_data ?? [],
             'initials' => $this->initials(),
             'avatar_color' => $this->avatarColor(),
-            'photo_url' => $this->photo_path !== null ? Storage::disk('public')->url($this->photo_path) : null,
+            'photo_url' => PrivateFile::urlFor($this->photo_path),
             'branch_id' => $this->branch_id,
             'work_location_id' => $this->work_location_id,
             'attendance_scope' => $this->attendance_scope,
@@ -193,7 +193,7 @@ final class EmployeeResource extends JsonResource
                     'size_label' => self::fileSize($document->file_size),
                     'uploaded_at' => $document->uploaded_at?->format('d M Y'),
                     'download_url' => $document->file_path !== null
-                        ? Storage::disk('public')->url($document->file_path)
+                        ? PrivateFile::urlFor($document->file_path)
                         : null,
                 ])
                 ->values()),

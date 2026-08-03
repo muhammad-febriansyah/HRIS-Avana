@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\EmployeeDocument;
+use App\Support\PrivateFile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 /** Employee self-service personal documents (list + upload). */
 class DocumentController extends Controller
@@ -27,7 +27,7 @@ class DocumentController extends Controller
                 'id' => $doc->id,
                 'name' => $doc->name,
                 'type' => $doc->type,
-                'url' => $doc->file_path ? Storage::disk('public')->url($doc->file_path) : null,
+                'url' => PrivateFile::urlFor($doc->file_path),
                 'size' => (int) $doc->file_size,
                 'uploaded_at' => $doc->uploaded_at?->toDateTimeString(),
             ]);

@@ -11,11 +11,11 @@ use App\Models\SocialPostComment;
 use App\Models\SocialPostLike;
 use App\Models\SocialPostReport;
 use App\Services\SocialWall;
+use App\Support\PrivateFile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 /**
@@ -370,7 +370,7 @@ class SocialController extends Controller
         return response()->json([
             'data' => $rows->map(function (array $row) use ($employee): array {
                 $row['photo'] = $row['photo'] !== null
-                    ? Storage::disk('public')->url($row['photo'])
+                    ? PrivateFile::urlFor($row['photo'])
                     : null;
                 $row['is_me'] = $row['employee_id'] === (int) $employee->id;
 
@@ -418,7 +418,7 @@ class SocialController extends Controller
             'is_mine' => (int) $post->employee_id === (int) $viewer->id,
             'author' => $post->employee?->full_name ?? 'Karyawan',
             'author_photo' => $post->employee?->photo_path !== null
-                ? Storage::disk('public')->url($post->employee->photo_path)
+                ? PrivateFile::urlFor($post->employee->photo_path)
                 : null,
             'category' => $post->category?->name,
             'category_icon' => $post->category?->icon,
@@ -439,7 +439,7 @@ class SocialController extends Controller
             'body' => $comment->body,
             'author' => $comment->employee?->full_name ?? 'Karyawan',
             'author_photo' => $comment->employee?->photo_path !== null
-                ? Storage::disk('public')->url($comment->employee->photo_path)
+                ? PrivateFile::urlFor($comment->employee->photo_path)
                 : null,
             'is_mine' => (int) $comment->employee_id === (int) $viewer->id,
             'parent_id' => $comment->parent_id,

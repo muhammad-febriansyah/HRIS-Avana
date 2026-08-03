@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Avana;
 
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
+use App\Support\PrivateFile;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -78,7 +79,7 @@ class EssProfileController extends Controller
 
         $oldPath = $employee->photo_path;
 
-        $path = $request->file('photo')->store("employee-photos/{$employee->tenant_id}", 'public');
+        $path = PrivateFile::store($request->file('photo'), "employee-photos/{$employee->tenant_id}");
 
         $employee->update(['photo_path' => $path]);
 

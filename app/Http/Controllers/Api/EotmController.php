@@ -8,9 +8,9 @@ use App\Models\Employee;
 use App\Models\EotmCoreValue;
 use App\Models\EotmPeriod;
 use App\Services\EotmVoting;
+use App\Support\PrivateFile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 /**
@@ -78,7 +78,7 @@ class EotmController extends Controller
                 'standings' => $voting->standings($period)
                     ->map(function (array $row): array {
                         $row['photo'] = $row['photo'] !== null
-                            ? Storage::disk('public')->url($row['photo'])
+                            ? PrivateFile::urlFor($row['photo'])
                             : null;
 
                         return $row;
@@ -114,7 +114,7 @@ class EotmController extends Controller
                 'name' => $row->full_name,
                 'employee_number' => $row->employee_number,
                 'photo' => $row->photo_path !== null
-                    ? Storage::disk('public')->url($row->photo_path)
+                    ? PrivateFile::urlFor($row->photo_path)
                     : null,
             ]);
 

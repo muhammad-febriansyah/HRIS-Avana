@@ -12,10 +12,10 @@ use App\Models\User;
 use App\Services\EotmVoting;
 use App\Services\SocialWall;
 use App\Support\Notifier;
+use App\Support\PrivateFile;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -94,7 +94,7 @@ class SocialController extends Controller
                     // The service returns the stored path; the podium needs a
                     // URL it can put in an <img>.
                     $row['photo'] = $row['photo'] !== null
-                        ? Storage::disk('public')->url($row['photo'])
+                        ? PrivateFile::urlFor($row['photo'])
                         : null;
 
                     return $row;

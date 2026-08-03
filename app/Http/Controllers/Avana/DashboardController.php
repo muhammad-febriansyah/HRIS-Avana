@@ -19,10 +19,10 @@ use App\Models\PermissionRequest;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\PrivateFile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -361,7 +361,7 @@ class DashboardController extends Controller
                     ? mb_strtolower(pathinfo($document->file_path, PATHINFO_EXTENSION))
                     : null,
                 'download_url' => $document->file_path !== null
-                    ? Storage::disk('public')->url($document->file_path)
+                    ? PrivateFile::urlFor($document->file_path)
                     : null,
             ])
             ->values()
@@ -391,7 +391,7 @@ class DashboardController extends Controller
                 'role' => $colleague->position?->name ?? $colleague->department?->name,
                 'join_date' => $colleague->join_date?->format('d M Y'),
                 'photo_url' => $colleague->photo_path !== null
-                    ? Storage::disk('public')->url($colleague->photo_path)
+                    ? PrivateFile::urlFor($colleague->photo_path)
                     : null,
             ])
             ->values()
@@ -520,7 +520,7 @@ class DashboardController extends Controller
                 'date' => $person->birth_date->format('d M'),
                 'is_today' => $person->birth_date->format('m-d') === $today->format('m-d'),
                 'photo_url' => $person->photo_path !== null
-                    ? Storage::disk('public')->url($person->photo_path)
+                    ? PrivateFile::urlFor($person->photo_path)
                     : null,
             ])
             ->values()

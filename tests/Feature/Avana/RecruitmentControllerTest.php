@@ -414,7 +414,7 @@ it('records a job offer and advances the stage', function (): void {
 });
 
 it('uploads a CV file for the applicant', function (): void {
-    Storage::fake('public');
+    Storage::fake('local');
     $applicant = makeApplicant($this->tenant->id);
 
     actingAs($this->admin)
@@ -426,11 +426,12 @@ it('uploads a CV file for the applicant', function (): void {
     $applicant->refresh();
 
     expect($applicant->cv_path)->not->toBeNull();
-    Storage::disk('public')->assertExists($applicant->cv_path);
+    Storage::disk('local')->assertExists($applicant->cv_path);
+    Storage::disk('public')->assertMissing($applicant->cv_path);
 });
 
 it('stores a medical checkup record with a document', function (): void {
-    Storage::fake('public');
+    Storage::fake('local');
     $applicant = makeApplicant($this->tenant->id);
 
     actingAs($this->admin)

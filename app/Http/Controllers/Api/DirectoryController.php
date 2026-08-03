@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
+use App\Support\PrivateFile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Employee self-service company directory: search active colleagues within the
@@ -105,7 +105,7 @@ class DirectoryController extends Controller
             'employee_number' => $employee->employee_number,
             'position' => $employee->position?->name,
             'department' => $employee->department?->name,
-            'photo_url' => $employee->photo_path !== null ? Storage::disk('public')->url($employee->photo_path) : null,
+            'photo_url' => PrivateFile::urlFor($employee->photo_path),
             'initials' => $this->initials($employee->full_name),
             'avatar_color' => $this->avatarColor($employee->full_name),
             'is_me' => $employee->id === $meId,
