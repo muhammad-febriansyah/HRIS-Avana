@@ -12,11 +12,11 @@ use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
 use App\Models\WfhRequest;
+use App\Support\PrivateFile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Unified activity feed for the mobile "Riwayat" tab: recent attendance and
@@ -80,7 +80,7 @@ class ActivityController extends Controller
                     'face_confidence' => $a->face_confidence !== null ? (float) $a->face_confidence : null,
                     'latitude' => $a->clock_in_lat !== null ? (float) $a->clock_in_lat : null,
                     'longitude' => $a->clock_in_lng !== null ? (float) $a->clock_in_lng : null,
-                    'selfie_url' => $selfiePath !== null ? Storage::disk('public')->url($selfiePath) : null,
+                    'selfie_url' => PrivateFile::urlFor($selfiePath),
                 ],
             ));
         });

@@ -359,7 +359,7 @@ it('leaves nothing owed either way when the advance was spent exactly', function
 });
 
 it('stores the receipt proving what was spent', function (): void {
-    Storage::fake('public');
+    Storage::fake('local');
 
     $advance = disbursedAdvance($this->tenant->id);
 
@@ -373,7 +373,8 @@ it('stores the receipt proving what was spent', function (): void {
     $advance->refresh();
 
     expect($advance->settlement_receipt_path)->not->toBeNull();
-    Storage::disk('public')->assertExists($advance->settlement_receipt_path);
+    Storage::disk('local')->assertExists($advance->settlement_receipt_path);
+    Storage::disk('public')->assertMissing($advance->settlement_receipt_path);
 });
 
 it('blocks whoever released the money from signing off on it', function (): void {

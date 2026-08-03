@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use App\Models\FieldVisit;
+use App\Support\PrivateFile;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Stores and removes the photo evidence attached to a field visit, so the API
@@ -41,7 +41,7 @@ final class FieldVisitPhotoStore
             $visit->photos()->create([
                 'tenant_id' => $visit->tenant_id,
                 'employee_id' => $visit->employee_id,
-                'file_path' => $file->store('field-visits', 'public'),
+                'file_path' => PrivateFile::store($file, 'field-visits'),
             ]);
         }
     }
@@ -55,7 +55,7 @@ final class FieldVisitPhotoStore
     {
         return $visit->photos
             ->sortBy('id')
-            ->map(fn (mixed $photo): string => Storage::disk('public')->url($photo->file_path))
+            ->map(fn (mixed $photo): string => (string) PrivateFile::urlFor($photo->file_path))
             ->values()
             ->all();
     }
@@ -67,7 +67,7 @@ final class FieldVisitPhotoStore
     public static function purge(FieldVisit $visit): void
     {
         foreach ($visit->photos as $photo) {
-            Storage::disk('public')->delete($photo->file_path);
+            PrivateFile::delete($photo->file_path);
         }
     }
 }

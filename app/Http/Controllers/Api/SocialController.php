@@ -116,7 +116,7 @@ class SocialController extends Controller
         ]);
 
         $path = $request->hasFile('image')
-            ? $request->file('image')->store("social/{$employee->tenant_id}", 'public')
+            ? PrivateFile::store($request->file('image'), "social/{$employee->tenant_id}")
             : null;
 
         $post = SocialPost::create([
@@ -196,7 +196,7 @@ class SocialController extends Controller
         if ($request->hasFile('image')) {
             $post->deleteImageFile();
             $attributes['image_path'] = $request->file('image')
-                ->store("social/{$employee->tenant_id}", 'public');
+                ->store("social/{$employee->tenant_id}", PrivateFile::DISK);
         } elseif ($request->boolean('remove_image')) {
             $post->deleteImageFile();
             $attributes['image_path'] = null;

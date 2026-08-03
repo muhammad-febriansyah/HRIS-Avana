@@ -17,7 +17,7 @@ use function Pest\Laravel\actingAs;
 
 beforeEach(function (): void {
     $this->withoutVite();
-    Storage::fake('public');
+    Storage::fake('local');
     $this->seed(AvanaDemoSeeder::class);
 
     $this->admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
@@ -83,7 +83,7 @@ function attachReceipt(Settlement $settlement, ?string $append = null, ?string $
     }
 
     $path = 'settlements/'.fake()->unique()->uuid().'.jpg';
-    Storage::disk('public')->put($path, $bytes);
+    Storage::disk('local')->put($path, $bytes);
 
     return $settlement->attachments()->create([
         'tenant_id' => $settlement->tenant_id,

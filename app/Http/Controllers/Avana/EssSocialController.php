@@ -13,10 +13,10 @@ use App\Models\SocialPostComment;
 use App\Models\SocialPostReport;
 use App\Services\EotmVoting;
 use App\Services\SocialWall;
+use App\Support\PrivateFile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -246,7 +246,7 @@ class EssSocialController extends Controller
             'employee_id' => $employee->id,
             'body' => $data['body'],
             'image_path' => $request->hasFile('image')
-                ? $request->file('image')->store("social/{$employee->tenant_id}", 'public')
+                ? PrivateFile::store($request->file('image'), "social/{$employee->tenant_id}")
                 : null,
             'status' => SocialPost::STATUS_PUBLISHED,
         ]);
@@ -394,7 +394,7 @@ class EssSocialController extends Controller
 
     private function photoUrl(?string $path): ?string
     {
-        return $path !== null ? Storage::disk('public')->url($path) : null;
+        return PrivateFile::urlFor($path);
     }
 
     private function ensureSameTenant(int|string|null $tenantId, int|string|null $employeeTenantId): void

@@ -294,8 +294,8 @@ it('returns 404 when toggling a task that belongs to another visit', function ()
     expect($task->fresh()->is_done)->toBeFalse();
 });
 
-it('stores every uploaded photo on the public disk', function (): void {
-    Storage::fake('public');
+it('stores every uploaded photo off the public disk', function (): void {
+    Storage::fake('local');
 
     $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
 
@@ -318,7 +318,7 @@ it('stores every uploaded photo on the public disk', function (): void {
     expect($visit->photos)->toHaveCount(3);
 
     foreach ($visit->photos as $photo) {
-        Storage::disk('public')->assertExists($photo->file_path);
+        Storage::disk('local')->assertExists($photo->file_path);
         expect($photo->tenant_id)->toBe($this->tenant->id)
             ->and($photo->employee_id)->toBe($employee->id);
     }
@@ -357,7 +357,7 @@ it('rejects a non-image among the photos', function (): void {
 });
 
 it('deletes the photo files when the visit is deleted', function (): void {
-    Storage::fake('public');
+    Storage::fake('local');
 
     $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
 
@@ -378,7 +378,7 @@ it('deletes the photo files when the visit is deleted', function (): void {
         ->assertRedirect();
 
     foreach ($paths as $path) {
-        Storage::disk('public')->assertMissing($path);
+        Storage::disk('local')->assertMissing($path);
     }
 
     expect(FieldVisitPhoto::where('field_visit_id', $visit->id)->count())->toBe(0);

@@ -7,11 +7,11 @@ use App\Models\CashAdvance;
 use App\Models\Employee;
 use App\Models\Settlement;
 use App\Models\User;
+use App\Support\PrivateFile;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -361,7 +361,7 @@ class CashAdvanceController extends Controller
             'topup_amount' => $split['topup'],
             'settlement_note' => $data['settlement_note'] ?? null,
             'settlement_receipt_path' => $request->hasFile('receipt')
-                ? $request->file('receipt')->store('cash-advances', 'public')
+                ? PrivateFile::store($request->file('receipt'), 'cash-advances')
                 : $cashAdvance->settlement_receipt_path,
         ]);
 
@@ -474,7 +474,7 @@ class CashAdvanceController extends Controller
             'settlement_note' => $advance->settlement_note,
             'settlement_receipt_url' => $advance->settlement_receipt_path === null
                 ? null
-                : Storage::disk('public')->url($advance->settlement_receipt_path),
+                : PrivateFile::urlFor($advance->settlement_receipt_path),
         ];
     }
 

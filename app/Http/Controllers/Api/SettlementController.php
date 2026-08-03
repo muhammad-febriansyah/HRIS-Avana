@@ -8,11 +8,11 @@ use App\Models\Employee;
 use App\Models\Settlement;
 use App\Models\SettlementAttachment;
 use App\Models\SettlementItem;
+use App\Support\PrivateFile;
 use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Employee self-service settlements ("Settlement Perdin"): the expense claims an
@@ -108,7 +108,7 @@ class SettlementController extends Controller
                     ->map(fn (SettlementAttachment $attachment): array => [
                         'id' => $attachment->id,
                         'name' => $attachment->original_name,
-                        'url' => Storage::disk('public')->url($attachment->path),
+                        'url' => PrivateFile::urlFor($attachment->path),
                         'size' => $attachment->size,
                     ])
                     ->values()
@@ -186,7 +186,7 @@ class SettlementController extends Controller
             foreach ($request->file('documents') ?? [] as $file) {
                 $settlement->attachments()->create([
                     'tenant_id' => $settlement->tenant_id,
-                    'path' => $file->store('settlements', 'public'),
+                    'path' => PrivateFile::store($file, 'settlements'),
                     'original_name' => $file->getClientOriginalName(),
                     'size' => $file->getSize(),
                 ]);

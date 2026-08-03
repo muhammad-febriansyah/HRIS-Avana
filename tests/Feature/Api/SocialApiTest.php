@@ -48,7 +48,7 @@ it('lists the seeded categories, active ones only', function (): void {
 });
 
 it('creates a post with a photo and returns it published', function (): void {
-    Storage::fake('public');
+    Storage::fake('local');
 
     $category = SocialCategory::forTenant($this->tenantId)->firstOrFail();
 
@@ -68,7 +68,8 @@ it('creates a post with a photo and returns it published', function (): void {
         ->and($response->json('data.is_mine'))->toBeTrue()
         ->and($response->json('data.image_url'))->not->toBeNull();
 
-    Storage::disk('public')->assertExists($post->image_path);
+    Storage::disk('local')->assertExists($post->image_path);
+    Storage::disk('public')->assertMissing($post->image_path);
 });
 
 it('rejects an empty post and one over 500 characters', function (): void {
@@ -309,7 +310,7 @@ it('notifies the author when someone comments, but not when they comment on thei
 });
 
 it('edits your own post while keeping its likes and comments', function (): void {
-    Storage::fake('public');
+    Storage::fake('local');
 
     $category = SocialCategory::forTenant($this->tenantId)->firstOrFail();
 
@@ -355,8 +356,8 @@ it('refuses to edit someone else\'s post', function (): void {
 });
 
 it('clears the photo when asked to remove it', function (): void {
-    Storage::fake('public');
-    Storage::disk('public')->put('social/'.$this->tenantId.'/foto.jpg', 'x');
+    Storage::fake('local');
+    Storage::disk('local')->put('social/'.$this->tenantId.'/foto.jpg', 'x');
 
     $post = SocialPost::factory()->create([
         'tenant_id' => $this->tenantId,
@@ -373,7 +374,7 @@ it('clears the photo when asked to remove it', function (): void {
         ->assertJsonPath('data.image_url', null);
 
     expect($post->refresh()->image_path)->toBeNull();
-    Storage::disk('public')->assertMissing('social/'.$this->tenantId.'/foto.jpg');
+    Storage::disk('local')->assertMissing('social/'.$this->tenantId.'/foto.jpg');
 });
 
 it('serves a single post for the detail screen but not a hidden one', function (): void {

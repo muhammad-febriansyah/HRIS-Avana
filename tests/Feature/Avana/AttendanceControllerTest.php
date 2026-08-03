@@ -428,9 +428,9 @@ it('excludes attendance without GPS coordinates from monitor map points', functi
 });
 
 it('deletes an attendance record and its selfie photo file', function (): void {
-    Storage::fake('public');
+    Storage::fake('local');
     $attendance = makeAttendance($this->tenant->id, $this->shift->id);
-    $path = UploadedFile::fake()->image('selfie.jpg')->store('selfies', 'public');
+    $path = UploadedFile::fake()->image('selfie.jpg')->store('selfies', 'local');
     $selfie = AttendanceSelfie::create([
         'tenant_id' => $this->tenant->id,
         'attendance_id' => $attendance->id,
@@ -438,7 +438,7 @@ it('deletes an attendance record and its selfie photo file', function (): void {
         'file_path' => $path,
     ]);
 
-    Storage::disk('public')->assertExists($path);
+    Storage::disk('local')->assertExists($path);
 
     actingAs($this->admin)
         ->delete(route('avana.absensi.destroy', $attendance))
@@ -446,7 +446,7 @@ it('deletes an attendance record and its selfie photo file', function (): void {
 
     expect(Attendance::find($attendance->id))->toBeNull();
     expect(AttendanceSelfie::find($selfie->id))->toBeNull();
-    Storage::disk('public')->assertMissing($path);
+    Storage::disk('local')->assertMissing($path);
 });
 
 it('returns 404 when deleting an attendance from another tenant', function (): void {

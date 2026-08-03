@@ -9,10 +9,10 @@ use App\Models\SettlementAttachment;
 use App\Models\SettlementItem;
 use App\Models\User;
 use App\Services\SettlementFraudAnalyzer;
+use App\Support\PrivateFile;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -552,7 +552,7 @@ class SettlementController extends Controller
         foreach ($request->file('attachments') as $file) {
             $settlement->attachments()->create([
                 'tenant_id' => $settlement->tenant_id,
-                'path' => $file->store('settlements', 'public'),
+                'path' => PrivateFile::store($file, 'settlements'),
                 'original_name' => $file->getClientOriginalName(),
                 'size' => $file->getSize(),
             ]);
@@ -565,7 +565,7 @@ class SettlementController extends Controller
     private function deleteAttachmentFiles(Settlement $settlement): void
     {
         foreach ($settlement->attachments as $attachment) {
-            Storage::disk('public')->delete($attachment->path);
+            PrivateFile::delete($attachment->path);
         }
     }
 
@@ -699,7 +699,7 @@ class SettlementController extends Controller
                 return [
                     'id' => $attachment->id,
                     'name' => $attachment->original_name ?? basename($attachment->path),
-                    'url' => Storage::disk('public')->url($attachment->path),
+                    'url' => PrivateFile::urlFor($attachment->path),
                     'fraud_score' => $attachment->fraud_score,
                     'fraud_level' => $attachment->fraud_level,
                     'fraud_flags' => $attachment->fraud_flags ?? [],

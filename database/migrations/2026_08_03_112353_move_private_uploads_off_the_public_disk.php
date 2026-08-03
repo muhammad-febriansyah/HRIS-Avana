@@ -19,6 +19,13 @@ return new class extends Migration
         'reimbursements',
         'recruitment',
         'employee-photos',
+        'selfies',
+        'visit-tasks',
+        'field-visits',
+        'settlements',
+        'cash-advances',
+        'payroll-corrections',
+        'social',
     ];
 
     /**

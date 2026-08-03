@@ -7,7 +7,6 @@ use App\Http\Controllers\Controller;
 use App\Support\PrivateFile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 /** Employee self-service profile (view + limited self-update). */
 class ProfileController extends Controller
@@ -76,7 +75,7 @@ class ProfileController extends Controller
         // Remove the previous file only after the new one is persisted, so a
         // failed save never leaves the employee without a photo.
         if ($oldPath !== null && $oldPath !== $path) {
-            Storage::disk('public')->delete($oldPath);
+            PrivateFile::delete($oldPath);
         }
 
         return response()->json(['data' => $this->employeeProfile($employee->fresh())]);

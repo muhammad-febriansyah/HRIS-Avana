@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\PayrollCorrection;
 use App\Models\User;
+use App\Support\PrivateFile;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -79,7 +80,7 @@ class PayrollCorrectionController extends Controller
         ]);
 
         $filePath = $request->hasFile('file')
-            ? $request->file('file')->store('payroll-corrections', 'public')
+            ? PrivateFile::store($request->file('file'), 'payroll-corrections')
             : null;
 
         PayrollCorrection::create([

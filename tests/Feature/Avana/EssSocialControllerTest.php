@@ -19,7 +19,7 @@ use function Pest\Laravel\actingAs;
 beforeEach(function (): void {
     $this->withoutVite();
     $this->seed(AvanaDemoSeeder::class);
-    Storage::fake('public');
+    Storage::fake('local');
 
     // A plain karyawan, not HR: this screen is employee self-service.
     $this->user = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail();
@@ -87,7 +87,8 @@ it('posts to the wall with an image', function (): void {
     expect((int) $post->employee_id)->toBe((int) $this->employee->id);
     expect((int) $post->tenant_id)->toBe($this->tenantId);
     expect($post->image_path)->not->toBeNull();
-    Storage::disk('public')->assertExists($post->image_path);
+    Storage::disk('local')->assertExists($post->image_path);
+    Storage::disk('public')->assertMissing($post->image_path);
 });
 
 it('rejects an empty post body', function (): void {

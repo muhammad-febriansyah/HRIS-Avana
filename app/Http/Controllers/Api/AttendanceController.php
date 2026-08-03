@@ -15,6 +15,7 @@ use App\Services\LeaveAttendanceMarker;
 use App\Support\DeviceIntegrity;
 use App\Support\FaceMatcher;
 use App\Support\Notifier;
+use App\Support\PrivateFile;
 use App\Support\Roster;
 use App\Support\TenantTime;
 use Carbon\CarbonInterface;
@@ -380,7 +381,7 @@ class AttendanceController extends Controller
                 'tenant_id' => $employee->tenant_id,
                 'attendance_id' => $attendance->id,
                 'employee_id' => $employee->id,
-                'file_path' => $request->file('selfie')->store('selfies', 'public'),
+                'file_path' => PrivateFile::store($request->file('selfie'), 'selfies'),
                 'latitude' => $data['latitude'] ?? null,
                 'longitude' => $data['longitude'] ?? null,
                 'captured_at' => $clockedAt,
@@ -450,7 +451,7 @@ class AttendanceController extends Controller
                 'tenant_id' => $employee->tenant_id,
                 'attendance_id' => $attendance->id,
                 'employee_id' => $employee->id,
-                'file_path' => $request->file('selfie')->store('selfies', 'public'),
+                'file_path' => PrivateFile::store($request->file('selfie'), 'selfies'),
                 'latitude' => $data['latitude'] ?? null,
                 'longitude' => $data['longitude'] ?? null,
                 'captured_at' => $clockedAt,

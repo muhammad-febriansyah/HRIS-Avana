@@ -68,7 +68,21 @@ final class PrivateFile
      *
      * @var array<int, string>
      */
-    private const PRIVATE_PREFIXES = ['employee-photos/', 'documents/', 'employee-documents/', 'claims/', 'reimbursements/', 'recruitment/'];
+    private const PRIVATE_PREFIXES = [
+        'employee-photos/',
+        'documents/',
+        'employee-documents/',
+        'claims/',
+        'reimbursements/',
+        'recruitment/',
+        'selfies/',
+        'visit-tasks/',
+        'field-visits/',
+        'settlements/',
+        'cash-advances/',
+        'payroll-corrections/',
+        'social/',
+    ];
 
     /**
      * A URL for a path that may belong to either disk.

@@ -9,10 +9,10 @@ use App\Models\FieldVisit;
 use App\Models\FieldVisitTask;
 use App\Models\User;
 use App\Services\FieldVisitPhotoStore;
+use App\Support\PrivateFile;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -380,10 +380,10 @@ class FieldVisitController extends Controller
                     'done_at' => $task->done_at?->format('d M Y H:i'),
                     'photo_note' => $task->photo_note,
                     'before_photo_url' => $task->before_photo_path !== null
-                        ? Storage::disk('public')->url($task->before_photo_path)
+                        ? PrivateFile::urlFor($task->before_photo_path)
                         : null,
                     'after_photo_url' => $task->after_photo_path !== null
-                        ? Storage::disk('public')->url($task->after_photo_path)
+                        ? PrivateFile::urlFor($task->after_photo_path)
                         : null,
                 ])
                 ->values()

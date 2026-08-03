@@ -7,11 +7,11 @@ use App\Http\Controllers\Controller;
 use App\Models\FieldVisit;
 use App\Models\FieldVisitTask;
 use App\Services\FieldVisitPhotoStore;
+use App\Support\PrivateFile;
 use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 /** Employee self-service field visits / visiting pekerjaan (list + report). */
 class FieldVisitController extends Controller
@@ -82,10 +82,10 @@ class FieldVisitController extends Controller
                     'is_done' => $task->is_done,
                     'photo_note' => $task->photo_note,
                     'before_photo_url' => $task->before_photo_path !== null
-                        ? Storage::disk('public')->url($task->before_photo_path)
+                        ? PrivateFile::urlFor($task->before_photo_path)
                         : null,
                     'after_photo_url' => $task->after_photo_path !== null
-                        ? Storage::disk('public')->url($task->after_photo_path)
+                        ? PrivateFile::urlFor($task->after_photo_path)
                         : null,
                 ])
                 ->values()
@@ -153,8 +153,8 @@ class FieldVisitController extends Controller
                     'title' => $title,
                     'sort_order' => $order++,
                     'photo_note' => $notes[$index] ?? null,
-                    'before_photo_path' => ($before[$index] ?? null)?->store('visit-tasks', 'public'),
-                    'after_photo_path' => ($after[$index] ?? null)?->store('visit-tasks', 'public'),
+                    'before_photo_path' => isset($before[$index]) ? PrivateFile::store($before[$index], 'visit-tasks') : null,
+                    'after_photo_path' => isset($after[$index]) ? PrivateFile::store($after[$index], 'visit-tasks') : null,
                 ]);
             }
 
@@ -184,15 +184,15 @@ class FieldVisitController extends Controller
         ]);
 
         if ($task->after_photo_path !== null) {
-            Storage::disk('public')->delete($task->after_photo_path);
+            PrivateFile::delete($task->after_photo_path);
         }
 
-        $path = $request->file('after')->store('visit-tasks', 'public');
+        $path = PrivateFile::store($request->file('after'), 'visit-tasks');
         $task->update(['after_photo_path' => $path]);
 
         return response()->json(['data' => [
             'id' => $task->id,
-            'after_photo_url' => Storage::disk('public')->url($path),
+            'after_photo_url' => PrivateFile::urlFor($path),
         ]]);
     }
 

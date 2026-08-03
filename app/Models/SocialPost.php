@@ -2,13 +2,13 @@
 
 namespace App\Models;
 
+use App\Support\PrivateFile;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * One post on the employee social wall.
@@ -93,7 +93,7 @@ final class SocialPost extends Model
     public function imageUrl(): ?string
     {
         return $this->image_path !== null
-            ? Storage::disk('public')->url($this->image_path)
+            ? PrivateFile::urlFor($this->image_path)
             : null;
     }
 
@@ -103,7 +103,7 @@ final class SocialPost extends Model
     public function deleteImageFile(): void
     {
         if ($this->image_path !== null) {
-            Storage::disk('public')->delete($this->image_path);
+            PrivateFile::delete($this->image_path);
         }
     }
 }

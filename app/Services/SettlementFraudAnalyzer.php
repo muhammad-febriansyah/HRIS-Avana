@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\AiSetting;
 use App\Models\Settlement;
 use App\Models\SettlementAttachment;
+use App\Support\PrivateFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Prism\Prism\Facades\Prism;
@@ -74,7 +75,7 @@ class SettlementFraudAnalyzer
     public function analyze(SettlementAttachment $attachment, ?Settlement $settlement = null): void
     {
         $settlement ??= $attachment->settlement;
-        $absolutePath = Storage::disk('public')->path($attachment->path);
+        $absolutePath = Storage::disk(PrivateFile::DISK)->path($attachment->path);
         $extension = strtolower(pathinfo($attachment->path, PATHINFO_EXTENSION));
         $isImage = in_array($extension, ['jpg', 'jpeg', 'png'], true);
 

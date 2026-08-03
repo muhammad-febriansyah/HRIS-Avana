@@ -165,7 +165,10 @@ it('never uploads into a private tree on the public disk', function (): void {
     // The trees moved off the public disk. An upload written to one of them
     // with the public disk is both a leak and a broken screen: the reader
     // builds a signed link to the private disk and finds nothing there.
-    $trees = ['documents', 'employee-documents', 'claims', 'reimbursements', 'recruitment', 'employee-photos'];
+    $trees = [
+        'documents', 'employee-documents', 'claims', 'reimbursements', 'recruitment', 'employee-photos',
+        'selfies', 'visit-tasks', 'field-visits', 'settlements', 'cash-advances', 'payroll-corrections',
+    ];
     $offenders = [];
 
     foreach (Finder::create()->files()->in(app_path())->name('*.php') as $file) {

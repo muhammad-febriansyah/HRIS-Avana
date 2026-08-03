@@ -11,12 +11,12 @@ use App\Models\Branch;
 use App\Models\Employee;
 use App\Services\ApprovalEngine;
 use App\Services\AttendanceCorrectionApproval;
+use App\Support\PrivateFile;
 use App\Support\TenantTime;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -311,7 +311,7 @@ class AttendanceController extends Controller
 
         foreach ($attendance->selfies as $selfie) {
             if ($selfie->file_path !== null) {
-                Storage::disk('public')->delete($selfie->file_path);
+                PrivateFile::delete($selfie->file_path);
             }
 
             $selfie->delete();
@@ -341,7 +341,7 @@ class AttendanceController extends Controller
 
         $selfies = $attendance->selfies
             ->map(fn ($selfie): array => [
-                'url' => Storage::disk('public')->url($selfie->file_path),
+                'url' => PrivateFile::urlFor($selfie->file_path),
                 'captured_at' => $selfie->captured_at?->format('d M Y H:i'),
                 'coords' => $this->coords($selfie->latitude, $selfie->longitude),
             ])
