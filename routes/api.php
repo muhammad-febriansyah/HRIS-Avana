@@ -59,6 +59,11 @@ Route::prefix('v1')->group(function (): void {
     Route::prefix('auth')->group(function (): void {
         Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
+        // The second half of a login for an account carrying two-factor. Sits
+        // outside `auth:api` for the same reason `refresh` does: the caller has
+        // no token yet — earning one is the point of the route.
+        Route::post('two-factor', [AuthController::class, 'twoFactor'])->middleware('throttle:10,1');
+
         // Deliberately outside `auth:api`: the guard rejects an expired token
         // before the controller runs, which would make this route unreachable
         // at exactly the moment it is needed. It authenticates the bearer

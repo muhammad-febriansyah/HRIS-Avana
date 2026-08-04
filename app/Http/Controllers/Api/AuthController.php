@@ -12,9 +12,15 @@ use App\Support\PrivateFile;
 use App\Support\TenantTheme;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Laravel\Fortify\Contracts\TwoFactorAuthenticationProvider;
+use Laravel\Fortify\Fortify;
 use PHPOpenSourceSaver\JWTAuth\Exceptions\JWTException;
+use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 
 /**
  * JWT authentication for the AvanaHR mobile app. Employees sign in with their
@@ -23,6 +29,16 @@ use PHPOpenSourceSaver\JWTAuth\Exceptions\JWTException;
 class AuthController extends Controller
 {
     use ResolvesApiEmployee;
+
+    /**
+     * How long a passed password stays exchangeable for a token.
+     */
+    private const CHALLENGE_TTL_MINUTES = 5;
+
+    /**
+     * Wrong codes a single challenge tolerates before it is thrown away.
+     */
+    private const CHALLENGE_MAX_ATTEMPTS = 5;
 
     /**
      * Authenticate and issue a JWT.
@@ -79,6 +95,21 @@ class AuthController extends Controller
             ]);
         }
 
+        // The password was right, but it is not the whole answer for an account
+        // that opted into a second factor. Drop the token minted a moment ago
+        // and hand back a challenge instead: it opens nothing but the exchange
+        // below. Device binding waits until the second factor lands, so holding
+        // the password alone cannot claim an account's device slot.
+        if ($user->hasEnabledTwoFactorAuthentication()) {
+            auth('api')->logout();
+
+            return response()->json([
+                'two_factor_required' => true,
+                'challenge_token' => $this->issueChallenge($user, $data),
+                'expires_in' => self::CHALLENGE_TTL_MINUTES * 60,
+            ]);
+        }
+
         if (($deviceRejection = $this->bindDevice($user, $data)) !== null) {
             auth('api')->logout();
 
@@ -89,6 +120,67 @@ class AuthController extends Controller
             'access_token' => $token,
             'token_type' => 'Bearer',
             'expires_in' => auth('api')->factory()->getTTL() * 60,
+            'user' => $this->userPayload($user),
+        ]);
+    }
+
+    /**
+     * Exchange a login challenge plus a valid second factor for the JWT that
+     * `login` would otherwise have returned.
+     */
+    public function twoFactor(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'challenge_token' => ['required', 'string'],
+            'code' => ['nullable', 'string'],
+            'recovery_code' => ['nullable', 'string'],
+        ]);
+
+        $key = self::challengeKey($data['challenge_token']);
+        $challenge = Cache::get($key);
+
+        if (! is_array($challenge)) {
+            return $this->challengeExpired();
+        }
+
+        $user = User::query()->whereKey($challenge['user_id'])->first();
+
+        // The factor could have been turned off from the web between the two
+        // calls, and the account's standing is worth re-reading either way.
+        if ($user === null || ! $user->hasEnabledTwoFactorAuthentication()) {
+            Cache::forget($key);
+
+            return $this->challengeExpired();
+        }
+
+        if (! $this->passesSecondFactor($user, $data)) {
+            // A challenge is single-use for a success and near enough for a
+            // failure: a handful of wrong codes retires it, so the five-minute
+            // window cannot be spent guessing at whatever rate an attacker can
+            // spread across addresses.
+            $challenge['attempts']++;
+
+            $challenge['attempts'] >= self::CHALLENGE_MAX_ATTEMPTS
+                ? Cache::forget($key)
+                : Cache::put($key, $challenge, now()->addMinutes(self::CHALLENGE_TTL_MINUTES));
+
+            throw ValidationException::withMessages([
+                'code' => ['Kode verifikasi tidak valid.'],
+            ]);
+        }
+
+        Cache::forget($key);
+
+        // Binding runs before the token is minted rather than after, so a
+        // rejected device never has one to invalidate.
+        if (($deviceRejection = $this->bindDevice($user, $challenge['device'])) !== null) {
+            return $deviceRejection;
+        }
+
+        return response()->json([
+            'access_token' => JWTAuth::fromUser($user),
+            'token_type' => 'Bearer',
+            'expires_in' => config('jwt.ttl') * 60,
             'user' => $this->userPayload($user),
         ]);
     }
@@ -187,6 +279,85 @@ class AuthController extends Controller
         auth('api')->logout();
 
         return response()->json(['message' => 'Berhasil keluar.']);
+    }
+
+    /**
+     * Park a passed password check under a single-use token.
+     *
+     * The token is a plain random string, never a JWT: nothing outside
+     * {@see twoFactor} accepts it, so a stolen one buys an attacker the right
+     * to answer a challenge they still cannot answer. The device details ride
+     * along so binding can run on the far side without the app resending them.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function issueChallenge(User $user, array $data): string
+    {
+        $token = Str::random(64);
+
+        Cache::put(
+            self::challengeKey($token),
+            [
+                'user_id' => $user->id,
+                'attempts' => 0,
+                'device' => Arr::only($data, [
+                    'device_id', 'device_name', 'platform', 'model', 'os_version', 'app_version',
+                ]),
+            ],
+            now()->addMinutes(self::CHALLENGE_TTL_MINUTES),
+        );
+
+        return $token;
+    }
+
+    /**
+     * The cache key for a challenge. Hashed so the store never holds the token
+     * the app is carrying.
+     */
+    private static function challengeKey(string $token): string
+    {
+        return 'mobile-two-factor:'.hash('sha256', $token);
+    }
+
+    /**
+     * Verify an authenticator code or a recovery code against the same secrets
+     * the web challenge reads, so a factor set up on one works on the other. A
+     * spent recovery code is replaced, exactly as Fortify does on the web.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function passesSecondFactor(User $user, array $data): bool
+    {
+        if (filled($data['code'] ?? null)) {
+            return app(TwoFactorAuthenticationProvider::class)->verify(
+                Fortify::currentEncrypter()->decrypt($user->two_factor_secret),
+                $data['code'],
+            );
+        }
+
+        if (filled($data['recovery_code'] ?? null)) {
+            $match = collect($user->recoveryCodes())
+                ->first(fn (string $code): bool => hash_equals($code, $data['recovery_code']));
+
+            if ($match !== null) {
+                $user->replaceRecoveryCode($match);
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * A challenge that has run out, been spent, or never existed. Worded so the
+     * app can send the user back to the login screen.
+     */
+    private function challengeExpired(): JsonResponse
+    {
+        return response()->json([
+            'message' => 'Sesi verifikasi telah berakhir. Silakan masuk kembali.',
+        ], 401);
     }
 
     /**
