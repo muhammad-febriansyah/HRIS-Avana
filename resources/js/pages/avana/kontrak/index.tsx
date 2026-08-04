@@ -166,7 +166,7 @@ export default function KontrakIndex({
             return;
         }
 
-        router.delete(ContractController.destroy(confirm.id).url, {
+        router.delete(ContractController.destroy(confirm.route_key).url, {
             preserveScroll: true,
             onSuccess: () => setConfirm(null),
         });
@@ -569,7 +569,7 @@ export default function KontrakIndex({
                                                     onClick={() =>
                                                         router.visit(
                                                             ContractController.edit(
-                                                                contract.id,
+                                                                contract.route_key,
                                                             ).url,
                                                         )
                                                     }

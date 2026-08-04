@@ -427,8 +427,7 @@ export default function SettlementIndex({
                                                 variant="warning"
                                                 onClick={() =>
                                                     router.visit(
-                                                        SettlementController.show(
-                                                            row.id,
+                                                        SettlementController.show(row.route_key,
                                                         ).url,
                                                     )
                                                 }

@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Concerns\HasPublicId;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 final class EmployeeDocument extends Model
 {
+    use HasPublicId;
+
     protected $guarded = [];
 
     protected function casts(): array

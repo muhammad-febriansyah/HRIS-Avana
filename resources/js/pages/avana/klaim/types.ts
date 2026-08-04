@@ -21,6 +21,7 @@ export interface SelectOption {
 /** A claim row as serialized by `ClaimController@index`. */
 export interface ClaimRow {
     id: number;
+    route_key: string;
     employee: { name: string | null; employee_number: string | null } | null;
     employee_id: number;
     claim_type: string;
@@ -54,6 +55,7 @@ export interface KlaimIndexProps {
 /** The claim payload surfaced to the edit screen. */
 export interface ClaimEditModel {
     id: number;
+    route_key: string;
     employee_id: number;
     claim_type: string;
     title: string;

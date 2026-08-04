@@ -200,6 +200,7 @@ class LoanController extends Controller
     {
         return [
             'id' => $loan->id,
+            'route_key' => $loan->public_id,
             'employee' => $this->shapeEmployee($loan),
             'amount' => (float) $loan->amount,
             'tenor_months' => (int) $loan->tenor_months,

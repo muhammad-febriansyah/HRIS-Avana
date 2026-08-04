@@ -101,6 +101,7 @@ class ContractController extends Controller
         return Inertia::render('avana/kontrak/edit', [
             'contract' => [
                 'id' => $contract->id,
+                'route_key' => $contract->public_id,
                 'contract_number' => $contract->contract_number,
                 'employee_id' => $contract->employee_id,
                 'contract_type' => $contract->contract_type,
@@ -289,6 +290,7 @@ class ContractController extends Controller
 
         return [
             'id' => $contract->id,
+            'route_key' => $contract->public_id,
             'contract_number' => $contract->contract_number,
             'employee' => $contract->employee ? [
                 'name' => $contract->employee->full_name,

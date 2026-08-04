@@ -76,7 +76,7 @@ export default function KinerjaIndex({
             return;
         }
 
-        router.delete(PerformanceController.destroy(confirm.id).url, {
+        router.delete(PerformanceController.destroy(confirm.route_key).url, {
             preserveScroll: true,
             onSuccess: () => setConfirm(null),
         });
@@ -132,7 +132,7 @@ export default function KinerjaIndex({
             return;
         }
 
-        scoreForm.submit(PerformanceController.submitScore(scoreReview.id), {
+        scoreForm.submit(PerformanceController.submitScore(scoreReview.route_key), {
             preserveScroll: true,
             onSuccess: () => closeScoreModal(),
         });
@@ -468,8 +468,7 @@ export default function KinerjaIndex({
                                                     variant="success"
                                                     onClick={() =>
                                                         router.visit(
-                                                            PerformanceController.edit(
-                                                                review.id,
+                                                            PerformanceController.edit(review.route_key,
                                                             ).url,
                                                         )
                                                     }

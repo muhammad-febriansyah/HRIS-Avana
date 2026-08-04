@@ -47,7 +47,7 @@ export default function SettlementEdit({
 
     const submit = (action: 'draft' | 'submit'): void => {
         form.transform((data) => ({ ...data, action }));
-        form.post(SettlementController.update(settlement.id).url, {
+        form.post(SettlementController.update(settlement.route_key).url, {
             forceFormData: true,
         });
     };
@@ -93,7 +93,7 @@ export default function SettlementEdit({
                     form={form}
                     employees={employees}
                     categories={categories}
-                    cancelHref={SettlementController.show(settlement.id).url}
+                    cancelHref={SettlementController.show(settlement.route_key).url}
                     existingAttachments={settlement.attachments}
                     submit={submit}
                 />

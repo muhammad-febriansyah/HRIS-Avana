@@ -54,6 +54,7 @@ it('renders the dokumen index with the expected props', function (): void {
             ->component('avana/dokumen/index', false)
             ->has('documents.0', fn (Assert $row) => $row
                 ->has('id')
+                ->has('route_key')
                 ->has('employee_id')
                 ->has('employee')
                 ->has('name')

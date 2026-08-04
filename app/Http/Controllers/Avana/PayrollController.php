@@ -138,6 +138,7 @@ class PayrollController extends Controller
 
                 return [
                     'id' => $item->id,
+                    'route_key' => $item->public_id,
                     'employee_id' => $item->employee_id,
                     'name' => $item->employee?->full_name ?? '—',
                     'employee_number' => $item->employee?->employee_number,

@@ -204,6 +204,7 @@ class RecruitmentController extends Controller
             ->get()
             ->map(fn (Applicant $a): array => [
                 'id' => $a->id,
+                'route_key' => $a->public_id,
                 'title' => 'Wawancara '.$a->name,
                 'subtitle' => $a->jobPosting?->title ?? '—',
                 'at' => $a->interview_at?->toDateTimeString(),
@@ -329,6 +330,7 @@ class RecruitmentController extends Controller
                 ->get()
                 ->map(fn (Applicant $a): array => [
                     'id' => $a->id,
+                    'route_key' => $a->public_id,
                     'name' => $a->name,
                     'job_title' => $a->jobPosting?->title,
                     'position' => $a->position,
@@ -504,6 +506,7 @@ class RecruitmentController extends Controller
             ->get()
             ->map(fn (Applicant $a): array => [
                 'id' => $a->id,
+                'route_key' => $a->public_id,
                 'name' => $a->name,
                 'job_title' => $a->jobPosting?->title,
                 'type' => $a->interview_type,
@@ -545,6 +548,7 @@ class RecruitmentController extends Controller
 
                 return [
                     'id' => $a->id,
+                    'route_key' => $a->public_id,
                     'name' => $a->name,
                     'job_title' => $a->jobPosting?->title,
                     'salary' => $a->offer_salary !== null ? (float) $a->offer_salary : null,
@@ -1526,6 +1530,7 @@ class RecruitmentController extends Controller
     {
         return [
             'id' => $applicant->id,
+            'route_key' => $applicant->public_id,
             'name' => $applicant->name,
             'email' => $applicant->email,
             'phone' => $applicant->phone,
@@ -1548,6 +1553,7 @@ class RecruitmentController extends Controller
     {
         return [
             'id' => $applicant->id,
+            'route_key' => $applicant->public_id,
             'name' => $applicant->name,
             'email' => $applicant->email,
             'phone' => $applicant->phone,
@@ -1640,6 +1646,7 @@ class RecruitmentController extends Controller
     {
         return [
             'id' => $applicant->id,
+            'route_key' => $applicant->public_id,
             'name' => $applicant->name,
             'email' => $applicant->email,
             'phone' => $applicant->phone,

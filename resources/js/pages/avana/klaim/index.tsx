@@ -35,7 +35,7 @@ export default function KlaimIndex({ claims, kpis }: KlaimIndexProps) {
             return;
         }
 
-        router.delete(ClaimController.destroy(confirm.id).url, {
+        router.delete(ClaimController.destroy(confirm.route_key).url, {
             preserveScroll: true,
             onSuccess: () => setConfirm(null),
         });
@@ -367,8 +367,7 @@ export default function KlaimIndex({ claims, kpis }: KlaimIndexProps) {
                                                             variant="primary"
                                                             onClick={() =>
                                                                 transition(
-                                                                    ClaimController.approve(
-                                                                        claim.id,
+                                                                    ClaimController.approve(claim.route_key,
                                                                     ).url,
                                                                 )
                                                             }
@@ -379,8 +378,7 @@ export default function KlaimIndex({ claims, kpis }: KlaimIndexProps) {
                                                             variant="warning"
                                                             onClick={() =>
                                                                 transition(
-                                                                    ClaimController.reject(
-                                                                        claim.id,
+                                                                    ClaimController.reject(claim.route_key,
                                                                     ).url,
                                                                 )
                                                             }
@@ -395,8 +393,7 @@ export default function KlaimIndex({ claims, kpis }: KlaimIndexProps) {
                                                         variant="primary"
                                                         onClick={() =>
                                                             transition(
-                                                                ClaimController.markPaid(
-                                                                    claim.id,
+                                                                ClaimController.markPaid(claim.route_key,
                                                                 ).url,
                                                             )
                                                         }
@@ -408,8 +405,7 @@ export default function KlaimIndex({ claims, kpis }: KlaimIndexProps) {
                                                     variant="success"
                                                     onClick={() =>
                                                         router.visit(
-                                                            ClaimController.edit(
-                                                                claim.id,
+                                                            ClaimController.edit(claim.route_key,
                                                             ).url,
                                                         )
                                                     }

@@ -28,6 +28,7 @@ interface EmployeeOption {
 
 interface LoanRow {
     id: number;
+    route_key: string;
     employee: {
         name: string;
         employee_number: string | null;
@@ -250,17 +251,17 @@ export default function PinjamanIndex({
         });
     };
 
-    const approve = (id: number) => {
+    const approve = (routeKey: string) => {
         router.post(
-            LoanController.approve(id).url,
+            LoanController.approve(routeKey).url,
             {},
             { preserveScroll: true },
         );
     };
 
-    const reject = (id: number) => {
+    const reject = (routeKey: string) => {
         router.post(
-            LoanController.reject(id).url,
+            LoanController.reject(routeKey).url,
             {},
             { preserveScroll: true },
         );
@@ -692,7 +693,7 @@ export default function PinjamanIndex({
                                                         label="Setujui"
                                                         variant="primary"
                                                         onClick={() =>
-                                                            approve(row.id)
+                                                            approve(row.route_key)
                                                         }
                                                     />
                                                     <ActionBtn
@@ -700,7 +701,7 @@ export default function PinjamanIndex({
                                                         label="Tolak"
                                                         variant="warning"
                                                         onClick={() =>
-                                                            reject(row.id)
+                                                            reject(row.route_key)
                                                         }
                                                     />
                                                 </div>

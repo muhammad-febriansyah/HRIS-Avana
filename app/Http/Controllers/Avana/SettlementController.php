@@ -168,6 +168,7 @@ class SettlementController extends Controller
         return Inertia::render('avana/settlement/edit', [
             'settlement' => [
                 'id' => $settlement->id,
+                'route_key' => $settlement->public_id,
                 'number' => $settlement->number,
                 'employee_id' => $settlement->employee_id,
                 'title' => $settlement->title,
@@ -623,6 +624,7 @@ class SettlementController extends Controller
     {
         $shaped = [
             'id' => $settlement->id,
+            'route_key' => $settlement->public_id,
             'number' => $settlement->number,
             'employee' => $this->shapeEmployee($settlement),
             'title' => $settlement->title,

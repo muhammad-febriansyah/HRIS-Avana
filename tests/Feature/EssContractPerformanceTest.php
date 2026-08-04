@@ -157,7 +157,7 @@ it('records a self assessment and hands the review to the manager', function ():
     $review = makeOwnReview($this->employee, ['status' => 'self_review']);
 
     $this->actingAs($this->user)
-        ->post("/avana/saya/kinerja/{$review->id}/nilai-mandiri", [
+        ->post("/avana/saya/kinerja/{$review->public_id}/nilai-mandiri", [
             'self_score' => 82.5,
             'notes' => 'Menyelesaikan dua rilis besar',
         ])
@@ -175,7 +175,7 @@ it('rejects a self score outside the 0-100 range', function (mixed $score): void
     $review = makeOwnReview($this->employee, ['status' => 'self_review']);
 
     $this->actingAs($this->user)
-        ->post("/avana/saya/kinerja/{$review->id}/nilai-mandiri", ['self_score' => $score])
+        ->post("/avana/saya/kinerja/{$review->public_id}/nilai-mandiri", ['self_score' => $score])
         ->assertSessionHasErrors('self_score');
 
     expect($review->refresh()->self_score)->toBeNull()
@@ -191,7 +191,7 @@ it('refuses a self assessment once the stage has passed', function (): void {
     $review = makeOwnReview($this->employee, ['status' => 'manager_review']);
 
     $this->actingAs($this->user)
-        ->post("/avana/saya/kinerja/{$review->id}/nilai-mandiri", ['self_score' => 90])
+        ->post("/avana/saya/kinerja/{$review->public_id}/nilai-mandiri", ['self_score' => 90])
         ->assertStatus(422);
 
     expect($review->refresh()->self_score)->toBeNull();
@@ -201,7 +201,7 @@ it('refuses a self assessment on somebody else review', function (): void {
     $review = makeOwnReview($this->colleague, ['status' => 'self_review']);
 
     $this->actingAs($this->user)
-        ->post("/avana/saya/kinerja/{$review->id}/nilai-mandiri", ['self_score' => 90])
+        ->post("/avana/saya/kinerja/{$review->public_id}/nilai-mandiri", ['self_score' => 90])
         ->assertNotFound();
 
     expect($review->refresh()->self_score)->toBeNull();

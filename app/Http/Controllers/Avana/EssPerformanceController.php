@@ -119,6 +119,7 @@ class EssPerformanceController extends Controller
     {
         return [
             'id' => $review->id,
+            'route_key' => $review->public_id,
             'cycle' => $review->cycle?->name,
             'period_start' => $this->dateString($review->cycle?->period_start),
             'period_end' => $this->dateString($review->cycle?->period_end),

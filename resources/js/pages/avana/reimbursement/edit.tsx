@@ -37,7 +37,7 @@ export default function ReimbursementEdit({
 
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        form.submit(ReimbursementController.update(reimbursement.id), {
+        form.submit(ReimbursementController.update(reimbursement.route_key), {
             forceFormData: true,
         });
     };

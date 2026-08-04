@@ -27,7 +27,7 @@ export default function KasbonEdit({ advance, employees }: KasbonEditProps) {
 
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        form.submit(CashAdvanceController.update(advance.id));
+        form.submit(CashAdvanceController.update(advance.route_key));
     };
 
     return (

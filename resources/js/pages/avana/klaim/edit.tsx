@@ -33,7 +33,7 @@ export default function KlaimEdit({
 
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        form.submit(ClaimController.update(claim.id), { forceFormData: true });
+        form.submit(ClaimController.update(claim.route_key), { forceFormData: true });
     };
 
     return (

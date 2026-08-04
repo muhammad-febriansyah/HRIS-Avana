@@ -29,6 +29,7 @@ import type {
 /** The review record as serialized by `PerformanceController@edit`. */
 interface ReviewEditRecord {
     id: number;
+    route_key: string;
     cycle_id: number;
     employee_id: number;
     reviewer_id: number | null;
@@ -95,19 +96,19 @@ export default function KinerjaEdit({
 
     const submitCalibrate = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        calibrateForm.post(PerformanceController.calibrate(review.id).url, {
+        calibrateForm.post(PerformanceController.calibrate(review.route_key).url, {
             preserveScroll: true,
         });
     };
 
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        form.submit(PerformanceController.update(review.id));
+        form.submit(PerformanceController.update(review.route_key));
     };
 
     const submitFeedback = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        feedbackForm.submit(PerformanceController.storeFeedback(review.id), {
+        feedbackForm.submit(PerformanceController.storeFeedback(review.route_key), {
             preserveScroll: true,
             onSuccess: () => {
                 feedbackForm.reset();

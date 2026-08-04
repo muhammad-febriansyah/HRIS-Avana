@@ -342,6 +342,7 @@ class OffboardingController extends Controller
 
         return [
             'id' => $case->id,
+            'route_key' => $case->public_id,
             'employee_id' => $case->employee_id,
             'employee' => $case->employee ? [
                 'name' => $case->employee->full_name,

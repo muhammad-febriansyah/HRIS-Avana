@@ -43,7 +43,7 @@ beforeEach(function (): void {
 it('streams a payslip PDF', function (): void {
     $item = PayrollRunItem::where('payroll_run_id', $this->run->id)->where('employee_id', $this->employee->id)->firstOrFail();
 
-    $response = actingAs($this->admin)->get("spec-export/payroll/payslip/{$item->id}/pdf");
+    $response = actingAs($this->admin)->get("spec-export/payroll/payslip/{$item->public_id}/pdf");
 
     $response->assertOk();
     $response->assertHeader('content-type', 'application/pdf');

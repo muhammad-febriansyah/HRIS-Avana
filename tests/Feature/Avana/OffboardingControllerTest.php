@@ -68,6 +68,7 @@ it('renders the offboarding index with the expected props', function (): void {
             ->component('avana/offboarding/index', false)
             ->has('cases.0', fn (Assert $row) => $row
                 ->has('id')
+                ->has('route_key')
                 ->has('employee_id')
                 ->has('employee')
                 ->has('last_day')

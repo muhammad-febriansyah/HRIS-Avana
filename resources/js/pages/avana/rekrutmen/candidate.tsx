@@ -413,8 +413,7 @@ export default function Candidate({
                                     onSubmit={(event) => {
                                         event.preventDefault();
                                         profileForm.submit(
-                                            RecruitmentController.updateApplicant(
-                                                applicant.id,
+                                            RecruitmentController.updateApplicant(applicant.route_key,
                                             ),
                                             {
                                                 onSuccess: () =>
@@ -601,8 +600,7 @@ export default function Candidate({
                                     onSubmit={(event) => {
                                         event.preventDefault();
                                         medicalForm.submit(
-                                            RecruitmentController.storeMedicalCheck(
-                                                applicant.id,
+                                            RecruitmentController.storeMedicalCheck(applicant.route_key,
                                             ),
                                             {
                                                 forceFormData: true,
@@ -794,8 +792,7 @@ export default function Candidate({
                                     onSubmit={(event) => {
                                         event.preventDefault();
                                         backgroundForm.submit(
-                                            RecruitmentController.storeBackgroundCheck(
-                                                applicant.id,
+                                            RecruitmentController.storeBackgroundCheck(applicant.route_key,
                                             ),
                                             {
                                                 forceFormData: true,
@@ -1130,8 +1127,7 @@ export default function Candidate({
                                 onSubmit={(event) => {
                                     event.preventDefault();
                                     cvForm.submit(
-                                        RecruitmentController.uploadCv(
-                                            applicant.id,
+                                        RecruitmentController.uploadCv(applicant.route_key,
                                         ),
                                         {
                                             forceFormData: true,
@@ -1199,8 +1195,7 @@ export default function Candidate({
                                     onSubmit={(event) => {
                                         event.preventDefault();
                                         screeningForm.submit(
-                                            RecruitmentController.recordScreening(
-                                                applicant.id,
+                                            RecruitmentController.recordScreening(applicant.route_key,
                                             ),
                                             { onSuccess: () => setPanel(null) },
                                         );
@@ -1335,8 +1330,7 @@ export default function Candidate({
                                     onSubmit={(event) => {
                                         event.preventDefault();
                                         interviewForm.submit(
-                                            RecruitmentController.scheduleInterview(
-                                                applicant.id,
+                                            RecruitmentController.scheduleInterview(applicant.route_key,
                                             ),
                                             { onSuccess: () => setPanel(null) },
                                         );
@@ -1479,8 +1473,7 @@ export default function Candidate({
                                     onSubmit={(event) => {
                                         event.preventDefault();
                                         offerForm.submit(
-                                            RecruitmentController.makeOffer(
-                                                applicant.id,
+                                            RecruitmentController.makeOffer(applicant.route_key,
                                             ),
                                             { onSuccess: () => setPanel(null) },
                                         );
@@ -1648,8 +1641,7 @@ export default function Candidate({
                                         <button
                                             onClick={() =>
                                                 router.post(
-                                                    RecruitmentController.toggleBlacklist(
-                                                        applicant.id,
+                                                    RecruitmentController.toggleBlacklist(applicant.route_key,
                                                     ).url,
                                                     { blacklisted: false },
                                                     { preserveScroll: true },
@@ -1705,8 +1697,7 @@ export default function Candidate({
                                             onSubmit={(event) => {
                                                 event.preventDefault();
                                                 blacklistForm.submit(
-                                                    RecruitmentController.toggleBlacklist(
-                                                        applicant.id,
+                                                    RecruitmentController.toggleBlacklist(applicant.route_key,
                                                     ),
                                                     {
                                                         onSuccess: () =>

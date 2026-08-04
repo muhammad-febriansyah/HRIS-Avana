@@ -8,6 +8,7 @@ export type { FlashProps } from '../employees/types';
 /** A document row as serialized by `DokumenController@index`. */
 export interface DocumentRow {
     id: number;
+    route_key: string;
     employee_id: number;
     employee: string | null;
     name: string;

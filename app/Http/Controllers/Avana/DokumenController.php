@@ -122,6 +122,7 @@ class DokumenController extends Controller
     {
         return [
             'id' => $document->id,
+            'route_key' => $document->public_id,
             'employee_id' => $document->employee_id,
             'employee' => $document->employee?->full_name,
             'name' => $document->name,

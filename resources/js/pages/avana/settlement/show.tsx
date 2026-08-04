@@ -101,7 +101,7 @@ export default function SettlementShow({
                             <>
                                 <Link
                                     href={
-                                        SettlementController.edit(settlement.id)
+                                        SettlementController.edit(settlement.route_key)
                                             .url
                                     }
                                     style={{
@@ -118,8 +118,7 @@ export default function SettlementShow({
                                     onClick={() => {
                                         if (confirm('Hapus settlement ini?')) {
                                             router.delete(
-                                                SettlementController.destroy(
-                                                    settlement.id,
+                                                SettlementController.destroy(settlement.route_key,
                                                 ).url,
                                             );
                                         }
@@ -531,8 +530,7 @@ export default function SettlementShow({
                                 }
                                 onRescan={() =>
                                     post(
-                                        SettlementController.rescan(
-                                            settlement.id,
+                                        SettlementController.rescan(settlement.route_key,
                                         ).url,
                                     )
                                 }
@@ -550,8 +548,7 @@ export default function SettlementShow({
                                     type="button"
                                     onClick={() =>
                                         post(
-                                            SettlementController.submit(
-                                                settlement.id,
+                                            SettlementController.submit(settlement.route_key,
                                             ).url,
                                         )
                                     }
@@ -573,8 +570,7 @@ export default function SettlementShow({
                                     type="button"
                                     onClick={() =>
                                         post(
-                                            SettlementController.managerApprove(
-                                                settlement.id,
+                                            SettlementController.managerApprove(settlement.route_key,
                                             ).url,
                                         )
                                     }
@@ -593,8 +589,7 @@ export default function SettlementShow({
                                     form={rejectForm}
                                     onSubmit={() =>
                                         rejectForm.post(
-                                            SettlementController.reject(
-                                                settlement.id,
+                                            SettlementController.reject(settlement.route_key,
                                             ).url,
                                             {
                                                 preserveScroll: true,
@@ -764,8 +759,7 @@ export default function SettlementShow({
                                                 }
                                                 onClick={() =>
                                                     verify.post(
-                                                        SettlementController.financeVerify(
-                                                            settlement.id,
+                                                        SettlementController.financeVerify(settlement.route_key,
                                                         ).url,
                                                         {
                                                             preserveScroll: true,
@@ -805,8 +799,7 @@ export default function SettlementShow({
                                         form={rejectForm}
                                         onSubmit={() =>
                                             rejectForm.post(
-                                                SettlementController.reject(
-                                                    settlement.id,
+                                                SettlementController.reject(settlement.route_key,
                                                 ).url,
                                                 {
                                                     preserveScroll: true,

@@ -54,6 +54,7 @@ it('renders the performance index with the expected props', function (): void {
             ->component('avana/kinerja/index', false)
             ->has('reviews.0', fn (Assert $row) => $row
                 ->has('id')
+                ->has('route_key')
                 ->has('cycle_id')
                 ->has('cycle')
                 ->has('employee_id')

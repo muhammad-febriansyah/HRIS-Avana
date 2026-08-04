@@ -80,6 +80,7 @@ class ClaimController extends Controller
         return Inertia::render('avana/klaim/edit', [
             'claim' => [
                 'id' => $claim->id,
+                'route_key' => $claim->public_id,
                 'employee_id' => $claim->employee_id,
                 'claim_type' => $claim->claim_type,
                 'title' => $claim->title,
@@ -261,6 +262,7 @@ class ClaimController extends Controller
 
         return [
             'id' => $claim->id,
+            'route_key' => $claim->public_id,
             'employee' => $employee === null ? null : [
                 'name' => $employee->full_name,
                 'employee_number' => $employee->employee_number,

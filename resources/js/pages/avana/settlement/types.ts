@@ -59,6 +59,7 @@ export interface SettlementAttachmentRow {
 /** A settlement as shaped by `SettlementController@index`. */
 export interface SettlementRow {
     id: number;
+    route_key: string;
     number: string | null;
     employee: SettlementEmployee | null;
     title: string;
@@ -153,6 +154,7 @@ export interface SettlementCreateProps {
 export interface SettlementEditProps {
     settlement: {
         id: number;
+        route_key: string;
         number: string | null;
         employee_id: number;
         title: string;

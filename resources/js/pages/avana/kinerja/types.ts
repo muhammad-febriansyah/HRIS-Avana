@@ -8,6 +8,7 @@ export type { FlashProps } from '../employees/types';
 /** A performance review row as serialized by `PerformanceController@index`. */
 export interface ReviewRow {
     id: number;
+    route_key: string;
     cycle_id: number;
     cycle: string | null;
     employee_id: number;

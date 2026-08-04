@@ -14,6 +14,7 @@ export type ReimbursementStatus = 'pending' | 'approved' | 'rejected' | 'paid';
 /** A single reimbursement row as shaped by `ReimbursementController@index`. */
 export interface ReimbursementRow {
     id: number;
+    route_key: string;
     number: string;
     employee: {
         name: string;
@@ -96,6 +97,7 @@ export interface ReimbursementCreateProps {
 export interface ReimbursementEditProps {
     reimbursement: {
         id: number;
+        route_key: string;
         number: string;
         employee_id: number;
         category: string;

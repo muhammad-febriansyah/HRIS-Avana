@@ -72,6 +72,7 @@ class EssPayslipController extends Controller
     {
         return [
             'id' => $item->id,
+            'route_key' => $item->public_id,
             'period' => $item->period?->name,
             'gross' => (int) round((float) $item->gross_salary),
             'deductions' => (int) round((float) $item->total_deduction),

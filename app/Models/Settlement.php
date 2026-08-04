@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\HasPublicId;
 use Database\Factories\SettlementFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -18,7 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 final class Settlement extends Model
 {
     /** @use HasFactory<SettlementFactory> */
-    use HasFactory;
+    use HasFactory, HasPublicId;
 
     /** Being drafted; not yet in anyone's queue. */
     public const STATUS_DRAFT = 'draft';

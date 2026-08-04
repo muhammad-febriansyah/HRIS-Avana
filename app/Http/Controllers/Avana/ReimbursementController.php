@@ -149,6 +149,7 @@ class ReimbursementController extends Controller
         return Inertia::render('avana/reimbursement/edit', [
             'reimbursement' => [
                 'id' => $reimbursement->id,
+                'route_key' => $reimbursement->public_id,
                 'number' => $reimbursement->number,
                 'employee_id' => $reimbursement->employee_id,
                 'category' => $reimbursement->category,
@@ -395,6 +396,7 @@ class ReimbursementController extends Controller
     {
         return [
             'id' => $reimbursement->id,
+            'route_key' => $reimbursement->public_id,
             'number' => $reimbursement->number,
             'employee' => $this->shapeEmployee($reimbursement),
             'employee_id' => $reimbursement->employee_id,

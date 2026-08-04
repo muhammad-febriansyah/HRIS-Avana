@@ -64,6 +64,7 @@ export interface BackgroundCheck {
 /** Full candidate detail payload (`RecruitmentController@showApplicant`). */
 export interface ApplicantDetail {
     id: number;
+    route_key: string;
     name: string;
     email: string;
     phone: string | null;

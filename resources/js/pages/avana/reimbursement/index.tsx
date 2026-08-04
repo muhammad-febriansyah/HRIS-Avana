@@ -105,9 +105,9 @@ export default function ReimbursementIndex({
         );
     };
 
-    const approve = (id: number) => {
+    const approve = (routeKey: string) => {
         router.post(
-            ReimbursementController.approve(id).url,
+            ReimbursementController.approve(routeKey).url,
             {},
             { preserveScroll: true },
         );
@@ -118,7 +118,7 @@ export default function ReimbursementIndex({
             return;
         }
 
-        rejectForm.post(ReimbursementController.reject(rejecting.id).url, {
+        rejectForm.post(ReimbursementController.reject(rejecting.route_key).url, {
             preserveScroll: true,
             onSuccess: () => {
                 setRejecting(null);
@@ -132,7 +132,7 @@ export default function ReimbursementIndex({
             return;
         }
 
-        payForm.post(ReimbursementController.markPaid(paying.id).url, {
+        payForm.post(ReimbursementController.markPaid(paying.route_key).url, {
             preserveScroll: true,
             onSuccess: () => {
                 setPaying(null);
@@ -146,7 +146,7 @@ export default function ReimbursementIndex({
             return;
         }
 
-        router.delete(ReimbursementController.destroy(deleting.id).url, {
+        router.delete(ReimbursementController.destroy(deleting.route_key).url, {
             preserveScroll: true,
             onFinish: () => setDeleting(null),
         });
@@ -614,7 +614,7 @@ export default function ReimbursementIndex({
                                                             label="Setujui"
                                                             variant="primary"
                                                             onClick={() =>
-                                                                approve(row.id)
+                                                                approve(row.route_key)
                                                             }
                                                         />
                                                         <ActionBtn
@@ -672,8 +672,7 @@ export default function ReimbursementIndex({
                                                             variant="success"
                                                             onClick={() =>
                                                                 router.visit(
-                                                                    ReimbursementController.edit(
-                                                                        row.id,
+                                                                    ReimbursementController.edit(row.route_key,
                                                                     ).url,
                                                                 )
                                                             }

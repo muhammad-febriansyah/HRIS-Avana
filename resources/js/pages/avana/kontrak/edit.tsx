@@ -10,6 +10,7 @@ import type { ContractFormData, EmployeeOption, FlashProps } from './types';
 /** The flat contract record serialized by `ContractController@edit`. */
 interface EditContract {
     id: number;
+    route_key: string;
     contract_number: string;
     employee_id: number;
     contract_type: string;
@@ -55,7 +56,7 @@ export default function KontrakEdit({ contract, employees }: KontrakEditProps) {
             return;
         }
 
-        router.delete(ContractController.destroyDocument(contract.id).url, {
+        router.delete(ContractController.destroyDocument(contract.route_key).url, {
             preserveScroll: true,
         });
     };
@@ -65,7 +66,7 @@ export default function KontrakEdit({ contract, employees }: KontrakEditProps) {
         // A PUT cannot carry multipart, so the upload is posted with a method
         // override — the route stays PUT.
         form.transform((payload) => ({ ...payload, _method: 'put' }));
-        form.post(ContractController.update(contract.id).url, {
+        form.post(ContractController.update(contract.route_key).url, {
             forceFormData: true,
         });
     };
@@ -119,7 +120,7 @@ export default function KontrakEdit({ contract, employees }: KontrakEditProps) {
                             ? {
                                   name: contract.document_name ?? 'Dokumen kontrak',
                                   size: contract.document_size ?? null,
-                                  href: ContractController.download(contract.id).url,
+                                  href: ContractController.download(contract.route_key).url,
                               }
                             : null
                     }

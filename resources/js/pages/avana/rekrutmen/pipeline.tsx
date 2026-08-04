@@ -8,6 +8,7 @@ import { RecruitmentHeader } from './shell';
 
 interface Card {
     id: number;
+    route_key: string;
     name: string;
     email: string | null;
     stage: string;
@@ -113,7 +114,7 @@ export default function RecruitmentPipeline({
         setDragId(null);
 
         router.post(
-            RecruitmentController.moveStage(dragId).url,
+            RecruitmentController.moveStage((moved as Card).route_key).url,
             { stage: targetStage },
             {
                 preserveScroll: true,

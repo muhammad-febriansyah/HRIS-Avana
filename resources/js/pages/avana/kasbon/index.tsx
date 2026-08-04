@@ -94,7 +94,7 @@ export default function KasbonIndex({
             return;
         }
 
-        settleForm.post(CashAdvanceController.settle(settling.id).url, {
+        settleForm.post(CashAdvanceController.settle(settling.route_key).url, {
             preserveScroll: true,
             forceFormData: true,
             onSuccess: () => {
@@ -126,17 +126,17 @@ export default function KasbonIndex({
         );
     };
 
-    const approve = (id: number) => {
+    const approve = (routeKey: string) => {
         router.post(
-            CashAdvanceController.approve(id).url,
+            CashAdvanceController.approve(routeKey).url,
             {},
             { preserveScroll: true },
         );
     };
 
-    const reject = (id: number) => {
+    const reject = (routeKey: string) => {
         router.post(
-            CashAdvanceController.reject(id).url,
+            CashAdvanceController.reject(routeKey).url,
             {},
             { preserveScroll: true },
         );
@@ -147,7 +147,7 @@ export default function KasbonIndex({
             return;
         }
 
-        disburseForm.post(CashAdvanceController.disburse(disbursing.id).url, {
+        disburseForm.post(CashAdvanceController.disburse(disbursing.route_key).url, {
             preserveScroll: true,
             onSuccess: () => {
                 setDisbursing(null);
@@ -161,7 +161,7 @@ export default function KasbonIndex({
             return;
         }
 
-        router.delete(CashAdvanceController.destroy(deleting.id).url, {
+        router.delete(CashAdvanceController.destroy(deleting.route_key).url, {
             preserveScroll: true,
             onFinish: () => setDeleting(null),
         });
@@ -534,8 +534,7 @@ export default function KasbonIndex({
                                                     variant="warning"
                                                     onClick={() =>
                                                         router.visit(
-                                                            CashAdvanceController.show(
-                                                                row.id,
+                                                            CashAdvanceController.show(row.route_key,
                                                             ).url,
                                                         )
                                                     }
@@ -547,7 +546,7 @@ export default function KasbonIndex({
                                                             label="Setujui"
                                                             variant="primary"
                                                             onClick={() =>
-                                                                approve(row.id)
+                                                                approve(row.route_key)
                                                             }
                                                         />
                                                         <ActionBtn
@@ -555,7 +554,7 @@ export default function KasbonIndex({
                                                             label="Tolak"
                                                             variant="warning"
                                                             onClick={() =>
-                                                                reject(row.id)
+                                                                reject(row.route_key)
                                                             }
                                                         />
                                                         <ActionBtn

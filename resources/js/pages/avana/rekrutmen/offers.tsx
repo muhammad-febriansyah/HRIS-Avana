@@ -14,6 +14,7 @@ interface OnboardingItem {
 
 interface Offer {
     id: number;
+    route_key: string;
     name: string;
     job_title: string | null;
     salary: number | null;
@@ -40,11 +41,11 @@ export default function RecruitmentOffers({ offers }: { offers: Offer[] }) {
     const onbOffer = offers.find((o) => o.id === onbId) ?? null;
 
     const decide = (
-        id: number,
+        routeKey: string,
         offer_status: 'approved' | 'accepted' | 'rejected',
     ) => {
         router.post(
-            RecruitmentController.decideOffer(id).url,
+            RecruitmentController.decideOffer(routeKey).url,
             { offer_status },
             {
                 preserveScroll: true,
@@ -53,9 +54,9 @@ export default function RecruitmentOffers({ offers }: { offers: Offer[] }) {
         );
     };
 
-    const startOnboarding = (id: number) =>
+    const startOnboarding = (routeKey: string) =>
         router.post(
-            RecruitmentController.startOnboarding(id).url,
+            RecruitmentController.startOnboarding(routeKey).url,
             {},
             { preserveScroll: true },
         );
@@ -67,9 +68,9 @@ export default function RecruitmentOffers({ offers }: { offers: Offer[] }) {
             { preserveScroll: true },
         );
 
-    const activate = (id: number) => {
+    const activate = (routeKey: string) => {
         router.post(
-            RecruitmentController.activateEmployee(id).url,
+            RecruitmentController.activateEmployee(routeKey).url,
             {},
             {
                 preserveScroll: true,
@@ -216,7 +217,7 @@ export default function RecruitmentOffers({ offers }: { offers: Offer[] }) {
                                                                 variant="success"
                                                                 onClick={() =>
                                                                     decide(
-                                                                        o.id,
+                                                                        o.route_key,
                                                                         'approved',
                                                                     )
                                                                 }
@@ -227,7 +228,7 @@ export default function RecruitmentOffers({ offers }: { offers: Offer[] }) {
                                                                 variant="danger"
                                                                 onClick={() =>
                                                                     decide(
-                                                                        o.id,
+                                                                        o.route_key,
                                                                         'rejected',
                                                                     )
                                                                 }
@@ -242,7 +243,7 @@ export default function RecruitmentOffers({ offers }: { offers: Offer[] }) {
                                                             variant="primary"
                                                             onClick={() =>
                                                                 decide(
-                                                                    o.id,
+                                                                    o.route_key,
                                                                     'accepted',
                                                                 )
                                                             }
@@ -357,7 +358,7 @@ export default function RecruitmentOffers({ offers }: { offers: Offer[] }) {
 
                         {onbOffer.onboarding_items.length === 0 ? (
                             <button
-                                onClick={() => startOnboarding(onbOffer.id)}
+                                onClick={() => startOnboarding(onbOffer.route_key)}
                                 style={{
                                     ...btnOut,
                                     width: '100%',
@@ -432,7 +433,7 @@ export default function RecruitmentOffers({ offers }: { offers: Offer[] }) {
                         )}
 
                         <button
-                            onClick={() => activate(onbOffer.id)}
+                            onClick={() => activate(onbOffer.route_key)}
                             disabled={!onbOffer.onboarding_ready}
                             style={{
                                 ...btnP,

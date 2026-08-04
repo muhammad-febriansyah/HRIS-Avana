@@ -177,6 +177,7 @@ class PerformanceController extends Controller
         return Inertia::render('avana/kinerja/edit', [
             'review' => [
                 'id' => $review->id,
+                'route_key' => $review->public_id,
                 'cycle_id' => $review->cycle_id,
                 'employee_id' => $review->employee_id,
                 'reviewer_id' => $review->reviewer_id,
@@ -406,6 +407,7 @@ class PerformanceController extends Controller
     {
         return [
             'id' => $review->id,
+            'route_key' => $review->public_id,
             'cycle_id' => $review->cycle_id,
             'cycle' => $review->cycle?->name,
             'employee_id' => $review->employee_id,

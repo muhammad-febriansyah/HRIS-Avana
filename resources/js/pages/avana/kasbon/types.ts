@@ -15,6 +15,7 @@ export type CashAdvanceStatus =
 /** A single cash advance row as shaped by `CashAdvanceController@index`. */
 export interface CashAdvanceRow {
     id: number;
+    route_key: string;
     employee: {
         name: string;
         employee_number: string | null;
@@ -98,6 +99,7 @@ export interface KasbonCreateProps {
 export interface KasbonEditProps {
     advance: {
         id: number;
+        route_key: string;
         employee_id: number;
         amount: number;
         purpose: string | null;

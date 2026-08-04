@@ -24,6 +24,8 @@ export interface ContractEmployee {
 /** A single contract row as serialized by `ContractController@index`. */
 export interface ContractRow {
     id: number;
+    /** Opaque URL key. The numeric id never travels in a link. */
+    route_key: string;
     contract_number: string;
     employee: ContractEmployee | null;
     employee_id: number;

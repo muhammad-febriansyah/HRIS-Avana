@@ -95,7 +95,7 @@ export default function DokumenIndex({
             return;
         }
 
-        router.delete(DokumenController.destroy(confirm.id).url, {
+        router.delete(DokumenController.destroy(confirm.route_key).url, {
             preserveScroll: true,
             onSuccess: () => setConfirm(null),
         });

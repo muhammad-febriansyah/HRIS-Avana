@@ -497,7 +497,7 @@ export default function KasbonShow({
                 processing={disburseForm.processing}
                 onSubmit={() =>
                     disburseForm.post(
-                        CashAdvanceController.disburse(advance.id).url,
+                        CashAdvanceController.disburse(advance.route_key).url,
                         {
                             preserveScroll: true,
                             onSuccess: () => setDisbursing(false),
@@ -555,7 +555,7 @@ export default function KasbonShow({
                 processing={settleForm.processing}
                 onSubmit={() =>
                     settleForm.post(
-                        CashAdvanceController.settle(advance.id).url,
+                        CashAdvanceController.settle(advance.route_key).url,
                         {
                             preserveScroll: true,
                             forceFormData: true,

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\HasPublicId;
 use Database\Factories\ReimbursementFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 final class Reimbursement extends Model
 {
     /** @use HasFactory<ReimbursementFactory> */
-    use HasFactory;
+    use HasFactory, HasPublicId;
 
     /**
      * The expense categories finance reimburses, keyed by their stored value.

@@ -45,6 +45,7 @@ interface SettlementBreakdown {
 
 interface CaseCard {
     id: number;
+    route_key: string;
     employee_id: number;
     employee: { name: string; employee_number: string } | null;
     last_day: string | null;
@@ -179,7 +180,7 @@ export default function OffboardingIndex({
             return;
         }
 
-        router.delete(OffboardingController.destroy(confirm.id).url, {
+        router.delete(OffboardingController.destroy(confirm.route_key).url, {
             preserveScroll: true,
             onSuccess: () => setConfirm(null),
         });
@@ -202,7 +203,7 @@ export default function OffboardingIndex({
             return;
         }
 
-        settleForm.post(OffboardingController.settlement(settleCase.id).url, {
+        settleForm.post(OffboardingController.settlement(settleCase.route_key).url, {
             preserveScroll: true,
             onSuccess: () => {
                 settleForm.reset();

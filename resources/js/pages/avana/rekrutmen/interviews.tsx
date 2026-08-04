@@ -7,6 +7,7 @@ import { Empty, RecruitmentHeader, td, th } from './shell';
 
 interface Interview {
     id: number;
+    route_key: string;
     name: string;
     job_title: string | null;
     type: string | null;
@@ -43,7 +44,7 @@ export default function RecruitmentInterviews({
     // The verdict carries the interviewer's reasoning onto the candidate's
     // history — "Passed" on its own tells the next reader nothing.
     const recordResult = (
-        id: number,
+        routeKey: string,
         interview_result: 'passed' | 'failed',
     ) => {
         const interview_note =
@@ -54,7 +55,7 @@ export default function RecruitmentInterviews({
             ) ?? '';
 
         router.post(
-            RecruitmentController.recordInterviewResult(id).url,
+            RecruitmentController.recordInterviewResult(routeKey).url,
             { interview_result, interview_note },
             {
                 preserveScroll: true,
@@ -260,7 +261,7 @@ export default function RecruitmentInterviews({
                                                                 variant="success"
                                                                 onClick={() =>
                                                                     recordResult(
-                                                                        iv.id,
+                                                                        iv.route_key,
                                                                         'passed',
                                                                     )
                                                                 }
@@ -271,7 +272,7 @@ export default function RecruitmentInterviews({
                                                                 variant="danger"
                                                                 onClick={() =>
                                                                     recordResult(
-                                                                        iv.id,
+                                                                        iv.route_key,
                                                                         'failed',
                                                                     )
                                                                 }

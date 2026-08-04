@@ -46,6 +46,7 @@ it('renders the claim index with the expected props', function (): void {
             ->component('avana/klaim/index', false)
             ->has('claims.0', fn (Assert $row) => $row
                 ->has('id')
+                ->has('route_key')
                 ->has('employee')
                 ->has('employee_id')
                 ->has('claim_type')

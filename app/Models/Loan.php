@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Concerns\HasPublicId;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 final class Loan extends Model
 {
+    use HasPublicId;
+
     protected $guarded = [];
 
     /**

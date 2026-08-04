@@ -124,9 +124,15 @@ Route::prefix('v1')->group(function (): void {
             Route::patch('onboarding/tasks/{task}', [OnboardingController::class, 'toggleTask']);
             Route::get('offboarding', [OnboardingController::class, 'offboarding']);
 
+            // The `:id` on these bindings is deliberate. Their models carry an
+            // opaque `public_id` that the web URLs bind on, but the phone app
+            // already in people's hands sends the primary key. Changing what
+            // the API binds on would break every installed version at once, and
+            // an app URL is not the thing that gets pasted into a chat. Move
+            // them when a release can go out alongside.
             Route::get('payslips', [PayslipController::class, 'index']);
-            Route::get('payslips/{item}', [PayslipController::class, 'show']);
-            Route::get('payslips/{item}/pdf', [PayslipController::class, 'pdf']);
+            Route::get('payslips/{item:id}', [PayslipController::class, 'show']);
+            Route::get('payslips/{item:id}/pdf', [PayslipController::class, 'pdf']);
 
             Route::get('tax-forms', [TaxController::class, 'index']);
             Route::get('tax-forms/{year}/pdf', [TaxController::class, 'pdf'])->whereNumber('year');
@@ -136,11 +142,11 @@ Route::prefix('v1')->group(function (): void {
 
             Route::get('cash-advances', [CashAdvanceController::class, 'index']);
             Route::post('cash-advances', [CashAdvanceController::class, 'store']);
-            Route::get('cash-advances/{cashAdvance}', [CashAdvanceController::class, 'show']);
+            Route::get('cash-advances/{cashAdvance:id}', [CashAdvanceController::class, 'show']);
 
             Route::get('settlements', [SettlementController::class, 'index']);
             Route::post('settlements', [SettlementController::class, 'store']);
-            Route::get('settlements/{settlement}', [SettlementController::class, 'show']);
+            Route::get('settlements/{settlement:id}', [SettlementController::class, 'show']);
 
             Route::post('security/fcm-token', [SecurityController::class, 'registerFcmToken']);
             Route::get('security/devices', [SecurityController::class, 'devices']);
@@ -223,7 +229,7 @@ Route::prefix('v1')->group(function (): void {
         // Finance/payroll: reimbursement disbursement (role-gated in-controller).
         Route::prefix('finance')->group(function (): void {
             Route::get('reimbursements', [FinanceController::class, 'reimbursements']);
-            Route::post('reimbursements/{claim}/pay', [FinanceController::class, 'payReimbursement']);
+            Route::post('reimbursements/{claim:id}/pay', [FinanceController::class, 'payReimbursement']);
         });
 
         // Manager Self-Service: requests routed to the caller + their team.

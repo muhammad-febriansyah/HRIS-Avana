@@ -178,6 +178,7 @@ class CashAdvanceController extends Controller
         return Inertia::render('avana/kasbon/edit', [
             'advance' => [
                 'id' => $cashAdvance->id,
+                'route_key' => $cashAdvance->public_id,
                 'employee_id' => $cashAdvance->employee_id,
                 'amount' => (float) $cashAdvance->amount,
                 'purpose' => $cashAdvance->purpose,
@@ -450,6 +451,7 @@ class CashAdvanceController extends Controller
     {
         return [
             'id' => $advance->id,
+            'route_key' => $advance->public_id,
             'employee' => $this->shapeEmployee($advance),
             'amount' => (float) $advance->amount,
             'purpose' => $advance->purpose,
