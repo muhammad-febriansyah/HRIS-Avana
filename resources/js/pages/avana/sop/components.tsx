@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { AIcon, btnOut, btnP, C } from '@/lib/avana';
+import { AIcon, btnOut, btnP, C, hexA } from '@/lib/avana';
 import type { SopVisibility } from './types';
 
 /* ---------- shared field styles (mirror dokumen/components.tsx) ---------- */
@@ -145,7 +145,18 @@ export function IndexedBadge({ indexed }: { indexed: boolean }) {
                 gap: 5,
                 fontSize: 11.5,
                 fontWeight: 600,
-                color: indexed ? C.sky : C.faint,
+                // An unreadable document is a problem to fix, not a neutral
+                // state: grey text let it pass for "nothing to see here" while
+                // the assistant quietly had nothing to answer from.
+                color: indexed ? C.sky : C.amber,
+                ...(indexed
+                    ? {}
+                    : {
+                          padding: '3px 9px',
+                          borderRadius: 100,
+                          background: hexA(C.amber, 0.1),
+                          border: `1px solid ${hexA(C.amber, 0.35)}`,
+                      }),
             }}
             title={
                 indexed
@@ -156,7 +167,7 @@ export function IndexedBadge({ indexed }: { indexed: boolean }) {
             <AIcon
                 name={indexed ? 'sparkles' : 'circle-alert'}
                 size={12}
-                color={indexed ? C.sky : C.faint}
+                color={indexed ? C.sky : C.amber}
             />
             {indexed ? 'Terindeks' : 'Belum terbaca'}
         </span>

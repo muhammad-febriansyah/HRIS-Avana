@@ -95,7 +95,7 @@ class SopController extends Controller
         $file = $request->file('file');
         $path = $file->store("sop/{$tenantId}", self::DISK);
 
-        Sop::create([
+        $sop = Sop::create([
             'tenant_id' => $tenantId,
             'sop_category_id' => $data['sop_category_id'] ?? null,
             'code' => $data['code'] ?? null,
@@ -112,7 +112,7 @@ class SopController extends Controller
             'uploaded_by' => $request->user()->id,
         ]);
 
-        return back()->with('success', 'SOP berhasil disimpan');
+        return $this->savedWithIndexNotice($sop, 'SOP berhasil disimpan');
     }
 
     /**
@@ -158,7 +158,7 @@ class SopController extends Controller
 
         $sop->update($attributes);
 
-        return back()->with('success', 'SOP diperbarui');
+        return $this->savedWithIndexNotice($sop->fresh(), 'SOP diperbarui');
     }
 
     /**
@@ -263,6 +263,29 @@ class SopController extends Controller
      * The text the assistant answers from: the admin's own text when supplied,
      * otherwise whatever can be pulled out of the uploaded PDF.
      */
+    /**
+     * Report the save, and say so plainly when the PDF's text could not be read.
+     *
+     * The extractor is best-effort — a scanned page carries no text at all, and
+     * some encodings are beyond a dependency-free reader. Staying quiet about it
+     * left an admin believing the assistant could answer from a document it
+     * cannot read, which only surfaces later as the assistant failing to
+     * summarise it.
+     */
+    private function savedWithIndexNotice(?Sop $sop, string $success): RedirectResponse
+    {
+        if ($sop !== null && blank($sop->content)) {
+            return back()->with(
+                'warning',
+                $success.', tapi isi PDF-nya tidak terbaca sistem (kemungkinan hasil scan atau '
+                .'format tak didukung). Asisten AI belum bisa merangkum atau menjawab dari '
+                .'dokumen ini — isi kolom "Isi Dokumen" secara manual agar bisa dipakai.',
+            );
+        }
+
+        return back()->with('success', $success);
+    }
+
     private function resolveContent(Request $request, string|false $realPath): ?string
     {
         $typed = trim((string) $request->input('content', ''));

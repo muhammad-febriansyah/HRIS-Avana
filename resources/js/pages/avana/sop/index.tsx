@@ -70,6 +70,17 @@ export default function SopIndex({ sops, categories, kpis }: SopIndexProps) {
         }
     }, [flash?.success]);
 
+    // The save worked but the PDF's text did not — long enough to read, so it
+    // stays up until dismissed rather than disappearing with the others.
+    useEffect(() => {
+        if (flash?.warning) {
+            toast.warning(flash.warning, {
+                id: flash.warning,
+                duration: 12000,
+            });
+        }
+    }, [flash?.warning]);
+
     const visibleSops = useMemo(() => {
         const keyword = search.trim().toLowerCase();
 

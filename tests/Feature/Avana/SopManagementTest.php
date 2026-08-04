@@ -311,3 +311,99 @@ it('indexes a real dompdf-rendered SOP end to end', function (): void {
 it('returns nothing for a PDF with no readable text', function (): void {
     expect(PdfTextExtractor::fromString('%PDF-1.4 no streams here %%EOF'))->toBe('');
 });
+
+it('warns that a scanned PDF was saved but not indexed', function (): void {
+    Storage::fake('local');
+
+    // No content stream to read: the shape of a scanned page, as far as a
+    // text extractor is concerned.
+    $scanned = UploadedFile::fake()->createWithContent(
+        'SOP Pemasaran.pdf',
+        '%PDF-1.4 gambar saja, tanpa layer teks %%EOF',
+    );
+
+    actingAs($this->admin)
+        ->post(route('avana.sop.store'), [
+            'title' => 'SOP Pemasaran',
+            'visibility' => 'public',
+            'status' => 'active',
+            'file' => $scanned,
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('warning')
+        ->assertSessionMissing('success');
+
+    $sop = Sop::forTenant($this->tenantId)->where('title', 'SOP Pemasaran')->firstOrFail();
+
+    // The file is kept — it is still downloadable, it just cannot be quoted.
+    expect($sop->content)->toBeNull();
+    Storage::disk('local')->assertExists($sop->file_path);
+});
+
+it('stays quiet when the text was read', function (): void {
+    Storage::fake('local');
+
+    actingAs($this->admin)
+        ->post(route('avana.sop.store'), [
+            'title' => 'SOP Cuti',
+            'visibility' => 'public',
+            'status' => 'active',
+            'file' => fakeSopUpload(),
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success')
+        ->assertSessionMissing('warning');
+});
+
+it('takes typed content over an unreadable PDF without warning', function (): void {
+    Storage::fake('local');
+
+    actingAs($this->admin)
+        ->post(route('avana.sop.store'), [
+            'title' => 'SOP Pemasaran',
+            'visibility' => 'public',
+            'status' => 'active',
+            'content' => 'Prosedur pemasaran: kunjungan klien dicatat di modul Visiting.',
+            'file' => UploadedFile::fake()->createWithContent(
+                'SOP Pemasaran.pdf',
+                '%PDF-1.4 gambar saja %%EOF',
+            ),
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success')
+        ->assertSessionMissing('warning');
+
+    $sop = Sop::forTenant($this->tenantId)->where('title', 'SOP Pemasaran')->firstOrFail();
+
+    expect($sop->content)->toContain('modul Visiting');
+});
+
+it('warns again when an update replaces the PDF with an unreadable one', function (): void {
+    Storage::fake('local');
+
+    $sop = Sop::create([
+        'tenant_id' => $this->tenantId,
+        'title' => 'SOP Cuti',
+        'content' => 'Isi lama yang terbaca.',
+        'visibility' => 'public',
+        'status' => 'active',
+        'file_path' => 'sop/'.$this->tenantId.'/lama.pdf',
+        'file_name' => 'lama.pdf',
+        'file_size' => 100,
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.sop.update', $sop), [
+            'title' => 'SOP Cuti',
+            'visibility' => 'public',
+            'status' => 'active',
+            'file' => UploadedFile::fake()->createWithContent(
+                'scan.pdf',
+                '%PDF-1.4 gambar saja %%EOF',
+            ),
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('warning');
+
+    expect($sop->fresh()->content)->toBeNull();
+});
