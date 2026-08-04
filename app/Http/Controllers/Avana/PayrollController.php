@@ -1231,7 +1231,20 @@ class PayrollController extends Controller
                 [$amount, $proratable] = $this->derivedComponentAmount($component, $employee, (float) $salaryComponent->amount, $presentDays, $overtimeHours, $tenantId);
                 $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasis, $bpjsBasis);
             } else {
-                $this->collectComponent($component, (float) $salaryComponent->amount, true, $earnings, $deductions, $basic, $overtimeBasis, $bpjsBasis);
+                // A percentage attached to an employee is still a percentage —
+                // paying the figure itself would put "10%" on the payslip as
+                // Rp 10.
+                $amount = $component->calc_basis === 'percentage'
+                    ? $this->amountForBasis(
+                        (float) $salaryComponent->amount,
+                        'percentage',
+                        $presentDays,
+                        $overtimeHours,
+                        $this->percentageBase($component, $employee, $tenantId),
+                    )
+                    : (float) $salaryComponent->amount;
+
+                $this->collectComponent($component, $amount, true, $earnings, $deductions, $basic, $overtimeBasis, $bpjsBasis);
             }
         }
 
@@ -1279,7 +1292,13 @@ class PayrollController extends Controller
                         $base = $this->resolveComponentValue($component, $employee, $tenantId) ?? 0.0;
                     }
 
-                    $amount = $this->amountForBasis($base, $component->calc_basis, $presentDays, $overtimeHours);
+                    $amount = $this->amountForBasis(
+                        $base,
+                        $component->calc_basis,
+                        $presentDays,
+                        $overtimeHours,
+                        $this->percentageBase($component, $employee, $tenantId),
+                    );
                 }
 
                 // is_prorate scales the amount now by the master's Jumlah Hari /
@@ -1689,14 +1708,41 @@ class PayrollController extends Controller
 
     /**
      * Resolve a position component amount for its attendance calculation basis.
+     *
+     * For a "Persentase" component the amount is a percentage, not rupiah, so
+     * it only means something against the component it is a percentage of —
+     * `$percentBase`, which the caller resolves for the employee.
      */
-    private function amountForBasis(float $amount, ?string $calcBasis, int $presentDays, float $overtimeHours = 0.0): float
+    private function amountForBasis(float $amount, ?string $calcBasis, int $presentDays, float $overtimeHours = 0.0, float $percentBase = 0.0): float
     {
         return match ($calcBasis) {
             'per_present_day' => $amount * $presentDays,
             'per_overtime_hour' => $amount * $overtimeHours,
+            'percentage' => round($amount / 100 * $percentBase),
             default => $amount,
         };
+    }
+
+    /**
+     * What a "Persentase" component takes its percentage of: the component it
+     * points at, or Gaji Pokok when it points at nothing — the default the
+     * setup documentation assumes ("Tunjangan Kinerja — % dari Gaji Pokok").
+     *
+     * Resolved through the same operand lookup a formula uses, so a percentage
+     * reads the employee's own figure, then their Master Gaji template, then
+     * the component's fixed nominal.
+     */
+    private function percentageBase(PayrollComponent $component, Employee $employee, int $tenantId): float
+    {
+        if ($component->calc_basis !== 'percentage') {
+            return 0.0;
+        }
+
+        $reference = $component->percentage_of_component_id !== null
+            ? PayrollComponent::forTenant($tenantId)->find($component->percentage_of_component_id)
+            : PayrollComponent::forTenant($tenantId)->where('code', 'BASIC')->first();
+
+        return $this->componentOperandValue($reference, $employee, $tenantId);
     }
 
     /**
@@ -1797,16 +1843,17 @@ class PayrollController extends Controller
     private function derivedComponentAmount(PayrollComponent $component, Employee $employee, float $attachmentAmount, int $presentDays, float $overtimeHours, int $tenantId): array
     {
         $attendanceBasis = ['per_present_day', 'per_overtime_hour'];
+        $percentBase = $this->percentageBase($component, $employee, $tenantId);
 
         switch ($component->basis_type) {
             case 'fixed':
-                $amount = $this->amountForBasis((float) $component->basis_value, $component->calc_basis, $presentDays, $overtimeHours);
+                $amount = $this->amountForBasis((float) $component->basis_value, $component->calc_basis, $presentDays, $overtimeHours, $percentBase);
 
                 return [$amount, ! in_array($component->calc_basis, $attendanceBasis, true)];
 
             case 'tabel':
                 $base = $this->resolveComponentValue($component, $employee, $tenantId) ?? $attachmentAmount;
-                $amount = $this->amountForBasis($base, $component->calc_basis, $presentDays, $overtimeHours);
+                $amount = $this->amountForBasis($base, $component->calc_basis, $presentDays, $overtimeHours, $percentBase);
 
                 return [$amount, ! in_array($component->calc_basis, $attendanceBasis, true)];
 
@@ -1814,7 +1861,7 @@ class PayrollController extends Controller
                 return [$this->evaluateComponentFormula($component, $employee, $tenantId), false];
 
             default:
-                $amount = $this->amountForBasis($attachmentAmount, $component->calc_basis, $presentDays, $overtimeHours);
+                $amount = $this->amountForBasis($attachmentAmount, $component->calc_basis, $presentDays, $overtimeHours, $percentBase);
 
                 return [$amount, ! in_array($component->calc_basis, $attendanceBasis, true)];
         }

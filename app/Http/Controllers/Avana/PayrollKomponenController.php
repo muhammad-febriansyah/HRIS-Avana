@@ -66,7 +66,7 @@ class PayrollKomponenController extends Controller
             ->groupBy('payroll_component_id');
 
         $components = PayrollComponent::forTenant($tenantId)
-            ->with('formula:id,name')
+            ->with(['formula:id,name', 'percentageOf:id,name,code'])
             ->orderBy('component_group')
             ->orderBy('name')
             ->get()
@@ -89,6 +89,12 @@ class PayrollKomponenController extends Controller
                 'basis_max' => $c->basis_max !== null ? (float) $c->basis_max : null,
                 'basis_cut_off_day' => $c->basis_cut_off_day,
                 'payroll_formula_id' => $c->payroll_formula_id,
+                'percentage_of_component_id' => $c->percentage_of_component_id,
+                // Null reference reads as Gaji Pokok, which is what the engine
+                // falls back to.
+                'percentage_of' => $c->calc_basis === 'percentage'
+                    ? ($c->percentageOf?->name ?? 'Gaji Pokok')
+                    : null,
                 'status' => $c->status,
                 'values' => ($values->get($c->id) ?? collect())->map(fn (PayrollComponentValue $v): array => [
                     'id' => $v->id,
@@ -156,6 +162,17 @@ class PayrollKomponenController extends Controller
                 ->map(fn (PayrollComponent $c): array => ['id' => $c->id, 'name' => $c->name])
                 ->all(),
             'formulaOptions' => $formulas->map(fn (array $f): array => ['id' => $f['id'], 'name' => $f['name']])->all(),
+            // What a Persentase component may be a percentage of: any earning
+            // that carries a rupiah figure of its own.
+            'percentageBaseOptions' => PayrollComponent::forTenant($tenantId)
+                ->where(fn ($query) => $query->whereNull('component_group')->orWhere('component_group', '!=', 'potongan'))
+                ->where(fn ($query) => $query->whereNull('type')->orWhere('type', '!=', 'deduction'))
+                ->where(fn ($query) => $query->whereNull('calc_basis')->orWhere('calc_basis', '!=', 'percentage'))
+                ->orderByRaw("code = 'BASIC' DESC")
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->map(fn (PayrollComponent $c): array => ['id' => $c->id, 'name' => $c->name])
+                ->all(),
             'mappingOptions' => [
                 'positions' => Position::forTenant($tenantId)->orderBy('name')->get(['id', 'name'])
                     ->map(fn (Position $p): array => ['id' => $p->id, 'name' => $p->name])->all(),
@@ -426,6 +443,17 @@ class PayrollKomponenController extends Controller
             'basis_max' => ['nullable', 'numeric', 'min:0'],
             'basis_cut_off_day' => ['nullable', 'integer', 'min:1', 'max:31'],
             'payroll_formula_id' => ['nullable', 'integer', Rule::exists('payroll_formulas', 'id')->where('tenant_id', $tenantId)],
+            // A percentage of a percentage has no rupiah figure to start from,
+            // and a percentage of itself has none at all.
+            'percentage_of_component_id' => [
+                'nullable',
+                'integer',
+                Rule::notIn(array_filter([$request->route('component')?->id])),
+                Rule::exists('payroll_components', 'id')->where(fn ($query) => $query
+                    ->where('tenant_id', $tenantId)
+                    ->whereNull('deleted_at')
+                    ->where(fn ($inner) => $inner->whereNull('calc_basis')->orWhere('calc_basis', '!=', 'percentage'))),
+            ],
         ]);
     }
 
@@ -447,6 +475,10 @@ class PayrollKomponenController extends Controller
             'basis_max' => $type === 'formula' ? ($data['basis_max'] ?? null) : null,
             'basis_cut_off_day' => $data['basis_cut_off_day'] ?? null,
             'payroll_formula_id' => $type === 'formula' ? ($data['payroll_formula_id'] ?? null) : null,
+            // Only a Persentase component has something to be a percentage of.
+            'percentage_of_component_id' => ($data['calc_basis'] ?? null) === 'percentage'
+                ? ($data['percentage_of_component_id'] ?? null)
+                : null,
         ];
     }
 

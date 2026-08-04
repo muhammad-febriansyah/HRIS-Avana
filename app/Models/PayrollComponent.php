@@ -52,6 +52,15 @@ final class PayrollComponent extends Model
         return $this->belongsTo(PayrollFormula::class, 'payroll_formula_id');
     }
 
+    /**
+     * The component a "Persentase" component is a percentage of. Null means
+     * Gaji Pokok, which is what the setup documentation assumes.
+     */
+    public function percentageOf(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'percentage_of_component_id');
+    }
+
     public function componentValues(): HasMany
     {
         return $this->hasMany(PayrollComponentValue::class);

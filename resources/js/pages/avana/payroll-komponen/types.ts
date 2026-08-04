@@ -38,6 +38,10 @@ export interface Component {
     basis_max: number | null;
     basis_cut_off_day: number | null;
     payroll_formula_id: number | null;
+    /** Which component a Persentase component is a percentage of. */
+    percentage_of_component_id: number | null;
+    /** Its name for display; 'Gaji Pokok' when nothing was picked. */
+    percentage_of: string | null;
     values: ComponentValue[];
     status: string;
 }

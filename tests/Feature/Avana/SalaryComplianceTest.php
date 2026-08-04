@@ -202,3 +202,26 @@ it('offers the grade list on the Master Gaji setting screen', function (): void 
             ->has('salaries')
             ->etc());
 });
+
+it('resolves a percentage allowance against Gaji Pokok, not as rupiah', function (): void {
+    $allowance = PayrollComponent::forTenant($this->tenant->id)->where('code', 'TJ-JAB')->firstOrFail();
+    $allowance->update([
+        'calc_basis' => 'percentage',
+        'basis_type' => 'fixed',
+        'basis_value' => 10,
+        'percentage_of_component_id' => null,
+    ]);
+
+    $this->master->components()->updateOrCreate(
+        ['payroll_component_id' => $allowance->id],
+        ['included' => true, 'amount' => 10, 'is_prorate' => false, 'is_kompensasi' => false],
+    );
+
+    setComplianceBasic($this, 8_000_000);
+
+    $row = complianceRow($this);
+
+    // 10% of 8jt = 800rb — not the "10" the template stores.
+    expect($row['allowances'])->toBe(800_000.0);
+    expect($row['total'])->toBe(8_800_000.0);
+});

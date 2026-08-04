@@ -21,6 +21,7 @@ interface Props {
     kpis: Kpis;
     componentOptions: Option[];
     formulaOptions: Option[];
+    percentageBaseOptions: Option[];
 }
 
 interface FlashProps {
@@ -76,6 +77,7 @@ interface CForm {
     tipe: CalcType;
     basis_value: string;
     payroll_formula_id: string;
+    percentage_of_component_id: string;
     is_taxable: boolean;
     is_bpjs_base: boolean;
     show_on_slip: boolean;
@@ -90,6 +92,7 @@ const emptyForm: CForm = {
     tipe: 'jumlah_tetap',
     basis_value: '',
     payroll_formula_id: '',
+    percentage_of_component_id: '',
     is_taxable: true,
     is_bpjs_base: false,
     show_on_slip: true,
@@ -102,6 +105,7 @@ export default function PayrollKomponen({
     kpis,
     componentOptions,
     formulaOptions,
+    percentageBaseOptions,
 }: Props) {
     const { flash } = usePage<FlashProps>().props;
     const [tab, setTab] = useState<'komponen' | 'rumus' | 'pajak'>('komponen');
@@ -179,6 +183,9 @@ export default function PayrollKomponen({
             payroll_formula_id: c.payroll_formula_id
                 ? String(c.payroll_formula_id)
                 : '',
+            percentage_of_component_id: c.percentage_of_component_id
+                ? String(c.percentage_of_component_id)
+                : '',
             is_taxable: c.is_taxable,
             is_bpjs_base: c.is_bpjs_base,
             show_on_slip: c.show_on_slip,
@@ -206,6 +213,10 @@ export default function PayrollKomponen({
             basis_value: form.data.basis_value,
             payroll_formula_id:
                 tipe === 'rumus' ? form.data.payroll_formula_id : '',
+            percentage_of_component_id:
+                tipe === 'persentase'
+                    ? form.data.percentage_of_component_id
+                    : '',
             is_taxable: form.data.is_taxable,
             is_bpjs_base: form.data.is_bpjs_base,
             show_on_slip: form.data.show_on_slip,
@@ -1063,6 +1074,45 @@ export default function PayrollKomponen({
                             </div>
                         )}
 
+                        {form.data.tipe === 'persentase' && (
+                            <div style={{ marginBottom: 14 }}>
+                                <label style={label}>Persentase dari</label>
+                                <select
+                                    style={input}
+                                    value={
+                                        form.data.percentage_of_component_id
+                                    }
+                                    onChange={(e) =>
+                                        form.setData(
+                                            'percentage_of_component_id',
+                                            e.target.value,
+                                        )
+                                    }
+                                >
+                                    <option value="">
+                                        Gaji Pokok (bawaan)
+                                    </option>
+                                    {percentageBaseOptions
+                                        .filter((o) => o.id !== form.data.id)
+                                        .map((o) => (
+                                            <option key={o.id} value={o.id}>
+                                                {o.name}
+                                            </option>
+                                        ))}
+                                </select>
+                                <div
+                                    style={{
+                                        fontSize: 12,
+                                        color: C.faint,
+                                        marginTop: 6,
+                                    }}
+                                >
+                                    Komponen ini dibayar sebesar persentase di
+                                    atas dikali nilai komponen acuan.
+                                </div>
+                            </div>
+                        )}
+
                         <div
                             style={{
                                 display: 'flex',
@@ -1463,13 +1513,18 @@ function ComponentDetail({
     component: Component;
     calcLabel: string;
 }) {
+    const isPercentage = component.calc_basis === 'percentage';
     const rowsInfo: [string, string][] = [
         ['Kode', component.code ?? '—'],
         ['Kategori', CAT_STYLE[component.category].label],
         ['Tipe Perhitungan', calcLabel],
         [
             'Nilai',
-            component.basis_value != null ? rp(component.basis_value) : '—',
+            component.basis_value == null
+                ? '—'
+                : isPercentage
+                  ? `${component.basis_value}% dari ${component.percentage_of ?? 'Gaji Pokok'}`
+                  : rp(component.basis_value),
         ],
         ['Kena PPh 21', component.is_taxable ? 'Ya' : 'Tidak'],
         ['Ikut basis BPJS', component.is_bpjs_base ? 'Ya' : 'Tidak'],

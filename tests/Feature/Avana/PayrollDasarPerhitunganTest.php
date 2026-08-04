@@ -167,3 +167,67 @@ it('leaves legacy components (no basis_type) computing exactly as before', funct
 
     expect(earningAmount($this, 'Tunjangan Lama'))->toBe(275_000.0);
 });
+
+it('pays a percentage component as a share of Gaji Pokok by default', function (): void {
+    $basic = PayrollComponent::forTenant($this->tenant->id)->where('code', 'BASIC')->firstOrFail();
+    giveMasterComponent($this->employee, $basic, 8_000_000);
+
+    basisComponent($this, 'DP-PCT', [
+        'name' => 'Tunjangan Kinerja',
+        'basis_type' => 'fixed',
+        'basis_value' => 10,
+        'calc_basis' => 'percentage',
+    ]);
+
+    expect(earningAmount($this, 'Tunjangan Kinerja'))->toBe(800_000.0);
+});
+
+it('pays a percentage component as a share of the component it points at', function (): void {
+    $reference = basisComponent($this, 'DP-PCT-REF', ['name' => 'Tunjangan Acuan'], 2_000_000);
+
+    basisComponent($this, 'DP-PCT2', [
+        'name' => 'Tunjangan Turunan',
+        'basis_type' => 'fixed',
+        'basis_value' => 25,
+        'calc_basis' => 'percentage',
+        'percentage_of_component_id' => $reference->id,
+    ]);
+
+    expect(earningAmount($this, 'Tunjangan Turunan'))->toBe(500_000.0);
+});
+
+it('treats a Master Gaji nominal on a percentage component as the percentage', function (): void {
+    $basic = PayrollComponent::forTenant($this->tenant->id)->where('code', 'BASIC')->firstOrFail();
+    giveMasterComponent($this->employee, $basic, 6_000_000);
+
+    // No basis_type: the template's own figure is the percentage, not rupiah.
+    basisComponent($this, 'DP-PCT3', [
+        'name' => 'Tunjangan Template',
+        'basis_type' => null,
+        'calc_basis' => 'percentage',
+    ], 5);
+
+    expect(earningAmount($this, 'Tunjangan Template'))->toBe(300_000.0);
+});
+
+it('pays a percentage deduction as a share of Gaji Pokok too', function (): void {
+    $basic = PayrollComponent::forTenant($this->tenant->id)->where('code', 'BASIC')->firstOrFail();
+    giveMasterComponent($this->employee, $basic, 8_000_000);
+
+    basisComponent($this, 'DP-PCT-POT', [
+        'name' => 'Potongan Persen',
+        'type' => 'deduction',
+        'component_group' => 'potongan',
+        'basis_type' => 'fixed',
+        'basis_value' => 2,
+        'calc_basis' => 'percentage',
+    ]);
+
+    actingAs($this->admin)->post('spec-dp/payroll/run')->assertSessionHas('success');
+
+    $run = PayrollRun::forTenant($this->tenant->id)->where('payroll_period_id', $this->period->id)->latest('id')->firstOrFail();
+    $item = PayrollRunItem::where('payroll_run_id', $run->id)->where('employee_id', $this->employee->id)->firstOrFail();
+    $row = collect($item->calculation_snapshot['deductions'])->firstWhere('name', 'Potongan Persen');
+
+    expect((float) $row['amount'])->toBe(160_000.0);
+});

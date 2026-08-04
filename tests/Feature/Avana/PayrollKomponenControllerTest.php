@@ -84,3 +84,103 @@ it('creates a formula and adds a kombinasi komponen item', function (): void {
 
     expect($formula->items()->count())->toBe(1);
 });
+
+it('saves which component a percentage component is a percentage of', function (): void {
+    $reference = PayrollComponent::forTenant($this->tenant->id)->where('code', 'BASIC')->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.payroll.komponen.component.store'), [
+            'code' => 'TJ-PCT',
+            'name' => 'Tunjangan Kinerja',
+            'group' => 'penerimaan',
+            'calc_basis' => 'percentage',
+            'basis_type' => 'fixed',
+            'basis_value' => 10,
+            'percentage_of_component_id' => $reference->id,
+        ])
+        ->assertSessionHas('success');
+
+    $c = PayrollComponent::forTenant($this->tenant->id)->where('code', 'TJ-PCT')->firstOrFail();
+    expect($c->percentage_of_component_id)->toBe($reference->id);
+    expect((float) $c->basis_value)->toBe(10.0);
+});
+
+it('drops the percentage reference when the component stops being a percentage', function (): void {
+    $reference = PayrollComponent::forTenant($this->tenant->id)->where('code', 'BASIC')->firstOrFail();
+
+    $component = PayrollComponent::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'TJ-WAS-PCT',
+        'name' => 'Tunjangan Pindah',
+        'type' => 'earning',
+        'component_group' => 'penerimaan',
+        'status' => 'active',
+        'calc_basis' => 'percentage',
+        'basis_type' => 'fixed',
+        'basis_value' => 10,
+        'percentage_of_component_id' => $reference->id,
+    ]);
+
+    actingAs($this->admin)
+        ->put(route('avana.payroll.komponen.component.update', $component), [
+            'name' => 'Tunjangan Pindah',
+            'group' => 'penerimaan',
+            'calc_basis' => 'fixed',
+            'basis_type' => 'fixed',
+            'basis_value' => 300000,
+        ])
+        ->assertSessionHas('success');
+
+    expect($component->fresh()->percentage_of_component_id)->toBeNull();
+});
+
+it('refuses a percentage component that points at itself', function (): void {
+    $component = PayrollComponent::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'TJ-SELF',
+        'name' => 'Tunjangan Sendiri',
+        'type' => 'earning',
+        'component_group' => 'penerimaan',
+        'status' => 'active',
+        'calc_basis' => 'percentage',
+        'basis_type' => 'fixed',
+        'basis_value' => 10,
+    ]);
+
+    actingAs($this->admin)
+        ->put(route('avana.payroll.komponen.component.update', $component), [
+            'name' => 'Tunjangan Sendiri',
+            'group' => 'penerimaan',
+            'calc_basis' => 'percentage',
+            'basis_type' => 'fixed',
+            'basis_value' => 10,
+            'percentage_of_component_id' => $component->id,
+        ])
+        ->assertSessionHasErrors('percentage_of_component_id');
+});
+
+it('refuses a percentage of another percentage', function (): void {
+    $other = PayrollComponent::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'TJ-PCT-A',
+        'name' => 'Tunjangan Persen A',
+        'type' => 'earning',
+        'component_group' => 'penerimaan',
+        'status' => 'active',
+        'calc_basis' => 'percentage',
+        'basis_type' => 'fixed',
+        'basis_value' => 10,
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.payroll.komponen.component.store'), [
+            'code' => 'TJ-PCT-B',
+            'name' => 'Tunjangan Persen B',
+            'group' => 'penerimaan',
+            'calc_basis' => 'percentage',
+            'basis_type' => 'fixed',
+            'basis_value' => 5,
+            'percentage_of_component_id' => $other->id,
+        ])
+        ->assertSessionHasErrors('percentage_of_component_id');
+});

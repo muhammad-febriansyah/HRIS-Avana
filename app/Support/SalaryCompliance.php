@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Employee;
 use App\Models\EmployeeSalaryComponent;
+use App\Models\PayrollComponent;
 use App\Models\SalaryGrade;
 use App\Models\SalaryMasterComponent;
 use App\Models\UmrRate;
@@ -37,6 +38,13 @@ final class SalaryCompliance
         $effectiveFrom = null;
         $handled = [];
 
+        // Percentage allowances are worked out last: they are a share of another
+        // component, so their rupiah value is only known once the components
+        // they point at have been added up.
+        $amounts = [];
+        /** @var list<array{component: PayrollComponent, percent: float}> $percentages */
+        $percentages = [];
+
         $salaryComponents = EmployeeSalaryComponent::forTenant($tenantId)
             ->where('employee_id', $employee->id)
             ->effectiveOn()
@@ -54,9 +62,13 @@ final class SalaryCompliance
 
             if ($component->code === 'BASIC') {
                 $basic += (float) $row->amount;
+                $amounts[$component->id] = ($amounts[$component->id] ?? 0.0) + (float) $row->amount;
                 $effectiveFrom = $row->effective_start_date?->toDateString();
+            } elseif ($component->calc_basis === 'percentage') {
+                $percentages[] = ['component' => $component, 'percent' => (float) $row->amount];
             } elseif (! in_array($component->calc_basis, ['per_present_day', 'per_overtime_hour'], true)) {
                 $allowances += (float) $row->amount;
+                $amounts[$component->id] = ($amounts[$component->id] ?? 0.0) + (float) $row->amount;
             }
         }
 
@@ -80,10 +92,24 @@ final class SalaryCompliance
 
                 if ($component->code === 'BASIC') {
                     $basic += (float) $row->amount;
+                    $amounts[$component->id] = ($amounts[$component->id] ?? 0.0) + (float) $row->amount;
+                } elseif ($component->calc_basis === 'percentage') {
+                    $percentages[] = [
+                        'component' => $component,
+                        'percent' => (float) ($row->amount > 0 ? $row->amount : $component->basis_value),
+                    ];
                 } else {
                     $allowances += (float) $row->amount;
+                    $amounts[$component->id] = ($amounts[$component->id] ?? 0.0) + (float) $row->amount;
                 }
             }
+        }
+
+        foreach ($percentages as $row) {
+            $reference = $row['component']->percentage_of_component_id;
+            $base = $reference !== null ? ($amounts[$reference] ?? 0.0) : $basic;
+
+            $allowances += round($row['percent'] / 100 * $base);
         }
 
         return [
