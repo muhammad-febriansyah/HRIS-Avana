@@ -45,6 +45,7 @@ use App\Models\WorkLocation;
 use App\Support\AvanaNav;
 use App\Support\PermissionCatalog;
 use App\Support\Roster;
+use App\Support\ShiftDefaults;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -139,28 +140,8 @@ final class AvanaDemoSeeder extends Seeder
      */
     private function seedRotationShifts(Tenant $tenant): void
     {
-        $shifts = [
-            ['code' => 'M', 'name' => 'Pagi (Morning)', 'start_time' => '07:00', 'end_time' => '15:00'],
-            ['code' => 'A', 'name' => 'Siang (Afternoon)', 'start_time' => '15:00', 'end_time' => '23:00'],
-            ['code' => 'N', 'name' => 'Malam (Night)', 'start_time' => '23:00', 'end_time' => '07:00'],
-            ['code' => 'D12', 'name' => 'Siang 12 Jam', 'start_time' => '07:00', 'end_time' => '19:00'],
-            ['code' => 'N12', 'name' => 'Malam 12 Jam', 'start_time' => '19:00', 'end_time' => '07:00'],
-        ];
+        ShiftDefaults::seedDefaultsFor((int) $tenant->id);
 
-        foreach ($shifts as $shift) {
-            Shift::firstOrCreate(
-                ['tenant_id' => $tenant->id, 'code' => $shift['code']],
-                [
-                    'name' => $shift['name'],
-                    'start_time' => $shift['start_time'],
-                    'end_time' => $shift['end_time'],
-                    'late_tolerance_minutes' => 15,
-                    'status' => 'active',
-                ],
-            );
-        }
-
-        $this->seedRosterPatterns($tenant);
         $this->seedRotatedRoster($tenant);
     }
 
@@ -208,45 +189,6 @@ final class AvanaDemoSeeder extends Seeder
      * day/night alternation the template gives; a company that works two on,
      * two off can say so in the editor.
      */
-    private function seedRosterPatterns(Tenant $tenant): void
-    {
-        $shiftIds = Shift::forTenant($tenant->id)->pluck('id', 'code');
-
-        // code => [name, industry, [[shift code|null, days], ...]]
-        $patterns = [
-            'OFFICE' => ['Office', 'Perkantoran', [['M', 5], [null, 2]]],
-            'MANUFACTURING-3' => ['Manufacturing', 'Pabrik', [['M', 3], ['A', 3], ['N', 3], [null, 2]]],
-            'MANUFACTURING-2' => ['Manufacturing 24 Jam', 'Pabrik 24 Jam', [['M', 2], ['A', 2], ['N', 2], [null, 2]]],
-            'WAREHOUSE' => ['Warehouse', 'Logistik', [['M', 4], [null, 2]]],
-            'SECURITY' => ['Security 12 Jam', 'Security', [['D12', 1], ['N12', 1]]],
-            'HOSPITAL' => ['Hospital', 'Rumah Sakit', [['M', 1], ['A', 1], ['N', 1], [null, 1]]],
-            'MINING' => ['Mining', 'Tambang', [['M', 14], [null, 14]]],
-            'OILGAS-14' => ['Oil & Gas 14/14', 'Migas', [['M', 14], [null, 14]]],
-            'OILGAS-28' => ['Oil & Gas 28/28', 'Migas', [['M', 28], [null, 28]]],
-            'OFFSHORE' => ['Offshore', 'Offshore', [['M', 28], [null, 28]]],
-        ];
-
-        foreach ($patterns as $code => [$name, $industry, $cycle]) {
-            $pattern = RosterPattern::firstOrCreate(
-                ['tenant_id' => $tenant->id, 'code' => $code],
-                ['name' => $name, 'industry' => $industry, 'status' => 'active'],
-            );
-
-            if ($pattern->steps()->exists()) {
-                continue;
-            }
-
-            foreach ($cycle as $position => [$shiftCode, $days]) {
-                $pattern->steps()->create([
-                    'tenant_id' => $tenant->id,
-                    'position' => $position,
-                    'shift_id' => $shiftCode !== null ? $shiftIds->get($shiftCode) : null,
-                    'days' => $days,
-                ]);
-            }
-        }
-    }
-
     private function seedAttendance(Tenant $tenant, array $employees): void
     {
         $shift = Shift::firstOrCreate(

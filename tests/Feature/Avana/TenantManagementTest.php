@@ -2,13 +2,18 @@
 
 use App\Models\AiTokenLedger;
 use App\Models\AiTokenOrder;
+use App\Models\DayCalcMethod;
 use App\Models\Feature;
 use App\Models\MenuItem;
 use App\Models\Package;
 use App\Models\Role;
+use App\Models\RosterPattern;
+use App\Models\Shift;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\TenantProvisioner;
+use App\Support\Roster;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -581,4 +586,85 @@ it('breaks the AI token account down per karyawan on the tenant detail page', fu
             ->where('aiToken.consumers.0.this_month', 100)
             ->where('aiToken.consumers.0.all_time', 350)
             ->etc());
+});
+
+it('gives a new tenant the day-calculation methods payroll prorates with', function (): void {
+    actingAs($this->superAdmin)
+        ->post(route('avana.klien.store'), [
+            'name' => 'PT Hari Kerja',
+            'slug' => 'hari-kerja',
+            'status' => 'active',
+            'admin_name' => 'Admin HK',
+            'admin_email' => 'admin@hari-kerja.co.id',
+            'admin_password' => 'rahasia123',
+        ])
+        ->assertSessionHas('success');
+
+    $tenant = Tenant::where('slug', 'hari-kerja')->firstOrFail();
+    $methods = DayCalcMethod::forTenant($tenant->id)->get()->keyBy('code');
+
+    // Without any of these a Master Gaji prorates nothing and pays every
+    // component in full without saying so.
+    expect($methods->keys()->sort()->values()->all())->toBe(['ABSEN', 'HK-22', 'HK-25'])
+        ->and($methods['HK-22']->basis)->toBe('hari_kerja')
+        ->and((int) $methods['HK-22']->divisor)->toBe(22)
+        ->and($methods['HK-25']->basis)->toBe('hari_kalender')
+        ->and((int) $methods['HK-25']->divisor)->toBe(25)
+        // Attendance-based proration counts days attended; it has no denominator.
+        ->and($methods['ABSEN']->basis)->toBe('absen')
+        ->and($methods['ABSEN']->divisor)->toBeNull();
+});
+
+it('gives a new tenant the M/A/N legend and the rotation templates', function (): void {
+    actingAs($this->superAdmin)
+        ->post(route('avana.klien.store'), [
+            'name' => 'PT Tiga Sif',
+            'slug' => 'tiga-sif',
+            'status' => 'active',
+            'admin_name' => 'Admin Sif',
+            'admin_email' => 'admin@tiga-sif.co.id',
+            'admin_password' => 'rahasia123',
+        ])
+        ->assertSessionHas('success');
+
+    $tenant = Tenant::where('slug', 'tiga-sif')->firstOrFail();
+    $shifts = Shift::forTenant($tenant->id)->get()->keyBy('code');
+
+    expect($shifts->has('M'))->toBeTrue()
+        ->and(substr((string) $shifts['M']->start_time, 0, 5))->toBe('07:00')
+        ->and(substr((string) $shifts['A']->start_time, 0, 5))->toBe('15:00')
+        // Night ends before it starts: that is how the roster recognises a
+        // shift running past midnight.
+        ->and(substr((string) $shifts['N']->start_time, 0, 5))->toBe('23:00')
+        ->and(substr((string) $shifts['N']->end_time, 0, 5))->toBe('07:00')
+        ->and(Roster::crossesMidnight($shifts['N']))->toBeTrue();
+
+    $pattern = RosterPattern::forTenant($tenant->id)
+        ->where('code', 'MANUFACTURING-3')
+        ->with('steps.shift')
+        ->firstOrFail();
+
+    expect($pattern->summary())->toBe('3M – 3A – 3N – 2O');
+});
+
+it("leaves a tenant's own edits alone when provisioning runs again", function (): void {
+    $tenant = Tenant::create(['name' => 'PT Sudah Atur', 'slug' => 'sudah-atur', 'status' => 'active']);
+
+    DayCalcMethod::create([
+        'tenant_id' => $tenant->id,
+        'code' => 'HK-22',
+        'name' => 'Hari Kerja Kami',
+        'basis' => 'hari_kerja',
+        'divisor' => 20,
+        'is_active' => true,
+    ]);
+
+    app(TenantProvisioner::class)->provision($tenant);
+
+    $method = DayCalcMethod::forTenant($tenant->id)->where('code', 'HK-22')->firstOrFail();
+
+    expect($method->name)->toBe('Hari Kerja Kami')
+        ->and((int) $method->divisor)->toBe(20)
+        // The ones they never made are still added.
+        ->and(DayCalcMethod::forTenant($tenant->id)->count())->toBe(3);
 });

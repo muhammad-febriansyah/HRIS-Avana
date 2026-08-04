@@ -23,6 +23,7 @@ use App\Models\Shift;
 use App\Models\TaxProfile;
 use App\Models\Tenant;
 use App\Models\UmrRate;
+use App\Support\DayCalcDefaults;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -337,28 +338,10 @@ final class AvanaPayrollDemoSeeder extends Seeder
             ],
         );
 
-        // Named day-calculation methods the tenant can pick per Master Gaji.
-        $hariKerja = DayCalcMethod::updateOrCreate(
-            ['tenant_id' => $tenant->id, 'code' => 'HK-22'],
-            [
-                'name' => 'Hari Kerja 22', 'basis' => 'hari_kerja', 'divisor' => 22,
-                'description' => 'Prorata berdasar 22 hari kerja', 'is_active' => true,
-            ],
-        );
-        DayCalcMethod::updateOrCreate(
-            ['tenant_id' => $tenant->id, 'code' => 'HK-25'],
-            [
-                'name' => 'Hari Kalender 25', 'basis' => 'hari_kalender', 'divisor' => 25,
-                'description' => 'Prorata berdasar 25 hari kalender', 'is_active' => true,
-            ],
-        );
-        DayCalcMethod::updateOrCreate(
-            ['tenant_id' => $tenant->id, 'code' => 'ABSEN'],
-            [
-                'name' => 'Berdasar Absen', 'basis' => 'absen', 'divisor' => null,
-                'description' => 'Prorata mengikuti jumlah hari hadir', 'is_active' => true,
-            ],
-        );
+        // The standard methods every tenant gets; the demo only needs a handle
+        // on the working-day one to attach it to a Master Gaji below.
+        DayCalcDefaults::seedDefaultsFor((int) $tenant->id);
+        $hariKerja = DayCalcMethod::forTenant($tenant->id)->where('code', 'HK-22')->firstOrFail();
 
         // UMR per branch + a tenant-wide default (2026 DKI-ish figures).
         $year = 2026;

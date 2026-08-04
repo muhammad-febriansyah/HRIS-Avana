@@ -8,8 +8,10 @@ use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\AvanaNav;
+use App\Support\DayCalcDefaults;
 use App\Support\MobileMenu;
 use App\Support\PermissionCatalog;
+use App\Support\ShiftDefaults;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -50,6 +52,12 @@ class TenantProvisioner
             $this->provisionRoles($tenant);
             AvanaNav::seedDefaultsFor($tenant->id);
             MobileMenu::seedDefaultsFor($tenant->id);
+            // Operational reference data payroll and the roster read before a
+            // tenant can run either: without a Perhitungan Hari method every
+            // component is silently paid unprorated, and without the M/A/N
+            // legend a rotation cannot be expressed at all.
+            DayCalcDefaults::seedDefaultsFor($tenant->id);
+            ShiftDefaults::seedDefaultsFor($tenant->id);
         });
     }
 
