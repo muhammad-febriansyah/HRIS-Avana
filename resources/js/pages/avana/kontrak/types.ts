@@ -35,6 +35,8 @@ export interface ContractRow {
     notes: string | null;
     expiring_soon: boolean;
     days_to_expiry: number | null;
+    /** The signed contract on file, or null when none was ever uploaded. */
+    document: { name: string; size: number | null; href: string } | null;
 }
 
 /** Header strip counters serialized by the controller. */

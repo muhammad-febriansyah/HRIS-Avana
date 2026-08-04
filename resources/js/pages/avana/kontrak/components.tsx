@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
+import { useRef, useState } from 'react';
 import { AIcon, btnOut, C } from '@/lib/avana';
 import { statusPill } from './types';
 
@@ -248,6 +249,215 @@ export function ConfirmModal({
                     </button>
                 </div>
             </div>
+        </div>
+    );
+}
+
+/** Human-readable file size: 1.4 MB rather than 1468006. */
+export function formatBytes(bytes: number | null | undefined): string {
+    if (bytes === null || bytes === undefined || bytes <= 0) {
+        return '';
+    }
+
+    if (bytes < 1024) {
+        return `${bytes} B`;
+    }
+
+    const kb = bytes / 1024;
+
+    return kb < 1024
+        ? `${kb.toFixed(kb < 10 ? 1 : 0)} KB`
+        : `${(kb / 1024).toFixed(1)} MB`;
+}
+
+/** The icon that matches a file's kind, from its name. */
+function fileIcon(name: string): string {
+    return /\.(jpe?g|png)$/i.test(name) ? 'image' : 'file-text';
+}
+
+/**
+ * The contract document control: a drop area that also takes a click, the file
+ * already on record with a way to download or detach it, and the picked file
+ * before it is saved.
+ *
+ * A bare `<input type="file">` was doing all of this before — it showed the
+ * browser's own button, said nothing about size, and offered no way to remove a
+ * document once attached even though the endpoint existed.
+ */
+export function DocumentField({
+    file,
+    onPick,
+    existing,
+    onRemoveExisting,
+    error,
+}: {
+    /** The newly picked file, before the form is submitted. */
+    file: File | null;
+    onPick: (file: File | null) => void;
+    /** What is already stored, when editing. */
+    existing?: { name: string; size?: number | null; href: string } | null;
+    /** Detach the stored document; omitted on the create form. */
+    onRemoveExisting?: () => void;
+    error?: string;
+}) {
+    const inputRef = useRef<HTMLInputElement>(null);
+    const [dragging, setDragging] = useState(false);
+
+    const accept = '.pdf,.jpg,.jpeg,.png';
+
+    const take = (picked: FileList | null) => {
+        const next = picked?.[0] ?? null;
+
+        if (next !== null) {
+            onPick(next);
+        }
+    };
+
+    return (
+        <div>
+            <label style={fieldLabelStyle}>Dokumen Kontrak</label>
+
+            {existing && (
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '10px 12px',
+                        borderRadius: 10,
+                        border: `1px solid ${C.border}`,
+                        background: '#fff',
+                        marginBottom: 10,
+                    }}
+                >
+                    <AIcon
+                        name={fileIcon(existing.name)}
+                        size={18}
+                        color={C.primary}
+                    />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                        <div
+                            style={{
+                                fontSize: 13,
+                                fontWeight: 500,
+                                color: C.text,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            {existing.name}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: C.faint }}>
+                            Tersimpan
+                            {formatBytes(existing.size)
+                                ? ` · ${formatBytes(existing.size)}`
+                                : ''}
+                        </div>
+                    </div>
+                    <a
+                        href={existing.href}
+                        style={{
+                            ...iconBtn,
+                            color: C.primary,
+                            textDecoration: 'none',
+                        }}
+                        title="Unduh dokumen"
+                    >
+                        <AIcon name="download" size={15} color={C.primary} />
+                    </a>
+                    {onRemoveExisting && (
+                        <button
+                            type="button"
+                            onClick={onRemoveExisting}
+                            style={{ ...iconBtn, color: C.red }}
+                            title="Hapus dokumen"
+                        >
+                            <AIcon name="trash-2" size={15} color={C.red} />
+                        </button>
+                    )}
+                </div>
+            )}
+
+            <div
+                onClick={() => inputRef.current?.click()}
+                onDragOver={(event) => {
+                    event.preventDefault();
+                    setDragging(true);
+                }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={(event) => {
+                    event.preventDefault();
+                    setDragging(false);
+                    take(event.dataTransfer.files);
+                }}
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '14px 16px',
+                    borderRadius: 10,
+                    border: `1.5px dashed ${error ? C.red : dragging ? C.primary : C.border}`,
+                    background: dragging ? 'rgba(47,84,201,.04)' : C.surface,
+                    cursor: 'pointer',
+                    transition: '.15s',
+                }}
+            >
+                <AIcon
+                    name={file ? fileIcon(file.name) : 'upload'}
+                    size={20}
+                    color={file ? C.primary : C.muted}
+                />
+                <div style={{ minWidth: 0, flex: 1 }}>
+                    <div
+                        style={{
+                            fontSize: 13,
+                            fontWeight: 500,
+                            color: file ? C.text : C.muted,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
+                        {file
+                            ? file.name
+                            : existing
+                              ? 'Ganti dokumen — seret berkas ke sini atau klik'
+                              : 'Seret berkas ke sini atau klik untuk memilih'}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: C.faint }}>
+                        {file
+                            ? `Siap diunggah${formatBytes(file.size) ? ` · ${formatBytes(file.size)}` : ''}`
+                            : 'PDF atau gambar (JPG/PNG), maksimal 10 MB. Disimpan privat — hanya bisa diunduh lewat aplikasi.'}
+                    </div>
+                </div>
+                {file && (
+                    <button
+                        type="button"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            onPick(null);
+
+                            if (inputRef.current) {
+                                inputRef.current.value = '';
+                            }
+                        }}
+                        style={{ ...iconBtn, color: C.muted }}
+                        title="Batalkan pilihan"
+                    >
+                        <AIcon name="x" size={15} color={C.muted} />
+                    </button>
+                )}
+            </div>
+
+            <input
+                ref={inputRef}
+                type="file"
+                accept={accept}
+                onChange={(event) => take(event.target.files)}
+                style={{ display: 'none' }}
+            />
+            <FieldError message={error} />
         </div>
     );
 }

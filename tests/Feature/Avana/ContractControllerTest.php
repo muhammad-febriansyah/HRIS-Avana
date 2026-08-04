@@ -432,3 +432,27 @@ it('refuses a file that is not a document', function (): void {
 
     expect(EmployeeContract::where('contract_number', 'PKWT-DOC-5')->exists())->toBeFalse();
 });
+
+it('tells the list which contracts carry a document', function (): void {
+    $withDoc = makeContract(['contract_number' => 'DOC-LIST-1']);
+    $withDoc->update([
+        'document_path' => 'kontrak/'.$this->tenant->id.'/berkas.pdf',
+        'document_name' => 'PKWT Rewinto.pdf',
+        'document_size' => 204_800,
+    ]);
+
+    makeContract(['contract_number' => 'DOC-LIST-2']);
+
+    $rows = collect(
+        actingAs($this->admin)
+            ->get(route('avana.kontrak'))
+            ->assertOk()
+            ->viewData('page')['props']['contracts']['data']
+    )->keyBy('contract_number');
+
+    expect($rows['DOC-LIST-1']['document'])->not->toBeNull()
+        ->and($rows['DOC-LIST-1']['document']['name'])->toBe('PKWT Rewinto.pdf')
+        ->and($rows['DOC-LIST-1']['document']['size'])->toBe(204_800)
+        ->and($rows['DOC-LIST-1']['document']['href'])->toContain('/dokumen')
+        ->and($rows['DOC-LIST-2']['document'])->toBeNull();
+});

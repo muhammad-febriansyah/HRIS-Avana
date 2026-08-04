@@ -1,4 +1,4 @@
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
@@ -19,6 +19,7 @@ interface EditContract {
     status: string;
     notes: string | null;
     document_name?: string | null;
+    document_size?: number | null;
     has_document?: boolean;
 }
 
@@ -47,6 +48,17 @@ export default function KontrakEdit({ contract, employees }: KontrakEditProps) {
             toast.success(flash.success, { id: flash.success });
         }
     }, [flash?.success]);
+
+    /** Detach the stored document without touching the contract itself. */
+    const removeDocument = () => {
+        if (!window.confirm('Hapus dokumen kontrak ini?')) {
+            return;
+        }
+
+        router.delete(ContractController.destroyDocument(contract.id).url, {
+            preserveScroll: true,
+        });
+    };
 
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -106,10 +118,12 @@ export default function KontrakEdit({ contract, employees }: KontrakEditProps) {
                         contract.has_document
                             ? {
                                   name: contract.document_name ?? 'Dokumen kontrak',
+                                  size: contract.document_size ?? null,
                                   href: ContractController.download(contract.id).url,
                               }
                             : null
                     }
+                    onRemoveDocument={removeDocument}
                     submitLabel="Simpan Perubahan"
                     submitIcon="check"
                     cancelHref={ContractController.index().url}

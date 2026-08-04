@@ -5,6 +5,7 @@ import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
 import {
+    DocumentField,
     FieldError,
     fieldLabelStyle,
     inputStyle,
@@ -21,7 +22,9 @@ interface KontrakFormProps {
     submitLabel: string;
     submitIcon: string;
     /** The document already attached, when editing. */
-    existingDocument?: { name: string; href: string } | null;
+    existingDocument?: { name: string; size?: number | null; href: string } | null;
+    /** Detach that document; absent on the create form, which has none yet. */
+    onRemoveDocument?: () => void;
     cancelHref: string;
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }
@@ -33,6 +36,7 @@ export function KontrakForm({
     submitLabel,
     submitIcon,
     existingDocument = null,
+    onRemoveDocument,
     cancelHref,
     onSubmit,
 }: KontrakFormProps) {
@@ -209,46 +213,13 @@ export function KontrakForm({
                     <FieldError message={errors.notes} />
                 </div>
 
-                <div style={{ gridColumn: '1 / -1' }}>
-                    <label style={fieldLabelStyle}>Dokumen Kontrak</label>
-                    <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={(event) =>
-                            setData('document', event.target.files?.[0] ?? null)
-                        }
-                        style={withError(inputStyle, !!errors.document)}
-                    />
-                    <FieldError message={errors.document} />
-                    {existingDocument ? (
-                        <div
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 10,
-                                marginTop: 8,
-                                fontSize: 12.5,
-                                color: C.muted,
-                            }}
-                        >
-                            <AIcon name="paperclip" size={14} color={C.muted} />
-                            <a
-                                href={existingDocument.href}
-                                style={{ color: C.primary, textDecoration: 'none' }}
-                            >
-                                {existingDocument.name}
-                            </a>
-                            <span style={{ color: C.faint }}>
-                                — unggah berkas baru untuk menggantinya
-                            </span>
-                        </div>
-                    ) : (
-                        <div style={{ fontSize: 12.5, color: C.faint, marginTop: 8 }}>
-                            PDF atau gambar, maksimal 10 MB. Disimpan privat dan hanya
-                            bisa diunduh lewat aplikasi.
-                        </div>
-                    )}
-                </div>
+                <DocumentField
+                    file={data.document}
+                    onPick={(picked) => setData('document', picked)}
+                    existing={existingDocument}
+                    onRemoveExisting={onRemoveDocument}
+                    error={errors.document}
+                />
             </div>
 
             <div

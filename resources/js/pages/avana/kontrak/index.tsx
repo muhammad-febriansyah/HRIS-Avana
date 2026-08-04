@@ -357,6 +357,7 @@ export default function KontrakIndex({
                                     <th style={thCell}>Jenis</th>
                                     <th style={thCell}>Periode</th>
                                     <th style={thCell}>Gaji Pokok</th>
+                                    <th style={thCell}>Dokumen</th>
                                     <th style={thCell}>Status</th>
                                     <th
                                         style={{
@@ -377,7 +378,7 @@ export default function KontrakIndex({
                                         }}
                                     >
                                         <td
-                                            colSpan={7}
+                                            colSpan={8}
                                             style={{
                                                 padding: '48px 18px',
                                                 textAlign: 'center',
@@ -478,6 +479,53 @@ export default function KontrakIndex({
                                             }}
                                         >
                                             {rp(contract.basic_salary)}
+                                        </td>
+                                        <td style={{ padding: '13px 16px' }}>
+                                            {contract.document ? (
+                                                <a
+                                                    href={contract.document.href}
+                                                    title={`Unduh ${contract.document.name}`}
+                                                    style={{
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: 6,
+                                                        maxWidth: 190,
+                                                        padding: '5px 10px',
+                                                        borderRadius: 100,
+                                                        border: `1px solid ${C.border}`,
+                                                        background: '#fff',
+                                                        fontSize: 12,
+                                                        fontWeight: 500,
+                                                        color: C.primary,
+                                                        textDecoration: 'none',
+                                                    }}
+                                                >
+                                                    <AIcon
+                                                        name="download"
+                                                        size={13}
+                                                        color={C.primary}
+                                                    />
+                                                    <span
+                                                        style={{
+                                                            overflow: 'hidden',
+                                                            textOverflow:
+                                                                'ellipsis',
+                                                            whiteSpace: 'nowrap',
+                                                        }}
+                                                    >
+                                                        {contract.document.name}
+                                                    </span>
+                                                </a>
+                                            ) : (
+                                                <span
+                                                    style={{
+                                                        fontSize: 12,
+                                                        color: C.faint,
+                                                    }}
+                                                >
+                                                    Belum ada
+                                                </span>
+                                            )}
                                         </td>
                                         <td style={{ padding: '13px 16px' }}>
                                             <div
