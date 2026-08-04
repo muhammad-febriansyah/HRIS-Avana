@@ -153,6 +153,15 @@ Route::prefix('v1')->group(function (): void {
             Route::post('security/password', [SecurityController::class, 'changePassword']);
             Route::post('security/logout-all', [SecurityController::class, 'logoutAll']);
 
+            // Managing the second factor from the phone. Enabling, disabling and
+            // reissuing recovery codes each ask for the password again: a phone
+            // found unlocked is the situation two-factor exists to survive.
+            Route::get('security/two-factor', [SecurityController::class, 'twoFactorStatus']);
+            Route::post('security/two-factor', [SecurityController::class, 'enableTwoFactor']);
+            Route::post('security/two-factor/confirm', [SecurityController::class, 'confirmTwoFactor'])->middleware('throttle:10,1');
+            Route::delete('security/two-factor', [SecurityController::class, 'disableTwoFactor']);
+            Route::post('security/two-factor/recovery-codes', [SecurityController::class, 'regenerateRecoveryCodes']);
+
             Route::get('notifications', [NotificationController::class, 'index']);
             Route::post('notifications/read-all', [NotificationController::class, 'markAllRead']);
             Route::post('notifications/{notification}/read', [NotificationController::class, 'markRead']);

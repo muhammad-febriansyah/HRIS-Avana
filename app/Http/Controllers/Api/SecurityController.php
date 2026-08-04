@@ -8,6 +8,11 @@ use App\Models\User;
 use App\Models\UserDevice;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Laravel\Fortify\Actions\ConfirmTwoFactorAuthentication;
+use Laravel\Fortify\Actions\DisableTwoFactorAuthentication;
+use Laravel\Fortify\Actions\EnableTwoFactorAuthentication;
+use Laravel\Fortify\Actions\GenerateNewRecoveryCodes;
+use Laravel\Fortify\Fortify;
 
 /**
  * Account security for the mobile app: change password, review the bound
@@ -44,6 +49,109 @@ class SecurityController extends Controller
             'token_type' => 'Bearer',
             'expires_in' => auth('api')->factory()->getTTL() * 60,
         ]);
+    }
+
+    /**
+     * Where the caller stands on two-factor: off, half-enrolled, or on.
+     *
+     * The secret and its QR only travel while an enrolment is waiting to be
+     * confirmed, and the recovery codes only once it has been — there is no
+     * request that returns both, and none returns either to an account that
+     * never started.
+     */
+    public function twoFactorStatus(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $enabled = $user->hasEnabledTwoFactorAuthentication();
+        $confirming = ! $enabled && $user->two_factor_secret !== null;
+
+        return response()->json([
+            'data' => [
+                'enabled' => $enabled,
+                'confirming' => $confirming,
+                'qr_svg' => $confirming ? $user->twoFactorQrCodeSvg() : null,
+                'setup_key' => $confirming
+                    ? Fortify::currentEncrypter()->decrypt($user->two_factor_secret)
+                    : null,
+                // Tapping this hands the account straight to the authenticator
+                // app, so nobody has to copy 32 characters by hand.
+                'setup_url' => $confirming ? $user->twoFactorQrCodeUrl() : null,
+                'recovery_codes' => $enabled && $user->two_factor_recovery_codes
+                    ? $user->recoveryCodes()
+                    : [],
+            ],
+        ]);
+    }
+
+    /**
+     * Begin enrolment: mint the secret and hand back what an authenticator app
+     * needs to read it. The account is not protected until a code confirms it.
+     *
+     * The password is asked for again because a phone found unlocked is exactly
+     * the situation two-factor exists to survive — the web asks for it too.
+     */
+    public function enableTwoFactor(Request $request, EnableTwoFactorAuthentication $enable): JsonResponse
+    {
+        $request->validate(['current_password' => ['required', 'string', 'current_password:api']]);
+
+        /** @var User $user */
+        $user = $request->user();
+
+        $enable($user);
+
+        return $this->twoFactorStatus($request);
+    }
+
+    /**
+     * Finish enrolment with a code from the authenticator app. Only now does
+     * the account count as protected, and only now do recovery codes exist.
+     */
+    public function confirmTwoFactor(Request $request, ConfirmTwoFactorAuthentication $confirm): JsonResponse
+    {
+        $request->validate(['code' => ['required', 'string']]);
+
+        /** @var User $user */
+        $user = $request->user();
+
+        abort_if($user->two_factor_secret === null, 422, 'Aktifkan verifikasi dua langkah terlebih dahulu.');
+
+        $confirm($user, $request->string('code')->value());
+
+        return $this->twoFactorStatus($request);
+    }
+
+    /**
+     * Turn it off, secret and recovery codes with it.
+     */
+    public function disableTwoFactor(Request $request, DisableTwoFactorAuthentication $disable): JsonResponse
+    {
+        $request->validate(['current_password' => ['required', 'string', 'current_password:api']]);
+
+        /** @var User $user */
+        $user = $request->user();
+
+        $disable($user);
+
+        return $this->twoFactorStatus($request);
+    }
+
+    /**
+     * Issue a fresh set of recovery codes, retiring the old ones.
+     */
+    public function regenerateRecoveryCodes(Request $request, GenerateNewRecoveryCodes $generate): JsonResponse
+    {
+        $request->validate(['current_password' => ['required', 'string', 'current_password:api']]);
+
+        /** @var User $user */
+        $user = $request->user();
+
+        abort_unless($user->hasEnabledTwoFactorAuthentication(), 422, 'Verifikasi dua langkah belum aktif.');
+
+        $generate($user);
+
+        return $this->twoFactorStatus($request);
     }
 
     /**
