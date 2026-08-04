@@ -57,6 +57,11 @@ function ShiftCell({
                         schedule && shift
                             ? {
                                   minWidth: 64,
+                                  // The shift's own name, not a letter, so the
+                                  // grid reads without a legend. It stays on one
+                                  // line and the table scrolls sideways rather
+                                  // than the rows growing taller.
+                                  whiteSpace: 'nowrap',
                                   padding: '6px 10px',
                                   borderRadius: 7,
                                   border: 'none',
@@ -83,7 +88,7 @@ function ShiftCell({
                     }
                 >
                     {schedule && shift ? (
-                        (shift.code ?? shift.name)
+                        shift.name
                     ) : schedule ? (
                         <AIcon name="moon" size={15} color={C.muted} />
                     ) : (

@@ -134,7 +134,7 @@ export function ShiftLegend({ shifts, colorForShift }: ShiftLegendProps) {
                                 fontWeight: 500,
                             }}
                         >
-                            {shift.code ?? shift.name}
+                            {shift.name}
                         </span>
                         {shift.start_time && shift.end_time && (
                             <span style={{ color: C.faint }}>

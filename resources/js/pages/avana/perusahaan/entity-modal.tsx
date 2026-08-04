@@ -22,13 +22,13 @@ interface EntityModalProps {
 
 /** Carbon day numbers, Sunday first, as the roster reads them. */
 const DAYS = [
-    { value: 0, label: 'Min' },
-    { value: 1, label: 'Sen' },
-    { value: 2, label: 'Sel' },
-    { value: 3, label: 'Rab' },
-    { value: 4, label: 'Kam' },
-    { value: 5, label: 'Jum' },
-    { value: 6, label: 'Sab' },
+    { value: 0, label: 'Minggu' },
+    { value: 1, label: 'Senin' },
+    { value: 2, label: 'Selasa' },
+    { value: 3, label: 'Rabu' },
+    { value: 4, label: 'Kamis' },
+    { value: 5, label: 'Jumat' },
+    { value: 6, label: 'Sabtu' },
 ];
 
 /**
@@ -67,7 +67,11 @@ function DayPicker({
                         onClick={() => toggle(day.value)}
                         style={{
                             height: 36,
-                            minWidth: 48,
+                            // Wide enough for the day's real name — "Sen" reads
+                            // as a guess, and this is set once per shift, not
+                            // often enough to be worth abbreviating.
+                            minWidth: 74,
+                            padding: '0 12px',
                             borderRadius: 8,
                             cursor: 'pointer',
                             fontSize: 12.5,
@@ -130,7 +134,7 @@ export function EntityModal({
                 style={{
                     position: 'relative',
                     width: '100%',
-                    maxWidth: 520,
+                    maxWidth: 680,
                     maxHeight: '90vh',
                     overflowY: 'auto',
                     background: '#fff',
