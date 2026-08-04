@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\DutyTravel;
+use App\Services\ApprovalEngine;
 use DateTimeInterface;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -131,7 +132,7 @@ class EssTravelController extends Controller
             'estimated_cost.min' => 'Estimasi biaya tidak boleh negatif.',
         ]);
 
-        DutyTravel::create([
+        $travel = DutyTravel::create([
             'tenant_id' => $employee->tenant_id,
             'employee_id' => $employee->id,
             'destination' => $data['destination'],
@@ -139,11 +140,18 @@ class EssTravelController extends Controller
             'start_date' => $data['start_date'],
             'end_date' => $data['end_date'],
             'transport' => $data['transport'] ?? null,
-            'estimated_cost' => $data['estimated_cost'] ?? null,
+            // The column is NOT NULL with a 0 default, so an omitted cost is
+            // zero rather than a null the insert would choke on.
+            'estimated_cost' => $data['estimated_cost'] ?? 0,
             // per_diem is deliberately left unset: the allowance is decided by
             // whoever approves the trip, not by the person taking it.
             'status' => 'pending',
+            'current_approver_id' => $employee->manager_id,
         ]);
+
+        // A tenant that configured a "Perjalanan Dinas" workflow gets its steps;
+        // otherwise the trip stays with the employee's own manager.
+        ApprovalEngine::start($travel, $employee);
 
         return redirect()
             ->route('avana.saya.perjalanan-dinas')

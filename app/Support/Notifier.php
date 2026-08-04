@@ -6,6 +6,8 @@ use App\Jobs\SendBrandedNotificationJob;
 use App\Mail\BrandedNotification;
 use App\Models\Announcement;
 use App\Models\AttendanceCorrection;
+use App\Models\DataChangeRequest;
+use App\Models\DutyTravel;
 use App\Models\Employee;
 use App\Models\EotmPeriod;
 use App\Models\Invoice;
@@ -23,6 +25,7 @@ use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WfhRequest;
+use App\Services\ApprovalEngine;
 use App\Services\FcmService;
 use Illuminate\Database\Eloquent\Model;
 
@@ -49,6 +52,8 @@ final class Notifier
         WfhRequest::class => ['type' => 'wfh', 'label' => 'WFH'],
         AttendanceCorrection::class => ['type' => 'koreksi', 'label' => 'Koreksi Absen'],
         Reimbursement::class => ['type' => 'reimburse', 'label' => 'Reimbursement'],
+        DutyTravel::class => ['type' => 'dinas', 'label' => 'Perjalanan Dinas'],
+        DataChangeRequest::class => ['type' => 'data', 'label' => 'Perubahan Data'],
     ];
 
     /**
@@ -99,6 +104,76 @@ final class Notifier
             ['Pengajuan '.$meta['label'].' Anda telah '.($approved ? 'disetujui' : 'ditolak').' oleh manajer.'],
             ['Jenis' => $meta['label'], 'Status' => $approved ? 'Disetujui' : 'Ditolak'],
         );
+    }
+
+    /**
+     * Notify the people a request is now waiting on.
+     *
+     * Fired by {@see ApprovalEngine} when a submission is routed
+     * to its first step and again on every advance. A workflow can name an
+     * approver who holds no approval module and watches no queue — without
+     * this, the request simply sits on their step unannounced.
+     *
+     * @param  array<int, int>  $approverEmployeeIds
+     */
+    public static function requestAwaitingApproval(Model $request, array $approverEmployeeIds): void
+    {
+        $meta = self::REQUEST_TYPES[$request::class] ?? null;
+        $approverEmployeeIds = array_values(array_unique(array_filter($approverEmployeeIds)));
+
+        if ($meta === null || $approverEmployeeIds === []) {
+            return;
+        }
+
+        $requesterName = Employee::whereKey($request->employee_id)->value('full_name') ?? 'Karyawan';
+        $title = 'Persetujuan '.$meta['label'];
+        $body = 'Pengajuan '.$meta['label'].' dari '.$requesterName.' menunggu persetujuan Anda.';
+
+        $approvers = Employee::query()
+            ->whereKey($approverEmployeeIds)
+            // The requester approving their own request is not an approval; a
+            // workflow that lands back on them is skipped rather than announced.
+            ->whereKeyNot($request->employee_id)
+            ->get(['id', 'user_id']);
+
+        $userIds = $approvers
+            ->pluck('user_id')
+            ->filter()
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        self::insertMany(array_map(fn (int $userId): array => [
+            'tenant_id' => $request->tenant_id,
+            'user_id' => $userId,
+            'type' => 'approval',
+            'title' => $title,
+            'body' => $body,
+            'data' => [
+                'link' => ['type' => $meta['type'], 'id' => $request->id],
+                'status' => 'pending',
+            ],
+        ], $userIds));
+
+        if ($userIds !== []) {
+            app(FcmService::class)->pushToUsers(
+                $userIds,
+                $title,
+                $body,
+                ['type' => $meta['type'], 'id' => $request->id],
+            );
+        }
+
+        foreach ($approvers as $approver) {
+            self::emailEmployee(
+                (int) $approver->id,
+                $title,
+                'Menunggu persetujuan Anda',
+                [$body],
+                ['Jenis' => $meta['label'], 'Pengaju' => $requesterName],
+            );
+        }
     }
 
     /**

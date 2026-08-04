@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Models\Announcement;
 use App\Models\AttendanceCorrection;
+use App\Models\DataChangeRequest;
+use App\Models\DutyTravel;
 use App\Models\Employee;
 use App\Models\Invoice;
 use App\Models\LeaveRequest;
@@ -111,6 +113,8 @@ class AppServiceProvider extends ServiceProvider
             WfhRequest::class,
             AttendanceCorrection::class,
             Reimbursement::class,
+            DutyTravel::class,
+            DataChangeRequest::class,
         ] as $requestModel) {
             $requestModel::observe(RequestDecisionObserver::class);
         }

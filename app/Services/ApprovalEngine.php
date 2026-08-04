@@ -7,12 +7,15 @@ use App\Models\ApprovalRequest;
 use App\Models\ApprovalStep;
 use App\Models\ApprovalWorkflow;
 use App\Models\AttendanceCorrection;
+use App\Models\DataChangeRequest;
+use App\Models\DutyTravel;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
 use App\Models\Reimbursement;
 use App\Models\User;
+use App\Support\Notifier;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -49,6 +52,8 @@ class ApprovalEngine
         Reimbursement::class => 'reimbursement',
         PermissionRequest::class => 'permission',
         AttendanceCorrection::class => 'attendance_correction',
+        DutyTravel::class => 'duty_travel',
+        DataChangeRequest::class => 'data_change',
     ];
 
     /**
@@ -109,6 +114,14 @@ class ApprovalEngine
             ]);
         });
 
+        // A parallel workflow opens every step at once, so everyone it names is
+        // told; a sequential one only troubles step 1.
+        $opening = self::isParallel($workflow)
+            ? self::effectiveSteps($workflow, $approvable)
+            : collect([$firstStep]);
+
+        self::notifyApprovers($approvable, $opening, $subject);
+
         return true;
     }
 
@@ -143,7 +156,12 @@ class ApprovalEngine
             ? trim(($note ?? '').' [override admin]')
             : $note;
 
-        return DB::transaction(function () use ($instance, $approvable, $subject, $workflow, $effective, $actorUserId, $action, $note): bool {
+        // The step the decision hands the request on to, if any — announced
+        // after the transaction commits so the approver is only told about a
+        // routing that actually stuck.
+        $advancedTo = null;
+
+        $handled = DB::transaction(function () use ($instance, $approvable, $subject, $workflow, $effective, $actorUserId, $action, $note, &$advancedTo): bool {
             if ($action === 'reject') {
                 self::log($instance, $actorUserId, 'reject', $instance->current_step, $note);
                 $instance->update(['status' => 'rejected']);
@@ -200,8 +218,75 @@ class ApprovalEngine
                     : ($concrete !== null ? $concrete->getKey() : $subject?->manager_id),
             ]);
 
+            $advancedTo = $nextStep;
+
             return true;
         });
+
+        if ($advancedTo !== null) {
+            self::notifyApprovers($approvable, collect([$advancedTo]), $subject);
+        }
+
+        return $handled;
+    }
+
+    /**
+     * Tell everyone the given steps route to that a request is waiting on them.
+     *
+     * A group step has no single owner, so every holder of the role /
+     * department / position is notified — the same set
+     * {@see pendingApprovableIdsFor} surfaces the request to.
+     *
+     * @param  Collection<int, ApprovalStep>  $steps
+     */
+    private static function notifyApprovers(Model $approvable, Collection $steps, ?Employee $subject): void
+    {
+        $employeeIds = $steps
+            ->flatMap(fn (ApprovalStep $step): array => self::approverEmployeeIds($step, $subject))
+            // A step that resolves to the requester is routed to their manager
+            // instead, so that is who is told about it.
+            ->map(fn (int $id): int => ($subject !== null && $id === (int) $subject->getKey())
+                ? (int) ($subject->manager_id ?? 0)
+                : $id)
+            ->filter()
+            ->all();
+
+        Notifier::requestAwaitingApproval($approvable, $employeeIds);
+    }
+
+    /**
+     * Every employee a step routes to, named or by group.
+     *
+     * @return array<int, int>
+     */
+    private static function approverEmployeeIds(ApprovalStep $step, ?Employee $subject): array
+    {
+        if ($subject === null) {
+            return [];
+        }
+
+        $tenantId = (int) $subject->tenant_id;
+
+        return match ($step->approver_type) {
+            'direct_manager' => $subject->manager_id !== null ? [(int) $subject->manager_id] : [],
+            'specific_user' => $step->approver_user_id !== null ? [(int) $step->approver_user_id] : [],
+            'role' => $step->approver_role_id === null ? [] : Employee::forTenant($tenantId)
+                ->whereHas('user.roles', fn ($query) => $query->where('roles.id', $step->approver_role_id))
+                ->pluck('id')
+                ->map(fn ($id): int => (int) $id)
+                ->all(),
+            'department' => $step->approver_department_id === null ? [] : Employee::forTenant($tenantId)
+                ->where('department_id', $step->approver_department_id)
+                ->pluck('id')
+                ->map(fn ($id): int => (int) $id)
+                ->all(),
+            'position' => $step->approver_position_id === null ? [] : Employee::forTenant($tenantId)
+                ->where('position_id', $step->approver_position_id)
+                ->pluck('id')
+                ->map(fn ($id): int => (int) $id)
+                ->all(),
+            default => [],
+        };
     }
 
     /**
@@ -226,7 +311,7 @@ class ApprovalEngine
 
         $tenantId = $subject->tenant_id;
 
-        return match ($step->approver_type) {
+        $approver = match ($step->approver_type) {
             'direct_manager' => $subject->manager_id !== null
                 ? Employee::forTenant($tenantId)->find($subject->manager_id)
                 : null,
@@ -235,6 +320,16 @@ class ApprovalEngine
                 : null,
             default => null,
         };
+
+        // Nobody approves their own request. A workflow that names one employee
+        // for a whole module lands on that employee when they file it too, so
+        // the step is treated as unresolvable and falls back to their manager —
+        // the same fallback an unnamed approver already takes.
+        if ($approver !== null && (int) $approver->getKey() === (int) $subject->getKey()) {
+            return null;
+        }
+
+        return $approver;
     }
 
     /**
@@ -279,6 +374,7 @@ class ApprovalEngine
             $subject = Employee::forTenant((int) $approvable->getAttribute('tenant_id'))
                 ->find((int) $approvable->getAttribute('employee_id'));
             $subjectManagerId = $subject?->manager_id !== null ? (int) $subject->manager_id : null;
+            $subjectId = $subject?->getKey() !== null ? (int) $subject->getKey() : null;
             $effective = self::effectiveSteps($workflow, $approvable);
 
             if (self::isParallel($workflow)) {
@@ -289,14 +385,14 @@ class ApprovalEngine
                     ->exists();
 
                 $eligible = ! $alreadyApproved && $effective->contains(
-                    fn (ApprovalStep $step): bool => self::viewerMatchesStep($step, $manager, $roleIds, $subjectManagerId),
+                    fn (ApprovalStep $step): bool => self::viewerMatchesStep($step, $manager, $roleIds, $subjectManagerId, $subjectId),
                 );
             } else {
                 // The step currently awaiting approval (1-based current_step).
                 $step = $effective->get($instance->current_step - 1);
                 $eligible = $step !== null
                     && self::isGroupStep($step)
-                    && self::viewerMatchesStep($step, $manager, $roleIds, $subjectManagerId);
+                    && self::viewerMatchesStep($step, $manager, $roleIds, $subjectManagerId, $subjectId);
             }
 
             if ($eligible) {
@@ -371,10 +467,11 @@ class ApprovalEngine
 
         $roleIds = $actor->roles()->pluck('roles.id')->all();
         $subjectManagerId = $subject?->manager_id !== null ? (int) $subject->manager_id : null;
+        $subjectId = $subject?->getKey() !== null ? (int) $subject->getKey() : null;
 
         if ($workflow !== null && self::isParallel($workflow)) {
             return $effective->contains(
-                fn (ApprovalStep $step): bool => self::viewerMatchesStep($step, $employee, $roleIds, $subjectManagerId),
+                fn (ApprovalStep $step): bool => self::viewerMatchesStep($step, $employee, $roleIds, $subjectManagerId, $subjectId),
             );
         }
 
@@ -386,7 +483,7 @@ class ApprovalEngine
             return true;
         }
 
-        if (self::viewerMatchesStep($step, $employee, $roleIds, $subjectManagerId)) {
+        if (self::viewerMatchesStep($step, $employee, $roleIds, $subjectManagerId, $subjectId)) {
             return true;
         }
 
@@ -413,8 +510,14 @@ class ApprovalEngine
      *
      * @param  array<int, mixed>  $roleIds
      */
-    private static function viewerMatchesStep(ApprovalStep $step, Employee $manager, array $roleIds, ?int $subjectManagerId): bool
+    private static function viewerMatchesStep(ApprovalStep $step, Employee $manager, array $roleIds, ?int $subjectManagerId, ?int $subjectId = null): bool
     {
+        // The requester is never one of their own approvers, whether a step
+        // names them outright or names a role they happen to hold.
+        if ($subjectId !== null && (int) $manager->getKey() === $subjectId) {
+            return false;
+        }
+
         return match ($step->approver_type) {
             'direct_manager' => $subjectManagerId !== null && (int) $manager->getKey() === $subjectManagerId,
             'specific_user' => $step->approver_user_id !== null && (int) $manager->getKey() === (int) $step->approver_user_id,
@@ -555,6 +658,12 @@ class ApprovalEngine
             $approvable instanceof Reimbursement => AutoApproval::reimbursement($approvable, $actorUserId),
             $approvable instanceof PermissionRequest => $approvable->update(['status' => 'approved']),
             $approvable instanceof AttendanceCorrection => AttendanceCorrectionApproval::finalize($approvable, $actorUserId),
+            // `approved_by` is a USER id, matching the duty-travel screen.
+            $approvable instanceof DutyTravel => $approvable->update([
+                'status' => 'approved',
+                'approved_by' => $actorUserId,
+            ]),
+            $approvable instanceof DataChangeRequest => DataChangeApproval::finalize($approvable, $actorUserId),
             default => null,
         };
     }

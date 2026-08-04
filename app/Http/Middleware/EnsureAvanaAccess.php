@@ -52,9 +52,17 @@ class EnsureAvanaAccess
             abort(403);
         }
 
+        // The approval centre stays open to whoever a request is currently
+        // waiting on, whatever their role carries: a workflow step names its
+        // approver directly, and a hidden menu or a missing module would strand
+        // the request on someone who cannot reach it.
+        $isNamedApprover = ($requirement['key'] ?? null) === AvanaNav::APPROVAL_CENTRE_KEY
+            && PendingApprover::awaits($user);
+
         // Hidden for every role this user holds (Hak Akses → kolom Tampil): the
         // menu is gone from the sidebar, so the URL must be closed too.
         if (($requirement['key'] ?? null) !== null
+            && ! $isNamedApprover
             && in_array($requirement['key'], RoleMenuVisibility::keysHiddenForAll($user->roles->pluck('id')), true)) {
             abort(403);
         }
@@ -77,10 +85,7 @@ class EnsureAvanaAccess
             // request to someone who holds none of these modules, and closing
             // the screen to them strands it on a step its own approver cannot
             // reach. Only while something is actually waiting on them.
-            abort_unless(
-                ($requirement['key'] ?? null) === 'approval' && PendingApprover::awaits($user),
-                403,
-            );
+            abort_unless($isNamedApprover, 403);
         }
 
         // A menu whose tenant feature is disabled is not reachable either.

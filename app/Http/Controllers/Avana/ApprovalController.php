@@ -5,16 +5,21 @@ namespace App\Http\Controllers\Avana;
 use App\Concerns\AppliesBranchScope;
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceCorrection;
+use App\Models\DataChangeRequest;
+use App\Models\DutyTravel;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
+use App\Models\Reimbursement;
 use App\Models\User;
 use App\Models\WfhRequest;
 use App\Services\ApprovalEngine;
 use App\Services\AttendanceCorrectionApproval;
 use App\Services\AutoApproval;
+use App\Services\DataChangeApproval;
 use App\Services\LeaveApproval;
+use App\Support\DataChangeFields;
 use App\Support\PendingApprover;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -44,6 +49,22 @@ class ApprovalController extends Controller
         'izin' => PermissionRequest::class,
         'wfh' => WfhRequest::class,
         'koreksi' => AttendanceCorrection::class,
+        'klaim' => Reimbursement::class,
+        'dinas' => DutyTravel::class,
+        'data' => DataChangeRequest::class,
+    ];
+
+    /**
+     * Statuses a type stores under the shared pending / decided vocabulary. A
+     * reimbursement carries on past `approved` to `paid`, which is still a
+     * decided claim and belongs in the history list rather than nowhere.
+     *
+     * @var array<string, array<string, array<int, string>>>
+     */
+    private const TYPE_STATUSES = [
+        'klaim' => [
+            'approved' => ['approved', 'paid'],
+        ],
     ];
 
     /**
@@ -74,6 +95,7 @@ class ApprovalController extends Controller
         'overtime.approve',
         'wfh.approve',
         'attendance.correction.approve',
+        'claim.approve',
     ];
 
     /**
@@ -85,6 +107,7 @@ class ApprovalController extends Controller
         'pending' => 'Menunggu',
         'approved' => 'Disetujui',
         'rejected' => 'Ditolak',
+        'paid' => 'Dibayar',
     ];
 
     /**
@@ -98,6 +121,9 @@ class ApprovalController extends Controller
         'izin' => ['approve' => 'Izin disetujui', 'reject' => 'Izin ditolak'],
         'wfh' => ['approve' => 'WFH disetujui', 'reject' => 'WFH ditolak'],
         'koreksi' => ['approve' => 'Koreksi absensi disetujui', 'reject' => 'Koreksi absensi ditolak'],
+        'klaim' => ['approve' => 'Reimbursement disetujui, menunggu pembayaran', 'reject' => 'Reimbursement ditolak'],
+        'dinas' => ['approve' => 'Perjalanan dinas disetujui', 'reject' => 'Perjalanan dinas ditolak'],
+        'data' => ['approve' => 'Perubahan data disetujui dan diterapkan', 'reject' => 'Perubahan data ditolak'],
     ];
 
     /**
@@ -135,6 +161,9 @@ class ApprovalController extends Controller
             'izin' => $pendingItems->where('type', 'izin')->count(),
             'wfh' => $pendingItems->where('type', 'wfh')->count(),
             'koreksi' => $pendingItems->where('type', 'koreksi')->count(),
+            'klaim' => $pendingItems->where('type', 'klaim')->count(),
+            'dinas' => $pendingItems->where('type', 'dinas')->count(),
+            'data' => $pendingItems->where('type', 'data')->count(),
             'total' => $pendingItems->count(),
         ];
 
@@ -186,8 +215,12 @@ class ApprovalController extends Controller
         if (! ApprovalEngine::decide($model, $request->user()->id, 'reject')) {
             $model->update(['status' => 'rejected']);
 
-            if ($model instanceof AttendanceCorrection) {
+            if ($model instanceof AttendanceCorrection || $model instanceof Reimbursement) {
                 $model->update(['approver_id' => $request->user()->id]);
+            }
+
+            if ($model instanceof DataChangeRequest) {
+                $model->update(['approver_id' => $request->user()->id, 'decided_at' => now()]);
             }
         }
 
@@ -207,6 +240,15 @@ class ApprovalController extends Controller
             $model instanceof OvertimeRequest => AutoApproval::overtime($model),
             $model instanceof WfhRequest => AutoApproval::wfh($model),
             $model instanceof AttendanceCorrection => AttendanceCorrectionApproval::finalize($model, $approverUserId),
+            // Stamps the approver, which is also what keeps Finance's four-eyes
+            // rule honest: whoever approved a claim cannot pay it out.
+            $model instanceof Reimbursement => AutoApproval::reimbursement($model, $approverUserId),
+            $model instanceof DutyTravel => $model->update([
+                'status' => 'approved',
+                'approved_by' => $approverUserId,
+            ]),
+            // Approving writes the proposed values onto the employee record.
+            $model instanceof DataChangeRequest => DataChangeApproval::finalize($model, $approverUserId),
             default => $model->update(['status' => 'approved']),
         };
     }
@@ -235,7 +277,7 @@ class ApprovalController extends Controller
     {
         $query = $modelClass::query()
             ->where('tenant_id', $tenantId)
-            ->whereIn('status', $statuses)
+            ->whereIn('status', $this->statusesFor($type, $statuses))
             ->with('employee:id,full_name,employee_number,branch_id');
 
         $this->scopeToApprover($query, $request->user());
@@ -247,6 +289,28 @@ class ApprovalController extends Controller
         return $query->latest('created_at')
             ->get()
             ->map(fn (Model $model): array => $this->mapItem($model, $type));
+    }
+
+    /**
+     * Translate the shared pending/decided statuses into the vocabulary the
+     * given type actually stores.
+     *
+     * @param  array<int, string>  $statuses
+     * @return array<int, string>
+     */
+    private function statusesFor(string $type, array $statuses): array
+    {
+        $map = self::TYPE_STATUSES[$type] ?? null;
+
+        if ($map === null) {
+            return $statuses;
+        }
+
+        return collect($statuses)
+            ->flatMap(fn (string $status): array => $map[$status] ?? [$status])
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /**
@@ -276,15 +340,35 @@ class ApprovalController extends Controller
 
         // Cast rather than pass through: an account with no tenant matches no
         // employee, where handing null to the scope would be a type error.
-        $employeeId = Employee::forTenant((int) $user->tenant_id)
+        $employee = Employee::forTenant((int) $user->tenant_id)
             ->where('user_id', $user->id)
-            ->value('id');
+            ->first();
+        $employeeId = $employee?->getKey();
+
+        /** @var class-string<Model> $modelClass */
+        $modelClass = $query->getModel()::class;
+
+        // A workflow step aimed at a group (role / department / position) names
+        // no single approver, so the request carries no `current_approver_id`.
+        // Without this the screen showed those steps to nobody but HR.
+        $eligibleIds = $employee !== null
+            ? ApprovalEngine::pendingApprovableIdsFor($modelClass, $employee)
+            : [];
 
         // No employee record means no reports and nothing routed here, so the
         // list is empty rather than everyone's.
-        $query->where(function (Builder $scoped) use ($employeeId): void {
-            $scoped->where('current_approver_id', $employeeId ?? 0)
-                ->orWhereHas('employee', fn (Builder $employee) => $employee->where('manager_id', $employeeId ?? 0));
+        $query->where(function (Builder $scoped) use ($employeeId, $eligibleIds, $modelClass): void {
+            $scoped->where('current_approver_id', $employeeId ?? 0);
+
+            if ($eligibleIds !== []) {
+                $scoped->orWhereIn($scoped->getModel()->getQualifiedKeyName(), $eligibleIds);
+            }
+
+            // Money is narrower than the rest: a claim is theirs to see because
+            // it was routed to them, not because they manage whoever filed it.
+            if ($modelClass !== Reimbursement::class) {
+                $scoped->orWhereHas('employee', fn (Builder $employee) => $employee->where('manager_id', $employeeId ?? 0));
+            }
         });
 
         $this->applyBranchScopeViaEmployee($query, $user);
@@ -303,7 +387,13 @@ class ApprovalController extends Controller
             'employee' => $this->shapeEmployee($model),
             'title' => $this->titleFor($model, $type),
             'detail' => $this->detailFor($model, $type),
-            'reason' => $model->reason,
+            // Each type names the same field differently: a claim explains
+            // itself in `description`, a trip in `purpose`, the rest in `reason`.
+            'reason' => match (true) {
+                $model instanceof Reimbursement => $model->description,
+                $model instanceof DutyTravel => $model->purpose,
+                default => $model->reason,
+            },
             'requested_at' => $model->created_at?->format('d M Y H:i'),
             'status' => $model->status,
             'status_label' => self::STATUS_LABELS[$model->status] ?? $model->status,
@@ -322,6 +412,9 @@ class ApprovalController extends Controller
             'izin' => $model->type === 'keluar_kantor' ? 'Keluar Kantor' : 'Izin Jam',
             'wfh' => 'WFH',
             'koreksi' => Str::title(str_replace('_', ' ', (string) $model->correction_type)),
+            'klaim' => $model->title ?: 'Reimbursement',
+            'dinas' => 'Dinas ke '.($model->destination ?: '—'),
+            'data' => 'Perubahan Data Pribadi',
             default => Str::title($type),
         };
     }
@@ -332,12 +425,48 @@ class ApprovalController extends Controller
     private function detailFor(Model $model, string $type): string
     {
         return match ($type) {
-            'leave', 'wfh' => $this->dateRange($model->start_date, $model->end_date),
+            'leave', 'wfh', 'dinas' => $this->dateRange($model->start_date, $model->end_date),
             'lembur' => $model->date?->format('d M Y') ?? '—',
             'izin' => $this->izinDetail($model),
             'koreksi' => $this->koreksiDetail($model),
+            'klaim' => $this->klaimDetail($model),
+            'data' => $this->dataChangeDetail($model),
             default => '—',
         };
+    }
+
+    /**
+     * Spell out what a data-change request would rewrite, so the approver reads
+     * the actual values rather than a count of them.
+     */
+    private function dataChangeDetail(Model $model): string
+    {
+        $changes = collect((array) $model->getAttribute('changes'))
+            ->map(fn (mixed $change, string $field): string => DataChangeFields::label($field)
+                .': '.($this->displayValue(is_array($change) ? ($change['old'] ?? null) : null))
+                .' → '.($this->displayValue(is_array($change) ? ($change['new'] ?? null) : null)))
+            ->values();
+
+        return $changes->isEmpty() ? '—' : $changes->implode(' · ');
+    }
+
+    /**
+     * An empty stored value reads as "(kosong)" rather than as nothing at all.
+     */
+    private function displayValue(mixed $value): string
+    {
+        return ($value === null || $value === '') ? '(kosong)' : (string) $value;
+    }
+
+    /**
+     * Format a claim as "12 Aug 2026 · Rp 250.000" — the two things an approver
+     * decides on.
+     */
+    private function klaimDetail(Model $model): string
+    {
+        $date = $model->expense_date?->format('d M Y') ?? '—';
+
+        return $date.' · Rp '.number_format((float) $model->amount, 0, ',', '.');
     }
 
     /**
@@ -467,6 +596,12 @@ class ApprovalController extends Controller
         $this->scopeToApprover($visible, $request->user());
 
         abort_unless($visible->exists(), 404);
+
+        // Only a request still waiting can be decided. Without this, a second
+        // click on a stale page approved an already-approved leave again —
+        // drawing its days off the balance twice — or dragged a paid claim back
+        // to "approved".
+        abort_unless($model->getAttribute('status') === 'pending', 422, 'Pengajuan ini sudah diproses.');
 
         return $model;
     }

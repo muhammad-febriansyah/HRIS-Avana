@@ -38,6 +38,7 @@ use App\Http\Controllers\Avana\EssAttendanceController;
 use App\Http\Controllers\Avana\EssBenefitController;
 use App\Http\Controllers\Avana\EssCalendarController;
 use App\Http\Controllers\Avana\EssContractController;
+use App\Http\Controllers\Avana\EssDataChangeController;
 use App\Http\Controllers\Avana\EssDirectoryController;
 use App\Http\Controllers\Avana\EssDocumentController;
 use App\Http\Controllers\Avana\EssLearningController;
@@ -865,6 +866,10 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
         Route::get('perjalanan-dinas', [EssTravelController::class, 'index'])->name('perjalanan-dinas');
         Route::get('perjalanan-dinas/ajukan', [EssTravelController::class, 'create'])->name('perjalanan-dinas.create');
         Route::post('perjalanan-dinas', [EssTravelController::class, 'store'])->name('perjalanan-dinas.store');
+
+        Route::get('perubahan-data', [EssDataChangeController::class, 'index'])->name('perubahan-data');
+        Route::get('perubahan-data/ajukan', [EssDataChangeController::class, 'create'])->name('perubahan-data.create');
+        Route::post('perubahan-data', [EssDataChangeController::class, 'store'])->name('perubahan-data.store');
 
         Route::get('kinerja', [EssPerformanceController::class, 'index'])->name('kinerja');
         Route::post('kinerja/{review}/nilai-mandiri', [EssPerformanceController::class, 'submitSelfScore'])->name('kinerja.self-score');

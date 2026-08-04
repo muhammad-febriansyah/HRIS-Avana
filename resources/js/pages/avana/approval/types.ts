@@ -5,9 +5,18 @@
 
 export type { FlashProps } from '../employees/types';
 
-export type ApprovalType = 'leave' | 'lembur' | 'izin' | 'wfh' | 'koreksi';
-export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
-export type ApprovalStatusLabel = 'Menunggu' | 'Disetujui' | 'Ditolak';
+export type ApprovalType =
+    | 'leave'
+    | 'lembur'
+    | 'izin'
+    | 'wfh'
+    | 'koreksi'
+    | 'klaim'
+    | 'dinas'
+    | 'data';
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'paid';
+export type ApprovalStatusLabel =
+    'Menunggu' | 'Disetujui' | 'Ditolak' | 'Dibayar';
 
 /** The employee summary shared by every approval row. */
 export interface ApprovalEmployee {
@@ -36,6 +45,9 @@ export interface ApprovalCounts {
     izin: number;
     wfh: number;
     koreksi: number;
+    klaim: number;
+    dinas: number;
+    data: number;
     total: number;
 }
 
@@ -57,6 +69,9 @@ export const typeMeta: Record<
     izin: { label: 'Izin', icon: 'door-open', color: '#6E9BE6' },
     wfh: { label: 'WFH', icon: 'house', color: '#16A34A' },
     koreksi: { label: 'Koreksi', icon: 'pencil', color: '#8b5cf6' },
+    klaim: { label: 'Klaim', icon: 'receipt', color: '#DB2777' },
+    dinas: { label: 'Dinas', icon: 'plane', color: '#16A34A' },
+    data: { label: 'Data', icon: 'user-round-cog', color: '#DC2626' },
 };
 
 /** The filter chips shown above the pending table. */
@@ -67,4 +82,7 @@ export const filters: { key: FilterKey; label: string }[] = [
     { key: 'izin', label: 'Izin' },
     { key: 'wfh', label: 'WFH' },
     { key: 'koreksi', label: 'Koreksi' },
+    { key: 'klaim', label: 'Klaim' },
+    { key: 'dinas', label: 'Dinas' },
+    { key: 'data', label: 'Data' },
 ];

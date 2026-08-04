@@ -6,6 +6,7 @@ use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
+use App\Models\Reimbursement;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -77,6 +78,25 @@ function makeApprovalPermission(int $tenantId, array $overrides = []): Permissio
         'start_time' => '10:00',
         'end_time' => '12:00',
         'reason' => 'Urusan pribadi',
+        'status' => 'pending',
+    ], $overrides));
+}
+
+/**
+ * Create a pending reimbursement claim for the seeded tenant.
+ */
+function makeApprovalClaim(int $tenantId, array $overrides = []): Reimbursement
+{
+    $employee = Employee::forTenant($tenantId)->firstOrFail();
+
+    return Reimbursement::create(array_merge([
+        'tenant_id' => $tenantId,
+        'employee_id' => $employee->id,
+        'category' => 'operasional',
+        'title' => 'Taksi ke klien',
+        'amount' => 250000,
+        'expense_date' => '2026-07-01',
+        'description' => 'Perjalanan ke kantor klien',
         'status' => 'pending',
     ], $overrides));
 }
@@ -170,6 +190,81 @@ it('rejects a permission (izin) request', function (): void {
         ->assertSessionHas('success');
 
     expect($permission->fresh()->status)->toBe('rejected');
+});
+
+it('lists a pending reimbursement claim alongside the other types', function (): void {
+    $claim = makeApprovalClaim($this->tenant->id);
+
+    $page = actingAs($this->admin)->get(route('avana.approval'))->assertOk();
+    $props = $page->viewData('page')['props'];
+
+    $row = collect($props['pending'])
+        ->first(fn (array $item): bool => $item['type'] === 'klaim' && $item['id'] === $claim->id);
+
+    expect($props['counts']['klaim'])->toBe(1);
+    expect($row)->not->toBeNull();
+    expect($row['title'])->toBe('Taksi ke klien');
+    expect($row['detail'])->toBe('01 Jul 2026 · Rp 250.000');
+    expect($row['reason'])->toBe('Perjalanan ke kantor klien');
+});
+
+it('approves a claim from the approval center and stamps the approver', function (): void {
+    $claim = makeApprovalClaim($this->tenant->id);
+
+    actingAs($this->admin)
+        ->post(route('avana.approval.approve', ['type' => 'klaim', 'id' => $claim->id]))
+        ->assertSessionHas('success');
+
+    $claim->refresh();
+
+    expect($claim->status)->toBe('approved');
+    // Finance's four-eyes rule reads this column: the approver cannot also pay.
+    expect((int) $claim->approver_id)->toBe((int) $this->admin->id);
+    expect($claim->approved_at)->not->toBeNull();
+});
+
+it('rejects a claim from the approval center', function (): void {
+    $claim = makeApprovalClaim($this->tenant->id);
+
+    actingAs($this->admin)
+        ->post(route('avana.approval.reject', ['type' => 'klaim', 'id' => $claim->id]))
+        ->assertSessionHas('success');
+
+    expect($claim->fresh()->status)->toBe('rejected');
+});
+
+it('keeps a paid claim in history rather than dropping it', function (): void {
+    $claim = makeApprovalClaim($this->tenant->id, ['status' => 'paid']);
+
+    $props = actingAs($this->admin)->get(route('avana.approval'))->assertOk()->viewData('page')['props'];
+    $row = collect($props['history'])
+        ->first(fn (array $item): bool => $item['type'] === 'klaim' && $item['id'] === $claim->id);
+
+    expect($row)->not->toBeNull();
+    expect($row['status_label'])->toBe('Dibayar');
+});
+
+it('refuses to decide a request that was already processed', function (): void {
+    $leave = makeApprovalLeave($this->tenant->id);
+
+    actingAs($this->admin)
+        ->post(route('avana.approval.approve', ['type' => 'leave', 'id' => $leave->id]))
+        ->assertSessionHas('success');
+
+    $balance = LeaveBalance::query()
+        ->where('employee_id', $leave->employee_id)
+        ->where('leave_type_id', $leave->leave_type_id)
+        ->where('year', 2026)
+        ->firstOrFail();
+
+    $usedAfterFirst = (float) $balance->used;
+
+    // A second click on a stale page used to draw the days off twice.
+    actingAs($this->admin)
+        ->post(route('avana.approval.approve', ['type' => 'leave', 'id' => $leave->id]))
+        ->assertStatus(422);
+
+    expect((float) $balance->fresh()->used)->toBe($usedAfterFirst);
 });
 
 it('returns 404 for an unknown approval type', function (): void {

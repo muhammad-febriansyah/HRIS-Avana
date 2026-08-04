@@ -4,12 +4,16 @@ namespace App\Support;
 
 use App\Models\ApprovalRequest;
 use App\Models\AttendanceCorrection;
+use App\Models\DataChangeRequest;
+use App\Models\DutyTravel;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
+use App\Models\Reimbursement;
 use App\Models\User;
 use App\Models\WfhRequest;
+use App\Services\ApprovalEngine;
 
 /**
  * Whether something is currently waiting on this person to decide it.
@@ -36,6 +40,9 @@ final class PendingApprover
         PermissionRequest::class,
         WfhRequest::class,
         AttendanceCorrection::class,
+        Reimbursement::class,
+        DutyTravel::class,
+        DataChangeRequest::class,
     ];
 
     public static function awaits(User $user): bool
@@ -57,11 +64,11 @@ final class PendingApprover
 
         // The request models hold an EMPLOYEE id, which is what the mobile
         // queue compares against.
-        $employeeId = Employee::forTenant($user->tenant_id)
+        $employee = Employee::forTenant($user->tenant_id)
             ->where('user_id', $user->id)
-            ->value('id');
+            ->first();
 
-        if ($employeeId === null) {
+        if ($employee === null) {
             return false;
         }
 
@@ -69,10 +76,19 @@ final class PendingApprover
             $waiting = $model::query()
                 ->where('tenant_id', $user->tenant_id)
                 ->where('status', 'pending')
-                ->where('current_approver_id', $employeeId)
+                ->where('current_approver_id', $employee->getKey())
                 ->exists();
 
             if ($waiting) {
+                return true;
+            }
+        }
+
+        // A workflow step aimed at a group (role / department / position) names
+        // no single approver, so neither cursor points at anyone: the step
+        // itself decides who may act, and every holder qualifies.
+        foreach (self::MODELS as $model) {
+            if (ApprovalEngine::pendingApprovableIdsFor($model, $employee) !== []) {
                 return true;
             }
         }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DutyTravel;
 use App\Models\Employee;
 use App\Models\User;
+use App\Services\ApprovalEngine;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -147,18 +148,25 @@ class DutyTravelController extends Controller
             'per_diem' => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        DutyTravel::create([
+        $employee = Employee::forTenant($tenantId)->findOrFail($data['employee_id']);
+
+        $travel = DutyTravel::create([
             'tenant_id' => $tenantId,
-            'employee_id' => $data['employee_id'],
+            'employee_id' => $employee->id,
             'destination' => $data['destination'],
             'purpose' => $data['purpose'] ?? null,
             'start_date' => $data['start_date'],
             'end_date' => $data['end_date'],
             'transport' => $data['transport'] ?? null,
-            'estimated_cost' => $data['estimated_cost'] ?? null,
-            'per_diem' => $data['per_diem'] ?? null,
+            // Both columns are NOT NULL with a 0 default: an omitted amount is
+            // zero, not a null the insert would reject.
+            'estimated_cost' => $data['estimated_cost'] ?? 0,
+            'per_diem' => $data['per_diem'] ?? 0,
             'status' => 'pending',
+            'current_approver_id' => $employee->manager_id,
         ]);
+
+        ApprovalEngine::start($travel, $employee);
 
         return redirect()->route('avana.dinas')
             ->with('success', 'Pengajuan perjalanan dinas dibuat');
@@ -166,18 +174,26 @@ class DutyTravelController extends Controller
 
     /**
      * Approve a pending duty travel request.
+     *
+     * Routed through {@see ApprovalEngine} first: a tenant that configured a
+     * "Perjalanan Dinas" workflow advances one step here rather than clearing
+     * the whole trip in one click.
      */
     public function approve(Request $request, DutyTravel $dutyTravel): RedirectResponse
     {
         $this->authorizeEmployeeAccess($request);
         $this->ensureTenantOwnership($request, $dutyTravel);
 
-        $dutyTravel->update([
-            'status' => 'approved',
-            'approved_by' => $request->user()->id,
-        ]);
+        if (! ApprovalEngine::decide($dutyTravel, $request->user()->id, 'approve')) {
+            $dutyTravel->update([
+                'status' => 'approved',
+                'approved_by' => $request->user()->id,
+            ]);
+        }
 
-        return back()->with('success', 'Perjalanan dinas disetujui');
+        return back()->with('success', $dutyTravel->fresh()?->status === 'approved'
+            ? 'Perjalanan dinas disetujui'
+            : 'Persetujuan tercatat, menunggu tahap berikutnya');
     }
 
     /**
@@ -188,7 +204,9 @@ class DutyTravelController extends Controller
         $this->authorizeEmployeeAccess($request);
         $this->ensureTenantOwnership($request, $dutyTravel);
 
-        $dutyTravel->update(['status' => 'rejected']);
+        if (! ApprovalEngine::decide($dutyTravel, $request->user()->id, 'reject')) {
+            $dutyTravel->update(['status' => 'rejected']);
+        }
 
         return back()->with('success', 'Perjalanan dinas ditolak');
     }

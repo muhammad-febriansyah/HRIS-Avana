@@ -3,6 +3,7 @@
 namespace App\Concerns;
 
 use App\Models\Employee;
+use App\Support\PendingApprover;
 use App\Support\PrivateFile;
 use Illuminate\Http\Request;
 
@@ -56,11 +57,15 @@ trait ResolvesApiEmployee
             ],
             // Drives the Manager Self-Service entry in the mobile app. A top
             // approver (director) always qualifies — they sit at the head of the
-            // approval chain even when no one reports to them directly.
+            // approval chain even when no one reports to them directly. So does
+            // anyone a request is currently waiting on: an approval workflow can
+            // name a step's approver outright, and hiding MSS from them leaves
+            // the request stranded on a desk the app never opens.
             'is_manager' => $employee->is_top_approver
                 || Employee::where('tenant_id', $employee->tenant_id)
                     ->where('manager_id', $employee->id)
-                    ->exists(),
+                    ->exists()
+                || ($employee->user !== null && PendingApprover::awaits($employee->user)),
         ];
     }
 }

@@ -53,6 +53,27 @@ export function StatCards({ counts }: { counts: ApprovalCounts }) {
             icon: typeMeta.koreksi.icon,
             color: typeMeta.koreksi.color,
         },
+        {
+            key: 'klaim',
+            label: 'Klaim',
+            value: counts.klaim,
+            icon: typeMeta.klaim.icon,
+            color: typeMeta.klaim.color,
+        },
+        {
+            key: 'dinas',
+            label: 'Dinas',
+            value: counts.dinas,
+            icon: typeMeta.dinas.icon,
+            color: typeMeta.dinas.color,
+        },
+        {
+            key: 'data',
+            label: 'Perubahan Data',
+            value: counts.data,
+            icon: typeMeta.data.icon,
+            color: typeMeta.data.color,
+        },
     ];
 
     return (
@@ -60,7 +81,9 @@ export function StatCards({ counts }: { counts: ApprovalCounts }) {
             className="avn-stat"
             style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(6,1fr)',
+                // Seven cards is one too many for a fixed row on a laptop, so
+                // they wrap instead of squeezing.
+                gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))',
                 gap: 14,
                 marginBottom: 20,
             }}

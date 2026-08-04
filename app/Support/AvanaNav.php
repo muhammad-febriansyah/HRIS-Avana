@@ -29,6 +29,12 @@ final class AvanaNav
     private const MANAGE_MODULES = ['settings', 'role', 'permission'];
 
     /**
+     * The nav key of the approval centre — the one screen a workflow can route
+     * someone to who holds none of the permissions that normally reveal it.
+     */
+    public const APPROVAL_CENTRE_KEY = 'approval';
+
+    /**
      * Full navigation definition. `feature` null = no feature gate.
      * `modules` = permission modules required (empty = always, for everyone).
      * `adminOnly` = requires manage permission (or super_admin).
@@ -47,6 +53,7 @@ final class AvanaNav
             // they see, and privileged roles see it alongside the admin menus.
             ['title' => 'LAYANAN SAYA', 'items' => [
                 self::leaf('saya-profil', 'Profil', 'user', '/avana/saya/profil', 'ess', ['own']),
+                self::leaf('saya-perubahan-data', 'Perubahan Data', 'user-round-cog', '/avana/saya/perubahan-data', 'ess', ['own']),
                 self::leaf('saya-absensi', 'Absensi', 'fingerprint', '/avana/saya/absensi', 'ess', ['own']),
                 self::leaf('saya-koreksi', 'Koreksi Absensi', 'clock-alert', '/avana/saya/koreksi-absensi', 'ess', ['own']),
                 self::leaf('saya-jadwal', 'Jadwal', 'calendar-clock', '/avana/saya/jadwal', 'ess', ['own']),
@@ -94,7 +101,7 @@ final class AvanaNav
                 self::leaf('cuti', 'Cuti & Lembur', 'palmtree', '/avana/cuti', 'leave', ['leave', 'overtime', 'wfh']),
                 self::leaf('dinas', 'Perjalanan Dinas', 'plane', '/avana/dinas', 'hr_core', ['employee']),
                 self::parent('persetujuan', 'Persetujuan', 'check-check', [
-                    self::leaf('approval', 'Pusat Persetujuan', 'check-check', '/avana/approval', null, ['leave', 'overtime', 'wfh', 'attendance', 'team']),
+                    self::leaf('approval', 'Pusat Persetujuan', 'check-check', '/avana/approval', null, ['leave', 'overtime', 'wfh', 'attendance', 'team', 'claim']),
                     self::leaf('delegasi', 'Delegasi Approval', 'user-round-cog', '/avana/delegasi', 'delegation', ['delegation']),
                 ]),
             ]],
@@ -273,11 +280,25 @@ final class AvanaNav
         // Menus this user's roles have all hidden (Hak Akses → kolom Tampil).
         $hiddenKeys = $isSuperAdmin ? [] : RoleMenuVisibility::keysHiddenForAll($roleIds);
 
-        $visible = function (array $leaf) use ($isSuperAdmin, $enabledCodes, $userModules, $canManage, $hasEmployee, $hiddenKeys): bool {
+        // An approval workflow can route a step to someone whose role carries
+        // no approval module — and whose sidebar therefore never showed the
+        // approval centre. The request then waits on a person with no way to
+        // reach it. Being the approver something is currently waiting on shows
+        // the menu, for exactly as long as that is true.
+        // Resolved lazily and once: it costs a handful of exists() queries, and
+        // only the approval leaf — when it is about to be hidden — asks.
+        $awaitsApproval = null;
+        $awaits = function () use ($user, &$awaitsApproval): bool {
+            return $awaitsApproval ??= PendingApprover::awaits($user);
+        };
+
+        $visible = function (array $leaf) use ($isSuperAdmin, $enabledCodes, $userModules, $canManage, $hasEmployee, $hiddenKeys, $awaits): bool {
+            $isApprovalCentre = ($leaf['id'] ?? '') === self::APPROVAL_CENTRE_KEY;
+
             if (($leaf['superAdminOnly'] ?? false) && ! $isSuperAdmin) {
                 return false;
             }
-            if (in_array($leaf['id'] ?? '', $hiddenKeys, true)) {
+            if (in_array($leaf['id'] ?? '', $hiddenKeys, true) && ! ($isApprovalCentre && $awaits())) {
                 return false;
             }
             if (($leaf['modules'] ?? []) === ['own'] && ! $hasEmployee) {
@@ -290,7 +311,7 @@ final class AvanaNav
                 return $canManage;
             }
             if (! $isSuperAdmin && ($leaf['modules'] ?? []) !== [] && $userModules->intersect($leaf['modules'])->isEmpty()) {
-                return false;
+                return $isApprovalCentre && $awaits();
             }
 
             return true;
