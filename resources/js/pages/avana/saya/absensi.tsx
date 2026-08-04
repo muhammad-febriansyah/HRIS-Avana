@@ -1,9 +1,9 @@
 import { Head, router } from '@inertiajs/react';
+import { MonthPicker } from '@/components/avana/date-picker';
 import { AIcon, C, thCell } from '@/lib/avana';
 import {
     EmptyState,
     formatDate,
-    inputStyle,
     PageHeader,
     PageShell,
     Panel,
@@ -63,14 +63,7 @@ export default function SayaAbsensi({ month, records, summary }: Props) {
                     title="Absensi Saya"
                     subtitle="Riwayat kehadiranmu. Clock in/out dilakukan lewat aplikasi mobile."
                     action={
-                        <input
-                            type="month"
-                            value={month}
-                            onChange={(event) =>
-                                changeMonth(event.target.value)
-                            }
-                            style={{ ...inputStyle, width: 190 }}
-                        />
+                        <MonthPicker value={month} onChange={changeMonth} />
                     }
                 />
 

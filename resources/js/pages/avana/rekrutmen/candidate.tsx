@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import RecruitmentController from '@/actions/App/Http/Controllers/Avana/RecruitmentController';
-import { DatePicker } from '@/components/avana/date-picker';
+import { DatePicker, DateTimePicker } from '@/components/avana/date-picker';
 import { usePermission } from '@/hooks/use-permission';
 import {
     AIcon,
@@ -1351,19 +1351,17 @@ export default function Candidate({
                                     <label style={fieldLabelStyle}>
                                         Tanggal & Jam
                                     </label>
-                                    <input
-                                        type="datetime-local"
+                                    <DateTimePicker
                                         value={interviewForm.data.interview_at}
-                                        onChange={(e) =>
+                                        onChange={(v) =>
                                             interviewForm.setData(
                                                 'interview_at',
-                                                e.target.value,
+                                                v,
                                             )
                                         }
-                                        style={{
-                                            ...inputStyle,
-                                            marginBottom: 10,
-                                        }}
+                                        hasError={
+                                            !!interviewForm.errors.interview_at
+                                        }
                                     />
                                     <label style={fieldLabelStyle}>
                                         Interviewer

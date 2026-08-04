@@ -3,7 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import CalendarController from '@/actions/App/Http/Controllers/Avana/CalendarController';
-import { DatePicker } from '@/components/avana/date-picker';
+import { DatePicker, MonthPicker } from '@/components/avana/date-picker';
 import { AIcon, btnOut, btnP, btnSave, C, card } from '@/lib/avana';
 import type { FlashProps } from '../employees/types';
 
@@ -28,7 +28,6 @@ interface SelectOption {
 
 interface KalenderIndexProps {
     month: string; // YYYY-MM
-    monthLabel: string;
     events: CalendarEventRow[];
     types: SelectOption[];
     employees: SelectOption[];
@@ -168,7 +167,6 @@ function shiftMonth(month: string, delta: number): string {
 
 export default function KalenderIndex({
     month,
-    monthLabel,
     events,
     types,
     employees,
@@ -203,9 +201,13 @@ export default function KalenderIndex({
         });
 
     const navigate = (delta: number) => {
+        goToMonth(shiftMonth(month, delta));
+    };
+
+    const goToMonth = (next: string) => {
         router.get(
             CalendarController.index().url,
-            { month: shiftMonth(month, delta) },
+            { month: next },
             { preserveScroll: true, preserveState: false },
         );
     };
@@ -341,11 +343,11 @@ export default function KalenderIndex({
                         <AIcon name="chevron-left" size={16} color={C.text} />
                         Sebelumnya
                     </button>
-                    <div
-                        style={{ fontSize: 17, fontWeight: 600, color: C.navy }}
-                    >
-                        {monthLabel}
-                    </div>
+                    {/*
+                     * Jumping straight to a month beats clicking "Berikutnya"
+                     * eleven times to reach next December.
+                     */}
+                    <MonthPicker value={month} onChange={goToMonth} />
                     <button
                         onClick={() => navigate(1)}
                         style={{ ...btnOut, height: 38, cursor: 'pointer' }}

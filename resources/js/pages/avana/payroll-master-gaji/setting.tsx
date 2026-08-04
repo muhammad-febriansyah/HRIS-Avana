@@ -2,6 +2,7 @@ import { Head, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import SalaryMasterController from '@/actions/App/Http/Controllers/Avana/SalaryMasterController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { AIcon, C, card } from '@/lib/avana';
 
 type FlagKey = 'included' | 'is_prorate' | 'is_kompensasi';
@@ -1081,15 +1082,16 @@ function SalaryValidationPanel({
                                                     <AIcon name="save" size={14} color={C.primary} />
                                                 </button>
                                             </div>
-                                            <input
-                                                style={{ ...input, width: 168, marginTop: 5 }}
-                                                type="date"
-                                                title="Berlaku mulai"
-                                                value={from[s.id] ?? ''}
-                                                onChange={(e) =>
-                                                    setFrom((d) => ({ ...d, [s.id]: e.target.value }))
-                                                }
-                                            />
+                                            <div style={{ marginTop: 5 }}>
+                                                <DatePicker
+                                                    value={from[s.id] ?? ''}
+                                                    onChange={(v) =>
+                                                        setFrom((d) => ({ ...d, [s.id]: v }))
+                                                    }
+                                                    placeholder="Berlaku mulai"
+                                                    width={168}
+                                                />
+                                            </div>
                                             <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3 }}>
                                                 Rp {Math.round(s.basic).toLocaleString('id-ID')}
                                                 {s.effective_from !== null && (

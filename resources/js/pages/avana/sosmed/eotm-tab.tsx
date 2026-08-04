@@ -1,6 +1,7 @@
 import { router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import SocialController from '@/actions/App/Http/Controllers/Avana/SocialController';
+import { DatePicker, MonthPicker } from '@/components/avana/date-picker';
 import { AIcon, btnOut, btnP, C, card, thCell } from '@/lib/avana';
 import {
     ColorPicker,
@@ -515,17 +516,10 @@ export function EotmTab({ eotm }: { eotm: EotmPayload }) {
                         <label style={fieldLabelStyle}>
                             Bulan <span style={{ color: C.red }}>*</span>
                         </label>
-                        <input
-                            type="month"
-                            name="period"
+                        <MonthPicker
                             value={periodForm.data.period}
-                            onChange={(event) =>
-                                periodForm.setData('period', event.target.value)
-                            }
-                            style={withError(
-                                inputStyle,
-                                !!periodForm.errors.period,
-                            )}
+                            onChange={(v) => periodForm.setData('period', v)}
+                            hasError={!!periodForm.errors.period}
                         />
                         <FieldError message={periodForm.errors.period} />
                     </div>
@@ -572,20 +566,12 @@ export function EotmTab({ eotm }: { eotm: EotmPayload }) {
                         <label style={fieldLabelStyle}>
                             Batas Waktu (opsional)
                         </label>
-                        <input
-                            type="date"
-                            name="closes_at"
+                        <DatePicker
                             value={periodForm.data.closes_at}
-                            onChange={(event) =>
-                                periodForm.setData(
-                                    'closes_at',
-                                    event.target.value,
-                                )
-                            }
-                            style={withError(
-                                inputStyle,
-                                !!periodForm.errors.closes_at,
-                            )}
+                            onChange={(v) => periodForm.setData('closes_at', v)}
+                            placeholder="Tanpa batas waktu"
+                            width="100%"
+                            hasError={!!periodForm.errors.closes_at}
                         />
                         <FieldError message={periodForm.errors.closes_at} />
                     </div>

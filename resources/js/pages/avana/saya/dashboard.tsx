@@ -2,6 +2,7 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { MonthPicker } from '@/components/avana/date-picker';
 import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
 import { EmptyState, formatDate, Panel } from './components';
 
@@ -1059,15 +1060,15 @@ export default function SayaDashboard({
                                         />
                                     </button>
                                 </div>
-                                <div
-                                    style={{
-                                        fontSize: 14,
-                                        fontWeight: 600,
-                                        color: C.navy,
-                                        marginLeft: 'auto',
-                                    }}
-                                >
-                                    {calendar.label}
+                                {/*
+                                 * Jumping straight to a month beats stepping a
+                                 * chevron at a time to reach next December.
+                                 */}
+                                <div style={{ marginLeft: 'auto' }}>
+                                    <MonthPicker
+                                        value={calendar.month}
+                                        onChange={loadMonth}
+                                    />
                                 </div>
                             </div>
 

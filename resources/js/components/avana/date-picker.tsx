@@ -3,13 +3,15 @@ import {
     useEffect,
     useMemo,
     useRef,
-    useState,
-    type CSSProperties,
+    useState
+    
 } from 'react';
+import type {CSSProperties} from 'react';
 import { createPortal } from 'react-dom';
 import { AIcon, C, hexA } from '@/lib/avana';
 
-const PANEL_WIDTH = 268;
+/** Wide enough for the month + year dropdowns to sit between the chevrons. */
+const PANEL_WIDTH = 288;
 /** Roughly the panel's height; only used to decide whether to flip upward. */
 const PANEL_HEIGHT = 330;
 
@@ -32,9 +34,11 @@ const DOW = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
 /** Parse a `YYYY-MM-DD` string as a *local* date (no timezone shift). */
 function parseYmd(value: string): Date {
     const [y, m, d] = value.split('-').map(Number);
+
     if (!y || !m || !d) {
         return new Date();
     }
+
     return new Date(y, m - 1, d);
 }
 
@@ -43,6 +47,7 @@ function toYmd(date: Date): string {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
     const d = String(date.getDate()).padStart(2, '0');
+
     return `${y}-${m}-${d}`;
 }
 
@@ -51,6 +56,94 @@ function sameDay(a: Date, b: Date): boolean {
         a.getFullYear() === b.getFullYear() &&
         a.getMonth() === b.getMonth() &&
         a.getDate() === b.getDate()
+    );
+}
+
+/** How far back and forward the year dropdown reaches by default. */
+const YEARS_BACK = 80;
+const YEARS_AHEAD = 10;
+
+/**
+ * The years a year dropdown offers. `include` is always present, so a value
+ * already outside the bounds — an old birth date, a far-off contract — still
+ * shows the year it is actually on rather than snapping to an edge.
+ */
+function yearRange(include: number, minYear?: number, maxYear?: number): number[] {
+    const currentYear = new Date().getFullYear();
+    const from = Math.min(minYear ?? currentYear - YEARS_BACK, include);
+    const to = Math.max(maxYear ?? currentYear + YEARS_AHEAD, include);
+
+    return Array.from({ length: to - from + 1 }, (_, i) => to - i);
+}
+
+const jumpSelect: CSSProperties = {
+    height: 28,
+    padding: '0 4px',
+    borderRadius: 7,
+    border: `1px solid ${C.border}`,
+    background: '#fff',
+    fontSize: 12.5,
+    fontWeight: 700,
+    color: C.navy,
+    cursor: 'pointer',
+    outline: 'none',
+};
+
+/**
+ * Month + year dropdowns. Stepping a chevron at a time is fine for the next
+ * month and useless for a birth date twenty years back, so every calendar in
+ * the app puts these two controls where the month label used to be.
+ */
+export function MonthYearJump({
+    month,
+    year,
+    onChange,
+    minYear,
+    maxYear,
+    style,
+}: {
+    /** 0-indexed, like `Date.getMonth()`. */
+    month: number;
+    year: number;
+    onChange: (month: number, year: number) => void;
+    minYear?: number;
+    maxYear?: number;
+    /** Merged into each dropdown, for pages that need a taller control. */
+    style?: CSSProperties;
+}) {
+    const years = useMemo(
+        () => yearRange(year, minYear, maxYear),
+        [year, minYear, maxYear],
+    );
+    const control = { ...jumpSelect, ...style };
+
+    return (
+        <div style={{ display: 'flex', gap: 6 }}>
+            <select
+                value={month}
+                onChange={(e) => onChange(Number(e.target.value), year)}
+                style={control}
+                aria-label="Bulan"
+            >
+                {MONTHS.map((m, i) => (
+                    <option key={m} value={i}>
+                        {m}
+                    </option>
+                ))}
+            </select>
+            <select
+                value={year}
+                onChange={(e) => onChange(month, Number(e.target.value))}
+                style={control}
+                aria-label="Tahun"
+            >
+                {years.map((y) => (
+                    <option key={y} value={y}>
+                        {y}
+                    </option>
+                ))}
+            </select>
+        </div>
     );
 }
 
@@ -66,6 +159,8 @@ export function DatePicker({
     width = 'auto',
     placeholder,
     hasError = false,
+    minYear,
+    maxYear,
 }: {
     value: string;
     onChange: (value: string) => void;
@@ -78,6 +173,12 @@ export function DatePicker({
      */
     placeholder?: string;
     hasError?: boolean;
+    /**
+     * Bounds of the year dropdown. Defaults reach 80 years back (old enough for
+     * a birth date) and 10 forward (far enough for a contract end).
+     */
+    minYear?: number;
+    maxYear?: number;
 }) {
     const [open, setOpen] = useState(false);
     const selected = useMemo(() => parseYmd(value), [value]);
@@ -179,12 +280,15 @@ export function DatePicker({
         const firstDow = (new Date(year, month, 1).getDay() + 6) % 7; // Mon = 0
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const out: (Date | null)[] = [];
+
         for (let i = 0; i < firstDow; i += 1) {
             out.push(null);
         }
+
         for (let d = 1; d <= daysInMonth; d += 1) {
             out.push(new Date(year, month, d));
         }
+
         return out;
     }, [view]);
 
@@ -293,15 +397,13 @@ export function DatePicker({
                             >
                                 <AIcon name="chevron-left" size={16} />
                             </button>
-                            <span
-                                style={{
-                                    fontSize: 13.5,
-                                    fontWeight: 700,
-                                    color: C.navy,
-                                }}
-                            >
-                                {MONTHS[view.getMonth()]} {view.getFullYear()}
-                            </span>
+                            <MonthYearJump
+                                month={view.getMonth()}
+                                year={view.getFullYear()}
+                                onChange={(m, y) => setView(new Date(y, m, 1))}
+                                minYear={minYear}
+                                maxYear={maxYear}
+                            />
                             <button
                                 type="button"
                                 style={navBtn}
@@ -357,8 +459,10 @@ export function DatePicker({
                                 if (!cell) {
                                     return <div key={`b${i}`} />;
                                 }
+
                                 const isSel = sameDay(cell, selected);
                                 const isToday = sameDay(cell, today);
+
                                 return (
                                     <button
                                         key={toYmd(cell)}
@@ -420,6 +524,123 @@ export function DatePicker({
                     </div>,
                     document.body,
                 )}
+        </div>
+    );
+}
+
+/** Parse a `YYYY-MM` string into [year, 0-indexed month], today when blank. */
+function parseYm(value: string): [number, number] {
+    const [y, m] = value.split('-').map(Number);
+    const now = new Date();
+
+    if (!y || !m) {
+        return [now.getFullYear(), now.getMonth()];
+    }
+
+    return [y, m - 1];
+}
+
+/**
+ * A month-and-year field: the same two dropdowns the calendar header uses,
+ * standing on their own. Value/onChange speak `YYYY-MM`, matching what an
+ * `<input type="month">` submits — so it drops in where one used to be, with a
+ * consistent look and a year list that is not the browser's.
+ */
+export function MonthPicker({
+    value,
+    onChange,
+    minYear,
+    maxYear,
+    hasError = false,
+}: {
+    value: string;
+    onChange: (value: string) => void;
+    minYear?: number;
+    maxYear?: number;
+    hasError?: boolean;
+}) {
+    const [year, month] = parseYm(value);
+
+    return (
+        <MonthYearJump
+            month={month}
+            year={year}
+            minYear={minYear}
+            maxYear={maxYear}
+            onChange={(m, y) => onChange(`${y}-${String(m + 1).padStart(2, '0')}`)}
+            style={{
+                height: 40,
+                padding: '0 10px',
+                fontSize: 13.5,
+                fontWeight: 500,
+                color: C.text,
+                border: `1px solid ${hasError ? C.red : C.border}`,
+            }}
+        />
+    );
+}
+
+/**
+ * A date field paired with a time field. Value/onChange speak
+ * `YYYY-MM-DDTHH:mm`, the format an `<input type="datetime-local">` submits and
+ * Laravel's date validation accepts.
+ */
+export function DateTimePicker({
+    value,
+    onChange,
+    hasError = false,
+    minYear,
+    maxYear,
+}: {
+    value: string;
+    onChange: (value: string) => void;
+    hasError?: boolean;
+    minYear?: number;
+    maxYear?: number;
+}) {
+    const [date = '', time = ''] = value.split('T');
+
+    /**
+     * Neither half means anything alone, so a missing counterpart is filled in:
+     * today for the date, 09:00 for the time — a working hour rather than
+     * midnight, since this schedules interviews.
+     */
+    const emit = (nextDate: string, nextTime: string) => {
+        if (nextDate === '' && nextTime === '') {
+            onChange('');
+
+            return;
+        }
+
+        onChange(`${nextDate || toYmd(new Date())}T${nextTime || '09:00'}`);
+    };
+
+    return (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <DatePicker
+                value={date}
+                onChange={(d) => emit(d, time)}
+                placeholder="Pilih tanggal"
+                hasError={hasError}
+                minYear={minYear}
+                maxYear={maxYear}
+            />
+            <input
+                type="time"
+                value={time}
+                onChange={(e) => emit(date, e.target.value)}
+                style={{
+                    height: 40,
+                    padding: '0 10px',
+                    borderRadius: 8,
+                    border: `1px solid ${hasError ? C.red : C.border}`,
+                    background: '#fff',
+                    fontSize: 13.5,
+                    color: C.text,
+                    outline: 'none',
+                }}
+                aria-label="Jam"
+            />
         </div>
     );
 }

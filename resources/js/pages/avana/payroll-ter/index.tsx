@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react';
 import { Head, router, useForm } from '@inertiajs/react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import Pph21TerController from '@/actions/App/Http/Controllers/Avana/Pph21TerController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { ActionBtn, AIcon, C, card } from '@/lib/avana';
 
 interface Bracket {
@@ -257,11 +258,10 @@ export default function PayrollTer({
                     >
                         <div>
                             <span style={label}>Lihat tarif per tanggal</span>
-                            <input
-                                style={input}
-                                type="date"
+                            <DatePicker
                                 value={asOf}
-                                onChange={(e) => viewAt(e.target.value)}
+                                onChange={viewAt}
+                                width="100%"
                             />
                         </div>
                         <div>
@@ -332,13 +332,13 @@ export default function PayrollTer({
                             </div>
                             <div>
                                 <span style={label}>Berlaku mulai</span>
-                                <input
-                                    style={input}
-                                    type="date"
+                                <DatePicker
                                     value={importForm.data.effective_start_date}
-                                    onChange={(e) =>
-                                        importForm.setData('effective_start_date', e.target.value)
+                                    onChange={(v) =>
+                                        importForm.setData('effective_start_date', v)
                                     }
+                                    placeholder="Pilih tanggal"
+                                    width="100%"
                                 />
                             </div>
                             <div>
@@ -585,13 +585,13 @@ export default function PayrollTer({
                             </div>
                             <div>
                                 <span style={label}>Berlaku mulai</span>
-                                <input
-                                    style={input}
-                                    type="date"
+                                <DatePicker
                                     value={mapForm.data.effective_start_date}
-                                    onChange={(e) =>
-                                        mapForm.setData('effective_start_date', e.target.value)
+                                    onChange={(v) =>
+                                        mapForm.setData('effective_start_date', v)
                                     }
+                                    placeholder="Pilih tanggal"
+                                    width="100%"
                                 />
                             </div>
                             <button

@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import MeetingController from '@/actions/App/Http/Controllers/Avana/MeetingController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import {
     AIcon,
@@ -936,16 +937,13 @@ export default function MeetingDetail({
                                         searchPlaceholder="Cari karyawan…"
                                         allowClear
                                     />
-                                    <input
-                                        type="date"
-                                        style={inputStyle}
+                                    <DatePicker
                                         value={newItem.data.due_date}
-                                        onChange={(event) =>
-                                            newItem.setData(
-                                                'due_date',
-                                                event.target.value,
-                                            )
+                                        onChange={(v) =>
+                                            newItem.setData('due_date', v)
                                         }
+                                        placeholder="Jatuh tempo"
+                                        width="100%"
                                     />
                                     <button
                                         type="button"

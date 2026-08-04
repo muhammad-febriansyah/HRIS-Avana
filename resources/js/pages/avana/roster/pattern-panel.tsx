@@ -2,6 +2,7 @@ import { router } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import RosterController from '@/actions/App/Http/Controllers/Avana/RosterController';
+import { DatePicker } from '@/components/avana/date-picker';
 import { AIcon, C } from '@/lib/avana';
 import type { RosterEmployee, RosterPatternOption } from './types';
 
@@ -130,11 +131,10 @@ export function PatternPanel({
                     ))}
                 </select>
 
-                <input
-                    type="date"
+                <DatePicker
                     value={startDate}
-                    onChange={(event) => setStartDate(event.target.value)}
-                    style={control}
+                    onChange={setStartDate}
+                    placeholder="Tanggal mulai"
                 />
 
                 <select

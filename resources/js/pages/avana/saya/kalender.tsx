@@ -1,5 +1,6 @@
 import { Head, router } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
+import { MonthPicker } from '@/components/avana/date-picker';
 import { AIcon, btnOut, C, card } from '@/lib/avana';
 import { buildMonthCells, shiftMonth, todayYmd } from '@/lib/month-grid';
 import {
@@ -44,28 +45,7 @@ const SCOPE_LABEL: Record<string, string> = {
 
 const WEEKDAYS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
-const MONTHS = [
-    'Januari',
-    'Februari',
-    'Maret',
-    'April',
-    'Mei',
-    'Juni',
-    'Juli',
-    'Agustus',
-    'September',
-    'Oktober',
-    'November',
-    'Desember',
-];
-
 /** "Juli 2026" for a `YYYY-MM` string. */
-function monthLabel(month: string): string {
-    const [year, monthNo] = month.split('-').map(Number);
-
-    return `${MONTHS[monthNo - 1]} ${year}`;
-}
-
 export default function SayaKalender({ month, upcoming, past }: Props) {
     const today = todayYmd();
     const cells = useMemo(() => buildMonthCells(month), [month]);
@@ -86,10 +66,14 @@ export default function SayaKalender({ month, upcoming, past }: Props) {
         });
 
     const navigate = (delta: number) => {
+        goToMonth(shiftMonth(month, delta));
+    };
+
+    const goToMonth = (next: string) => {
         setSelectedDate(null);
         router.get(
             '/avana/saya/kalender',
-            { month: shiftMonth(month, delta) },
+            { month: next },
             { preserveScroll: true, preserveState: true },
         );
     };
@@ -123,15 +107,11 @@ export default function SayaKalender({ month, upcoming, past }: Props) {
                         <AIcon name="chevron-left" size={16} color={C.text} />
                         Sebelumnya
                     </button>
-                    <div
-                        style={{
-                            fontSize: 17,
-                            fontWeight: 600,
-                            color: C.navy,
-                        }}
-                    >
-                        {monthLabel(month)}
-                    </div>
+                    {/*
+                     * Jumping straight to a month beats clicking "Berikutnya"
+                     * eleven times to reach next December.
+                     */}
+                    <MonthPicker value={month} onChange={goToMonth} />
                     <button
                         type="button"
                         onClick={() => navigate(1)}
