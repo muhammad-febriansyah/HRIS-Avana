@@ -215,6 +215,13 @@ final class AvanaNav
                 self::leaf('ai-settings', 'Pengaturan AI', 'sparkles', '/avana/ai-settings', null, [], false, true),
                 self::leaf('onboarding-slides', 'Onboarding App', 'smartphone', '/avana/onboarding-slides', null, [], false, true),
             ]],
+            // A password and its second factor belong to the login, not to the
+            // employee record — so this group stands apart from LAYANAN SAYA,
+            // which is gated on having one, and carries no feature or module
+            // gate of its own. Everyone who can sign in can reach it.
+            ['title' => 'AKUN', 'items' => [
+                self::leaf('akun-keamanan', 'Keamanan Akun', 'lock', '/settings/security'),
+            ]],
         ];
     }
 
@@ -781,6 +788,7 @@ final class AvanaNav
                 self::leaf('onboarding-slides', 'Onboarding App', 'smartphone', '/avana/onboarding-slides', null, [], false, true),
                 self::leaf('audit', 'Audit Trail', 'history', '/avana/audit', null, [], false, true),
                 self::leaf('backup', 'Backup Database', 'database', '/avana/backup', null, [], false, true),
+                self::leaf('akun-keamanan', 'Keamanan Akun', 'lock', '/settings/security', null, [], false, true),
             ]],
         ];
     }
