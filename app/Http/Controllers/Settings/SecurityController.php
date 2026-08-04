@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\PasswordUpdateRequest;
 use App\Http\Requests\Settings\TwoFactorAuthenticationRequest;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Inertia\Response;
 use Laravel\Fortify\Features;
+use Laravel\Fortify\Fortify;
 
 class SecurityController extends Controller
 {
@@ -18,8 +20,13 @@ class SecurityController extends Controller
      */
     public function edit(TwoFactorAuthenticationRequest $request): Response
     {
+        // An enrolment that was started but never confirmed leaves a dangling
+        // secret behind; Fortify clears it once the user walks away from it.
+        $request->ensureStateIsValid();
+
         $props = [
             'canManagePasskeys' => Features::canManagePasskeys(),
+            'canManageTwoFactor' => Features::canManageTwoFactorAuthentication(),
             'passkeys' => Features::canManagePasskeys()
                 ? $request->user()
                     ->passkeys()
@@ -39,7 +46,39 @@ class SecurityController extends Controller
             'passwordRules' => Password::defaults()->toPasswordRulesString(),
         ];
 
+        if (Features::canManageTwoFactorAuthentication()) {
+            $props += $this->twoFactorProps($request->user());
+        }
+
         return Inertia::render('settings/security', $props);
+    }
+
+    /**
+     * Build the two-factor half of the security page.
+     *
+     * The page already sits behind a password confirmation, so the QR code and
+     * the recovery codes can travel as props instead of a second round trip.
+     * The secret only ships while an enrolment is still waiting to be
+     * confirmed, and the recovery codes only once it has been.
+     *
+     * @return array{twoFactorEnabled: bool, requiresConfirmation: bool, twoFactorQrCodeSvg: string|null, twoFactorSecretKey: string|null, twoFactorRecoveryCodes: array<int, string>}
+     */
+    private function twoFactorProps(User $user): array
+    {
+        $enabled = $user->hasEnabledTwoFactorAuthentication();
+        $awaitingConfirmation = ! is_null($user->two_factor_secret) && ! $enabled;
+
+        return [
+            'twoFactorEnabled' => $enabled,
+            'requiresConfirmation' => Features::optionEnabled(Features::twoFactorAuthentication(), 'confirm'),
+            'twoFactorQrCodeSvg' => $awaitingConfirmation ? $user->twoFactorQrCodeSvg() : null,
+            'twoFactorSecretKey' => $awaitingConfirmation
+                ? Fortify::currentEncrypter()->decrypt($user->two_factor_secret)
+                : null,
+            'twoFactorRecoveryCodes' => $enabled && $user->two_factor_recovery_codes
+                ? $user->recoveryCodes()
+                : [],
+        ];
     }
 
     /**

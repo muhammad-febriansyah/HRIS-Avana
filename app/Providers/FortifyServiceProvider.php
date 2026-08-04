@@ -72,6 +72,8 @@ class FortifyServiceProvider extends ServiceProvider
         ]));
 
         Fortify::confirmPasswordView(fn () => Inertia::render('auth/confirm-password'));
+
+        Fortify::twoFactorChallengeView(fn () => Inertia::render('auth/two-factor-challenge'));
     }
 
     /**
@@ -90,6 +92,12 @@ class FortifyServiceProvider extends ServiceProvider
             return Limit::perMinute(10)->by(
                 ($request->input('credential.id') ?: $request->session()->getId()).'|'.$request->ip(),
             );
+        });
+
+        // The challenge sits between a correct password and a session, so it is
+        // the last gate an attacker with stolen credentials has to guess past.
+        RateLimiter::for('two-factor', function (Request $request) {
+            return Limit::perMinute(5)->by($request->session()->get('login.id').'|'.$request->ip());
         });
     }
 }

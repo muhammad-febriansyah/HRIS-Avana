@@ -117,6 +117,7 @@ return [
     'limiters' => [
         'login' => 'login',
         'passkeys' => 'passkeys',
+        'two-factor' => 'two-factor',
     ],
 
     /*
@@ -164,6 +165,12 @@ return [
         Features::resetPasswords(),
         Features::emailVerification(),
         Features::passkeys([
+            'confirmPassword' => true,
+        ]),
+        // Opt-in: nothing forces a user to enrol. The account only gains the
+        // extra step once the user turns it on from their security settings.
+        Features::twoFactorAuthentication([
+            'confirm' => true,
             'confirmPassword' => true,
         ]),
     ],

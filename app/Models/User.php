@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
+use Laravel\Fortify\TwoFactorAuthenticatable;
 use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
 
 /**
@@ -39,7 +40,7 @@ use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
 class User extends Authenticatable implements JWTSubject, PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
-    use Auditable, HasFactory, Notifiable, PasskeyAuthenticatable;
+    use Auditable, HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
 
     /**
      * Get the attributes that should be cast.
@@ -51,6 +52,7 @@ class User extends Authenticatable implements JWTSubject, PasskeyUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'two_factor_confirmed_at' => 'datetime',
             'token_version' => 'integer',
             // Deliberately absent from #[Fillable]: the personal AI token
             // wallet only ever moves through AiTokenService, so no request can
