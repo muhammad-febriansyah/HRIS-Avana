@@ -114,6 +114,7 @@ class ApprovalWorkflowController extends Controller
         $data = $this->validatePayload($request, $tenantId);
 
         DB::transaction(function () use ($data, $tenantId): void {
+            /** @var ApprovalWorkflow $workflow */
             $workflow = ApprovalWorkflow::create([
                 'tenant_id' => $tenantId,
                 'name' => $data['name'],
@@ -139,7 +140,7 @@ class ApprovalWorkflowController extends Controller
         $this->ensureTenantOwnership($request, $workflow);
 
         $tenantId = $request->user()->tenant_id;
-        $data = $this->validatePayload($request, $tenantId);
+        $data = $this->validatePayload($request, $tenantId, $workflow);
 
         DB::transaction(function () use ($workflow, $data, $tenantId): void {
             $workflow->update([
@@ -192,14 +193,25 @@ class ApprovalWorkflowController extends Controller
      *
      * @return array{name: string, request_type: string, approval_mode: string, is_active: bool, steps: array<int, array<string, mixed>>, conditions: array<int, array<string, mixed>>|null}
      */
-    private function validatePayload(Request $request, int $tenantId): array
+    private function validatePayload(Request $request, int $tenantId, ?ApprovalWorkflow $ignore = null): array
     {
         $moduleKeys = array_column(self::MODULES, 'key');
         $approverKeys = array_column(self::APPROVER_TYPES, 'key');
 
+        // One workflow per module per tenant. Two active flows for the same
+        // module would leave the engine picking one of them silently, so the
+        // second one is refused rather than quietly ignored. Variation within a
+        // module belongs in Kondisi, not in a rival workflow.
+        $onePerModule = Rule::unique('approval_workflows', 'request_type')
+            ->where(fn ($query) => $query->where('tenant_id', $tenantId)->whereNull('deleted_at'));
+
+        if ($ignore !== null) {
+            $onePerModule = $onePerModule->ignore($ignore->getKey());
+        }
+
         $validated = $request->validate([
             'name' => ['nullable', 'string', 'max:120'],
-            'request_type' => ['required', Rule::in($moduleKeys)],
+            'request_type' => ['required', Rule::in($moduleKeys), $onePerModule],
             'approval_mode' => ['required', Rule::in(['sequential', 'parallel'])],
             'is_active' => ['required', 'boolean'],
 
@@ -216,6 +228,8 @@ class ApprovalWorkflowController extends Controller
             'conditions.*.value' => ['required', 'string', 'max:120'],
             'conditions.*.extra_approver_type' => ['required', Rule::in($approverKeys)],
             'conditions.*.extra_approver_ref' => ['nullable', 'integer'],
+        ], [
+            'request_type.unique' => 'Modul ini sudah punya alur persetujuan. Ubah alur yang ada, jangan buat yang kedua.',
         ]);
 
         $moduleLabel = collect(self::MODULES)->firstWhere('key', $validated['request_type'])['label'];

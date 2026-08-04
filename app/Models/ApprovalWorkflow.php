@@ -12,7 +12,14 @@ final class ApprovalWorkflow extends Model
 {
     use SoftDeletes;
 
-    protected $guarded = [];
+    /**
+     * `active_request_type` is a stored generated column on MySQL — it exists
+     * only to carry the "one workflow per module" unique index, and the
+     * database refuses any write to it.
+     *
+     * @var array<int, string>
+     */
+    protected $guarded = ['active_request_type'];
 
     protected function casts(): array
     {

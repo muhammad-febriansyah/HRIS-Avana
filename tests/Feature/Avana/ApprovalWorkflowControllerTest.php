@@ -207,3 +207,87 @@ it('forbids a non-privileged user', function (): void {
         ->post(route('avana.approval-workflow.store'), workflowPayload($this->tenant->id))
         ->assertForbidden();
 });
+
+it('refuses a second workflow for a module that already has one', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.approval-workflow.store'), workflowPayload($this->tenant->id))
+        ->assertRedirect(route('avana.approval-workflow'));
+
+    actingAs($this->admin)
+        ->post(route('avana.approval-workflow.store'), workflowPayload($this->tenant->id))
+        ->assertSessionHasErrors('request_type');
+
+    expect(ApprovalWorkflow::forTenant($this->tenant->id)->where('request_type', 'leave')->count())
+        ->toBe(1);
+});
+
+it('lets another tenant configure the same module', function (): void {
+    $other = Tenant::create(['name' => 'PT Seberang', 'slug' => 'pt-seberang-wf']);
+    ApprovalWorkflow::create([
+        'tenant_id' => $other->id,
+        'name' => 'Cuti Tenant Lain',
+        'request_type' => 'leave',
+        'approval_mode' => 'sequential',
+        'is_active' => true,
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.approval-workflow.store'), workflowPayload($this->tenant->id))
+        ->assertSessionHasNoErrors();
+
+    expect(ApprovalWorkflow::forTenant($this->tenant->id)->where('request_type', 'leave')->count())
+        ->toBe(1);
+});
+
+it('lets a workflow keep its own module when edited', function (): void {
+    $workflow = ApprovalWorkflow::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Persetujuan Cuti',
+        'request_type' => 'leave',
+        'approval_mode' => 'sequential',
+        'is_active' => true,
+    ]);
+
+    actingAs($this->admin)
+        ->put(route('avana.approval-workflow.update', $workflow), workflowPayload($this->tenant->id, [
+            'name' => 'Persetujuan Cuti (revisi)',
+        ]))
+        ->assertSessionHasNoErrors();
+
+    expect($workflow->fresh()->name)->toBe('Persetujuan Cuti (revisi)');
+});
+
+it('frees the module again once its workflow is deleted', function (): void {
+    $workflow = ApprovalWorkflow::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Persetujuan Cuti',
+        'request_type' => 'leave',
+        'approval_mode' => 'sequential',
+        'is_active' => true,
+    ]);
+
+    actingAs($this->admin)
+        ->delete(route('avana.approval-workflow.destroy', $workflow))
+        ->assertRedirect();
+
+    // A soft-deleted flow must not keep the module hostage.
+    actingAs($this->admin)
+        ->post(route('avana.approval-workflow.store'), workflowPayload($this->tenant->id))
+        ->assertSessionHasNoErrors();
+});
+
+it('tells the wizard which modules are already taken', function (): void {
+    ApprovalWorkflow::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Persetujuan Cuti',
+        'request_type' => 'leave',
+        'approval_mode' => 'sequential',
+        'is_active' => true,
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.approval-workflow'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('workflows.0.request_type', 'leave'));
+});

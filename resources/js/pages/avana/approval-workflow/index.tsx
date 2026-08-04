@@ -95,6 +95,9 @@ export default function ApprovalWorkflowIndex({
                     mode={editing ? 'edit' : 'create'}
                     workflow={editing}
                     modules={modules}
+                    takenModules={workflows
+                        .filter((w) => w.id !== editing?.id)
+                        .map((w) => w.request_type)}
                     approverTypes={approverTypes}
                     options={options}
                     onClose={closeWizard}

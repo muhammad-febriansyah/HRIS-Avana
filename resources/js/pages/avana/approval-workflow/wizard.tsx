@@ -76,6 +76,8 @@ interface WizardProps {
     mode: 'create' | 'edit';
     workflow: WorkflowRow | null;
     modules: ModuleDef[];
+    /** Modules that already have a workflow — one per module is the rule. */
+    takenModules: string[];
     approverTypes: ApproverTypeDef[];
     options: WizardOptions;
     onClose: () => void;
@@ -85,6 +87,7 @@ export default function Wizard({
     mode,
     workflow,
     modules,
+    takenModules,
     approverTypes,
     options,
     onClose,
@@ -411,6 +414,7 @@ export default function Wizard({
                 {current === 1 && (
                     <ModuleStep
                         modules={modules}
+                        taken={takenModules}
                         value={requestType}
                         onSelect={setRequestType}
                     />
@@ -594,10 +598,12 @@ function Stepper({ current }: { current: number }) {
 
 function ModuleStep({
     modules,
+    taken,
     value,
     onSelect,
 }: {
     modules: ModuleDef[];
+    taken: string[];
     value: string;
     onSelect: (key: string) => void;
 }) {
@@ -611,25 +617,38 @@ function ModuleStep({
         >
             {modules.map((m) => {
                 const selected = value === m.key;
+                // A module already carrying a workflow is not offered again:
+                // a second one would never run, so the existing flow is edited
+                // from the list instead.
+                const isTaken = taken.includes(m.key);
 
                 return (
                     <button
                         key={m.key}
-                        onClick={() => onSelect(m.key)}
+                        onClick={() => !isTaken && onSelect(m.key)}
+                        disabled={isTaken}
+                        title={
+                            isTaken
+                                ? 'Modul ini sudah punya alur. Ubah alur yang ada dari daftar.'
+                                : undefined
+                        }
                         style={{
                             position: 'relative',
                             textAlign: 'left',
                             padding: 16,
                             borderRadius: 12,
                             border: `1.5px solid ${selected ? C.primary : C.border}`,
-                            background: selected
-                                ? 'rgba(47,84,201,.04)'
-                                : '#fff',
-                            cursor: 'pointer',
+                            background: isTaken
+                                ? C.surface
+                                : selected
+                                  ? 'rgba(47,84,201,.04)'
+                                  : '#fff',
+                            opacity: isTaken ? 0.55 : 1,
+                            cursor: isTaken ? 'not-allowed' : 'pointer',
                             transition: '.15s',
                         }}
                     >
-                        {selected && (
+                        {selected && !isTaken && (
                             <div
                                 style={{
                                     position: 'absolute',
@@ -644,6 +663,25 @@ function ModuleStep({
                                     color={C.primary}
                                 />
                             </div>
+                        )}
+                        {isTaken && (
+                            <span
+                                style={{
+                                    position: 'absolute',
+                                    top: 12,
+                                    right: 12,
+                                    padding: '3px 8px',
+                                    borderRadius: 100,
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    letterSpacing: '.03em',
+                                    color: C.muted,
+                                    background: '#fff',
+                                    border: `1px solid ${C.border}`,
+                                }}
+                            >
+                                SUDAH ADA
+                            </span>
                         )}
                         <div
                             style={{
