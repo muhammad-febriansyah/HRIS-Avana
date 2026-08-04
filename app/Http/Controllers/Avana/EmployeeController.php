@@ -24,6 +24,7 @@ use App\Models\TaxProfile;
 use App\Models\User;
 use App\Models\UserDevice;
 use App\Models\WorkLocation;
+use App\Support\ContractType;
 use App\Support\SalaryCompliance;
 use App\Support\TenantQuota;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -627,6 +628,16 @@ class EmployeeController extends Controller
             'manager:id,full_name,employee_number',
             'user:id,status',
             'user.roles:id',
+            // Everything below lives on its own table, and the resource drops a
+            // field whose relation was not loaded. Leave them out and the BPJS
+            // numbers, the PTKP status and the contract all render blank on a
+            // form meant to correct them — which reads as "it was never saved",
+            // and re-typing a contract number to fix that opens a second
+            // contract instead of mending the first, since the sync is keyed on
+            // the number.
+            'bpjsProfile',
+            'taxProfile',
+            'contracts' => fn ($query) => $query->latest('start_date')->latest('id'),
         ]);
 
         return Inertia::render('avana/employees/edit', [
@@ -672,18 +683,21 @@ class EmployeeController extends Controller
      */
     private function pullBpjsNumbers(array &$data): ?array
     {
-        if (! array_key_exists('bpjs_kesehatan_number', $data) && ! array_key_exists('bpjs_ketenagakerjaan_number', $data)) {
-            return null;
+        $numbers = [];
+
+        // Only the numbers the payload actually carried. Defaulting the missing
+        // one to null let a request that sent a single number erase the other,
+        // which the employee form never intends — it always sends both, so a
+        // partial payload comes from somewhere that simply does not manage the
+        // field it left out.
+        foreach (['bpjs_kesehatan_number', 'bpjs_ketenagakerjaan_number'] as $key) {
+            if (array_key_exists($key, $data)) {
+                $numbers[$key] = $data[$key];
+                unset($data[$key]);
+            }
         }
 
-        $numbers = [
-            'bpjs_kesehatan_number' => $data['bpjs_kesehatan_number'] ?? null,
-            'bpjs_ketenagakerjaan_number' => $data['bpjs_ketenagakerjaan_number'] ?? null,
-        ];
-
-        unset($data['bpjs_kesehatan_number'], $data['bpjs_ketenagakerjaan_number']);
-
-        return $numbers;
+        return $numbers === [] ? null : $numbers;
     }
 
     /**
@@ -785,7 +799,7 @@ class EmployeeController extends Controller
             ['tenant_id' => $employee->tenant_id, 'contract_number' => $number],
             [
                 'employee_id' => $employee->id,
-                'contract_type' => $contract['contract_type'] ?? null,
+                'contract_type' => ContractType::normalise($contract['contract_type'] ?? null),
                 'start_date' => $contract['contract_start_date'] ?? null,
                 'end_date' => $contract['contract_end_date'] ?? null,
                 // The Kontrak screen requires a figure; the employee's own basic
@@ -1059,6 +1073,9 @@ class EmployeeController extends Controller
                 ['value' => 'active', 'label' => 'Aktif'],
                 ['value' => 'inactive', 'label' => 'Nonaktif'],
             ],
+            // The same three kinds the Kontrak screen offers, so a contract
+            // typed here is the contract that screen can read back.
+            'contractTypes' => ContractType::options(),
             'employmentStatuses' => [
                 ['value' => 'probation', 'label' => 'Masa Percobaan'],
                 ['value' => 'contract', 'label' => 'Kontrak'],

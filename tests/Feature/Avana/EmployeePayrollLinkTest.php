@@ -174,7 +174,7 @@ it('corrects the same contract instead of stacking duplicates', function (): voi
         ->get();
 
     expect($contracts)->toHaveCount(1);
-    expect($contracts->first()->contract_type)->toBe('PKWTT');
+    expect($contracts->first()->contract_type)->toBe('pkwtt');
 });
 
 it('leaves the contract alone when no number is typed', function (): void {
@@ -238,4 +238,131 @@ it('still refuses an employee from another tenant, key or no key', function (): 
     actingAs($this->admin)
         ->get(route('avana.employees.show', $foreign))
         ->assertNotFound();
+});
+
+it('prefills the employee form with the contract already on file', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    EmployeeContract::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $employee->id,
+        'contract_number' => 'PKWT-PREFILL-1',
+        'contract_type' => 'pkwt',
+        'start_date' => '2026-01-05',
+        'end_date' => '2027-01-04',
+        'basic_salary' => 8_000_000,
+        'status' => 'active',
+    ]);
+
+    $props = actingAs($this->admin)
+        ->get(route('avana.employees.edit', $employee))
+        ->assertOk()
+        ->viewData('page')['props'];
+
+    $employeeProp = $props['employee'];
+    $employeeProp = $employeeProp['data'] ?? $employeeProp;
+    $contracts = collect($employeeProp['contracts'] ?? []);
+
+    expect($contracts)->toHaveCount(1)
+        ->and($contracts->first()['contract_number'])->toBe('PKWT-PREFILL-1')
+        ->and($contracts->first()['contract_type'])->toBe('pkwt')
+        ->and($contracts->first()['start_date_raw'])->toBe('2026-01-05')
+        ->and($contracts->first()['end_date_raw'])->toBe('2027-01-04');
+});
+
+it('stores one spelling of a contract kind whatever was typed', function (): void {
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $this->employee), employeePayload($this, [
+            'contract_number' => 'PKWT-CASE-1',
+            'contract_type' => 'PKWTT',
+            'contract_start_date' => '2026-02-01',
+        ]))
+        ->assertRedirect();
+
+    $contract = EmployeeContract::forTenant($this->tenant->id)
+        ->where('contract_number', 'PKWT-CASE-1')
+        ->firstOrFail();
+
+    // The Kontrak screen's dropdown only knows the lower-case keys; anything
+    // else falls back to its first option and silently rewrites the kind.
+    expect($contract->contract_type)->toBe('pkwtt');
+
+    actingAs($this->admin)
+        ->put(route('avana.kontrak.update', $contract), [
+            'employee_id' => $this->employee->id,
+            'contract_number' => 'PKWT-CASE-1',
+            'contract_type' => 'PKWTT',
+            'start_date' => '2026-02-01',
+            'basic_salary' => 9_000_000,
+            'status' => 'active',
+        ])
+        ->assertRedirect();
+
+    expect($contract->fresh()->contract_type)->toBe('pkwtt');
+});
+
+it('prefills the employee form with the BPJS numbers and PTKP already on file', function (): void {
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $this->employee), employeePayload($this, [
+            'bpjs_ketenagakerjaan_number' => '1122334455',
+            'bpjs_kesehatan_number' => '0001112223334',
+            'ptkp_status' => 'K/1',
+        ]))
+        ->assertRedirect();
+
+    $props = actingAs($this->admin)
+        ->get(route('avana.employees.edit', $this->employee))
+        ->assertOk()
+        ->viewData('page')['props'];
+
+    $employee = $props['employee']['data'] ?? $props['employee'];
+
+    // The resource drops a field whose relation was not eager loaded, so a
+    // missing key here means the form renders blank over stored data.
+    expect($employee['bpjs_ketenagakerjaan_number'] ?? null)->toBe('1122334455')
+        ->and($employee['bpjs_kesehatan_number'] ?? null)->toBe('0001112223334')
+        ->and($employee['ptkp_status'] ?? null)->toBe('K/1');
+});
+
+it('keeps the BPJS number a partial payload did not mention', function (): void {
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $this->employee), employeePayload($this, [
+            'bpjs_ketenagakerjaan_number' => '9988776655',
+            'bpjs_kesehatan_number' => '0004445556667',
+        ]))
+        ->assertRedirect();
+
+    // A payload carrying only one of the two used to null out the other.
+    $payload = employeePayload($this, ['bpjs_ketenagakerjaan_number' => '9988776655']);
+    unset($payload['bpjs_kesehatan_number']);
+
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $this->employee), $payload)
+        ->assertRedirect();
+
+    $profile = EmployeeBpjsProfile::where('employee_id', $this->employee->id)->firstOrFail();
+
+    expect($profile->bpjs_ketenagakerjaan_number)->toBe('9988776655')
+        ->and($profile->bpjs_kesehatan_number)->toBe('0004445556667');
+});
+
+it('clears a BPJS number the form deliberately emptied', function (): void {
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $this->employee), employeePayload($this, [
+            'bpjs_ketenagakerjaan_number' => '5544332211',
+            'bpjs_kesehatan_number' => '0009998887776',
+        ]))
+        ->assertRedirect();
+
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $this->employee), employeePayload($this, [
+            'bpjs_ketenagakerjaan_number' => '5544332211',
+            'bpjs_kesehatan_number' => '',
+        ]))
+        ->assertRedirect();
+
+    $profile = EmployeeBpjsProfile::where('employee_id', $this->employee->id)->firstOrFail();
+
+    expect($profile->bpjs_ketenagakerjaan_number)->toBe('5544332211')
+        ->and($profile->bpjs_kesehatan_number)->toBeNull();
 });

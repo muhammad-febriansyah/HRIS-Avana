@@ -7,6 +7,7 @@ use App\Models\TaxProfile;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
+use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 
 use function Pest\Laravel\actingAs;
@@ -155,4 +156,63 @@ it('leaves the tax profile alone when the form carries no PTKP', function (): vo
         ->assertRedirect();
 
     expect(TaxProfile::where('employee_id', $this->staff->id)->value('ptkp_status'))->toBe('K/3');
+});
+
+it('leaves the account untouched when only the employee data is edited', function (): void {
+    $user = $this->staff->user;
+    $manager = Role::where('code', 'manager')->firstOrFail();
+    $employeeRole = Role::where('code', 'employee')->firstOrFail();
+
+    $user->roles()->sync([$manager->id, $employeeRole->id]);
+    $user->update(['status' => 'inactive']);
+
+    $before = $user->fresh();
+
+    // What the edit form posts when someone corrects a phone number: the role
+    // it happens to display rides along, and the password box is left empty.
+    actingAs($this->hr)
+        ->put(route('avana.employees.update', $this->staff), ($this->payload)([
+            'phone' => '081200009999',
+            'role_id' => $manager->id,
+            'password' => '',
+        ]))
+        ->assertRedirect();
+
+    $after = $user->fresh();
+
+    expect($this->staff->fresh()->phone)->toBe('081200009999')
+        // Nothing in Akun & Akses was asked to change, so nothing did.
+        ->and($after->password)->toBe($before->password)
+        ->and($after->status)->toBe('inactive')
+        ->and($after->roles->pluck('code')->sort()->values()->all())->toBe(['employee', 'manager']);
+});
+
+it('does not create a login for an employee who has none', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->whereNull('user_id')->first();
+
+    if ($employee === null) {
+        $employee = Employee::forTenant($this->tenant->id)->firstOrFail()->replicate();
+        $employee->forceFill([
+            'user_id' => null,
+            'employee_number' => 'EMP-NOLOGIN',
+            'email' => 'nologin@nusantara.co.id',
+            'public_id' => (string) Str::ulid(),
+        ])->save();
+    }
+
+    $roleId = Role::where('code', 'employee')->value('id');
+    $usersBefore = User::count();
+
+    // An empty password box means "no account", not "make one".
+    actingAs($this->hr)
+        ->put(route('avana.employees.update', $employee), array_merge(($this->payload)(), [
+            'full_name' => $employee->full_name,
+            'email' => $employee->email,
+            'role_id' => $roleId,
+            'password' => '',
+        ]))
+        ->assertRedirect();
+
+    expect($employee->fresh()->user_id)->toBeNull()
+        ->and(User::count())->toBe($usersBefore);
 });
