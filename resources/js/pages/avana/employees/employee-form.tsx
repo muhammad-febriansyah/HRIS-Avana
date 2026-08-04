@@ -900,18 +900,27 @@ export function EmployeeForm({
                             label="Jenis Kontrak"
                             error={errors.contract_type}
                         >
-                            <input
+                            <select
                                 id="contract_type"
                                 value={data.contract_type}
                                 onChange={(event) =>
                                     setData('contract_type', event.target.value)
                                 }
-                                placeholder="mis. PKWT"
                                 style={styleFor(
                                     !!errors.contract_type,
-                                    inputStyle,
+                                    selectStyle,
                                 )}
-                            />
+                            >
+                                <option value="">Pilih jenis kontrak…</option>
+                                {options.contractTypes.map((option) => (
+                                    <option
+                                        key={option.value}
+                                        value={option.value}
+                                    >
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
                         </Field>
 
                         <Field

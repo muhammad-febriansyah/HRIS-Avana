@@ -188,6 +188,7 @@ export type EmployeeFormOptions = {
     managers: ManagerRef[];
     genders: SelectOption[];
     statuses: SelectOption[];
+    contractTypes: SelectOption[];
     employmentStatuses: SelectOption[];
 };
 

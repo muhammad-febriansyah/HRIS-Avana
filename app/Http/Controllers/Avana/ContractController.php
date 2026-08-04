@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\EmployeeContract;
+use App\Support\ContractType;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -250,6 +251,10 @@ class ContractController extends Controller
             $uniqueContractNumber->ignore($contract->id);
         }
 
+        $request->merge([
+            'contract_type' => ContractType::normalise($request->input('contract_type')),
+        ]);
+
         return $request->validate([
             'employee_id' => ['required', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
             'contract_number' => ['required', 'string', 'max:255', $uniqueContractNumber],
@@ -298,6 +303,14 @@ class ContractController extends Controller
             'notes' => $contract->notes,
             'expiring_soon' => $expiringSoon,
             'days_to_expiry' => $daysToExpiry,
+            // The list is where someone checks whether a contract was ever
+            // signed and filed, so it says so per row rather than making them
+            // open each one to find out.
+            'document' => $contract->document_path === null ? null : [
+                'name' => $contract->document_name ?? 'kontrak.pdf',
+                'size' => $contract->document_size !== null ? (int) $contract->document_size : null,
+                'href' => route('avana.kontrak.dokumen', $contract),
+            ],
         ];
     }
 
