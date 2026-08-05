@@ -44,7 +44,33 @@ class OvertimeController extends Controller
                 'status' => $o->status,
             ]);
 
-        return response()->json(['data' => $data]);
+        return response()->json([
+            'data' => $data,
+            // The phone previews a duration before it files one, so it needs the
+            // same rounding rule the server will apply — otherwise it shows an
+            // employee 0,75 jam for a stretch that pays half an hour.
+            'policy' => $this->policyPayload((int) $employee->tenant_id),
+        ]);
+    }
+
+    /**
+     * The tenant's overtime shaping rules, as the app needs them.
+     *
+     * @return array{rounding_minutes: int, min_hours: float, max_hours: float}
+     */
+    private function policyPayload(int $tenantId): array
+    {
+        $rounding = (int) OvertimeRules::policyFor($tenantId)->rounding_minutes;
+
+        return [
+            'rounding_minutes' => $rounding,
+            // Below this a filing is worth nothing, so the app can say so before
+            // the server has to.
+            'min_hours' => $rounding > 0
+                ? round($rounding / 60, 2)
+                : OvertimeWindow::MIN_HOURS,
+            'max_hours' => OvertimeWindow::MAX_HOURS,
+        ];
     }
 
     public function store(Request $request): JsonResponse
