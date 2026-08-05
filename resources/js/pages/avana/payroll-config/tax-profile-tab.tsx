@@ -195,6 +195,7 @@ export default function TaxProfileTab({
                                     'Subjek Pajak',
                                     'PTKP',
                                     'Basis Upah',
+                                    'Potong PPh 21',
                                     'NPWP',
                                     'Aksi',
                                 ].map((h) => (
@@ -208,7 +209,7 @@ export default function TaxProfileTab({
                             {rows.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={6}
+                                        colSpan={7}
                                         style={{
                                             ...td,
                                             textAlign: 'center',

@@ -107,7 +107,8 @@ export interface ColumnDef {
     key: string;
     /** Secondary key for the range renderer. */
     key2?: string;
-    kind?: 'percent' | 'rupiah' | 'rupiah-range' | 'wage-cap' | 'active' | 'date';
+    kind?:
+        'percent' | 'rupiah' | 'rupiah-range' | 'wage-cap' | 'active' | 'date';
     align?: 'left' | 'right';
 }
 
