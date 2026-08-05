@@ -333,6 +333,12 @@ class PayrollController extends Controller
                 continue;
             }
 
+            // Nothing is withheld for an exempt employee, so a missing PTKP
+            // status changes no figure and should not stall the run.
+            if ($this->isPph21Exempt($employee, $tenantId)) {
+                continue;
+            }
+
             if (! isset($statuses[$employee->id])) {
                 $missing[] = (string) $employee->full_name;
             }
@@ -2138,6 +2144,10 @@ class PayrollController extends Controller
 
         $subject = $profile?->tax_subject ?? 'pegawai_tetap';
 
+        if ((bool) $profile?->is_pph21_exempt) {
+            return $this->exemptPph21($profile, $thr);
+        }
+
         if ($thr <= 0 || ! in_array($subject, ['pegawai_tetap', 'pns', 'komisaris'], true)) {
             return ['amount' => 0.0, 'snapshot' => []];
         }
@@ -2175,6 +2185,10 @@ class PayrollController extends Controller
         $profile = TaxProfile::where('tenant_id', $tenantId)
             ->where('employee_id', $employee->id)
             ->first();
+
+        if ((bool) $profile?->is_pph21_exempt) {
+            return $this->exemptPph21($profile, $gross);
+        }
 
         // The period's own date, so a re-run of an old month resolves the TER
         // table and the PKP brackets that were in force then.
@@ -2220,6 +2234,41 @@ class PayrollController extends Controller
     }
 
     /**
+
+    /**
+     * The nil result for an employee the tenant does not withhold PPh 21 for.
+     *
+     * The snapshot still records why nothing was deducted, so a payslip that
+     * shows no tax line can be explained months later without guessing.
+     *
+     * @return array{amount: float, snapshot: array<string, mixed>}
+     */
+    private function exemptPph21(?TaxProfile $profile, float $gross): array
+    {
+        return [
+            'amount' => 0.0,
+            'snapshot' => [
+                'method' => 'exempt',
+                'subject' => $profile?->tax_subject ?? 'pegawai_tetap',
+                'ptkp_status' => $profile?->ptkp_status,
+                'gross' => round($gross),
+                'exempt_reason' => $profile?->pph21_exempt_reason,
+                'pph21_amount' => 0.0,
+            ],
+        ];
+    }
+
+    /**
+     * Whether the employee is marked as not subject to PPh 21 withholding.
+     */
+    private function isPph21Exempt(Employee $employee, int $tenantId): bool
+    {
+        return (bool) TaxProfile::where('tenant_id', $tenantId)
+            ->where('employee_id', $employee->id)
+            ->value('is_pph21_exempt');
+    }
+
+    /**
      * Whether this period is the employee's last taxable month of the year —
      * December, or the month their resignation falls in — and thus needs an
      * annual reconciliation rather than a flat monthly TER deduction.
@@ -2255,6 +2304,10 @@ class PayrollController extends Controller
         $profile = TaxProfile::where('tenant_id', $tenantId)
             ->where('employee_id', $employee->id)
             ->first();
+
+        if ((bool) $profile?->is_pph21_exempt) {
+            return $this->exemptPph21($profile, $currentGross);
+        }
 
         $year = (int) ($period->start_date?->year ?? now()->year);
 

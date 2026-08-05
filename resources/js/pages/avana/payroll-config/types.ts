@@ -71,6 +71,9 @@ export interface TaxProfileRow {
     tax_subject: string;
     wage_basis: string;
     daily_wage: number | null;
+    /** Tenant does not withhold PPh 21 for this employee at all. */
+    is_pph21_exempt: boolean;
+    pph21_exempt_reason: string | null;
 }
 
 export interface PayrollConfigProps {

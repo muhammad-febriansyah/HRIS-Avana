@@ -54,7 +54,9 @@ interface FormData {
     daily_wage: string;
     npwp: string;
     nik: string;
-    [key: string]: string;
+    is_pph21_exempt: boolean;
+    pph21_exempt_reason: string;
+    [key: string]: string | boolean;
 }
 
 export default function TaxProfileTab({
@@ -86,6 +88,8 @@ export default function TaxProfileTab({
         daily_wage: '',
         npwp: '',
         nik: '',
+        is_pph21_exempt: false,
+        pph21_exempt_reason: '',
     });
 
     const open = (row: TaxProfileRow) => {
@@ -98,6 +102,8 @@ export default function TaxProfileTab({
             daily_wage: row.daily_wage != null ? String(row.daily_wage) : '',
             npwp: row.npwp ?? '',
             nik: row.nik ?? '',
+            is_pph21_exempt: row.is_pph21_exempt,
+            pph21_exempt_reason: row.pph21_exempt_reason ?? '',
         });
         form.clearErrors();
     };
@@ -244,6 +250,42 @@ export default function TaxProfileTab({
                                         {r.wage_basis === 'daily'
                                             ? `Harian${r.daily_wage ? ` · ${rp(r.daily_wage)}` : ''}`
                                             : 'Bulanan'}
+                                    </td>
+                                    <td style={td}>
+                                        {r.is_pph21_exempt ? (
+                                            <span
+                                                title={
+                                                    r.pph21_exempt_reason ??
+                                                    undefined
+                                                }
+                                                style={{
+                                                    fontSize: 12,
+                                                    fontWeight: 600,
+                                                    color: C.muted,
+                                                    background: '#F1F3F9',
+                                                    padding: '4px 10px',
+                                                    borderRadius: 999,
+                                                    whiteSpace: 'nowrap',
+                                                }}
+                                            >
+                                                Tidak dipotong
+                                            </span>
+                                        ) : (
+                                            <span
+                                                style={{
+                                                    fontSize: 12,
+                                                    fontWeight: 600,
+                                                    color: C.green,
+                                                    background:
+                                                        'rgba(22,163,74,.1)',
+                                                    padding: '4px 10px',
+                                                    borderRadius: 999,
+                                                    whiteSpace: 'nowrap',
+                                                }}
+                                            >
+                                                Dipotong
+                                            </span>
+                                        )}
                                     </td>
                                     <td style={{ ...td, color: C.muted }}>
                                         {r.npwp ?? '—'}
@@ -425,6 +467,85 @@ export default function TaxProfileTab({
                                     }
                                 />
                             </div>
+                        </div>
+
+                        {/* Not every person on a payroll is withheld by this
+                            company — an expatriate under PPh 26, someone whose
+                            tax another entity already settled. */}
+                        <div
+                            style={{
+                                border: `1px solid ${C.line}`,
+                                borderRadius: 10,
+                                padding: '14px 16px',
+                                marginBottom: 22,
+                                background: form.data.is_pph21_exempt
+                                    ? '#FAFBFD'
+                                    : '#fff',
+                            }}
+                        >
+                            <label
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'flex-start',
+                                    gap: 10,
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={form.data.is_pph21_exempt}
+                                    onChange={(e) =>
+                                        form.setData(
+                                            'is_pph21_exempt',
+                                            e.target.checked,
+                                        )
+                                    }
+                                    style={{ marginTop: 3 }}
+                                />
+                                <span>
+                                    <span
+                                        style={{
+                                            fontSize: 14,
+                                            fontWeight: 600,
+                                            color: C.navy,
+                                        }}
+                                    >
+                                        Tidak dipotong PPh 21
+                                    </span>
+                                    <span
+                                        style={{
+                                            display: 'block',
+                                            fontSize: 12.5,
+                                            color: C.muted,
+                                            marginTop: 2,
+                                        }}
+                                    >
+                                        Payroll tetap dihitung, tapi potongan
+                                        PPh 21 karyawan ini selalu Rp0 —
+                                        termasuk THR dan rekonsiliasi akhir
+                                        tahun.
+                                    </span>
+                                </span>
+                            </label>
+
+                            {form.data.is_pph21_exempt && (
+                                <div style={{ marginTop: 12 }}>
+                                    <label style={label}>
+                                        Alasan (opsional)
+                                    </label>
+                                    <input
+                                        style={input}
+                                        placeholder="mis. WNA, dipotong PPh 26 oleh kantor pusat"
+                                        value={form.data.pph21_exempt_reason}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'pph21_exempt_reason',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                </div>
+                            )}
                         </div>
 
                         <div

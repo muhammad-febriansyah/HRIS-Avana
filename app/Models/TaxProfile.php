@@ -19,6 +19,7 @@ final class TaxProfile extends Model
             'effective_start_date' => 'date',
             'effective_end_date' => 'date',
             'daily_wage' => 'decimal:2',
+            'is_pph21_exempt' => 'boolean',
         ];
     }
 

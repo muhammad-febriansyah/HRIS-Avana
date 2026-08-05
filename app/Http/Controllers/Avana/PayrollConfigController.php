@@ -115,6 +115,8 @@ class PayrollConfigController extends Controller
                 'tax_subject' => $e->taxProfile?->tax_subject ?? 'pegawai_tetap',
                 'wage_basis' => $e->taxProfile?->wage_basis ?? 'monthly',
                 'daily_wage' => $e->taxProfile?->daily_wage !== null ? (float) $e->taxProfile->daily_wage : null,
+                'is_pph21_exempt' => (bool) $e->taxProfile?->is_pph21_exempt,
+                'pph21_exempt_reason' => $e->taxProfile?->pph21_exempt_reason,
             ]);
 
         return Inertia::render('avana/payroll-config/index', [
@@ -198,6 +200,10 @@ class PayrollConfigController extends Controller
             'daily_wage' => ['nullable', 'numeric', 'min:0'],
             'npwp' => ['nullable', 'string', 'max:32'],
             'nik' => ['nullable', 'string', 'max:32'],
+            // Someone the tenant does not withhold Article 21 for at all — an
+            // expatriate under PPh 26, a person already withheld at source.
+            'is_pph21_exempt' => ['nullable', 'boolean'],
+            'pph21_exempt_reason' => ['nullable', 'string', 'max:255'],
         ]);
 
         TaxProfile::updateOrCreate(
@@ -211,6 +217,10 @@ class PayrollConfigController extends Controller
                 'daily_wage' => $validated['wage_basis'] === 'daily' ? ($validated['daily_wage'] ?? null) : null,
                 'npwp' => $validated['npwp'] ?? null,
                 'nik' => $validated['nik'] ?? null,
+                'is_pph21_exempt' => (bool) ($validated['is_pph21_exempt'] ?? false),
+                'pph21_exempt_reason' => ($validated['is_pph21_exempt'] ?? false)
+                    ? ($validated['pph21_exempt_reason'] ?? null)
+                    : null,
             ],
         );
 
