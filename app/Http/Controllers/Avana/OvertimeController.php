@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\OvertimeRequest;
 use App\Services\ApprovalEngine;
 use App\Services\AutoApproval;
+use App\Support\FeatureGate;
 use App\Support\OvertimeRules;
 use App\Support\OvertimeWindow;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -25,6 +26,8 @@ class OvertimeController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        FeatureGate::ensure($request->user(), 'overtime');
+
         $this->authorize('create', OvertimeRequest::class);
 
         $tenantId = $request->user()->tenant_id;
@@ -127,6 +130,8 @@ class OvertimeController extends Controller
      */
     private function ensureTenantOwnership(Request $request, OvertimeRequest $overtime): void
     {
+        FeatureGate::ensure($request->user(), 'overtime');
+
         abort_if((int) $overtime->tenant_id !== (int) $request->user()->tenant_id, 404);
     }
 }

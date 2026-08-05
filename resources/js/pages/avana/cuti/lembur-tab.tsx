@@ -74,11 +74,7 @@ export function LemburTab({
                         width="100%"
                     />
                 </Field>
-                <Field
-                    label="Jenis Hari"
-                    required
-                    error={form.errors.day_type}
-                >
+                <Field label="Jenis Hari" required error={form.errors.day_type}>
                     <select
                         value={form.data.day_type}
                         onChange={(event) =>

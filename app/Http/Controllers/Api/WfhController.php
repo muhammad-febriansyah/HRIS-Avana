@@ -6,6 +6,7 @@ use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\WfhRequest;
 use App\Services\AutoApproval;
+use App\Support\FeatureGate;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -17,6 +18,8 @@ class WfhController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        FeatureGate::ensure($request->user(), 'wfh');
+
         $employee = $this->currentEmployee($request);
 
         $data = WfhRequest::forTenant($employee->tenant_id)
@@ -36,6 +39,8 @@ class WfhController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        FeatureGate::ensure($request->user(), 'wfh');
+
         $employee = $this->currentEmployee($request);
 
         $data = $request->validate([

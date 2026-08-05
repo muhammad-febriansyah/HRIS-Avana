@@ -17,12 +17,19 @@ export default function PayrollConfig({
     taxSubjects,
     ptkpStatuses,
     settings,
+    features,
 }: PayrollConfigProps) {
     const { flash } = usePage<FlashProps>().props;
 
+    // The BPJS half and the PPh 21 half are separate tenant features, so a
+    // tenant that only has one of them sees only that half.
+    const visibleSections = SECTIONS.filter((item) =>
+        item.key === 'bpjs' ? features.bpjs : features.pph21,
+    );
+
     const [activeKey, setActiveKey] = useState<
         'bpjs' | 'pph21' | 'tax-profile'
-    >('bpjs');
+    >(visibleSections[0]?.key ?? 'bpjs');
 
     const toggleSegregation = (value: boolean) => {
         router.put(
@@ -238,7 +245,7 @@ export default function PayrollConfig({
                         marginBottom: 18,
                     }}
                 >
-                    {SECTIONS.map((item) => {
+                    {visibleSections.map((item) => {
                         const active = item.key === activeKey;
 
                         return (

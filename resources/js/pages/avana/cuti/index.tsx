@@ -35,11 +35,16 @@ export default function AvanaCuti({
     overtimeLimits,
     permissionRequests,
     wfhRequests,
+    features,
 }: CutiProps) {
     const { flash } = usePage<FlashProps>().props;
     const meta = requests.meta;
     const pendingActive = filters.status === 'pending';
-    const [tab, setTab] = useState<TabKey>('cuti');
+
+    // Lembur and WFH ride on this page, so a tenant whose Super Admin switched
+    // those features off must not see their tabs at all.
+    const visibleTabs = tabs.filter((item) => features[item.feature]);
+    const [tab, setTab] = useState<TabKey>(visibleTabs[0]?.key ?? 'cuti');
 
     const form = useForm<LeaveFormData>({
         employee_id: '',
@@ -238,7 +243,7 @@ export default function AvanaCuti({
 
                 {/* Tab bar */}
                 <div style={tabBarStyle}>
-                    {tabs.map((item) => {
+                    {visibleTabs.map((item) => {
                         const active = tab === item.key;
 
                         return (

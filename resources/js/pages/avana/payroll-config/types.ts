@@ -84,6 +84,13 @@ export interface PayrollConfigProps {
     settings: {
         enforce_payroll_segregation: boolean;
     };
+    features: PayrollConfigFeatures;
+}
+
+/** Which halves of this screen the tenant's feature toggles leave switched on. */
+export interface PayrollConfigFeatures {
+    bpjs: boolean;
+    pph21: boolean;
 }
 
 /** A flat record indexed by field/column key — feeds the table and modal. */

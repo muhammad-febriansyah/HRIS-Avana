@@ -14,6 +14,7 @@ use App\Models\PermissionRequest;
 use App\Models\WfhRequest;
 use App\Services\ApprovalEngine;
 use App\Services\LeaveApproval;
+use App\Support\FeatureGate;
 use App\Support\OvertimeRules;
 use App\Support\OvertimeWindow;
 use Illuminate\Database\Eloquent\Model;
@@ -175,6 +176,9 @@ class LeaveController extends Controller
                     'status' => $wfh->status,
                     'status_label' => $this->statusLabel($wfh->status),
                 ]),
+            // Lembur and WFH own no menu of their own — they are tabs on this
+            // page — so the Super Admin's feature switch has to reach them here.
+            'features' => FeatureGate::map($request->user(), ['leave', 'overtime', 'wfh']),
         ]);
     }
 

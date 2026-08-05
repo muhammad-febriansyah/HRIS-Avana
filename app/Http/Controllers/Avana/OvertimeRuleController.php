@@ -10,6 +10,7 @@ use App\Models\OvertimeRate;
 use App\Models\PayrollComponent;
 use App\Models\SalaryMasterComponent;
 use App\Models\User;
+use App\Support\FeatureGate;
 use App\Support\OvertimeRules;
 use App\Support\SalaryCompliance;
 use Illuminate\Http\RedirectResponse;
@@ -312,6 +313,10 @@ class OvertimeRuleController extends Controller
         if ($user->isSuperAdmin()) {
             return;
         }
+
+        // Setup Lembur sits under the Payroll menu, so only the overtime
+        // feature toggle can close it for a tenant that does not run overtime.
+        FeatureGate::ensure($user, 'overtime');
 
         abort_unless($user->hasPermissionTo(self::MODULE.'.'.$action), 403);
     }

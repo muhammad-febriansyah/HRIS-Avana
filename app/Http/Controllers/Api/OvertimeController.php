@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\OvertimeRequest;
 use App\Services\ApprovalEngine;
 use App\Services\AutoApproval;
+use App\Support\FeatureGate;
 use App\Support\OvertimeRules;
 use App\Support\OvertimeWindow;
 use Illuminate\Http\JsonResponse;
@@ -22,6 +23,8 @@ class OvertimeController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        FeatureGate::ensure($request->user(), 'overtime');
+
         $employee = $this->currentEmployee($request);
 
         $data = OvertimeRequest::forTenant($employee->tenant_id)
@@ -46,6 +49,8 @@ class OvertimeController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        FeatureGate::ensure($request->user(), 'overtime');
+
         $employee = $this->currentEmployee($request);
 
         $data = $request->validate([

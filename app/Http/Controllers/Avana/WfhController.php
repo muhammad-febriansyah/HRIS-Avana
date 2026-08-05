@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\WfhRequest;
 use App\Services\AutoApproval;
+use App\Support\FeatureGate;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,6 +21,8 @@ class WfhController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        FeatureGate::ensure($request->user(), 'wfh');
+
         $this->authorize('create', WfhRequest::class);
 
         $tenantId = $request->user()->tenant_id;
@@ -87,6 +90,8 @@ class WfhController extends Controller
      */
     private function ensureTenantOwnership(Request $request, WfhRequest $wfh): void
     {
+        FeatureGate::ensure($request->user(), 'wfh');
+
         abort_if((int) $wfh->tenant_id !== (int) $request->user()->tenant_id, 404);
     }
 }

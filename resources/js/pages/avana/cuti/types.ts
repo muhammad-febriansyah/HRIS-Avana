@@ -123,6 +123,14 @@ export interface CutiProps {
     overtimeLimits: OvertimeLimits;
     permissionRequests: PermissionRow[];
     wfhRequests: WfhRow[];
+    features: CutiFeatures;
+}
+
+/** Which of this page's tabs the tenant's feature toggles leave switched on. */
+export interface CutiFeatures {
+    leave: boolean;
+    overtime: boolean;
+    wfh: boolean;
 }
 
 /** Form payload backing the "Ajukan Cuti" form. */
@@ -199,9 +207,15 @@ export const balanceColors = ['#2F54C9', '#16A34A', '#D97706'];
 export const balanceIcons = ['palmtree', 'thermometer', 'circle-alert'];
 
 /** Tab definitions for the Cuti / Lembur / Izin / WFH switcher. */
-export const tabs: { key: TabKey; label: string; icon: string }[] = [
-    { key: 'cuti', label: 'Cuti', icon: 'palmtree' },
-    { key: 'lembur', label: 'Lembur', icon: 'clock' },
-    { key: 'izin', label: 'Izin', icon: 'door-open' },
-    { key: 'wfh', label: 'WFH', icon: 'house' },
+export const tabs: {
+    key: TabKey;
+    label: string;
+    icon: string;
+    /** Tenant feature the tab needs; the Super Admin can switch it off. */
+    feature: keyof CutiFeatures;
+}[] = [
+    { key: 'cuti', label: 'Cuti', icon: 'palmtree', feature: 'leave' },
+    { key: 'lembur', label: 'Lembur', icon: 'clock', feature: 'overtime' },
+    { key: 'izin', label: 'Izin', icon: 'door-open', feature: 'leave' },
+    { key: 'wfh', label: 'WFH', icon: 'house', feature: 'wfh' },
 ];

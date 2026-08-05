@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\OvertimeRequest;
 use App\Services\ApprovalEngine;
 use App\Services\AutoApproval;
+use App\Support\FeatureGate;
 use App\Support\OvertimeRules;
 use App\Support\OvertimeWindow;
 use DateTimeInterface;
@@ -30,6 +31,8 @@ class EssOvertimeController extends Controller
      */
     public function index(Request $request): Response
     {
+        FeatureGate::ensure($request->user(), 'overtime');
+
         $employee = $this->currentEmployee($request);
 
         $requests = OvertimeRequest::forTenant($employee->tenant_id)
@@ -67,6 +70,8 @@ class EssOvertimeController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        FeatureGate::ensure($request->user(), 'overtime');
+
         $employee = $this->currentEmployee($request);
 
         $data = $request->validate([

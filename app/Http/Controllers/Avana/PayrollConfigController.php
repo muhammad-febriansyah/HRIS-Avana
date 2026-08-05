@@ -11,6 +11,7 @@ use App\Models\PkpRate;
 use App\Models\PtkpRate;
 use App\Models\TaxProfile;
 use App\Models\User;
+use App\Support\FeatureGate;
 use App\Support\Pph21Calculator;
 use App\Support\Pph21Ter;
 use Illuminate\Http\RedirectResponse;
@@ -43,6 +44,11 @@ class PayrollConfigController extends Controller
     public function index(Request $request): Response
     {
         $this->ensureCan($request, 'payroll', 'view');
+
+        // The screen has no menu of its own beyond the payroll feature, so its
+        // two halves answer to the BPJS and PPh 21 toggles: with both off there
+        // is nothing here for the tenant to configure.
+        FeatureGate::ensureAny($request->user(), ['bpjs', 'pph21']);
 
         $tenantId = $request->user()->tenant_id;
 
@@ -125,6 +131,7 @@ class PayrollConfigController extends Controller
             'settings' => [
                 'enforce_payroll_segregation' => (bool) $request->user()->tenant?->enforce_payroll_segregation,
             ],
+            'features' => FeatureGate::map($request->user(), ['bpjs', 'pph21']),
         ]);
     }
 
@@ -474,6 +481,13 @@ class PayrollConfigController extends Controller
 
         if ($user->isSuperAdmin()) {
             return;
+        }
+
+        // A module that is also a tenant feature (pph21, bpjs) answers to its
+        // switch first — the permission only decides what to do once the tenant
+        // actually has the feature.
+        if (array_key_exists($module, FeatureGate::TAB_FEATURES)) {
+            FeatureGate::ensure($user, $module);
         }
 
         abort_unless($user->hasPermissionTo($module.'.'.$action), 403);
