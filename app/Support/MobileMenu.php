@@ -19,6 +19,35 @@ use Illuminate\Support\Collection;
 class MobileMenu
 {
     /**
+     * The tenant feature each tile depends on, so switching a module off in
+     * Kelola Fitur takes it off the phone too — the web sidebar has always
+     * worked that way, and a tile that only leads to a 403 reads as a bug.
+     *
+     * A tile missing from this map is unconditional (Dasbor).
+     *
+     * @var array<string, string>
+     */
+    public const TILE_FEATURES = [
+        'cuti' => 'leave',
+        'izin' => 'leave',
+        'lembur' => 'overtime',
+        'wfh' => 'wfh',
+        'jadwal' => 'attendance',
+        'riwayat' => 'attendance',
+        'koreksi' => 'attendance',
+        'kunjungan' => 'attendance',
+        'tukar_shift' => 'shift_swap',
+        'slip_gaji' => 'payroll',
+        'reimburse' => 'reimbursement',
+        'uang_muka' => 'cash_advance',
+        'settlement' => 'claim',
+        'dokumen' => 'document',
+        'perasaan' => 'hr_core',
+        'rapat' => 'meeting_ai',
+        'token_ai' => 'ai',
+    ];
+
+    /**
      * The tiles the app is built with, in the order it lays them out.
      *
      * `key` matches the identifier the Flutter side sends back; `icon` is an
@@ -102,10 +131,16 @@ class MobileMenu
 
         $roleIds = $user->roles()->pluck('roles.id');
         $hidden = self::keysHiddenForAll($roleIds);
+        $features = FeatureGate::codesFor($user);
 
         return self::forTenant($user->tenant_id)
             ->where('is_active', true)
             ->reject(fn (MobileMenuItem $tile): bool => in_array($tile->key, $hidden, true))
+            ->reject(function (MobileMenuItem $tile) use ($features): bool {
+                $feature = self::TILE_FEATURES[$tile->key] ?? null;
+
+                return $features !== null && $feature !== null && ! $features->contains($feature);
+            })
             ->map(fn (MobileMenuItem $tile): array => [
                 'key' => $tile->key,
                 'label' => $tile->label,

@@ -18,7 +18,7 @@ class WfhController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        FeatureGate::ensure($request->user(), 'wfh');
+        FeatureGate::ensure($request->user(), 'wfh', 'Fitur WFH tidak aktif untuk perusahaan Anda.');
 
         $employee = $this->currentEmployee($request);
 
@@ -39,7 +39,7 @@ class WfhController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        FeatureGate::ensure($request->user(), 'wfh');
+        FeatureGate::ensure($request->user(), 'wfh', 'Fitur WFH tidak aktif untuk perusahaan Anda.');
 
         $employee = $this->currentEmployee($request);
 

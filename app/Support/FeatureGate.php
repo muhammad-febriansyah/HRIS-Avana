@@ -52,6 +52,8 @@ final class FeatureGate
             return null;
         }
 
+        // Deliberately not memoised: a stale set would keep a switched-off
+        // module reachable, and the query is one indexed read on a short table.
         return Feature::query()
             ->whereIn('id', $tenant->features()->where('is_enabled', true)->select('feature_id'))
             ->pluck('code');
@@ -89,10 +91,18 @@ final class FeatureGate
 
     /**
      * Abort with 403 unless the feature is on for the user's tenant.
+     *
+     * The message matters on the phone: the app shows whatever the body says,
+     * and a bare 403 leaves an employee reading "gagal" with no idea that the
+     * company simply does not run this module.
      */
-    public static function ensure(?User $user, string $code): void
+    public static function ensure(?User $user, string $code, ?string $message = null): void
     {
-        abort_unless(self::allows($user, $code), 403);
+        abort_unless(
+            self::allows($user, $code),
+            403,
+            $message ?? 'Fitur ini tidak aktif untuk perusahaan Anda.',
+        );
     }
 
     /**
@@ -101,7 +111,7 @@ final class FeatureGate
      *
      * @param  array<int, string>  $codes
      */
-    public static function ensureAny(?User $user, array $codes): void
+    public static function ensureAny(?User $user, array $codes, ?string $message = null): void
     {
         foreach ($codes as $code) {
             if (self::allows($user, $code)) {
@@ -109,6 +119,6 @@ final class FeatureGate
             }
         }
 
-        abort(403);
+        abort(403, $message ?? 'Fitur ini tidak aktif untuk perusahaan Anda.');
     }
 }

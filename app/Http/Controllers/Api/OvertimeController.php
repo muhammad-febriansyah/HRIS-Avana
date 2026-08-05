@@ -23,7 +23,7 @@ class OvertimeController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        FeatureGate::ensure($request->user(), 'overtime');
+        FeatureGate::ensure($request->user(), 'overtime', 'Fitur lembur tidak aktif untuk perusahaan Anda.');
 
         $employee = $this->currentEmployee($request);
 
@@ -49,7 +49,7 @@ class OvertimeController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        FeatureGate::ensure($request->user(), 'overtime');
+        FeatureGate::ensure($request->user(), 'overtime', 'Fitur lembur tidak aktif untuk perusahaan Anda.');
 
         $employee = $this->currentEmployee($request);
 
