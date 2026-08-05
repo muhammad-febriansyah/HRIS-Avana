@@ -90,8 +90,10 @@ final class AvanaNav
                     self::leaf('absensi', 'Absensi', 'fingerprint', '/avana/absensi', 'attendance', ['attendance']),
                     self::leaf('absensi-monitor', 'Monitor Kehadiran', 'map-pinned', '/avana/absensi/monitor', 'attendance', ['attendance']),
                     self::leaf('absensi-kebijakan', 'Kebijakan Absensi', 'shield-check', '/avana/absensi/kebijakan', 'attendance', ['attendance']),
-                    self::leaf('roster', 'Roster Shift', 'calendar-clock', '/avana/roster', 'attendance', ['attendance']),
-                    self::leaf('roster-pola', 'Pola Roster', 'repeat', '/avana/roster-pola', 'attendance', ['attendance']),
+                    // "Roster" is warehouse-and-hospital vocabulary; the people
+                    // using this screen call it the attendance schedule.
+                    self::leaf('roster', 'Jadwal Absensi', 'calendar-clock', '/avana/roster', 'attendance', ['attendance']),
+                    self::leaf('roster-pola', 'Pola Jadwal', 'repeat', '/avana/roster-pola', 'attendance', ['attendance']),
                     self::leaf('shift-swap', 'Tukar Shift', 'repeat', '/avana/shift-swap', 'shift_swap', ['shift_swap']),
                     self::leaf('timesheet', 'Timesheet', 'clock', '/avana/timesheet', 'timesheet', ['timesheet']),
                     self::leaf('sanksi', 'Sanksi Absensi', 'octagon-alert', '/avana/sanksi', 'attendance', ['attendance']),

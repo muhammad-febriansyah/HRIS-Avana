@@ -150,7 +150,7 @@ export default function RosterPatternIndex({ patterns, shifts }: PageProps) {
 
     return (
         <>
-            <Head title="Pola Roster" />
+            <Head title="Pola Jadwal" />
             <div style={{ padding: '28px 32px' }}>
                 <div
                     style={{
@@ -175,7 +175,7 @@ export default function RosterPatternIndex({ patterns, shifts }: PageProps) {
                         >
                             <span>Manajemen</span>
                             <AIcon name="chevron-right" size={13} />
-                            <span style={{ color: C.muted }}>Pola Roster</span>
+                            <span style={{ color: C.muted }}>Pola Jadwal</span>
                         </div>
                         <h1
                             style={{
@@ -186,7 +186,7 @@ export default function RosterPatternIndex({ patterns, shifts }: PageProps) {
                                 letterSpacing: '-.01em',
                             }}
                         >
-                            Pola Roster
+                            Pola Jadwal
                         </h1>
                         <div
                             style={{
@@ -531,9 +531,8 @@ export default function RosterPatternIndex({ patterns, shifts }: PageProps) {
                                                 key={shift.id}
                                                 value={shift.id}
                                             >
-                                                {shift.name} (
-                                                {shift.start_time}–
-                                                {shift.end_time})
+                                                {shift.name} ({shift.start_time}
+                                                –{shift.end_time})
                                             </option>
                                         ))}
                                     </select>

@@ -153,7 +153,7 @@ export default function AvanaRoster({
 
     return (
         <>
-            <Head title="Roster Shift" />
+            <Head title="Jadwal Absensi" />
             <div style={{ padding: '28px 32px' }}>
                 {/* Header */}
                 <div style={{ marginBottom: 22 }}>
@@ -169,7 +169,7 @@ export default function AvanaRoster({
                     >
                         <span>Manajemen</span>
                         <AIcon name="chevron-right" size={13} />
-                        <span style={{ color: C.muted }}>Roster Shift</span>
+                        <span style={{ color: C.muted }}>Jadwal Absensi</span>
                     </div>
                     <h1
                         style={{
@@ -180,7 +180,7 @@ export default function AvanaRoster({
                             letterSpacing: '-.01em',
                         }}
                     >
-                        Roster Shift
+                        Jadwal Absensi
                     </h1>
                     <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
                         Atur jadwal shift mingguan untuk setiap karyawan.
