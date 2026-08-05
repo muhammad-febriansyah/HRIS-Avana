@@ -82,6 +82,7 @@ use App\Http\Controllers\Avana\PaydayController;
 use App\Http\Controllers\Avana\PayrollConfigController;
 use App\Http\Controllers\Avana\PayrollController;
 use App\Http\Controllers\Avana\PayrollCorrectionController;
+use App\Http\Controllers\Avana\PayrollImportController;
 use App\Http\Controllers\Avana\PayrollKomponenController;
 use App\Http\Controllers\Avana\PayrollUmrController;
 use App\Http\Controllers\Avana\PerformanceController;
@@ -197,6 +198,9 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::put('payroll/perhitungan-hari/{perhitunganHari}', [DayCalcMethodController::class, 'update'])->name('payroll.perhitungan-hari.update');
     Route::delete('payroll/perhitungan-hari/{perhitunganHari}', [DayCalcMethodController::class, 'destroy'])->name('payroll.perhitungan-hari.destroy');
     Route::post('payroll/run', [PayrollController::class, 'run'])->name('payroll.run');
+    // Upload a payroll computed elsewhere instead of running the engine.
+    Route::get('payroll/impor/template', [PayrollImportController::class, 'template'])->name('payroll.impor.template');
+    Route::post('payroll/impor', [PayrollImportController::class, 'store'])->name('payroll.impor.store');
     Route::post('payroll/approve', [PayrollController::class, 'approve'])->name('payroll.approve');
     Route::post('payroll/reject', [PayrollController::class, 'reject'])->name('payroll.reject');
     Route::post('payroll/lock', [PayrollController::class, 'lock'])->name('payroll.lock');

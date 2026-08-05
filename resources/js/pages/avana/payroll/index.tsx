@@ -15,6 +15,7 @@ import {
     C,
 } from '@/lib/avana';
 import { LockedAlert } from './components';
+import { ImportModal } from './import-modal';
 import { PeriodTable } from './period-table';
 import { RecipientsTable } from './recipients-table';
 import { SlipDetail } from './slip-detail';
@@ -129,6 +130,7 @@ export default function AvanaPayroll({
     const hasRun = summary.status === 'calculated' || isApproved || isLocked;
     const [bank, setBank] = useState('generic');
     const [exportOpen, setExportOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [runOpen, setRunOpen] = useState(false);
     const [payDate, setPayDate] = useState('');
     const [processing, setProcessing] = useState(false);
@@ -412,6 +414,13 @@ export default function AvanaPayroll({
                             <AIcon name="calendar-plus" size={16} />
                             Buat Periode
                         </Link>
+                        <button
+                            onClick={() => setImportOpen(true)}
+                            style={btnOut}
+                        >
+                            <AIcon name="upload" size={16} />
+                            Impor Payroll
+                        </button>
 
                         {/* Export dropdown */}
                         <div style={{ position: 'relative' }}>
@@ -781,6 +790,13 @@ export default function AvanaPayroll({
                     />
                 </div>
             </div>
+
+            {importOpen && (
+                <ImportModal
+                    periods={periods.data}
+                    onClose={() => setImportOpen(false)}
+                />
+            )}
 
             {runOpen && (
                 <RunConfirmModal

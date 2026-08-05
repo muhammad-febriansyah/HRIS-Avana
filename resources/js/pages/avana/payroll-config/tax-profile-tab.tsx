@@ -111,10 +111,9 @@ export default function TaxProfileTab({
     const submit = () => {
         form.post('/avana/payroll/konfigurasi/tax-profile', {
             preserveScroll: true,
-            onSuccess: () => {
-                toast.success('Profil pajak karyawan disimpan');
-                setEditing(null);
-            },
+            // The success toast comes from the flash message the page already
+            // renders — raising one here too showed it twice.
+            onSuccess: () => setEditing(null),
             onError: () => toast.error('Periksa kembali isian'),
         });
     };

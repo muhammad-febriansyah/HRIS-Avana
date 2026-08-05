@@ -37,10 +37,9 @@ export default function Pph21Tab({
     const submitPtkp = () => {
         ptkpForm.post(PayrollConfigController.storePtkpRate().url, {
             preserveScroll: true,
-            onSuccess: () => {
-                toast.success('Tarif PTKP disimpan');
-                ptkpForm.reset('ptkp_status', 'amount', 'note');
-            },
+            // Success toasts ride on the page's flash message; raising one
+            // here too showed every save twice.
+            onSuccess: () => ptkpForm.reset('ptkp_status', 'amount', 'note'),
             onError: () => toast.error('Periksa isian PTKP'),
         });
     };
@@ -48,19 +47,12 @@ export default function Pph21Tab({
     const submitPkp = () => {
         pkpForm.post(PayrollConfigController.storePkpRate().url, {
             preserveScroll: true,
-            onSuccess: () => {
-                toast.success('Tarif PKP disimpan');
-                pkpForm.reset('up_to', 'rate');
-            },
+            onSuccess: () => pkpForm.reset('up_to', 'rate'),
             onError: () => toast.error('Periksa isian PKP'),
         });
     };
 
-    const del = (url: string) =>
-        router.delete(url, {
-            preserveScroll: true,
-            onSuccess: () => toast.success('Tarif dihapus'),
-        });
+    const del = (url: string) => router.delete(url, { preserveScroll: true });
 
     const input: React.CSSProperties = {
         padding: '9px 11px',
