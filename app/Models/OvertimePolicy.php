@@ -21,6 +21,7 @@ final class OvertimePolicy extends Model
             'max_hours_per_day' => 'decimal:2',
             'max_hours_per_week' => 'decimal:2',
             'hours_divisor' => 'integer',
+            'rounding_minutes' => 'integer',
             'fixed_basis_min_ratio' => 'decimal:4',
             'enforce_hour_limits' => 'boolean',
         ];

@@ -39,6 +39,7 @@ interface Props {
         max_hours_per_day: number;
         max_hours_per_week: number;
         hours_divisor: number;
+        rounding_minutes: number;
         fixed_basis_min_ratio: number;
         enforce_hour_limits: boolean;
     };
@@ -130,7 +131,10 @@ export default function PayrollLembur({
         max_hours_per_day: String(policy.max_hours_per_day),
         max_hours_per_week: String(policy.max_hours_per_week),
         hours_divisor: String(policy.hours_divisor),
-        fixed_basis_min_ratio: String(Math.round(policy.fixed_basis_min_ratio * 100)),
+        rounding_minutes: String(policy.rounding_minutes),
+        fixed_basis_min_ratio: String(
+            Math.round(policy.fixed_basis_min_ratio * 100),
+        ),
         enforce_hour_limits: policy.enforce_hour_limits,
     });
 
@@ -157,7 +161,8 @@ export default function PayrollLembur({
         return a.name.localeCompare(b.name, 'id');
     });
     const firstHourMultiplier =
-        rates.find((r) => r.day_type === 'workday' && r.hour_from === 1)?.multiplier ?? 1.5;
+        rates.find((r) => r.day_type === 'workday' && r.hour_from === 1)
+            ?.multiplier ?? 1.5;
 
     const toggleBasis = (component: BasisComponent, next: boolean) =>
         router.post(
@@ -177,9 +182,11 @@ export default function PayrollLembur({
                 max_hours_per_day: Number(policyForm.data.max_hours_per_day),
                 max_hours_per_week: Number(policyForm.data.max_hours_per_week),
                 hours_divisor: Number(policyForm.data.hours_divisor),
+                rounding_minutes: Number(policyForm.data.rounding_minutes),
                 // Stored as a ratio; typed as a percentage because that is how
                 // the regulation is written ("75% dari upah sebulan").
-                fixed_basis_min_ratio: Number(policyForm.data.fixed_basis_min_ratio) / 100,
+                fixed_basis_min_ratio:
+                    Number(policyForm.data.fixed_basis_min_ratio) / 100,
                 enforce_hour_limits: policyForm.data.enforce_hour_limits,
             },
             {
@@ -245,8 +252,9 @@ export default function PayrollLembur({
                 <div style={{ ...card, padding: 22, marginBottom: 18 }}>
                     <div style={sectionTitle}>Basis Perhitungan Lembur</div>
                     <div style={hint}>
-                        Sesuai PP No. 35/2021 — basis lembur bukan Gaji Pokok saja, tapi Gaji
-                        Pokok + komponen tunjangan yang ditandai &ldquo;Tetap&rdquo;.
+                        Sesuai PP No. 35/2021 — basis lembur bukan Gaji Pokok
+                        saja, tapi Gaji Pokok + komponen tunjangan yang ditandai
+                        &ldquo;Tetap&rdquo;.
                     </div>
 
                     <div
@@ -277,7 +285,9 @@ export default function PayrollLembur({
                                     gap: 11,
                                     padding: '11px 2px',
                                     borderBottom: `1px solid ${C.line}`,
-                                    cursor: component.locked ? 'default' : 'pointer',
+                                    cursor: component.locked
+                                        ? 'default'
+                                        : 'pointer',
                                 }}
                             >
                                 <input
@@ -293,7 +303,9 @@ export default function PayrollLembur({
                                     style={{
                                         flex: 1,
                                         fontSize: 14,
-                                        color: component.is_fixed ? C.text : C.faint,
+                                        color: component.is_fixed
+                                            ? C.text
+                                            : C.faint,
                                     }}
                                 >
                                     {component.name}
@@ -312,8 +324,15 @@ export default function PayrollLembur({
                                     </span>
                                 )}
                                 {!component.is_fixed && !component.locked && (
-                                    <span style={{ fontSize: 11.5, color: C.faint }}>
-                                        {component.variable ? 'tidak tetap' : 'tidak ikut'}
+                                    <span
+                                        style={{
+                                            fontSize: 11.5,
+                                            color: C.faint,
+                                        }}
+                                    >
+                                        {component.variable
+                                            ? 'tidak tetap'
+                                            : 'tidak ikut'}
                                     </span>
                                 )}
                             </label>
@@ -321,9 +340,9 @@ export default function PayrollLembur({
                     </div>
 
                     <div style={{ ...hint, marginTop: 14, marginBottom: 0 }}>
-                        Jika total komponen tetap di atas &lt; {ratio}% dari total penghasilan
-                        karyawan, sistem otomatis beralih ke basis {ratio}% dari total
-                        penghasilan bulanan.
+                        Jika total komponen tetap di atas &lt; {ratio}% dari
+                        total penghasilan karyawan, sistem otomatis beralih ke
+                        basis {ratio}% dari total penghasilan bulanan.
                     </div>
                 </div>
 
@@ -337,10 +356,13 @@ export default function PayrollLembur({
                         }}
                     >
                         <div>
-                            <div style={sectionTitle}>Tabel Pengali (Multiplier)</div>
+                            <div style={sectionTitle}>
+                                Tabel Pengali (Multiplier)
+                            </div>
                             <div style={hint}>
-                                Upah sejam = basis bulanan ÷ {policy.hours_divisor}, dikalikan
-                                pengali berikut sesuai jenis hari &amp; jam ke-berapa.
+                                Upah sejam = basis bulanan ÷{' '}
+                                {policy.hours_divisor}, dikalikan pengali
+                                berikut sesuai jenis hari &amp; jam ke-berapa.
                             </div>
                         </div>
                         <ActionBtn
@@ -351,12 +373,19 @@ export default function PayrollLembur({
                     </div>
 
                     <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <table
+                            style={{
+                                width: '100%',
+                                borderCollapse: 'collapse',
+                            }}
+                        >
                             <thead>
                                 <tr>
                                     <th style={th}>Jenis Hari</th>
                                     <th style={th}>Jam Lembur</th>
-                                    <th style={{ ...th, textAlign: 'right' }}>Pengali</th>
+                                    <th style={{ ...th, textAlign: 'right' }}>
+                                        Pengali
+                                    </th>
                                     <th style={th} />
                                 </tr>
                             </thead>
@@ -377,8 +406,15 @@ export default function PayrollLembur({
                                 ) : (
                                     rates.map((r) => (
                                         <tr key={r.id}>
-                                            <td style={td}>{r.day_type_label}</td>
-                                            <td style={{ ...td, color: C.muted }}>
+                                            <td style={td}>
+                                                {r.day_type_label}
+                                            </td>
+                                            <td
+                                                style={{
+                                                    ...td,
+                                                    color: C.muted,
+                                                }}
+                                            >
                                                 {bandLabel(r)}
                                             </td>
                                             <td
@@ -402,7 +438,9 @@ export default function PayrollLembur({
                                                     icon="trash-2"
                                                     label="Hapus"
                                                     variant="danger"
-                                                    onClick={() => delRate(r.id)}
+                                                    onClick={() =>
+                                                        delRate(r.id)
+                                                    }
                                                 />
                                             </td>
                                         </tr>
@@ -424,13 +462,21 @@ export default function PayrollLembur({
                             border: `1px solid ${C.amber}33`,
                         }}
                     >
-                        <AIcon name="triangle-alert" size={15} color={C.amber} />
+                        <AIcon
+                            name="triangle-alert"
+                            size={15}
+                            color={C.amber}
+                        />
                         <span
-                            style={{ fontSize: 12.5, color: C.amber, fontWeight: 500 }}
+                            style={{
+                                fontSize: 12.5,
+                                color: C.amber,
+                                fontWeight: 500,
+                            }}
                         >
-                            Validasi batas: maks. {policy.max_hours_per_day} jam/hari ·{' '}
-                            {policy.max_hours_per_week} jam/minggu (dari data Cuti &amp;
-                            Lembur yang disetujui)
+                            Validasi batas: maks. {policy.max_hours_per_day}{' '}
+                            jam/hari · {policy.max_hours_per_week} jam/minggu
+                            (dari data Cuti &amp; Lembur yang disetujui)
                             {!policy.enforce_hour_limits &&
                                 ' — penegakan sedang dimatikan'}
                         </span>
@@ -471,7 +517,10 @@ export default function PayrollLembur({
                                 min={1}
                                 value={rateForm.data.hour_from}
                                 onChange={(e) =>
-                                    rateForm.setData('hour_from', e.target.value)
+                                    rateForm.setData(
+                                        'hour_from',
+                                        e.target.value,
+                                    )
                                 }
                             />
                         </div>
@@ -495,7 +544,10 @@ export default function PayrollLembur({
                                 step="0.25"
                                 value={rateForm.data.multiplier}
                                 onChange={(e) =>
-                                    rateForm.setData('multiplier', e.target.value)
+                                    rateForm.setData(
+                                        'multiplier',
+                                        e.target.value,
+                                    )
                                 }
                             />
                         </div>
@@ -516,20 +568,30 @@ export default function PayrollLembur({
                             Contoh Perhitungan — {example.employee}
                         </div>
                         <div style={hint}>
-                            Simulasi 3 jam lembur pada hari kerja, memakai basis di atas (
-                            {rupiah(example.basis)}
-                            {example.basis_floored && `, hasil aturan ${ratio}%`}).
+                            Simulasi 3 jam lembur pada hari kerja, memakai basis
+                            di atas ({rupiah(example.basis)}
+                            {example.basis_floored &&
+                                `, hasil aturan ${ratio}%`}
+                            ).
                         </div>
 
                         <div style={{ overflowX: 'auto' }}>
                             <table
-                                style={{ width: '100%', borderCollapse: 'collapse' }}
+                                style={{
+                                    width: '100%',
+                                    borderCollapse: 'collapse',
+                                }}
                             >
                                 <thead>
                                     <tr>
                                         <th style={th}>Komponen</th>
                                         <th style={th}>Perhitungan</th>
-                                        <th style={{ ...th, textAlign: 'right' }}>
+                                        <th
+                                            style={{
+                                                ...th,
+                                                textAlign: 'right',
+                                            }}
+                                        >
                                             Nilai
                                         </th>
                                     </tr>
@@ -538,7 +600,8 @@ export default function PayrollLembur({
                                     <tr>
                                         <td style={td}>Upah sejam</td>
                                         <td style={{ ...td, color: C.muted }}>
-                                            {rupiah(example.basis)} ÷ {example.divisor}
+                                            {rupiah(example.basis)} ÷{' '}
+                                            {example.divisor}
                                         </td>
                                         <td
                                             style={{
@@ -619,8 +682,9 @@ export default function PayrollLembur({
                                 lineHeight: 1.6,
                             }}
                         >
-                            Upah Lembur = (Basis Bulanan ÷ {policy.hours_divisor}) × Pengali
-                            × Jam Lembur Disetujui
+                            Upah Lembur = (Basis Bulanan ÷{' '}
+                            {policy.hours_divisor}) × Pengali × Jam Lembur
+                            Disetujui
                         </div>
                     </div>
                 )}
@@ -628,12 +692,13 @@ export default function PayrollLembur({
                 <div style={{ ...card, padding: 22 }}>
                     <div style={sectionTitle}>Aturan Dasar</div>
                     <div style={hint}>
-                        Batas jam dan pembagi yang dipakai seluruh perhitungan di atas.
+                        Batas jam dan pembagi yang dipakai seluruh perhitungan
+                        di atas.
                     </div>
                     <div
                         style={{
                             display: 'grid',
-                            gridTemplateColumns: 'repeat(4, 1fr) auto',
+                            gridTemplateColumns: 'repeat(5, 1fr) auto',
                             gap: 12,
                             alignItems: 'end',
                         }}
@@ -675,7 +740,26 @@ export default function PayrollLembur({
                                 type="number"
                                 value={policyForm.data.hours_divisor}
                                 onChange={(e) =>
-                                    policyForm.setData('hours_divisor', e.target.value)
+                                    policyForm.setData(
+                                        'hours_divisor',
+                                        e.target.value,
+                                    )
+                                }
+                            />
+                        </div>
+                        <div>
+                            <span style={label}>Pembulatan durasi (menit)</span>
+                            <input
+                                style={input}
+                                type="number"
+                                min="0"
+                                step="5"
+                                value={policyForm.data.rounding_minutes}
+                                onChange={(e) =>
+                                    policyForm.setData(
+                                        'rounding_minutes',
+                                        e.target.value,
+                                    )
                                 }
                             />
                         </div>
@@ -725,8 +809,13 @@ export default function PayrollLembur({
                         Tolak pengajuan lembur yang melewati batas jam
                     </label>
                     <div style={{ ...hint, marginTop: 10, marginBottom: 0 }}>
-                        Komponen basis ditandai lewat daftar centang di atas ({ticked.length}{' '}
-                        komponen aktif).
+                        Komponen basis ditandai lewat daftar centang di atas (
+                        {ticked.length} komponen aktif).
+                    </div>
+                    <div style={{ ...hint, marginTop: 6, marginBottom: 0 }}>
+                        {Number(policyForm.data.rounding_minutes) > 0
+                            ? `Durasi lembur dibulatkan ke bawah kelipatan ${policyForm.data.rounding_minutes} menit — kurang dari itu tidak dihitung (mis. 45 menit = ${(Math.floor(45 / Number(policyForm.data.rounding_minutes)) * Number(policyForm.data.rounding_minutes)) / 60} jam).`
+                            : 'Pembulatan 0 = durasi dihitung apa adanya (45 menit = 0,75 jam).'}
                     </div>
                 </div>
             </div>

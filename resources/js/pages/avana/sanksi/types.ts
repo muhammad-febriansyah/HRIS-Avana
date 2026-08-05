@@ -42,6 +42,19 @@ export interface SanksiFilters {
     per_page?: string;
 }
 
+/**
+ * One tier of the tenant's late-penalty table: a minute band and its fine.
+ * `max_minutes` null is the last, open-ended tier.
+ */
+export interface PenaltyRule {
+    id: number;
+    min_minutes: number;
+    max_minutes: number | null;
+    penalty_type: string;
+    amount: number;
+    is_active: boolean;
+}
+
 /** Props for the sanksi list page (`index.tsx`). */
 export interface SanksiIndexProps {
     penalties: {
@@ -49,6 +62,7 @@ export interface SanksiIndexProps {
         meta: PaginationMeta;
     };
     employees: EmployeeOption[];
+    rules: PenaltyRule[];
     filters: SanksiFilters;
 }
 

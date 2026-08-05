@@ -461,6 +461,9 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::get('sanksi/create', [AttendancePenaltyController::class, 'create'])->name('sanksi.create');
     Route::post('sanksi', [AttendancePenaltyController::class, 'store'])->name('sanksi.store');
     Route::post('sanksi/generate', [AttendancePenaltyController::class, 'generate'])->name('sanksi.generate');
+    // Per-tenant late-penalty tiers ("10–30 menit: Rp20.000").
+    Route::post('sanksi/aturan', [AttendancePenaltyController::class, 'storeRule'])->name('sanksi.aturan.store');
+    Route::delete('sanksi/aturan/{rule}', [AttendancePenaltyController::class, 'destroyRule'])->name('sanksi.aturan.destroy');
     Route::delete('sanksi/{penalty}', [AttendancePenaltyController::class, 'destroy'])->name('sanksi.destroy');
 
     // Visiting pekerjaan (field visits)

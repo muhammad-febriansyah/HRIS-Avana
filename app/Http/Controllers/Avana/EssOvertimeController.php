@@ -89,17 +89,18 @@ class EssOvertimeController extends Controller
         // Hours are derived, never typed: the range is what an approver checks,
         // so payroll must agree with it by construction.
 
-        if (! OvertimeWindow::isPlausible($data['start_time'], $data['end_time'])) {
-            throw ValidationException::withMessages([
-                'end_time' => sprintf(
-                    'Durasi lembur harus antara %s dan %s jam.',
-                    OvertimeWindow::MIN_HOURS,
-                    OvertimeWindow::MAX_HOURS,
-                ),
-            ]);
+        // Rounded by the tenant's own rule, so an employee's own filing and the
+        // HR desk's arrive at the same payable hours.
+        $payable = OvertimeRules::payableHours(
+            (int) $employee->tenant_id,
+            OvertimeWindow::hoursBetween($data['start_time'], $data['end_time']),
+        );
+
+        if ($payable['error'] !== null) {
+            throw ValidationException::withMessages(['end_time' => $payable['error']]);
         }
 
-        $hours = OvertimeWindow::hoursBetween($data['start_time'], $data['end_time']);
+        $hours = $payable['hours'];
         $date = Carbon::parse($data['date']);
 
         // PP 35/2021 caps overtime at 4 hours a day and 18 a week.

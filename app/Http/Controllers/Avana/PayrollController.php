@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Avana\PayrollPeriodResource;
 use App\Models\Attendance;
+use App\Models\AttendancePenalty;
 use App\Models\AuditLog;
 use App\Models\BpjsProgram;
 use App\Models\DayCalcMethod;
@@ -1461,6 +1462,18 @@ class PayrollController extends Controller
             $deductions[] = $line;
         }
 
+        // Attendance fines the tenant's own penalty tiers produced, read over
+        // the same window the attendance itself was counted in — a fine dated
+        // outside this month's cut-off belongs to another payslip.
+        $fine = $this->attendanceFineFor($employee, $tenantId, $attendanceRange);
+
+        if ($fine['amount'] > 0) {
+            $deductions[] = [
+                'name' => 'Denda Absensi'.($fine['count'] > 1 ? " ({$fine['count']}x)" : ''),
+                'amount' => $fine['amount'],
+            ];
+        }
+
         // Statutory deductions computed from internal config (no external API).
         // Ahead of the tax, not after it: the company's JKK/JKM/Kesehatan
         // premiums are the employee's income, so PPh 21 cannot be worked out
@@ -2223,17 +2236,33 @@ class PayrollController extends Controller
     }
 
     /**
-     * The PPh 21 subject category configured for an employee (defaults to
-     * pegawai tetap when no tax profile exists).
+     * Active attendance fines for the employee inside the payroll window.
+     *
+     * Only penalties recorded as a deduction count; a warning is a note on the
+     * record, not money. Manually issued fines land here too, which is what an
+     * HR desk expects after typing one in.
+     *
+     * @param  array{0: string, 1: string}|null  $window
+     * @return array{amount: float, count: int}
      */
-    private function taxSubjectOf(Employee $employee, int $tenantId): string
+    private function attendanceFineFor(Employee $employee, int $tenantId, ?array $window): array
     {
-        return TaxProfile::where('tenant_id', $tenantId)
-            ->where('employee_id', $employee->id)
-            ->value('tax_subject') ?? 'pegawai_tetap';
-    }
+        if ($window === null) {
+            return ['amount' => 0.0, 'count' => 0];
+        }
 
-    /**
+        $fines = AttendancePenalty::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->where('penalty_type', 'deduction')
+            ->where('status', 'active')
+            ->whereBetween('date', $window)
+            ->get(['amount']);
+
+        return [
+            'amount' => round((float) $fines->sum('amount'), 2),
+            'count' => $fines->count(),
+        ];
+    }
 
     /**
      * The nil result for an employee the tenant does not withhold PPh 21 for.
@@ -2266,6 +2295,17 @@ class PayrollController extends Controller
         return (bool) TaxProfile::where('tenant_id', $tenantId)
             ->where('employee_id', $employee->id)
             ->value('is_pph21_exempt');
+    }
+
+    /**
+     * The PPh 21 subject category configured for an employee (defaults to
+     * pegawai tetap when no tax profile exists).
+     */
+    private function taxSubjectOf(Employee $employee, int $tenantId): string
+    {
+        return TaxProfile::where('tenant_id', $tenantId)
+            ->where('employee_id', $employee->id)
+            ->value('tax_subject') ?? 'pegawai_tetap';
     }
 
     /**

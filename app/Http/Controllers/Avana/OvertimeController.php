@@ -44,18 +44,19 @@ class OvertimeController extends Controller
             'reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        if (! OvertimeWindow::isPlausible($data['start_time'], $data['end_time'])) {
-            throw ValidationException::withMessages([
-                'end_time' => sprintf(
-                    'Durasi lembur harus antara %s dan %s jam.',
-                    OvertimeWindow::MIN_HOURS,
-                    OvertimeWindow::MAX_HOURS,
-                ),
-            ]);
+        // The tenant's rounding rule decides what the stretch is worth — under
+        // one block (30 minutes for most companies) is not overtime at all.
+        $payable = OvertimeRules::payableHours(
+            $tenantId,
+            OvertimeWindow::hoursBetween($data['start_time'], $data['end_time']),
+        );
+
+        if ($payable['error'] !== null) {
+            throw ValidationException::withMessages(['end_time' => $payable['error']]);
         }
 
         $employee = Employee::forTenant($tenantId)->findOrFail($data['employee_id']);
-        $hours = OvertimeWindow::hoursBetween($data['start_time'], $data['end_time']);
+        $hours = $payable['hours'];
         $date = Carbon::parse($data['date']);
 
         // PP 35/2021 caps overtime at 4 hours a day and 18 a week; the ceilings

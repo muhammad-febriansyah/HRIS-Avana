@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\AttendancePenalty;
+use App\Models\AttendancePenaltyRule;
 use App\Models\Employee;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
@@ -92,8 +93,74 @@ class AttendancePenaltyController extends Controller
                 ],
             ],
             'employees' => $this->employeeOptions($tenantId),
+            'rules' => AttendancePenaltyRule::tiersFor($tenantId)
+                ->map(fn (AttendancePenaltyRule $rule): array => [
+                    'id' => $rule->id,
+                    'min_minutes' => $rule->min_minutes,
+                    'max_minutes' => $rule->max_minutes,
+                    'penalty_type' => $rule->penalty_type,
+                    'amount' => (float) $rule->amount,
+                    'is_active' => $rule->is_active,
+                ])
+                ->all(),
             'filters' => $request->only(['search', 'violation_type', 'per_page']),
         ]);
+    }
+
+    /**
+     * Add or update one tier of the tenant's late-penalty table.
+     */
+    public function storeRule(Request $request): RedirectResponse
+    {
+        $this->authorize('create', Attendance::class);
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $validated = $request->validate([
+            'id' => ['nullable', 'integer', Rule::exists('attendance_penalty_rules', 'id')->where('tenant_id', $tenantId)],
+            'min_minutes' => ['required', 'integer', 'min:0', 'max:1440'],
+            // Null is the last, open-ended tier ("lebih dari 60 menit").
+            'max_minutes' => ['nullable', 'integer', 'min:1', 'max:1440', 'gt:min_minutes'],
+            'penalty_type' => ['required', Rule::in(['warning', 'deduction'])],
+            'amount' => ['nullable', 'numeric', 'min:0', 'required_if:penalty_type,deduction'],
+            'is_active' => ['nullable', 'boolean'],
+        ], [
+            'max_minutes.gt' => 'Menit akhir harus lebih besar dari menit awal.',
+        ]);
+
+        $attributes = [
+            'tenant_id' => $tenantId,
+            'violation_type' => 'late',
+            'min_minutes' => $validated['min_minutes'],
+            'max_minutes' => $validated['max_minutes'] ?? null,
+            'penalty_type' => $validated['penalty_type'],
+            'amount' => $validated['penalty_type'] === 'deduction' ? ($validated['amount'] ?? 0) : 0,
+            'is_active' => $validated['is_active'] ?? true,
+        ];
+
+        if (($validated['id'] ?? null) !== null) {
+            AttendancePenaltyRule::forTenant($tenantId)->findOrFail($validated['id'])->update($attributes);
+
+            return back()->with('success', 'Aturan denda diperbarui');
+        }
+
+        AttendancePenaltyRule::create($attributes);
+
+        return back()->with('success', 'Aturan denda ditambahkan');
+    }
+
+    /**
+     * Remove one tier from the tenant's late-penalty table.
+     */
+    public function destroyRule(Request $request, AttendancePenaltyRule $rule): RedirectResponse
+    {
+        abort_if((int) $rule->tenant_id !== (int) $request->user()->tenant_id, 404);
+
+        $this->authorize('delete', Attendance::class);
+
+        $rule->delete();
+
+        return back()->with('success', 'Aturan denda dihapus');
     }
 
     /**
@@ -166,9 +233,18 @@ class AttendancePenaltyController extends Controller
             ->whereDate('date', '<=', $endDate)
             ->get(['id', 'employee_id', 'date', 'status', 'late_minutes']);
 
+        // The tenant's own late-penalty table, if it has written one: a late
+        // arrival then carries the tier's fine instead of a bare warning.
+        $tiers = AttendancePenaltyRule::tiersFor($tenantId);
+
         $created = 0;
+        $fined = 0;
 
         foreach ($attendances as $attendance) {
+            $tier = $attendance->status === 'late'
+                ? AttendancePenaltyRule::match($tiers, (int) $attendance->late_minutes)
+                : null;
+
             $penalty = AttendancePenalty::firstOrCreate(
                 [
                     'tenant_id' => $tenantId,
@@ -177,20 +253,29 @@ class AttendancePenaltyController extends Controller
                     'violation_type' => $attendance->status,
                 ],
                 [
-                    'penalty_type' => 'warning',
-                    'amount' => 0,
-                    'notes' => $this->generatedNote($attendance),
+                    'penalty_type' => $tier?->penalty_type ?? 'warning',
+                    'amount' => $tier?->amount ?? 0,
+                    'notes' => $this->generatedNote($attendance, $tier),
                     'status' => 'active',
                 ],
             );
 
             if ($penalty->wasRecentlyCreated) {
                 $created++;
+
+                if ((float) $penalty->amount > 0) {
+                    $fined++;
+                }
             }
         }
 
-        return redirect()->route('avana.sanksi')
-            ->with('success', "{$created} sanksi dibuat dari absensi");
+        $message = "{$created} sanksi dibuat dari absensi";
+
+        if ($fined > 0) {
+            $message .= ", {$fined} di antaranya kena denda sesuai aturan tenant";
+        }
+
+        return redirect()->route('avana.sanksi')->with('success', $message);
     }
 
     /**
@@ -255,12 +340,20 @@ class AttendancePenaltyController extends Controller
     /**
      * Compose the human-readable note for an auto-generated penalty.
      */
-    private function generatedNote(Attendance $attendance): string
+    private function generatedNote(Attendance $attendance, ?AttendancePenaltyRule $tier = null): string
     {
         $label = self::VIOLATION_NOTES[$attendance->status] ?? $attendance->status;
 
         if ($attendance->status === 'late' && (int) $attendance->late_minutes > 0) {
             $label .= ' '.(int) $attendance->late_minutes.' menit';
+        }
+
+        if ($tier !== null) {
+            $label .= sprintf(
+                ' (aturan %d–%s menit)',
+                $tier->min_minutes,
+                $tier->max_minutes !== null ? (string) $tier->max_minutes : 'seterusnya',
+            );
         }
 
         return 'Otomatis dari absensi: '.$label;

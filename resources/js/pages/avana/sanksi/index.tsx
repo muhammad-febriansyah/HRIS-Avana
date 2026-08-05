@@ -25,10 +25,15 @@ import {
     ViolationBadge,
     withError,
 } from './components';
+import { RuleCard } from './rule-card';
 import { violationOptions } from './types';
 import type { FlashProps, PenaltyRow, SanksiIndexProps } from './types';
 
-export default function SanksiIndex({ penalties, filters }: SanksiIndexProps) {
+export default function SanksiIndex({
+    penalties,
+    rules,
+    filters,
+}: SanksiIndexProps) {
     const { flash } = usePage<FlashProps>().props;
     const meta = penalties.meta;
 
@@ -177,6 +182,8 @@ export default function SanksiIndex({ penalties, filters }: SanksiIndexProps) {
                         </Link>
                     </div>
                 </div>
+
+                <RuleCard rules={rules} />
 
                 {/* Table card */}
                 <div

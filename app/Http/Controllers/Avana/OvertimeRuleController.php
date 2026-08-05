@@ -51,6 +51,7 @@ class OvertimeRuleController extends Controller
                 'max_hours_per_day' => (float) $policy->max_hours_per_day,
                 'max_hours_per_week' => (float) $policy->max_hours_per_week,
                 'hours_divisor' => (int) $policy->hours_divisor,
+                'rounding_minutes' => (int) $policy->rounding_minutes,
                 'fixed_basis_min_ratio' => (float) $policy->fixed_basis_min_ratio,
                 'enforce_hour_limits' => (bool) $policy->enforce_hour_limits,
             ],
@@ -88,6 +89,9 @@ class OvertimeRuleController extends Controller
             'max_hours_per_day' => ['required', 'numeric', 'min:0', 'max:24'],
             'max_hours_per_week' => ['required', 'numeric', 'min:0', 'max:168'],
             'hours_divisor' => ['required', 'integer', 'min:1', 'max:744'],
+            // 0 = pay the exact minutes; 30 = the common "round down to the
+            // half hour, under 30 minutes is not overtime".
+            'rounding_minutes' => ['required', 'integer', 'min:0', 'max:120'],
             'fixed_basis_min_ratio' => ['required', 'numeric', 'min:0', 'max:1'],
             'enforce_hour_limits' => ['required', 'boolean'],
         ]);

@@ -71,6 +71,7 @@ final class OvertimeRules
                 'max_hours_per_day' => 4,
                 'max_hours_per_week' => 18,
                 'hours_divisor' => 173,
+                'rounding_minutes' => 0,
                 'fixed_basis_min_ratio' => 0.75,
                 'enforce_hour_limits' => true,
             ],
@@ -193,6 +194,64 @@ final class OvertimeRules
         }
 
         return $total;
+    }
+
+    /**
+     * Payable hours for a stretch actually worked, under the tenant's rounding
+     * rule: the duration is cut down to whole blocks of `roundingMinutes`, and
+     * a stretch shorter than one block is not paid at all.
+     *
+     * With a 30-minute block that reads as the rule most companies write down —
+     * under 30 minutes counts for nothing, 45 minutes for half an hour, 89 for
+     * one hour. A zero block means no rounding: the exact hours stand.
+     */
+    public static function roundHours(float $hours, int $roundingMinutes): float
+    {
+        if ($roundingMinutes <= 0 || $hours <= 0) {
+            return max(0.0, $hours);
+        }
+
+        $blocks = (int) floor(round($hours * 60, 6) / $roundingMinutes);
+
+        return round($blocks * $roundingMinutes / 60, 2);
+    }
+
+    /**
+     * What a filed stretch is worth to the tenant, with the reason when it is
+     * worth nothing — the single place the three intake paths (HR desk, ESS and
+     * the mobile API) agree on how long an overtime request has to be.
+     *
+     * @return array{hours: float, error: string|null}
+     */
+    public static function payableHours(int $tenantId, float $rawHours): array
+    {
+        $rounding = (int) self::policyFor($tenantId)->rounding_minutes;
+
+        if ($rawHours > OvertimeWindow::MAX_HOURS) {
+            return [
+                'hours' => 0.0,
+                'error' => sprintf('Durasi lembur maksimal %s jam.', OvertimeWindow::MAX_HOURS),
+            ];
+        }
+
+        $hours = self::roundHours($rawHours, $rounding);
+
+        if ($rounding > 0) {
+            return $hours > 0
+                ? ['hours' => $hours, 'error' => null]
+                : ['hours' => 0.0, 'error' => sprintf('Lembur kurang dari %d menit tidak dihitung.', $rounding)];
+        }
+
+        return $hours >= OvertimeWindow::MIN_HOURS
+            ? ['hours' => $hours, 'error' => null]
+            : [
+                'hours' => 0.0,
+                'error' => sprintf(
+                    'Durasi lembur harus antara %s dan %s jam.',
+                    OvertimeWindow::MIN_HOURS,
+                    OvertimeWindow::MAX_HOURS,
+                ),
+            ];
     }
 
     /**
