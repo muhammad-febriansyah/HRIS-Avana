@@ -48,9 +48,10 @@ export interface SlipLine {
     why?: string | null;
 }
 
-/** Computed sample payslip for the first active employee. */
+/** Computed payslip preview — the picked employee, or the first active one. */
 export interface Slip {
     employee: string;
+    employee_id?: number | null;
     payslip_id?: number | null;
     earnings: SlipLine[];
     deductions: SlipLine[];
@@ -95,6 +96,8 @@ export interface PayrollProps {
     stale_run: boolean;
     /** Setup steps in documentation order, marked done from tenant data. */
     checklist: ChecklistStep[];
+    /** Active employees selectable for the slip preview. */
+    slip_employees: { id: number; name: string }[];
     filters: PayrollFilters;
 }
 

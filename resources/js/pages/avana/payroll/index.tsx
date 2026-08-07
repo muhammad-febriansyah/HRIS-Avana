@@ -123,6 +123,7 @@ export default function AvanaPayroll({
     recipients,
     recipient_meta,
     slip,
+    slip_employees,
     stale_run,
     checklist,
     filters,
@@ -811,7 +812,11 @@ export default function AvanaPayroll({
                     />
 
                     {/* Slip gaji detail */}
-                    <SlipDetail slip={slip} period={summary.period} />
+                    <SlipDetail
+                        slip={slip}
+                        period={summary.period}
+                        employees={slip_employees}
+                    />
                 </div>
 
                 {/* Daftar penerima gaji — semua karyawan pada periode terpilih */}
