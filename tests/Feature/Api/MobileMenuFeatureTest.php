@@ -68,3 +68,56 @@ it('names a tenant feature that actually exists for every tile', function (): vo
 
     expect($unknown)->toBe([]);
 });
+
+/** Bottom-tab keys the account sees in the app's navigation bar. */
+function tabKeysFor(User $user): array
+{
+    return array_column(MobileMenu::tabsForUser($user->fresh()), 'key');
+}
+
+it('drops the bottom tab when its feature is switched off', function (): void {
+    expect(tabKeysFor($this->user))->toContain('sosmed');
+
+    disableFeature($this->tenant, 'social');
+
+    expect(tabKeysFor($this->user))->not->toContain('sosmed');
+    // The rest of the bar is untouched.
+    expect(tabKeysFor($this->user))->toContain('pengumuman');
+});
+
+it('keeps Beranda and Profil whatever the tenant switches off', function (): void {
+    foreach (Feature::pluck('code') as $code) {
+        disableFeature($this->tenant, $code);
+    }
+
+    expect(tabKeysFor($this->user))->toBe(['beranda', 'profil']);
+});
+
+it('names a tenant feature that actually exists for every bottom tab', function (): void {
+    $codes = Feature::pluck('code')->all();
+
+    $unknown = array_values(array_diff(array_unique(array_values(MobileMenu::TAB_FEATURES)), $codes));
+
+    expect($unknown)->toBe([]);
+});
+
+it('sends the bottom bar to the phone on login', function (): void {
+    $this->postJson('/api/v1/auth/login', [
+        'email' => $this->user->email,
+        'password' => 'password',
+    ])
+        ->assertOk()
+        ->assertJsonPath('user.tabs.0.key', 'beranda')
+        ->assertJsonStructure(['user' => ['tabs' => [['key', 'label', 'icon', 'color', 'route']]]]);
+});
+
+it('closes the social wall when Ruang Kita is switched off', function (): void {
+    disableFeature($this->tenant, 'social');
+
+    $token = auth('api')->login($this->user->fresh());
+
+    $this->withHeader('Authorization', "Bearer {$token}")
+        ->getJson('/api/v1/me/social/feed')
+        ->assertStatus(403)
+        ->assertJsonPath('message', 'Fitur Ruang Kita tidak aktif untuk perusahaan Anda.');
+});

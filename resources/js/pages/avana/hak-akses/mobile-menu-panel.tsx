@@ -9,6 +9,15 @@ interface MobileMenuPanelProps {
     onToggleActive: (menuId: number, active: boolean) => void;
     onRename: (menuId: number, label: string) => void;
     onReorder: (order: number[]) => void;
+    /** Column heading for the first column — "Pintasan" or "Tab". */
+    itemHeading?: string;
+    /** Sentence above the table explaining what this list drives. */
+    description?: string;
+    /**
+     * The bottom bar has no routes to show — a tab is switched to, not opened —
+     * so that column is dropped rather than left blank on every row.
+     */
+    showRoute?: boolean;
 }
 
 const cellStyle: CSSProperties = {
@@ -42,6 +51,9 @@ export function MobileMenuPanel({
     onToggleActive,
     onRename,
     onReorder,
+    itemHeading = 'Pintasan',
+    description = 'Pintasan di beranda aplikasi HP. Matikan sakelar untuk menghapusnya dari seluruh perusahaan. Urutan di sini adalah urutan di HP — empat teratas yang paling sering dibuka. Untuk memilih peran mana yang dapat tiap pintasan, buka tab perannya.',
+    showRoute = true,
 }: MobileMenuPanelProps) {
     const [editing, setEditing] = useState<number | null>(null);
     const [draft, setDraft] = useState('');
@@ -78,10 +90,7 @@ export function MobileMenuPanel({
                     marginBottom: 12,
                 }}
             >
-                Pintasan di beranda aplikasi HP. Matikan sakelar untuk
-                menghapusnya dari seluruh perusahaan. Urutan di sini adalah
-                urutan di HP — empat teratas yang paling sering dibuka. Untuk
-                memilih peran mana yang dapat tiap pintasan, buka tab perannya.
+                {description}
             </div>
 
             <div style={{ overflowX: 'auto' }}>
@@ -95,11 +104,13 @@ export function MobileMenuPanel({
                                     minWidth: 240,
                                 }}
                             >
-                                Pintasan
+                                {itemHeading}
                             </th>
-                            <th style={{ ...headStyle, textAlign: 'left' }}>
-                                Membuka
-                            </th>
+                            {showRoute ? (
+                                <th style={{ ...headStyle, textAlign: 'left' }}>
+                                    Membuka
+                                </th>
+                            ) : null}
                             <th style={headStyle}>Aktif</th>
                             <th style={{ ...headStyle, width: 80 }}>Urutan</th>
                         </tr>
@@ -199,15 +210,17 @@ export function MobileMenuPanel({
                                     </div>
                                 </td>
 
-                                <td
-                                    style={{
-                                        ...cellStyle,
-                                        fontSize: 12,
-                                        color: C.faint,
-                                    }}
-                                >
-                                    {tile.route}
-                                </td>
+                                {showRoute ? (
+                                    <td
+                                        style={{
+                                            ...cellStyle,
+                                            fontSize: 12,
+                                            color: C.faint,
+                                        }}
+                                    >
+                                        {tile.route}
+                                    </td>
+                                ) : null}
 
                                 <td
                                     style={{
@@ -218,10 +231,13 @@ export function MobileMenuPanel({
                                     <Switch
                                         on={tile.isActive}
                                         tone={C.primary}
+                                        disabled={tile.locked === true}
                                         title={
-                                            tile.isActive
-                                                ? `Hapus ${tile.label} dari aplikasi seluruh perusahaan`
-                                                : `Tampilkan ${tile.label} lagi`
+                                            tile.locked
+                                                ? `${tile.label} selalu ada — aplikasi butuh tab ini`
+                                                : tile.isActive
+                                                  ? `Hapus ${tile.label} dari aplikasi seluruh perusahaan`
+                                                  : `Tampilkan ${tile.label} lagi`
                                         }
                                         onToggle={() =>
                                             onToggleActive(

@@ -29,6 +29,7 @@ export default function AvanaHakAkses({
     canManageMenu,
     menu,
     mobileMenu,
+    mobileTabs,
 }: HakAksesProps) {
     const { flash } = usePage<{
         flash?: { success?: string; error?: string };
@@ -500,6 +501,7 @@ export default function AvanaHakAkses({
                                 matrix[rowIdx]?.[activeRoleIdx] ?? {},
                         )}
                         mobileMenu={mobileMenu}
+                        mobileTabs={mobileTabs}
                         onToggle={toggleCell}
                         onToggleVisible={toggleVisible}
                         onToggleMobile={toggleRoleMobile}
@@ -584,12 +586,39 @@ export default function AvanaHakAkses({
                                 onToggleFeature={toggleFeature}
                             />
                         ) : (
-                            <MobileMenuPanel
-                                tiles={mobileMenu}
-                                onToggleActive={toggleMobileTileActive}
-                                onRename={renameMobileTile}
-                                onReorder={reorderMobileTiles}
-                            />
+                            <>
+                                <MobileMenuPanel
+                                    tiles={mobileMenu}
+                                    onToggleActive={toggleMobileTileActive}
+                                    onRename={renameMobileTile}
+                                    onReorder={reorderMobileTiles}
+                                />
+
+                                {/* The bar along the bottom of the app. Same
+                                    rules as Menu Cepat, so it is set in the
+                                    same place rather than needing a build. */}
+                                <div style={{ marginTop: 26 }}>
+                                    <div
+                                        style={{
+                                            fontSize: 14,
+                                            fontWeight: 600,
+                                            color: C.navy,
+                                            marginBottom: 10,
+                                        }}
+                                    >
+                                        Menu Bawah (Bottom Bar)
+                                    </div>
+                                    <MobileMenuPanel
+                                        tiles={mobileTabs}
+                                        onToggleActive={toggleMobileTileActive}
+                                        onRename={renameMobileTile}
+                                        onReorder={reorderMobileTiles}
+                                        itemHeading="Tab"
+                                        showRoute={false}
+                                        description="Deretan tab di bagian bawah aplikasi HP. Matikan sakelar untuk menghilangkan tabnya dari seluruh perusahaan — Ruang Kita juga ikut hilang bila fiturnya dimatikan di Kelola Fitur. Beranda dan Profil selalu ada karena aplikasi memerlukannya. Untuk mengatur per peran, buka tab perannya."
+                                    />
+                                </div>
+                            </>
                         )}
                     </>
                 )}

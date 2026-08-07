@@ -179,3 +179,75 @@ it('records the Menu Cepat picks made while creating a role', function (): void 
     expect(collect(MobileMenu::forUser($member->fresh()))->pluck('key')->all())
         ->toBe(['cuti', 'slip_gaji']);
 });
+
+it('renders the bottom tabs on the Hak Akses screen', function (): void {
+    $props = actingAs($this->admin)
+        ->get(route('avana.hak-akses'))
+        ->assertOk()
+        ->viewData('page')['props'];
+
+    expect($props['mobileTabs'])->toHaveCount(count(MobileMenu::tabDefaults()))
+        ->and(array_column($props['mobileTabs'], 'key'))->toBe(['beranda', 'sosmed', 'absensi', 'pengumuman', 'profil'])
+        // Beranda and Profil carry the flag that freezes their switch.
+        ->and(array_column($props['mobileTabs'], 'locked'))->toBe([true, false, false, false, true]);
+});
+
+it('refuses to switch a locked tab off', function (): void {
+    $beranda = MobileMenu::tabsForTenant($this->tenant->id)->firstWhere('key', 'beranda');
+
+    actingAs($this->admin)
+        ->put(route('avana.hak-akses.mobile-menu.update'), ['menu_id' => $beranda->id, 'active' => false])
+        ->assertStatus(422);
+
+    expect($beranda->fresh()->is_active)->toBeTrue();
+});
+
+it('refuses to hide a locked tab from a role', function (): void {
+    $profil = MobileMenu::tabsForTenant($this->tenant->id)->firstWhere('key', 'profil');
+
+    actingAs($this->admin)
+        ->post(route('avana.hak-akses.mobile-menu.visibility'), [
+            'menu_id' => $profil->id,
+            'role_id' => $this->employeeRole->id,
+            'visible' => false,
+        ])
+        ->assertStatus(422);
+
+    expect(array_column(MobileMenu::tabsForUser($this->employee->fresh()), 'key'))->toContain('profil');
+});
+
+it('hides a bottom tab from one role only', function (): void {
+    $sosmed = MobileMenu::tabsForTenant($this->tenant->id)->firstWhere('key', 'sosmed');
+
+    actingAs($this->admin)
+        ->post(route('avana.hak-akses.mobile-menu.visibility'), [
+            'menu_id' => $sosmed->id,
+            'role_id' => $this->employeeRole->id,
+            'visible' => false,
+        ])
+        ->assertRedirect();
+
+    expect(RoleMenuVisibility::where('role_id', $this->employeeRole->id)
+        ->where('menu_key', $sosmed->visibilityKey())
+        ->where('is_visible', false)
+        ->exists())->toBeTrue();
+});
+
+it('gives every shipped phone icon a web equivalent', function (): void {
+    // The Hak Akses cards draw these with Lucide, so an icon missing from the
+    // map renders as an empty square — which is how Token AI and AI Recorder
+    // ended up blank.
+    $map = file_get_contents(resource_path('js/pages/avana/hak-akses/components.tsx'));
+
+    $icons = collect(MobileMenu::defaults())
+        ->merge(MobileMenu::tabDefaults())
+        ->pluck('icon')
+        ->unique();
+
+    $missing = $icons
+        ->reject(fn (string $icon): bool => str_contains($map, $icon.':'))
+        ->values()
+        ->all();
+
+    expect($missing)->toBe([]);
+});

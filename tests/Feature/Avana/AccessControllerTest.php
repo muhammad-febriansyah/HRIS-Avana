@@ -67,11 +67,17 @@ it('exposes a matrix cell per action for every module/role pairing', function ()
                 ->count();
 
             // One row per real menu of the tenant's sidebar (platform-only menus
-            // excluded), so the matrix mirrors what a role actually sees.
-            $rowCount = MenuItem::where('tenant_id', $this->superAdmin->tenant_id)
+            // excluded), so the matrix mirrors what a role actually sees. An
+            // enabled feature whose menu was withdrawn (jurnal, anggaran) still
+            // gets a catalog-only row — there must remain somewhere to grant
+            // it — so the module list may run past the menu count.
+            $menuRows = MenuItem::where('tenant_id', $this->superAdmin->tenant_id)
                 ->where('super_admin_only', false)
                 ->whereNotNull('href')
                 ->count();
+
+            $rowCount = count($page->toArray()['props']['modules']);
+            expect($rowCount)->toBeGreaterThanOrEqual($menuRows);
 
             $page->has('roles', $roleCount)
                 ->has('permHeaders', $roleCount)

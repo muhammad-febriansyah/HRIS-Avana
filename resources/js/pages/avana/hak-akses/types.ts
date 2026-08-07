@@ -109,6 +109,8 @@ export interface HakAksesProps {
     menu: MenuBuilderData;
     /** The Flutter app's Menu Cepat tiles, in the order the phone shows them. */
     mobileMenu: MobileMenuTile[];
+    /** The Flutter app's bottom navigation bar, in bar order. */
+    mobileTabs: MobileMenuTile[];
 }
 
 /** One shortcut on the mobile app's home screen. */
@@ -123,6 +125,12 @@ export interface MobileMenuTile {
     route: string;
     /** Off hides the tile from the whole company, whatever the roles say. */
     isActive: boolean;
+    /**
+     * A bottom tab the app cannot run without (Beranda, Profil): its switch is
+     * shown but refused, so nobody strands the app without a landing page or a
+     * way to sign out.
+     */
+    locked?: boolean;
     /** Shown to each role, in the same order as `roles`. */
     visible: boolean[];
 }

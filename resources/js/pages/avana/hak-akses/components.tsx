@@ -42,6 +42,14 @@ export const MOBILE_WEB_ICON: Record<string, string> = {
     location: 'map-pin',
     document_text: 'file-text',
     emoji_happy: 'smile',
+    microphone_2: 'mic',
+    flash_1: 'zap',
+    // Bottom-bar tabs.
+    home_2: 'house',
+    people: 'users',
+    finger_scan: 'fingerprint',
+    volume_high: 'megaphone',
+    user: 'user',
 };
 
 export function Switch({

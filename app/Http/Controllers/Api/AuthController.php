@@ -442,6 +442,11 @@ class AuthController extends Controller
             // server so an admin can change the phone's menu from Hak Akses
             // without a new build.
             'menu' => MobileMenu::forUser($user),
+            // The bottom navigation bar, resolved the same way: a company that
+            // switched Ruang Kita off in Kelola Fitur, or a role it is hidden
+            // from, gets a bar without that tab instead of one that leads to a
+            // screen the API refuses.
+            'tabs' => MobileMenu::tabsForUser($user),
             // Tenant branding for the mobile splash / white-label after login.
             'tenant' => $tenant !== null ? [
                 'id' => $tenant->id,
