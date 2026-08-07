@@ -1491,10 +1491,14 @@ class PayrollController extends Controller
                     ? $this->masterDateRange($period, $master->overtime_start_day, $master->overtime_end_day, $master->overtime_period)
                     : $attendanceRange);
 
+            // Late is still a worked day — the reports and the rekap have
+            // always counted it as hadir, and the late fine is the intended
+            // penalty. Counting only 'present' here silently took the day's
+            // meal/transport money AND the fine from the same morning.
             $presentDays = Attendance::forTenant($tenantId)
                 ->where('employee_id', $employee->id)
                 ->whereBetween('date', $attendanceRange)
-                ->where('status', 'present')
+                ->whereIn('status', ['present', 'late'])
                 ->count();
 
             $overtimeRecords = OvertimeRequest::forTenant($tenantId)
