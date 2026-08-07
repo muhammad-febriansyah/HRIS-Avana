@@ -5,6 +5,7 @@ use App\Models\EmployeeContract;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\SalaryCompliance;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
@@ -108,7 +109,6 @@ it('creates a contract scoped to the current tenant', function (): void {
             'contract_type' => 'pkwt',
             'start_date' => '2026-01-01',
             'end_date' => '2026-12-31',
-            'basic_salary' => 8000000,
             'status' => 'active',
             'notes' => 'Kontrak baru',
         ])
@@ -120,7 +120,26 @@ it('creates a contract scoped to the current tenant', function (): void {
     expect($contract->tenant_id)->toBe($this->tenant->id);
     expect($contract->employee_id)->toBe($this->employee->id);
     expect($contract->status)->toBe('active');
-    expect((float) $contract->basic_salary)->toBe(8000000.0);
+    // Gaji pokok is not a contract input: it snapshots Master Gaji (payroll).
+    expect((float) $contract->basic_salary)
+        ->toBe(SalaryCompliance::monthlyWage($this->employee, $this->tenant->id)['basic']);
+});
+
+it('ignores a posted gaji pokok — salary belongs to Master Gaji', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.kontrak.store'), [
+            'employee_id' => $this->employee->id,
+            'contract_number' => 'PKWT-2026-101',
+            'contract_type' => 'pkwt',
+            'start_date' => '2026-01-01',
+            'basic_salary' => 999_999_999,
+            'status' => 'active',
+        ])
+        ->assertRedirect(route('avana.kontrak'));
+
+    $contract = EmployeeContract::where('contract_number', 'PKWT-2026-101')->firstOrFail();
+
+    expect((float) $contract->basic_salary)->not->toBe(999_999_999.0);
 });
 
 it('validates required fields and duplicate contract number on store', function (): void {
@@ -133,7 +152,7 @@ it('validates required fields and duplicate contract number on store', function 
             'basic_salary' => '',
             'status' => '',
         ])
-        ->assertSessionHasErrors(['employee_id', 'contract_number', 'contract_type', 'start_date', 'basic_salary', 'status']);
+        ->assertSessionHasErrors(['employee_id', 'contract_number', 'contract_type', 'start_date', 'status']);
 
     makeContract(['contract_number' => 'PKWT-DUP']);
 
@@ -183,7 +202,8 @@ it('updates an existing contract', function (): void {
 
     expect($contract->contract_type)->toBe('pkwtt');
     expect($contract->status)->toBe('terminated');
-    expect((float) $contract->basic_salary)->toBe(9000000.0);
+    // The posted 9jt is ignored: the stored snapshot stays as created.
+    expect((float) $contract->basic_salary)->toBe(7500000.0);
     expect($contract->end_date)->toBeNull();
 });
 
