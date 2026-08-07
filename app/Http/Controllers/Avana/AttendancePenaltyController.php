@@ -7,6 +7,7 @@ use App\Models\Attendance;
 use App\Models\AttendancePenalty;
 use App\Models\AttendancePenaltyRule;
 use App\Models\Employee;
+use App\Support\AttendanceFines;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,24 +27,6 @@ class AttendancePenaltyController extends Controller
      * @var array<int, string>
      */
     private const VIOLATION_TYPES = ['late', 'absent', 'incomplete', 'early_leave'];
-
-    /**
-     * Attendance statuses that auto-generate a warning penalty.
-     *
-     * @var array<int, string>
-     */
-    private const GENERATABLE_STATUSES = ['late', 'absent', 'incomplete'];
-
-    /**
-     * Indonesian labels used to build auto-generated penalty notes.
-     *
-     * @var array<string, string>
-     */
-    private const VIOLATION_NOTES = [
-        'late' => 'Terlambat',
-        'absent' => 'Tidak hadir (alpa)',
-        'incomplete' => 'Absensi belum lengkap',
-    ];
 
     /**
      * Deterministic avatar background palette (mirrors AttendanceResource).
@@ -226,53 +209,14 @@ class AttendancePenaltyController extends Controller
         $startDate = Carbon::parse($validated['start_date'])->format('Y-m-d');
         $endDate = Carbon::parse($validated['end_date'])->format('Y-m-d');
 
-        $attendances = Attendance::query()
-            ->forTenant($tenantId)
-            ->whereIn('status', self::GENERATABLE_STATUSES)
-            ->whereDate('date', '>=', $startDate)
-            ->whereDate('date', '<=', $endDate)
-            ->get(['id', 'employee_id', 'date', 'status', 'late_minutes']);
+        // Shared with the payroll run, which applies the same tiers to every
+        // employee's attendance window automatically.
+        $result = AttendanceFines::generate($tenantId, $startDate, $endDate);
 
-        // The tenant's own late-penalty table, if it has written one: a late
-        // arrival then carries the tier's fine instead of a bare warning.
-        $tiers = AttendancePenaltyRule::tiersFor($tenantId);
+        $message = "{$result['created']} sanksi dibuat dari absensi";
 
-        $created = 0;
-        $fined = 0;
-
-        foreach ($attendances as $attendance) {
-            $tier = $attendance->status === 'late'
-                ? AttendancePenaltyRule::match($tiers, (int) $attendance->late_minutes)
-                : null;
-
-            $penalty = AttendancePenalty::firstOrCreate(
-                [
-                    'tenant_id' => $tenantId,
-                    'employee_id' => $attendance->employee_id,
-                    'date' => $attendance->date->format('Y-m-d'),
-                    'violation_type' => $attendance->status,
-                ],
-                [
-                    'penalty_type' => $tier?->penalty_type ?? 'warning',
-                    'amount' => $tier?->amount ?? 0,
-                    'notes' => $this->generatedNote($attendance, $tier),
-                    'status' => 'active',
-                ],
-            );
-
-            if ($penalty->wasRecentlyCreated) {
-                $created++;
-
-                if ((float) $penalty->amount > 0) {
-                    $fined++;
-                }
-            }
-        }
-
-        $message = "{$created} sanksi dibuat dari absensi";
-
-        if ($fined > 0) {
-            $message .= ", {$fined} di antaranya kena denda sesuai aturan tenant";
+        if ($result['fined'] > 0) {
+            $message .= ", {$result['fined']} di antaranya kena denda sesuai aturan tenant";
         }
 
         return redirect()->route('avana.sanksi')->with('success', $message);
@@ -335,28 +279,6 @@ class AttendancePenaltyController extends Controller
             'notes' => $penalty->notes,
             'status' => $penalty->status,
         ];
-    }
-
-    /**
-     * Compose the human-readable note for an auto-generated penalty.
-     */
-    private function generatedNote(Attendance $attendance, ?AttendancePenaltyRule $tier = null): string
-    {
-        $label = self::VIOLATION_NOTES[$attendance->status] ?? $attendance->status;
-
-        if ($attendance->status === 'late' && (int) $attendance->late_minutes > 0) {
-            $label .= ' '.(int) $attendance->late_minutes.' menit';
-        }
-
-        if ($tier !== null) {
-            $label .= sprintf(
-                ' (aturan %d–%s menit)',
-                $tier->min_minutes,
-                $tier->max_minutes !== null ? (string) $tier->max_minutes : 'seterusnya',
-            );
-        }
-
-        return 'Otomatis dari absensi: '.$label;
     }
 
     /**

@@ -300,6 +300,47 @@ it('explains where each computed slip line comes from', function (): void {
     }
 });
 
+it('applies the late-fine table to everyone at run time, no manual generate', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->orderBy('id')->firstOrFail();
+    $period = PayrollPeriod::forTenant($this->tenant->id)->firstOrFail();
+
+    App\Models\AttendancePenaltyRule::create([
+        'tenant_id' => $this->tenant->id,
+        'violation_type' => 'late',
+        'min_minutes' => 10,
+        'max_minutes' => 30,
+        'penalty_type' => 'deduction',
+        'amount' => 20000,
+        'is_active' => true,
+    ]);
+
+    Attendance::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $employee->id,
+        'date' => $period->start_date->copy()->addDays(3)->toDateString(),
+        'status' => 'late',
+        'late_minutes' => 20,
+    ]);
+
+    // No "Buat dari Absensi" click — the run itself must fine the lateness.
+    actingAs($this->admin)->post('spec-avana/payroll/run')->assertSessionHas('success');
+
+    $penalty = App\Models\AttendancePenalty::forTenant($this->tenant->id)
+        ->where('employee_id', $employee->id)
+        ->where('penalty_type', 'deduction')
+        ->firstOrFail();
+
+    expect((float) $penalty->amount)->toBe(20000.0);
+
+    $item = PayrollRunItem::forTenant($this->tenant->id)
+        ->where('employee_id', $employee->id)
+        ->latest('id')
+        ->firstOrFail();
+
+    $deductions = collect($item->calculation_snapshot['deductions'] ?? []);
+    expect($deductions->firstWhere('name', 'Denda Absensi')['amount'] ?? null)->toBe(20000);
+});
+
 it('walks the setup checklist in documentation order with data-driven states', function (): void {
     $response = actingAs($this->admin)->get('spec-avana/payroll')->assertOk();
 
