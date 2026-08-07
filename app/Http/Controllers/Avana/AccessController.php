@@ -341,16 +341,21 @@ class AccessController extends Controller
             // The Flutter app's Menu Cepat, so the tiles on the phone are set
             // from the same screen as everything else.
             'mobileMenu' => $this->mobileMenuPayload($tenantId, $roleModels),
+            // The phone's bottom bar, set from the same screen. Beranda and
+            // Profil ride along carrying `locked`, so the switch renders but
+            // cannot be thrown — the app needs both to stay usable.
+            'mobileTabs' => $this->mobileMenuPayload($tenantId, $roleModels, MobileMenu::GROUP_TAB),
         ]);
     }
 
     /**
-     * The Menu Cepat tiles with, per tile, which roles currently show it.
+     * One group of phone rows — Menu Cepat tiles or bottom tabs — with, per
+     * row, which roles currently show it.
      *
      * @param  Collection<int, Role>  $roles
      * @return array<int, array<string, mixed>>
      */
-    private function mobileMenuPayload(?int $tenantId, Collection $roles): array
+    private function mobileMenuPayload(?int $tenantId, Collection $roles, string $group = MobileMenu::GROUP_QUICK): array
     {
         if ($tenantId === null) {
             return [];
@@ -364,7 +369,7 @@ class AccessController extends Controller
             ->groupBy('role_id')
             ->map(fn ($group) => $group->pluck('menu_key')->flip());
 
-        return MobileMenu::forTenant($tenantId)
+        return MobileMenu::forTenant($tenantId, $group)
             ->map(fn (MobileMenuItem $tile): array => [
                 'id' => $tile->id,
                 'key' => $tile->key,
@@ -373,6 +378,7 @@ class AccessController extends Controller
                 'color' => $tile->color,
                 'route' => $tile->route,
                 'isActive' => $tile->is_active,
+                'locked' => MobileMenu::isLockedTab($tile),
                 // One entry per role column, in the same order as `roles`.
                 'visible' => $roles
                     ->map(fn (Role $role): bool => ! ($hiddenByRole[$role->id] ?? collect())->has($tile->visibilityKey()))
@@ -401,6 +407,12 @@ class AccessController extends Controller
         $tile = $this->assertTenantTile($user, $validated['menu_id']);
         $role = $this->assertManageableRole($user, Role::findOrFail($validated['role_id']));
 
+        abort_if(
+            MobileMenu::isLockedTab($tile) && ! $validated['visible'],
+            422,
+            $tile->label.' tidak bisa disembunyikan — aplikasi butuh tab ini untuk bisa dipakai.',
+        );
+
         RoleMenuVisibility::updateOrCreate(
             ['role_id' => $role->id, 'menu_key' => $tile->visibilityKey()],
             ['tenant_id' => $role->tenant_id ?? $user->tenant_id, 'is_visible' => $validated['visible']],
@@ -428,6 +440,12 @@ class AccessController extends Controller
         $user = $request->user();
 
         $tile = $this->assertTenantTile($user, $validated['menu_id']);
+
+        abort_if(
+            MobileMenu::isLockedTab($tile) && ($validated['active'] ?? true) === false,
+            422,
+            $tile->label.' tidak bisa dimatikan — aplikasi butuh tab ini untuk bisa dipakai.',
+        );
 
         $tile->update(array_filter([
             'label' => $validated['label'] ?? null,

@@ -172,25 +172,29 @@ Route::prefix('v1')->group(function (): void {
             Route::get('sop', [SopController::class, 'index']);
             Route::get('sop/{sop}/download', [SopController::class, 'download'])->whereNumber('sop');
 
-            // Social wall: feed, posting, likes, comments, leaderboard.
-            Route::get('social/categories', [SocialController::class, 'categories']);
-            Route::get('social/feed', [SocialController::class, 'feed']);
-            Route::get('social/leaderboard', [SocialController::class, 'leaderboard']);
-            Route::post('social/posts', [SocialController::class, 'store']);
-            Route::get('social/posts/{post}', [SocialController::class, 'show'])->whereNumber('post');
-            // POST, not PUT: the edit form can carry a replacement photo.
-            Route::post('social/posts/{post}/update', [SocialController::class, 'update'])->whereNumber('post');
-            Route::delete('social/posts/{post}', [SocialController::class, 'destroy'])->whereNumber('post');
-            Route::post('social/posts/{post}/like', [SocialController::class, 'toggleLike'])->whereNumber('post');
-            Route::post('social/posts/{post}/report', [SocialController::class, 'report'])->whereNumber('post');
-            Route::get('social/posts/{post}/comments', [SocialController::class, 'comments'])->whereNumber('post');
-            Route::post('social/posts/{post}/comments', [SocialController::class, 'storeComment'])->whereNumber('post');
-            Route::delete('social/comments/{comment}', [SocialController::class, 'destroyComment'])->whereNumber('comment');
+            // Social wall: feed, posting, likes, comments, leaderboard. Gated so
+            // switching Ruang Kita off in Kelola Fitur closes the wall itself,
+            // not just the tab that leads to it.
+            Route::middleware('feature:social')->group(function (): void {
+                Route::get('social/categories', [SocialController::class, 'categories']);
+                Route::get('social/feed', [SocialController::class, 'feed']);
+                Route::get('social/leaderboard', [SocialController::class, 'leaderboard']);
+                Route::post('social/posts', [SocialController::class, 'store']);
+                Route::get('social/posts/{post}', [SocialController::class, 'show'])->whereNumber('post');
+                // POST, not PUT: the edit form can carry a replacement photo.
+                Route::post('social/posts/{post}/update', [SocialController::class, 'update'])->whereNumber('post');
+                Route::delete('social/posts/{post}', [SocialController::class, 'destroy'])->whereNumber('post');
+                Route::post('social/posts/{post}/like', [SocialController::class, 'toggleLike'])->whereNumber('post');
+                Route::post('social/posts/{post}/report', [SocialController::class, 'report'])->whereNumber('post');
+                Route::get('social/posts/{post}/comments', [SocialController::class, 'comments'])->whereNumber('post');
+                Route::post('social/posts/{post}/comments', [SocialController::class, 'storeComment'])->whereNumber('post');
+                Route::delete('social/comments/{comment}', [SocialController::class, 'destroyComment'])->whereNumber('comment');
 
-            // Employee of the Month voting.
-            Route::get('eotm', [EotmController::class, 'show']);
-            Route::get('eotm/nominees', [EotmController::class, 'nominees']);
-            Route::post('eotm/vote', [EotmController::class, 'vote']);
+                // Employee of the Month voting — part of the same wall.
+                Route::get('eotm', [EotmController::class, 'show']);
+                Route::get('eotm/nominees', [EotmController::class, 'nominees']);
+                Route::post('eotm/vote', [EotmController::class, 'vote']);
+            });
 
             Route::get('field-visits', [FieldVisitController::class, 'index']);
             Route::post('field-visits', [FieldVisitController::class, 'store']);

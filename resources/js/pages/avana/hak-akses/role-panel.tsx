@@ -19,6 +19,8 @@ interface RolePanelProps {
     cells: MatrixCell[];
     /** The Menu Cepat tiles of the phone app, company-wide. */
     mobileMenu: MobileMenuTile[];
+    /** The phone's bottom navigation bar, company-wide. */
+    mobileTabs: MobileMenuTile[];
     onToggle: (rowIdx: number, action: string) => void;
     onToggleVisible: (rowIdx: number, visible: boolean) => void;
     onToggleMobile: (enabled: boolean) => void;
@@ -37,6 +39,7 @@ export function RolePanel({
     modules,
     cells,
     mobileMenu,
+    mobileTabs,
     onToggle,
     onToggleVisible,
     onToggleMobile,
@@ -98,6 +101,7 @@ export function RolePanel({
 
     /** Only tiles the company still has switched on can be given to a role. */
     const liveTiles = mobileMenu.filter((tile) => tile.isActive);
+    const liveTabs = mobileTabs.filter((tab) => tab.isActive);
 
     return (
         <div style={{ display: 'grid', gap: 16 }}>
@@ -307,112 +311,26 @@ export function RolePanel({
 
             {/* ---- Which phone shortcuts this role gets ---- */}
             {role.canAccessMobile && liveTiles.length > 0 && (
-                <div style={{ ...card, padding: '18px 20px' }}>
-                    <div
-                        style={{ fontSize: 15, fontWeight: 600, color: C.navy }}
-                    >
-                        Menu Cepat di HP
-                    </div>
-                    <div
-                        style={{
-                            fontSize: 12.5,
-                            color: C.muted,
-                            marginTop: 4,
-                            lineHeight: 1.55,
-                        }}
-                    >
-                        Pintasan yang muncul di beranda aplikasi untuk pemegang
-                        peran {role.name}. Urutan dan daftar lengkapnya diatur
-                        di tab Menu Perusahaan.
-                    </div>
+                <PhoneMenuCard
+                    title="Menu Cepat di HP"
+                    description={`Pintasan yang muncul di beranda aplikasi untuk pemegang peran ${role.name}. Urutan dan daftar lengkapnya diatur di tab Menu Perusahaan.`}
+                    tiles={liveTiles}
+                    roleIdx={roleIdx}
+                    locked={role.locked}
+                    onToggle={onToggleMobileTile}
+                />
+            )}
 
-                    <div
-                        style={{
-                            display: 'grid',
-                            gridTemplateColumns:
-                                'repeat(auto-fill, minmax(190px, 1fr))',
-                            gap: 8,
-                            marginTop: 14,
-                        }}
-                    >
-                        {liveTiles.map((tile) => {
-                            const visible = tile.visible[roleIdx] ?? true;
-
-                            return (
-                                <label
-                                    key={tile.id}
-                                    title={
-                                        role.locked
-                                            ? 'Peran ini tidak dapat Anda ubah'
-                                            : `${tile.label} di aplikasi HP`
-                                    }
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 10,
-                                        padding: '9px 11px',
-                                        borderRadius: 10,
-                                        border: `1px solid ${visible ? hexA(C.primary, 0.35) : C.line}`,
-                                        background: visible
-                                            ? hexA(C.primary, 0.05)
-                                            : '#fff',
-                                        cursor: role.locked
-                                            ? 'not-allowed'
-                                            : 'pointer',
-                                        opacity: role.locked ? 0.6 : 1,
-                                    }}
-                                >
-                                    <input
-                                        type="checkbox"
-                                        checked={visible}
-                                        disabled={role.locked}
-                                        onChange={() =>
-                                            onToggleMobileTile(
-                                                tile.id,
-                                                !visible,
-                                            )
-                                        }
-                                        style={{
-                                            width: 16,
-                                            height: 16,
-                                            cursor: 'inherit',
-                                        }}
-                                    />
-                                    <span
-                                        style={{
-                                            width: 26,
-                                            height: 26,
-                                            flex: 'none',
-                                            borderRadius: 8,
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            background: `${tile.color}1f`,
-                                        }}
-                                    >
-                                        <AIcon
-                                            name={
-                                                MOBILE_WEB_ICON[tile.icon] ??
-                                                tile.icon
-                                            }
-                                            size={14}
-                                            color={tile.color}
-                                        />
-                                    </span>
-                                    <span
-                                        style={{
-                                            fontSize: 13,
-                                            color: C.text,
-                                            fontWeight: 500,
-                                        }}
-                                    >
-                                        {tile.label}
-                                    </span>
-                                </label>
-                            );
-                        })}
-                    </div>
-                </div>
+            {/* ---- Which bottom tabs this role gets ---- */}
+            {role.canAccessMobile && liveTabs.length > 0 && (
+                <PhoneMenuCard
+                    title="Menu Bawah di HP"
+                    description={`Tab di bagian bawah aplikasi untuk pemegang peran ${role.name}. Beranda dan Profil selalu ada — aplikasi tidak bisa dipakai tanpa keduanya.`}
+                    tiles={liveTabs}
+                    roleIdx={roleIdx}
+                    locked={role.locked}
+                    onToggle={onToggleMobileTile}
+                />
             )}
 
             {/* ---- Menus this role sees ---- */}
@@ -842,5 +760,128 @@ function VisibleToggle({
             }
             onToggle={onToggle}
         />
+    );
+}
+
+/**
+ * One card of phone rows for the selected role — the Menu Cepat shortcuts or
+ * the bottom tabs. Ticking a box shows that row to this role; the company-wide
+ * list and its order are set on the Menu Perusahaan tab.
+ */
+function PhoneMenuCard({
+    title,
+    description,
+    tiles,
+    roleIdx,
+    locked,
+    onToggle,
+}: {
+    title: string;
+    description: string;
+    tiles: MobileMenuTile[];
+    roleIdx: number;
+    /** The role itself cannot be edited (a system role). */
+    locked: boolean;
+    onToggle: (menuId: number, visible: boolean) => void;
+}) {
+    return (
+        <div style={{ ...card, padding: '18px 20px' }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: C.navy }}>
+                {title}
+            </div>
+            <div
+                style={{
+                    fontSize: 12.5,
+                    color: C.muted,
+                    marginTop: 4,
+                    lineHeight: 1.55,
+                }}
+            >
+                {description}
+            </div>
+
+            <div
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
+                    gap: 8,
+                    marginTop: 14,
+                }}
+            >
+                {tiles.map((tile) => {
+                    const visible = tile.visible[roleIdx] ?? true;
+                    // A tab the app cannot run without stays ticked for every
+                    // role, the same way its company switch refuses to move.
+                    const frozen = locked || tile.locked === true;
+
+                    return (
+                        <label
+                            key={tile.id}
+                            title={
+                                tile.locked
+                                    ? `${tile.label} selalu ada — aplikasi butuh tab ini`
+                                    : locked
+                                      ? 'Peran ini tidak dapat Anda ubah'
+                                      : `${tile.label} di aplikasi HP`
+                            }
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 10,
+                                padding: '9px 11px',
+                                borderRadius: 10,
+                                border: `1px solid ${visible ? hexA(C.primary, 0.35) : C.line}`,
+                                background: visible
+                                    ? hexA(C.primary, 0.05)
+                                    : '#fff',
+                                cursor: frozen ? 'not-allowed' : 'pointer',
+                                opacity: frozen ? 0.6 : 1,
+                            }}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={visible}
+                                disabled={frozen}
+                                onChange={() => onToggle(tile.id, !visible)}
+                                style={{
+                                    width: 16,
+                                    height: 16,
+                                    cursor: 'inherit',
+                                }}
+                            />
+                            <span
+                                style={{
+                                    width: 26,
+                                    height: 26,
+                                    flex: 'none',
+                                    borderRadius: 8,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    background: `${tile.color}1f`,
+                                }}
+                            >
+                                <AIcon
+                                    name={
+                                        MOBILE_WEB_ICON[tile.icon] ?? tile.icon
+                                    }
+                                    size={14}
+                                    color={tile.color}
+                                />
+                            </span>
+                            <span
+                                style={{
+                                    fontSize: 13,
+                                    color: C.text,
+                                    fontWeight: 500,
+                                }}
+                            >
+                                {tile.label}
+                            </span>
+                        </label>
+                    );
+                })}
+            </div>
+        </div>
     );
 }
