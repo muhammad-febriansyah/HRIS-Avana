@@ -180,6 +180,10 @@ export function EmployeeForm({
     const [step, setStep] = useState(0);
     const [showPassword, setShowPassword] = useState(false);
 
+    // Borrowing an existing account and minting a new one are alternatives, so
+    // picking one closes the other's field.
+    const isLinking = data.link_user_id !== '';
+
     // The custom-field step only exists when the tenant defined any.
     const steps = EMPLOYEE_STEPS.filter(
         (_, index) => index !== 3 || customFields.length > 0,
@@ -350,6 +354,10 @@ export function EmployeeForm({
                                         }
                                         autoComplete="new-password"
                                         value={data.password}
+                                        // A password here makes a new account,
+                                        // which would contradict the account
+                                        // being borrowed on the Akun step.
+                                        disabled={isLinking}
                                         onChange={(event) =>
                                             setData(
                                                 'password',
@@ -363,6 +371,9 @@ export function EmployeeForm({
                                                 inputStyle,
                                             ),
                                             paddingRight: 40,
+                                            background: isLinking
+                                                ? C.surface
+                                                : '#fff',
                                         }}
                                     />
                                     <button
@@ -407,6 +418,7 @@ export function EmployeeForm({
                                 </div>
                                 <button
                                     type="button"
+                                    disabled={isLinking}
                                     onClick={() =>
                                         setData('password', DEFAULT_PASSWORD)
                                     }
@@ -424,7 +436,10 @@ export function EmployeeForm({
                                         color: C.primary,
                                         fontSize: 12.5,
                                         fontWeight: 600,
-                                        cursor: 'pointer',
+                                        cursor: isLinking
+                                            ? 'not-allowed'
+                                            : 'pointer',
+                                        opacity: isLinking ? 0.5 : 1,
                                         whiteSpace: 'nowrap',
                                     }}
                                 >
@@ -443,9 +458,11 @@ export function EmployeeForm({
                                     marginTop: 6,
                                 }}
                             >
-                                {hasLogin
-                                    ? 'Kosongkan bila password tidak diganti.'
-                                    : `Kosongkan bila karyawan belum perlu akun mobile. Rekomendasi: ${DEFAULT_PASSWORD} — minta karyawan menggantinya setelah login pertama.`}
+                                {isLinking
+                                    ? 'Akun yang ditautkan memakai passwordnya sendiri. Hapus tautan di langkah Akun & Akses bila ingin membuat akun baru.'
+                                    : hasLogin
+                                      ? 'Kosongkan bila password tidak diganti.'
+                                      : `Kosongkan bila karyawan belum perlu akun mobile. Rekomendasi: ${DEFAULT_PASSWORD} — minta karyawan menggantinya setelah login pertama.`}
                             </div>
                         </Field>
 
@@ -644,6 +661,46 @@ export function EmployeeForm({
                                 ))}
                             </select>
                         </Field>
+                        {/* An account made outside this form — an HR or finance
+                            login — has no employee behind it, so the mobile app
+                            answers 403 on its own profile and absensi. Attaching
+                            it here is what turns it into this person's account,
+                            instead of running a second login for the same human. */}
+                        {!hasLogin && options.linkableUsers.length > 0 ? (
+                            <Field
+                                htmlFor="link_user_id"
+                                label="Tautkan Akun yang Sudah Ada"
+                                fullWidth
+                                error={errors.link_user_id}
+                                hint="Untuk akun yang dibuat di luar form ini (mis. admin HR). Tanpa tautan, akun itu bisa login tapi ditolak di menu absensi, cuti dan profil aplikasi mobile."
+                            >
+                                <SearchableSelect
+                                    value={data.link_user_id}
+                                    onChange={(next) =>
+                                        setData('link_user_id', next)
+                                    }
+                                    options={options.linkableUsers.map(
+                                        (user) => ({
+                                            value: String(user.id),
+                                            label: [
+                                                user.name,
+                                                user.email,
+                                                user.roles || null,
+                                            ]
+                                                .filter(Boolean)
+                                                .join(' — '),
+                                        }),
+                                    )}
+                                    placeholder="Tidak menautkan akun"
+                                    searchPlaceholder="Cari nama atau email…"
+                                    allowClear
+                                    style={styleFor(
+                                        !!errors.link_user_id,
+                                        selectStyle,
+                                    )}
+                                />
+                            </Field>
+                        ) : null}
                         {hasLogin ? (
                             <div
                                 style={{

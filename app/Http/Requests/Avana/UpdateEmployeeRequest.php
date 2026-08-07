@@ -92,6 +92,8 @@ class UpdateEmployeeRequest extends FormRequest
             'is_top_approver' => ['nullable', 'boolean'],
             'role_id' => ['nullable', Rule::exists('roles', 'id')->where('tenant_id', $tenantId)],
             'password' => ['nullable', 'string', 'min:8'],
+            // Attach an account that already exists instead of creating one.
+            'link_user_id' => ['nullable', Rule::exists('users', 'id')->where('tenant_id', $tenantId)],
             'custom_data' => ['nullable', 'array'],
             'custom_data.*' => ['nullable'],
         ];
@@ -118,6 +120,20 @@ class UpdateEmployeeRequest extends FormRequest
 
                 if ($value === null || $value === '') {
                     $validator->errors()->add('custom_data.'.$field->key, $field->label.' wajib diisi.');
+                }
+            }
+
+            // Borrowing an existing account only makes sense while the employee
+            // has none; once linked, the account is changed from its own screen.
+            if (filled($this->input('link_user_id'))) {
+                $employee = $this->route('employee');
+
+                if ($employee?->user_id !== null) {
+                    $validator->errors()->add('link_user_id', 'Karyawan ini sudah punya akun login.');
+                } elseif (filled($this->input('password'))) {
+                    $validator->errors()->add('password', 'Pilih salah satu: tautkan akun yang sudah ada, atau isi password untuk membuat akun baru.');
+                } elseif (Employee::where('user_id', $this->input('link_user_id'))->exists()) {
+                    $validator->errors()->add('link_user_id', 'Akun ini sudah tertaut ke karyawan lain.');
                 }
             }
 

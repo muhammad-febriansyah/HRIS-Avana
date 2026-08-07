@@ -77,6 +77,7 @@ export default function EmployeesEdit({
         status: data.status ?? 'active',
         password: '',
         role_id: data.role_id ? String(data.role_id) : '',
+        link_user_id: '',
         is_top_approver: data.is_top_approver ?? false,
         custom_data: data.custom_data ?? {},
     });
