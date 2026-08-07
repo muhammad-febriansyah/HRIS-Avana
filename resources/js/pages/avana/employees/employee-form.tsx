@@ -1,7 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, C, card } from '@/lib/avana';
@@ -180,6 +180,31 @@ export function EmployeeForm({
     const [step, setStep] = useState(0);
     const [showPassword, setShowPassword] = useState(false);
 
+    /**
+     * When the wizard last moved. Lanjut and Simpan are the same button in the
+     * same spot — the last Lanjut turns into Simpan under the cursor — so the
+     * second half of a double-click, or one impatient extra click, used to save
+     * a form the admin had not finished reading. A submit that arrives right
+     * after a step change is that stray click, not an intent to save.
+     */
+    const movedAt = useRef(0);
+
+    const goToStep = (next: number) => {
+        movedAt.current = Date.now();
+        setStep(next);
+    };
+
+    const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+        // Roughly the platform double-click window.
+        if (Date.now() - movedAt.current < 500) {
+            event.preventDefault();
+
+            return;
+        }
+
+        onSubmit(event);
+    };
+
     // Borrowing an existing account and minting a new one are alternatives, so
     // picking one closes the other's field.
     const isLinking = data.link_user_id !== '';
@@ -262,13 +287,13 @@ export function EmployeeForm({
 
     return (
         <form
-            onSubmit={onSubmit}
+            onSubmit={handleSubmit}
             style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
         >
             <Stepper
                 steps={steps}
                 current={step}
-                onJump={setStep}
+                onJump={goToStep}
                 complete={stepComplete}
             />
 
@@ -1346,7 +1371,7 @@ export function EmployeeForm({
                 {step > 0 && (
                     <button
                         type="button"
-                        onClick={() => setStep(step - 1)}
+                        onClick={() => goToStep(step - 1)}
                         style={navButtonStyle('#fff', C.text)}
                     >
                         <AIcon name="chevron-left" size={16} color={C.text} />
@@ -1372,8 +1397,11 @@ export function EmployeeForm({
 
                 {step < lastStep ? (
                     <button
+                        // Keyed apart from Simpan so React swaps the node
+                        // instead of quietly turning this one into a submit.
+                        key="wizard-next"
                         type="button"
-                        onClick={() => setStep(step + 1)}
+                        onClick={() => goToStep(step + 1)}
                         disabled={!stepComplete(step)}
                         style={{
                             ...navButtonStyle(C.primary, '#fff'),
@@ -1388,6 +1416,7 @@ export function EmployeeForm({
                     </button>
                 ) : (
                     <button
+                        key="wizard-submit"
                         type="submit"
                         disabled={processing || !stepComplete(1)}
                         style={{
