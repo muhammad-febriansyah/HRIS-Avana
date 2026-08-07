@@ -13,6 +13,8 @@ export interface EmployeeOption {
     id: number;
     name: string;
     employee_number: string;
+    /** Gaji Pokok berjalan menurut Master Gaji (payroll) — read-only di form. */
+    salary: number;
 }
 
 /** Compact employee reference serialized on a contract row. */
@@ -72,7 +74,6 @@ export interface ContractFormData {
     contract_type: string;
     start_date: string;
     end_date: string;
-    basic_salary: string;
     status: string;
     notes: string;
     /** The signed contract; null keeps whatever is already attached. */
@@ -86,7 +87,6 @@ export const emptyContractForm: ContractFormData = {
     contract_type: 'pkwt',
     start_date: '',
     end_date: '',
-    basic_salary: '',
     status: 'active',
     notes: '',
     document: null,

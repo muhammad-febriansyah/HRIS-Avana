@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\EmployeeContract;
 use App\Support\ContractType;
+use App\Support\SalaryCompliance;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -38,7 +39,7 @@ class ContractController extends Controller
 
         $contracts = EmployeeContract::query()
             ->forTenant($tenantId)
-            ->with(['employee:id,full_name,employee_number'])
+            ->with(['employee:id,full_name,employee_number,tenant_id,salary_master_id,branch_id'])
             ->when($request->query('search'), function ($query, $search): void {
                 $query->where(function ($q) use ($search): void {
                     $q->where('contract_number', 'like', "%{$search}%")
@@ -107,7 +108,7 @@ class ContractController extends Controller
                 'contract_type' => $contract->contract_type,
                 'start_date' => $contract->start_date?->toDateString(),
                 'end_date' => $contract->end_date?->toDateString(),
-                'basic_salary' => (float) $contract->basic_salary,
+                'basic_salary' => $this->liveBasicSalary($contract),
                 'document_name' => $contract->document_name,
                 'document_size' => $contract->document_size !== null ? (int) $contract->document_size : null,
                 'has_document' => $contract->document_path !== null,
@@ -130,8 +131,14 @@ class ContractController extends Controller
         $validated = $this->validateContract($request, $tenantId);
         unset($validated['document']);
 
+        // Gaji pokok punya satu sumber: Master Gaji (payroll). Kontrak hanya
+        // menyimpan potretnya saat dibuat, bukan input tersendiri — dua angka
+        // yang bisa saling beda membingungkan HR.
+        $employee = Employee::forTenant($tenantId)->findOrFail((int) $validated['employee_id']);
+
         $contract = EmployeeContract::create([
             ...$validated,
+            'basic_salary' => SalaryCompliance::monthlyWage($employee, (int) $tenantId)['basic'],
             'tenant_id' => $tenantId,
         ]);
 
@@ -262,7 +269,6 @@ class ContractController extends Controller
             'contract_type' => ['required', 'string', 'max:255'],
             'start_date' => ['required', 'date'],
             'end_date' => ['nullable', 'date', 'after:start_date'],
-            'basic_salary' => ['required', 'numeric', 'min:0'],
             'status' => ['required', 'in:active,expired,terminated'],
             'notes' => ['nullable', 'string'],
             'document' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
@@ -300,7 +306,7 @@ class ContractController extends Controller
             'contract_type' => $contract->contract_type,
             'start_date' => $contract->start_date?->toDateString(),
             'end_date' => $contract->end_date?->toDateString(),
-            'basic_salary' => (float) $contract->basic_salary,
+            'basic_salary' => $this->liveBasicSalary($contract),
             'status' => $contract->status,
             'notes' => $contract->notes,
             'expiring_soon' => $expiringSoon,
@@ -325,13 +331,34 @@ class ContractController extends Controller
     {
         return Employee::forTenant($tenantId)
             ->orderBy('full_name')
-            ->get(['id', 'full_name', 'employee_number'])
+            ->get(['id', 'full_name', 'employee_number', 'tenant_id', 'salary_master_id', 'branch_id'])
             ->map(fn (Employee $employee): array => [
                 'id' => $employee->id,
                 'name' => $employee->full_name,
                 'employee_number' => $employee->employee_number,
+                // The form shows this read-only: salary is Master Gaji's, not
+                // the contract's, so picking an employee reveals the figure.
+                'salary' => SalaryCompliance::monthlyWage($employee, $tenantId)['basic'],
             ])
             ->all();
+    }
+
+    /**
+     * The employee's current Gaji Pokok as payroll resolves it (Master Gaji),
+     * falling back to the contract's stored snapshot for employees who have
+     * no salary configured yet.
+     */
+    private function liveBasicSalary(EmployeeContract $contract): float
+    {
+        $employee = $contract->employee;
+
+        if ($employee === null) {
+            return (float) $contract->basic_salary;
+        }
+
+        $basic = SalaryCompliance::monthlyWage($employee, (int) $contract->tenant_id)['basic'];
+
+        return $basic > 0.0 ? $basic : (float) $contract->basic_salary;
     }
 
     /**

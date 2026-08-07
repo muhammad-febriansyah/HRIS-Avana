@@ -3,7 +3,7 @@ import type { InertiaFormProps } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
-import { AIcon, btnOut, btnP, C, card, RupiahInput } from '@/lib/avana';
+import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
 import {
     DocumentField,
     FieldError,
@@ -41,6 +41,13 @@ export function KontrakForm({
     onSubmit,
 }: KontrakFormProps) {
     const { data, setData, errors, processing } = form;
+
+    const selectedEmployee =
+        employees.find((employee) => String(employee.id) === data.employee_id) ??
+        null;
+
+    const formatRupiah = (value: number) =>
+        `Rp ${Math.round(value).toLocaleString('id-ID')}`;
 
     return (
         <form onSubmit={onSubmit} style={{ ...card }}>
@@ -168,15 +175,31 @@ export function KontrakForm({
                     }}
                 >
                     <div>
-                        <label style={fieldLabelStyle}>
-                            Gaji Pokok <span style={{ color: C.red }}>*</span>
-                        </label>
-                        <RupiahInput
-                            value={data.basic_salary}
-                            onChange={(raw) => setData('basic_salary', raw)}
-                            invalid={!!errors.basic_salary}
-                        />
-                        <FieldError message={errors.basic_salary} />
+                        <label style={fieldLabelStyle}>Gaji Pokok</label>
+                        <div
+                            style={{
+                                ...inputStyle,
+                                display: 'flex',
+                                alignItems: 'center',
+                                background: '#F3F5FA',
+                                color: C.text,
+                                fontWeight: 700,
+                            }}
+                        >
+                            {selectedEmployee
+                                ? formatRupiah(selectedEmployee.salary)
+                                : '—'}
+                        </div>
+                        <div
+                            style={{
+                                marginTop: 6,
+                                fontSize: 12,
+                                color: C.muted,
+                            }}
+                        >
+                            Otomatis mengikuti Payroll → Master Gaji — bukan
+                            input kontrak.
+                        </div>
                     </div>
 
                     <div>

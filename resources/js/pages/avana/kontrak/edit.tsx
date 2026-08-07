@@ -16,7 +16,6 @@ interface EditContract {
     contract_type: string;
     start_date: string | null;
     end_date: string | null;
-    basic_salary: number;
     status: string;
     notes: string | null;
     document_name?: string | null;
@@ -38,7 +37,6 @@ export default function KontrakEdit({ contract, employees }: KontrakEditProps) {
         contract_type: contract.contract_type,
         start_date: contract.start_date ?? '',
         end_date: contract.end_date ?? '',
-        basic_salary: String(contract.basic_salary),
         status: contract.status,
         notes: contract.notes ?? '',
         document: null,
