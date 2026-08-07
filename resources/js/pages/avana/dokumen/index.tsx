@@ -576,12 +576,29 @@ export default function DokumenIndex({
                                 <input
                                     type="file"
                                     accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                                    onChange={(event) =>
-                                        form.setData(
-                                            'file',
-                                            event.target.files?.[0] ?? null,
-                                        )
-                                    }
+                                    onChange={(event) => {
+                                        const picked =
+                                            event.target.files?.[0] ?? null;
+
+                                        // Caught here, not at the server: a
+                                        // phone photo over the limit would be
+                                        // dropped by PHP and come back as a
+                                        // confusing bare error.
+                                        if (
+                                            picked &&
+                                            picked.size > 5 * 1024 * 1024
+                                        ) {
+                                            toast.error(
+                                                `File ${(picked.size / 1024 / 1024).toFixed(1)} MB — melebihi batas 5 MB. Kompres dulu fotonya lalu pilih ulang.`,
+                                            );
+                                            event.target.value = '';
+                                            form.setData('file', null);
+
+                                            return;
+                                        }
+
+                                        form.setData('file', picked);
+                                    }}
                                     style={{
                                         ...withError(
                                             inputStyle,
