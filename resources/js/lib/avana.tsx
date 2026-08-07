@@ -160,6 +160,8 @@ export function digitsOnly(value: string | number | null | undefined): string {
 interface RupiahInputProps {
     value: string | number;
     onChange: (rawDigits: string) => void;
+    /** Fired on blur, for rows that save the amount as soon as focus leaves. */
+    onBlur?: () => void;
     style?: CSSProperties;
     placeholder?: string;
     disabled?: boolean;
@@ -175,6 +177,7 @@ interface RupiahInputProps {
 export function RupiahInput({
     value,
     onChange,
+    onBlur,
     style,
     placeholder,
     disabled,
@@ -209,6 +212,7 @@ export function RupiahInput({
                 placeholder={placeholder ?? '0'}
                 disabled={disabled}
                 onChange={(event) => onChange(digitsOnly(event.target.value))}
+                onBlur={onBlur}
                 style={{
                     width: '100%',
                     height: 42,
@@ -220,6 +224,10 @@ export function RupiahInput({
                     background: disabled ? C.surface : '#fff',
                     outline: 'none',
                     ...style,
+                    // Callers pass their page's shared input style, whose own
+                    // padding would slide the text under the "Rp" prefix. Their
+                    // vertical padding still wins; only the gutter is reclaimed.
+                    ...(hasPrefix ? { paddingLeft: 36 } : null),
                 }}
             />
         </div>

@@ -2,7 +2,16 @@ import { Head, router, useForm, usePage } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { AIcon, ActionBtn, btnOut, btnP, C, card, rp } from '@/lib/avana';
+import {
+    AIcon,
+    ActionBtn,
+    btnOut,
+    btnP,
+    C,
+    card,
+    rp,
+    RupiahInput,
+} from '@/lib/avana';
 import FormulaTab from './formula-tab';
 import type {
     CalcType,
@@ -1058,19 +1067,29 @@ export default function PayrollKomponen({
                                         ? 'Persentase (%)'
                                         : 'Nilai / Nominal (Rp)'}
                                 </label>
-                                <input
-                                    type="number"
-                                    min={0}
-                                    style={input}
-                                    value={form.data.basis_value}
-                                    onChange={(e) =>
-                                        form.setData(
-                                            'basis_value',
-                                            e.target.value,
-                                        )
-                                    }
-                                    placeholder="0"
-                                />
+                                {form.data.tipe === 'persentase' ? (
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        style={input}
+                                        value={form.data.basis_value}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'basis_value',
+                                                e.target.value,
+                                            )
+                                        }
+                                        placeholder="0"
+                                    />
+                                ) : (
+                                    <RupiahInput
+                                        style={input}
+                                        value={form.data.basis_value}
+                                        onChange={(raw) =>
+                                            form.setData('basis_value', raw)
+                                        }
+                                    />
+                                )}
                             </div>
                         )}
 

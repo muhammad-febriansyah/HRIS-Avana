@@ -3,7 +3,7 @@ import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import Pph21TerController from '@/actions/App/Http/Controllers/Avana/Pph21TerController';
 import { DatePicker } from '@/components/avana/date-picker';
-import { ActionBtn, AIcon, C, card } from '@/lib/avana';
+import { ActionBtn, AIcon, C, card, RupiahInput } from '@/lib/avana';
 
 interface Bracket {
     id: number;
@@ -676,12 +676,11 @@ export default function PayrollTer({
                         </div>
                         <div>
                             <span style={label}>Penghasilan bruto bulanan (Rp)</span>
-                            <input
+                            <RupiahInput
                                 style={input}
-                                inputMode="numeric"
                                 placeholder="12.000.000"
                                 value={calcGross}
-                                onChange={(e) => setCalcGross(e.target.value)}
+                                onChange={setCalcGross}
                             />
                         </div>
                     </div>

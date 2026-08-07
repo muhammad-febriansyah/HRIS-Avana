@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import SalaryMasterController from '@/actions/App/Http/Controllers/Avana/SalaryMasterController';
 import { DatePicker } from '@/components/avana/date-picker';
-import { AIcon, C, card } from '@/lib/avana';
+import { AIcon, C, card, RupiahInput } from '@/lib/avana';
 
 type FlagKey = 'included' | 'is_prorate' | 'is_kompensasi';
 
@@ -17,9 +17,6 @@ interface Component {
     is_kompensasi: boolean;
 }
 
-const rupiah = (n: number) =>
-    n ? new Intl.NumberFormat('id-ID').format(n) : '';
-
 /** One membership row: the included checkbox plus its monthly nominal input. */
 function MembershipRow({
     c,
@@ -30,10 +27,12 @@ function MembershipRow({
     masterId: number;
     onToggle: (checked: boolean) => void;
 }) {
-    const [amount, setAmount] = useState<string>(rupiah(c.amount));
+    const [amount, setAmount] = useState<string>(
+        c.amount ? String(c.amount) : '',
+    );
 
     const saveAmount = () => {
-        const value = Number(amount.replace(/[^\d]/g, '')) || 0;
+        const value = Number(amount) || 0;
 
         if (value === c.amount) {
             return;
@@ -73,21 +72,10 @@ function MembershipRow({
                         gap: 4,
                     }}
                 >
-                    <span style={{ fontSize: 11.5, color: C.faint }}>Rp</span>
-                    <input
-                        style={{ ...input, width: 120, textAlign: 'right' }}
-                        inputMode="numeric"
+                    <RupiahInput
+                        style={{ ...input, width: 140, textAlign: 'right' }}
                         value={amount}
-                        placeholder="0"
-                        onChange={(e) =>
-                            setAmount(
-                                rupiah(
-                                    Number(
-                                        e.target.value.replace(/[^\d]/g, ''),
-                                    ) || 0,
-                                ),
-                            )
-                        }
+                        onChange={setAmount}
                         onBlur={saveAmount}
                     />
                 </div>
