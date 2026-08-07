@@ -121,6 +121,7 @@ export default function AvanaPayroll({
     recipients,
     recipient_meta,
     slip,
+    stale_run,
     filters,
 }: PayrollProps) {
     const { flash, errors } = usePage<FlashProps>().props;
@@ -715,6 +716,31 @@ export default function AvanaPayroll({
                 </div>
 
                 {isLocked && <LockedAlert />}
+
+                {stale_run && !isLocked && (
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 10,
+                            padding: '12px 16px',
+                            borderRadius: 10,
+                            background: '#FFFBEB',
+                            border: `1px solid #FDE68A`,
+                            marginBottom: 16,
+                        }}
+                    >
+                        <AIcon name="refresh-cw" size={18} color="#B45309" />
+                        <div style={{ fontSize: 13, color: '#92400E' }}>
+                            <strong>Angka di bawah belum memakai pengaturan
+                            terbaru.</strong>{' '}
+                            Konfigurasi payroll (Master Gaji, komponen, lembur,
+                            denda, payday, atau BPJS) berubah setelah perhitungan
+                            terakhir — klik <strong>Jalankan</strong> untuk
+                            menghitung ulang.
+                        </div>
+                    </div>
+                )}
 
                 {!isLocked && summary.rejection_note && (
                     <div

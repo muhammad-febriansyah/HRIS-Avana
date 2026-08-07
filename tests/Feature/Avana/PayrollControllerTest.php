@@ -244,6 +244,34 @@ it('rejects a period whose end date precedes the start date', function (): void 
         ->assertSessionHasErrors(['end_date']);
 });
 
+it('rejects a one-day period — prorated salaries would collapse with it', function (): void {
+    actingAs($this->admin)
+        ->post('spec-avana/payroll/periods', [
+            'name' => 'Gaji Agustus',
+            'cycle' => 'monthly',
+            'start_date' => '2026-08-25',
+            'end_date' => '2026-08-25',
+        ])
+        ->assertSessionHasErrors(['end_date']);
+});
+
+it('flags the shown run as stale after a payroll config edit', function (): void {
+    actingAs($this->admin)->post('spec-avana/payroll/run')->assertSessionHas('success');
+
+    // Fresh run: nothing changed since it was computed.
+    actingAs($this->admin)
+        ->get('spec-avana/payroll')
+        ->assertInertia(fn (Assert $page) => $page->where('stale_run', false));
+
+    // Editing a component after the run makes the stored numbers stale.
+    $this->travel(1)->minutes();
+    payrollComponent($this->tenant->id, 'BASIC')->touch();
+
+    actingAs($this->admin)
+        ->get('spec-avana/payroll')
+        ->assertInertia(fn (Assert $page) => $page->where('stale_run', true));
+});
+
 it('scopes present-day pay to the weekly period window', function (): void {
     $employee = Employee::forTenant($this->tenant->id)->whereNotNull('position_id')->orderBy('id')->firstOrFail();
 

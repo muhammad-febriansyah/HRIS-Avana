@@ -81,6 +81,22 @@ export default function PeriodCreate() {
         }
     }, [flash?.success]);
 
+    /** Inclusive day count of the chosen range, or null while incomplete. */
+    const rangeDays =
+        data.start_date && data.end_date
+            ? Math.round(
+                  (new Date(data.end_date).getTime() -
+                      new Date(data.start_date).getTime()) /
+                      86_400_000,
+              ) + 1
+            : null;
+
+    // A "monthly" period far shorter than a month silently shrinks every
+    // prorated salary with it — the 66-thousand-rupiah mystery. Say so before
+    // Simpan, not after the payslips look wrong.
+    const shortMonthly =
+        data.cycle === 'monthly' && rangeDays !== null && rangeDays < 21;
+
     return (
         <>
             <Head title="Buat Periode" />
@@ -202,6 +218,35 @@ export default function PeriodCreate() {
                             />
                             <FieldErr msg={errors.end_date} />
                         </div>
+
+                        {rangeDays !== null && (
+                            <div
+                                style={{
+                                    gridColumn: '1 / -1',
+                                    fontSize: 12.5,
+                                    color: shortMonthly ? '#92400E' : C.muted,
+                                    background: shortMonthly
+                                        ? '#FFFBEB'
+                                        : 'transparent',
+                                    border: shortMonthly
+                                        ? '1px solid #FDE68A'
+                                        : 'none',
+                                    borderRadius: 8,
+                                    padding: shortMonthly ? '10px 12px' : 0,
+                                }}
+                            >
+                                Rentang periode: <strong>{rangeDays} hari</strong>
+                                {shortMonthly && (
+                                    <>
+                                        {' '}
+                                        — pendek untuk siklus bulanan. Komponen
+                                        yang diprorata akan dihitung sebatas
+                                        rentang ini, jadi gaji tampak jauh lebih
+                                        kecil dari nominal bulanannya.
+                                    </>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     <div
