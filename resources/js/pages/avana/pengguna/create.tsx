@@ -9,6 +9,7 @@ import { emptyUserForm } from './types';
 import type {
     BranchOption,
     FlashProps,
+    LinkableEmployee,
     RoleOption,
     UserFormData,
 } from './types';
@@ -16,11 +17,13 @@ import type {
 interface PenggunaCreateProps {
     roles: RoleOption[];
     branches: BranchOption[];
+    linkableEmployees: LinkableEmployee[];
 }
 
 export default function PenggunaCreate({
     roles,
     branches = [],
+    linkableEmployees = [],
 }: PenggunaCreateProps) {
     const { flash } = usePage<FlashProps>().props;
 
@@ -104,6 +107,7 @@ export default function PenggunaCreate({
                     form={form}
                     roles={roles}
                     branches={branches}
+                    linkableEmployees={linkableEmployees}
                     isEdit={false}
                     submitLabel="Simpan Pengguna"
                     submitIcon="plus"

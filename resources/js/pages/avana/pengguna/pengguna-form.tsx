@@ -9,13 +9,23 @@ import {
     selectStyle,
     withError,
 } from './components';
+import { SearchableSelect } from '@/components/searchable-select';
 import { scopeOptions } from './types';
-import type { BranchOption, RoleOption, UserFormData } from './types';
+import type {
+    BranchOption,
+    LinkableEmployee,
+    RoleOption,
+    UserFormData,
+} from './types';
 
 interface PenggunaFormProps {
     form: InertiaFormProps<UserFormData>;
     roles: RoleOption[];
     branches: BranchOption[];
+    /** Employees without a login yet; empty hides the linking field. */
+    linkableEmployees?: LinkableEmployee[];
+    /** Employee already owning this login (edit only); locks the field. */
+    linkedEmployeeName?: string | null;
     isEdit: boolean;
     submitLabel: string;
     submitIcon: string;
@@ -28,6 +38,8 @@ export function PenggunaForm({
     form,
     roles,
     branches,
+    linkableEmployees = [],
+    linkedEmployeeName = null,
     isEdit,
     submitLabel,
     submitIcon,
@@ -35,6 +47,21 @@ export function PenggunaForm({
     onSubmit,
 }: PenggunaFormProps) {
     const { data, setData, errors, processing } = form;
+
+    // The employee role exists solely to be used from the phone, so the
+    // server refuses it without an employee (hard rule). Other mobile-capable
+    // roles only draw a warning — an admin login may legitimately be web-only.
+    const selectedRoles = roles.filter((role) =>
+        data.role_ids.includes(role.id),
+    );
+    const needsEmployee =
+        !linkedEmployeeName &&
+        selectedRoles.some((role) => role.code === 'employee');
+    const mobileWarning =
+        !linkedEmployeeName &&
+        !needsEmployee &&
+        data.employee_id === '' &&
+        selectedRoles.some((role) => role.can_access_mobile !== false);
 
     const toggleRole = (id: number) => {
         const next = data.role_ids.includes(id)
@@ -211,6 +238,62 @@ export function PenggunaForm({
                         })}
                     </div>
                     <FieldError message={errors.role_ids} />
+                </div>
+
+                <div>
+                    <label style={fieldLabelStyle}>
+                        Karyawan Pemilik Akun
+                        {needsEmployee && (
+                            <span style={{ color: '#DC2626' }}> *</span>
+                        )}
+                    </label>
+                    {linkedEmployeeName ? (
+                        <div
+                            style={{
+                                ...inputStyle,
+                                display: 'flex',
+                                alignItems: 'center',
+                                background: '#F6F8FC',
+                                color: C.text,
+                            }}
+                        >
+                            {linkedEmployeeName}
+                        </div>
+                    ) : (
+                        <SearchableSelect
+                            value={data.employee_id}
+                            onChange={(value) =>
+                                setData('employee_id', value)
+                            }
+                            options={linkableEmployees.map((employee) => ({
+                                value: String(employee.id),
+                                label: employee.name,
+                            }))}
+                            placeholder="Pilih karyawan…"
+                            searchPlaceholder="Cari nama karyawan…"
+                            allowClear
+                            style={withError(
+                                selectStyle,
+                                !!errors.employee_id,
+                            )}
+                        />
+                    )}
+                    <div
+                        style={{
+                            fontSize: 11.5,
+                            color: needsEmployee ? '#B45309' : C.faint,
+                            marginTop: 5,
+                        }}
+                    >
+                        {linkedEmployeeName
+                            ? 'Akun ini sudah tertaut — kelola datanya dari form Karyawan.'
+                            : needsEmployee
+                              ? 'Role Karyawan wajib punya pemilik — tanpa karyawan, login di HP ditolak.'
+                              : mobileWarning
+                                ? 'Role ini bisa akses mobile. Tanpa karyawan, menu absensi/cuti/profil di HP akan ditolak — tautkan bila orangnya juga karyawan.'
+                                : 'Opsional untuk akun web-saja (mis. admin/finance).'}
+                    </div>
+                    <FieldError message={errors.employee_id} />
                 </div>
 
                 <div>

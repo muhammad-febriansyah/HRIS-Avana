@@ -12,6 +12,7 @@ import type {
     PermissionActionOption,
     PermissionOverride,
     RoleOption,
+    LinkableEmployee,
     UserEditRecord,
     UserFormData,
 } from './types';
@@ -20,6 +21,7 @@ interface PenggunaEditProps {
     user: UserEditRecord;
     roles: RoleOption[];
     branches: BranchOption[];
+    linkableEmployees: LinkableEmployee[];
     overrides: PermissionOverride[];
     permissionModules: string[];
     permissionActions: PermissionActionOption[];
@@ -29,6 +31,7 @@ export default function PenggunaEdit({
     user,
     roles,
     branches = [],
+    linkableEmployees = [],
     overrides = [],
     permissionModules = [],
     permissionActions = [],
@@ -44,6 +47,7 @@ export default function PenggunaEdit({
         role_ids: [...user.role_ids],
         data_scope: user.data_scope ?? 'company',
         branch_ids: [...user.branch_ids],
+        employee_id: '',
     });
 
     useEffect(() => {
@@ -100,6 +104,8 @@ export default function PenggunaEdit({
                     form={form}
                     roles={roles}
                     branches={branches}
+                    linkableEmployees={linkableEmployees}
+                    linkedEmployeeName={user.employee_name ?? null}
                     isEdit
                     submitLabel="Simpan Perubahan"
                     submitIcon="check"
