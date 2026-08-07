@@ -76,6 +76,30 @@ export default function PenggunaCreate({
                     Tambah Pengguna Baru
                 </h1>
 
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 10,
+                        padding: '12px 16px',
+                        borderRadius: 10,
+                        background: '#FFFBEB',
+                        border: '1px solid #FDE68A',
+                        marginBottom: 16,
+                        maxWidth: 760,
+                    }}
+                >
+                    <AIcon name="smartphone" size={17} color="#B45309" />
+                    <div style={{ fontSize: 13, color: '#92400E' }}>
+                        Akun dari menu ini <strong>tidak punya data
+                        karyawan</strong>, jadi aplikasi mobile karyawan akan
+                        menolaknya di menu absensi, cuti, dan profil. Untuk
+                        akun yang dipakai absen di HP, buat dari form{' '}
+                        <strong>Karyawan</strong> — atau tautkan akun ini
+                        nanti lewat Karyawan → Akun &amp; Akses.
+                    </div>
+                </div>
+
                 <PenggunaForm
                     form={form}
                     roles={roles}

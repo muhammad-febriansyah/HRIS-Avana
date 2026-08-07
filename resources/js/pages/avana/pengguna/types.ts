@@ -29,6 +29,8 @@ export interface UserRow {
     phone: string | null;
     status: string;
     roles: RoleOption[];
+    /** Employee this login belongs to; null = web-only, mobile ESS will 403. */
+    employee_name: string | null;
     initials: string;
     avatar_color: string;
     avatar_url: string | null;
