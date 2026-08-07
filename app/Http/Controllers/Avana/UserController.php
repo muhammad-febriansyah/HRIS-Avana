@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\AttendancePolicy;
 use App\Models\Branch;
+use App\Models\Employee;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\UserPermissionOverride;
@@ -17,6 +18,7 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rules\Exists;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -111,6 +113,7 @@ class UserController extends Controller
         return Inertia::render('avana/pengguna/create', [
             'roles' => $this->assignableRoles($tenantId),
             'branches' => $this->tenantBranches($tenantId),
+            'linkableEmployees' => $this->linkableEmployees($tenantId),
         ]);
     }
 
@@ -129,6 +132,7 @@ class UserController extends Controller
             'branchAccesses:id,user_id,branch_id',
             'dataScopes:id,user_id,scope_type,scope_value',
             'permissionOverrides',
+            'employee:id,user_id,full_name',
         ]);
 
         return Inertia::render('avana/pengguna/edit', [
@@ -149,9 +153,11 @@ class UserController extends Controller
                     ->map(fn ($id): int => (int) $id)
                     ->values()
                     ->all(),
+                'employee_name' => $user->employee?->full_name,
             ],
             'roles' => $this->assignableRoles($tenantId),
             'branches' => $this->tenantBranches($tenantId),
+            'linkableEmployees' => $this->linkableEmployees($tenantId),
             'overrides' => $user->permissionOverrides
                 ->map(fn (UserPermissionOverride $override): array => [
                     'code' => $override->permission_code,
@@ -185,7 +191,19 @@ class UserController extends Controller
             'data_scope' => ['nullable', 'in:company,branch,team,own'],
             'branch_ids' => ['array'],
             'branch_ids.*' => ['integer', $this->branchOwnedByTenant($request)],
+            'employee_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('employees', 'id')
+                    ->where('tenant_id', $request->user()->tenant_id)
+                    ->whereNull('user_id'),
+            ],
+        ], [
+            'employee_id.exists' => 'Karyawan ini sudah punya akun login.',
         ]);
+
+        $employeeId = $validated['employee_id'] ?? null;
+        $this->requireEmployeeForMobileRoles($validated['role_ids'] ?? [], $employeeId, false);
 
         TenantQuota::assertRoom($request->user()->tenant, 'users', 1, 'email');
 
@@ -201,6 +219,12 @@ class UserController extends Controller
         $user->roles()->sync($validated['role_ids'] ?? []);
         $this->syncDataScope($user, $validated['data_scope'] ?? null);
         $this->syncBranchAccess($user, $validated['branch_ids'] ?? []);
+
+        if ($employeeId !== null) {
+            Employee::forTenant($request->user()->tenant_id)
+                ->whereKey($employeeId)
+                ->update(['user_id' => $user->id]);
+        }
 
         return redirect()->route('avana.pengguna')
             ->with('success', 'Pengguna berhasil ditambahkan');
@@ -225,7 +249,23 @@ class UserController extends Controller
             'data_scope' => ['nullable', 'in:company,branch,team,own'],
             'branch_ids' => ['array'],
             'branch_ids.*' => ['integer', $this->branchOwnedByTenant($request)],
+            'employee_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('employees', 'id')
+                    ->where('tenant_id', $request->user()->tenant_id)
+                    ->whereNull('user_id'),
+            ],
+        ], [
+            'employee_id.exists' => 'Karyawan ini sudah punya akun login.',
         ]);
+
+        $employeeId = $validated['employee_id'] ?? null;
+        $this->requireEmployeeForMobileRoles(
+            $validated['role_ids'] ?? [],
+            $employeeId,
+            $user->employee()->exists(),
+        );
 
         $user->fill([
             'name' => $validated['name'],
@@ -243,6 +283,12 @@ class UserController extends Controller
         $user->roles()->sync($validated['role_ids'] ?? []);
         $this->syncDataScope($user, $validated['data_scope'] ?? null);
         $this->syncBranchAccess($user, $validated['branch_ids'] ?? []);
+
+        if ($employeeId !== null && ! $user->employee()->exists()) {
+            Employee::forTenant($request->user()->tenant_id)
+                ->whereKey($employeeId)
+                ->update(['user_id' => $user->id]);
+        }
 
         return redirect()->route('avana.pengguna')
             ->with('success', 'Pengguna berhasil diperbarui');
@@ -449,8 +495,67 @@ class UserController extends Controller
     {
         return $this->assignableRolesQuery($tenantId)
             ->orderBy('id')
-            ->get(['id', 'name', 'code'])
+            ->get(['id', 'name', 'code', 'can_access_mobile'])
             ->all();
+    }
+
+    /**
+     * Employees who have no login yet — the ones an account made here may be
+     * attached to.
+     *
+     * @return array<int, array{id: int, name: string}>
+     */
+    private function linkableEmployees(?int $tenantId): array
+    {
+        if ($tenantId === null) {
+            return [];
+        }
+
+        return Employee::forTenant($tenantId)
+            ->whereNull('user_id')
+            ->orderBy('full_name')
+            ->get(['id', 'full_name', 'employee_number'])
+            ->map(fn (Employee $employee): array => [
+                'id' => $employee->id,
+                'name' => $employee->full_name.($employee->employee_number ? ' ('.$employee->employee_number.')' : ''),
+            ])
+            ->all();
+    }
+
+    /**
+     * Refuse a mobile-capable account with nobody behind it.
+     *
+     * Every "error di mobile" support case traces to this shape: a login whose
+     * role is meant for the phone but that no employee owns. The account
+     * simply may not be created that way any more.
+     *
+     * @param  array<int, int>  $roleIds
+     */
+    private function requireEmployeeForMobileRoles(array $roleIds, ?int $employeeId, bool $alreadyLinked): void
+    {
+        if ($alreadyLinked || $employeeId !== null || $roleIds === []) {
+            return;
+        }
+
+        // Hard rule only for the employee role: such an account exists solely
+        // to be used by an employee, so one without an employee is always a
+        // mistake. Admin/finance roles may legitimately stay web-only — the
+        // form warns, but does not refuse.
+        $employeeRoles = Role::query()
+            ->whereIn('id', $roleIds)
+            ->where('code', 'employee')
+            ->pluck('name');
+
+        if ($employeeRoles->isEmpty()) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'employee_id' => sprintf(
+                'Role %s dipakai karyawan di aplikasi mobile — pilih karyawan pemilik akun ini, atau buat akunnya langsung dari form Karyawan.',
+                $employeeRoles->implode(', '),
+            ),
+        ]);
     }
 
     /**

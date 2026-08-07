@@ -68,6 +68,15 @@ it('excludes the super_admin role from the assignable roles list', function (): 
 });
 
 it('creates a user with roles scoped to the current tenant', function (): void {
+    // The employee role must name its owner, so the account is born linked.
+    $employee = App\Models\Employee::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_number' => 'EMP-LINK-1',
+        'full_name' => 'Budi Pengguna',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+    ]);
+
     actingAs($this->admin)
         ->post(route('avana.pengguna.store'), [
             'name' => 'Budi Pengguna',
@@ -76,6 +85,7 @@ it('creates a user with roles scoped to the current tenant', function (): void {
             'password' => 'rahasia123',
             'status' => 'active',
             'role_ids' => [$this->employeeRole->id],
+            'employee_id' => $employee->id,
         ])
         ->assertRedirect(route('avana.pengguna'))
         ->assertSessionHas('success');
@@ -86,6 +96,22 @@ it('creates a user with roles scoped to the current tenant', function (): void {
     expect($user->status)->toBe('active');
     expect($user->roles->pluck('id')->all())->toBe([$this->employeeRole->id]);
     expect(Hash::check('rahasia123', $user->password))->toBeTrue();
+    // The account came out owned by the employee it was made for.
+    expect((int) $employee->fresh()->user_id)->toBe($user->id);
+});
+
+it('refuses an employee-role account with nobody behind it', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.pengguna.store'), [
+            'name' => 'Akun Yatim',
+            'email' => 'yatim@pengguna.test',
+            'password' => 'rahasia123',
+            'status' => 'active',
+            'role_ids' => [$this->employeeRole->id],
+        ])
+        ->assertSessionHasErrors('employee_id');
+
+    expect(User::where('email', 'yatim@pengguna.test')->exists())->toBeFalse();
 });
 
 it('validates required fields and unique email on store', function (): void {
@@ -158,6 +184,13 @@ it('rejects escalating an existing user to super_admin on update', function (): 
 
 it('updates an existing user fields and roles', function (): void {
     $target = User::factory()->create(['tenant_id' => $this->tenant->id, 'status' => 'active']);
+    $employee = App\Models\Employee::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_number' => 'EMP-LINK-2',
+        'full_name' => 'Nama Diperbarui',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+    ]);
 
     actingAs($this->admin)
         ->put(route('avana.pengguna.update', $target), [
@@ -167,6 +200,7 @@ it('updates an existing user fields and roles', function (): void {
             'password' => '',
             'status' => 'inactive',
             'role_ids' => [$this->employeeRole->id],
+            'employee_id' => $employee->id,
         ])
         ->assertRedirect(route('avana.pengguna'))
         ->assertSessionHas('success');

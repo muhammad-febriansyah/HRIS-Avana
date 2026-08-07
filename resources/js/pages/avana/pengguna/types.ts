@@ -12,6 +12,14 @@ export interface RoleOption {
     id: number;
     name: string;
     code: string;
+    /** Whether this role is meant to use the employee mobile app. */
+    can_access_mobile?: boolean;
+}
+
+/** An employee without a login yet, offered for linking on user create/edit. */
+export interface LinkableEmployee {
+    id: number;
+    name: string;
 }
 
 /** A tenant branch the user can be granted access to. */
@@ -87,6 +95,8 @@ export interface UserEditRecord {
     role_ids: number[];
     data_scope: string;
     branch_ids: number[];
+    /** Employee already owning this login, or null when unlinked. */
+    employee_name?: string | null;
 }
 
 /** Flat form payload backing both the create and edit user forms. */
@@ -99,6 +109,8 @@ export interface UserFormData {
     role_ids: number[];
     data_scope: string;
     branch_ids: number[];
+    /** Employee who owns this login; required when a role is mobile-capable. */
+    employee_id: string;
 }
 
 /** Empty defaults for the create form. */
@@ -111,6 +123,7 @@ export const emptyUserForm: UserFormData = {
     role_ids: [],
     data_scope: 'company',
     branch_ids: [],
+    employee_id: '',
 };
 
 /** Scope options surfaced in the create/edit form. */
