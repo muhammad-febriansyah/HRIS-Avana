@@ -1,4 +1,6 @@
+import { router } from '@inertiajs/react';
 import { useState } from 'react';
+import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, C, card } from '@/lib/avana';
 import { initialsOf } from './components';
 import type { Slip, SlipLine } from './types';
@@ -6,6 +8,8 @@ import type { Slip, SlipLine } from './types';
 interface SlipDetailProps {
     slip: Slip;
     period: string | null;
+    /** Active employees selectable for the preview; empty hides the picker. */
+    employees?: { id: number; name: string }[];
 }
 
 /**
@@ -83,10 +87,60 @@ function SlipRow({
     );
 }
 
-/** Sample payslip card for the first active employee. */
-export function SlipDetail({ slip, period }: SlipDetailProps) {
+/**
+ * Payslip preview card. Picking an employee recomputes their slip live from
+ * the current configuration — a dry run, nothing is saved — so HR can sanity
+ * check one person before running the whole payroll.
+ */
+export function SlipDetail({ slip, period, employees = [] }: SlipDetailProps) {
+    const previewFor = (employeeId: string) => {
+        if (!employeeId) {
+            return;
+        }
+
+        const url = new URL(window.location.href);
+        url.searchParams.set('slip_employee', employeeId);
+        router.visit(url.pathname + url.search, {
+            only: ['slip', 'filters'],
+            preserveScroll: true,
+            preserveState: true,
+        });
+    };
+
     return (
         <div style={{ ...card, overflow: 'hidden' }}>
+            {employees.length > 0 && (
+                <div
+                    style={{
+                        padding: '12px 22px',
+                        borderBottom: `1px solid ${C.line}`,
+                        background: '#F8FAFD',
+                    }}
+                >
+                    <SearchableSelect
+                        value={slip.employee_id ? String(slip.employee_id) : ''}
+                        onChange={previewFor}
+                        options={employees.map((employee) => ({
+                            value: String(employee.id),
+                            label: employee.name,
+                        }))}
+                        placeholder="Pratinjau slip karyawan…"
+                        searchPlaceholder="Cari nama karyawan…"
+                        style={{ width: '100%' }}
+                    />
+                    <div
+                        style={{
+                            fontSize: 11,
+                            color: C.faint,
+                            marginTop: 6,
+                        }}
+                    >
+                        Dihitung live dari konfigurasi saat ini — belum
+                        tersimpan; hasil run bisa berbeda jika konfigurasi
+                        berubah.
+                    </div>
+                </div>
+            )}
             <div
                 style={{
                     padding: '18px 22px',

@@ -96,11 +96,13 @@ it('renders the payroll index with the expected props', function (): void {
             ->has('recipients')
             ->has('slip', fn (Assert $slip) => $slip
                 ->has('employee')
+                ->has('employee_id')
                 ->has('earnings')
                 ->has('deductions')
                 ->has('gross')
                 ->has('deduction')
                 ->has('net'))
+            ->has('slip_employees')
             ->has('filters'));
 });
 
@@ -253,6 +255,29 @@ it('rejects a one-day period — prorated salaries would collapse with it', func
             'end_date' => '2026-08-25',
         ])
         ->assertSessionHasErrors(['end_date']);
+});
+
+it('previews any chosen employee\'s slip without saving a run', function (): void {
+    $second = Employee::forTenant($this->tenant->id)
+        ->where('status', 'active')
+        ->orderBy('id')
+        ->skip(1)
+        ->firstOrFail();
+
+    $itemsBefore = PayrollRunItem::forTenant($this->tenant->id)->count();
+
+    $response = actingAs($this->admin)
+        ->get('spec-avana/payroll?slip_employee='.$second->id)
+        ->assertOk();
+
+    $props = $response->viewData('page')['props'];
+
+    expect($props['slip']['employee'])->toBe($second->full_name);
+    expect($props['slip']['employee_id'])->toBe($second->id);
+    expect(collect($props['slip_employees'])->pluck('id'))->toContain($second->id);
+
+    // A preview is a dry run: nothing was written.
+    expect(PayrollRunItem::forTenant($this->tenant->id)->count())->toBe($itemsBefore);
 });
 
 it('explains where each computed slip line comes from', function (): void {

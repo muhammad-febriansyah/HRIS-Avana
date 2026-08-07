@@ -182,10 +182,16 @@ class PayrollController extends Controller
             ],
             'recipients' => $recipients,
             'recipient_meta' => $recipientMeta,
-            'slip' => $this->buildSampleSlip($tenantId, $selectedPeriod),
+            'slip' => $this->buildSampleSlip($tenantId, $selectedPeriod, $request->integer('slip_employee') ?: null),
+            'slip_employees' => Employee::forTenant($tenantId)
+                ->where('status', 'active')
+                ->orderBy('full_name')
+                ->get(['id', 'full_name'])
+                ->map(fn (Employee $employee): array => ['id' => $employee->id, 'name' => $employee->full_name])
+                ->all(),
             'stale_run' => $this->runIsStale($tenantId, $selectedRun),
             'checklist' => $this->setupChecklist($tenantId),
-            'filters' => $request->only(['search', 'status', 'per_page', 'period', 'scheme', 'only_paid']),
+            'filters' => $request->only(['search', 'status', 'per_page', 'period', 'scheme', 'only_paid', 'slip_employee']),
         ]);
     }
 
@@ -1238,9 +1244,16 @@ class PayrollController extends Controller
      *
      * @return array<string, mixed>
      */
-    private function buildSampleSlip(int $tenantId, ?PayrollPeriod $period): array
+    private function buildSampleSlip(int $tenantId, ?PayrollPeriod $period, ?int $employeeId = null): array
     {
-        $employee = Employee::forTenant($tenantId)
+        // A chosen employee makes this a dry-run preview: HR picks anyone and
+        // sees their slip computed live from the current configuration, before
+        // (and without) running the whole payroll.
+        $employee = $employeeId !== null
+            ? Employee::forTenant($tenantId)->where('status', 'active')->find($employeeId)
+            : null;
+
+        $employee ??= Employee::forTenant($tenantId)
             ->where('status', 'active')
             ->orderBy('id')
             ->first();
@@ -1258,6 +1271,7 @@ class PayrollController extends Controller
 
                 return [
                     'employee' => $employee->full_name,
+                    'employee_id' => $employee->id,
                     'payslip_id' => $payslipId,
                     'earnings' => array_map(
                         fn (array $row): array => [
@@ -1284,6 +1298,7 @@ class PayrollController extends Controller
 
         return [
             'employee' => $employee?->full_name ?? 'Contoh Karyawan',
+            'employee_id' => $employee?->id,
             'earnings' => [
                 ['k' => 'Gaji Pokok', 'v' => $this->rupiah(5_000_000)],
                 ['k' => 'Tunjangan Jabatan', 'v' => $this->rupiah(1_000_000)],
