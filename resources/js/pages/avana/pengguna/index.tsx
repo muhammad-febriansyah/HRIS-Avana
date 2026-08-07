@@ -419,6 +419,43 @@ export default function PenggunaIndex({
                                                     >
                                                         {user.email}
                                                     </div>
+                                                    {user.employee_name ? (
+                                                        <div
+                                                            style={{
+                                                                fontSize: 11.5,
+                                                                color: '#0f766e',
+                                                                marginTop: 3,
+                                                            }}
+                                                        >
+                                                            Karyawan:{' '}
+                                                            {
+                                                                user.employee_name
+                                                            }
+                                                        </div>
+                                                    ) : (
+                                                        <div
+                                                            title="Akun ini bisa login web, tapi aplikasi mobile karyawan akan menolaknya (tidak ada data karyawan). Tautkan dari form Karyawan → Akun & Akses."
+                                                            style={{
+                                                                display:
+                                                                    'inline-flex',
+                                                                alignItems:
+                                                                    'center',
+                                                                marginTop: 4,
+                                                                padding:
+                                                                    '2px 8px',
+                                                                borderRadius: 100,
+                                                                fontSize: 11,
+                                                                fontWeight: 600,
+                                                                color: '#B45309',
+                                                                background:
+                                                                    '#FFFBEB',
+                                                                border: '1px solid #FDE68A',
+                                                            }}
+                                                        >
+                                                            Tanpa karyawan —
+                                                            web saja
+                                                        </div>
+                                                    )}
                                                     {user.device ? (
                                                         <div
                                                             title={

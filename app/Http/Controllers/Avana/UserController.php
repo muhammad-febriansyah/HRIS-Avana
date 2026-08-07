@@ -64,7 +64,7 @@ class UserController extends Controller
                 'branchAccesses:id,user_id,branch_id',
                 'dataScopes:id,user_id,scope_type,scope_value',
                 'activeDevice',
-                'employee:id,user_id,photo_path',
+                'employee:id,user_id,photo_path,full_name',
             ])
             ->when($request->query('search'), function ($query, $search): void {
                 $query->where(function ($q) use ($search): void {
@@ -336,6 +336,10 @@ class UserController extends Controller
                 'name' => $role->name,
                 'code' => $role->code,
             ])->values()->all(),
+            // The one fact that predicts a mobile-login support ticket: an
+            // account with no employee behind it gets 403 on every ESS screen.
+            // Saying it on this list beats hearing it from WhatsApp later.
+            'employee_name' => $user->employee?->full_name,
             'initials' => $this->initials($user->name),
             'avatar_color' => $this->avatarColor($user->name),
             'avatar_url' => $this->resolveAvatarUrl($user),
