@@ -97,7 +97,10 @@ export default function ApprovalWorkflowIndex({
                     modules={modules}
                     takenModules={workflows
                         .filter((w) => w.id !== editing?.id)
-                        .map((w) => w.request_type)}
+                        .map(
+                            (w) =>
+                                `${w.request_type}#${w.department_id ?? 0}`,
+                        )}
                     approverTypes={approverTypes}
                     options={options}
                     onClose={closeWizard}
@@ -271,6 +274,25 @@ export default function ApprovalWorkflowIndex({
                                                     }}
                                                 >
                                                     {row.module_label}
+                                                </span>
+                                                <span
+                                                    style={{
+                                                        fontSize: 11,
+                                                        fontWeight: 600,
+                                                        color: row.department_id
+                                                            ? '#B45309'
+                                                            : C.muted,
+                                                        background:
+                                                            row.department_id
+                                                                ? '#FFFBEB'
+                                                                : '#EEF1F7',
+                                                        border: `1px solid ${row.department_id ? '#FDE68A' : C.border}`,
+                                                        borderRadius: 999,
+                                                        padding: '2px 9px',
+                                                        whiteSpace: 'nowrap',
+                                                    }}
+                                                >
+                                                    {row.scope_label}
                                                 </span>
                                             </div>
                                         </td>

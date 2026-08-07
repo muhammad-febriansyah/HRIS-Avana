@@ -71,10 +71,17 @@ class ApprovalEngine
             return false;
         }
 
+        // A division-scoped flow beats the tenant-wide default: the requester's
+        // department picks its own chain when one exists, everyone else falls
+        // back to the flow with no department.
         $workflow = ApprovalWorkflow::forTenant($subject->tenant_id)
             ->where('request_type', $type)
             ->where('is_active', true)
+            ->where(fn ($query) => $query
+                ->whereNull('department_id')
+                ->when($subject->department_id !== null, fn ($sub) => $sub->orWhere('department_id', $subject->department_id)))
             ->with('steps')
+            ->orderByRaw('department_id IS NULL')
             ->orderByDesc('id')
             ->first();
 
