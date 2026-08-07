@@ -123,6 +123,33 @@ it('uploads a document scoped to the current tenant', function (): void {
     Storage::disk('public')->assertMissing($document->file_path);
 });
 
+it('rejects a file over the app limit with a readable message', function (): void {
+    Storage::fake('local');
+
+    actingAs($this->admin)
+        ->post(route('avana.dokumen.store'), [
+            'employee_id' => $this->employee->id,
+            'name' => 'KTP Besar',
+            'type' => 'ktp',
+            'file' => UploadedFile::fake()->create('ktp.jpg', 6144, 'image/jpeg'),
+        ])
+        ->assertSessionHasErrors('file');
+});
+
+it('explains a post_max_size overflow instead of a bare 413', function (): void {
+    // PHP drops the whole body before Laravel sees it, surfacing as
+    // PostTooLargeException — the renderer must turn that into a field error.
+    Route::middleware('web')->post('spec-dokumen/too-large', function (): void {
+        throw new Illuminate\Http\Exceptions\PostTooLargeException();
+    });
+
+    actingAs($this->admin)
+        ->from(route('avana.dokumen'))
+        ->post('spec-dokumen/too-large')
+        ->assertRedirect(route('avana.dokumen'))
+        ->assertSessionHasErrors('file');
+});
+
 it('validates required fields on store', function (): void {
     actingAs($this->admin)
         ->post(route('avana.dokumen.store'), [
