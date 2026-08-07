@@ -1,10 +1,86 @@
+import { useState } from 'react';
 import { AIcon, C, card } from '@/lib/avana';
 import { initialsOf } from './components';
-import type { Slip } from './types';
+import type { Slip, SlipLine } from './types';
 
 interface SlipDetailProps {
     slip: Slip;
     period: string | null;
+}
+
+/**
+ * One payslip line. A line that carries a `why` opens on click and explains
+ * the number in plain words — which screen sets it and through which formula.
+ */
+function SlipRow({
+    line,
+    negative,
+}: {
+    line: SlipLine;
+    negative?: boolean;
+}) {
+    const [open, setOpen] = useState(false);
+    const explainable = Boolean(line.why);
+
+    return (
+        <div style={{ borderBottom: 'none' }}>
+            <div
+                onClick={explainable ? () => setOpen(!open) : undefined}
+                title={explainable ? 'Klik untuk lihat asal angka ini' : undefined}
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '7px 0',
+                    cursor: explainable ? 'pointer' : 'default',
+                }}
+            >
+                <span
+                    style={{
+                        fontSize: 13,
+                        color: C.muted,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                    }}
+                >
+                    {line.k}
+                    {explainable && (
+                        <AIcon
+                            name={open ? 'chevron-up' : 'info'}
+                            size={13}
+                            color={C.faint}
+                        />
+                    )}
+                </span>
+                <span
+                    style={{
+                        fontSize: 13,
+                        color: C.text,
+                        fontVariantNumeric: 'tabular-nums',
+                    }}
+                >
+                    {negative ? `- ${line.v}` : line.v}
+                </span>
+            </div>
+            {open && line.why && (
+                <div
+                    style={{
+                        fontSize: 11.5,
+                        lineHeight: 1.55,
+                        color: C.muted,
+                        background: '#F6F8FC',
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 8,
+                        padding: '8px 11px',
+                        margin: '0 0 8px',
+                    }}
+                >
+                    {line.why}
+                </div>
+            )}
+        </div>
+    );
 }
 
 /** Sample payslip card for the first active employee. */
@@ -105,33 +181,7 @@ export function SlipDetail({ slip, period }: SlipDetailProps) {
                     Pendapatan
                 </div>
                 {slip.earnings.map((earning) => (
-                    <div
-                        key={earning.k}
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '7px 0',
-                        }}
-                    >
-                        <span
-                            style={{
-                                fontSize: 13,
-                                color: C.muted,
-                            }}
-                        >
-                            {earning.k}
-                        </span>
-                        <span
-                            style={{
-                                fontSize: 13,
-                                color: C.text,
-                                fontVariantNumeric: 'tabular-nums',
-                            }}
-                        >
-                            {earning.v}
-                        </span>
-                    </div>
+                    <SlipRow key={earning.k} line={earning} />
                 ))}
                 <div
                     style={{
@@ -176,33 +226,7 @@ export function SlipDetail({ slip, period }: SlipDetailProps) {
                     Potongan
                 </div>
                 {slip.deductions.map((deduction) => (
-                    <div
-                        key={deduction.k}
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '7px 0',
-                        }}
-                    >
-                        <span
-                            style={{
-                                fontSize: 13,
-                                color: C.muted,
-                            }}
-                        >
-                            {deduction.k}
-                        </span>
-                        <span
-                            style={{
-                                fontSize: 13,
-                                color: C.text,
-                                fontVariantNumeric: 'tabular-nums',
-                            }}
-                        >
-                            - {deduction.v}
-                        </span>
-                    </div>
+                    <SlipRow key={deduction.k} line={deduction} negative />
                 ))}
                 <div
                     style={{

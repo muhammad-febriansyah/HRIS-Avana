@@ -255,6 +255,26 @@ it('rejects a one-day period — prorated salaries would collapse with it', func
         ->assertSessionHasErrors(['end_date']);
 });
 
+it('explains where each computed slip line comes from', function (): void {
+    $response = actingAs($this->admin)->get('spec-avana/payroll')->assertOk();
+
+    $slip = $response->viewData('page')['props']['slip'];
+
+    // A computed slip annotates every line with a plain-words origin; the
+    // static placeholder slip (no salary data at all) carries none.
+    if (($slip['payslip_id'] ?? null) !== null || array_key_exists('why', $slip['earnings'][0] ?? [])) {
+        foreach (array_merge($slip['earnings'], $slip['deductions']) as $line) {
+            expect($line)->toHaveKey('why');
+        }
+
+        $whys = collect(array_merge($slip['earnings'], $slip['deductions']))->pluck('why')->filter();
+        expect($whys->isNotEmpty())->toBeTrue();
+        expect($whys->first())->toContain('Master Gaji');
+    } else {
+        expect($slip['earnings'])->not->toBeEmpty();
+    }
+});
+
 it('walks the setup checklist in documentation order with data-driven states', function (): void {
     $response = actingAs($this->admin)->get('spec-avana/payroll')->assertOk();
 

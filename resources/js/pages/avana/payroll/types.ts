@@ -44,6 +44,8 @@ export interface PayrollSummary {
 export interface SlipLine {
     k: string;
     v: string;
+    /** One sentence: where this number comes from and which screen sets it. */
+    why?: string | null;
 }
 
 /** Computed sample payslip for the first active employee. */

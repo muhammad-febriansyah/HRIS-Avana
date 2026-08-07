@@ -1260,11 +1260,19 @@ class PayrollController extends Controller
                     'employee' => $employee->full_name,
                     'payslip_id' => $payslipId,
                     'earnings' => array_map(
-                        fn (array $row): array => ['k' => $row['name'], 'v' => $this->rupiah($row['amount'])],
+                        fn (array $row): array => [
+                            'k' => $row['name'],
+                            'v' => $this->rupiah($row['amount']),
+                            'why' => $this->explainEarning($row, $pay),
+                        ],
                         $pay['earnings'],
                     ),
                     'deductions' => array_map(
-                        fn (array $row): array => ['k' => $row['name'], 'v' => $this->rupiah($row['amount'])],
+                        fn (array $row): array => [
+                            'k' => $row['name'],
+                            'v' => $this->rupiah($row['amount']),
+                            'why' => $this->explainDeduction($row, $pay, $employee, $tenantId),
+                        ],
                         $pay['deductions'],
                     ),
                     'gross' => $this->rupiah($pay['gross']),
@@ -1289,6 +1297,132 @@ class PayrollController extends Controller
             'deduction' => $this->rupiah(350_000),
             'net' => $this->rupiah(6_150_000),
         ];
+    }
+
+    /**
+     * One plain sentence saying where an earning line's number comes from —
+     * so "setting ini darimana?" is answered on the slip itself instead of in
+     * a support chat.
+     *
+     * @param  array{name: string, amount: float}  $row
+     * @param  array<string, mixed>  $pay
+     */
+    private function explainEarning(array $row, array $pay): ?string
+    {
+        if ($row['name'] === 'Lembur') {
+            $overtime = $pay['overtime_snapshot'] ?? null;
+
+            if (is_array($overtime) && ($overtime['hourly_rate'] ?? 0) > 0) {
+                return sprintf(
+                    'Upah sejam = basis Rp %s ÷ %d = Rp %s, × pengali jenis hari × %s jam lembur disetujui%s. Aturan: Payroll → Setup Lembur.',
+                    number_format((float) $overtime['basis'], 0, ',', '.'),
+                    (int) $overtime['divisor'],
+                    number_format((float) $overtime['hourly_rate'], 0, ',', '.'),
+                    rtrim(rtrim(number_format((float) $overtime['hours'], 2, ',', '.'), '0'), ','),
+                    ($overtime['basis_floored'] ?? false) ? ' (basis dinaikkan ke 75% penghasilan bulanan sesuai PP 35/2021)' : '',
+                );
+            }
+
+            return null;
+        }
+
+        $factor = (float) ($pay['proration_factor'] ?? 1);
+
+        if ($factor < 1) {
+            return sprintf(
+                'Nominal dari Master Gaji, diprorata %s%% karena bergabung/berhenti di tengah periode.',
+                rtrim(rtrim(number_format($factor * 100, 1, ',', '.'), '0'), ','),
+            );
+        }
+
+        return 'Nominal dari Payroll → Master Gaji.';
+    }
+
+    /**
+     * The matching explanation for a deduction line.
+     *
+     * @param  array{name: string, amount: float, loan_id?: int}  $row
+     * @param  array<string, mixed>  $pay
+     */
+    private function explainDeduction(array $row, array $pay, Employee $employee, int $tenantId): ?string
+    {
+        if ($row['name'] === 'PPh 21') {
+            $tax = $pay['tax_snapshot'] ?? [];
+            $method = $tax['method'] ?? null;
+
+            if ($method === 'ter_bulanan') {
+                return sprintf(
+                    'TER bulanan: bruto pajak Rp %s × tarif %s%% (kategori %s, status PTKP %s). Tabel: Payroll → Tarif TER PPh 21.',
+                    number_format((float) ($tax['base'] ?? $tax['gross'] ?? 0), 0, ',', '.'),
+                    rtrim(rtrim(number_format(((float) ($tax['ter_rate'] ?? 0)) * 100, 2, ',', '.'), '0'), ','),
+                    $tax['ter_category'] ?? '—',
+                    $tax['ptkp_status'] ?? 'TK/0 bawaan — profil pajak belum diisi',
+                );
+            }
+
+            if ($method !== null) {
+                return 'Rekonsiliasi tahunan tarif progresif Pasal 17 (masa pajak terakhir) terhadap PPh 21 yang sudah dipotong.';
+            }
+
+            return null;
+        }
+
+        if (str_starts_with($row['name'], 'BPJS')) {
+            $bpjs = $pay['bpjs_snapshot'] ?? [];
+            $programs = $bpjs['programs'] ?? [];
+
+            if ($programs !== []) {
+                $parts = collect($programs)
+                    ->filter(fn (array $line): bool => ($line['employee'] ?? 0) > 0)
+                    ->map(fn (array $line, string $code): string => strtoupper($code).' Rp '.number_format((float) $line['employee'], 0, ',', '.'))
+                    ->values()
+                    ->implode(' + ');
+
+                return sprintf(
+                    '%s — porsi karyawan dari upah dasar BPJS Rp %s. Persentase: Payroll → BPJS & Pajak.',
+                    $parts,
+                    number_format((float) ($bpjs['base_wage'] ?? 0), 0, ',', '.'),
+                );
+            }
+
+            return null;
+        }
+
+        if ($row['name'] === 'Denda Absensi') {
+            $window = $pay['payday_snapshot']['window'] ?? null;
+
+            $fines = AttendancePenalty::forTenant($tenantId)
+                ->where('employee_id', $employee->id)
+                ->where('penalty_type', 'deduction')
+                ->where('status', 'active')
+                ->when(is_array($window), fn ($query) => $query->whereBetween('date', $window))
+                ->orderBy('date')
+                ->limit(4)
+                ->get(['date', 'amount', 'notes']);
+
+            if ($fines->isNotEmpty()) {
+                $lines = $fines->take(3)
+                    ->map(fn (AttendancePenalty $fine): string => sprintf(
+                        '%s (Rp %s, %s)',
+                        $fine->notes ?? 'Pelanggaran absensi',
+                        number_format((float) $fine->amount, 0, ',', '.'),
+                        Carbon::parse($fine->date)->translatedFormat('j M'),
+                    ))
+                    ->implode('; ');
+
+                return $lines
+                    .($fines->count() > 3 ? '; dan lainnya' : '')
+                    .'. Aturan: Kehadiran → Sanksi Absensi.';
+            }
+
+            return null;
+        }
+
+        if (isset($row['loan_id'])) {
+            return 'Cicilan otomatis pinjaman/kasbon aktif — berhenti sendiri saat lunas.';
+        }
+
+        return 'Nominal dari Payroll → Master Gaji.';
     }
 
     /**
