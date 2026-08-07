@@ -123,14 +123,12 @@ final class AvanaNav
                     self::leaf('payroll-ter', 'Tarif TER PPh 21', 'percent', '/avana/payroll/ter', 'payroll', ['payroll']),
                     self::leaf('payroll-payday', 'Mapping Payday', 'calendar-check', '/avana/payroll/payday', 'payroll', ['payroll']),
                     self::leaf('payroll-lembur', 'Setup Lembur', 'timer', '/avana/payroll/lembur', 'payroll', ['payroll']),
-                    self::leaf('payroll-perhitungan-hari', 'Perhitungan Hari', 'calendar-days', '/avana/payroll/perhitungan-hari', 'payroll', ['payroll']),
-                    self::leaf('payroll-koreksi', 'Koreksi Gaji', 'pencil', '/avana/payroll/koreksi', 'payroll', ['payroll']),
-                    self::leaf('payroll-rapel', 'Rapel Gaji', 'history', '/avana/payroll/rapel', 'payroll', ['payroll']),
-                    // Sales Order is hidden for now at the client's request. The
-                    // screen and its routes still work for anyone holding the
-                    // link; only the menu entry is withdrawn.
-                    self::leaf('jurnal', 'Jurnal Akuntansi', 'book-open', '/avana/jurnal', 'journal', ['journal']),
-                    self::leaf('anggaran', 'Anggaran (Budget)', 'piggy-bank', '/avana/anggaran', 'budget', ['budget']),
+                    // Perhitungan Hari, Koreksi Gaji, Rapel Gaji, Sales Order,
+                    // Jurnal Akuntansi and Anggaran are hidden for now at the
+                    // client's request: the menu is trimmed to the screens the
+                    // payroll setup documentation describes. The pages and
+                    // their routes still work for anyone holding the link;
+                    // only the menu entries are withdrawn.
                 ]),
                 self::parent('finance', 'Finance', 'receipt', [
                     self::leaf('reimbursement', 'Reimbursement', 'receipt', '/avana/reimbursement', 'reimbursement', ['claim']),
