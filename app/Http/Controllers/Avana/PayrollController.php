@@ -184,8 +184,117 @@ class PayrollController extends Controller
             'recipient_meta' => $recipientMeta,
             'slip' => $this->buildSampleSlip($tenantId, $selectedPeriod),
             'stale_run' => $this->runIsStale($tenantId, $selectedRun),
+            'checklist' => $this->setupChecklist($tenantId),
             'filters' => $request->only(['search', 'status', 'per_page', 'period', 'scheme', 'only_paid']),
         ]);
+    }
+
+    /**
+     * The setup steps, in the order the payroll documentation walks them, each
+     * marked done from the tenant's own data. A new tenant sees where they are
+     * and what is still missing before their first run — the checklist earns
+     * its screen space only until every step is green, then disappears.
+     *
+     * @return list<array{key: string, label: string, done: bool, href: string|null, hint: string|null}>
+     */
+    private function setupChecklist(int $tenantId): array
+    {
+        $activeEmployees = Employee::forTenant($tenantId)->where('status', 'active')->count();
+
+        $components = DB::table('payroll_components')
+            ->where('tenant_id', $tenantId)
+            ->whereNull('deleted_at')
+            ->where('status', 'active')
+            ->count();
+
+        $linkedToMaster = Employee::forTenant($tenantId)
+            ->where('status', 'active')
+            ->whereNotNull('salary_master_id')
+            ->count();
+
+        $umr = DB::table('umr_rates')->where('tenant_id', $tenantId)->count();
+        $grades = DB::table('salary_grades')->where('tenant_id', $tenantId)->count();
+
+        $taxProfiles = DB::table('tax_profiles')
+            ->where('tenant_id', $tenantId)
+            ->whereNull('deleted_at')
+            ->count();
+
+        $paydayGroups = DB::table('paydays')->where('tenant_id', $tenantId)->where('is_active', true)->count();
+        $paydayAssigned = Employee::forTenant($tenantId)
+            ->where('status', 'active')
+            ->whereNotNull('payday_id')
+            ->count();
+
+        $overtimeReady = DB::table('overtime_policies')->where('tenant_id', $tenantId)->exists()
+            && DB::table('overtime_rates')->where('tenant_id', $tenantId)->exists();
+
+        $hasRun = PayrollRun::forTenant($tenantId)->exists();
+
+        return [
+            [
+                'key' => 'komponen',
+                'label' => 'Master Komponen',
+                'done' => $components > 0,
+                'href' => '/avana/payroll/komponen',
+                'hint' => $components > 0 ? $components.' komponen aktif' : 'Definisikan pendapatan & potongan',
+            ],
+            [
+                'key' => 'master-gaji',
+                'label' => 'Master Gaji',
+                'done' => $linkedToMaster > 0,
+                'href' => '/avana/payroll/master-gaji',
+                'hint' => $linkedToMaster > 0
+                    ? $linkedToMaster.' dari '.$activeEmployees.' karyawan tertaut'
+                    : 'Belum ada karyawan tertaut template gaji',
+            ],
+            [
+                'key' => 'umr',
+                'label' => 'UMR',
+                'done' => $umr > 0,
+                'href' => '/avana/payroll/umr',
+                'hint' => $umr > 0 ? $umr.' wilayah' : 'Isi UMR untuk validasi gaji',
+            ],
+            [
+                'key' => 'struktur-upah',
+                'label' => 'Struktur & Skala Upah',
+                'done' => $grades > 0,
+                'href' => '/avana/struktur-upah',
+                'hint' => $grades > 0 ? $grades.' grade' : 'Buat rentang gaji per grade',
+            ],
+            [
+                'key' => 'pajak',
+                'label' => 'BPJS & Pajak',
+                'done' => $taxProfiles >= $activeEmployees && $activeEmployees > 0,
+                'href' => '/avana/payroll/konfigurasi',
+                'hint' => $taxProfiles >= $activeEmployees && $activeEmployees > 0
+                    ? 'Profil pajak lengkap'
+                    : ($activeEmployees - $taxProfiles).' karyawan tanpa profil pajak — PPh21 memakai TK/0',
+            ],
+            [
+                'key' => 'payday',
+                'label' => 'Mapping Payday',
+                'done' => $paydayGroups > 0 && $paydayAssigned > 0,
+                'href' => '/avana/payroll/payday',
+                'hint' => $paydayGroups > 0 && $paydayAssigned > 0
+                    ? $paydayAssigned.' karyawan terpetakan'
+                    : 'Buat kelompok payday & assign karyawan',
+            ],
+            [
+                'key' => 'lembur',
+                'label' => 'Setup Lembur',
+                'done' => $overtimeReady,
+                'href' => '/avana/payroll/lembur',
+                'hint' => $overtimeReady ? 'Aturan & pengali siap' : 'Atur basis, pengali, dan batas jam',
+            ],
+            [
+                'key' => 'run',
+                'label' => 'Jalankan Payroll',
+                'done' => $hasRun,
+                'href' => null,
+                'hint' => $hasRun ? 'Sudah pernah dihitung' : 'Klik Jalankan di halaman ini',
+            ],
+        ];
     }
 
     /**

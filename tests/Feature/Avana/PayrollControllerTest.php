@@ -255,6 +255,22 @@ it('rejects a one-day period — prorated salaries would collapse with it', func
         ->assertSessionHasErrors(['end_date']);
 });
 
+it('walks the setup checklist in documentation order with data-driven states', function (): void {
+    $response = actingAs($this->admin)->get('spec-avana/payroll')->assertOk();
+
+    $steps = collect($response->viewData('page')['props']['checklist']);
+
+    expect($steps)->toHaveCount(8);
+    expect($steps->pluck('key')->all())->toBe([
+        'komponen', 'master-gaji', 'umr', 'struktur-upah', 'pajak', 'payday', 'lembur', 'run',
+    ]);
+
+    // The demo seed defines components, so the first step is already green;
+    // no payday group exists yet, so that step still asks for one.
+    expect($steps->firstWhere('key', 'komponen')['done'])->toBeTrue();
+    expect($steps->firstWhere('key', 'payday')['done'])->toBeFalse();
+});
+
 it('flags the shown run as stale after a payroll config edit', function (): void {
     actingAs($this->admin)->post('spec-avana/payroll/run')->assertSessionHas('success');
 
