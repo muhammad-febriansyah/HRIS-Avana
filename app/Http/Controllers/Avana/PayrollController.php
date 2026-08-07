@@ -183,8 +183,58 @@ class PayrollController extends Controller
             'recipients' => $recipients,
             'recipient_meta' => $recipientMeta,
             'slip' => $this->buildSampleSlip($tenantId, $selectedPeriod),
+            'stale_run' => $this->runIsStale($tenantId, $selectedRun),
             'filters' => $request->only(['search', 'status', 'per_page', 'period', 'scheme', 'only_paid']),
         ]);
+    }
+
+    /**
+     * Whether the shown run was computed before the tenant last touched any
+     * payroll configuration — the tester's "I changed the salary but the table
+     * still shows the old number" moment. The table is a stored result, not a
+     * live view, so the page says so instead of leaving them to guess.
+     */
+    private function runIsStale(int $tenantId, ?PayrollRun $run): bool
+    {
+        if ($run === null || in_array($run->status, ['locked'], true)) {
+            return false;
+        }
+
+        $computedAt = PayrollRunItem::where('payroll_run_id', $run->id)->max('updated_at');
+
+        if ($computedAt === null) {
+            return false;
+        }
+
+        $changedAt = $this->latestConfigChangeAt($tenantId);
+
+        return $changedAt !== null && $changedAt > $computedAt;
+    }
+
+    /**
+     * The most recent moment any payroll input this tenant edits was changed:
+     * components and their values, salary templates and per-employee rows,
+     * overtime policy/multipliers, late-fine tiers, payday groups and BPJS
+     * enrolments.
+     */
+    private function latestConfigChangeAt(int $tenantId): ?string
+    {
+        $masterIds = DB::table('salary_masters')->where('tenant_id', $tenantId)->pluck('id');
+
+        $stamps = [
+            DB::table('payroll_components')->where('tenant_id', $tenantId)->max('updated_at'),
+            DB::table('payroll_component_values')->where('tenant_id', $tenantId)->max('updated_at'),
+            DB::table('salary_masters')->where('tenant_id', $tenantId)->max('updated_at'),
+            $masterIds->isEmpty() ? null : DB::table('salary_master_components')->whereIn('salary_master_id', $masterIds)->max('updated_at'),
+            DB::table('employee_salary_components')->where('tenant_id', $tenantId)->max('updated_at'),
+            DB::table('overtime_policies')->where('tenant_id', $tenantId)->max('updated_at'),
+            DB::table('overtime_rates')->where('tenant_id', $tenantId)->max('updated_at'),
+            DB::table('attendance_penalty_rules')->where('tenant_id', $tenantId)->max('updated_at'),
+            DB::table('paydays')->where('tenant_id', $tenantId)->max('updated_at'),
+            DB::table('employee_bpjs_profiles')->where('tenant_id', $tenantId)->max('updated_at'),
+        ];
+
+        return collect($stamps)->filter()->max();
     }
 
     /**
@@ -369,12 +419,17 @@ class PayrollController extends Controller
 
         $tenantId = $request->user()->tenant_id;
 
+        // `after`, not `after_or_equal`: a tester once made a one-day "monthly"
+        // period (25-08 s.d. 25-08) and every prorated salary collapsed to 1/25
+        // of itself. A period is a range by definition.
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'cycle' => ['required', Rule::in(self::CYCLES)],
             'start_date' => ['required', 'date'],
-            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'end_date' => ['required', 'date', 'after:start_date'],
             'pay_date' => ['nullable', 'date'],
+        ], [
+            'end_date.after' => 'Periode tidak boleh satu hari — tanggal selesai harus setelah tanggal mulai. Gaji bulanan yang diprorata akan terpotong mengikuti panjang periode.',
         ]);
 
         PayrollPeriod::create([

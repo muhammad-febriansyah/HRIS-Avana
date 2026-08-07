@@ -89,5 +89,7 @@ export interface PayrollProps {
     recipients: Recipient[];
     recipient_meta: import('../employees/types').PaginationMeta | null;
     slip: Slip;
+    /** The shown run predates the tenant's latest payroll-config edit. */
+    stale_run: boolean;
     filters: PayrollFilters;
 }
