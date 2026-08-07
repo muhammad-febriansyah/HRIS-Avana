@@ -1523,12 +1523,14 @@ final class AvanaDemoSeeder extends Seeder
         // from — Gaji Pokok plus the fixed allowances, not the per-day ones.
         //
         // is_fixed marks the same shape of thing for the overtime basis (PP
-        // 35/2021 Pasal 30). Transport and makan are paid per present day, so
-        // they vary; a deduction is not a wage at all.
+        // 35/2021 Pasal 30). The setup documentation (§8.1) counts Transport
+        // among the fixed allowances — its worked basis of 12.350.000 includes
+        // the 500.000 transport — so only makan stays variable; a deduction is
+        // not a wage at all.
         $components = [
             ['code' => 'BASIC', 'name' => 'Gaji Pokok', 'type' => 'earning', 'is_bpjs_base' => true, 'is_fixed' => true],
             ['code' => 'TJ-JAB', 'name' => 'Tunjangan Jabatan', 'type' => 'earning', 'is_bpjs_base' => true, 'is_fixed' => true],
-            ['code' => 'TJ-TRP', 'name' => 'Tunjangan Transport', 'type' => 'earning', 'is_taxable' => false],
+            ['code' => 'TJ-TRP', 'name' => 'Tunjangan Transport', 'type' => 'earning', 'is_taxable' => false, 'is_fixed' => true],
             ['code' => 'TJ-MKN', 'name' => 'Tunjangan Makan', 'type' => 'earning', 'is_taxable' => false],
             ['code' => 'POT-KOP', 'name' => 'Potongan Koperasi', 'type' => 'deduction'],
         ];

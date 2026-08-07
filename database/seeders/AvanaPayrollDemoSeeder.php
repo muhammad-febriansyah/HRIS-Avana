@@ -72,10 +72,11 @@ final class AvanaPayrollDemoSeeder extends Seeder
             ['name' => 'Uang Lembur', 'type' => 'earning', 'component_group' => 'penerimaan', 'is_taxable' => true, 'status' => 'active'],
         );
 
-        // Attendance calculation basis per component.
+        // Attendance calculation basis per component. Transport is a fixed
+        // monthly allowance per the setup documentation (§8.1), not per-day.
         $basisByCode = [
             'BASIC' => 'fixed', 'TJ-JAB' => 'fixed',
-            'TJ-TRP' => 'per_present_day', 'TJ-MKN' => 'per_present_day',
+            'TJ-TRP' => 'fixed', 'TJ-MKN' => 'per_present_day',
             'LEMBUR' => 'per_overtime_hour', 'POT-KOP' => 'fixed',
         ];
         $components = PayrollComponent::where('tenant_id', $tenant->id)->get()->keyBy('code');
@@ -86,11 +87,12 @@ final class AvanaPayrollDemoSeeder extends Seeder
         }
 
         // The overtime basis, marked where payroll actually reads it: Gaji
-        // Pokok plus the fixed allowances (PP 35/2021 Pasal 30). Transport and
-        // makan are paid per present day, so they vary; "Uang Lembur" is the
+        // Pokok plus the fixed allowances (PP 35/2021 Pasal 30). The setup
+        // documentation counts Transport among them (§8.1, basis 12.350.000);
+        // makan is paid per present day, so it varies; "Uang Lembur" is the
         // result of the calculation, never an input to it; a deduction is not
         // a wage.
-        foreach (['BASIC' => true, 'TJ-JAB' => true, 'TJ-TRP' => false, 'TJ-MKN' => false, 'LEMBUR' => false, 'POT-KOP' => false] as $code => $isFixed) {
+        foreach (['BASIC' => true, 'TJ-JAB' => true, 'TJ-TRP' => true, 'TJ-MKN' => false, 'LEMBUR' => false, 'POT-KOP' => false] as $code => $isFixed) {
             if (isset($components[$code])) {
                 $components[$code]->update(['is_fixed' => $isFixed]);
             }
