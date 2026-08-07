@@ -28,6 +28,7 @@ use App\Models\SalaryMasterComponent;
 use App\Models\SalaryRapel;
 use App\Models\TaxProfile;
 use App\Models\UmrRate;
+use App\Support\AttendanceFines;
 use App\Support\OvertimeRules;
 use App\Support\Pph21Calculator;
 use App\Support\Pph21Ter;
@@ -2563,6 +2564,12 @@ class PayrollController extends Controller
         if ($window === null) {
             return ['amount' => 0.0, 'count' => 0];
         }
+
+        // The tenant's late-fine table applies to everyone by itself: the run
+        // generates the missing penalty rows for this employee's window before
+        // reading them, so HR never has to press "Buat dari Absensi" for a
+        // period. Idempotent — rows already generated (or made by hand) stand.
+        AttendanceFines::generate($tenantId, $window[0], $window[1], $employee->id);
 
         $fines = AttendancePenalty::forTenant($tenantId)
             ->where('employee_id', $employee->id)
