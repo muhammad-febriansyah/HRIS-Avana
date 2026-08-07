@@ -2,7 +2,7 @@ import { router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import AttendancePenaltyController from '@/actions/App/Http/Controllers/Avana/AttendancePenaltyController';
-import { ActionBtn, AIcon, btnP, C, rp, thCell } from '@/lib/avana';
+import { ActionBtn, AIcon, btnP, C, rp, RupiahInput, thCell } from '@/lib/avana';
 import { fieldLabelStyle, inputStyle } from './components';
 import type { PenaltyRule } from './types';
 
@@ -305,17 +305,11 @@ export function RuleCard({ rules }: { rules: PenaltyRule[] }) {
                 </div>
                 <div>
                     <span style={fieldLabelStyle}>Nominal (Rp)</span>
-                    <input
-                        style={inputStyle}
-                        type="number"
-                        min="0"
-                        step="1000"
+                    <RupiahInput
                         disabled={form.data.penalty_type !== 'deduction'}
                         value={form.data.amount}
-                        onChange={(event) =>
-                            form.setData('amount', event.target.value)
-                        }
-                        placeholder="20000"
+                        onChange={(raw) => form.setData('amount', raw)}
+                        placeholder="20.000"
                     />
                 </div>
                 <button style={btnP} onClick={submit}>
