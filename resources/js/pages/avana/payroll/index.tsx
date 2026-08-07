@@ -20,6 +20,7 @@ import { ImportModal } from './import-modal';
 import { PeriodTable } from './period-table';
 import { RecipientsTable } from './recipients-table';
 import { SlipDetail } from './slip-detail';
+import { SetupChecklist } from './setup-checklist';
 import { SummaryCard } from './summary-card';
 import type { FlashProps, PayrollProps } from './types';
 
@@ -123,6 +124,7 @@ export default function AvanaPayroll({
     recipient_meta,
     slip,
     stale_run,
+    checklist,
     filters,
 }: PayrollProps) {
     const { flash, errors } = usePage<FlashProps>().props;
@@ -783,6 +785,8 @@ export default function AvanaPayroll({
                         {summary.approval_note}
                     </div>
                 )}
+
+                <SetupChecklist steps={checklist} />
 
                 {/* Run summary */}
                 <SummaryCard summary={summary} />

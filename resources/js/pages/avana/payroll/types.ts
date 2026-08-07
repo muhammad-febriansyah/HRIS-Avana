@@ -91,5 +91,16 @@ export interface PayrollProps {
     slip: Slip;
     /** The shown run predates the tenant's latest payroll-config edit. */
     stale_run: boolean;
+    /** Setup steps in documentation order, marked done from tenant data. */
+    checklist: ChecklistStep[];
     filters: PayrollFilters;
+}
+
+/** One payroll setup step on the landing-page checklist. */
+export interface ChecklistStep {
+    key: string;
+    label: string;
+    done: boolean;
+    href: string | null;
+    hint: string | null;
 }
