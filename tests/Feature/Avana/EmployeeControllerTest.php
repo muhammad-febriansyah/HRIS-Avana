@@ -411,6 +411,131 @@ it('changes an existing account role on update without a password', function ():
     expect($roles)->not->toContain('employee');
 });
 
+it('links an existing account to an employee that has none', function (): void {
+    // The admin's own login: made outside the Karyawan form, so no employee
+    // sits behind it and every mobile self-service call answers 403.
+    $employee = Employee::create([
+        'tenant_id' => $this->tenant->id,
+        'full_name' => 'Rina Admin',
+        'employee_number' => 'EMP-LINK-1',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+    ]);
+
+    expect($this->admin->employee)->toBeNull();
+
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $employee), [
+            'full_name' => $employee->full_name,
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'link_user_id' => $this->admin->id,
+        ])
+        ->assertRedirect(route('avana.employees.index'));
+
+    expect($employee->fresh()->user_id)->toBe($this->admin->id);
+
+    // What the link is for: the mobile profile now resolves instead of 403.
+    $token = auth('api')->login($this->admin->fresh());
+
+    $this->withHeader('Authorization', "Bearer {$token}")
+        ->getJson('/api/v1/me/profile')
+        ->assertOk()
+        ->assertJsonPath('data.full_name', 'Rina Admin');
+});
+
+it('refuses to link an account that already belongs to another employee', function (): void {
+    $taken = Employee::forTenant($this->tenant->id)->whereNotNull('user_id')->firstOrFail();
+
+    $employee = Employee::create([
+        'tenant_id' => $this->tenant->id,
+        'full_name' => 'Kandidat Tautan',
+        'employee_number' => 'EMP-LINK-2',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+    ]);
+
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $employee), [
+            'full_name' => $employee->full_name,
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'link_user_id' => $taken->user_id,
+        ])
+        ->assertSessionHasErrors('link_user_id');
+
+    expect($employee->fresh()->user_id)->toBeNull();
+});
+
+it('refuses to link an account from another tenant', function (): void {
+    $otherTenant = Tenant::create(['name' => 'PT Seberang', 'slug' => 'pt-seberang-link']);
+    $outsider = User::create([
+        'tenant_id' => $otherTenant->id,
+        'name' => 'Orang Luar',
+        'email' => 'orang.luar@avanahr.test',
+        'password' => 'rahasia123',
+        'status' => 'active',
+    ]);
+
+    $employee = Employee::create([
+        'tenant_id' => $this->tenant->id,
+        'full_name' => 'Kandidat Seberang',
+        'employee_number' => 'EMP-LINK-3',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+    ]);
+
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $employee), [
+            'full_name' => $employee->full_name,
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'link_user_id' => $outsider->id,
+        ])
+        ->assertSessionHasErrors('link_user_id');
+
+    expect($employee->fresh()->user_id)->toBeNull();
+});
+
+it('rejects a password alongside a linked account', function (): void {
+    $employee = Employee::create([
+        'tenant_id' => $this->tenant->id,
+        'full_name' => 'Dua Jalan',
+        'employee_number' => 'EMP-LINK-4',
+        'employment_status' => 'permanent',
+        'status' => 'active',
+    ]);
+
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $employee), [
+            'full_name' => $employee->full_name,
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'link_user_id' => $this->admin->id,
+            'password' => 'rahasia123',
+        ])
+        ->assertSessionHasErrors('password');
+
+    expect($employee->fresh()->user_id)->toBeNull();
+});
+
+it('offers only unlinked tenant accounts to the employee form', function (): void {
+    actingAs($this->admin)
+        ->get(route('avana.employees.create'))
+        ->assertOk()
+        ->assertInertia(function (Assert $page): void {
+            $ids = collect($page->toArray()['props']['options']['linkableUsers'])->pluck('id');
+
+            expect($ids)->toContain($this->admin->id);
+
+            $linkedUserIds = Employee::forTenant($this->tenant->id)
+                ->whereNotNull('user_id')
+                ->pluck('user_id');
+
+            expect($ids->intersect($linkedUserIds))->toBeEmpty();
+        });
+});
+
 it('persists the top-approver flag from the employee form', function (): void {
     actingAs($this->admin)
         ->post(route('avana.employees.store'), [

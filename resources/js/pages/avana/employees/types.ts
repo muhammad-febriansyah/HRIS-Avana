@@ -176,6 +176,18 @@ export type WorkLocationOption = {
     branch_id: number | null;
 };
 
+/**
+ * A tenant account that belongs to no employee yet — an HR or finance login
+ * made outside this form. Linking one turns it into that employee's mobile
+ * account instead of leaving them with a second, duplicate login.
+ */
+export type LinkableUser = {
+    id: number;
+    name: string;
+    email: string | null;
+    roles: string;
+};
+
 /** Option lists shared by the create and edit forms. */
 export type EmployeeFormOptions = {
     branches: NamedOption[];
@@ -185,6 +197,7 @@ export type EmployeeFormOptions = {
     jobLevels: NamedOption[];
     salaryMasters: NamedOption[];
     roles: RoleOption[];
+    linkableUsers: LinkableUser[];
     managers: ManagerRef[];
     genders: SelectOption[];
     statuses: SelectOption[];
@@ -223,6 +236,7 @@ export type EmployeeFormData = {
     status: string;
     password: string;
     role_id: string;
+    link_user_id: string;
     is_top_approver: boolean;
     custom_data?: Record<string, string>;
 };
@@ -303,7 +317,7 @@ export const STEP_FIELDS: string[][] = [
         'attendance_scope',
         'status',
     ],
-    ['role_id'],
+    ['role_id', 'link_user_id'],
     ['custom_data'],
 ];
 

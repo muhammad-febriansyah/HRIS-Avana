@@ -150,10 +150,11 @@ class EmployeeController extends Controller
         $data = $request->validated();
         $password = $data['password'] ?? null;
         $roleId = $data['role_id'] ?? null;
+        $linkUserId = $data['link_user_id'] ?? null;
         $bpjs = $this->pullBpjsNumbers($data);
         $ptkp = $this->pullPtkpStatus($data);
         $contract = $this->pullContract($data);
-        unset($data['password'], $data['role_id']);
+        unset($data['password'], $data['role_id'], $data['link_user_id']);
         $data['tenant_id'] = $tenantId;
 
         if (empty($data['employee_number'])) {
@@ -165,7 +166,13 @@ class EmployeeController extends Controller
         $this->syncBpjsNumbers($employee, $bpjs);
         $this->syncPtkpStatus($employee, $ptkp);
         $this->syncContract($employee, $contract);
-        $this->syncEmployeeLogin($employee, $password, $tenantId, $roleId !== null ? (int) $roleId : null);
+        $this->syncEmployeeLogin(
+            $employee,
+            $password,
+            $tenantId,
+            $roleId !== null ? (int) $roleId : null,
+            $linkUserId !== null ? (int) $linkUserId : null,
+        );
 
         return redirect()->route('avana.employees.index')
             ->with('success', 'Karyawan berhasil ditambahkan');
@@ -658,17 +665,24 @@ class EmployeeController extends Controller
         $data = $request->validated();
         $password = $data['password'] ?? null;
         $roleId = $data['role_id'] ?? null;
+        $linkUserId = $data['link_user_id'] ?? null;
         $bpjs = $this->pullBpjsNumbers($data);
         $ptkp = $this->pullPtkpStatus($data);
         $contract = $this->pullContract($data);
-        unset($data['password'], $data['role_id']);
+        unset($data['password'], $data['role_id'], $data['link_user_id']);
 
         $employee->update($data);
 
         $this->syncBpjsNumbers($employee, $bpjs);
         $this->syncPtkpStatus($employee, $ptkp);
         $this->syncContract($employee, $contract);
-        $this->syncEmployeeLogin($employee, $password, $request->user()->tenant_id, $roleId !== null ? (int) $roleId : null);
+        $this->syncEmployeeLogin(
+            $employee,
+            $password,
+            $request->user()->tenant_id,
+            $roleId !== null ? (int) $roleId : null,
+            $linkUserId !== null ? (int) $linkUserId : null,
+        );
 
         return redirect()->route('avana.employees.index')
             ->with('success', 'Karyawan berhasil diperbarui');
@@ -860,13 +874,28 @@ class EmployeeController extends Controller
      * form — the form request makes that pick mandatory, because a tenant names
      * its own roles and there is no built-in "employee" role to fall back on.
      */
-    private function syncEmployeeLogin(Employee $employee, ?string $password, int $tenantId, ?int $roleId = null): void
+    private function syncEmployeeLogin(Employee $employee, ?string $password, int $tenantId, ?int $roleId = null, ?int $linkUserId = null): void
     {
         $role = $roleId !== null
             ? Role::where('tenant_id', $tenantId)->whereKey($roleId)->first()
             : null;
 
         $employee->loadMissing('user.roles');
+
+        // Attaching an account that already exists, rather than minting one.
+        // Guarded again here — the form validated it, but this method is also
+        // reachable from the importer, and a link to another tenant's user or
+        // to someone else's employee would hand over that person's data.
+        if ($employee->user_id === null && $linkUserId !== null) {
+            $candidate = User::where('tenant_id', $tenantId)
+                ->whereDoesntHave('employee')
+                ->find($linkUserId);
+
+            if ($candidate !== null) {
+                $employee->forceFill(['user_id' => $candidate->id])->save();
+                $employee->setRelation('user', $candidate->load('roles'));
+            }
+        }
 
         if ($employee->user_id !== null) {
             if (filled($password)) {
@@ -1055,6 +1084,7 @@ class EmployeeController extends Controller
             // `can_access_mobile` rides along so the picker can warn that the role
             // has no phone access — the dropdown sits in the mobile-account section.
             'roles' => Role::where('tenant_id', $tenantId)->select('id', 'name', 'can_access_mobile')->orderBy('name')->get(),
+            'linkableUsers' => $this->linkableUsers($tenantId),
             'managers' => Employee::forTenant($tenantId)
                 ->select('id', 'full_name', 'employee_number')
                 ->orderBy('full_name')
@@ -1083,6 +1113,34 @@ class EmployeeController extends Controller
                 ['value' => 'resigned', 'label' => 'Resign'],
             ],
         ];
+    }
+
+    /**
+     * Tenant accounts that exist but belong to no employee yet — typically an
+     * HR admin or a finance login created outside the Karyawan form. Every
+     * mobile self-service endpoint resolves the caller through
+     * `employees.user_id`, so an account without that link can sign in and then
+     * gets a 403 on its own profile, attendance and leave. Offering them here
+     * lets the admin attach one to the right person instead of running a
+     * second, duplicate account for the same human.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function linkableUsers(int $tenantId): array
+    {
+        return User::where('tenant_id', $tenantId)
+            ->whereDoesntHave('employee')
+            ->whereDoesntHave('roles', fn ($query) => $query->where('code', 'super_admin'))
+            ->with('roles:id,name')
+            ->orderBy('name')
+            ->get(['id', 'name', 'email'])
+            ->map(fn (User $user): array => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'roles' => $user->roles->pluck('name')->implode(', '),
+            ])
+            ->all();
     }
 
     /**
