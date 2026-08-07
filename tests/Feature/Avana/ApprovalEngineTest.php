@@ -69,6 +69,93 @@ function twoStepLeaveWorkflow(int $tenantId, int $specificApproverEmployeeId): A
     return $workflow;
 }
 
+it('prefers the requester division\'s own workflow over the tenant default', function (): void {
+    $department = App\Models\Department::forTenant($this->tenant->id)->firstOrFail();
+    $this->subject->update(['department_id' => $department->id]);
+
+    // Tenant-wide default: two steps starting at the direct manager.
+    twoStepLeaveWorkflow($this->tenant->id, $this->approver->id);
+
+    // The division's own flow: a single specific approver.
+    $scoped = ApprovalWorkflow::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Cuti — '.$department->name,
+        'request_type' => 'leave',
+        'department_id' => $department->id,
+        'approval_mode' => 'sequential',
+        'is_active' => true,
+    ]);
+    ApprovalStep::create([
+        'tenant_id' => $this->tenant->id,
+        'approval_workflow_id' => $scoped->id,
+        'step_order' => 1,
+        'approver_type' => 'specific_user',
+        'approver_user_id' => $this->approver->id,
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.cuti.store'), [
+            'employee_id' => $this->subject->id,
+            'leave_type_id' => $this->leaveType->id,
+            'start_date' => '2026-09-10',
+            'end_date' => '2026-09-12',
+            'reason' => 'Cuti',
+        ])
+        ->assertRedirect(route('avana.cuti'));
+
+    $leave = LeaveRequest::where('employee_id', $this->subject->id)->latest('id')->firstOrFail();
+    $instance = ApprovalRequest::where('approvable_type', LeaveRequest::class)
+        ->where('approvable_id', $leave->id)
+        ->firstOrFail();
+
+    // Routed by the scoped flow: straight to the named approver, not the manager.
+    expect((int) $instance->approval_workflow_id)->toBe($scoped->id);
+    expect((int) $leave->current_approver_id)->toBe($this->approver->id);
+});
+
+it('falls back to the tenant default for a division without its own workflow', function (): void {
+    $departments = App\Models\Department::forTenant($this->tenant->id)->orderBy('id')->take(2)->get();
+    expect($departments)->toHaveCount(2);
+
+    // Scoped flow belongs to the OTHER division; the requester sits elsewhere.
+    $this->subject->update(['department_id' => $departments[0]->id]);
+    $default = twoStepLeaveWorkflow($this->tenant->id, $this->approver->id);
+
+    $scoped = ApprovalWorkflow::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Cuti — '.$departments[1]->name,
+        'request_type' => 'leave',
+        'department_id' => $departments[1]->id,
+        'approval_mode' => 'sequential',
+        'is_active' => true,
+    ]);
+    ApprovalStep::create([
+        'tenant_id' => $this->tenant->id,
+        'approval_workflow_id' => $scoped->id,
+        'step_order' => 1,
+        'approver_type' => 'specific_user',
+        'approver_user_id' => $this->approver->id,
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.cuti.store'), [
+            'employee_id' => $this->subject->id,
+            'leave_type_id' => $this->leaveType->id,
+            'start_date' => '2026-09-10',
+            'end_date' => '2026-09-12',
+            'reason' => 'Cuti',
+        ])
+        ->assertRedirect(route('avana.cuti'));
+
+    $leave = LeaveRequest::where('employee_id', $this->subject->id)->latest('id')->firstOrFail();
+    $instance = ApprovalRequest::where('approvable_type', LeaveRequest::class)
+        ->where('approvable_id', $leave->id)
+        ->firstOrFail();
+
+    expect((int) $instance->approval_workflow_id)->toBe($default->id);
+    expect((int) $leave->current_approver_id)->toBe($this->manager->id);
+});
+
 it('routes a submitted leave to the first workflow step', function (): void {
     twoStepLeaveWorkflow($this->tenant->id, $this->approver->id);
 

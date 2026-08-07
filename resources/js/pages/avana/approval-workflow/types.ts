@@ -76,6 +76,10 @@ export interface WorkflowRow {
     id: number;
     name: string;
     request_type: string;
+    /** Division this flow is limited to; null = every division (default). */
+    department_id: number | null;
+    /** "Semua Divisi" or the department name. */
+    scope_label: string;
     module_label: string;
     module_icon: string;
     module_color: string;

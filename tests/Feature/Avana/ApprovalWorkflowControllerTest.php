@@ -221,6 +221,46 @@ it('refuses a second workflow for a module that already has one', function (): v
         ->toBe(1);
 });
 
+it('allows a division-scoped workflow beside the tenant-wide default', function (): void {
+    $department = App\Models\Department::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.approval-workflow.store'), workflowPayload($this->tenant->id))
+        ->assertSessionHasNoErrors();
+
+    actingAs($this->admin)
+        ->post(route('avana.approval-workflow.store'), workflowPayload($this->tenant->id, [
+            'department_id' => $department->id,
+        ]))
+        ->assertSessionHasNoErrors();
+
+    $scoped = ApprovalWorkflow::forTenant($this->tenant->id)
+        ->where('request_type', 'leave')
+        ->where('department_id', $department->id)
+        ->firstOrFail();
+
+    // The auto-composed name carries the division so the list reads clearly.
+    expect($scoped->name)->toContain($department->name);
+    expect(ApprovalWorkflow::forTenant($this->tenant->id)->where('request_type', 'leave')->count())
+        ->toBe(2);
+});
+
+it('refuses a second workflow for the same module and division', function (): void {
+    $department = App\Models\Department::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.approval-workflow.store'), workflowPayload($this->tenant->id, [
+            'department_id' => $department->id,
+        ]))
+        ->assertSessionHasNoErrors();
+
+    actingAs($this->admin)
+        ->post(route('avana.approval-workflow.store'), workflowPayload($this->tenant->id, [
+            'department_id' => $department->id,
+        ]))
+        ->assertSessionHasErrors('request_type');
+});
+
 it('lets another tenant configure the same module', function (): void {
     $other = Tenant::create(['name' => 'PT Seberang', 'slug' => 'pt-seberang-wf']);
     ApprovalWorkflow::create([

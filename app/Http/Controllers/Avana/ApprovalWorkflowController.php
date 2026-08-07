@@ -81,6 +81,7 @@ class ApprovalWorkflowController extends Controller
 
         $workflows = ApprovalWorkflow::forTenant($tenantId)
             ->with([
+                'department:id,name',
                 'steps.approverUser:id,name',
                 'steps.approverRole:id,name',
                 'steps.approverDepartment:id,name',
@@ -119,6 +120,7 @@ class ApprovalWorkflowController extends Controller
                 'tenant_id' => $tenantId,
                 'name' => $data['name'],
                 'request_type' => $data['request_type'],
+                'department_id' => $data['department_id'],
                 'approval_mode' => $data['approval_mode'],
                 'is_active' => $data['is_active'],
                 'conditions' => $data['conditions'],
@@ -146,6 +148,7 @@ class ApprovalWorkflowController extends Controller
             $workflow->update([
                 'name' => $data['name'],
                 'request_type' => $data['request_type'],
+                'department_id' => $data['department_id'],
                 'approval_mode' => $data['approval_mode'],
                 'is_active' => $data['is_active'],
                 'conditions' => $data['conditions'],
@@ -198,20 +201,31 @@ class ApprovalWorkflowController extends Controller
         $moduleKeys = array_column(self::MODULES, 'key');
         $approverKeys = array_column(self::APPROVER_TYPES, 'key');
 
-        // One workflow per module per tenant. Two active flows for the same
-        // module would leave the engine picking one of them silently, so the
-        // second one is refused rather than quietly ignored. Variation within a
-        // module belongs in Kondisi, not in a rival workflow.
-        $onePerModule = Rule::unique('approval_workflows', 'request_type')
-            ->where(fn ($query) => $query->where('tenant_id', $tenantId)->whereNull('deleted_at'));
+        // One workflow per module per DIVISION. Two active flows for the same
+        // scope would leave the engine picking one of them silently, so the
+        // second one is refused rather than quietly ignored. A division whose
+        // approvals run differently gets its own scoped flow; department NULL
+        // is the tenant-wide default the engine falls back to.
+        $departmentId = $request->input('department_id') ?: null;
+
+        $onePerScope = Rule::unique('approval_workflows', 'request_type')
+            ->where(fn ($query) => $query
+                ->where('tenant_id', $tenantId)
+                ->whereNull('deleted_at')
+                ->when(
+                    $departmentId === null,
+                    fn ($sub) => $sub->whereNull('department_id'),
+                    fn ($sub) => $sub->where('department_id', $departmentId),
+                ));
 
         if ($ignore !== null) {
-            $onePerModule = $onePerModule->ignore($ignore->getKey());
+            $onePerScope = $onePerScope->ignore($ignore->getKey());
         }
 
         $validated = $request->validate([
             'name' => ['nullable', 'string', 'max:120'],
-            'request_type' => ['required', Rule::in($moduleKeys), $onePerModule],
+            'request_type' => ['required', Rule::in($moduleKeys), $onePerScope],
+            'department_id' => ['nullable', 'integer', "exists:departments,id,tenant_id,{$tenantId}"],
             'approval_mode' => ['required', Rule::in(['sequential', 'parallel'])],
             'is_active' => ['required', 'boolean'],
 
@@ -229,14 +243,22 @@ class ApprovalWorkflowController extends Controller
             'conditions.*.extra_approver_type' => ['required', Rule::in($approverKeys)],
             'conditions.*.extra_approver_ref' => ['nullable', 'integer'],
         ], [
-            'request_type.unique' => 'Modul ini sudah punya alur persetujuan. Ubah alur yang ada, jangan buat yang kedua.',
+            'request_type.unique' => $departmentId === null
+                ? 'Modul ini sudah punya alur default (semua divisi). Ubah alur yang ada, atau buat alur khusus untuk satu divisi.'
+                : 'Divisi ini sudah punya alur untuk modul tersebut. Ubah alur yang ada, jangan buat yang kedua.',
         ]);
 
         $moduleLabel = collect(self::MODULES)->firstWhere('key', $validated['request_type'])['label'];
 
+        if (($validated['department_id'] ?? null) !== null && ! $request->filled('name')) {
+            $departmentName = Department::forTenant($tenantId)->find($validated['department_id'])?->name;
+            $moduleLabel .= $departmentName !== null ? ' — '.$departmentName : '';
+        }
+
         return [
             'name' => $validated['name'] ?: $moduleLabel,
             'request_type' => $validated['request_type'],
+            'department_id' => $validated['department_id'] ?? null,
             'approval_mode' => $validated['approval_mode'],
             'is_active' => (bool) $validated['is_active'],
             'steps' => $validated['steps'],
@@ -280,6 +302,8 @@ class ApprovalWorkflowController extends Controller
             'id' => $workflow->id,
             'name' => $workflow->name,
             'request_type' => $workflow->request_type,
+            'department_id' => $workflow->department_id,
+            'scope_label' => $workflow->department?->name ?? 'Semua Divisi',
             'module_label' => $this->moduleLabel($workflow->request_type),
             'module_icon' => $this->moduleIcon($workflow->request_type),
             'module_color' => $this->moduleColor($workflow->request_type),

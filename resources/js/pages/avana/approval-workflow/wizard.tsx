@@ -4,7 +4,15 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import ApprovalWorkflowController from '@/actions/App/Http/Controllers/Avana/ApprovalWorkflowController';
 import { SearchableSelect } from '@/components/searchable-select';
-import { AIcon, btnOut, btnP, btnSave, C, card } from '@/lib/avana';
+import {
+    AIcon,
+    btnOut,
+    btnP,
+    btnSave,
+    C,
+    card,
+    RupiahInput,
+} from '@/lib/avana';
 import type {
     ApproverTypeDef,
     ConditionDraft,
@@ -99,6 +107,11 @@ export default function Wizard({
 
     const [requestType, setRequestType] = useState<string>(
         workflow?.request_type ?? '',
+    );
+    // Which division the flow applies to; null = every division (the default
+    // flow the engine falls back to when no scoped one matches the requester).
+    const [departmentId, setDepartmentId] = useState<number | null>(
+        workflow?.department_id ?? null,
     );
     const [approvalMode, setApprovalMode] = useState<'sequential' | 'parallel'>(
         workflow?.approval_mode ?? 'sequential',
@@ -319,8 +332,11 @@ export default function Wizard({
         }
 
         const payload = {
-            name: selectedModule?.label ?? '',
+            // Blank on purpose: the controller composes "Modul — Divisi" from
+            // the chosen scope, so the list names scoped flows unambiguously.
+            name: '',
             request_type: requestType,
+            department_id: departmentId,
             approval_mode: approvalMode,
             is_active: isActive,
             steps: steps.map((s) => ({
@@ -412,12 +428,73 @@ export default function Wizard({
 
             <div style={{ ...card, padding: 24, marginTop: 20 }}>
                 {current === 1 && (
-                    <ModuleStep
-                        modules={modules}
-                        taken={takenModules}
-                        value={requestType}
-                        onSelect={setRequestType}
-                    />
+                    <>
+                        <div style={{ marginBottom: 18 }}>
+                            <div
+                                style={{
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    color: C.text,
+                                    marginBottom: 7,
+                                }}
+                            >
+                                Berlaku untuk Divisi
+                            </div>
+                            <select
+                                value={departmentId ?? ''}
+                                onChange={(e) =>
+                                    setDepartmentId(
+                                        e.target.value === ''
+                                            ? null
+                                            : Number(e.target.value),
+                                    )
+                                }
+                                style={{
+                                    width: '100%',
+                                    maxWidth: 420,
+                                    height: 42,
+                                    padding: '0 13px',
+                                    border: `1px solid ${C.border}`,
+                                    borderRadius: 8,
+                                    fontSize: 13.5,
+                                    color: C.text,
+                                    background: '#fff',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <option value="">
+                                    Semua Divisi (alur default)
+                                </option>
+                                {options.departments.map((d) => (
+                                    <option key={d.value} value={d.value}>
+                                        {d.label}
+                                    </option>
+                                ))}
+                            </select>
+                            <div
+                                style={{
+                                    fontSize: 12,
+                                    color: C.muted,
+                                    marginTop: 6,
+                                }}
+                            >
+                                Divisi yang punya alurnya sendiri memakai alur
+                                itu; divisi lain memakai alur "Semua Divisi".
+                            </div>
+                        </div>
+                        <ModuleStep
+                            modules={modules}
+                            taken={takenModules
+                                .filter((scope) =>
+                                    scope.endsWith(
+                                        `#${departmentId ?? 0}`,
+                                    ),
+                                )
+                                .map((scope) => scope.split('#')[0])}
+                            value={requestType}
+                            onSelect={setRequestType}
+                        />
+                    </>
                 )}
 
                 {current === 2 && (
@@ -451,7 +528,11 @@ export default function Wizard({
                         patchCondition={patchCondition}
                         removeCondition={removeCondition}
                         summary={{
-                            moduleLabel: selectedModule?.label ?? '—',
+                            moduleLabel:
+                                (selectedModule?.label ?? '—') +
+                                (departmentId
+                                    ? ` — ${options.departments.find((d) => d.value === departmentId)?.label ?? 'Divisi'}`
+                                    : ' — Semua Divisi'),
                             modeLabel:
                                 approvalMode === 'parallel'
                                     ? 'Paralel'
@@ -1236,6 +1317,14 @@ function FinishStep({
                                         </option>
                                     ))}
                                 </select>
+                            ) : c.field === 'amount' ? (
+                                <RupiahInput
+                                    value={c.value}
+                                    onChange={(raw) =>
+                                        patchCondition(c.uid, { value: raw })
+                                    }
+                                    style={{ ...input, width: 150 }}
+                                />
                             ) : (
                                 <>
                                     <input

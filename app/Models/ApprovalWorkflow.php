@@ -13,13 +13,13 @@ final class ApprovalWorkflow extends Model
     use SoftDeletes;
 
     /**
-     * `active_request_type` is a stored generated column on MySQL — it exists
-     * only to carry the "one workflow per module" unique index, and the
+     * `active_scope` is a stored generated column on MySQL — it exists only to
+     * carry the "one workflow per module per department" unique index, and the
      * database refuses any write to it.
      *
      * @var array<int, string>
      */
-    protected $guarded = ['active_request_type'];
+    protected $guarded = ['active_scope'];
 
     protected function casts(): array
     {
@@ -37,6 +37,12 @@ final class ApprovalWorkflow extends Model
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);
+    }
+
+    /** The division this flow is limited to; null = every division (default). */
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
     }
 
     /** @return HasMany<ApprovalStep, $this> */
