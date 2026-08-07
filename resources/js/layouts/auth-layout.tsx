@@ -1,7 +1,18 @@
 import { Head, usePage } from '@inertiajs/react';
-import { Sparkles } from 'lucide-react';
+import { BadgeCheck, MapPin, Sparkles } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { C } from '@/lib/avana';
+
+/** Shared glass-card look for the floating product artifacts in the hero. */
+const glassCard = {
+    background: 'rgba(255,255,255,.08)',
+    border: '1px solid rgba(255,255,255,.18)',
+    borderRadius: 14,
+    backdropFilter: 'blur(14px)',
+    WebkitBackdropFilter: 'blur(14px)',
+    boxShadow: '0 18px 40px rgba(5,10,30,.35)',
+    color: '#fff',
+} as const;
 
 /**
  * AvanaHR-branded authentication shell: form on the left, navy gradient
@@ -42,6 +53,23 @@ export default function AuthLayout({
                 />
             </Head>
 
+            <style>{`
+                @keyframes avn-auth-rise {
+                    from { opacity: 0; transform: translateY(14px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                @keyframes avn-auth-drift {
+                    0%, 100% { transform: translateY(0); }
+                    50% { transform: translateY(-10px); }
+                }
+                .avn-auth-form { animation: avn-auth-rise .45s ease-out both; }
+                .avn-auth-float { animation: avn-auth-drift 7s ease-in-out infinite; }
+                .avn-auth-float2 { animation: avn-auth-drift 9s ease-in-out 1.2s infinite; }
+                @media (prefers-reduced-motion: reduce) {
+                    .avn-auth-form, .avn-auth-float, .avn-auth-float2 { animation: none; }
+                }
+            `}</style>
+
             {/* LEFT — form */}
             <div
                 style={{
@@ -52,11 +80,22 @@ export default function AuthLayout({
                     padding: 40,
                 }}
             >
-                <div style={{ width: '100%', maxWidth: 400 }}>
+                <div
+                    className="avn-auth-form"
+                    style={{ width: '100%', maxWidth: 400 }}
+                >
                     <img
                         src={website.logo_url ?? '/avana/logo-full.png'}
                         alt={website.site_name ?? 'AvanaHR'}
                         style={{ height: 46, marginBottom: 40 }}
+                        onError={(event) => {
+                            // A tenant logo that 404s (moved storage, broken
+                            // upload) must not greet visitors with alt text.
+                            const img = event.currentTarget;
+                            if (!img.src.endsWith('/avana/logo-full.png')) {
+                                img.src = '/avana/logo-full.png';
+                            }
+                        }}
                     />
                     {title && (
                         <div
@@ -135,6 +174,140 @@ export default function AuthLayout({
                         background: 'rgba(110,155,230,.10)',
                     }}
                 />
+                {/* Floating product artifacts: the two things the platform
+                    actually produces — a payslip and a verified clock-in.
+                    Decorative circles say "template"; the product says us. */}
+                <div
+                    className="avn-auth-float"
+                    aria-hidden
+                    style={{
+                        ...glassCard,
+                        position: 'absolute',
+                        top: 48,
+                        right: 56,
+                        width: 250,
+                        padding: '16px 18px',
+                    }}
+                >
+                    <div
+                        style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: 10,
+                        }}
+                    >
+                        <span style={{ fontSize: 12, fontWeight: 600 }}>
+                            Slip Gaji · Juni
+                        </span>
+                        <span
+                            style={{
+                                fontSize: 10.5,
+                                fontWeight: 600,
+                                padding: '2px 8px',
+                                borderRadius: 100,
+                                background: 'rgba(74,222,128,.18)',
+                                color: '#86EFAC',
+                            }}
+                        >
+                            Terbayar
+                        </span>
+                    </div>
+                    {[
+                        ['Gaji Pokok', 'Rp 10.000.000'],
+                        ['Lembur', 'Rp 854.186'],
+                        ['PPh 21', '- Rp 522.907'],
+                    ].map(([k, v]) => (
+                        <div
+                            key={k}
+                            style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                fontSize: 11.5,
+                                color: 'rgba(255,255,255,.75)',
+                                padding: '3px 0',
+                            }}
+                        >
+                            <span>{k}</span>
+                            <span
+                                style={{
+                                    fontVariantNumeric: 'tabular-nums',
+                                }}
+                            >
+                                {v}
+                            </span>
+                        </div>
+                    ))}
+                    <div
+                        style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            fontSize: 12.5,
+                            fontWeight: 700,
+                            borderTop: '1px solid rgba(255,255,255,.15)',
+                            marginTop: 8,
+                            paddingTop: 8,
+                        }}
+                    >
+                        <span>Take Home Pay</span>
+                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                            Rp 9.939.995
+                        </span>
+                    </div>
+                </div>
+
+                <div
+                    className="avn-auth-float2"
+                    aria-hidden
+                    style={{
+                        ...glassCard,
+                        position: 'absolute',
+                        bottom: 48,
+                        right: 56,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '12px 16px',
+                    }}
+                >
+                    <span
+                        style={{
+                            width: 34,
+                            height: 34,
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(74,222,128,.16)',
+                        }}
+                    >
+                        <BadgeCheck size={18} color="#86EFAC" />
+                    </span>
+                    <span>
+                        <span
+                            style={{
+                                display: 'block',
+                                fontSize: 12.5,
+                                fontWeight: 600,
+                            }}
+                        >
+                            Clock-in 07:58 · Wajah cocok
+                        </span>
+                        <span
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                fontSize: 11,
+                                color: 'rgba(255,255,255,.65)',
+                                marginTop: 2,
+                            }}
+                        >
+                            <MapPin size={11} /> Dalam area kantor
+                        </span>
+                    </span>
+                </div>
+
                 <div
                     style={{
                         position: 'relative',

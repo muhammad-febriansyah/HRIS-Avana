@@ -19,6 +19,9 @@ const labelClass = 'mb-1.5 block text-[13px] font-medium text-[#1A2333]';
 
 export default function Login({ status, canResetPassword }: Props) {
     const [showPassword, setShowPassword] = useState(false);
+    // Caps Lock is the most common invisible cause of a wrong-password loop;
+    // saying it beats letting the user retype the same thing three times.
+    const [capsLockOn, setCapsLockOn] = useState(false);
     const {
         verify,
         isLoading: passkeyLoading,
@@ -52,10 +55,10 @@ export default function Login({ status, canResetPassword }: Props) {
                             <label htmlFor="email" className={labelClass}>
                                 Email <span className="text-[#DC2626]">*</span>
                             </label>
-                            <div className="relative">
+                            <div className="group relative">
                                 <Mail
                                     size={17}
-                                    className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-[#9CA3AF]"
+                                    className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-[#9CA3AF] transition-colors group-focus-within:text-[#2F54C9]"
                                 />
                                 <input
                                     id="email"
@@ -80,10 +83,10 @@ export default function Login({ status, canResetPassword }: Props) {
                                 Kata Sandi{' '}
                                 <span className="text-[#DC2626]">*</span>
                             </label>
-                            <div className="relative">
+                            <div className="group relative">
                                 <Lock
                                     size={17}
-                                    className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-[#9CA3AF]"
+                                    className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-[#9CA3AF] transition-colors group-focus-within:text-[#2F54C9]"
                                 />
                                 <input
                                     id="password"
@@ -94,6 +97,14 @@ export default function Login({ status, canResetPassword }: Props) {
                                     autoComplete="current-password"
                                     placeholder="Masukkan kata sandi"
                                     className={`${fieldClass} !pr-11`}
+                                    onKeyUp={(event) =>
+                                        setCapsLockOn(
+                                            event.getModifierState(
+                                                'CapsLock',
+                                            ),
+                                        )
+                                    }
+                                    onBlur={() => setCapsLockOn(false)}
                                 />
                                 <button
                                     type="button"
@@ -115,6 +126,12 @@ export default function Login({ status, canResetPassword }: Props) {
                                     )}
                                 </button>
                             </div>
+                            {capsLockOn && (
+                                <div className="mt-1.5 text-[12px] font-medium text-[#B45309]">
+                                    Caps Lock menyala — kata sandi membedakan
+                                    huruf besar/kecil.
+                                </div>
+                            )}
                             <InputError
                                 message={errors.password}
                                 className="mt-1.5"
@@ -147,10 +164,10 @@ export default function Login({ status, canResetPassword }: Props) {
                             tabIndex={4}
                             disabled={processing}
                             data-test="login-button"
-                            className="flex h-[46px] w-full items-center justify-center gap-2 rounded-lg bg-[#2F54C9] text-[15px] font-semibold text-white transition hover:bg-[#2546ad] disabled:opacity-70"
+                            className="flex h-[46px] w-full items-center justify-center gap-2 rounded-lg bg-[#2F54C9] text-[15px] font-semibold text-white shadow-[0_6px_16px_rgba(47,84,201,.28)] transition-all duration-150 hover:-translate-y-px hover:bg-[#2546ad] hover:shadow-[0_10px_22px_rgba(47,84,201,.32)] focus-visible:ring-2 focus-visible:ring-[#2F54C9] focus-visible:ring-offset-2 active:translate-y-0 active:shadow-[0_4px_10px_rgba(47,84,201,.25)] disabled:translate-y-0 disabled:opacity-70 disabled:shadow-none motion-reduce:transition-none motion-reduce:hover:translate-y-0"
                         >
                             {processing ? <Spinner /> : <LogIn size={18} />}
-                            Masuk
+                            {processing ? 'Memeriksa…' : 'Masuk'}
                         </button>
                     </>
                 )}
