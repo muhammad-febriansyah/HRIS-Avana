@@ -9,15 +9,30 @@ use App\Models\User;
 use Illuminate\Support\Collection;
 
 /**
- * The Flutter app's Menu Cepat: the tiles it ships with, and which of them a
- * given account actually sees.
+ * The Flutter app's menus: the Menu Cepat carousel and the bottom navigation
+ * bar, the rows each ships with, and which of them a given account sees.
  *
  * Mirrors what {@see AvanaNav} does for the web sidebar, kept separate because
- * a phone tile has no href, section or parent — only a route, an icon and a
- * place in one flat carousel.
+ * a phone row has no href, section or parent — only a route, an icon and a
+ * place in one flat list.
  */
 class MobileMenu
 {
+    /** Menu Cepat: the carousel of tiles on the home tab. */
+    public const GROUP_QUICK = 'quick';
+
+    /** The bottom navigation bar. */
+    public const GROUP_TAB = 'tab';
+
+    /**
+     * Tabs the bar cannot lose. The app needs somewhere to land after login and
+     * a way to reach the profile — and so sign out — so these two stay on
+     * whatever a tenant switches off.
+     *
+     * @var array<int, string>
+     */
+    public const LOCKED_TABS = ['beranda', 'profil'];
+
     /**
      * The tenant feature each tile depends on, so switching a module off in
      * Kelola Fitur takes it off the phone too — the web sidebar has always
@@ -46,6 +61,46 @@ class MobileMenu
         'rapat' => 'meeting_ai',
         'token_ai' => 'ai',
     ];
+
+    /**
+     * The tenant feature behind each bottom tab. Same idea as
+     * {@see self::TILE_FEATURES}: a company that switched Ruang Kita off should
+     * not keep staring at its tab.
+     *
+     * Beranda and Profil are absent on purpose — see {@see self::LOCKED_TABS}.
+     *
+     * @var array<string, string>
+     */
+    public const TAB_FEATURES = [
+        'sosmed' => 'social',
+        'absensi' => 'attendance',
+        'pengumuman' => 'announcement',
+    ];
+
+    /**
+     * The bottom bar the app is built with, in the order it lays it out.
+     *
+     * `key` is what the Flutter side matches on to pick the screen and the
+     * icon; `route` stays empty because a tab is switched to, not navigated to.
+     *
+     * @return array<int, array{key: string, label: string, icon: string, color: string, route: string}>
+     */
+    public static function tabDefaults(): array
+    {
+        return [
+            ['key' => 'beranda', 'label' => 'Beranda', 'icon' => 'home_2', 'color' => '#2F54C9', 'route' => ''],
+            ['key' => 'sosmed', 'label' => 'Ruang Kita', 'icon' => 'people', 'color' => '#2F54C9', 'route' => ''],
+            ['key' => 'absensi', 'label' => 'Absensi', 'icon' => 'finger_scan', 'color' => '#2F54C9', 'route' => ''],
+            ['key' => 'pengumuman', 'label' => 'Pengumuman', 'icon' => 'volume_high', 'color' => '#2F54C9', 'route' => ''],
+            ['key' => 'profil', 'label' => 'Profil', 'icon' => 'user', 'color' => '#2F54C9', 'route' => ''],
+        ];
+    }
+
+    /** Whether this row is a bottom tab that must stay switched on. */
+    public static function isLockedTab(MobileMenuItem $item): bool
+    {
+        return $item->group === self::GROUP_TAB && in_array($item->key, self::LOCKED_TABS, true);
+    }
 
     /**
      * The tiles the app is built with, in the order it lays them out.
@@ -89,28 +144,45 @@ class MobileMenu
         foreach (self::defaults() as $index => $tile) {
             MobileMenuItem::firstOrCreate(
                 ['tenant_id' => $tenantId, 'key' => $tile['key']],
-                [...$tile, 'sort_order' => $index, 'is_active' => true, 'is_system' => true],
+                [...$tile, 'group' => self::GROUP_QUICK, 'sort_order' => $index, 'is_active' => true, 'is_system' => true],
+            );
+        }
+
+        foreach (self::tabDefaults() as $index => $tab) {
+            MobileMenuItem::firstOrCreate(
+                ['tenant_id' => $tenantId, 'key' => $tab['key']],
+                [...$tab, 'group' => self::GROUP_TAB, 'sort_order' => $index, 'is_active' => true, 'is_system' => true],
             );
         }
     }
 
     /**
-     * The tenant's tiles in display order, seeding the defaults the first time
-     * anyone asks — a tenant created before this existed has no rows, and an
-     * empty Menu Cepat would read as the app being broken.
+     * The tenant's rows for one group, in display order, seeding the defaults
+     * the first time anyone asks — a tenant created before this existed has no
+     * rows, and an empty Menu Cepat would read as the app being broken.
+     *
+     * Seeding is keyed per group: a tenant set up before the bottom bar became
+     * configurable already has its Menu Cepat, so only the tabs are missing.
      *
      * @return Collection<int, MobileMenuItem>
      */
-    public static function forTenant(int $tenantId): Collection
+    public static function forTenant(int $tenantId, string $group = self::GROUP_QUICK): Collection
     {
-        if (MobileMenuItem::forTenant($tenantId)->doesntExist()) {
+        if (MobileMenuItem::forTenant($tenantId)->where('group', $group)->doesntExist()) {
             self::seedDefaultsFor($tenantId);
         }
 
         return MobileMenuItem::forTenant($tenantId)
+            ->where('group', $group)
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
+    }
+
+    /** The tenant's bottom tabs, in bar order. */
+    public static function tabsForTenant(int $tenantId): Collection
+    {
+        return self::forTenant($tenantId, self::GROUP_TAB);
     }
 
     /**
@@ -125,6 +197,43 @@ class MobileMenu
      */
     public static function forUser(User $user): array
     {
+        return self::resolveFor($user, self::GROUP_QUICK, self::TILE_FEATURES);
+    }
+
+    /**
+     * What one account sees in the bottom bar. Same rules as Menu Cepat, minus
+     * the tabs that are never dropped: hiding Beranda or Profil would leave the
+     * app with no landing page and no way out.
+     *
+     * @return array<int, array{key: string, label: string, icon: string, color: string, route: string}>
+     */
+    public static function tabsForUser(User $user): array
+    {
+        $tabs = self::resolveFor($user, self::GROUP_TAB, self::TAB_FEATURES);
+
+        // A tenant whose rows predate the locked-tab rule could still hold an
+        // inactive Beranda; put the survivors back rather than ship a bar the
+        // app cannot navigate.
+        if (! empty($tabs)) {
+            return $tabs;
+        }
+
+        return array_values(array_filter(
+            self::tabDefaults(),
+            fn (array $tab): bool => in_array($tab['key'], self::LOCKED_TABS, true),
+        ));
+    }
+
+    /**
+     * The rows of one group this account keeps: the tenant's active ones, minus
+     * those hidden from every role they hold, minus those whose tenant feature
+     * is switched off.
+     *
+     * @param  array<string, string>  $featureMap
+     * @return array<int, array{key: string, label: string, icon: string, color: string, route: string}>
+     */
+    private static function resolveFor(User $user, string $group, array $featureMap): array
+    {
         if ($user->tenant_id === null) {
             return [];
         }
@@ -133,11 +242,11 @@ class MobileMenu
         $hidden = self::keysHiddenForAll($roleIds);
         $features = FeatureGate::codesFor($user);
 
-        return self::forTenant($user->tenant_id)
-            ->where('is_active', true)
-            ->reject(fn (MobileMenuItem $tile): bool => in_array($tile->key, $hidden, true))
-            ->reject(function (MobileMenuItem $tile) use ($features): bool {
-                $feature = self::TILE_FEATURES[$tile->key] ?? null;
+        return self::forTenant($user->tenant_id, $group)
+            ->filter(fn (MobileMenuItem $tile): bool => $tile->is_active || self::isLockedTab($tile))
+            ->reject(fn (MobileMenuItem $tile): bool => in_array($tile->key, $hidden, true) && ! self::isLockedTab($tile))
+            ->reject(function (MobileMenuItem $tile) use ($features, $featureMap): bool {
+                $feature = $featureMap[$tile->key] ?? null;
 
                 return $features !== null && $feature !== null && ! $features->contains($feature);
             })

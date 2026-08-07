@@ -82,6 +82,15 @@ class AppServiceProvider extends ServiceProvider
     protected function renderErrorsWithInertia(): void
     {
         Inertia::handleExceptionsUsing(function (ExceptionResponse $response) {
+            // The mobile client parses `message` out of the JSON body. Branding
+            // its 403 as an HTML page leaves it with nothing to show but a
+            // generic "gagal memuat", so the API keeps Laravel's JSON errors.
+            $request = request();
+
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return null;
+            }
+
             $branded = [403, 404, 419, 429, 503];
 
             if (! app()->environment(['local', 'testing'])) {
