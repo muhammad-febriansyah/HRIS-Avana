@@ -374,6 +374,39 @@ it('flags the shown run as stale after a payroll config edit', function (): void
         ->assertInertia(fn (Assert $page) => $page->where('stale_run', true));
 });
 
+it('counts a late arrival as a worked day, like the rekap does', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->whereNotNull('position_id')->orderBy('id')->firstOrFail();
+
+    actingAs($this->admin)->post('spec-avana/payroll/periods', [
+        'name' => 'Minggu Telat',
+        'cycle' => 'weekly',
+        'start_date' => '2026-08-03',
+        'end_date' => '2026-08-09',
+    ])->assertSessionHas('success');
+
+    Attendance::where('employee_id', $employee->id)->delete();
+
+    // One on-time day, one late day: both were worked. The late morning is
+    // punished by the fine table, not by quietly dropping the day's count.
+    foreach ([['2026-08-03', 'present', 0], ['2026-08-04', 'late', 20]] as [$date, $status, $late]) {
+        Attendance::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $employee->id,
+            'branch_id' => $employee->branch_id,
+            'date' => $date,
+            'status' => $status,
+            'late_minutes' => $late,
+        ]);
+    }
+
+    actingAs($this->admin)->post('spec-avana/payroll/run')->assertSessionHas('success');
+
+    $period = PayrollPeriod::forTenant($this->tenant->id)->where('name', 'Minggu Telat')->firstOrFail();
+    $item = PayrollRunItem::where('payroll_period_id', $period->id)->where('employee_id', $employee->id)->firstOrFail();
+
+    expect($item->calculation_snapshot['present_days'])->toBe(2);
+});
+
 it('scopes present-day pay to the weekly period window', function (): void {
     $employee = Employee::forTenant($this->tenant->id)->whereNotNull('position_id')->orderBy('id')->firstOrFail();
 
