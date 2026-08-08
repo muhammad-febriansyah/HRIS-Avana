@@ -8,6 +8,7 @@ import { DatePicker } from '@/components/avana/date-picker';
 import {
     AIcon,
     btnExport,
+    btnNested,
     btnOut,
     btnP,
     btnProcess,
@@ -402,25 +403,29 @@ export default function AvanaPayroll({
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                         <Link
                             href={SalaryMasterController.index().url}
-                            style={{ ...btnOut, textDecoration: 'none' }}
+                            style={{
+                                ...btnP,
+                                background: C.navy,
+                                textDecoration: 'none',
+                            }}
                         >
                             <AIcon name="file-cog" size={16} />
                             Master Gaji
                         </Link>
-                        <button onClick={generateThr} style={btnOut}>
+                        <button onClick={generateThr} style={btnProcess}>
                             <AIcon name="gift" size={16} />
                             Generate THR
                         </button>
                         <Link
                             href={PayrollController.createPeriod().url}
-                            style={{ ...btnOut, textDecoration: 'none' }}
+                            style={{ ...btnP, textDecoration: 'none' }}
                         >
                             <AIcon name="calendar-plus" size={16} />
                             Buat Periode
                         </Link>
                         <button
                             onClick={() => setImportOpen(true)}
-                            style={btnOut}
+                            style={btnNested}
                         >
                             <AIcon name="upload" size={16} />
                             Impor Payroll
@@ -430,7 +435,7 @@ export default function AvanaPayroll({
                         <div style={{ position: 'relative' }}>
                             <button
                                 onClick={() => setExportOpen((o) => !o)}
-                                style={btnOut}
+                                style={btnExport}
                             >
                                 <AIcon name="download" size={16} />
                                 Export
