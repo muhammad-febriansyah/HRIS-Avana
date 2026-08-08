@@ -100,7 +100,10 @@ class EmployeeController extends Controller
             ->when($request->query('branch_id'), fn ($q, $id) => $q->where('branch_id', $id))
             ->when($request->query('department_id'), fn ($q, $id) => $q->where('department_id', $id))
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
-            ->when($request->query('employment_status'), fn ($q, $value) => $q->where('employment_status', $value));
+            ->when($request->query('employment_status'), fn ($q, $value) => $q->where('employment_status', $value))
+            // `akun=tanpa` narrows to employees with no login behind them —
+            // the dashboard's orphan-accounts warning deep-links here.
+            ->when($request->query('akun') === 'tanpa', fn ($q) => $q->whereNull('user_id'));
 
         $this->applyBranchScope($query, $request->user());
 
@@ -113,8 +116,12 @@ class EmployeeController extends Controller
             'employees' => EmployeeResource::collection($employees),
             'filters' => $request->only([
                 'search', 'branch_id', 'department_id', 'status',
-                'employment_status', 'sort', 'direction', 'per_page',
+                'employment_status', 'akun', 'sort', 'direction', 'per_page',
             ]),
+            // Accounts a row's "Tautkan Akun" quick action may offer. Shared by
+            // the whole page rather than fetched per row — the list is short
+            // (it only holds accounts with no employee) and usually empty.
+            'linkableUsers' => $this->linkableUsers($tenantId),
             'branches' => Branch::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
             'departments' => Department::forTenant($tenantId)->select('id', 'name')->orderBy('name')->get(),
             // With "1 perangkat 1 akun" off nothing is bound to reset, so the
@@ -1024,6 +1031,42 @@ class EmployeeController extends Controller
         return back()->with('success', $user->status === 'active'
             ? 'Akun karyawan diaktifkan'
             : 'Akun karyawan dinonaktifkan');
+    }
+
+    /**
+     * Attach an existing login account to an employee who has none, straight
+     * from the list. The same link the edit form's "Tautkan Akun yang Sudah
+     * Ada" makes — offered as a one-click action because an unlinked account
+     * is the single shape behind every "mobile app blank" ticket, and walking
+     * the multi-step edit wizard to fix it buried the field that mattered.
+     */
+    public function linkAccount(Request $request, Employee $employee): RedirectResponse
+    {
+        $this->ensureTenantOwnership($request, $employee);
+        $this->authorize('update', $employee);
+
+        $data = $request->validate([
+            'user_id' => ['required', 'integer'],
+        ]);
+
+        if ($employee->user_id !== null) {
+            return back()->with('error', 'Karyawan ini sudah punya akun login.');
+        }
+
+        // Same fence as linkableUsers(): the account must be this tenant's,
+        // not already behind another employee, and not a platform admin.
+        $user = User::where('tenant_id', $employee->tenant_id)
+            ->whereDoesntHave('employee')
+            ->whereDoesntHave('roles', fn ($query) => $query->where('code', 'super_admin'))
+            ->find($data['user_id']);
+
+        if ($user === null) {
+            return back()->with('error', 'Akun tidak ditemukan atau sudah tertaut ke karyawan lain.');
+        }
+
+        $employee->forceFill(['user_id' => $user->id])->save();
+
+        return back()->with('success', "Akun {$user->email} ditautkan ke {$employee->full_name}. Minta karyawan login ulang di aplikasi mobile.");
     }
 
     /**

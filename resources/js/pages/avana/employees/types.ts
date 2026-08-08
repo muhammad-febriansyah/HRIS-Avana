@@ -336,6 +336,8 @@ export type FlashProps = {
         success?: string;
         /** The action worked, but with a caveat the user should read. */
         warning?: string;
+        /** The action was refused; the row is unchanged. */
+        error?: string;
     };
     errors?: Record<string, string>;
 };
