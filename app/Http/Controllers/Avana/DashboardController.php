@@ -110,6 +110,7 @@ class DashboardController extends Controller
             ->count();
 
         return Inertia::render('dashboard', [
+            'orphanAccounts' => $this->orphanMobileAccounts($tenantId),
             'kpis' => $this->kpis($tenantId, $activeEmployees, $presentToday, $attendanceRate, $pendingLeave, $newHiresThisMonth),
             'activities' => $this->activities($tenantId),
             'approvals' => $this->approvals($tenantId),
@@ -1090,6 +1091,35 @@ class DashboardController extends Controller
         }
 
         return 'Rp '.number_format($amount, 0, ',', '.');
+    }
+
+    /**
+     * Active accounts whose roles let them into the mobile app but that have no
+     * employee record behind them — the exact shape behind every "kenapa blank"
+     * support ticket. The Pengguna form now refuses to mint new ones, but the
+     * ones created before that guard sit quietly until someone signs in on a
+     * phone; this surfaces the whole backlog on the dashboard instead.
+     *
+     * @return array<int, array{id: int, name: string, email: string, roles: string}>
+     */
+    private function orphanMobileAccounts(int $tenantId): array
+    {
+        return User::query()
+            ->where('tenant_id', $tenantId)
+            ->where('status', 'active')
+            ->whereDoesntHave('employee')
+            ->with('roles:id,name,code,can_access_mobile')
+            ->orderBy('name')
+            ->get()
+            ->filter(fn (User $user): bool => $user->canAccessMobile())
+            ->map(fn (User $user): array => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'roles' => $user->roles->pluck('name')->implode(', '),
+            ])
+            ->values()
+            ->all();
     }
 
     /**
