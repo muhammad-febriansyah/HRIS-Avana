@@ -146,6 +146,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::delete('employees/bulk-destroy', [EmployeeController::class, 'bulkDestroy'])->name('employees.bulk-destroy');
     Route::post('employees/{employee}/reset-device', [EmployeeController::class, 'resetDevice'])->name('employees.reset-device');
     Route::post('employees/{employee}/toggle-account', [EmployeeController::class, 'toggleAccount'])->name('employees.toggle-account');
+    Route::post('employees/{employee}/link-account', [EmployeeController::class, 'linkAccount'])->name('employees.link-account');
     Route::resource('employees', EmployeeController::class);
 
     Route::get('absensi', [AttendanceController::class, 'index'])->name('absensi');

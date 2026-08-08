@@ -29,7 +29,16 @@ interface EmployeesIndexProps {
     departments: NamedOption[];
     /** "1 perangkat 1 akun" — with it off there is no binding to reset. */
     device_binding_enabled: boolean;
+    /** Tenant accounts with no employee behind them, offered by "Tautkan Akun". */
+    linkableUsers: LinkableUser[];
 }
+
+type LinkableUser = {
+    id: number;
+    name: string;
+    email: string;
+    roles: string;
+};
 
 const filterSelectStyle: CSSProperties = {
     height: 38,
@@ -98,12 +107,15 @@ export default function EmployeesIndex({
     branches,
     departments,
     device_binding_enabled,
+    linkableUsers,
 }: EmployeesIndexProps) {
     const { flash } = usePage<FlashProps>().props;
     const meta = employees.meta;
 
     const [confirm, setConfirm] = useState<Employee | null>(null);
     const [resetTarget, setResetTarget] = useState<Employee | null>(null);
+    const [linkTarget, setLinkTarget] = useState<Employee | null>(null);
+    const [linkUserId, setLinkUserId] = useState('');
     const [selected, setSelected] = useState<Set<number>>(new Set());
     const [bulkConfirm, setBulkConfirm] = useState(false);
     const [search, setSearch] = useState(filters.search ?? '');
@@ -166,6 +178,12 @@ export default function EmployeesIndex({
             toast.success(flash.success, { id: flash.success });
         }
     }, [flash?.success]);
+
+    useEffect(() => {
+        if (flash?.error) {
+            toast.error(flash.error, { id: flash.error });
+        }
+    }, [flash?.error]);
 
     useEffect(() => {
         if (isFirstSearch.current) {
@@ -241,6 +259,25 @@ export default function EmployeesIndex({
             {
                 preserveScroll: true,
                 onSuccess: () => setResetTarget(null),
+            },
+        );
+    };
+
+    /** Attach the picked login account to the employee behind the modal. */
+    const linkAccount = () => {
+        if (!linkTarget || !linkUserId) {
+            return;
+        }
+
+        router.post(
+            EmployeeController.linkAccount(linkTarget.route_key).url,
+            { user_id: Number(linkUserId) },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setLinkTarget(null);
+                    setLinkUserId('');
+                },
             },
         );
     };
@@ -470,6 +507,17 @@ export default function EmployeesIndex({
                                 </option>
                             ))}
                         </select>
+                        <select
+                            aria-label="Akun Login"
+                            value={filters.akun ?? ''}
+                            onChange={(event) =>
+                                applyFilter('akun', event.target.value)
+                            }
+                            style={filterSelectStyle}
+                        >
+                            <option value="">Semua Akun</option>
+                            <option value="tanpa">Belum ada akun</option>
+                        </select>
                         <div style={{ flex: 1 }} />
                     </div>
 
@@ -663,12 +711,36 @@ export default function EmployeesIndex({
                                                     >
                                                         <div
                                                             style={{
+                                                                display: 'flex',
+                                                                alignItems:
+                                                                    'center',
+                                                                gap: 7,
                                                                 fontSize: 13.5,
                                                                 fontWeight: 600,
                                                                 color: C.navy,
                                                             }}
                                                         >
                                                             {e.full_name}
+                                                            {!e.has_login && (
+                                                                <span
+                                                                    title="Belum punya akun login — tidak bisa masuk aplikasi mobile"
+                                                                    style={{
+                                                                        padding:
+                                                                            '2px 8px',
+                                                                        borderRadius: 100,
+                                                                        fontSize: 10.5,
+                                                                        fontWeight: 600,
+                                                                        color: C.amber,
+                                                                        background:
+                                                                            'rgba(217,119,6,.1)',
+                                                                        whiteSpace:
+                                                                            'nowrap',
+                                                                    }}
+                                                                >
+                                                                    Belum ada
+                                                                    akun
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         <div
                                                             style={{
@@ -764,6 +836,23 @@ export default function EmployeesIndex({
                                                             )
                                                         }
                                                     />
+                                                    {!e.has_login &&
+                                                        linkableUsers.length >
+                                                            0 && (
+                                                            <ActionBtn
+                                                                icon="link"
+                                                                label="Tautkan"
+                                                                variant="primary"
+                                                                onClick={() => {
+                                                                    setLinkUserId(
+                                                                        '',
+                                                                    );
+                                                                    setLinkTarget(
+                                                                        e,
+                                                                    );
+                                                                }}
+                                                            />
+                                                        )}
                                                     {e.has_login &&
                                                         device_binding_enabled && (
                                                             <ActionBtn
@@ -1411,6 +1500,157 @@ export default function EmployeesIndex({
                             >
                                 <AIcon name="smartphone" size={16} />
                                 Reset
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Link-account modal: attach an existing orphan login to this
+                employee without walking the multi-step edit form. */}
+            {linkTarget && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: 80,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 20,
+                    }}
+                >
+                    <div
+                        onClick={() => setLinkTarget(null)}
+                        style={{
+                            position: 'absolute',
+                            inset: 0,
+                            background: 'rgba(14,26,58,.45)',
+                        }}
+                    />
+                    <div
+                        style={{
+                            position: 'relative',
+                            width: '100%',
+                            maxWidth: 440,
+                            background: '#fff',
+                            borderRadius: 14,
+                            boxShadow: '0 20px 50px rgba(15,23,42,.25)',
+                            padding: 26,
+                            animation: 'toastIn .2s ease',
+                        }}
+                    >
+                        <div
+                            style={{
+                                width: 48,
+                                height: 48,
+                                borderRadius: 12,
+                                background: 'rgba(37,71,249,.1)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                marginBottom: 16,
+                            }}
+                        >
+                            <AIcon name="link" size={22} color={C.primary} />
+                        </div>
+                        <div
+                            style={{
+                                fontSize: 18,
+                                fontWeight: 600,
+                                color: C.navy,
+                            }}
+                        >
+                            Tautkan Akun Login
+                        </div>
+                        <div
+                            style={{
+                                fontSize: 13.5,
+                                color: C.muted,
+                                marginTop: 8,
+                                lineHeight: 1.55,
+                            }}
+                        >
+                            Pilih akun yang akan menjadi login{' '}
+                            <strong style={{ color: C.text }}>
+                                {linkTarget.full_name}
+                            </strong>{' '}
+                            di aplikasi mobile. Hanya akun yang belum tertaut ke
+                            karyawan lain yang muncul di sini.
+                        </div>
+                        <select
+                            aria-label="Akun"
+                            value={linkUserId}
+                            onChange={(event) =>
+                                setLinkUserId(event.target.value)
+                            }
+                            style={{
+                                ...filterSelectStyle,
+                                width: '100%',
+                                marginTop: 16,
+                                color: linkUserId ? C.text : C.muted,
+                            }}
+                        >
+                            <option value="">— pilih akun —</option>
+                            {linkableUsers.map((user) => (
+                                <option key={user.id} value={String(user.id)}>
+                                    {[user.name, user.email, user.roles || null]
+                                        .filter(Boolean)
+                                        .join(' — ')}
+                                </option>
+                            ))}
+                        </select>
+                        <div
+                            style={{ display: 'flex', gap: 10, marginTop: 22 }}
+                        >
+                            <button
+                                onClick={() => setLinkTarget(null)}
+                                style={{
+                                    flex: 1,
+                                    height: 44,
+                                    background: '#fff',
+                                    color: C.text,
+                                    border: `1px solid ${C.border}`,
+                                    borderRadius: 9,
+                                    fontSize: 14,
+                                    fontWeight: 500,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 8,
+                                    transition: '.15s',
+                                }}
+                            >
+                                <AIcon name="x" size={16} />
+                                Batal
+                            </button>
+                            <button
+                                onClick={linkAccount}
+                                disabled={!linkUserId}
+                                style={{
+                                    flex: 1,
+                                    height: 44,
+                                    background: linkUserId
+                                        ? C.primary
+                                        : C.border,
+                                    color: '#fff',
+                                    border: 'none',
+                                    borderRadius: 9,
+                                    fontSize: 14,
+                                    fontWeight: 600,
+                                    cursor: linkUserId
+                                        ? 'pointer'
+                                        : 'not-allowed',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 8,
+                                    transition: '.15s',
+                                }}
+                            >
+                                <AIcon name="link" size={16} />
+                                Tautkan
                             </button>
                         </div>
                     </div>
