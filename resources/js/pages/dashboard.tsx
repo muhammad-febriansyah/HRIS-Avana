@@ -36,8 +36,15 @@ type Birthday = {
     age: number | null;
 };
 type Series = { labels: string[]; values: number[] };
+type OrphanAccount = {
+    id: number;
+    name: string;
+    email: string;
+    roles: string;
+};
 
 type DashboardProps = {
+    orphanAccounts: OrphanAccount[];
     kpis: Kpi[];
     activities: Activity[];
     approvals: Approval[];
@@ -174,6 +181,7 @@ function AttendanceChart({ data }: { data: Series }) {
 export default function Dashboard() {
     const { props } = usePage<DashboardProps>();
     const {
+        orphanAccounts,
         kpis,
         activities,
         approvals,
@@ -207,6 +215,7 @@ export default function Dashboard() {
     const canOpenEmployees = allowedHrefs.has('/avana/employees');
     const canOpenReports = allowedHrefs.has('/avana/laporan');
     const canOpenAudit = allowedHrefs.has('/avana/audit');
+    const canOpenUsers = allowedHrefs.has('/avana/pengguna');
 
     useEffect(() => {
         if (flash?.success) {
@@ -294,6 +303,77 @@ export default function Dashboard() {
                         )}
                     </div>
                 </div>
+
+                {orphanAccounts.length > 0 && (
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 12,
+                            background: 'rgba(217,119,6,.07)',
+                            border: '1px solid rgba(217,119,6,.28)',
+                            borderRadius: 12,
+                            padding: '14px 18px',
+                            marginBottom: 20,
+                        }}
+                    >
+                        <AIcon
+                            name="triangle-alert"
+                            size={18}
+                            color={C.amber}
+                            style={{ marginTop: 2 }}
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <div
+                                style={{
+                                    fontSize: 13.5,
+                                    fontWeight: 600,
+                                    color: C.navy,
+                                }}
+                            >
+                                {orphanAccounts.length} akun bisa masuk aplikasi
+                                mobile tapi belum ditautkan ke data karyawan
+                            </div>
+                            <div
+                                style={{
+                                    fontSize: 12.5,
+                                    color: C.muted,
+                                    marginTop: 3,
+                                    lineHeight: 1.5,
+                                }}
+                            >
+                                Akun ini akan tertahan di layar “Akun Belum
+                                Terhubung” saat login di HP. Tautkan dari menu
+                                Pengguna, atau dari form edit Karyawan (bagian
+                                Akun Login):{' '}
+                                {orphanAccounts
+                                    .slice(0, 4)
+                                    .map((a) => `${a.name} (${a.email})`)
+                                    .join(', ')}
+                                {orphanAccounts.length > 4 &&
+                                    ` +${orphanAccounts.length - 4} lainnya`}
+                            </div>
+                        </div>
+                        {(canOpenUsers || canOpenEmployees) && (
+                            <Link
+                                href={
+                                    canOpenUsers
+                                        ? '/avana/pengguna'
+                                        : '/avana/employees?akun=tanpa'
+                                }
+                                style={{
+                                    ...btnOut,
+                                    textDecoration: 'none',
+                                    borderColor: 'rgba(217,119,6,.4)',
+                                    color: C.amber,
+                                    flex: 'none',
+                                }}
+                            >
+                                {canOpenUsers ? 'Buka Pengguna' : 'Buka Karyawan'}
+                            </Link>
+                        )}
+                    </div>
+                )}
 
                 <div
                     className="avn-kpi"
