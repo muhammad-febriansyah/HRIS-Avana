@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\MeetingTranscriber;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -111,6 +112,36 @@ final class AiSetting extends Model
     }
 
     /**
+     * Read an encrypted column, treating an undecryptable value (row written
+     * under a different APP_KEY) as absent instead of throwing — a stale
+     * credential must never take the page down with it.
+     */
+    private function decryptedOrEmpty(string $column): string
+    {
+        try {
+            return (string) ($this->getAttribute($column) ?? '');
+        } catch (DecryptException) {
+            return '';
+        }
+    }
+
+    /**
+     * Whether a chat API key is stored on the row itself (decryptable).
+     */
+    public function hasStoredKey(): bool
+    {
+        return $this->decryptedOrEmpty('api_key') !== '';
+    }
+
+    /**
+     * Whether a speech-to-text key is stored on the row itself (decryptable).
+     */
+    public function hasStoredSttKey(): bool
+    {
+        return $this->decryptedOrEmpty('stt_api_key') !== '';
+    }
+
+    /**
      * Resolve the provider, model and API key to use for AI calls. The stored
      * key/model take precedence; otherwise fall back to the Prism config (env)
      * for the selected provider so existing deployments keep working.
@@ -120,7 +151,7 @@ final class AiSetting extends Model
     public function resolved(): array
     {
         $provider = $this->provider ?: 'openai';
-        $apiKey = (string) ($this->api_key ?: config("prism.providers.{$provider}.api_key", ''));
+        $apiKey = $this->decryptedOrEmpty('api_key') ?: (string) config("prism.providers.{$provider}.api_key", '');
         $model = (string) ($this->model ?: env('AI_MODEL', self::DEFAULT_MODEL));
 
         return [
@@ -187,7 +218,7 @@ final class AiSetting extends Model
     {
         $provider = (string) ($this->stt_provider ?: 'deepgram');
 
-        $apiKey = (string) ($this->stt_api_key ?: config("services.{$provider}.api_key", ''));
+        $apiKey = $this->decryptedOrEmpty('stt_api_key') ?: (string) config("services.{$provider}.api_key", '');
 
         if (! $this->stt_enabled || $apiKey === '') {
             return null;
@@ -235,7 +266,7 @@ final class AiSetting extends Model
      */
     public function keyPreview(): ?string
     {
-        $key = (string) $this->api_key;
+        $key = $this->decryptedOrEmpty('api_key');
 
         return $key === '' ? null : str_repeat('•', 8).substr($key, -4);
     }
@@ -245,7 +276,7 @@ final class AiSetting extends Model
      */
     public function sttKeyPreview(): ?string
     {
-        $key = (string) $this->stt_api_key;
+        $key = $this->decryptedOrEmpty('stt_api_key');
 
         return $key === '' ? null : str_repeat('•', 8).substr($key, -4);
     }
