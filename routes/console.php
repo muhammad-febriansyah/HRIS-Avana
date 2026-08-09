@@ -28,6 +28,13 @@ Schedule::command('avana:scan-attrition-alerts')->dailyAt('07:30');
 // them at half past ten.
 Schedule::command('avana:remind-attendance')->hourlyAt(30);
 
+// Materialize absence and incomplete punches only after each branch-local
+// shift has ended plus its configured grace period.
+Schedule::command('avana:finalize-attendance')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping(30)
+    ->onOneServer();
+
 // Close meeting recordings a phone never came back from. Nothing else moves
 // them out of "recording", so without this they sit in the list claiming to be
 // live for good.

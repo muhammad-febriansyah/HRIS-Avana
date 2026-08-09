@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\RosterPattern;
 use App\Models\Shift;
 use App\Models\ShiftSchedule;
+use App\Services\AttendanceFinalizer;
 use App\Support\Roster;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
@@ -140,6 +141,12 @@ class RosterController extends Controller
             $validated['date'],
             $validated['shift_id'] ?? null,
         );
+        AttendanceFinalizer::recalculateRange(
+            $tenantId,
+            [(int) $validated['employee_id']],
+            $validated['date'],
+            $validated['date'],
+        );
 
         return back()->with('success', $validated['shift_id'] === null
             ? 'Ditandai libur'
@@ -268,6 +275,13 @@ class RosterController extends Controller
             ShiftSchedule::whereIn('id', $updateIds)->update(['shift_id' => $validated['shift_id']]);
         }
 
+        AttendanceFinalizer::recalculateRange(
+            $tenantId,
+            array_map('intval', $employeeIds),
+            $dates->min(),
+            $dates->max(),
+        );
+
         $total = count($employeeIds) * $dates->count();
 
         $message = "Shift diterapkan ke {$total} jadwal.";
@@ -347,6 +361,13 @@ class RosterController extends Controller
             ShiftSchedule::insert($insert);
         }
 
+        AttendanceFinalizer::recalculateRange(
+            $tenantId,
+            $previous->pluck('employee_id')->map(fn ($id): int => (int) $id)->unique()->values()->all(),
+            $weekStart->format('Y-m-d'),
+            $weekStart->copy()->addDays(6)->format('Y-m-d'),
+        );
+
         $message = 'Jadwal minggu lalu disalin ke minggu ini.';
 
         if ($skipped > 0) {
@@ -404,6 +425,13 @@ class RosterController extends Controller
             }
         });
 
+        AttendanceFinalizer::recalculateRange(
+            $tenantId,
+            array_map('intval', $data['employee_ids']),
+            $start->toDateString(),
+            $end->toDateString(),
+        );
+
         $message = "Pola {$pattern->name} diterapkan — {$assigned} jadwal dibuat.";
 
         if ($skipped > 0) {
@@ -422,7 +450,12 @@ class RosterController extends Controller
 
         abort_if((int) $schedule->tenant_id !== (int) $request->user()->tenant_id, 404);
 
+        $tenantId = (int) $schedule->tenant_id;
+        $employeeId = (int) $schedule->employee_id;
+        $date = $schedule->date->toDateString();
+
         $schedule->delete();
+        AttendanceFinalizer::recalculateRange($tenantId, [$employeeId], $date, $date);
 
         return back()->with('success', 'Jadwal dihapus');
     }

@@ -33,15 +33,22 @@ class ActivityController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $validated = $request->validate([
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date', 'after_or_equal:from'],
+        ]);
         $employee = $this->currentEmployee($request);
         $tenantId = $employee->tenant_id;
         $employeeId = $employee->id;
+        $from = $validated['from'] ?? null;
+        $to = $validated['to'] ?? null;
 
         /** @var Collection<int, array<string, mixed>> $items */
         $items = collect();
 
         $attendances = Attendance::forTenant($tenantId)->where('employee_id', $employeeId)
-            ->whereNotNull('clock_in_at')
+            ->when($from, fn ($query, string $date) => $query->whereDate('date', '>=', $date))
+            ->when($to, fn ($query, string $date) => $query->whereDate('date', '<=', $date))
             ->orderByDesc('date')->limit(self::PER_SOURCE)->get();
 
         // The clock-in selfie (earliest per attendance), keyed by attendance id.
@@ -86,6 +93,8 @@ class ActivityController extends Controller
         });
 
         LeaveRequest::forTenant($tenantId)->where('employee_id', $employeeId)
+            ->when($from, fn ($query, string $date) => $query->whereDate('created_at', '>=', $date))
+            ->when($to, fn ($query, string $date) => $query->whereDate('created_at', '<=', $date))
             ->with('leaveType:id,name')
             ->orderByDesc('created_at')->limit(self::PER_SOURCE)->get()
             ->each(function (LeaveRequest $r) use ($items): void {
@@ -99,6 +108,8 @@ class ActivityController extends Controller
             });
 
         OvertimeRequest::forTenant($tenantId)->where('employee_id', $employeeId)
+            ->when($from, fn ($query, string $date) => $query->whereDate('created_at', '>=', $date))
+            ->when($to, fn ($query, string $date) => $query->whereDate('created_at', '<=', $date))
             ->orderByDesc('created_at')->limit(self::PER_SOURCE)->get()
             ->each(function (OvertimeRequest $o) use ($items): void {
                 $items->push($this->shape(
@@ -111,6 +122,8 @@ class ActivityController extends Controller
             });
 
         PermissionRequest::forTenant($tenantId)->where('employee_id', $employeeId)
+            ->when($from, fn ($query, string $date) => $query->whereDate('created_at', '>=', $date))
+            ->when($to, fn ($query, string $date) => $query->whereDate('created_at', '<=', $date))
             ->orderByDesc('created_at')->limit(self::PER_SOURCE)->get()
             ->each(function (PermissionRequest $p) use ($items): void {
                 $items->push($this->shape(
@@ -123,6 +136,8 @@ class ActivityController extends Controller
             });
 
         WfhRequest::forTenant($tenantId)->where('employee_id', $employeeId)
+            ->when($from, fn ($query, string $date) => $query->whereDate('created_at', '>=', $date))
+            ->when($to, fn ($query, string $date) => $query->whereDate('created_at', '<=', $date))
             ->orderByDesc('created_at')->limit(self::PER_SOURCE)->get()
             ->each(function (WfhRequest $w) use ($items): void {
                 $items->push($this->shape(
@@ -135,6 +150,8 @@ class ActivityController extends Controller
             });
 
         Claim::forTenant($tenantId)->where('employee_id', $employeeId)
+            ->when($from, fn ($query, string $date) => $query->whereDate('created_at', '>=', $date))
+            ->when($to, fn ($query, string $date) => $query->whereDate('created_at', '<=', $date))
             ->orderByDesc('created_at')->limit(self::PER_SOURCE)->get()
             ->each(function (Claim $c) use ($items): void {
                 $items->push($this->shape(

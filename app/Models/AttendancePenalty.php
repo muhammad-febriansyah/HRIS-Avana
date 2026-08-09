@@ -10,6 +10,11 @@ final class AttendancePenalty extends Model
 {
     protected $guarded = [];
 
+    public function attendance(): BelongsTo
+    {
+        return $this->belongsTo(Attendance::class);
+    }
+
     public function scopeForTenant(Builder $query, int|string $tenantId): Builder
     {
         return $query->where('tenant_id', $tenantId);

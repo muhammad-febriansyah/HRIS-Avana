@@ -11,6 +11,7 @@ use App\Models\Position;
 use App\Models\Shift;
 use App\Models\User;
 use App\Models\WorkLocation;
+use App\Services\AttendanceFinalizer;
 use App\Support\TenantQuota;
 use App\Support\TenantTime;
 use Illuminate\Database\Eloquent\Model;
@@ -235,6 +236,10 @@ class CompanySetupController extends Controller
         );
 
         $instance->update(Arr::only($data, $config['fillable']));
+
+        if ($instance instanceof Shift) {
+            AttendanceFinalizer::recalculateShift((int) $tenantId, (int) $instance->id);
+        }
 
         return back()->with('success', 'Data diperbarui');
     }

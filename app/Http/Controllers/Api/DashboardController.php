@@ -15,6 +15,7 @@ use App\Models\ShiftSchedule;
 use App\Models\WfhRequest;
 use App\Support\PrivateFile;
 use App\Support\Roster;
+use App\Support\TenantTime;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -48,17 +49,19 @@ class DashboardController extends Controller
         $employee = $this->currentEmployee($request);
         $tenantId = $employee->tenant_id;
         $employeeId = $employee->id;
+        $zone = TenantTime::zoneForBranch($tenantId, $employee->branch_id);
+        $localNow = now($zone);
 
         $leaveAvailable = (float) LeaveBalance::forTenant($tenantId)
             ->forLiveTypes()
             ->where('employee_id', $employeeId)
-            ->where('year', now()->year)
+            ->where('year', $localNow->year)
             ->sum('remaining');
 
         $workMinutes = (int) Attendance::forTenant($tenantId)
             ->where('employee_id', $employeeId)
-            ->whereYear('date', now()->year)
-            ->whereMonth('date', now()->month)
+            ->whereYear('date', $localNow->year)
+            ->whereMonth('date', $localNow->month)
             ->sum('work_minutes');
 
         $pending = 0;
@@ -72,8 +75,8 @@ class DashboardController extends Controller
         // This month's attendance breakdown for the home stat cards.
         $statusCounts = Attendance::forTenant($tenantId)
             ->where('employee_id', $employeeId)
-            ->whereYear('date', now()->year)
-            ->whereMonth('date', now()->month)
+            ->whereYear('date', $localNow->year)
+            ->whereMonth('date', $localNow->month)
             ->selectRaw('status, COUNT(*) as c')
             ->groupBy('status')
             ->pluck('c', 'status');
@@ -87,6 +90,7 @@ class DashboardController extends Controller
                 'present' => (int) ($statusCounts['present'] ?? 0),
                 'absent' => (int) ($statusCounts['absent'] ?? 0),
                 'late' => (int) ($statusCounts['late'] ?? 0),
+                'incomplete' => (int) ($statusCounts['incomplete'] ?? 0),
             ],
             'today_shift' => $this->todayShift($tenantId, $employeeId),
             'birthdays' => $this->birthdaysToday($tenantId, $employeeId, self::BIRTHDAY_PREVIEW_LIMIT),

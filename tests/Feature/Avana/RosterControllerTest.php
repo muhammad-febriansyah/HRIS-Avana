@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\Role;
 use App\Models\Shift;
@@ -171,6 +172,41 @@ it('updates the existing assignment instead of duplicating on re-store', functio
 
     expect($schedules)->toHaveCount(1);
     expect($schedules->first()->shift_id)->toBe($secondShift->id);
+});
+
+it('recalculates a past attendance when its roster shift changes', function (): void {
+    $earlyShift = Shift::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'EARLY-RECALC',
+        'name' => 'Early Recalculation',
+        'start_time' => '07:00:00',
+        'end_time' => '16:00:00',
+        'late_tolerance_minutes' => 0,
+        'status' => 'active',
+    ]);
+    $attendance = Attendance::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'branch_id' => $this->employee->branch_id,
+        'date' => WEEK_START,
+        'clock_in_at' => WEEK_START.' 08:30:00',
+        'clock_out_at' => WEEK_START.' 17:00:00',
+        'status' => 'present',
+        'late_minutes' => 0,
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.roster.store'), [
+            'employee_id' => $this->employee->id,
+            'shift_id' => $earlyShift->id,
+            'date' => WEEK_START,
+        ])
+        ->assertSessionHas('success');
+
+    expect($attendance->fresh()->shift_id)->toBe($earlyShift->id)
+        ->and($attendance->fresh()->status)->toBe('late')
+        ->and($attendance->fresh()->late_minutes)->toBe(90)
+        ->and($attendance->fresh()->work_minutes)->toBe(510);
 });
 
 it('validates required fields on store', function (): void {

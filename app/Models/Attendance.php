@@ -69,4 +69,9 @@ final class Attendance extends Model
     {
         return $this->hasMany(AttendanceSelfie::class);
     }
+
+    public function penalties(): HasMany
+    {
+        return $this->hasMany(AttendancePenalty::class);
+    }
 }

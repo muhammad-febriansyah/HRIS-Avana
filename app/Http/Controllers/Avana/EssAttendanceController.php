@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
 use App\Services\ApprovalEngine;
+use App\Support\Roster;
 use Carbon\CarbonInterface;
 use DateTimeInterface;
 use Illuminate\Http\RedirectResponse;
@@ -40,6 +41,7 @@ class EssAttendanceController extends Controller
         'sick' => 'Sakit',
         'holiday' => 'Libur',
         'wfh' => 'WFH',
+        'incomplete' => 'Belum Lengkap',
     ];
 
     /**
@@ -127,8 +129,11 @@ class EssAttendanceController extends Controller
             'reason.required' => 'Alasan wajib diisi.',
         ]);
 
+        $shift = Roster::shiftFor($employee->tenant_id, $employee->id, $data['date']);
+
         if (isset($data['requested_clock_in'], $data['requested_clock_out'])
-            && $data['requested_clock_out'] <= $data['requested_clock_in']) {
+            && $data['requested_clock_out'] <= $data['requested_clock_in']
+            && ($shift === null || ! Roster::crossesMidnight($shift))) {
             return back()->withErrors(['requested_clock_out' => 'Jam pulang harus setelah jam masuk.']);
         }
 

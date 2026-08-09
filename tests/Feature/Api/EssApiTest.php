@@ -32,6 +32,17 @@ beforeEach(function (): void {
 
         return $this->withHeader('Authorization', 'Bearer '.$this->token);
     };
+
+    $employee = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail()->employee;
+    Attendance::where('employee_id', $employee->id)
+        ->whereDate('date', now()->toDateString())
+        ->update([
+            'clock_in_at' => null,
+            'clock_out_at' => null,
+            'status' => 'absent',
+            'late_minutes' => 0,
+            'work_minutes' => 0,
+        ]);
 });
 
 it('returns the employee profile', function (): void {
@@ -588,20 +599,31 @@ it('syncs a same-day offline clock with a matching face', function (): void {
     expect((float) $att->face_confidence)->toBeGreaterThan(0.9);
 });
 
-it('rejects a previous-day clocked_at so past-day fixes go through corrections', function (): void {
+it('rejects an offline clock older than the configured sync window', function (): void {
     Attendance::query()->update(['clock_in_at' => null, 'clock_out_at' => null]);
 
     ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
         'type' => 'in',
         'latitude' => -6.2146, 'longitude' => 106.8451,
-        'clocked_at' => now()->subDay()->toDateTimeString(),
-    ])->assertStatus(422)->assertJsonValidationErrors(['clocked_at']);
+        'clocked_at' => now()->subHours(config('attendance.offline_sync_window_hours') + 1)->toDateTimeString(),
+    ])->assertStatus(422)
+        ->assertJsonPath('code', 'attendance_correction_required');
 });
 
 it('returns a merged activity feed newest-first', function (): void {
     ($this->auth)()->getJson('/api/v1/me/activities')
         ->assertOk()
         ->assertJsonStructure(['data' => [['type', 'title', 'subtitle', 'status', 'occurred_at']]]);
+});
+
+it('filters the activity feed by an inclusive date range', function (): void {
+    ($this->auth)()->getJson('/api/v1/me/activities?from='.now()->addDay()->toDateString().'&to='.now()->addDay()->toDateString())
+        ->assertOk()
+        ->assertJsonCount(0, 'data');
+
+    ($this->auth)()->getJson('/api/v1/me/activities?from=2026-08-10&to=2026-08-09')
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['to']);
 });
 
 it('includes a freshly submitted request in the activity feed', function (): void {

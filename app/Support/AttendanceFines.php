@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Attendance;
 use App\Models\AttendancePenalty;
 use App\Models\AttendancePenaltyRule;
+use Illuminate\Support\Collection;
 
 /**
  * Turns attendance violations into penalty rows under the tenant's late-fine
@@ -45,38 +46,33 @@ class AttendanceFines
             ->when($employeeId !== null, fn ($query) => $query->where('employee_id', $employeeId))
             ->whereDate('date', '>=', $startDate)
             ->whereDate('date', '<=', $endDate)
-            ->get(['id', 'employee_id', 'date', 'status', 'late_minutes']);
+            ->get(['id', 'tenant_id', 'employee_id', 'date', 'status', 'late_minutes']);
+
+        $tiers = AttendancePenaltyRule::tiersFor($tenantId);
+
+        AttendancePenalty::query()
+            ->forTenant($tenantId)
+            ->where('source', 'automatic')
+            ->whereDate('date', '>=', $startDate)
+            ->whereDate('date', '<=', $endDate)
+            ->when($employeeId !== null, fn ($query) => $query->where('employee_id', $employeeId))
+            ->when(
+                $attendances->isNotEmpty(),
+                fn ($query) => $query->whereNotIn('attendance_id', $attendances->pluck('id')),
+            )
+            ->delete();
 
         if ($attendances->isEmpty()) {
             return ['created' => 0, 'fined' => 0];
         }
 
-        $tiers = AttendancePenaltyRule::tiersFor($tenantId);
-
         $created = 0;
         $fined = 0;
 
         foreach ($attendances as $attendance) {
-            $tier = $attendance->status === 'late'
-                ? AttendancePenaltyRule::match($tiers, (int) $attendance->late_minutes)
-                : null;
+            $penalty = self::syncWithTiers($attendance, $tiers);
 
-            $penalty = AttendancePenalty::firstOrCreate(
-                [
-                    'tenant_id' => $tenantId,
-                    'employee_id' => $attendance->employee_id,
-                    'date' => $attendance->date->format('Y-m-d'),
-                    'violation_type' => $attendance->status,
-                ],
-                [
-                    'penalty_type' => $tier?->penalty_type ?? 'warning',
-                    'amount' => $tier?->amount ?? 0,
-                    'notes' => self::note($attendance, $tier),
-                    'status' => 'active',
-                ],
-            );
-
-            if ($penalty->wasRecentlyCreated) {
+            if ($penalty?->wasRecentlyCreated) {
                 $created++;
 
                 if ((float) $penalty->amount > 0) {
@@ -86,6 +82,70 @@ class AttendanceFines
         }
 
         return ['created' => $created, 'fined' => $fined];
+    }
+
+    /** Keep one automatic penalty aligned with its attendance fact. */
+    public static function sync(Attendance $attendance): ?AttendancePenalty
+    {
+        return self::syncWithTiers(
+            $attendance,
+            AttendancePenaltyRule::tiersFor((int) $attendance->tenant_id),
+        );
+    }
+
+    /** Re-price existing automatic penalties after the tenant edits its tiers. */
+    public static function refreshAutomaticForTenant(int $tenantId): void
+    {
+        AttendancePenalty::query()
+            ->forTenant($tenantId)
+            ->where('source', 'automatic')
+            ->with('attendance')
+            ->orderBy('id')
+            ->chunkById(200, function ($penalties): void {
+                foreach ($penalties as $penalty) {
+                    if ($penalty->attendance !== null) {
+                        self::sync($penalty->attendance);
+                    }
+                }
+            });
+    }
+
+    /**
+     * @param  Collection<int, AttendancePenaltyRule>  $tiers
+     */
+    private static function syncWithTiers(Attendance $attendance, Collection $tiers): ?AttendancePenalty
+    {
+        $existing = AttendancePenalty::query()
+            ->where('tenant_id', $attendance->tenant_id)
+            ->where('attendance_id', $attendance->id)
+            ->where('source', 'automatic')
+            ->first();
+
+        if (! in_array($attendance->status, self::GENERATABLE_STATUSES, true)) {
+            $existing?->delete();
+
+            return null;
+        }
+
+        $tier = $attendance->status === 'late'
+            ? AttendancePenaltyRule::match($tiers, (int) $attendance->late_minutes)
+            : null;
+
+        $penalty = $existing ?? new AttendancePenalty;
+        $penalty->fill([
+            'tenant_id' => $attendance->tenant_id,
+            'attendance_id' => $attendance->id,
+            'employee_id' => $attendance->employee_id,
+            'date' => $attendance->date->format('Y-m-d'),
+            'violation_type' => $attendance->status,
+            'source' => 'automatic',
+            'penalty_type' => $tier?->penalty_type ?? 'warning',
+            'amount' => $tier?->amount ?? 0,
+            'notes' => self::note($attendance, $tier),
+            'status' => $existing?->status ?? 'active',
+        ])->save();
+
+        return $penalty;
     }
 
     /**

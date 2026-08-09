@@ -123,11 +123,13 @@ class AttendancePenaltyController extends Controller
 
         if (($validated['id'] ?? null) !== null) {
             AttendancePenaltyRule::forTenant($tenantId)->findOrFail($validated['id'])->update($attributes);
+            AttendanceFines::refreshAutomaticForTenant($tenantId);
 
             return back()->with('success', 'Aturan denda diperbarui');
         }
 
         AttendancePenaltyRule::create($attributes);
+        AttendanceFines::refreshAutomaticForTenant($tenantId);
 
         return back()->with('success', 'Aturan denda ditambahkan');
     }
@@ -142,6 +144,7 @@ class AttendancePenaltyController extends Controller
         $this->authorize('delete', Attendance::class);
 
         $rule->delete();
+        AttendanceFines::refreshAutomaticForTenant((int) $rule->tenant_id);
 
         return back()->with('success', 'Aturan denda dihapus');
     }
@@ -181,6 +184,7 @@ class AttendancePenaltyController extends Controller
             'employee_id' => $validated['employee_id'],
             'date' => Carbon::parse($validated['date'])->format('Y-m-d'),
             'violation_type' => $validated['violation_type'],
+            'source' => 'manual',
             'penalty_type' => $validated['penalty_type'],
             'amount' => $validated['amount'] ?? 0,
             'notes' => $validated['notes'] ?? null,

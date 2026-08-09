@@ -12,6 +12,7 @@ use App\Models\Employee;
 use App\Models\EmployeeFaceEmbedding;
 use App\Models\WorkLocation;
 use App\Services\LeaveAttendanceMarker;
+use App\Support\AttendanceFines;
 use App\Support\DeviceIntegrity;
 use App\Support\FaceMatcher;
 use App\Support\Notifier;
@@ -126,7 +127,8 @@ class AttendanceController extends Controller
     public function history(Request $request): JsonResponse
     {
         $employee = $this->currentEmployee($request);
-        $month = $request->query('month', now()->format('Y-m'));
+        $zone = TenantTime::zoneForBranch($employee->tenant_id, $employee->branch_id);
+        $month = $request->query('month', Carbon::now($zone)->format('Y-m'));
         $start = Carbon::parse($month.'-01')->startOfMonth();
 
         $records = Attendance::forTenant($employee->tenant_id)
@@ -163,10 +165,7 @@ class AttendanceController extends Controller
             'integrity_token' => ['nullable', 'string', 'max:8192'],
             'device_id' => ['nullable', 'string', 'max:191'],
             'nonce' => ['nullable', 'string', 'max:64'],
-            // Original clock time for entries queued offline and synced later,
-            // bounded to the same day. Past-day fixes go through the attendance
-            // correction flow (manager-approved) so they leave an audit trail.
-            'clocked_at' => ['nullable', 'date', 'after_or_equal:'.now()->startOfDay()->toDateTimeString()],
+            'clocked_at' => ['nullable', 'date'],
             'face_embedding' => ['nullable', 'array', 'min:64', 'max:1024'],
             'face_embedding.*' => ['numeric'],
             'selfie' => ['nullable', 'image', 'max:4096'],
@@ -179,6 +178,13 @@ class AttendanceController extends Controller
 
         if ($clockedAt->isFuture()) {
             $clockedAt = Carbon::now($zone);
+        }
+
+        if ($clockedAt->lessThan(Carbon::now($zone)->subHours((int) config('attendance.offline_sync_window_hours', 36)))) {
+            return response()->json([
+                'message' => 'Absensi offline sudah melewati batas sinkronisasi. Ajukan koreksi absensi.',
+                'code' => 'attendance_correction_required',
+            ], 422);
         }
         $data['clocked_at'] = $clockedAt;
 
@@ -313,11 +319,15 @@ class AttendanceController extends Controller
         // always belong to its own calendar date.
         $workDate = Roster::workDateFor((int) $employee->tenant_id, (int) $employee->id, $clockedAt);
 
-        $attendance = Attendance::firstOrNew([
-            'tenant_id' => $employee->tenant_id,
-            'employee_id' => $employee->id,
-            'date' => $workDate,
-        ]);
+        $attendance = Attendance::query()
+            ->forTenant($employee->tenant_id)
+            ->where('employee_id', $employee->id)
+            ->whereDate('date', $workDate)
+            ->first() ?? new Attendance([
+                'tenant_id' => $employee->tenant_id,
+                'employee_id' => $employee->id,
+                'date' => $workDate,
+            ]);
 
         if ($attendance->clock_in_at !== null) {
             return response()->json(['message' => 'Anda sudah clock-in hari ini.'], 422);
@@ -375,6 +385,7 @@ class AttendanceController extends Controller
             'risk_flags' => ($data['risk_flags'] ?? []) === [] ? null : $data['risk_flags'],
         ]);
         $attendance->save();
+        AttendanceFines::sync($attendance);
 
         if ($request->hasFile('selfie')) {
             AttendanceSelfie::create([
@@ -398,7 +409,9 @@ class AttendanceController extends Controller
             $clockedAt->toDateString(),
         );
 
-        return response()->json(['message' => 'Clock-in berhasil', 'data' => $this->todayShape($attendance)]);
+        $zone = TenantTime::zoneForBranch($employee->tenant_id, $employee->branch_id);
+
+        return response()->json(['message' => 'Clock-in berhasil', 'data' => $this->todayShape($attendance, $zone)]);
     }
 
     /**
@@ -434,6 +447,14 @@ class AttendanceController extends Controller
         $attendance->clock_out_lat = $data['latitude'] ?? null;
         $attendance->clock_out_lng = $data['longitude'] ?? null;
         $attendance->work_minutes = (int) $attendance->clock_in_at->diffInMinutes($clockedAt);
+        $verdict = Roster::evaluateFor(
+            $employee,
+            $attendance->clock_in_at,
+            $attendance->date->toDateString(),
+        );
+        $attendance->status = $verdict['status'];
+        $attendance->late_minutes = $verdict['late_minutes'];
+        $attendance->shift_id = $verdict['shift_id'];
         if (($data['face_confidence'] ?? null) !== null) {
             $attendance->face_confidence = $data['face_confidence'];
         }
@@ -445,6 +466,7 @@ class AttendanceController extends Controller
             $attendance->risk_flags = $data['risk_flags'];
         }
         $attendance->save();
+        AttendanceFines::sync($attendance);
 
         if ($request->hasFile('selfie')) {
             AttendanceSelfie::create([
@@ -468,7 +490,9 @@ class AttendanceController extends Controller
             $clockedAt->toDateString(),
         );
 
-        return response()->json(['message' => 'Clock-out berhasil', 'data' => $this->todayShape($attendance)]);
+        $zone = TenantTime::zoneForBranch($employee->tenant_id, $employee->branch_id);
+
+        return response()->json(['message' => 'Clock-out berhasil', 'data' => $this->todayShape($attendance, $zone)]);
     }
 
     /**
@@ -645,6 +669,7 @@ class AttendanceController extends Controller
 
         return [
             'date' => Carbon::now($zone)->toDateString(),
+            'work_date' => $a?->date?->toDateString(),
             // Stored as the office's own wall clock, so it reads back as the
             // hour that office saw with no conversion.
             'clock_in' => $a?->clock_in_at?->format('H:i'),

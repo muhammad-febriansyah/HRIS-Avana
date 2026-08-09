@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
 use App\Services\ApprovalEngine;
+use App\Support\Roster;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -52,8 +53,11 @@ class AttendanceCorrectionController extends Controller
             'reason' => ['required', 'string', 'max:1000'],
         ]);
 
+        $shift = Roster::shiftFor($employee->tenant_id, $employee->id, $data['date']);
+
         if (isset($data['requested_clock_in'], $data['requested_clock_out'])
-            && $data['requested_clock_out'] <= $data['requested_clock_in']) {
+            && $data['requested_clock_out'] <= $data['requested_clock_in']
+            && ($shift === null || ! Roster::crossesMidnight($shift))) {
             return response()->json([
                 'message' => 'Jam pulang harus setelah jam masuk.',
             ], 422);

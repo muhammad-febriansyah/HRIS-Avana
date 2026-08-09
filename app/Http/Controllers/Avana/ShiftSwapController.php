@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\Shift;
 use App\Models\ShiftSwap;
 use App\Models\User;
+use App\Services\AttendanceFinalizer;
 use App\Support\Roster;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -138,6 +139,13 @@ class ShiftSwapController extends Controller
             Roster::assign($tenantId, (int) $swap->requester_id, $date, $targetShift);
             Roster::assign($tenantId, (int) $swap->target_id, $date, $requesterShift);
         });
+
+        AttendanceFinalizer::recalculateRange(
+            $tenantId,
+            [(int) $swap->requester_id, (int) $swap->target_id],
+            $date->toDateString(),
+            $date->toDateString(),
+        );
     }
 
     /**
