@@ -123,12 +123,17 @@ final class AvanaNav
                     self::leaf('payroll-ter', 'Tarif TER PPh 21', 'percent', '/avana/payroll/ter', 'payroll', ['payroll']),
                     self::leaf('payroll-payday', 'Mapping Payday', 'calendar-check', '/avana/payroll/payday', 'payroll', ['payroll']),
                     self::leaf('payroll-lembur', 'Setup Lembur', 'timer', '/avana/payroll/lembur', 'payroll', ['payroll']),
-                    // Perhitungan Hari, Koreksi Gaji, Rapel Gaji, Sales Order,
-                    // Jurnal Akuntansi and Anggaran are hidden for now at the
-                    // client's request: the menu is trimmed to the screens the
-                    // payroll setup documentation describes. The pages and
-                    // their routes still work for anyone holding the link;
-                    // only the menu entries are withdrawn.
+                    // Perhitungan Hari, Koreksi Gaji, Rapel Gaji and Sales
+                    // Order are hidden for now at the client's request: the
+                    // menu is trimmed to the screens the payroll setup
+                    // documentation describes. Their routes stay gated by the
+                    // `payroll` leaf above (longest-prefix match on
+                    // /avana/payroll). Jurnal and Anggaran live on their own
+                    // paths, so they keep inactive rows below — like `klaim` —
+                    // or their routes would be left ungated and their feature
+                    // toggles would switch nothing.
+                    self::leaf('jurnal', 'Jurnal Akuntansi', 'book-open', '/avana/jurnal', 'journal', ['journal'], isActive: false),
+                    self::leaf('anggaran', 'Anggaran (Budget)', 'piggy-bank', '/avana/anggaran', 'budget', ['budget'], isActive: false),
                 ]),
                 self::parent('finance', 'Finance', 'receipt', [
                     self::leaf('reimbursement', 'Reimbursement', 'receipt', '/avana/reimbursement', 'reimbursement', ['claim']),

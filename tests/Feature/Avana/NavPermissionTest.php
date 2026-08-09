@@ -62,7 +62,10 @@ it('always shows every menu to an HR admin and hides platform items', function (
     // HR admin holds all non-tenant modules → sees enterprise menus…
     expect($ids)->toContain('crm');
     expect($ids)->toContain('kinerja');
-    expect($ids)->toContain('jurnal');
+    expect($ids)->toContain('reimbursement');
+    // …except the ones trimmed from the default menu at the client's request
+    // (kept as inactive rows so their routes stay gated)…
+    expect($ids)->not->toContain('jurnal');
     // …but platform (super-admin only) stays hidden.
     expect($ids)->not->toContain('klien');
     expect($ids)->not->toContain('billing');

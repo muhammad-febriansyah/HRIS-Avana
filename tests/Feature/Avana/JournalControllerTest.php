@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\JournalEntry;
+use App\Models\MenuItem;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\Role;
@@ -17,6 +18,11 @@ beforeEach(function (): void {
 
     $this->admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
     $this->tenant = Tenant::findOrFail($this->admin->tenant_id);
+
+    // The Jurnal menu ships switched off (trimmed from the default menu at
+    // the client's request), which also closes its routes. These tests cover
+    // a tenant that turned it back on from the Menu Builder.
+    MenuItem::forTenant($this->tenant->id)->where('key', 'jurnal')->update(['is_active' => true]);
 });
 
 /**
