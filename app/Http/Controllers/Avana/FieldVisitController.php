@@ -342,7 +342,7 @@ class FieldVisitController extends Controller
                 ->values()
                 ->all(),
             'branch' => $visit->branch?->name,
-            'visit_date' => $visit->visit_date?->format('d M Y'),
+            'visit_date' => $visit->visit_date?->translatedFormat('d M Y'),
             'location' => $visit->location,
             'client_name' => $visit->client_name,
             'purpose' => $visit->purpose,
@@ -371,13 +371,13 @@ class FieldVisitController extends Controller
     private function shapeDetail(FieldVisit $visit): array
     {
         return array_merge($this->shapeVisit($visit), [
-            'created_at' => $visit->created_at?->format('d M Y H:i'),
+            'created_at' => $visit->created_at?->translatedFormat('d M Y H:i'),
             'tasks' => $visit->tasks
                 ->map(fn (FieldVisitTask $task): array => [
                     'id' => $task->id,
                     'title' => $task->title,
                     'is_done' => $task->is_done,
-                    'done_at' => $task->done_at?->format('d M Y H:i'),
+                    'done_at' => $task->done_at?->translatedFormat('d M Y H:i'),
                     'photo_note' => $task->photo_note,
                     'before_photo_url' => $task->before_photo_path !== null
                         ? PrivateFile::urlFor($task->before_photo_path)

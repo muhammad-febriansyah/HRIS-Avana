@@ -120,7 +120,7 @@ class AuditController extends Controller
             'user' => $log->user?->name,
             'ip_address' => $log->ip_address,
             'changes' => $changed,
-            'created_at' => $log->created_at?->format('d M Y, H:i'),
+            'created_at' => $log->created_at?->translatedFormat('d M Y, H:i'),
         ];
     }
 

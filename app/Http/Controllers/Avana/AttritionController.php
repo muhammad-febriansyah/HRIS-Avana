@@ -123,7 +123,7 @@ class AttritionController extends Controller
                 'position' => $employee->position?->name,
                 'job_level' => $employee->jobLevel?->name,
                 'manager' => $employee->manager?->full_name,
-                'join_date' => $employee->join_date?->format('d M Y'),
+                'join_date' => $employee->join_date?->translatedFormat('d M Y'),
                 'initials' => $this->initials($employee->full_name),
                 'avatar_color' => $this->avatarColor($employee->full_name),
             ],

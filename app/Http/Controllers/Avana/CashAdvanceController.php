@@ -143,10 +143,10 @@ class CashAdvanceController extends Controller
 
         return Inertia::render('avana/kasbon/show', [
             'advance' => $this->shapeAdvance($cashAdvance) + [
-                'approved_at' => $cashAdvance->approved_at?->format('d M Y H:i'),
+                'approved_at' => $cashAdvance->approved_at?->translatedFormat('d M Y H:i'),
                 'approved_by_name' => $cashAdvance->approvedBy?->name,
                 'disbursed_by_name' => $cashAdvance->disbursedBy?->name,
-                'settled_at_full' => $cashAdvance->settled_at?->format('d M Y H:i'),
+                'settled_at_full' => $cashAdvance->settled_at?->translatedFormat('d M Y H:i'),
             ],
             'disbursementMethods' => $this->disbursementMethodOptions(),
             // Whoever released the money may not sign off on how it was spent.
@@ -455,12 +455,12 @@ class CashAdvanceController extends Controller
             'employee' => $this->shapeEmployee($advance),
             'amount' => (float) $advance->amount,
             'purpose' => $advance->purpose,
-            'request_date' => $advance->request_date?->format('d M Y'),
-            'needed_date' => $advance->needed_date?->format('d M Y'),
+            'request_date' => $advance->request_date?->translatedFormat('d M Y'),
+            'needed_date' => $advance->needed_date?->translatedFormat('d M Y'),
             'reason' => $advance->reason,
             'status' => $advance->status,
             'status_label' => $this->statusLabel($advance->status),
-            'disbursed_at' => $advance->disbursed_at?->format('d M Y'),
+            'disbursed_at' => $advance->disbursed_at?->translatedFormat('d M Y'),
             'disbursement_method' => $advance->disbursement_method,
             'disbursement_method_label' => $advance->disbursement_method === null
                 ? null
@@ -468,7 +468,7 @@ class CashAdvanceController extends Controller
             'disbursement_reference' => $advance->disbursement_reference,
             'approved_by' => $advance->approved_by,
             'disbursed_by' => $advance->disbursed_by,
-            'settled_at' => $advance->settled_at?->format('d M Y'),
+            'settled_at' => $advance->settled_at?->translatedFormat('d M Y'),
             'settled_by_name' => $advance->settledBy?->name,
             'spent_amount' => $advance->spent_amount === null ? null : (float) $advance->spent_amount,
             'returned_amount' => (float) $advance->returned_amount,

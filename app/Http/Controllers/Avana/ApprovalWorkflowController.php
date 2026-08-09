@@ -312,7 +312,7 @@ class ApprovalWorkflowController extends Controller
             'step_count' => $workflow->steps_count,
             'is_active' => (bool) $workflow->is_active,
             'conditions' => $workflow->conditions ?? [],
-            'updated_at' => $workflow->updated_at?->format('d M Y H:i'),
+            'updated_at' => $workflow->updated_at?->translatedFormat('d M Y H:i'),
             'steps' => $workflow->steps->map(fn (ApprovalStep $step): array => [
                 'step_order' => $step->step_order,
                 'approver_type' => $step->approver_type,

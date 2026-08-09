@@ -404,7 +404,7 @@ class ReimbursementController extends Controller
             'category_label' => $reimbursement->categoryLabel(),
             'title' => $reimbursement->title,
             'amount' => (float) $reimbursement->amount,
-            'expense_date' => $reimbursement->expense_date?->format('d M Y'),
+            'expense_date' => $reimbursement->expense_date?->translatedFormat('d M Y'),
             'description' => $reimbursement->description,
             'receipt_url' => $this->receiptUrl($reimbursement),
             'status' => $reimbursement->status,
@@ -414,9 +414,9 @@ class ReimbursementController extends Controller
             'approver' => $reimbursement->approver?->name,
             // The approver may not also release the payout.
             'self_approved' => (int) $reimbursement->approver_id === $viewerId,
-            'approved_at' => $reimbursement->approved_at?->format('d M Y H:i'),
+            'approved_at' => $reimbursement->approved_at?->translatedFormat('d M Y H:i'),
             'paid_by' => $reimbursement->paidBy?->name,
-            'paid_at' => $reimbursement->paid_at?->format('d M Y H:i'),
+            'paid_at' => $reimbursement->paid_at?->translatedFormat('d M Y H:i'),
             'payment_method_label' => $reimbursement->payment_method === null
                 ? null
                 : (self::PAYMENT_METHODS[$reimbursement->payment_method] ?? $reimbursement->payment_method),

@@ -377,7 +377,7 @@ it('aggregates the monitor across a date_from..date_to range', function (): void
             ->where('kpis.on_time', 1)
             ->where('kpis.late', 1)
             // Feed rows carry a day tag when the range spans multiple days.
-            ->where('activity.0.date', '16 Aug')
+            ->where('activity.0.date', '16 Agt')
             ->has('activity', 2)
             ->etc());
 });

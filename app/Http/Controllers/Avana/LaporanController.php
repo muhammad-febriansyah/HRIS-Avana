@@ -163,7 +163,7 @@ class LaporanController extends Controller
             'subtitle' => $this->periodSubtitle($type, $request),
             'headings' => $header,
             'rows' => $rows,
-            'generatedAt' => Carbon::now()->format('d M Y H:i'),
+            'generatedAt' => Carbon::now()->translatedFormat('d M Y H:i'),
         ])->setPaper('a4', 'landscape')->download($base.'.pdf');
     }
 

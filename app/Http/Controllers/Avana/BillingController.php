@@ -324,7 +324,7 @@ class BillingController extends Controller
         ];
 
         $periodLabel = $invoice->period_start && $invoice->period_end
-            ? $invoice->period_start->format('d M Y').' – '.$invoice->period_end->format('d M Y')
+            ? $invoice->period_start->translatedFormat('d M Y').' – '.$invoice->period_end->translatedFormat('d M Y')
             : null;
 
         $pdf = Pdf::loadView('pdf.invoice', [
@@ -334,8 +334,8 @@ class BillingController extends Controller
                 'notes' => $invoice->notes,
             ],
             'statusLabel' => $statusLabels[$invoice->status] ?? $invoice->status,
-            'issueDate' => $invoice->issue_date?->format('d M Y') ?? '-',
-            'dueDate' => $invoice->due_date?->format('d M Y') ?? '-',
+            'issueDate' => $invoice->issue_date?->translatedFormat('d M Y') ?? '-',
+            'dueDate' => $invoice->due_date?->translatedFormat('d M Y') ?? '-',
             'periodLabel' => $periodLabel,
         ])->setPaper('a4');
 

@@ -162,8 +162,8 @@ class EssDataChangeController extends Controller
             'status' => $row->status,
             'status_label' => self::STATUS_LABELS[$row->status] ?? $row->status,
             'rejection_reason' => $row->rejection_reason,
-            'requested_at' => $row->created_at?->format('d M Y H:i'),
-            'decided_at' => $row->decided_at?->format('d M Y H:i'),
+            'requested_at' => $row->created_at?->translatedFormat('d M Y H:i'),
+            'decided_at' => $row->decided_at?->translatedFormat('d M Y H:i'),
             'approver' => $row->approver_id === null
                 ? null
                 : Employee::query()->where('user_id', $row->approver_id)->value('full_name'),

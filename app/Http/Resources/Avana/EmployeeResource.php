@@ -90,7 +90,7 @@ final class EmployeeResource extends JsonResource
             'phone' => $this->phone,
             'nik' => $this->nik,
             'gender' => $this->gender,
-            'birth_date' => $this->birth_date?->format('d M Y'),
+            'birth_date' => $this->birth_date?->translatedFormat('d M Y'),
             'birth_date_raw' => $this->birth_date?->format('Y-m-d'),
             'birth_place' => $this->birth_place,
             'religion' => $this->religion,
@@ -98,7 +98,7 @@ final class EmployeeResource extends JsonResource
             'address' => $this->address,
             'employment_status' => $this->employment_status,
             'employment_label' => self::EMPLOYMENT_LABELS[$this->employment_status] ?? $this->employment_status,
-            'join_date' => $this->join_date?->format('d M Y'),
+            'join_date' => $this->join_date?->translatedFormat('d M Y'),
             'join_date_raw' => $this->join_date?->format('Y-m-d'),
             'status' => $this->status,
             'status_label' => self::STATUS_LABELS[$this->status] ?? $this->status,
@@ -155,8 +155,8 @@ final class EmployeeResource extends JsonResource
                     'id' => $contract->id,
                     'contract_number' => $contract->contract_number,
                     'contract_type' => $contract->contract_type,
-                    'start_date' => $contract->start_date?->format('d M Y'),
-                    'end_date' => $contract->end_date?->format('d M Y'),
+                    'start_date' => $contract->start_date?->translatedFormat('d M Y'),
+                    'end_date' => $contract->end_date?->translatedFormat('d M Y'),
                     'start_date_raw' => $contract->start_date?->format('Y-m-d'),
                     'end_date_raw' => $contract->end_date?->format('Y-m-d'),
                     'status' => $contract->status,
@@ -169,7 +169,7 @@ final class EmployeeResource extends JsonResource
             'held_assets' => $this->whenLoaded('assetAssignments', fn () => $this->assetAssignments
                 ->map(fn (AssetAssignment $assignment): array => [
                     'id' => $assignment->id,
-                    'assigned_date' => $assignment->assigned_date?->format('d M Y'),
+                    'assigned_date' => $assignment->assigned_date?->translatedFormat('d M Y'),
                     'notes' => $assignment->condition_note,
                     'asset' => $assignment->asset === null ? null : [
                         'id' => $assignment->asset->id,
@@ -191,7 +191,7 @@ final class EmployeeResource extends JsonResource
                         ? mb_strtolower(pathinfo($document->file_path, PATHINFO_EXTENSION))
                         : null,
                     'size_label' => self::fileSize($document->file_size),
-                    'uploaded_at' => $document->uploaded_at?->format('d M Y'),
+                    'uploaded_at' => $document->uploaded_at?->translatedFormat('d M Y'),
                     'download_url' => $document->file_path !== null
                         ? PrivateFile::urlFor($document->file_path)
                         : null,
@@ -255,14 +255,14 @@ final class EmployeeResource extends JsonResource
         }
 
         if ($end === null || $start->isSameDay($end)) {
-            return $start->format('d M Y');
+            return $start->translatedFormat('d M Y');
         }
 
         if ($start->isSameMonth($end)) {
-            return $start->format('d').'–'.$end->format('d M Y');
+            return $start->format('d').'–'.$end->translatedFormat('d M Y');
         }
 
-        return $start->format('d M Y').' – '.$end->format('d M Y');
+        return $start->translatedFormat('d M Y').' – '.$end->translatedFormat('d M Y');
     }
 
     /**

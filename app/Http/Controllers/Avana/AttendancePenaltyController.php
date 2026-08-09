@@ -275,7 +275,7 @@ class AttendancePenaltyController extends Controller
                 'initials' => $this->initials($employee->full_name),
                 'avatar_color' => $this->avatarColor($employee->full_name),
             ],
-            'date' => $date->format('d M Y'),
+            'date' => $date->translatedFormat('d M Y'),
             'date_raw' => $date->format('Y-m-d'),
             'violation_type' => $penalty->violation_type,
             'penalty_type' => $penalty->penalty_type,

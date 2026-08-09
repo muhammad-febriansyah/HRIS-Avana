@@ -339,8 +339,8 @@ class DashboardController extends Controller
         }
 
         return [
-            'start' => $leave->start_date->format('d M'),
-            'end' => ($leave->end_date ?? $leave->start_date)->format('d M'),
+            'start' => $leave->start_date->translatedFormat('d M'),
+            'end' => ($leave->end_date ?? $leave->start_date)->translatedFormat('d M'),
         ];
     }
 
@@ -359,7 +359,7 @@ class DashboardController extends Controller
                 'id' => $document->id,
                 'name' => $document->name,
                 'meta' => trim(implode(' · ', array_filter([
-                    $document->uploaded_at?->format('d M Y'),
+                    $document->uploaded_at?->translatedFormat('d M Y'),
                     $this->humanBytes($document->file_size),
                 ]))),
                 'extension' => $document->file_path !== null
@@ -394,7 +394,7 @@ class DashboardController extends Controller
                 'id' => $colleague->id,
                 'name' => $colleague->full_name,
                 'role' => $colleague->position?->name ?? $colleague->department?->name,
-                'join_date' => $colleague->join_date?->format('d M Y'),
+                'join_date' => $colleague->join_date?->translatedFormat('d M Y'),
                 'photo_url' => $colleague->photo_path !== null
                     ? PrivateFile::urlFor($colleague->photo_path)
                     : null,
@@ -522,7 +522,7 @@ class DashboardController extends Controller
                 'id' => $person->id,
                 'name' => $person->full_name,
                 'is_self' => $person->id === $employeeId,
-                'date' => $person->birth_date->format('d M'),
+                'date' => $person->birth_date->translatedFormat('d M'),
                 'is_today' => $person->birth_date->format('m-d') === $today->format('m-d'),
                 'photo_url' => $person->photo_path !== null
                     ? PrivateFile::urlFor($person->photo_path)

@@ -130,7 +130,7 @@ class LeaveController extends Controller
                 ->map(fn (OvertimeRequest $overtime): array => [
                     'id' => $overtime->id,
                     'employee' => $this->shapeEmployee($overtime),
-                    'date' => $overtime->date?->format('d M Y'),
+                    'date' => $overtime->date?->translatedFormat('d M Y'),
                     'day_type' => OvertimeRules::normaliseDayType($overtime->day_type),
                     'day_type_label' => OvertimeRules::DAY_TYPES[OvertimeRules::normaliseDayType($overtime->day_type)],
                     'hours' => (float) $overtime->hours,
@@ -153,8 +153,8 @@ class LeaveController extends Controller
                 ->map(fn (PermissionRequest $permission): array => [
                     'id' => $permission->id,
                     'employee' => $this->shapeEmployee($permission),
-                    'start_date' => $permission->start_date?->format('d M Y'),
-                    'end_date' => $permission->end_date?->format('d M Y'),
+                    'start_date' => $permission->start_date?->translatedFormat('d M Y'),
+                    'end_date' => $permission->end_date?->translatedFormat('d M Y'),
                     'type' => $permission->type,
                     'start_time' => $permission->start_time ? substr((string) $permission->start_time, 0, 5) : null,
                     'end_time' => $permission->end_time ? substr((string) $permission->end_time, 0, 5) : null,
@@ -170,8 +170,8 @@ class LeaveController extends Controller
                 ->map(fn (WfhRequest $wfh): array => [
                     'id' => $wfh->id,
                     'employee' => $this->shapeEmployee($wfh),
-                    'start_date' => $wfh->start_date?->format('d M Y'),
-                    'end_date' => $wfh->end_date?->format('d M Y'),
+                    'start_date' => $wfh->start_date?->translatedFormat('d M Y'),
+                    'end_date' => $wfh->end_date?->translatedFormat('d M Y'),
                     'reason' => $wfh->reason,
                     'status' => $wfh->status,
                     'status_label' => $this->statusLabel($wfh->status),

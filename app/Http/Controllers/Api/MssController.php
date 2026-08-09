@@ -442,7 +442,7 @@ class MssController extends Controller
             ->get(['status', 'work_minutes']);
 
         return [
-            'month' => now()->format('M Y'),
+            'month' => now()->translatedFormat('M Y'),
             'present' => $rows->where('status', 'present')->count(),
             'late' => $rows->where('status', 'late')->count(),
             'absent' => $rows->where('status', 'absent')->count(),
@@ -549,8 +549,8 @@ class MssController extends Controller
             'detail' => $this->detailFor($m, $type),
             'reason' => $m->reason ?? $m->description ?? null,
             'status' => $m->status,
-            'requested_at' => $m->created_at?->format('d M Y H:i'),
-            'decided_at' => $byDecidedAt ? $m->updated_at?->format('d M Y H:i') : null,
+            'requested_at' => $m->created_at?->translatedFormat('d M Y H:i'),
+            'decided_at' => $byDecidedAt ? $m->updated_at?->translatedFormat('d M Y H:i') : null,
             'sort_ts' => ($byDecidedAt ? $m->updated_at : $m->created_at)?->getTimestamp() ?? 0,
         ]);
     }
@@ -713,7 +713,7 @@ class MssController extends Controller
     {
         return match ($type) {
             'leave', 'wfh' => $this->dateRange($model),
-            'lembur' => $model->date?->format('d M Y') ?? '—',
+            'lembur' => $model->date?->translatedFormat('d M Y') ?? '—',
             'izin' => $this->izinDetail($model),
             'koreksi' => $this->koreksiDetail($model),
             'reimburse' => 'Rp '.number_format((float) $model->amount, 0, ',', '.'),
@@ -724,7 +724,7 @@ class MssController extends Controller
 
     private function koreksiDetail(Model $model): string
     {
-        $date = $model->date?->format('d M Y') ?? '—';
+        $date = $model->date?->translatedFormat('d M Y') ?? '—';
         $in = $this->shortTime($model->requested_clock_in);
         $out = $this->shortTime($model->requested_clock_out);
 
@@ -749,15 +749,15 @@ class MssController extends Controller
         }
 
         if ($end === null || $end->isSameDay($start)) {
-            return $start->format('d M Y');
+            return $start->translatedFormat('d M Y');
         }
 
-        return $start->format('d M Y').' – '.$end->format('d M Y');
+        return $start->translatedFormat('d M Y').' – '.$end->translatedFormat('d M Y');
     }
 
     private function izinDetail(Model $model): string
     {
-        $date = $model->date?->format('d M Y') ?? '—';
+        $date = $model->date?->translatedFormat('d M Y') ?? '—';
         $start = $this->shortTime($model->start_time);
         $end = $this->shortTime($model->end_time);
 

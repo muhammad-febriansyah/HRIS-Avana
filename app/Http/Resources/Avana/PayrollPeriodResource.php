@@ -51,9 +51,9 @@ final class PayrollPeriodResource extends JsonResource
             'periode' => $this->name,
             'cycle' => $this->cycle ?? 'monthly',
             'cycle_label' => self::CYCLE_LABELS[$this->cycle ?? 'monthly'] ?? ($this->cycle ?? 'monthly'),
-            'mulai' => $this->start_date?->format('d M Y'),
-            'selesai' => $this->end_date?->format('d M Y'),
-            'bayar' => $this->pay_date?->format('d M Y'),
+            'mulai' => $this->start_date?->translatedFormat('d M Y'),
+            'selesai' => $this->end_date?->translatedFormat('d M Y'),
+            'bayar' => $this->pay_date?->translatedFormat('d M Y'),
             'karyawan' => (int) ($latestRun?->employee_count
                 ?? ($this->relationLoaded('runs') ? $this->runs->sum('employee_count') : 0)),
             'netR' => self::rupiah($latestRun?->total_net ?? 0),

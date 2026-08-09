@@ -62,7 +62,7 @@ class RemindExpiringContracts extends Command
                     'type' => 'contract_expiring',
                     'title' => 'Kontrak akan berakhir',
                     'body' => 'Kontrak '.($contract->employee?->full_name ?? 'karyawan').
-                        ' berakhir pada '.$contract->end_date->format('d M Y').'.',
+                        ' berakhir pada '.$contract->end_date->translatedFormat('d M Y').'.',
                     'data' => [
                         'contract_id' => $contract->id,
                         'employee_id' => $contract->employee_id,

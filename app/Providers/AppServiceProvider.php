@@ -30,6 +30,7 @@ use App\Observers\TenantObserver;
 use App\Policies\PayrollPolicy;
 use App\Support\GeneratedImageBag;
 use App\Support\SubscriptionStatusCache;
+use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -169,6 +170,11 @@ class AppServiceProvider extends ServiceProvider
     protected function configureDefaults(): void
     {
         Date::use(CarbonImmutable::class);
+
+        // Laravel does not pass the app locale on to Carbon by itself; without
+        // this, translatedFormat() would keep printing English month names
+        // inside an Indonesian UI.
+        Carbon::setLocale(config('app.locale'));
 
         DB::prohibitDestructiveCommands(
             app()->isProduction(),

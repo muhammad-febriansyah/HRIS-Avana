@@ -210,7 +210,7 @@ final class SubscriptionRenewalService
 
         $invoice->items()->create([
             'description' => 'Langganan '.$order->package_name.' — '.$order->months.' bulan ('
-                .$start->format('d M Y').' – '.$end->format('d M Y').')',
+                .$start->translatedFormat('d M Y').' – '.$end->translatedFormat('d M Y').')',
             'quantity' => 1,
             'unit_price' => $order->amount,
             'amount' => $order->amount,

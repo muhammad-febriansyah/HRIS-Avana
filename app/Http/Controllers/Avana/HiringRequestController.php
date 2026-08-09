@@ -342,7 +342,7 @@ class HiringRequestController extends Controller
             'status' => $r->status,
             'vacancy' => $r->totalVacancy(),
             'requisitions_count' => $r->requisitions_count,
-            'created_at' => $r->created_at?->format('d M Y'),
+            'created_at' => $r->created_at?->translatedFormat('d M Y'),
             'items' => $r->items->map(fn (HiringRequestItem $i): array => [
                 'id' => $i->id,
                 'position_id' => $i->position_id,

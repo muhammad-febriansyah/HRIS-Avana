@@ -633,7 +633,7 @@ class SettlementController extends Controller
                 ? null
                 : (Settlement::ITEM_CATEGORIES[$settlement->category] ?? $settlement->category),
             'department' => $settlement->department,
-            'submission_date' => $settlement->submission_date?->format('d M Y'),
+            'submission_date' => $settlement->submission_date?->translatedFormat('d M Y'),
             'subtotal' => (float) $settlement->subtotal,
             'tax_amount' => (float) $settlement->tax_amount,
             'total' => (float) $settlement->total,
@@ -649,20 +649,20 @@ class SettlementController extends Controller
             $shaped['notes'] = $settlement->notes;
             $shaped['rejection_reason'] = $settlement->rejection_reason;
             $shaped['manager_approved_by'] = $settlement->managerApprover?->name;
-            $shaped['manager_approved_at'] = $settlement->manager_approved_at?->format('d M Y H:i');
+            $shaped['manager_approved_at'] = $settlement->manager_approved_at?->translatedFormat('d M Y H:i');
             $shaped['finance_verified_by'] = $settlement->financeVerifier?->name;
-            $shaped['paid_at'] = $settlement->paid_at?->format('d M Y H:i');
+            $shaped['paid_at'] = $settlement->paid_at?->translatedFormat('d M Y H:i');
             $shaped['payment_method_label'] = $settlement->payment_method === null
                 ? null
                 : (self::PAYMENT_METHODS[$settlement->payment_method] ?? $settlement->payment_method);
             $shaped['payment_reference'] = $settlement->payment_reference;
             $shaped['rejected_by'] = $settlement->rejecter?->name;
-            $shaped['rejected_at'] = $settlement->rejected_at?->format('d M Y H:i');
+            $shaped['rejected_at'] = $settlement->rejected_at?->translatedFormat('d M Y H:i');
             $shaped['fraud_level'] = $settlement->fraud_level;
-            $shaped['fraud_checked_at'] = $settlement->fraud_checked_at?->format('d M Y H:i');
+            $shaped['fraud_checked_at'] = $settlement->fraud_checked_at?->translatedFormat('d M Y H:i');
             $shaped['destination'] = $settlement->destination;
-            $shaped['trip_start_date'] = $settlement->trip_start_date?->format('d M Y');
-            $shaped['trip_end_date'] = $settlement->trip_end_date?->format('d M Y');
+            $shaped['trip_start_date'] = $settlement->trip_start_date?->translatedFormat('d M Y');
+            $shaped['trip_end_date'] = $settlement->trip_end_date?->translatedFormat('d M Y');
             $shaped['trip_days'] = $settlement->tripDays();
             $shaped['destination_latitude'] = $settlement->destination_latitude !== null
                 ? (float) $settlement->destination_latitude
@@ -708,7 +708,7 @@ class SettlementController extends Controller
                     'extracted_amount' => isset($vision['amount']) ? (float) $vision['amount'] : null,
                     'extracted_vendor' => $vision['vendor'] ?? null,
                     'vision_summary' => $vision['summary'] ?? null,
-                    'analyzed_at' => $attachment->analyzed_at?->format('d M Y H:i'),
+                    'analyzed_at' => $attachment->analyzed_at?->translatedFormat('d M Y H:i'),
                 ];
             })
             ->all();

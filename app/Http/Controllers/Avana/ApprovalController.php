@@ -394,7 +394,7 @@ class ApprovalController extends Controller
                 $model instanceof DutyTravel => $model->purpose,
                 default => $model->reason,
             },
-            'requested_at' => $model->created_at?->format('d M Y H:i'),
+            'requested_at' => $model->created_at?->translatedFormat('d M Y H:i'),
             'status' => $model->status,
             'status_label' => self::STATUS_LABELS[$model->status] ?? $model->status,
             'sort_ts' => $model->created_at?->getTimestamp() ?? 0,
@@ -426,7 +426,7 @@ class ApprovalController extends Controller
     {
         return match ($type) {
             'leave', 'wfh', 'dinas' => $this->dateRange($model->start_date, $model->end_date),
-            'lembur' => $model->date?->format('d M Y') ?? '—',
+            'lembur' => $model->date?->translatedFormat('d M Y') ?? '—',
             'izin' => $this->izinDetail($model),
             'koreksi' => $this->koreksiDetail($model),
             'klaim' => $this->klaimDetail($model),
@@ -464,7 +464,7 @@ class ApprovalController extends Controller
      */
     private function klaimDetail(Model $model): string
     {
-        $date = $model->expense_date?->format('d M Y') ?? '—';
+        $date = $model->expense_date?->translatedFormat('d M Y') ?? '—';
 
         return $date.' · Rp '.number_format((float) $model->amount, 0, ',', '.');
     }
@@ -478,13 +478,13 @@ class ApprovalController extends Controller
             return '—';
         }
 
-        $startLabel = $start->format('d M Y');
+        $startLabel = $start->translatedFormat('d M Y');
 
         if ($end === null || $end->isSameDay($start)) {
             return $startLabel;
         }
 
-        return $startLabel.' – '.$end->format('d M Y');
+        return $startLabel.' – '.$end->translatedFormat('d M Y');
     }
 
     /**
@@ -492,7 +492,7 @@ class ApprovalController extends Controller
      */
     private function izinDetail(Model $model): string
     {
-        $date = $model->date?->format('d M Y') ?? '—';
+        $date = $model->date?->translatedFormat('d M Y') ?? '—';
         $start = $this->shortTime($model->start_time);
         $end = $this->shortTime($model->end_time);
 
@@ -508,7 +508,7 @@ class ApprovalController extends Controller
      */
     private function koreksiDetail(Model $model): string
     {
-        $date = $model->date?->format('d M Y') ?? '—';
+        $date = $model->date?->translatedFormat('d M Y') ?? '—';
         $times = array_filter([
             $this->shortTime($model->requested_clock_in),
             $this->shortTime($model->requested_clock_out),

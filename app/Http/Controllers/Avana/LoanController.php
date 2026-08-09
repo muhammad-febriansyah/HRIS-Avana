@@ -209,7 +209,7 @@ class LoanController extends Controller
             'purpose' => $loan->purpose,
             'status' => $loan->status,
             'status_label' => $this->statusLabel($loan->status),
-            'approved_at' => $loan->approved_at?->format('d M Y'),
+            'approved_at' => $loan->approved_at?->translatedFormat('d M Y'),
         ];
     }
 

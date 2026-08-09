@@ -58,7 +58,7 @@ final class AttendanceResource extends JsonResource
                 'name' => $this->shift->name,
                 'label' => $this->shiftLabel($this->shift),
             ]),
-            'date' => $this->date?->format('d M Y'),
+            'date' => $this->date?->translatedFormat('d M Y'),
             'date_raw' => $this->date?->format('Y-m-d'),
             'clock_in' => $this->clock_in_at?->format('H:i') ?? '—',
             'clock_out' => $this->clock_out_at?->format('H:i') ?? '—',

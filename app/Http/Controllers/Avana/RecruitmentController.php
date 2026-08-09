@@ -1350,7 +1350,7 @@ class RecruitmentController extends Controller
                     'user_id' => $data['interviewer_id'],
                     'type' => 'interview_invitation',
                     'title' => 'Undangan wawancara',
-                    'body' => 'Wawancara dengan '.$applicant->name.' pada '.Carbon::parse($data['interview_at'])->format('d M Y H:i'),
+                    'body' => 'Wawancara dengan '.$applicant->name.' pada '.Carbon::parse($data['interview_at'])->translatedFormat('d M Y H:i'),
                     'data' => ['applicant_id' => $applicant->id],
                 ]);
             } catch (\Throwable) {
@@ -1360,7 +1360,7 @@ class RecruitmentController extends Controller
         $this->mailCandidate(
             $applicant->email,
             'Undangan Wawancara',
-            "Halo {$applicant->name},\n\nAnda dijadwalkan wawancara pada ".Carbon::parse($data['interview_at'])->format('d M Y H:i').".\n\nTerima kasih.",
+            "Halo {$applicant->name},\n\nAnda dijadwalkan wawancara pada ".Carbon::parse($data['interview_at'])->translatedFormat('d M Y H:i').".\n\nTerima kasih.",
         );
 
         return back()->with('success', 'Jadwal wawancara disimpan');

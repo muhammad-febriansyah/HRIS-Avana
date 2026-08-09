@@ -130,8 +130,8 @@ class AttendanceController extends Controller
                 'from' => $fromString,
                 'to' => $toString,
                 'display' => $isRange
-                    ? $from->format('d M').' – '.$to->format('d M Y')
-                    : $from->format('d M Y'),
+                    ? $from->translatedFormat('d M').' – '.$to->translatedFormat('d M Y')
+                    : $from->translatedFormat('d M Y'),
                 'is_range' => $isRange,
             ],
             'kpis' => [
@@ -213,7 +213,7 @@ class AttendanceController extends Controller
                     'branch' => $workLocation !== null ? $branch : null,
                     'time' => $a->clock_in_at?->format('H:i'),
                     // Day tag, shown only when the feed spans multiple days.
-                    'date' => $isRange ? $a->date?->format('d M') : null,
+                    'date' => $isRange ? $a->date?->translatedFormat('d M') : null,
                     'status' => (string) $a->status,
                     'status_label' => self::STATUS_LABELS[$a->status] ?? ucfirst((string) $a->status),
                 ];
@@ -248,8 +248,8 @@ class AttendanceController extends Controller
                 'from' => $fromString,
                 'to' => $toString,
                 'display' => $isRange
-                    ? $from->format('d M').' – '.$to->format('d M Y')
-                    : $from->format('d M Y'),
+                    ? $from->translatedFormat('d M').' – '.$to->translatedFormat('d M Y')
+                    : $from->translatedFormat('d M Y'),
             ],
             'filters' => [
                 'date_from' => $fromString,
@@ -342,7 +342,7 @@ class AttendanceController extends Controller
         $selfies = $attendance->selfies
             ->map(fn ($selfie): array => [
                 'url' => PrivateFile::urlFor($selfie->file_path),
-                'captured_at' => $selfie->captured_at?->format('d M Y H:i'),
+                'captured_at' => $selfie->captured_at?->translatedFormat('d M Y H:i'),
                 'coords' => $this->coords($selfie->latitude, $selfie->longitude),
             ])
             ->values()
@@ -352,7 +352,7 @@ class AttendanceController extends Controller
 
         return [
             'id' => $attendance->id,
-            'date' => $attendance->date?->format('d M Y'),
+            'date' => $attendance->date?->translatedFormat('d M Y'),
             'date_raw' => $attendance->date?->format('Y-m-d'),
             'status' => $attendance->status,
             'status_label' => self::STATUS_LABELS[$attendance->status] ?? $attendance->status,

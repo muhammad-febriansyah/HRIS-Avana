@@ -76,9 +76,11 @@ it('leaves the seeded overtime line and per-day allowances out of the basis', fu
         ->pluck('is_fixed', 'code')
         ->map(fn ($value): bool => (bool) $value);
 
+    // Transport counts as a fixed allowance per the payroll setup
+    // documentation (§8.1) — the seeder's worked basis includes it.
     expect($flags['BASIC'])->toBeTrue()
         ->and($flags['TJ-JAB'])->toBeTrue()
-        ->and($flags['TJ-TRP'])->toBeFalse()
+        ->and($flags['TJ-TRP'])->toBeTrue()
         ->and($flags['TJ-MKN'])->toBeFalse()
         ->and($flags['POT-KOP'])->toBeFalse();
 });

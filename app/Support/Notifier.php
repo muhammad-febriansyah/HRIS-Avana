@@ -598,7 +598,7 @@ final class Notifier
      */
     public static function subscriptionExpiring(Subscription $subscription): void
     {
-        $end = $subscription->end_date?->format('d M Y') ?? '-';
+        $end = $subscription->end_date?->translatedFormat('d M Y') ?? '-';
 
         self::platformNotify(
             type: 'subscription',
