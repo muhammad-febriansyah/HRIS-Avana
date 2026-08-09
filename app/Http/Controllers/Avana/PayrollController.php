@@ -1240,8 +1240,9 @@ class PayrollController extends Controller
     }
 
     /**
-     * Build a computed sample payslip for the first active employee, falling
-     * back to a representative example when no components are configured.
+     * Build a computed sample payslip for the first active employee. Empty
+     * payroll setup stays empty; never show representative numbers as if they
+     * came from the tenant's own Master Gaji.
      *
      * @return array<string, mixed>
      */
@@ -1293,25 +1294,25 @@ class PayrollController extends Controller
                     'gross' => $this->rupiah($pay['gross']),
                     'deduction' => $this->rupiah($pay['deduction']),
                     'net' => $this->rupiah($pay['net']),
+                    'empty' => false,
+                    'message' => null,
                 ];
             }
         }
 
         return [
-            'employee' => $employee?->full_name ?? 'Contoh Karyawan',
+            'employee' => $employee?->full_name ?? 'Belum ada karyawan',
             'employee_id' => $employee?->id,
-            'earnings' => [
-                ['k' => 'Gaji Pokok', 'v' => $this->rupiah(5_000_000)],
-                ['k' => 'Tunjangan Jabatan', 'v' => $this->rupiah(1_000_000)],
-                ['k' => 'Tunjangan Transport', 'v' => $this->rupiah(500_000)],
-            ],
-            'deductions' => [
-                ['k' => 'Potongan Koperasi', 'v' => $this->rupiah(200_000)],
-                ['k' => 'BPJS (Karyawan)', 'v' => $this->rupiah(150_000)],
-            ],
-            'gross' => $this->rupiah(6_500_000),
-            'deduction' => $this->rupiah(350_000),
-            'net' => $this->rupiah(6_150_000),
+            'payslip_id' => null,
+            'earnings' => [],
+            'deductions' => [],
+            'gross' => $this->rupiah(0),
+            'deduction' => $this->rupiah(0),
+            'net' => $this->rupiah(0),
+            'empty' => true,
+            'message' => $period === null
+                ? 'Buat periode payroll dulu untuk melihat pratinjau slip.'
+                : 'Belum ada komponen gaji aktif untuk karyawan ini. Cek Master Gaji, Master Komponen, dan tanggal efektif komponen.',
         ];
     }
 

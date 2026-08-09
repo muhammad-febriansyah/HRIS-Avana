@@ -58,6 +58,8 @@ export interface Slip {
     gross: string;
     deduction: string;
     net: string;
+    empty?: boolean;
+    message?: string | null;
 }
 
 /** A single employee who received pay in the selected period. */

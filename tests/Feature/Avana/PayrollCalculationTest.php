@@ -46,11 +46,21 @@ function seedPresentDays(int $tenantId, Employee $employee, PayrollPeriod $perio
 {
     $date = $period->start_date->copy();
     for ($i = 0; $i < $days; $i++) {
-        Attendance::firstOrCreate(
-            ['tenant_id' => $tenantId, 'employee_id' => $employee->id, 'date' => $date->toDateString()],
-            ['branch_id' => $employee->branch_id, 'status' => 'present'],
-        );
-        $date->addDay();
+        $attendance = Attendance::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->whereDate('date', $date->toDateString())
+            ->first();
+
+        ($attendance ?? new Attendance([
+            'tenant_id' => $tenantId,
+            'employee_id' => $employee->id,
+            'date' => $date->toDateString(),
+        ]))->fill([
+            'branch_id' => $employee->branch_id,
+            'status' => 'present',
+        ])->save();
+
+        $date = $date->addDay();
     }
 }
 

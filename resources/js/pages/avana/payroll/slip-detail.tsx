@@ -93,6 +93,9 @@ function SlipRow({
  * check one person before running the whole payroll.
  */
 export function SlipDetail({ slip, period, employees = [] }: SlipDetailProps) {
+    const hasEarnings = slip.earnings.length > 0;
+    const hasDeductions = slip.deductions.length > 0;
+
     const previewFor = (employeeId: string) => {
         if (!employeeId) {
             return;
@@ -234,9 +237,21 @@ export function SlipDetail({ slip, period, employees = [] }: SlipDetailProps) {
                 >
                     Pendapatan
                 </div>
-                {slip.earnings.map((earning) => (
-                    <SlipRow key={earning.k} line={earning} />
-                ))}
+                {hasEarnings ? (
+                    slip.earnings.map((earning) => (
+                        <SlipRow key={earning.k} line={earning} />
+                    ))
+                ) : (
+                    <div
+                        style={{
+                            fontSize: 12.5,
+                            color: C.faint,
+                            padding: '8px 0 10px',
+                        }}
+                    >
+                        {slip.message ?? 'Belum ada pendapatan yang bisa dihitung.'}
+                    </div>
+                )}
                 <div
                     style={{
                         display: 'flex',
@@ -279,9 +294,21 @@ export function SlipDetail({ slip, period, employees = [] }: SlipDetailProps) {
                 >
                     Potongan
                 </div>
-                {slip.deductions.map((deduction) => (
-                    <SlipRow key={deduction.k} line={deduction} negative />
-                ))}
+                {hasDeductions ? (
+                    slip.deductions.map((deduction) => (
+                        <SlipRow key={deduction.k} line={deduction} negative />
+                    ))
+                ) : (
+                    <div
+                        style={{
+                            fontSize: 12.5,
+                            color: C.faint,
+                            padding: '8px 0 10px',
+                        }}
+                    >
+                        Belum ada potongan yang bisa dihitung.
+                    </div>
+                )}
                 <div
                     style={{
                         display: 'flex',

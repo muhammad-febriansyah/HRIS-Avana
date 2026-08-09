@@ -2,8 +2,11 @@
 
 use App\Http\Controllers\Avana\PayrollController;
 use App\Models\Attendance;
+use App\Models\AttendancePenalty;
+use App\Models\AttendancePenaltyRule;
 use App\Models\Employee;
 use App\Models\EmployeeSalaryComponent;
+use App\Models\Payday;
 use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
@@ -101,7 +104,10 @@ it('renders the payroll index with the expected props', function (): void {
                 ->has('deductions')
                 ->has('gross')
                 ->has('deduction')
-                ->has('net'))
+                ->has('net')
+                ->has('payslip_id')
+                ->has('empty')
+                ->has('message'))
             ->has('slip_employees')
             ->has('filters'));
 });
@@ -285,9 +291,9 @@ it('explains where each computed slip line comes from', function (): void {
 
     $slip = $response->viewData('page')['props']['slip'];
 
-    // A computed slip annotates every line with a plain-words origin; the
-    // static placeholder slip (no salary data at all) carries none.
-    if (($slip['payslip_id'] ?? null) !== null || array_key_exists('why', $slip['earnings'][0] ?? [])) {
+    // A computed slip annotates every line with a plain-words origin. Empty
+    // payroll setup must stay empty instead of falling back to sample money.
+    if (($slip['empty'] ?? false) === false) {
         foreach (array_merge($slip['earnings'], $slip['deductions']) as $line) {
             expect($line)->toHaveKey('why');
         }
@@ -296,15 +302,90 @@ it('explains where each computed slip line comes from', function (): void {
         expect($whys->isNotEmpty())->toBeTrue();
         expect($whys->first())->toContain('Master Gaji');
     } else {
-        expect($slip['earnings'])->not->toBeEmpty();
+        expect($slip['earnings'])->toBeEmpty();
+        expect($slip['deductions'])->toBeEmpty();
     }
+});
+
+it('does not show sample money when a selected employee has no payroll components', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)
+        ->where('status', 'active')
+        ->orderBy('id')
+        ->firstOrFail();
+
+    $employee->forceFill(['salary_master_id' => null])->save();
+
+    EmployeeSalaryComponent::forTenant($this->tenant->id)
+        ->where('employee_id', $employee->id)
+        ->delete();
+
+    $response = actingAs($this->admin)
+        ->get('spec-avana/payroll?slip_employee='.$employee->id)
+        ->assertOk();
+
+    $slip = $response->viewData('page')['props']['slip'];
+
+    expect($slip['employee'])->toBe($employee->full_name);
+    expect($slip['earnings'])->toBeEmpty();
+    expect($slip['deductions'])->toBeEmpty();
+    expect($slip['gross'])->toBe('Rp 0');
+    expect($slip['net'])->toBe('Rp 0');
+    expect($slip['empty'])->toBeTrue();
+    expect($slip['message'])->toContain('Belum ada komponen gaji aktif');
+});
+
+it('still previews master gaji for a legacy one-day period using payday cutoff', function (): void {
+    $tenantId = $this->tenant->id;
+    $employee = Employee::forTenant($tenantId)
+        ->where('status', 'active')
+        ->orderBy('id')
+        ->firstOrFail();
+
+    $payday = Payday::create([
+        'tenant_id' => $tenantId,
+        'name' => 'Payroll 25',
+        'code' => 'PD-25',
+        'pay_mode' => 'fixed_day',
+        'pay_day' => 25,
+        'cut_off_start_day' => 1,
+        'cut_off_end_day' => 25,
+    ]);
+
+    $employee->forceFill(['payday_id' => $payday->id])->save();
+
+    giveMasterComponent($employee, payrollComponent($tenantId, 'BASIC'), 5_000_000);
+    giveMasterComponent($employee, payrollComponent($tenantId, 'TJ-TRP'), 400_000);
+
+    $period = PayrollPeriod::create([
+        'tenant_id' => $tenantId,
+        'code' => 'MN-LEGACY-20260825',
+        'name' => 'Gaji Legacy',
+        'cycle' => 'monthly',
+        'start_date' => '2026-08-25',
+        'end_date' => '2026-08-25',
+        'pay_date' => '2026-08-25',
+        'status' => 'draft',
+    ]);
+
+    $response = actingAs($this->admin)
+        ->get('spec-avana/payroll?period='.$period->id.'&slip_employee='.$employee->id)
+        ->assertOk();
+
+    $slip = $response->viewData('page')['props']['slip'];
+
+    expect($slip['empty'])->toBeFalse();
+    $earnings = collect($slip['earnings']);
+
+    expect($earnings->contains(fn (array $line): bool => $line['k'] === 'Gaji Pokok' && $line['v'] === 'Rp 5.000.000'))->toBeTrue();
+    expect($earnings->contains(fn (array $line): bool => $line['k'] === 'Tunjangan Transport' && $line['v'] === 'Rp 400.000'))->toBeTrue();
+    expect($slip['gross'])->toBe('Rp 5.400.000');
 });
 
 it('applies the late-fine table to everyone at run time, no manual generate', function (): void {
     $employee = Employee::forTenant($this->tenant->id)->orderBy('id')->firstOrFail();
     $period = PayrollPeriod::forTenant($this->tenant->id)->firstOrFail();
 
-    App\Models\AttendancePenaltyRule::create([
+    AttendancePenaltyRule::create([
         'tenant_id' => $this->tenant->id,
         'violation_type' => 'late',
         'min_minutes' => 10,
@@ -325,7 +406,7 @@ it('applies the late-fine table to everyone at run time, no manual generate', fu
     // No "Buat dari Absensi" click — the run itself must fine the lateness.
     actingAs($this->admin)->post('spec-avana/payroll/run')->assertSessionHas('success');
 
-    $penalty = App\Models\AttendancePenalty::forTenant($this->tenant->id)
+    $penalty = AttendancePenalty::forTenant($this->tenant->id)
         ->where('employee_id', $employee->id)
         ->where('penalty_type', 'deduction')
         ->firstOrFail();

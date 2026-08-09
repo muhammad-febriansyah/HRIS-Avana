@@ -112,5 +112,5 @@ it('exports the team recap as a csv', function (): void {
     $csv = $res->streamedContent();
     expect($csv)->toContain('Hadir');
     expect($csv)->toContain('Terlambat');
-    expect($csv)->toContain($this->sub->employee_number.',1,2,1,0,0,0,23.2,45');
+    expect($csv)->toContain($this->sub->employee_number.',1,2,1,0,0,0,0,23.2,45');
 });

@@ -112,7 +112,7 @@ it('does not swap twice when an approved swap is approved again', function (): v
     expect(rosteredShift($this, $this->bob))->toBe('Shift Pagi');
 });
 
-it('keeps an approved correction late when the corrected time is late', function (): void {
+it('keeps the late minutes on an incomplete corrected attendance', function (): void {
     ShiftSchedule::create(['tenant_id' => $this->tenant->id, 'employee_id' => $this->alice->id, 'date' => $this->date, 'shift_id' => $this->pagi->id]);
 
     $attendance = Attendance::create([
@@ -139,13 +139,13 @@ it('keeps an approved correction late when the corrected time is late', function
 
     $fresh = $attendance->fresh();
 
-    // 09:30 against an 08:00 shift is still late — 90 minutes, not "present".
-    expect($fresh->status)->toBe('late');
+    // One punch remains incomplete, while its 09:30 arrival is still 90 minutes late.
+    expect($fresh->status)->toBe('incomplete');
     expect((int) $fresh->late_minutes)->toBe(90);
     expect((int) $fresh->shift_id)->toBe($this->pagi->id);
 });
 
-it('clears the lateness when the corrected time is inside the shift', function (): void {
+it('clears the lateness on an incomplete correction inside the shift', function (): void {
     ShiftSchedule::create(['tenant_id' => $this->tenant->id, 'employee_id' => $this->alice->id, 'date' => $this->date, 'shift_id' => $this->pagi->id]);
 
     $attendance = Attendance::create([
@@ -172,7 +172,7 @@ it('clears the lateness when the corrected time is inside the shift', function (
 
     $fresh = $attendance->fresh();
 
-    expect($fresh->status)->toBe('present');
+    expect($fresh->status)->toBe('incomplete');
     expect((int) $fresh->late_minutes)->toBe(0);
 });
 
