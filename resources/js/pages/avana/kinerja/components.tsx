@@ -102,6 +102,7 @@ const REVIEW_STATUS_COLORS: Record<string, [string, string]> = {
     pending: [C.muted, 'rgba(107,114,128,.12)'],
     self_review: [C.sky, 'rgba(110,155,230,.15)'],
     manager_review: [C.amber, 'rgba(217,119,6,.1)'],
+    calibration: [C.violet, 'rgba(124,58,237,.1)'],
     completed: [C.green, 'rgba(22,163,74,.1)'],
 };
 

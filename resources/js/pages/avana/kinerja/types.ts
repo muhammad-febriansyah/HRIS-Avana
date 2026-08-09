@@ -140,6 +140,7 @@ export const REVIEW_STATUS_OPTIONS: SelectOption[] = [
     { value: 'pending', label: 'Menunggu' },
     { value: 'self_review', label: 'Penilaian Mandiri' },
     { value: 'manager_review', label: 'Penilaian Atasan' },
+    { value: 'calibration', label: 'Kalibrasi' },
     { value: 'completed', label: 'Selesai' },
 ];
 
