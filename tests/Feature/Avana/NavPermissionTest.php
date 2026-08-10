@@ -62,10 +62,14 @@ it('always shows every menu to an HR admin and hides platform items', function (
     // HR admin holds all non-tenant modules → sees enterprise menus…
     expect($ids)->toContain('crm');
     expect($ids)->toContain('kinerja');
-    expect($ids)->toContain('jurnal');
+    expect($ids)->toContain('rekrutmen');
     // …but platform (super-admin only) stays hidden.
     expect($ids)->not->toContain('klien');
     expect($ids)->not->toContain('billing');
+    // …and so does a menu the client asked to withdraw: permissions do not
+    // bring back a screen that was switched off, for anyone.
+    expect($ids)->not->toContain('jurnal');
+    expect($ids)->not->toContain('payroll-sales-order');
 });
 
 it('shows platform menus to a super admin', function (): void {

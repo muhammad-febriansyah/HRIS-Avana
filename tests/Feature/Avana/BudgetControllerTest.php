@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Budget;
+use App\Models\MenuItem;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Tenant;
@@ -16,6 +17,10 @@ beforeEach(function (): void {
 
     $this->admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
     $this->tenant = Tenant::findOrFail($this->admin->tenant_id);
+
+    // The menu was withdrawn from the sidebar, and a hidden leaf closes its
+    // route. The screen itself still works, so the tenant switches it back on.
+    MenuItem::forTenant($this->tenant->id)->where('key', 'anggaran')->update(['is_active' => true]);
 });
 
 it('renders the budget index with the expected props', function (): void {

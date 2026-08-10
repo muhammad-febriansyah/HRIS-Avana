@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Avana\PayrollController;
 use App\Models\Employee;
+use App\Models\MenuItem;
 use App\Models\PayrollCorrection;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
@@ -19,6 +20,10 @@ beforeEach(function (): void {
 
     $this->admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
     $this->tenant = Tenant::findOrFail($this->admin->tenant_id);
+
+    // The menu was withdrawn from the sidebar, and a hidden leaf closes its
+    // route. The screen itself still works, so the tenant switches it back on.
+    MenuItem::forTenant($this->tenant->id)->where('key', 'payroll-koreksi')->update(['is_active' => true]);
     $this->period = PayrollPeriod::forTenant($this->tenant->id)->orderByDesc('start_date')->firstOrFail();
     $this->employee = Employee::forTenant($this->tenant->id)->whereNotNull('position_id')->orderBy('id')->firstOrFail();
 

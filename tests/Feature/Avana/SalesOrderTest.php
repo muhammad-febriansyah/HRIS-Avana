@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\LeaveType;
+use App\Models\MenuItem;
 use App\Models\SalaryMaster;
 use App\Models\SalesOrder;
 use App\Models\Shift;
@@ -17,6 +18,10 @@ beforeEach(function (): void {
 
     $this->admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
     $this->tenant = Tenant::findOrFail($this->admin->tenant_id);
+
+    // The menu was withdrawn from the sidebar, and a hidden leaf closes its
+    // route. The screen itself still works, so the tenant switches it back on.
+    MenuItem::forTenant($this->tenant->id)->where('key', 'payroll-sales-order')->update(['is_active' => true]);
 
     $this->master = SalaryMaster::create([
         'tenant_id' => $this->tenant->id, 'code' => 'MG-SO', 'category' => 'Organik', 'is_active' => true,
