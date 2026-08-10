@@ -55,7 +55,7 @@
             position: relative; background: #fff; border: 1px solid rgba(26,35,51,.06); border-radius: 20px;
             padding: 38px 34px 32px; box-shadow: 0 4px 16px rgba(15,26,58,.045);
         }
-        .brand { height: 52px; max-width: 220px; margin: 0 auto 24px; display: block; object-fit: contain; }
+        .brand { height: 76px; max-width: 300px; margin: 0 auto 24px; display: block; object-fit: contain; }
         .brand-text {
             font-size: 17px; font-weight: 700; letter-spacing: .08em; color: #2F54C9; margin-bottom: 24px;
         }

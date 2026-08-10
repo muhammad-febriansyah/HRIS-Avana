@@ -150,8 +150,8 @@ export default function ErrorPage({ status }: { status: number }) {
                                 src={website.logo_url}
                                 alt={website.site_name ?? 'AvanaHR'}
                                 style={{
-                                    height: 52,
-                                    maxWidth: 220,
+                                    height: 76,
+                                    maxWidth: 300,
                                     margin: '0 auto 24px',
                                     display: 'block',
                                     objectFit: 'contain',
