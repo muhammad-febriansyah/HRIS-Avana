@@ -172,6 +172,12 @@ class AttendanceController extends Controller
             'is_dev_mode' => ['nullable', 'boolean'],
             'integrity_token' => ['nullable', 'string', 'max:8192'],
             'device_id' => ['nullable', 'string', 'max:191'],
+            // Recorded on the face log so a punch's verdict can be traced to
+            // the phone that produced it.
+            'platform' => ['nullable', 'string', 'max:20'],
+            'os_version' => ['nullable', 'string', 'max:60'],
+            'device_model' => ['nullable', 'string', 'max:120'],
+            'app_version' => ['nullable', 'string', 'max:30'],
             'nonce' => ['nullable', 'string', 'max:64'],
             // Original clock time for entries queued offline and synced later,
             // bounded to the same day. Past-day fixes go through the attendance
