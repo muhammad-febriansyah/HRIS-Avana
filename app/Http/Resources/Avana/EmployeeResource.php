@@ -18,6 +18,21 @@ use Illuminate\Http\Resources\Json\JsonResource;
 final class EmployeeResource extends JsonResource
 {
     /**
+     * Relations holding fields the employee form writes but the employees table
+     * does not store.
+     *
+     * A page that renders one employee must load all of them. The resource drops
+     * the key of a relation that was never loaded, so a page that forgets one
+     * shows those boxes empty — which reads as "my entry was never saved", and
+     * re-typing a contract number to mend it opens a second contract instead.
+     * Named here so a page asks the resource what it needs rather than keeping
+     * its own copy of the list that can fall behind.
+     *
+     * @var list<string>
+     */
+    public const OFF_ROW_RELATIONS = ['bpjsProfile', 'taxProfile', 'contracts'];
+
+    /**
      * Indonesian labels for the employment_status enum.
      *
      * @var array<string, string>

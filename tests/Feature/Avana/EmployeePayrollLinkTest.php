@@ -366,3 +366,59 @@ it('clears a BPJS number the form deliberately emptied', function (): void {
     expect($profile->bpjs_ketenagakerjaan_number)->toBe('5544332211')
         ->and($profile->bpjs_kesehatan_number)->toBeNull();
 });
+
+it('hands the edit form back every Kepegawaian field that was just saved', function (): void {
+    $payload = employeePayload($this, [
+        'salary_master_id' => $this->master->id,
+        'contract_number' => 'PKWT-2026-777',
+        'contract_type' => 'pkwt',
+        'contract_start_date' => '2026-01-01',
+        'contract_end_date' => '2026-12-31',
+        'bpjs_kesehatan_number' => '0001234567890',
+        'bpjs_ketenagakerjaan_number' => '21012345678',
+        'ptkp_status' => 'K/1',
+    ]);
+
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $this->employee), $payload)
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    actingAs($this->admin)
+        ->get(route('avana.employees.edit', $this->employee->fresh()))
+        ->assertOk()
+        ->assertInertia(function (Assert $page): void {
+            $employee = $page->toArray()['props']['employee']['data'];
+            $contract = collect($employee['contracts'])->firstWhere('contract_number', 'PKWT-2026-777');
+
+            expect($employee['salary_master_id'])->toBe($this->master->id);
+            expect($employee['bpjs_kesehatan_number'])->toBe('0001234567890');
+            expect($employee['bpjs_ketenagakerjaan_number'])->toBe('21012345678');
+            expect($employee['ptkp_status'])->toBe('K/1');
+            expect($contract)->not->toBeNull();
+            expect($contract['status'])->toBe('active');
+            expect($contract['contract_type'])->toBe('pkwt');
+            expect($contract['start_date_raw'])->toBe('2026-01-01');
+            expect($contract['end_date_raw'])->toBe('2026-12-31');
+        });
+});
+
+it('carries every off-row field on each single-employee page', function (string $route): void {
+    // These fields are written by the employee form but stored on other tables,
+    // so a page that forgets to eager-load one renders those boxes empty and
+    // reads as "my entry was never saved". Guard both pages at once, so a new
+    // one cannot quietly drop a relation.
+    actingAs($this->admin)
+        ->get(route($route, $this->employee))
+        ->assertOk()
+        ->assertInertia(function (Assert $page): void {
+            $employee = $page->toArray()['props']['employee']['data'];
+
+            expect($employee)->toHaveKeys([
+                'bpjs_kesehatan_number',
+                'bpjs_ketenagakerjaan_number',
+                'ptkp_status',
+                'contracts',
+            ]);
+        });
+})->with(['avana.employees.edit', 'avana.employees.show']);

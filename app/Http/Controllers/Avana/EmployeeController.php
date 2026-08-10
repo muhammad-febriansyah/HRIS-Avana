@@ -601,9 +601,7 @@ class EmployeeController extends Controller
             'workLocation:id,name,radius_meter,status',
             'manager:id,full_name,employee_number',
             'salaryMaster:id,code,category',
-            'bpjsProfile',
-            'taxProfile',
-            'contracts' => fn ($query) => $query->latest('start_date')->latest('id'),
+            ...$this->offRowRelations(),
             'assetAssignments' => fn ($query) => $query
                 ->whereNull('returned_date')
                 ->with('asset:id,code,name,category,condition')
@@ -642,16 +640,7 @@ class EmployeeController extends Controller
             'manager:id,full_name,employee_number',
             'user:id,status',
             'user.roles:id',
-            // Everything below lives on its own table, and the resource drops a
-            // field whose relation was not loaded. Leave them out and the BPJS
-            // numbers, the PTKP status and the contract all render blank on a
-            // form meant to correct them — which reads as "it was never saved",
-            // and re-typing a contract number to fix that opens a second
-            // contract instead of mending the first, since the sync is keyed on
-            // the number.
-            'bpjsProfile',
-            'taxProfile',
-            'contracts' => fn ($query) => $query->latest('start_date')->latest('id'),
+            ...$this->offRowRelations(),
         ]);
 
         return Inertia::render('avana/employees/edit', [
@@ -693,6 +682,23 @@ class EmployeeController extends Controller
 
         return redirect()->route('avana.employees.index')
             ->with('success', 'Karyawan berhasil diperbarui');
+    }
+
+    /**
+     * The eager loads every single-employee page owes the resource, so no page
+     * keeps its own list of them that can fall behind and blank a field the
+     * employee form did save.
+     *
+     * @return array<string, \Closure>
+     */
+    private function offRowRelations(): array
+    {
+        return [
+            'bpjsProfile' => fn ($query) => $query,
+            'taxProfile' => fn ($query) => $query,
+            // Newest first, so the form corrects the contract in force.
+            'contracts' => fn ($query) => $query->latest('start_date')->latest('id'),
+        ];
     }
 
     /**
