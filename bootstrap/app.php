@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureAppIsNotDown;
 use App\Http\Middleware\EnsureFeature;
 use App\Http\Middleware\EnsureFreshToken;
 use App\Http\Middleware\EnsureSubscriptionActive;
@@ -9,6 +10,7 @@ use App\Http\Middleware\ResolveActiveTenant;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
 
@@ -27,6 +29,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'feature' => EnsureFeature::class,
         ]);
 
+        $middleware->web(prepend: [
+            EnsureAppIsNotDown::class,
+        ]);
+
         $middleware->web(append: [
             HandleAppearance::class,
             ResolveActiveTenant::class,
@@ -37,6 +43,10 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // A lapsed tenant is locked out of the mobile API too, not just the web
         // app — otherwise the phone keeps working after the web app stops.
+        $middleware->api(prepend: [
+            EnsureAppIsNotDown::class,
+        ]);
+
         $middleware->api(append: [
             EnsureSubscriptionActive::class,
         ]);
@@ -50,7 +60,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // ever validates it, which surfaces as a bare 413 page. Say what
         // actually happened — the tester read that page as "upload KTP error"
         // with nothing to act on.
-        $exceptions->render(function (Illuminate\Http\Exceptions\PostTooLargeException $e, Request $request) {
+        $exceptions->render(function (PostTooLargeException $e, Request $request) {
             $limit = ini_get('post_max_size') ?: '2M';
             $message = "Ukuran berkas melebihi batas server ({$limit}). Perkecil file (mis. kompres foto) lalu coba lagi.";
 

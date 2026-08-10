@@ -123,4 +123,9 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    // A plain .env switch, separate from Laravel's own `artisan down` — see
+    // App\Http\Middleware\EnsureAppIsNotDown.
+    'maintenance_mode' => (bool) env('MAINTENANCE_MODE', false),
+    'maintenance_secret' => env('MAINTENANCE_SECRET'),
+
 ];
