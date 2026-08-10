@@ -61,3 +61,38 @@ export function KpiStrip({ kpis }: KpiStripProps) {
         </div>
     );
 }
+
+export interface LocationBadge {
+    label: string;
+    color: string;
+    /** True only for a punch checked against an office radius. */
+    geofenced: boolean;
+}
+
+/**
+ * Describe where a punch happened. Only `inside` / `outside` were checked
+ * against an office radius — a WFA or WFH punch answers to no office, so
+ * calling it "Dalam area" would claim a geofence check that never ran.
+ */
+export function locationBadge(status: string | null): LocationBadge {
+    switch (status) {
+        case 'inside':
+            return { label: 'Dalam area', color: '#059669', geofenced: true };
+        case 'outside':
+            return { label: 'Luar area', color: C.red, geofenced: true };
+        case 'wfa':
+            return {
+                label: 'Luar kantor (WFA)',
+                color: C.amber,
+                geofenced: false,
+            };
+        case 'wfh':
+            return {
+                label: 'Kerja dari rumah',
+                color: C.primary,
+                geofenced: false,
+            };
+        default:
+            return { label: 'Tanpa geofence', color: C.faint, geofenced: false };
+    }
+}

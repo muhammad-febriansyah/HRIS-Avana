@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import { LocationMap } from '@/components/map/location-map';
 import type { MapPoint } from '@/components/map/location-map';
 import { AIcon, ActionBtn, C, card, statusBadge } from '@/lib/avana';
+import { locationBadge } from './components';
 
 interface LatLng {
     lat: number;
@@ -38,7 +39,11 @@ interface AttendanceDetail {
         coords: LatLng | null;
         photo_url: string | null;
     };
-    clock_out: { time: string | null; coords: LatLng | null };
+    clock_out: {
+        time: string | null;
+        coords: LatLng | null;
+        photo_url: string | null;
+    };
     work_location: {
         name: string;
         address: string | null;
@@ -152,7 +157,7 @@ export default function AbsensiShow({
     attendance: AttendanceDetail;
 }) {
     const badge = statusBadge(attendance.status_label);
-    const outside = attendance.location_status === 'outside';
+    const location = locationBadge(attendance.location_status);
 
     const points: MapPoint[] = [];
 
@@ -357,6 +362,7 @@ export default function AbsensiShow({
                         icon="log-out"
                         time={attendance.clock_out.time}
                         coords={attendance.clock_out.coords}
+                        photoUrl={attendance.clock_out.photo_url}
                     />
                 </div>
 
@@ -410,7 +416,7 @@ export default function AbsensiShow({
                                     </div>
                                 ) : null}
                             </div>
-                            {attendance.clock_in.coords && wl ? (
+                            {attendance.clock_in.coords ? (
                                 <span
                                     style={{
                                         display: 'inline-flex',
@@ -420,19 +426,17 @@ export default function AbsensiShow({
                                         borderRadius: 100,
                                         fontSize: 12.5,
                                         fontWeight: 600,
-                                        color: outside ? C.red : '#059669',
-                                        background: outside
-                                            ? 'rgba(220,38,38,.08)'
-                                            : 'rgba(5,150,105,.08)',
+                                        color: location.color,
+                                        background: `${location.color}14`,
                                     }}
                                 >
                                     <AIcon
                                         name="map-pin"
                                         size={14}
-                                        color={outside ? C.red : '#059669'}
+                                        color={location.color}
                                     />
-                                    {outside ? 'Di luar area' : 'Di dalam area'}
-                                    {attendance.distance_meter !== null && (
+                                    {location.label}
+                                    {wl && attendance.distance_meter !== null && (
                                         <span style={{ fontWeight: 400 }}>
                                             · {attendance.distance_meter} m
                                             {wl.radius_meter > 0

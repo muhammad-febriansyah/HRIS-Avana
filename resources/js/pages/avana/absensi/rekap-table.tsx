@@ -1,4 +1,5 @@
 import { AIcon, C, statusBadge } from '@/lib/avana';
+import { locationBadge } from './components';
 import type { Attendance, PaginationMeta } from './types';
 
 interface RekapTableProps {
@@ -212,7 +213,7 @@ export function RekapTable({
                         {rows.map((row) => {
                             const badge = statusBadge(row.status_label);
                             const hasPoint = row.clock_in_coords !== null;
-                            const outside = row.location_status === 'outside';
+                            const location = locationBadge(row.location_status);
 
                             return (
                                 <tr
@@ -318,24 +319,16 @@ export function RekapTable({
                                                     display: 'inline-flex',
                                                     alignItems: 'center',
                                                     gap: 6,
-                                                    color: outside
-                                                        ? C.red
-                                                        : '#059669',
+                                                    color: location.color,
                                                     fontWeight: 500,
                                                 }}
                                             >
                                                 <AIcon
                                                     name="map-pin"
                                                     size={13}
-                                                    color={
-                                                        outside
-                                                            ? C.red
-                                                            : '#059669'
-                                                    }
+                                                    color={location.color}
                                                 />
-                                                {outside
-                                                    ? 'Luar area'
-                                                    : 'Dalam area'}
+                                                {location.label}
                                                 {row.distance_meter !==
                                                     null && (
                                                     <span

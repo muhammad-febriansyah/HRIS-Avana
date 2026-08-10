@@ -339,14 +339,23 @@ class AttendanceController extends Controller
             $distance = $meters === null ? null : (int) round($meters);
         }
 
-        $selfies = $attendance->selfies
+        // Selfies are stored one row per punch with no type column, so the
+        // capture order is what tells the clock-in shot from the clock-out one.
+        $shots = $attendance->selfies
+            ->sortBy(fn ($selfie): int => $selfie->captured_at?->getTimestamp() ?? 0)
+            ->values();
+
+        $selfies = $shots
             ->map(fn ($selfie): array => [
                 'url' => PrivateFile::urlFor($selfie->file_path),
                 'captured_at' => $selfie->captured_at?->format('d M Y H:i'),
                 'coords' => $this->coords($selfie->latitude, $selfie->longitude),
             ])
-            ->values()
             ->all();
+
+        $clockOutPhoto = $shots->count() > 1 && $attendance->clock_out_at !== null
+            ? PrivateFile::urlFor($shots->last()->file_path)
+            : null;
 
         $employee = $attendance->employee;
 
@@ -383,6 +392,7 @@ class AttendanceController extends Controller
             'clock_out' => [
                 'time' => $attendance->clock_out_at?->format('H:i'),
                 'coords' => $this->coords($attendance->clock_out_lat, $attendance->clock_out_lng),
+                'photo_url' => $clockOutPhoto,
             ],
             'work_location' => $location === null ? null : [
                 'name' => $location->name,
