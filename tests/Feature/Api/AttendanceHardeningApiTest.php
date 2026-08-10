@@ -127,6 +127,20 @@ it('exposes face_mode and device binding in today status', function (): void {
         ->assertJsonPath('requirements.device_binding_enabled', false);
 });
 
+it('tells the app whether a failed face blocks the punch or only flags it', function (): void {
+    ($this->setPolicy)(['face_enforcement' => 'flag']);
+
+    ($this->auth)()->getJson('/api/v1/me/attendance/today')
+        ->assertOk()
+        ->assertJsonPath('requirements.face_enforcement', 'flag');
+
+    ($this->setPolicy)(['face_enforcement' => 'block']);
+
+    ($this->auth)()->getJson('/api/v1/me/attendance/today')
+        ->assertOk()
+        ->assertJsonPath('requirements.face_enforcement', 'block');
+});
+
 it('skips the face check entirely when face_mode is off', function (): void {
     $enrolled = array_fill(0, 128, 0.0);
     $enrolled[0] = 1.0;

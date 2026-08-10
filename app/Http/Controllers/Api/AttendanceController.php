@@ -10,7 +10,9 @@ use App\Models\AttendancePolicy;
 use App\Models\AttendanceSelfie;
 use App\Models\Employee;
 use App\Models\EmployeeFaceEmbedding;
+use App\Models\FaceScanLog;
 use App\Models\WorkLocation;
+use App\Services\FaceScanLogger;
 use App\Services\LeaveAttendanceMarker;
 use App\Support\DeviceIntegrity;
 use App\Support\FaceMatcher;
@@ -33,6 +35,8 @@ class AttendanceController extends Controller
 {
     use ResolvesApiEmployee;
 
+    public function __construct(private readonly FaceScanLogger $scanLogger) {}
+
     public function today(Request $request): JsonResponse
     {
         $employee = $this->currentEmployee($request);
@@ -47,6 +51,12 @@ class AttendanceController extends Controller
             'requirements' => [
                 // recognition | detection | off — drives the app's face flow.
                 'face_mode' => $policy->face_mode ?? AttendancePolicy::FACE_MODE_RECOGNITION,
+                // block | flag — whether a face the scanner never captured (or
+                // that fails to match) refuses the punch or merely marks it.
+                // Without this the app enforces "block" for every tenant, which
+                // strands an employee at a camera their own policy would have
+                // let them walk past.
+                'face_enforcement' => $policy->face_enforcement ?? 'block',
                 'device_binding_enabled' => (bool) ($policy->device_binding_enabled ?? true),
                 'require_face_enrollment' => (bool) $policy->require_face_enrollment,
                 'require_liveness_challenge' => (bool) $policy->require_liveness_challenge,
@@ -218,9 +228,10 @@ class AttendanceController extends Controller
             $enrolled = EmployeeFaceEmbedding::where('employee_id', $employee->id)->first();
 
             if ($enrolled === null && $policy->require_face_enrollment) {
-                return response()->json([
-                    'message' => 'Anda wajib mendaftarkan wajah terlebih dahulu sebelum absen. Buka menu Daftar Wajah.',
-                ], 422);
+                $message = 'Anda wajib mendaftarkan wajah terlebih dahulu sebelum absen. Buka menu Daftar Wajah.';
+                $this->logFaceScan($request, $employee, 'blocked', 'not_enrolled', $message);
+
+                return response()->json(['message' => $message], 422);
             }
 
             if ($enrolled !== null) {
@@ -228,23 +239,34 @@ class AttendanceController extends Controller
 
                 if (! is_array($submitted) || $submitted === []) {
                     if ($policy->blocksFace()) {
-                        return response()->json([
-                            'message' => 'Verifikasi wajah diperlukan. Aktifkan kamera lalu coba lagi.',
-                        ], 422);
+                        $message = 'Verifikasi wajah diperlukan. Aktifkan kamera lalu coba lagi.';
+                        $this->logFaceScan($request, $employee, 'blocked', 'face_missing', $message);
+
+                        return response()->json(['message' => $message], 422);
                     }
 
+                    $this->logFaceScan($request, $employee, 'fail', 'face_missing', 'Absen diterima tanpa wajah (kebijakan tidak memblokir)');
                     $faceFlags[] = 'face_missing';
                 } else {
                     $score = FaceMatcher::cosine($enrolled->embedding, $submitted);
+                    $metrics = [
+                        'score' => $score,
+                        'threshold' => FaceMatcher::THRESHOLD,
+                        'embedding_dimensions' => count($submitted),
+                    ];
 
                     if ($score < FaceMatcher::THRESHOLD) {
                         if ($policy->blocksFace()) {
-                            return response()->json([
-                                'message' => 'Wajah tidak cocok dengan data terdaftar. Coba lagi.',
-                            ], 422);
+                            $message = 'Wajah tidak cocok dengan data terdaftar. Coba lagi.';
+                            $this->logFaceScan($request, $employee, 'blocked', 'face_mismatch', $message, $metrics);
+
+                            return response()->json(['message' => $message], 422);
                         }
 
+                        $this->logFaceScan($request, $employee, 'fail', 'face_mismatch', 'Skor di bawah ambang, tetap dicatat sebagai risiko', $metrics);
                         $faceFlags[] = 'face_mismatch';
+                    } else {
+                        $this->logFaceScan($request, $employee, 'ok', 'face_match', null, $metrics);
                     }
 
                     $data['face_confidence'] = round($score, 4);
@@ -256,12 +278,18 @@ class AttendanceController extends Controller
 
             if (! is_array($submitted) || $submitted === []) {
                 if ($policy->blocksFace()) {
-                    return response()->json([
-                        'message' => 'Verifikasi wajah diperlukan. Aktifkan kamera lalu coba lagi.',
-                    ], 422);
+                    $message = 'Verifikasi wajah diperlukan. Aktifkan kamera lalu coba lagi.';
+                    $this->logFaceScan($request, $employee, 'blocked', 'face_missing', $message);
+
+                    return response()->json(['message' => $message], 422);
                 }
 
+                $this->logFaceScan($request, $employee, 'fail', 'face_missing', 'Absen diterima tanpa wajah (kebijakan tidak memblokir)');
                 $faceFlags[] = 'face_missing';
+            } else {
+                $this->logFaceScan($request, $employee, 'ok', 'face_detected', null, [
+                    'embedding_dimensions' => count($submitted),
+                ]);
             }
         }
         // face_mode 'off' → no face check at all.
@@ -272,6 +300,37 @@ class AttendanceController extends Controller
         return $data['type'] === 'in'
             ? $this->clockIn($request, $employee, $data)
             : $this->clockOut($request, $employee, $data);
+    }
+
+    /**
+     * Record the server's verdict on the face sent with a punch, so the
+     * attendance face log shows the match score next to the device-side scan
+     * that produced it.
+     *
+     * @param  array<string, mixed>|null  $metrics
+     */
+    private function logFaceScan(
+        Request $request,
+        Employee $employee,
+        string $outcome,
+        string $reason,
+        ?string $message = null,
+        ?array $metrics = null,
+    ): void {
+        $this->scanLogger->record($employee, [
+            'context' => FaceScanLog::CONTEXT_CLOCK,
+            'outcome' => $outcome,
+            'reason' => $reason,
+            'message' => $message,
+            'metrics' => $metrics,
+            'device' => [
+                'device_id' => $request->input('device_id'),
+                'platform' => $request->input('platform'),
+                'os_version' => $request->input('os_version'),
+                'model' => $request->input('device_model'),
+                'app_version' => $request->input('app_version'),
+            ],
+        ], $request);
     }
 
     /**

@@ -207,6 +207,9 @@ Route::prefix('v1')->group(function (): void {
 
             Route::get('face', [FaceController::class, 'status']);
             Route::post('face/enroll', [FaceController::class, 'enroll']);
+            // Device-side scan diagnostics. Throttled: the app batches, but a
+            // buggy build must not be able to turn its scan loop into a flood.
+            Route::post('face/log', [FaceController::class, 'log'])->middleware('throttle:60,1');
 
             // AI assistant — own-data scoped chat (single-shot JSON replies).
             Route::get('ai', [AiAssistantController::class, 'session']);

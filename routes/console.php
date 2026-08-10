@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\FaceScanLog;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -27,6 +28,9 @@ Schedule::command('avana:scan-attrition-alerts')->dailyAt('07:30');
 // Jayapura office is reminded at 08:30 WIT, not at 08:30 WIB, which reaches
 // them at half past ten.
 Schedule::command('avana:remind-attendance')->hourlyAt(30);
+
+// Drop face-scan diagnostics past their 60-day retention window.
+Schedule::command('model:prune', ['--model' => [FaceScanLog::class]])->dailyAt('01:00');
 
 // Close meeting recordings a phone never came back from. Nothing else moves
 // them out of "recording", so without this they sit in the list claiming to be

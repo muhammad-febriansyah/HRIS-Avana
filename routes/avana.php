@@ -54,6 +54,7 @@ use App\Http\Controllers\Avana\EssSocialController;
 use App\Http\Controllers\Avana\EssSopController;
 use App\Http\Controllers\Avana\EssTaskController;
 use App\Http\Controllers\Avana\EssTravelController;
+use App\Http\Controllers\Avana\FaceScanLogController;
 use App\Http\Controllers\Avana\FeatureCatalogController;
 use App\Http\Controllers\Avana\FeatureController;
 use App\Http\Controllers\Avana\FieldVisitController;
@@ -151,6 +152,8 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
 
     Route::get('absensi', [AttendanceController::class, 'index'])->name('absensi');
     Route::get('absensi/monitor', [AttendanceController::class, 'monitor'])->name('absensi.monitor');
+    // Registered before the {attendance} route so the literal path wins.
+    Route::get('absensi/log-wajah', [FaceScanLogController::class, 'index'])->name('absensi.log-wajah');
     Route::get('absensi/kebijakan', [AttendancePolicyController::class, 'edit'])->name('absensi.kebijakan');
     Route::put('absensi/kebijakan', [AttendancePolicyController::class, 'update'])->name('absensi.kebijakan.update');
     Route::get('absensi/{attendance}', [AttendanceController::class, 'show'])->name('absensi.show');
