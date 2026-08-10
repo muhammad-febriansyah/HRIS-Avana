@@ -1530,6 +1530,7 @@ class PayrollController extends Controller
 
         $salaryComponents = EmployeeSalaryComponent::forTenant($tenantId)
             ->where('employee_id', $employee->id)
+            ->inForce()
             ->effectiveOn($period->end_date)
             ->with('component')
             ->get();
@@ -2009,6 +2010,7 @@ class PayrollController extends Controller
 
         $salaryComponents = EmployeeSalaryComponent::forTenant($tenantId)
             ->where('employee_id', $employee->id)
+            ->inForce()
             ->effectiveOn()
             ->with('component')
             ->get();
@@ -2311,6 +2313,7 @@ class PayrollController extends Controller
 
         $salaryAmount = EmployeeSalaryComponent::forTenant($tenantId)
             ->where('employee_id', $employee->id)
+            ->inForce()
             ->effectiveOn()
             ->where('payroll_component_id', $component->id)
             ->value('amount');

@@ -158,6 +158,7 @@ interface Props {
     employeeOptions: EmployeeOption[];
     gradeOptions: GradeOption[];
     salaries: EmployeeSalary[];
+    salaryFloor: string | null;
 }
 
 const input: React.CSSProperties = {
@@ -318,6 +319,7 @@ export default function MasterGajiSetting({
     employeeOptions,
     gradeOptions,
     salaries,
+    salaryFloor,
 }: Props) {
     const [assignOpen, setAssignOpen] = useState(false);
 
@@ -892,6 +894,7 @@ export default function MasterGajiSetting({
                     master={master}
                     salaries={salaries}
                     gradeOptions={gradeOptions}
+                    salaryFloor={salaryFloor}
                 />
             </div>
         </>
@@ -906,13 +909,16 @@ function SalaryValidationPanel({
     master,
     salaries,
     gradeOptions,
+    salaryFloor,
 }: {
     master: Master;
     salaries: EmployeeSalary[];
     gradeOptions: GradeOption[];
+    salaryFloor: string | null;
 }) {
     const [draft, setDraft] = useState<Record<number, string>>({});
     const [from, setFrom] = useState<Record<number, string>>({});
+    const [reason, setReason] = useState<Record<number, string>>({});
 
     const saveSalary = (employeeId: number) => {
         const raw = draft[employeeId];
@@ -929,11 +935,22 @@ function SalaryValidationPanel({
                 // Blank means "from today"; a date opens a new version of the
                 // salary and closes the one it replaces.
                 effective_start_date: from[employeeId] || null,
+                // Why the figure changed — kept with the version so a raise can
+                // be explained long after whoever typed it has forgotten.
+                reason: reason[employeeId] || null,
             },
             {
                 preserveScroll: true,
-                onSuccess: () => setDraft((d) => ({ ...d, [employeeId]: '' })),
-                onError: () => toast.error('Gaji pokok gagal disimpan'),
+                onSuccess: () => {
+                    setDraft((d) => ({ ...d, [employeeId]: '' }));
+                    setReason((d) => ({ ...d, [employeeId]: '' }));
+                },
+                onError: (errors) =>
+                    toast.error(
+                        errors.effective_start_date ??
+                            errors.amount ??
+                            'Gaji pokok gagal disimpan',
+                    ),
             },
         );
     };
@@ -968,6 +985,12 @@ function SalaryValidationPanel({
             <div style={{ fontSize: 12.5, color: C.faint, margin: '-6px 0 14px' }}>
                 Gaji pokok + tunjangan tetap dicek otomatis terhadap UMR cabang dan rentang grade.
             </div>
+            {salaryFloor !== null && (
+                <div style={{ fontSize: 12, color: C.muted, margin: '-8px 0 14px' }}>
+                    Payroll sudah final sampai periode sebelumnya — tanggal berlaku paling
+                    awal {salaryFloor}. Selisih periode yang sudah final dibayar lewat Rapel.
+                </div>
+            )}
             <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
@@ -1078,6 +1101,20 @@ function SalaryValidationPanel({
                                                     }
                                                     placeholder="Berlaku mulai"
                                                     width={168}
+                                                />
+                                            </div>
+                                            <div style={{ marginTop: 5 }}>
+                                                <input
+                                                    style={{ ...input, width: 168 }}
+                                                    type="text"
+                                                    placeholder="Alasan perubahan"
+                                                    value={reason[s.id] ?? ''}
+                                                    onChange={(e) =>
+                                                        setReason((d) => ({
+                                                            ...d,
+                                                            [s.id]: e.target.value,
+                                                        }))
+                                                    }
                                                 />
                                             </div>
                                             <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3 }}>

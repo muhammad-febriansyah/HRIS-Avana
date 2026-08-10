@@ -5,12 +5,15 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\DayCalcMethod;
 use App\Models\Employee;
-use App\Models\EmployeeSalaryComponent;
 use App\Models\PayrollComponent;
 use App\Models\SalaryGrade;
 use App\Models\SalaryMaster;
 use App\Models\User;
+use App\Services\EmployeeSalaryWriter;
+use App\Services\SalaryMasterAssignment;
 use App\Support\SalaryCompliance;
+use App\Support\SalaryPeriodLock;
+use App\Support\SalarySettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -144,6 +147,9 @@ class SalaryMasterController extends Controller
                     'max' => (float) $grade->max_salary,
                 ])->all(),
             'salaries' => $this->employeeSalaries($master, $tenantId),
+            // The earliest date a salary change may start: anything on or
+            // before it sits inside a payroll that has already been finalized.
+            'salaryFloor' => SalaryPeriodLock::lockedThrough($tenantId)?->addDay()->toDateString(),
         ]);
     }
 
@@ -266,6 +272,11 @@ class SalaryMasterController extends Controller
     /**
      * Attach this Master Gaji to the given employees (BPR manual: master gaji
      * "ditempelkan ke data pegawai").
+     *
+     * The template's nominals are copied onto each employee as their own dated
+     * salary rows, so a later edit to the template does not silently re-price
+     * everyone it was attached to. An employee already carrying their own
+     * figure for a component keeps it.
      */
     public function assign(Request $request, SalaryMaster $master): RedirectResponse
     {
@@ -277,11 +288,27 @@ class SalaryMasterController extends Controller
         $data = $request->validate([
             'employee_ids' => ['required', 'array'],
             'employee_ids.*' => ['integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
+            'effective_start_date' => ['nullable', 'date'],
         ]);
 
-        Employee::forTenant($tenantId)
-            ->whereIn('id', $data['employee_ids'])
-            ->update(['salary_master_id' => $master->id]);
+        $from = Carbon::parse($data['effective_start_date'] ?? now())->startOfDay();
+
+        $refusal = SalaryPeriodLock::refusal($tenantId, $from);
+
+        if ($refusal !== null) {
+            return back()->withErrors(['effective_start_date' => $refusal]);
+        }
+
+        SalaryMasterAssignment::apply(
+            $tenantId,
+            $master,
+            Employee::forTenant($tenantId)->whereIn('id', $data['employee_ids'])->get(),
+            $from,
+            null,
+            (int) $request->user()->id,
+            false,
+            SalarySettings::statusFor($tenantId),
+        );
 
         return back()->with('success', 'Master Gaji ditempel ke pegawai');
     }
@@ -329,6 +356,7 @@ class SalaryMasterController extends Controller
             'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
             'amount' => ['required', 'numeric', 'min:0'],
             'effective_start_date' => ['nullable', 'date'],
+            'reason' => ['nullable', 'string', 'max:255'],
         ]);
 
         $basic = PayrollComponent::forTenant($tenantId)->where('code', 'BASIC')->first();
@@ -337,12 +365,24 @@ class SalaryMasterController extends Controller
             return back()->withErrors(['amount' => 'Komponen Gaji Pokok (BASIC) belum ada di Master Komponen.']);
         }
 
-        $this->recordSalary(
+        $from = Carbon::parse($data['effective_start_date'] ?? now())->startOfDay();
+
+        $refusal = SalaryPeriodLock::refusal($tenantId, $from);
+
+        if ($refusal !== null) {
+            return back()->withErrors(['effective_start_date' => $refusal]);
+        }
+
+        EmployeeSalaryWriter::record(
             $tenantId,
             (int) $data['employee_id'],
             (int) $basic->id,
             (float) $data['amount'],
-            Carbon::parse($data['effective_start_date'] ?? now())->startOfDay(),
+            $from,
+            $data['reason'] ?? null,
+            (int) $request->user()->id,
+            (int) $master->id,
+            SalarySettings::statusFor($tenantId),
         );
 
         $employee = Employee::forTenant($tenantId)->with('salaryGrade')->findOrFail($data['employee_id']);
@@ -363,46 +403,6 @@ class SalaryMasterController extends Controller
         }
 
         return back()->with('success', 'Gaji pokok karyawan disimpan');
-    }
-
-    /**
-     * Version one component's nominal for an employee.
-     *
-     * A row already starting on the same date is corrected in place — that is a
-     * typo being fixed, not a raise. Anything earlier is closed the day before
-     * the new figure takes effect, and rows that would start later are left
-     * alone so a future-dated raise is not silently undone.
-     */
-    private function recordSalary(int $tenantId, int $employeeId, int $componentId, float $amount, Carbon $from): void
-    {
-        $scope = EmployeeSalaryComponent::forTenant($tenantId)
-            ->where('employee_id', $employeeId)
-            ->where('payroll_component_id', $componentId);
-
-        $sameDay = (clone $scope)->whereDate('effective_start_date', $from->toDateString())->first();
-
-        if ($sameDay !== null) {
-            $sameDay->update(['amount' => $amount]);
-
-            return;
-        }
-
-        (clone $scope)
-            ->where(fn ($query) => $query
-                ->whereNull('effective_start_date')
-                ->orWhereDate('effective_start_date', '<', $from->toDateString()))
-            ->where(fn ($query) => $query
-                ->whereNull('effective_end_date')
-                ->orWhereDate('effective_end_date', '>=', $from->toDateString()))
-            ->update(['effective_end_date' => $from->copy()->subDay()->toDateString()]);
-
-        EmployeeSalaryComponent::create([
-            'tenant_id' => $tenantId,
-            'employee_id' => $employeeId,
-            'payroll_component_id' => $componentId,
-            'amount' => $amount,
-            'effective_start_date' => $from->toDateString(),
-        ]);
     }
 
     /**

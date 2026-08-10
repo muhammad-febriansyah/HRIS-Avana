@@ -124,12 +124,22 @@ final class AvanaNav
                     self::leaf('payroll-ter', 'Tarif TER PPh 21', 'percent', '/avana/payroll/ter', 'payroll', ['payroll']),
                     self::leaf('payroll-payday', 'Mapping Payday', 'calendar-check', '/avana/payroll/payday', 'payroll', ['payroll']),
                     self::leaf('payroll-lembur', 'Setup Lembur', 'timer', '/avana/payroll/lembur', 'payroll', ['payroll']),
-                    // Perhitungan Hari, Koreksi Gaji, Rapel Gaji, Sales Order,
-                    // Jurnal Akuntansi and Anggaran are hidden for now at the
-                    // client's request: the menu is trimmed to the screens the
-                    // payroll setup documentation describes. The pages and
-                    // their routes still work for anyone holding the link;
-                    // only the menu entries are withdrawn.
+                    self::leaf('payroll-gaji-karyawan', 'Gaji Karyawan', 'user-cog', '/avana/payroll/gaji-karyawan', 'payroll', ['payroll']),
+                    self::leaf('payroll-penetapan-massal', 'Penetapan Gaji Massal', 'users', '/avana/payroll/penetapan-massal', 'payroll', ['payroll']),
+                    self::leaf('payroll-riwayat-gaji', 'Riwayat Gaji', 'history', '/avana/payroll/riwayat-gaji', 'payroll', ['payroll']),
+                    // Hidden for now at the client's request: the menu is
+                    // trimmed to the screens the payroll setup documentation
+                    // describes. They stay here as inactive rows rather than
+                    // being deleted — a path with no matching leaf resolves to
+                    // no requirement at all, which would leave these routes
+                    // open to every role instead of closed. A tenant can switch
+                    // any of them back on from the Menu Builder.
+                    self::leaf('payroll-perhitungan-hari', 'Perhitungan Hari', 'calendar-days', '/avana/payroll/perhitungan-hari', 'payroll', ['payroll'], isActive: false),
+                    self::leaf('payroll-koreksi', 'Koreksi Gaji', 'pencil', '/avana/payroll/koreksi', 'payroll', ['payroll'], isActive: false),
+                    self::leaf('payroll-rapel', 'Rapel Gaji', 'history', '/avana/payroll/rapel', 'payroll', ['payroll'], isActive: false),
+                    self::leaf('payroll-sales-order', 'Sales Order', 'clipboard-list', '/avana/payroll/sales-order', 'payroll', ['payroll'], isActive: false),
+                    self::leaf('jurnal', 'Jurnal Akuntansi', 'book-open', '/avana/jurnal', 'journal', ['journal'], isActive: false),
+                    self::leaf('anggaran', 'Anggaran (Budget)', 'piggy-bank', '/avana/anggaran', 'budget', ['budget'], isActive: false),
                 ]),
                 self::parent('finance', 'Finance', 'receipt', [
                     self::leaf('reimbursement', 'Reimbursement', 'receipt', '/avana/reimbursement', 'reimbursement', ['claim']),

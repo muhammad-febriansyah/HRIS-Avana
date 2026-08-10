@@ -34,7 +34,22 @@ export default function PayrollConfig({
     const toggleSegregation = (value: boolean) => {
         router.put(
             '/avana/payroll/konfigurasi/settings',
-            { enforce_payroll_segregation: value },
+            {
+                enforce_payroll_segregation: value,
+                require_salary_approval: settings.require_salary_approval,
+            },
+            { preserveScroll: true },
+        );
+    };
+
+    const toggleSalaryApproval = (value: boolean) => {
+        router.put(
+            '/avana/payroll/konfigurasi/settings',
+            {
+                enforce_payroll_segregation:
+                    settings.enforce_payroll_segregation,
+                require_salary_approval: value,
+            },
             { preserveScroll: true },
         );
     };
@@ -152,6 +167,77 @@ export default function PayrollConfig({
                             }
                         />
                         {settings.enforce_payroll_segregation
+                            ? 'Aktif'
+                            : 'Nonaktif'}
+                    </label>
+                </div>
+
+                {/* Salary changes behind an approval */}
+                <div
+                    style={{
+                        ...card,
+                        padding: '16px 20px',
+                        marginBottom: 20,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 16,
+                        flexWrap: 'wrap',
+                    }}
+                >
+                    <div
+                        style={{
+                            display: 'flex',
+                            gap: 12,
+                            alignItems: 'flex-start',
+                        }}
+                    >
+                        <AIcon name="file-check" size={20} color={C.primary} />
+                        <div>
+                            <div
+                                style={{
+                                    fontSize: 14.5,
+                                    fontWeight: 600,
+                                    color: C.navy,
+                                }}
+                            >
+                                Persetujuan Perubahan Gaji
+                            </div>
+                            <div
+                                style={{
+                                    fontSize: 13,
+                                    color: C.muted,
+                                    marginTop: 2,
+                                    maxWidth: 560,
+                                }}
+                            >
+                                Jika aktif, gaji baru disimpan sebagai menunggu
+                                persetujuan dan belum dibayar sampai disetujui
+                                pengguna lain di menu Riwayat Gaji.
+                            </div>
+                        </div>
+                    </div>
+                    <label
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            cursor: 'pointer',
+                            fontSize: 13.5,
+                            fontWeight: 600,
+                            color: settings.require_salary_approval
+                                ? C.green
+                                : C.muted,
+                        }}
+                    >
+                        <input
+                            type="checkbox"
+                            checked={settings.require_salary_approval}
+                            onChange={(e) =>
+                                toggleSalaryApproval(e.target.checked)
+                            }
+                        />
+                        {settings.require_salary_approval
                             ? 'Aktif'
                             : 'Nonaktif'}
                     </label>

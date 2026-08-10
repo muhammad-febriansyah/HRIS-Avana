@@ -41,6 +41,15 @@ final class EmployeeSalaryComponent extends Model
             ->where(fn (Builder $q) => $q->whereNull('effective_end_date')->orWhereDate('effective_end_date', '>=', $on));
     }
 
+    /**
+     * Only the versions that actually pay. A row still waiting for approval, or
+     * one that was cancelled, is history — never money.
+     */
+    public function scopeInForce(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $q) => $q->whereNull('status')->orWhere('status', 'active'));
+    }
+
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);
@@ -54,5 +63,25 @@ final class EmployeeSalaryComponent extends Model
     public function component(): BelongsTo
     {
         return $this->belongsTo(PayrollComponent::class, 'payroll_component_id');
+    }
+
+    public function contract(): BelongsTo
+    {
+        return $this->belongsTo(EmployeeContract::class, 'employee_contract_id');
+    }
+
+    public function salaryMaster(): BelongsTo
+    {
+        return $this->belongsTo(SalaryMaster::class);
+    }
+
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function updatedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'updated_by');
     }
 }

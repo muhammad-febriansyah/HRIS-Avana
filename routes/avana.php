@@ -33,6 +33,7 @@ use App\Http\Controllers\Avana\DutyTravelController;
 use App\Http\Controllers\Avana\DynamicReportController;
 use App\Http\Controllers\Avana\EmailSettingController;
 use App\Http\Controllers\Avana\EmployeeController;
+use App\Http\Controllers\Avana\EmployeeSalaryController;
 use App\Http\Controllers\Avana\EssAiTokenController;
 use App\Http\Controllers\Avana\EssAttendanceController;
 use App\Http\Controllers\Avana\EssBenefitController;
@@ -95,6 +96,8 @@ use App\Http\Controllers\Avana\ReimbursementController;
 use App\Http\Controllers\Avana\ReportStudioController;
 use App\Http\Controllers\Avana\RosterController;
 use App\Http\Controllers\Avana\RosterPatternController;
+use App\Http\Controllers\Avana\SalaryAssignmentController;
+use App\Http\Controllers\Avana\SalaryHistoryController;
 use App\Http\Controllers\Avana\SalaryMasterController;
 use App\Http\Controllers\Avana\SalaryRapelController;
 use App\Http\Controllers\Avana\SalaryStructureController;
@@ -289,6 +292,16 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::get('payroll/sales-order', [SalesOrderController::class, 'index'])->name('payroll.sales-order');
     Route::post('payroll/sales-order/{salesOrder}/map', [SalesOrderController::class, 'map'])->name('payroll.sales-order.map');
     Route::post('payroll/sales-order/{salesOrder}/forward', [SalesOrderController::class, 'forward'])->name('payroll.sales-order.forward');
+
+    Route::get('payroll/gaji-karyawan', [EmployeeSalaryController::class, 'index'])->name('payroll.gaji-karyawan');
+    Route::post('payroll/gaji-karyawan', [EmployeeSalaryController::class, 'store'])->name('payroll.gaji-karyawan.store');
+
+    Route::get('payroll/penetapan-massal', [SalaryAssignmentController::class, 'index'])->name('payroll.penetapan-massal');
+    Route::post('payroll/penetapan-massal', [SalaryAssignmentController::class, 'apply'])->name('payroll.penetapan-massal.apply');
+
+    Route::get('payroll/riwayat-gaji', [SalaryHistoryController::class, 'index'])->name('payroll.riwayat-gaji');
+    Route::post('payroll/riwayat-gaji/{version}/approve', [SalaryHistoryController::class, 'approve'])->name('payroll.riwayat-gaji.approve');
+    Route::post('payroll/riwayat-gaji/{version}/reject', [SalaryHistoryController::class, 'reject'])->name('payroll.riwayat-gaji.reject');
 
     Route::get('payroll/rapel', [SalaryRapelController::class, 'index'])->name('payroll.rapel');
     Route::post('payroll/rapel', [SalaryRapelController::class, 'store'])->name('payroll.rapel.store');

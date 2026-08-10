@@ -47,6 +47,7 @@ final class SalaryCompliance
 
         $salaryComponents = EmployeeSalaryComponent::forTenant($tenantId)
             ->where('employee_id', $employee->id)
+            ->inForce()
             ->effectiveOn()
             ->with('component')
             ->get();

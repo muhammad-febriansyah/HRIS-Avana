@@ -86,6 +86,7 @@ export interface PayrollConfigProps {
     ptkpStatuses: string[];
     settings: {
         enforce_payroll_segregation: boolean;
+        require_salary_approval: boolean;
     };
     features: PayrollConfigFeatures;
 }

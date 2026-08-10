@@ -1,0 +1,253 @@
+<?php
+
+namespace App\Http\Controllers\Avana;
+
+use App\Http\Controllers\Controller;
+use App\Models\Employee;
+use App\Models\EmployeeSalaryComponent;
+use App\Models\PayrollComponent;
+use App\Models\SalaryMaster;
+use App\Models\SalaryMasterComponent;
+use App\Models\User;
+use App\Services\EmployeeSalaryWriter;
+use App\Support\SalaryCompliance;
+use App\Support\SalaryPeriodLock;
+use App\Support\SalarySettings;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
+use Inertia\Inertia;
+use Inertia\Response;
+
+/**
+ * "Gaji Karyawan": setting up one employee's salary.
+ *
+ * The documented individual flow is pick the employee, pick an existing Master
+ * Gaji, let the template's nominals fill the form, adjust the ones that differ
+ * for this person, then date the change — not build a fresh template per
+ * employee. Every component in the template is editable here, so a different
+ * transport or meal allowance no longer needs a Master Gaji of its own.
+ */
+class EmployeeSalaryController extends Controller
+{
+    /**
+     * The permission module that gates this controller's action-level checks.
+     */
+    private const MODULE = 'payroll';
+
+    public function index(Request $request): Response
+    {
+        $this->ensureCan($request, 'view');
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $employee = $this->selectedEmployee($request, $tenantId);
+
+        return Inertia::render('avana/payroll-gaji-karyawan/index', [
+            'employee' => $employee === null ? null : [
+                'id' => $employee->id,
+                'name' => $employee->full_name,
+                'nik' => $employee->employee_number,
+                'salary_master_id' => $employee->salary_master_id,
+                'position' => $employee->position?->name,
+                'branch' => $employee->branch?->name,
+            ],
+            'rows' => $employee === null ? [] : $this->rows($employee, $tenantId),
+            'compliance' => $employee === null ? null : $this->compliance($employee, $tenantId),
+            'employeeOptions' => Employee::forTenant($tenantId)
+                ->orderBy('full_name')
+                ->get(['id', 'full_name', 'employee_number'])
+                ->map(fn (Employee $e): array => [
+                    'id' => $e->id,
+                    'name' => $e->full_name,
+                    'nik' => $e->employee_number,
+                ])->all(),
+            'masterOptions' => SalaryMaster::forTenant($tenantId)
+                ->where('is_active', true)
+                ->orderBy('code')
+                ->get(['id', 'code', 'category'])
+                ->map(fn (SalaryMaster $m): array => [
+                    'id' => $m->id,
+                    'label' => $m->code.' · '.$m->category,
+                ])->all(),
+            'salaryFloor' => SalaryPeriodLock::lockedThrough($tenantId)?->addDay()->toDateString(),
+        ]);
+    }
+
+    /**
+     * Save one employee's salary: the Master Gaji they follow plus the nominal
+     * of every component that differs from it, as one dated version.
+     */
+    public function store(Request $request): RedirectResponse
+    {
+        $this->ensureCan($request, 'update');
+
+        $tenantId = (int) $request->user()->tenant_id;
+
+        $data = $request->validate([
+            'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
+            'salary_master_id' => ['nullable', 'integer', Rule::exists('salary_masters', 'id')->where('tenant_id', $tenantId)],
+            'effective_start_date' => ['nullable', 'date'],
+            'reason' => ['nullable', 'string', 'max:255'],
+            'components' => ['required', 'array', 'min:1'],
+            'components.*.payroll_component_id' => ['required', 'integer', Rule::exists('payroll_components', 'id')->where('tenant_id', $tenantId)],
+            'components.*.amount' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $from = Carbon::parse($data['effective_start_date'] ?? now())->startOfDay();
+
+        $refusal = SalaryPeriodLock::refusal($tenantId, $from);
+
+        if ($refusal !== null) {
+            return back()->withErrors(['effective_start_date' => $refusal]);
+        }
+
+        $employee = Employee::forTenant($tenantId)->findOrFail($data['employee_id']);
+
+        if (array_key_exists('salary_master_id', $data)) {
+            $employee->update(['salary_master_id' => $data['salary_master_id']]);
+        }
+
+        $status = SalarySettings::statusFor($tenantId);
+
+        foreach ($data['components'] as $row) {
+            EmployeeSalaryWriter::record(
+                $tenantId,
+                (int) $employee->id,
+                (int) $row['payroll_component_id'],
+                (float) $row['amount'],
+                $from,
+                $data['reason'] ?? null,
+                (int) $request->user()->id,
+                $employee->salary_master_id === null ? null : (int) $employee->salary_master_id,
+                $status,
+            );
+        }
+
+        if ($status === 'pending_approval') {
+            return back()->with('success', 'Gaji diajukan dan menunggu persetujuan');
+        }
+
+        $warnings = $this->complianceWarnings($employee->fresh(), $tenantId);
+
+        if ($warnings !== []) {
+            return back()->with('warning', 'Gaji tersimpan, tapi: '.implode(' · ', $warnings));
+        }
+
+        return back()->with('success', 'Gaji karyawan disimpan');
+    }
+
+    private function selectedEmployee(Request $request, int $tenantId): ?Employee
+    {
+        $employeeId = $request->integer('employee_id') ?: null;
+
+        if ($employeeId === null) {
+            return null;
+        }
+
+        return Employee::forTenant($tenantId)
+            ->with(['position:id,name', 'branch:id,name', 'salaryGrade'])
+            ->find($employeeId);
+    }
+
+    /**
+     * One row per component the employee is paid: the template nominal it comes
+     * from, and the employee's own figure when they have one.
+     *
+     * Components come from the assigned Master Gaji, plus any the employee
+     * already carries a row for — a component dropped from the template later
+     * must still be visible, otherwise it would keep paying invisibly.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function rows(Employee $employee, int $tenantId): array
+    {
+        $masterAmounts = $employee->salary_master_id === null
+            ? collect()
+            : SalaryMasterComponent::query()
+                ->where('salary_master_id', $employee->salary_master_id)
+                ->where('included', true)
+                ->get()
+                ->keyBy('payroll_component_id');
+
+        $own = EmployeeSalaryComponent::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->inForce()
+            ->effectiveOn()
+            ->get()
+            ->keyBy('payroll_component_id');
+
+        $componentIds = $masterAmounts->keys()->merge($own->keys())->unique();
+
+        if ($componentIds->isEmpty()) {
+            return [];
+        }
+
+        return PayrollComponent::forTenant($tenantId)
+            ->whereIn('id', $componentIds)
+            ->where(fn ($query) => $query->whereNull('status')->orWhere('status', 'active'))
+            ->orderBy('component_group')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (PayrollComponent $component): array => [
+                'id' => $component->id,
+                'name' => $component->name,
+                'group' => $component->component_group ?? 'penerimaan',
+                'calc_basis' => $component->calc_basis,
+                // Variable components (per present day, per overtime hour) are
+                // shown but not set here: their rupiah value comes from
+                // attendance, not from a figure typed against the employee.
+                'is_fixed' => in_array($component->calc_basis, [null, 'fixed'], true),
+                'master_amount' => (float) ($masterAmounts[$component->id]->amount ?? 0),
+                'employee_amount' => $own->has($component->id) ? (float) $own[$component->id]->amount : null,
+                'effective_from' => $own->has($component->id)
+                    ? $own[$component->id]->effective_start_date?->toDateString()
+                    : null,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function compliance(Employee $employee, int $tenantId): array
+    {
+        $wage = SalaryCompliance::monthlyWage($employee, $tenantId);
+
+        return [
+            ...$wage,
+            ...SalaryCompliance::verdict(
+                $wage['total'],
+                SalaryCompliance::umrFor($employee, $tenantId),
+                $employee->salaryGrade,
+            ),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function complianceWarnings(Employee $employee, int $tenantId): array
+    {
+        $verdict = $this->compliance($employee, $tenantId);
+
+        return array_values(array_filter([
+            $verdict['umr_status'] === 'below' ? $verdict['umr_label'] : null,
+            in_array($verdict['grade_status'], ['below_min', 'above_max'], true) ? $verdict['grade_label'] : null,
+        ]));
+    }
+
+    private function ensureCan(Request $request, string $action): void
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        if ($user->isSuperAdmin()) {
+            return;
+        }
+
+        abort_unless($user->hasPermissionTo(self::MODULE.'.'.$action), 403);
+    }
+}
