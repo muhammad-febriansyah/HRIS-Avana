@@ -18,8 +18,8 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rules\Exists;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -288,6 +288,12 @@ class UserController extends Controller
             Employee::forTenant($request->user()->tenant_id)
                 ->whereKey($employeeId)
                 ->update(['user_id' => $user->id]);
+        }
+
+        // Sync email from user → employee so both tables agree and login works
+        // with whichever address the admin just set.
+        if ($user->wasChanged('email') && $user->relationLoaded('employee') && $user->employee !== null) {
+            $user->employee->update(['email' => $user->email]);
         }
 
         return redirect()->route('avana.pengguna')

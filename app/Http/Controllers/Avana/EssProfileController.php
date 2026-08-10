@@ -57,6 +57,16 @@ class EssProfileController extends Controller
 
         $employee->update($data);
 
+        // Sync email back to the users table so the employee can still log in
+        // with the new address. EsProfile doesn't go through EmployeeController
+        // so syncEmployeeLogin never runs.
+        if (array_key_exists('email', $data) && filled($data['email']) && $employee->user_id !== null) {
+            $employee->loadMissing('user');
+            if ($employee->user !== null && $employee->user->email !== $data['email']) {
+                $employee->user->update(['email' => $data['email']]);
+            }
+        }
+
         return back()->with('success', 'Profil diperbarui');
     }
 

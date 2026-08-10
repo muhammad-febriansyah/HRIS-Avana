@@ -915,6 +915,13 @@ class EmployeeController extends Controller
                 $employee->user?->update(['password' => $password]);
             }
 
+            // Keep users.email in step with employees.email; the login
+            // authenticator reads the users table, so an email change that only
+            // lands on the employee row silently breaks login.
+            if ($employee->wasChanged('email') && $employee->user !== null && $employee->user->email !== $employee->email) {
+                $employee->user->update(['email' => $employee->email]);
+            }
+
             // The form shows one role, but an account may hold several — the
             // director carries manager and employee both. Saving the employee
             // with the role the form happened to display would sync the account
