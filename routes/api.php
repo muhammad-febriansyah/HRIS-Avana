@@ -206,6 +206,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('shift-swaps/colleagues', [ShiftSwapController::class, 'colleagues']);
 
             Route::get('face', [FaceController::class, 'status']);
+            Route::delete('face', [FaceController::class, 'destroy']);
             Route::post('face/enroll', [FaceController::class, 'enroll']);
             // Device-side scan diagnostics. Throttled: the app batches, but a
             // buggy build must not be able to turn its scan loop into a flood.

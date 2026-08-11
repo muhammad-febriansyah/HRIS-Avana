@@ -6,6 +6,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
+use RuntimeException;
 
 /**
  * Storage for uploads that are nobody's business but their owner's.
@@ -36,10 +37,24 @@ final class PrivateFile
 
     /**
      * Store an upload privately and return its path.
+     *
+     * A failed write returns false from the filesystem, and false lands in a
+     * string column as "". That reads back as a row that owns a file nobody
+     * can find — a selfie the attendance page renders as a broken image, a
+     * document whose download link resolves to nothing. Failing loudly here
+     * keeps a half-written record from ever reaching the database.
+     *
+     * @throws RuntimeException when the file cannot be written
      */
     public static function store(UploadedFile $file, string $directory): string
     {
-        return $file->store($directory, self::DISK);
+        $path = $file->store($directory, self::DISK);
+
+        if (! is_string($path) || $path === '') {
+            throw new RuntimeException("Gagal menyimpan berkas ke {$directory}.");
+        }
+
+        return $path;
     }
 
     /**

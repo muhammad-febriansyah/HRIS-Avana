@@ -3,10 +3,12 @@
 use App\Models\Attendance;
 use App\Models\AttendanceChallenge;
 use App\Models\AttendancePolicy;
+use App\Models\AttendanceSelfie;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 
 beforeEach(function (): void {
     $this->seed(AvanaDemoSeeder::class);
@@ -207,4 +209,40 @@ it('accepts any live face without matching when face_mode is detection', functio
 
     $att = Attendance::whereNotNull('clock_in_at')->latest('id')->firstOrFail();
     expect($att->risk_flags ?? [])->not->toContain('face_mismatch');
+});
+
+it('stores the selfie file and records its path', function (): void {
+    ($this->setPolicy)(['face_mode' => 'off']);
+    Storage::fake('local');
+
+    ($this->auth)()->post('/api/v1/me/attendance/clock', [
+        'type' => 'in',
+        'selfie' => UploadedFile::fake()->image('kept.jpg', 480, 640),
+        ...$this->at,
+    ])->assertOk();
+
+    $selfie = AttendanceSelfie::latest('id')->firstOrFail();
+
+    expect($selfie->file_path)->not->toBe('');
+    Storage::disk('local')->assertExists($selfie->file_path);
+});
+
+it('keeps the punch but writes no selfie row when the file cannot be stored', function (): void {
+    ($this->setPolicy)(['face_mode' => 'off']);
+
+    // A full disk, a bad mount, a permission the deploy never granted: the
+    // filesystem answers false and the punch must survive it without leaving a
+    // row that points at a file nobody can open.
+    Storage::shouldReceive('disk')->andReturnSelf();
+    Storage::shouldReceive('putFileAs')->andReturn(false);
+
+    ($this->auth)()->post('/api/v1/me/attendance/clock', [
+        'type' => 'in',
+        'selfie' => UploadedFile::fake()->image('lost.jpg', 480, 640),
+        ...$this->at,
+    ])->assertOk();
+
+    expect(Attendance::whereNotNull('clock_in_at')->exists())->toBeTrue()
+        ->and(AttendanceSelfie::where('file_path', '')->exists())->toBeFalse()
+        ->and(AttendanceSelfie::count())->toBe(0);
 });

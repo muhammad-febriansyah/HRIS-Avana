@@ -46,6 +46,29 @@ class FaceController extends Controller
     }
 
     /**
+     * Permanently remove the caller's encrypted biometric template.
+     */
+    public function destroy(Request $request): JsonResponse
+    {
+        $employee = $this->currentEmployee($request);
+
+        EmployeeFaceEmbedding::query()
+            ->forTenant($employee->tenant_id)
+            ->where('employee_id', $employee->id)
+            ->delete();
+
+        $this->scanLogger->record($employee, [
+            'context' => FaceScanLog::CONTEXT_ENROLL,
+            'outcome' => 'ok',
+            'reason' => 'deleted',
+            'message' => 'Data wajah berhasil dihapus',
+            'device' => $this->deviceFrom($request),
+        ], $request);
+
+        return response()->json(['message' => 'Data wajah berhasil dihapus']);
+    }
+
+    /**
      * Enroll (or re-enroll) from three to five liveness-gated camera frames.
      */
     public function enroll(Request $request): JsonResponse

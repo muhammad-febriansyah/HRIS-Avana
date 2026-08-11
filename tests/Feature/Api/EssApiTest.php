@@ -566,6 +566,52 @@ it('reports face enrollment status and enrolls a face', function (): void {
     Http::assertSent(fn ($request): bool => $request->hasHeader('X-API-Key', 'test-face-key'));
 });
 
+it('allows an employee to delete only their own enrolled face', function (): void {
+    Http::fake(['*/v1/faces/enroll' => Http::response(essFaceEnrollmentResponse())]);
+
+    $employee = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail()->employee;
+    $otherEmployee = Employee::query()
+        ->where('tenant_id', $employee->tenant_id)
+        ->whereKeyNot($employee->id)
+        ->firstOrFail();
+    $embedding = essFaceEnrollmentResponse()['embedding'];
+
+    EmployeeFaceEmbedding::create([
+        'tenant_id' => $otherEmployee->tenant_id,
+        'employee_id' => $otherEmployee->id,
+        'embedding' => [],
+        'embedding_ciphertext' => $embedding,
+        'dimensions' => count($embedding),
+        'model_version' => 'sface-2021dec-v1',
+        'enrolled_at' => now(),
+    ]);
+
+    ($this->auth)()->post('/api/v1/me/face/enroll', ['images' => essFaceEnrollmentImages()]);
+
+    ($this->auth)()
+        ->deleteJson('/api/v1/me/face')
+        ->assertOk()
+        ->assertJsonPath('message', 'Data wajah berhasil dihapus');
+
+    ($this->auth)()->getJson('/api/v1/me/face')
+        ->assertOk()
+        ->assertJsonPath('data.enrolled', false);
+
+    expect(EmployeeFaceEmbedding::where('employee_id', $employee->id)->exists())
+        ->toBeFalse()
+        ->and(EmployeeFaceEmbedding::where('employee_id', $otherEmployee->id)->exists())
+        ->toBeTrue()
+        ->and(FaceScanLog::where('employee_id', $employee->id)->where('reason', 'deleted')->exists())
+        ->toBeTrue();
+});
+
+it('treats deleting an absent face as a successful idempotent request', function (): void {
+    ($this->auth)()
+        ->deleteJson('/api/v1/me/face')
+        ->assertOk()
+        ->assertJsonPath('message', 'Data wajah berhasil dihapus');
+});
+
 it('rejects a face already enrolled by another employee in the tenant', function (): void {
     Http::fake(['*/v1/faces/enroll' => Http::response(essFaceEnrollmentResponse())]);
 

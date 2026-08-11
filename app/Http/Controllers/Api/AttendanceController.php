@@ -27,7 +27,9 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 /**
  * Employee self-service attendance: today status, monthly history, and a single
@@ -538,17 +540,7 @@ class AttendanceController extends Controller
         ]);
         $attendance->save();
 
-        if ($request->hasFile('selfie')) {
-            AttendanceSelfie::create([
-                'tenant_id' => $employee->tenant_id,
-                'attendance_id' => $attendance->id,
-                'employee_id' => $employee->id,
-                'file_path' => PrivateFile::store($request->file('selfie'), 'selfies'),
-                'latitude' => $data['latitude'] ?? null,
-                'longitude' => $data['longitude'] ?? null,
-                'captured_at' => $clockedAt,
-            ]);
-        }
+        $this->recordSelfie($request, $attendance, $employee, $data, $clockedAt);
 
         Notifier::attendancePunch(
             $employee->tenant_id,
@@ -608,17 +600,7 @@ class AttendanceController extends Controller
         }
         $attendance->save();
 
-        if ($request->hasFile('selfie')) {
-            AttendanceSelfie::create([
-                'tenant_id' => $employee->tenant_id,
-                'attendance_id' => $attendance->id,
-                'employee_id' => $employee->id,
-                'file_path' => PrivateFile::store($request->file('selfie'), 'selfies'),
-                'latitude' => $data['latitude'] ?? null,
-                'longitude' => $data['longitude'] ?? null,
-                'captured_at' => $clockedAt,
-            ]);
-        }
+        $this->recordSelfie($request, $attendance, $employee, $data, $clockedAt);
 
         Notifier::attendancePunch(
             $employee->tenant_id,
@@ -674,6 +656,46 @@ class AttendanceController extends Controller
             ->where('clock_in_at', '>=', $clockedAt->copy()->subDay())
             ->orderByDesc('clock_in_at')
             ->first();
+    }
+
+    /**
+     * Keep the punch's selfie, or keep nothing at all.
+     *
+     * A punch that reached this point has already passed geofence, liveness and
+     * face checks, so a storage failure is the server's problem and must not
+     * cost the employee their attendance. The row is written only once the file
+     * is safely on disk: a selfie row with no file behind it renders as a broken
+     * image on the attendance page and hides the fact that the photo is gone.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function recordSelfie(Request $request, Attendance $attendance, Employee $employee, array $data, CarbonInterface $clockedAt): void
+    {
+        if (! $request->hasFile('selfie')) {
+            return;
+        }
+
+        try {
+            $path = PrivateFile::store($request->file('selfie'), 'selfies');
+        } catch (RuntimeException $e) {
+            Log::error('Selfie absensi gagal disimpan.', [
+                'attendance_id' => $attendance->id,
+                'employee_id' => $employee->id,
+                'exception' => $e->getMessage(),
+            ]);
+
+            return;
+        }
+
+        AttendanceSelfie::create([
+            'tenant_id' => $employee->tenant_id,
+            'attendance_id' => $attendance->id,
+            'employee_id' => $employee->id,
+            'file_path' => $path,
+            'latitude' => $data['latitude'] ?? null,
+            'longitude' => $data['longitude'] ?? null,
+            'captured_at' => $clockedAt,
+        ]);
     }
 
     /**
