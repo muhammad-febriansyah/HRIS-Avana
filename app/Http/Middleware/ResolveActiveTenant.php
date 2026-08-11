@@ -32,8 +32,15 @@ class ResolveActiveTenant
             $viewTenantId = (int) $request->session()->get('view_tenant_id', 0);
 
             if ($isSuperAdmin && $viewTenantId > 0 && Tenant::whereKey($viewTenantId)->exists()) {
-                // In-memory only — never saved back to the users table.
                 $user->tenant_id = $viewTenantId;
+
+                // In-memory only. Assigning alone was not enough: the attribute
+                // stayed dirty, so any later save() on this same instance wrote
+                // the viewed tenant into the users table and moved the super
+                // admin into that tenant for good — Settings → Profil did
+                // exactly that. Syncing the original marks it unchanged, so a
+                // save never carries it.
+                $user->syncOriginalAttribute('tenant_id');
             }
         }
 

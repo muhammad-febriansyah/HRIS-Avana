@@ -1108,6 +1108,11 @@ class DashboardController extends Controller
             ->where('tenant_id', $tenantId)
             ->where('status', 'active')
             ->whereDoesntHave('employee')
+            // A platform account is not a member of staff and is never meant to
+            // hold an employee record, so listing it here only tells a tenant
+            // admin to go fix something that is not broken — and names an
+            // account they cannot even open.
+            ->whereDoesntHave('roles', fn ($query) => $query->where('code', 'super_admin'))
             ->with('roles:id,name,code,can_access_mobile')
             ->orderBy('name')
             ->get()
