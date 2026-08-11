@@ -750,6 +750,29 @@ export default function EmployeesIndex({
                                                         >
                                                             {e.email ?? '—'}
                                                         </div>
+                                                        {/* Linking an existing account leaves the employee's
+                                                            email and the account's free to differ, and the
+                                                            login only answers to the account's. Without this
+                                                            an admin reads the address above, hands it over,
+                                                            and the employee is told their password is wrong. */}
+                                                        {e.has_login &&
+                                                            e.login_email &&
+                                                            e.login_email !==
+                                                                e.email && (
+                                                                <div
+                                                                    title="Email untuk login aplikasi berbeda dengan email karyawan"
+                                                                    style={{
+                                                                        fontSize: 11.5,
+                                                                        color: C.amber,
+                                                                        marginTop: 2,
+                                                                    }}
+                                                                >
+                                                                    Login:{' '}
+                                                                    {
+                                                                        e.login_email
+                                                                    }
+                                                                </div>
+                                                            )}
                                                     </div>
                                                 </div>
                                             </td>
@@ -1600,6 +1623,39 @@ export default function EmployeesIndex({
                                 </option>
                             ))}
                         </select>
+                        {/* The account keeps its own email, and that is the one
+                            the app authenticates. Say so before the link is
+                            made, not after the employee cannot get in. */}
+                        {(() => {
+                            const picked = linkableUsers.find(
+                                (user) => String(user.id) === linkUserId,
+                            );
+
+                            if (!picked || picked.email === linkTarget.email) {
+                                return null;
+                            }
+
+                            return (
+                                <div
+                                    style={{
+                                        marginTop: 12,
+                                        padding: '10px 12px',
+                                        borderRadius: 9,
+                                        background: 'rgba(217,119,6,.08)',
+                                        border: '1px solid rgba(217,119,6,.25)',
+                                        fontSize: 12.5,
+                                        color: C.amber,
+                                        lineHeight: 1.5,
+                                    }}
+                                >
+                                    Login aplikasi memakai{' '}
+                                    <strong>{picked.email}</strong>, bukan{' '}
+                                    {linkTarget.email ?? 'email karyawan'}.
+                                    Berikan alamat itu ke karyawan yang
+                                    bersangkutan.
+                                </div>
+                            );
+                        })()}
                         <div
                             style={{ display: 'flex', gap: 10, marginTop: 22 }}
                         >

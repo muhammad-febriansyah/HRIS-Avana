@@ -84,6 +84,8 @@ export type Employee = {
     status: string;
     status_label: string;
     has_login?: boolean;
+    /** The address the account actually signs in with, when one is linked. */
+    login_email?: string | null;
     is_top_approver?: boolean;
     role_id?: number | null;
     account_active?: boolean;

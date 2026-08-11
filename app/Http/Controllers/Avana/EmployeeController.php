@@ -87,7 +87,9 @@ class EmployeeController extends Controller
                 'position:id,name',
                 'jobLevel:id,name',
                 'manager:id,full_name,employee_number',
-                'user:id,status',
+                // `email` rides along so the row can show the address the person
+                // signs in with when it differs from the employee's own.
+                'user:id,status,email',
                 'user.activeDevice',
             ])
             ->when($request->query('search'), function ($query, $search): void {
@@ -638,7 +640,7 @@ class EmployeeController extends Controller
             'jobLevel:id,name',
             'workLocation:id,name',
             'manager:id,full_name,employee_number',
-            'user:id,status',
+            'user:id,status,email',
             'user.roles:id',
             ...$this->offRowRelations(),
         ]);

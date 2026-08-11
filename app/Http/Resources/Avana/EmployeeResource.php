@@ -125,6 +125,12 @@ final class EmployeeResource extends JsonResource
             'work_location_id' => $this->work_location_id,
             'attendance_scope' => $this->attendance_scope,
             'has_login' => $this->user_id !== null,
+            // The address the person actually signs in with. It is the account's,
+            // not the employee row's, and linking an existing account leaves the
+            // two free to differ — so the screens have to be able to say which
+            // one is the login, or an admin hands out the wrong address and the
+            // employee is told their password is wrong.
+            'login_email' => $this->whenLoaded('user', fn () => $this->user?->email),
             'is_top_approver' => (bool) $this->is_top_approver,
             'role_id' => $this->whenLoaded('user', fn () => $this->user?->roles->first()?->id),
             'account_active' => $this->whenLoaded('user', fn () => $this->user?->status === 'active'),
