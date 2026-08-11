@@ -57,4 +57,14 @@ return [
         'project_id' => env('FIREBASE_PROJECT_ID', 'febrinogen-learn'),
     ],
 
+    'face_recognition' => [
+        // Internal-only FastAPI service. The API key stays on Laravel and must
+        // never be shipped in the Flutter application.
+        'url' => env('FACE_SERVICE_URL', 'http://127.0.0.1:8000'),
+        'api_key' => env('FACE_SERVICE_API_KEY'),
+        'model_version' => env('FACE_SERVICE_MODEL_VERSION', 'sface-2021dec-v1'),
+        'connect_timeout' => (int) env('FACE_SERVICE_CONNECT_TIMEOUT', 3),
+        'timeout' => (int) env('FACE_SERVICE_TIMEOUT', 20),
+    ],
+
 ];

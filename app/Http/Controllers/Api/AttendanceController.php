@@ -12,10 +12,11 @@ use App\Models\Employee;
 use App\Models\EmployeeFaceEmbedding;
 use App\Models\FaceScanLog;
 use App\Models\WorkLocation;
+use App\Services\FaceRecognitionException;
+use App\Services\FaceRecognitionService;
 use App\Services\FaceScanLogger;
 use App\Services\LeaveAttendanceMarker;
 use App\Support\DeviceIntegrity;
-use App\Support\FaceMatcher;
 use App\Support\Notifier;
 use App\Support\PrivateFile;
 use App\Support\Roster;
@@ -23,6 +24,7 @@ use App\Support\TenantTime;
 use Carbon\CarbonInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -35,7 +37,10 @@ class AttendanceController extends Controller
 {
     use ResolvesApiEmployee;
 
-    public function __construct(private readonly FaceScanLogger $scanLogger) {}
+    public function __construct(
+        private readonly FaceScanLogger $scanLogger,
+        private readonly FaceRecognitionService $faceRecognition,
+    ) {}
 
     public function today(Request $request): JsonResponse
     {
@@ -43,6 +48,7 @@ class AttendanceController extends Controller
         $zone = TenantTime::zoneForBranch($employee->tenant_id, $employee->branch_id);
         $record = $this->todayRecord($employee->tenant_id, $employee->id, $zone);
         $policy = AttendancePolicy::resolve($employee->tenant_id);
+        $enrolledFace = EmployeeFaceEmbedding::where('employee_id', $employee->id)->first();
 
         return response()->json([
             'data' => $this->todayShape($record, $zone),
@@ -60,7 +66,9 @@ class AttendanceController extends Controller
                 'device_binding_enabled' => (bool) ($policy->device_binding_enabled ?? true),
                 'require_face_enrollment' => (bool) $policy->require_face_enrollment,
                 'require_liveness_challenge' => (bool) $policy->require_liveness_challenge,
-                'face_enrolled' => EmployeeFaceEmbedding::where('employee_id', $employee->id)->exists(),
+                'face_enrolled' => $enrolledFace?->isCompatibleWith(
+                    $this->faceRecognition->expectedModelVersion(),
+                ) ?? false,
                 // Whether "home" is a legal choice today, so the app can offer
                 // the mode selector instead of letting the user earn a 422.
                 'wfh_approved_today' => LeaveAttendanceMarker::wfhCovers(
@@ -183,8 +191,6 @@ class AttendanceController extends Controller
             // bounded to the same day. Past-day fixes go through the attendance
             // correction flow (manager-approved) so they leave an audit trail.
             'clocked_at' => ['nullable', 'date', 'after_or_equal:'.now()->startOfDay()->toDateTimeString()],
-            'face_embedding' => ['nullable', 'array', 'min:64', 'max:1024'],
-            'face_embedding.*' => ['numeric'],
             'selfie' => ['nullable', 'image', 'max:4096'],
         ]);
 
@@ -232,18 +238,22 @@ class AttendanceController extends Controller
         if ($policy->usesFaceRecognition()) {
             // Recognition: 1:1 identity match against the enrolled template.
             $enrolled = EmployeeFaceEmbedding::where('employee_id', $employee->id)->first();
+            $compatible = $enrolled?->isCompatibleWith(
+                $this->faceRecognition->expectedModelVersion(),
+            ) ?? false;
 
-            if ($enrolled === null && $policy->require_face_enrollment) {
-                $message = 'Anda wajib mendaftarkan wajah terlebih dahulu sebelum absen. Buka menu Daftar Wajah.';
+            if (! $compatible && $policy->require_face_enrollment) {
+                $message = $enrolled === null
+                    ? 'Anda wajib mendaftarkan wajah terlebih dahulu sebelum absen. Buka menu Daftar Wajah.'
+                    : 'Data wajah lama perlu didaftarkan ulang sebelum absensi.';
                 $this->logFaceScan($request, $employee, 'blocked', 'not_enrolled', $message);
 
                 return response()->json(['message' => $message], 422);
             }
 
-            if ($enrolled !== null) {
-                $submitted = $data['face_embedding'] ?? null;
-
-                if (! is_array($submitted) || $submitted === []) {
+            if ($compatible) {
+                $selfie = $request->file('selfie');
+                if (! $selfie instanceof UploadedFile) {
                     if ($policy->blocksFace()) {
                         $message = 'Verifikasi wajah diperlukan. Aktifkan kamera lalu coba lagi.';
                         $this->logFaceScan($request, $employee, 'blocked', 'face_missing', $message);
@@ -254,35 +264,75 @@ class AttendanceController extends Controller
                     $this->logFaceScan($request, $employee, 'fail', 'face_missing', 'Absen diterima tanpa wajah (kebijakan tidak memblokir)');
                     $faceFlags[] = 'face_missing';
                 } else {
-                    $score = FaceMatcher::cosine($enrolled->embedding, $submitted);
-                    $metrics = [
-                        'score' => $score,
-                        'threshold' => FaceMatcher::THRESHOLD,
-                        'embedding_dimensions' => count($submitted),
-                    ];
+                    try {
+                        $verification = $this->faceRecognition->verify(
+                            $selfie,
+                            $enrolled->recognitionEmbedding() ?? [],
+                            (string) $enrolled->model_version,
+                        );
+                    } catch (FaceRecognitionException $exception) {
+                        $message = $exception->unavailable
+                            ? 'Layanan verifikasi wajah sedang tidak tersedia. Coba lagi.'
+                            : 'Foto wajah tidak dapat diverifikasi. Pastikan hanya satu wajah terlihat.';
+                        $this->logFaceScan(
+                            $request,
+                            $employee,
+                            $policy->blocksFace() ? 'blocked' : 'fail',
+                            $exception->reason,
+                            $message,
+                            ['detail' => $exception->getMessage()],
+                        );
 
-                    if ($score < FaceMatcher::THRESHOLD) {
                         if ($policy->blocksFace()) {
-                            $message = 'Wajah tidak cocok dengan data terdaftar. Coba lagi.';
-                            $this->logFaceScan($request, $employee, 'blocked', 'face_mismatch', $message, $metrics);
-
-                            return response()->json(['message' => $message], 422);
+                            return response()->json(
+                                ['message' => $message],
+                                $exception->unavailable ? 503 : 422,
+                            );
                         }
 
-                        $this->logFaceScan($request, $employee, 'fail', 'face_mismatch', 'Skor di bawah ambang, tetap dicatat sebagai risiko', $metrics);
-                        $faceFlags[] = 'face_mismatch';
-                    } else {
-                        $this->logFaceScan($request, $employee, 'ok', 'face_match', null, $metrics);
+                        $faceFlags[] = $exception->reason;
+                        $verification = null;
                     }
 
-                    $data['face_confidence'] = round($score, 4);
+                    if ($verification !== null) {
+                        $metrics = [
+                            'score' => $verification['score'],
+                            'threshold' => $verification['threshold'],
+                            'quality_passed' => $verification['quality_passed'],
+                            'quality_reasons' => $verification['quality_reasons'],
+                            'model_version' => $enrolled->model_version,
+                        ];
+                        $data['face_confidence'] = round($verification['score'], 4);
+
+                        if (! $verification['quality_passed'] || ! $verification['matched']) {
+                            $reason = $verification['quality_passed'] ? 'face_mismatch' : 'face_quality';
+                            $message = $verification['quality_passed']
+                                ? 'Wajah tidak cocok dengan data terdaftar. Coba lagi.'
+                                : 'Foto wajah kurang jelas. Pastikan cahaya cukup dan wajah tidak buram.';
+                            $this->logFaceScan(
+                                $request,
+                                $employee,
+                                $policy->blocksFace() ? 'blocked' : 'fail',
+                                $reason,
+                                $message,
+                                $metrics,
+                            );
+
+                            if ($policy->blocksFace()) {
+                                return response()->json(['message' => $message], 422);
+                            }
+
+                            $faceFlags[] = $reason;
+                        } else {
+                            $this->logFaceScan($request, $employee, 'ok', 'face_match', null, $metrics);
+                        }
+                    }
                 }
             }
         } elseif ($policy->usesFace()) {
-            // Detection: only prove a live face was captured; no identity match.
-            $submitted = $data['face_embedding'] ?? null;
-
-            if (! is_array($submitted) || $submitted === []) {
+            // Detection: Python confirms exactly one face; no identity match.
+            $selfie = $request->file('selfie');
+            if (! $selfie instanceof UploadedFile) {
                 if ($policy->blocksFace()) {
                     $message = 'Verifikasi wajah diperlukan. Aktifkan kamera lalu coba lagi.';
                     $this->logFaceScan($request, $employee, 'blocked', 'face_missing', $message);
@@ -293,9 +343,56 @@ class AttendanceController extends Controller
                 $this->logFaceScan($request, $employee, 'fail', 'face_missing', 'Absen diterima tanpa wajah (kebijakan tidak memblokir)');
                 $faceFlags[] = 'face_missing';
             } else {
-                $this->logFaceScan($request, $employee, 'ok', 'face_detected', null, [
-                    'embedding_dimensions' => count($submitted),
-                ]);
+                try {
+                    $faceCount = $this->faceRecognition->detect($selfie);
+                } catch (FaceRecognitionException $exception) {
+                    $message = $exception->unavailable
+                        ? 'Layanan deteksi wajah sedang tidak tersedia. Coba lagi.'
+                        : 'Foto wajah tidak dapat dibaca. Ambil ulang foto.';
+                    $this->logFaceScan(
+                        $request,
+                        $employee,
+                        $policy->blocksFace() ? 'blocked' : 'fail',
+                        $exception->reason,
+                        $message,
+                        ['detail' => $exception->getMessage()],
+                    );
+
+                    if ($policy->blocksFace()) {
+                        return response()->json(
+                            ['message' => $message],
+                            $exception->unavailable ? 503 : 422,
+                        );
+                    }
+
+                    $faceFlags[] = $exception->reason;
+                    $faceCount = null;
+                }
+
+                if ($faceCount !== null && $faceCount !== 1) {
+                    $reason = $faceCount === 0 ? 'face_missing' : 'multiple_faces';
+                    $message = $faceCount === 0
+                        ? 'Wajah tidak terdeteksi. Ambil ulang foto.'
+                        : 'Pastikan hanya wajah Anda yang terlihat.';
+                    $this->logFaceScan(
+                        $request,
+                        $employee,
+                        $policy->blocksFace() ? 'blocked' : 'fail',
+                        $reason,
+                        $message,
+                        ['face_count' => $faceCount],
+                    );
+
+                    if ($policy->blocksFace()) {
+                        return response()->json(['message' => $message], 422);
+                    }
+
+                    $faceFlags[] = $reason;
+                } elseif ($faceCount === 1) {
+                    $this->logFaceScan($request, $employee, 'ok', 'face_detected', null, [
+                        'face_count' => 1,
+                    ]);
+                }
             }
         }
         // face_mode 'off' → no face check at all.

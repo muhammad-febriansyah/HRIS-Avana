@@ -6,6 +6,8 @@ use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\EmployeeFaceEmbedding;
 use App\Models\FaceScanLog;
+use App\Services\FaceRecognitionException;
+use App\Services\FaceRecognitionService;
 use App\Services\FaceScanLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,7 +18,10 @@ class FaceController extends Controller
 {
     use ResolvesApiEmployee;
 
-    public function __construct(private readonly FaceScanLogger $scanLogger) {}
+    public function __construct(
+        private readonly FaceScanLogger $scanLogger,
+        private readonly FaceRecognitionService $faceRecognition,
+    ) {}
 
     /**
      * Whether the caller has an enrolled face on record.
@@ -26,34 +31,67 @@ class FaceController extends Controller
         $employee = $this->currentEmployee($request);
 
         $face = EmployeeFaceEmbedding::where('employee_id', $employee->id)->first();
+        $enrolled = $face?->isCompatibleWith($this->faceRecognition->expectedModelVersion()) ?? false;
 
         return response()->json(['data' => [
-            'enrolled' => $face !== null,
-            'dimensions' => $face?->dimensions,
-            'enrolled_at' => $face?->enrolled_at?->toDateTimeString(),
+            'enrolled' => $enrolled,
+            'requires_reenrollment' => $face !== null && ! $enrolled,
+            'dimensions' => $enrolled ? $face->dimensions : null,
+            'model_version' => $enrolled ? $face->model_version : null,
+            'enrolled_at' => $enrolled ? $face->enrolledAtString() : null,
         ]]);
     }
 
     /**
-     * Enroll (or re-enroll) the caller's face embedding.
+     * Enroll (or re-enroll) from three to five liveness-gated camera frames.
      */
     public function enroll(Request $request): JsonResponse
     {
         $employee = $this->currentEmployee($request);
 
         $data = $request->validate([
-            'embedding' => ['required', 'array', 'min:64', 'max:1024'],
-            'embedding.*' => ['numeric'],
+            'images' => ['required', 'array', 'min:3', 'max:5'],
+            'images.*' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:4096'],
+        ], [
+            'images.required' => 'Foto wajah wajib dikirim.',
+            'images.array' => 'Format foto wajah tidak valid.',
+            'images.min' => 'Kirim minimal :min foto wajah.',
+            'images.max' => 'Kirim maksimal :max foto wajah.',
+            'images.*.required' => 'Setiap foto wajah wajib dikirim.',
+            'images.*.image' => 'Setiap file harus berupa gambar.',
+            'images.*.mimes' => 'Format foto wajah harus JPG, JPEG, atau PNG.',
+            'images.*.max' => 'Ukuran setiap foto wajah maksimal 4 MB.',
         ]);
 
-        $embedding = array_map(static fn ($value): float => (float) $value, $data['embedding']);
+        try {
+            $result = $this->faceRecognition->enroll($data['images']);
+        } catch (FaceRecognitionException $exception) {
+            $this->scanLogger->record($employee, [
+                'context' => FaceScanLog::CONTEXT_ENROLL,
+                'outcome' => 'blocked',
+                'reason' => $exception->reason,
+                'message' => $exception->getMessage(),
+                'device' => $this->deviceFrom($request),
+            ], $request);
+
+            return response()->json([
+                'message' => $exception->unavailable
+                    ? 'Layanan pengenalan wajah sedang tidak tersedia. Coba lagi.'
+                    : 'Wajah belum dapat didaftarkan. Pastikan hanya satu wajah, terang, dan tidak buram.',
+            ], $exception->unavailable ? 503 : 422);
+        }
 
         EmployeeFaceEmbedding::updateOrCreate(
             ['employee_id' => $employee->id],
             [
                 'tenant_id' => $employee->tenant_id,
-                'embedding' => $embedding,
-                'dimensions' => count($embedding),
+                // The legacy on-device vector remains only for schema
+                // compatibility. New biometric templates use Laravel's
+                // encrypted cast in embedding_ciphertext.
+                'embedding' => [],
+                'embedding_ciphertext' => $result['embedding'],
+                'dimensions' => $result['dimensions'],
+                'model_version' => $result['model_version'],
                 'enrolled_at' => now(),
             ],
         );
@@ -63,7 +101,11 @@ class FaceController extends Controller
             'outcome' => 'ok',
             'reason' => 'enrolled',
             'message' => 'Wajah berhasil didaftarkan',
-            'metrics' => ['embedding_dimensions' => count($embedding)],
+            'metrics' => [
+                'embedding_dimensions' => $result['dimensions'],
+                'model_version' => $result['model_version'],
+                'individual_similarities' => $result['individual_similarities'],
+            ],
             'device' => $this->deviceFrom($request),
         ], $request);
 

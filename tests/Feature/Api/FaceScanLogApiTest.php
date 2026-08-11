@@ -6,6 +6,8 @@ use App\Models\EmployeeFaceEmbedding;
 use App\Models\FaceScanLog;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 
 use function Pest\Laravel\actingAs;
@@ -15,6 +17,11 @@ beforeEach(function (): void {
 
     $this->employeeUser = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail();
     $this->employee = $this->employeeUser->employee()->firstOrFail();
+    config([
+        'services.face_recognition.url' => 'http://face-service.test',
+        'services.face_recognition.api_key' => 'test-face-key',
+        'services.face_recognition.model_version' => 'sface-2021dec-v1',
+    ]);
 
     $this->tokenFor = function (string $email): string {
         $this->app['auth']->forgetGuards();
@@ -28,6 +35,25 @@ beforeEach(function (): void {
         return $this->withHeader('Authorization', 'Bearer '.$token);
     };
 });
+
+/** @return list<UploadedFile> */
+function faceLogEnrollmentImages(): array
+{
+    return collect(range(1, 3))
+        ->map(fn (int $index): UploadedFile => UploadedFile::fake()->image("face-log-{$index}.jpg", 480, 640))
+        ->all();
+}
+
+/** @return array<string, mixed> */
+function faceLogEnrollmentResponse(): array
+{
+    return [
+        'embedding' => array_fill(0, 128, 0.1),
+        'model_version' => 'sface-2021dec-v1',
+        'dimensions' => 128,
+        'individual_similarities' => [0.91, 0.92, 0.93],
+    ];
+}
 
 it('records a batch of device-side scan diagnostics', function (): void {
     $token = ($this->tokenFor)('bagus.p@nusantara.co.id');
@@ -106,17 +132,18 @@ it('drops metric keys it does not know about', function (): void {
 });
 
 it('logs the enrollment that succeeded', function (): void {
+    Http::fake(['*/v1/faces/enroll' => Http::response(faceLogEnrollmentResponse())]);
     $token = ($this->tokenFor)('bagus.p@nusantara.co.id');
 
     ($this->auth)($token)
-        ->postJson('/api/v1/me/face/enroll', ['embedding' => array_fill(0, 192, 0.1)])
+        ->post('/api/v1/me/face/enroll', ['images' => faceLogEnrollmentImages()])
         ->assertOk();
 
     $log = FaceScanLog::where('context', FaceScanLog::CONTEXT_ENROLL)->firstOrFail();
 
     expect($log->reason)->toBe('enrolled');
     expect($log->outcome)->toBe('ok');
-    expect($log->metrics['embedding_dimensions'])->toBe(192);
+    expect($log->metrics['embedding_dimensions'])->toBe(128);
 });
 
 it('logs the server-side match verdict when clocking in', function (): void {
@@ -126,14 +153,16 @@ it('logs the server-side match verdict when clocking in', function (): void {
         'require_liveness_challenge' => false,
     ])->save();
 
-    $embedding = array_fill(0, 192, 0.1);
+    $embedding = array_fill(0, 128, 0.1);
 
     EmployeeFaceEmbedding::updateOrCreate(
         ['employee_id' => $this->employee->id],
         [
             'tenant_id' => $this->employee->tenant_id,
-            'embedding' => $embedding,
-            'dimensions' => 192,
+            'embedding' => [],
+            'embedding_ciphertext' => $embedding,
+            'dimensions' => 128,
+            'model_version' => 'sface-2021dec-v1',
             'enrolled_at' => now(),
         ],
     );
@@ -142,11 +171,18 @@ it('logs the server-side match verdict when clocking in', function (): void {
 
     $token = ($this->tokenFor)('bagus.p@nusantara.co.id');
 
-    // A vector pointing the other way can never clear the cosine threshold.
+    Http::fake(['*/v1/faces/verify' => Http::response([
+        'matched' => false,
+        'score' => 0.2,
+        'threshold' => 0.6,
+        'quality_passed' => true,
+        'quality_reasons' => [],
+    ])]);
+
     ($this->auth)($token)
-        ->postJson('/api/v1/me/attendance/clock', [
+        ->post('/api/v1/me/attendance/clock', [
             'type' => 'in',
-            'face_embedding' => array_fill(0, 192, -0.1),
+            'selfie' => UploadedFile::fake()->image('mismatch.jpg', 480, 640),
         ]);
 
     $log = FaceScanLog::where('context', FaceScanLog::CONTEXT_CLOCK)->latest('id')->firstOrFail();

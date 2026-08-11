@@ -26,7 +26,9 @@ class FaceScanLogger
         'faces', 'detector', 'yaw', 'roll', 'pitch', 'left_eye_open',
         'right_eye_open', 'smiling', 'face_width_ratio', 'center_x', 'center_y',
         'frame_width', 'frame_height', 'embedding_dimensions', 'score',
-        'threshold', 'elapsed_ms', 'fail_streak', 'error',
+        'threshold', 'elapsed_ms', 'fail_streak', 'error', 'face_count',
+        'quality_passed', 'quality_reasons', 'model_version',
+        'individual_similarities', 'detail',
     ];
 
     /**

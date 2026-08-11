@@ -5,6 +5,8 @@ use App\Models\AttendanceChallenge;
 use App\Models\AttendancePolicy;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
     $this->seed(AvanaDemoSeeder::class);
@@ -12,6 +14,11 @@ beforeEach(function (): void {
     $this->user = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail();
     $this->employee = $this->user->employee;
     $this->tenantId = $this->employee->tenant_id;
+    config([
+        'services.face_recognition.url' => 'http://face-service.test',
+        'services.face_recognition.api_key' => 'test-face-key',
+        'services.face_recognition.model_version' => 'sface-2021dec-v1',
+    ]);
 
     Attendance::query()->update(['clock_in_at' => null, 'clock_out_at' => null]);
 
@@ -33,6 +40,28 @@ beforeEach(function (): void {
     // Inside the seeded work-location geofence (Kantor Pusat Jakarta).
     $this->at = ['latitude' => -6.2146, 'longitude' => 106.8451];
 });
+
+/** @return list<UploadedFile> */
+function hardeningFaceImages(): array
+{
+    return collect(range(1, 3))
+        ->map(fn (int $index): UploadedFile => UploadedFile::fake()->image("hardening-face-{$index}.jpg", 480, 640))
+        ->all();
+}
+
+/** @return array<string, mixed> */
+function hardeningEnrollmentResponse(): array
+{
+    $embedding = array_fill(0, 128, 0.0);
+    $embedding[0] = 1.0;
+
+    return [
+        'embedding' => $embedding,
+        'model_version' => 'sface-2021dec-v1',
+        'dimensions' => 128,
+        'individual_similarities' => [0.91, 0.92, 0.93],
+    ];
+}
 
 it('issues a single-use liveness challenge', function (): void {
     ($this->auth)()->postJson('/api/v1/me/attendance/challenge')
@@ -102,16 +131,24 @@ it('flags instead of blocking a rooted device when integrity enforcement is flag
 
 it('records a mismatched face as a flag when face enforcement is flag', function (): void {
     ($this->setPolicy)(['face_enforcement' => 'flag']);
+    Http::fake([
+        '*/v1/faces/enroll' => Http::response(hardeningEnrollmentResponse()),
+        '*/v1/faces/verify' => Http::response([
+            'matched' => false,
+            'score' => 0.2,
+            'threshold' => 0.6,
+            'quality_passed' => true,
+            'quality_reasons' => [],
+        ]),
+    ]);
 
-    // Enroll a known vector, then clock with an orthogonal one (low similarity).
-    $enrolled = array_fill(0, 128, 0.0);
-    $enrolled[0] = 1.0;
-    ($this->auth)()->postJson('/api/v1/me/face/enroll', ['embedding' => $enrolled])->assertOk();
+    ($this->auth)()->post('/api/v1/me/face/enroll', ['images' => hardeningFaceImages()])->assertOk();
 
-    $incoming = array_fill(0, 128, 0.0);
-    $incoming[1] = 1.0;
-
-    ($this->auth)()->postJson('/api/v1/me/attendance/clock', ['type' => 'in', 'face_embedding' => $incoming, ...$this->at])
+    ($this->auth)()->post('/api/v1/me/attendance/clock', [
+        'type' => 'in',
+        'selfie' => UploadedFile::fake()->image('mismatch.jpg', 480, 640),
+        ...$this->at,
+    ])
         ->assertOk();
 
     $att = Attendance::whereNotNull('clock_in_at')->latest('id')->firstOrFail();
@@ -142,9 +179,8 @@ it('tells the app whether a failed face blocks the punch or only flags it', func
 });
 
 it('skips the face check entirely when face_mode is off', function (): void {
-    $enrolled = array_fill(0, 128, 0.0);
-    $enrolled[0] = 1.0;
-    ($this->auth)()->postJson('/api/v1/me/face/enroll', ['embedding' => $enrolled])->assertOk();
+    Http::fake(['*/v1/faces/enroll' => Http::response(hardeningEnrollmentResponse())]);
+    ($this->auth)()->post('/api/v1/me/face/enroll', ['images' => hardeningFaceImages()])->assertOk();
 
     ($this->setPolicy)(['face_mode' => 'off', 'face_enforcement' => 'block']);
 
@@ -155,17 +191,18 @@ it('skips the face check entirely when face_mode is off', function (): void {
 });
 
 it('accepts any live face without matching when face_mode is detection', function (): void {
-    $enrolled = array_fill(0, 128, 0.0);
-    $enrolled[0] = 1.0;
-    ($this->auth)()->postJson('/api/v1/me/face/enroll', ['embedding' => $enrolled])->assertOk();
-
     ($this->setPolicy)(['face_mode' => 'detection', 'face_enforcement' => 'block']);
+    Http::fake(['*/v1/faces/detect' => Http::response([
+        'faces' => [['bbox' => [1, 1, 100, 100], 'landmarks' => [], 'score' => 0.9]],
+        'image_size' => [480, 640],
+        'face_count' => 1,
+    ])]);
 
-    // An orthogonal (non-matching) face is accepted — detection never matches.
-    $incoming = array_fill(0, 128, 0.0);
-    $incoming[1] = 1.0;
-
-    ($this->auth)()->postJson('/api/v1/me/attendance/clock', ['type' => 'in', 'face_embedding' => $incoming, ...$this->at])
+    ($this->auth)()->post('/api/v1/me/attendance/clock', [
+        'type' => 'in',
+        'selfie' => UploadedFile::fake()->image('detected.jpg', 480, 640),
+        ...$this->at,
+    ])
         ->assertOk();
 
     $att = Attendance::whereNotNull('clock_in_at')->latest('id')->firstOrFail();

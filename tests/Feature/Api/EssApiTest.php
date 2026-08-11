@@ -3,6 +3,7 @@
 use App\Models\Attendance;
 use App\Models\AttendanceSelfie;
 use App\Models\Employee;
+use App\Models\EmployeeFaceEmbedding;
 use App\Models\LeaveType;
 use App\Models\MoodCheckin;
 use App\Models\Notification;
@@ -14,11 +15,17 @@ use App\Models\User;
 use App\Models\WorkLocation;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function (): void {
     $this->seed(AvanaDemoSeeder::class);
     Storage::fake('public');
+    config([
+        'services.face_recognition.url' => 'http://face-service.test',
+        'services.face_recognition.api_key' => 'test-face-key',
+        'services.face_recognition.model_version' => 'sface-2021dec-v1',
+    ]);
 
     $this->token = $this->postJson('/api/v1/auth/login', [
         'email' => 'bagus.p@nusantara.co.id',
@@ -513,34 +520,88 @@ it('ignores a future clocked_at and uses now', function (): void {
     expect($att->clock_in_at->isFuture())->toBeFalse();
 });
 
-/** A 128-d unit vector with 1.0 at $at, else 0. */
-function faceVec(int $at = 0): array
+/** @return list<UploadedFile> */
+function essFaceEnrollmentImages(int $count = 3): array
 {
-    $v = array_fill(0, 128, 0.0);
-    $v[$at] = 1.0;
+    return collect(range(1, $count))
+        ->map(fn (int $index): UploadedFile => UploadedFile::fake()->image("face-{$index}.jpg", 480, 640))
+        ->all();
+}
 
-    return $v;
+/** @return array<string, mixed> */
+function essFaceEnrollmentResponse(): array
+{
+    $embedding = array_fill(0, 128, 0.0);
+    $embedding[0] = 1.0;
+
+    return [
+        'embedding' => $embedding,
+        'model_version' => 'sface-2021dec-v1',
+        'dimensions' => 128,
+        'individual_similarities' => [0.91, 0.92, 0.93],
+    ];
 }
 
 it('reports face enrollment status and enrolls a face', function (): void {
+    Http::fake(['*/v1/faces/enroll' => Http::response(essFaceEnrollmentResponse())]);
+
     ($this->auth)()->getJson('/api/v1/me/face')->assertOk()->assertJsonPath('data.enrolled', false);
 
-    ($this->auth)()->postJson('/api/v1/me/face/enroll', ['embedding' => faceVec()])
+    ($this->auth)()->post('/api/v1/me/face/enroll', ['images' => essFaceEnrollmentImages()])
         ->assertOk()->assertJsonPath('message', fn (string $m): bool => str_contains($m, 'didaftarkan'));
 
     ($this->auth)()->getJson('/api/v1/me/face')->assertOk()
         ->assertJsonPath('data.enrolled', true)
-        ->assertJsonPath('data.dimensions', 128);
+        ->assertJsonPath('data.dimensions', 128)
+        ->assertJsonPath('data.model_version', 'sface-2021dec-v1');
+
+    $employee = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail()->employee;
+    $face = EmployeeFaceEmbedding::where('employee_id', $employee->id)->firstOrFail();
+    expect($face->embedding)->toBe([])
+        ->and($face->getRawOriginal('embedding_ciphertext'))->not->toBeNull()
+        ->and($face->recognitionEmbedding())->toHaveCount(128);
+
+    Http::assertSent(fn ($request): bool => $request->hasHeader('X-API-Key', 'test-face-key'));
 });
 
-it('rejects a too-short face embedding on enroll', function (): void {
-    ($this->auth)()->postJson('/api/v1/me/face/enroll', ['embedding' => [1, 2, 3]])
-        ->assertStatus(422)->assertJsonValidationErrors('embedding');
+it('requires at least three face images on enroll', function (): void {
+    ($this->auth)()
+        ->withHeader('Accept', 'application/json')
+        ->post('/api/v1/me/face/enroll', ['images' => essFaceEnrollmentImages(2)])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('images')
+        ->assertJsonPath('errors.images.0', 'Kirim minimal 3 foto wajah.');
+});
+
+it('returns Indonesian validation when face images are missing', function (): void {
+    ($this->auth)()
+        ->postJson('/api/v1/me/face/enroll')
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('images')
+        ->assertJsonPath('message', 'Foto wajah wajib dikirim.')
+        ->assertJsonPath('errors.images.0', 'Foto wajah wajib dikirim.');
+});
+
+it('requires re-enrollment for a legacy on-device template', function (): void {
+    $employee = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail()->employee;
+    EmployeeFaceEmbedding::create([
+        'tenant_id' => $employee->tenant_id,
+        'employee_id' => $employee->id,
+        'embedding' => array_fill(0, 192, 0.1),
+        'dimensions' => 192,
+        'enrolled_at' => now(),
+    ]);
+
+    ($this->auth)()->getJson('/api/v1/me/face')
+        ->assertOk()
+        ->assertJsonPath('data.enrolled', false)
+        ->assertJsonPath('data.requires_reenrollment', true);
 });
 
 it('requires a face at clock-in once enrolled', function (): void {
+    Http::fake(['*/v1/faces/enroll' => Http::response(essFaceEnrollmentResponse())]);
     Attendance::query()->update(['clock_in_at' => null, 'clock_out_at' => null]);
-    ($this->auth)()->postJson('/api/v1/me/face/enroll', ['embedding' => faceVec()]);
+    ($this->auth)()->post('/api/v1/me/face/enroll', ['images' => essFaceEnrollmentImages()]);
 
     ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
         'type' => 'in', 'latitude' => -6.2146, 'longitude' => 106.8451,
@@ -548,44 +609,74 @@ it('requires a face at clock-in once enrolled', function (): void {
 });
 
 it('accepts a matching face and records the confidence', function (): void {
+    Http::fake([
+        '*/v1/faces/enroll' => Http::response(essFaceEnrollmentResponse()),
+        '*/v1/faces/verify' => Http::response([
+            'matched' => true,
+            'score' => 0.87,
+            'threshold' => 0.6,
+            'quality_passed' => true,
+            'quality_reasons' => [],
+        ]),
+    ]);
     Attendance::query()->update(['clock_in_at' => null, 'clock_out_at' => null]);
-    ($this->auth)()->postJson('/api/v1/me/face/enroll', ['embedding' => faceVec()]);
+    ($this->auth)()->post('/api/v1/me/face/enroll', ['images' => essFaceEnrollmentImages()]);
 
-    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+    ($this->auth)()->post('/api/v1/me/attendance/clock', [
         'type' => 'in', 'latitude' => -6.2146, 'longitude' => 106.8451,
-        'face_embedding' => faceVec(),
+        'selfie' => UploadedFile::fake()->image('selfie.jpg', 480, 640),
     ])->assertOk();
 
     $att = Attendance::whereNotNull('clock_in_at')->latest('id')->firstOrFail();
-    expect((float) $att->face_confidence)->toBeGreaterThan(0.9);
+    expect((float) $att->face_confidence)->toBe(0.87);
 });
 
 it('rejects a non-matching face at clock-in', function (): void {
+    Http::fake([
+        '*/v1/faces/enroll' => Http::response(essFaceEnrollmentResponse()),
+        '*/v1/faces/verify' => Http::response([
+            'matched' => false,
+            'score' => 0.31,
+            'threshold' => 0.6,
+            'quality_passed' => true,
+            'quality_reasons' => [],
+        ]),
+    ]);
     Attendance::query()->update(['clock_in_at' => null, 'clock_out_at' => null]);
-    ($this->auth)()->postJson('/api/v1/me/face/enroll', ['embedding' => faceVec(0)]);
+    ($this->auth)()->post('/api/v1/me/face/enroll', ['images' => essFaceEnrollmentImages()]);
 
-    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+    ($this->auth)()->post('/api/v1/me/attendance/clock', [
         'type' => 'in', 'latitude' => -6.2146, 'longitude' => 106.8451,
-        'face_embedding' => faceVec(50),
+        'selfie' => UploadedFile::fake()->image('selfie.jpg', 480, 640),
     ])->assertStatus(422)->assertJsonPath('message', fn (string $m): bool => str_contains($m, 'tidak cocok'));
 });
 
-it('syncs a same-day offline clock with a matching face', function (): void {
+it('accepts a same-day timestamp with a server-verified face', function (): void {
+    Http::fake([
+        '*/v1/faces/enroll' => Http::response(essFaceEnrollmentResponse()),
+        '*/v1/faces/verify' => Http::response([
+            'matched' => true,
+            'score' => 0.88,
+            'threshold' => 0.6,
+            'quality_passed' => true,
+            'quality_reasons' => [],
+        ]),
+    ]);
     Attendance::query()->update(['clock_in_at' => null, 'clock_out_at' => null]);
-    ($this->auth)()->postJson('/api/v1/me/face/enroll', ['embedding' => faceVec()]);
+    ($this->auth)()->post('/api/v1/me/face/enroll', ['images' => essFaceEnrollmentImages()]);
 
     $earlier = now()->startOfDay()->addHours(8);
 
-    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+    ($this->auth)()->post('/api/v1/me/attendance/clock', [
         'type' => 'in',
         'latitude' => -6.2146, 'longitude' => 106.8451,
-        'face_embedding' => faceVec(),
+        'selfie' => UploadedFile::fake()->image('selfie.jpg', 480, 640),
         'clocked_at' => $earlier->toDateTimeString(),
     ])->assertOk();
 
     $att = Attendance::whereNotNull('clock_in_at')->latest('id')->firstOrFail();
     expect($att->date->toDateString())->toBe(now()->toDateString());
-    expect((float) $att->face_confidence)->toBeGreaterThan(0.9);
+    expect((float) $att->face_confidence)->toBe(0.88);
 });
 
 it('rejects a previous-day clocked_at so past-day fixes go through corrections', function (): void {
