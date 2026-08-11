@@ -46,6 +46,17 @@ interface Props {
 
 type FlashProps = { flash?: { success?: string } };
 
+/**
+ * A menu's feature gate, stored comma-separated because a menu may require
+ * several features at once (self-service screens need `ess` plus their module).
+ */
+function featureList(feature: string | null): string[] {
+    return (feature ?? '')
+        .split(',')
+        .map((code) => code.trim())
+        .filter(Boolean);
+}
+
 const emptyForm = {
     id: null as number | null,
     label: '',
@@ -262,7 +273,9 @@ export default function MenuBuilder({
                     {row.modules.length > 0
                         ? ` · modul: ${row.modules.join(', ')}`
                         : ''}
-                    {row.feature ? ` · fitur: ${row.feature}` : ''}
+                    {featureList(row.feature).length > 0
+                        ? ` · fitur: ${featureList(row.feature).join(' + ')}`
+                        : ''}
                 </div>
             </div>
             <div style={{ display: 'inline-flex', gap: 5 }}>
@@ -553,17 +566,31 @@ export default function MenuBuilder({
                                     placeholder="mis. users, wallet, star"
                                 />
                             </Field>
-                            <Field label="Fitur (opsional)">
+                            <Field
+                                label="Fitur (opsional — semua harus aktif)"
+                                hint="Pilih lebih dari satu dengan Ctrl/Cmd. Menu hanya muncul bila seluruh fitur ini aktif untuk tenant."
+                            >
+                                {/* Multi-select: a menu can require several
+                                    features at once, and a single select would
+                                    quietly drop the extras when an admin edits
+                                    the row — re-opening the screen it gated. */}
                                 <select
-                                    value={form.data.feature}
+                                    multiple
+                                    size={Math.min(6, features.length + 1)}
+                                    value={featureList(form.data.feature)}
                                     onChange={(e) =>
-                                        form.setData('feature', e.target.value)
+                                        form.setData(
+                                            'feature',
+                                            Array.from(
+                                                e.target.selectedOptions,
+                                                (o) => o.value,
+                                            )
+                                                .filter(Boolean)
+                                                .join(','),
+                                        )
                                     }
-                                    style={inp}
+                                    style={{ ...inp, height: 'auto' }}
                                 >
-                                    <option value="">
-                                        — tanpa gate fitur —
-                                    </option>
                                     {features.map((f) => (
                                         <option key={f.value} value={f.value}>
                                             {f.label}
@@ -689,10 +716,12 @@ export default function MenuBuilder({
 function Field({
     label,
     error,
+    hint,
     children,
 }: {
     label: string;
     error?: string;
+    hint?: string;
     children: React.ReactNode;
 }) {
     return (
@@ -701,6 +730,13 @@ function Field({
                 {label}
             </div>
             {children}
+            {hint && (
+                <div
+                    style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}
+                >
+                    {hint}
+                </div>
+            )}
             {error && (
                 <div style={{ fontSize: 11.5, color: C.red, marginTop: 4 }}>
                     {error}

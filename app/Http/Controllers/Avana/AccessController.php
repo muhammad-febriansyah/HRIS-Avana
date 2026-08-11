@@ -211,16 +211,38 @@ class AccessController extends Controller
                 // because switching it off would close the way back in.
                 'lockedActive' => $this->gatesRequest($row['href'], $accessPath),
                 'menuItemId' => $row['menuItemId'],
-                // The package feature behind the menu: off = no role can reach it.
+                // The package feature(s) behind the menu: any one off = no role
+                // can reach it. A menu may name several (self-service screens
+                // need `ess` plus the module they belong to).
                 'feature' => $row['feature'],
-                'featureLabel' => $row['feature'] !== null ? ($featureNames[$row['feature']] ?? $row['feature']) : null,
-                'hasFeature' => $row['feature'] !== null,
-                'featureEnabled' => $row['feature'] === null || $enabledFeatureCodes->contains($row['feature']),
+                'featureLabel' => $this->featureLabel($row['feature'], $featureNames),
+                'hasFeature' => AvanaNav::featureCodes($row['feature']) !== [],
+                'featureEnabled' => collect(AvanaNav::featureCodes($row['feature']))
+                    ->every(fn (string $code): bool => $enabledFeatureCodes->contains($code)),
                 // Self-service rows: every employee holds `own`, so per-role
                 // control is visibility only — there is no action to grant.
                 'selfService' => $row['modules'] === ['own'],
             ])
             ->all();
+    }
+
+    /**
+     * Human-readable name of the feature gate: the feature's name, or each of
+     * them joined when the menu requires more than one.
+     *
+     * @param  Collection<string, string>  $featureNames
+     */
+    private function featureLabel(?string $feature, Collection $featureNames): ?string
+    {
+        $codes = AvanaNav::featureCodes($feature);
+
+        if ($codes === []) {
+            return null;
+        }
+
+        return collect($codes)
+            ->map(fn (string $code): string => $featureNames[$code] ?? $code)
+            ->implode(' + ');
     }
 
     /**

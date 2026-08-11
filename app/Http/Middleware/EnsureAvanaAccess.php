@@ -88,12 +88,18 @@ class EnsureAvanaAccess
             abort_unless($isNamedApprover, 403);
         }
 
-        // A menu whose tenant feature is disabled is not reachable either.
-        if ($requirement['feature'] !== null && $user->tenant_id !== null) {
+        // A menu whose tenant feature is disabled is not reachable either. A
+        // leaf may name several — all of them must be on, matching how the
+        // sidebar decides whether to show the menu at all.
+        $requiredFeatures = AvanaNav::featureCodes($requirement['feature']);
+
+        if ($requiredFeatures !== [] && $user->tenant_id !== null) {
             $enabled = Feature::whereIn('id', $user->tenant?->features()->where('is_enabled', true)->pluck('feature_id') ?? collect())
                 ->pluck('code');
 
-            abort_unless($enabled->contains($requirement['feature']), 403);
+            foreach ($requiredFeatures as $code) {
+                abort_unless($enabled->contains($code), 403);
+            }
         }
 
         return $next($request);

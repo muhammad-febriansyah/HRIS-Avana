@@ -4,6 +4,7 @@ use App\Models\Feature;
 use App\Models\MenuItem;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\AvanaNav;
 use Database\Seeders\AvanaDemoSeeder;
 
 use function Pest\Laravel\actingAs;
@@ -129,10 +130,12 @@ it('keeps every feature-gated menu toggleable from Hak Akses', function (): void
     $featureCodes = Feature::pluck('code');
 
     // Every active tenant menu gated by a feature must map to a real feature row,
-    // so no menu is feature-gated yet impossible to switch off.
+    // so no menu is feature-gated yet impossible to switch off. A gate may name
+    // several features (comma-separated); each one has to exist.
     $uncovered = MenuItem::where('tenant_id', $this->tenant->id)
         ->whereNotNull('feature')
         ->pluck('feature')
+        ->flatMap(fn (string $gate): array => AvanaNav::featureCodes($gate))
         ->unique()
         ->reject(fn (string $code): bool => $featureCodes->contains($code))
         ->values();

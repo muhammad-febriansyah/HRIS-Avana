@@ -51,29 +51,38 @@ final class AvanaNav
             // Employee self-service. Gated on the `own` permission module, which
             // is all a plain karyawan role carries — so this is the one group
             // they see, and privileged roles see it alongside the admin menus.
+            //
+            // Nested under one collapsible parent: these screens are the whole
+            // menu for a karyawan, but for an admin they are twenty-odd rows
+            // pushing the management menus off-screen, several of them sharing
+            // a label with an admin screen (Dokumen, Kinerja, Perjalanan
+            // Dinas). Collapsed, the duplicate labels read unambiguously and
+            // the section behaves like every other one.
             ['title' => 'LAYANAN SAYA', 'items' => [
-                self::leaf('saya-profil', 'Profil', 'user', '/avana/saya/profil', 'ess', ['own']),
-                self::leaf('saya-perubahan-data', 'Perubahan Data', 'user-round-cog', '/avana/saya/perubahan-data', 'ess', ['own']),
-                self::leaf('saya-absensi', 'Absensi', 'fingerprint', '/avana/saya/absensi', 'ess', ['own']),
-                self::leaf('saya-koreksi', 'Koreksi Absensi', 'clock-alert', '/avana/saya/koreksi-absensi', 'ess', ['own']),
-                self::leaf('saya-jadwal', 'Jadwal', 'calendar-clock', '/avana/saya/jadwal', 'ess', ['own']),
-                self::leaf('saya-organisasi', 'Struktur Organisasi', 'network', '/avana/saya/organisasi', 'ess', ['own']),
-                self::leaf('saya-token-ai', 'Token AI Saya', 'wallet', '/avana/saya/token-ai', 'ess', ['own']),
-                self::leaf('saya-cuti', 'Cuti', 'palmtree', '/avana/saya/cuti', 'ess', ['own']),
-                self::leaf('saya-lembur', 'Lembur', 'timer', '/avana/saya/lembur', 'ess', ['own']),
-                self::leaf('saya-izin', 'Izin', 'file-clock', '/avana/saya/izin', 'ess', ['own']),
-                self::leaf('saya-kalender', 'Kalender', 'calendar-days', '/avana/saya/kalender', 'ess', ['own']),
-                self::leaf('saya-tugas', 'Tugas', 'clipboard-list', '/avana/saya/tugas', 'ess', ['own']),
-                self::leaf('saya-kontrak', 'Kontrak', 'file-text', '/avana/saya/kontrak', 'ess', ['own']),
-                self::leaf('saya-kinerja', 'Kinerja', 'trending-up', '/avana/saya/kinerja', 'ess', ['own']),
-                self::leaf('saya-pembelajaran', 'Pembelajaran', 'graduation-cap', '/avana/saya/pembelajaran', 'ess', ['own']),
-                self::leaf('saya-benefit', 'Benefit', 'gift', '/avana/saya/benefit', 'ess', ['own']),
-                self::leaf('saya-dinas', 'Perjalanan Dinas', 'plane', '/avana/saya/perjalanan-dinas', 'ess', ['own']),
-                self::leaf('saya-slip', 'Slip Gaji', 'receipt', '/avana/saya/slip-gaji', 'ess', ['own']),
-                self::leaf('saya-dokumen', 'Dokumen', 'folder', '/avana/saya/dokumen', 'ess', ['own']),
-                self::leaf('saya-sop', 'SOP Perusahaan', 'book-open', '/avana/saya/sop', 'sop', ['own']),
-                self::leaf('saya-sosmed', 'Ruang Kita', 'message-circle', '/avana/saya/sosmed', 'social', ['own']),
-                self::leaf('saya-onboarding', 'Onboarding', 'clipboard-check', '/avana/saya/onboarding', 'ess', ['own']),
+                self::parent('saya', 'Layanan Saya', 'user-round', [
+                    self::leaf('saya-profil', 'Profil', 'user', '/avana/saya/profil', 'ess', ['own']),
+                    self::leaf('saya-perubahan-data', 'Perubahan Data', 'user-round-cog', '/avana/saya/perubahan-data', 'ess', ['own']),
+                    self::leaf('saya-absensi', 'Absensi', 'fingerprint', '/avana/saya/absensi', 'ess,attendance', ['own']),
+                    self::leaf('saya-koreksi', 'Koreksi Absensi', 'clock-alert', '/avana/saya/koreksi-absensi', 'ess,attendance', ['own']),
+                    self::leaf('saya-jadwal', 'Jadwal', 'calendar-clock', '/avana/saya/jadwal', 'ess,attendance', ['own']),
+                    self::leaf('saya-organisasi', 'Struktur Organisasi', 'network', '/avana/saya/organisasi', 'ess,organization', ['own']),
+                    self::leaf('saya-token-ai', 'Token AI Saya', 'wallet', '/avana/saya/token-ai', 'ess,ai', ['own']),
+                    self::leaf('saya-cuti', 'Cuti', 'palmtree', '/avana/saya/cuti', 'ess,leave', ['own']),
+                    self::leaf('saya-lembur', 'Lembur', 'timer', '/avana/saya/lembur', 'ess,overtime', ['own']),
+                    self::leaf('saya-izin', 'Izin', 'file-clock', '/avana/saya/izin', 'ess,wfh', ['own']),
+                    self::leaf('saya-kalender', 'Kalender', 'calendar-days', '/avana/saya/kalender', 'ess,calendar', ['own']),
+                    self::leaf('saya-tugas', 'Tugas', 'clipboard-list', '/avana/saya/tugas', 'ess', ['own']),
+                    self::leaf('saya-kontrak', 'Kontrak', 'file-text', '/avana/saya/kontrak', 'ess,hr_core', ['own']),
+                    self::leaf('saya-kinerja', 'Kinerja', 'trending-up', '/avana/saya/kinerja', 'ess,performance', ['own']),
+                    self::leaf('saya-pembelajaran', 'Pembelajaran', 'graduation-cap', '/avana/saya/pembelajaran', 'ess,learning', ['own']),
+                    self::leaf('saya-benefit', 'Benefit', 'gift', '/avana/saya/benefit', 'ess,claim', ['own']),
+                    self::leaf('saya-dinas', 'Perjalanan Dinas', 'plane', '/avana/saya/perjalanan-dinas', 'ess,hr_core', ['own']),
+                    self::leaf('saya-slip', 'Slip Gaji', 'receipt', '/avana/saya/slip-gaji', 'ess,payroll', ['own']),
+                    self::leaf('saya-dokumen', 'Dokumen', 'folder', '/avana/saya/dokumen', 'ess,document', ['own']),
+                    self::leaf('saya-sop', 'SOP Perusahaan', 'book-open', '/avana/saya/sop', 'ess,sop', ['own']),
+                    self::leaf('saya-sosmed', 'Ruang Kita', 'message-circle', '/avana/saya/sosmed', 'ess,social', ['own']),
+                    self::leaf('saya-onboarding', 'Onboarding', 'clipboard-check', '/avana/saya/onboarding', 'ess,onboarding', ['own']),
+                ]),
             ]],
             ['title' => 'MANAJEMEN', 'items' => [
                 self::parent('hr', 'Karyawan', 'users', [
@@ -239,6 +248,12 @@ final class AvanaNav
     /**
      * Build a leaf nav item.
      *
+     * `$feature` may name more than one feature, comma-separated — every one of
+     * them must be enabled for the tenant. The self-service screens need this:
+     * each is gated on `ess` AND on the module it belongs to, so a tenant that
+     * has self-service but never enabled payroll does not get Slip Gaji through
+     * the back door.
+     *
      * @param  array<int, string>  $modules
      * @return array<string, mixed>
      */
@@ -250,6 +265,26 @@ final class AvanaNav
             'adminOnly' => $adminOnly, 'superAdminOnly' => $superAdminOnly,
             'isActive' => $isActive,
         ];
+    }
+
+    /**
+     * The feature codes a leaf requires, from either a single code or a
+     * comma-separated list. Empty = no feature gate.
+     *
+     * @return array<int, string>
+     */
+    public static function featureCodes(?string $feature): array
+    {
+        if ($feature === null || trim($feature) === '') {
+            return [];
+        }
+
+        return collect(explode(',', $feature))
+            ->map(fn (string $code): string => trim($code))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /**
@@ -322,8 +357,12 @@ final class AvanaNav
             if (($leaf['modules'] ?? []) === ['own'] && ! $hasEmployee) {
                 return false;
             }
-            if (($leaf['feature'] ?? null) !== null && ! $enabledCodes->contains($leaf['feature'])) {
-                return false;
+            // Every named feature must be on: a leaf gated on "ess,payroll" is
+            // self-service AND payroll, not either of them.
+            foreach (self::featureCodes($leaf['feature'] ?? null) as $code) {
+                if (! $enabledCodes->contains($code)) {
+                    return false;
+                }
             }
             if ($leaf['adminOnly'] ?? false) {
                 return $canManage;

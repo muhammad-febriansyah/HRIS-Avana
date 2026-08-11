@@ -30,8 +30,10 @@ it('shows the self-service group in an employee sidebar', function (): void {
 
     $group = collect($nav)->firstWhere('title', 'LAYANAN SAYA');
 
+    // The self-service screens hang off one collapsible "Layanan Saya" parent.
     expect($group)->not->toBeNull()
-        ->and(collect($group['items'])->pluck('label'))
+        ->and(collect($group['items'])->pluck('label'))->toContain('Layanan Saya')
+        ->and(collect($group['items'][0]['children'])->pluck('label'))
         ->toContain('Profil', 'Absensi', 'Cuti', 'Slip Gaji');
 });
 
@@ -85,9 +87,14 @@ it('covers every self-service menu with a reachable page', function (): void {
 
     expect($employeeMenu)->not->toBeNull();
 
-    foreach ($employeeMenu['items'] as $item) {
+    $leaves = collect($employeeMenu['items'])
+        ->flatMap(fn (array $item): array => $item['children'] ?? [$item]);
+
+    expect($leaves)->not->toBeEmpty();
+
+    foreach ($leaves as $leaf) {
         $this->actingAs($this->user)
-            ->get($item['href'])
+            ->get($leaf['href'])
             ->assertOk();
     }
 });

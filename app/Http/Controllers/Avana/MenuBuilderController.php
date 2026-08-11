@@ -327,7 +327,9 @@ class MenuBuilderController extends Controller
             'href' => ['nullable', 'string', 'max:255'],
             'section' => ['nullable', 'string', 'max:64'],
             'parent_id' => ['nullable', 'integer'],
-            'feature' => ['nullable', 'string', 'max:64'],
+            // Comma-separated: a menu may require several features at once (the
+            // self-service screens need `ess` plus their own module).
+            'feature' => ['nullable', 'string', 'max:191'],
             'modules' => ['nullable', 'array'],
             'modules.*' => ['string', 'max:64'],
             'admin_only' => ['boolean'],

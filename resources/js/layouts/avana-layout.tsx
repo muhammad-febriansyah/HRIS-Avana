@@ -507,8 +507,17 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                     {navGroups.map((grp, gi) => (
                         <div key={gi} style={{ marginBottom: 6 }}>
                             {grp.title && (
+                                // Sticky: the sidebar scrolls, and a header that
+                                // scrolls away leaves the rows under it looking
+                                // like they belong to whatever section is still
+                                // on screen — the reason "Slip Gaji / Dokumen"
+                                // read as stray management menus.
                                 <div
                                     style={{
+                                        position: 'sticky',
+                                        top: -14,
+                                        zIndex: 1,
+                                        background: 'var(--avn-sidebar-bg)',
                                         fontSize: 10.5,
                                         fontWeight: 600,
                                         letterSpacing: '.06em',
