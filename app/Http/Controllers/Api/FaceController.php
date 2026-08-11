@@ -6,11 +6,14 @@ use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\EmployeeFaceEmbedding;
 use App\Models\FaceScanLog;
+use App\Models\Tenant;
 use App\Services\FaceRecognitionException;
 use App\Services\FaceRecognitionService;
 use App\Services\FaceScanLogger;
+use App\Support\FaceMatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /** Employee self-service face enrollment for attendance verification. */
@@ -75,26 +78,59 @@ class FaceController extends Controller
             ], $request);
 
             return response()->json([
-                'message' => $exception->unavailable
-                    ? 'Layanan pengenalan wajah sedang tidak tersedia. Coba lagi.'
-                    : 'Wajah belum dapat didaftarkan. Pastikan hanya satu wajah, terang, dan tidak buram.',
+                'message' => $this->enrollmentFailureMessage($exception),
             ], $exception->unavailable ? 503 : 422);
         }
 
-        EmployeeFaceEmbedding::updateOrCreate(
-            ['employee_id' => $employee->id],
-            [
-                'tenant_id' => $employee->tenant_id,
-                // The legacy on-device vector remains only for schema
-                // compatibility. New biometric templates use Laravel's
-                // encrypted cast in embedding_ciphertext.
-                'embedding' => [],
-                'embedding_ciphertext' => $result['embedding'],
-                'dimensions' => $result['dimensions'],
-                'model_version' => $result['model_version'],
-                'enrolled_at' => now(),
-            ],
-        );
+        $duplicate = DB::transaction(function () use ($employee, $result): ?array {
+            Tenant::query()->whereKey($employee->tenant_id)->lockForUpdate()->firstOrFail();
+
+            $duplicate = $this->duplicateEnrollment(
+                $result['embedding'],
+                $result['model_version'],
+                $employee->tenant_id,
+                $employee->id,
+            );
+            if ($duplicate !== null) {
+                return $duplicate;
+            }
+
+            EmployeeFaceEmbedding::updateOrCreate(
+                ['employee_id' => $employee->id],
+                [
+                    'tenant_id' => $employee->tenant_id,
+                    // The legacy on-device vector remains only for schema
+                    // compatibility. New biometric templates use Laravel's
+                    // encrypted cast in embedding_ciphertext.
+                    'embedding' => [],
+                    'embedding_ciphertext' => $result['embedding'],
+                    'dimensions' => $result['dimensions'],
+                    'model_version' => $result['model_version'],
+                    'enrolled_at' => now(),
+                ],
+            );
+
+            return null;
+        }, 3);
+
+        if ($duplicate !== null) {
+            $this->scanLogger->record($employee, [
+                'context' => FaceScanLog::CONTEXT_ENROLL,
+                'outcome' => 'blocked',
+                'reason' => 'duplicate_face',
+                'message' => 'Wajah sudah terdaftar pada akun lain',
+                'metrics' => [
+                    'duplicate_score' => $duplicate['score'],
+                    'duplicate_threshold' => $this->duplicateThreshold(),
+                    'conflicting_employee_id' => $duplicate['employee_id'],
+                ],
+                'device' => $this->deviceFrom($request),
+            ], $request);
+
+            return response()->json([
+                'message' => 'Wajah ini sudah terdaftar pada akun lain. Gunakan wajah pemilik akun.',
+            ], 409);
+        }
 
         $this->scanLogger->record($employee, [
             'context' => FaceScanLog::CONTEXT_ENROLL,
@@ -162,5 +198,72 @@ class FaceController extends Controller
         $device = $request->input('device');
 
         return is_array($device) ? $device : [];
+    }
+
+    private function enrollmentFailureMessage(FaceRecognitionException $exception): string
+    {
+        if ($exception->unavailable) {
+            return 'Layanan pengenalan wajah sedang tidak tersedia. Coba lagi.';
+        }
+
+        $detail = $exception->getMessage();
+        if (preg_match('/image (\d+).*found 0/i', $detail, $matches) === 1) {
+            return "Wajah tidak terdeteksi pada foto ke-{$matches[1]}. Pastikan wajah tegak, terang, dan terlihat penuh.";
+        }
+        if (preg_match('/image (\d+).*found ([2-9]|[1-9]\d+)/i', $detail, $matches) === 1) {
+            return "Terdeteksi lebih dari satu wajah pada foto ke-{$matches[1]}. Pastikan hanya wajah Anda yang terlihat.";
+        }
+        if (str_contains($detail, 'quality check failed')) {
+            return 'Kualitas foto wajah belum cukup. Pastikan wajah terang, tidak buram, dan berada di tengah.';
+        }
+        if (str_contains($detail, 'not the same identity')) {
+            return 'Wajah pada setiap foto tidak konsisten. Ulangi pendaftaran dengan satu orang yang sama.';
+        }
+
+        return 'Wajah belum dapat didaftarkan. Pastikan hanya satu wajah, terang, dan tidak buram.';
+    }
+
+    /**
+     * @param  list<float>  $candidate
+     * @return array{employee_id: int, score: float}|null
+     */
+    private function duplicateEnrollment(
+        array $candidate,
+        string $modelVersion,
+        int|string $tenantId,
+        int $employeeId,
+    ): ?array {
+        $threshold = $this->duplicateThreshold();
+        $bestMatch = null;
+
+        $faces = EmployeeFaceEmbedding::query()
+            ->forTenant($tenantId)
+            ->where('employee_id', '!=', $employeeId)
+            ->where('model_version', $modelVersion)
+            ->where('dimensions', count($candidate))
+            ->whereNotNull('embedding_ciphertext')
+            ->lazyById(100);
+
+        foreach ($faces as $face) {
+            $reference = $face->recognitionEmbedding();
+            if ($reference === null) {
+                continue;
+            }
+
+            $score = FaceMatcher::cosine($candidate, $reference);
+            if ($score >= $threshold && ($bestMatch === null || $score > $bestMatch['score'])) {
+                $bestMatch = [
+                    'employee_id' => (int) $face->employee_id,
+                    'score' => round($score, 4),
+                ];
+            }
+        }
+
+        return $bestMatch;
+    }
+
+    private function duplicateThreshold(): float
+    {
+        return max(-1.0, min(1.0, (float) config('services.face_recognition.duplicate_threshold', 0.6)));
     }
 }

@@ -4,6 +4,7 @@ use App\Models\Attendance;
 use App\Models\AttendanceSelfie;
 use App\Models\Employee;
 use App\Models\EmployeeFaceEmbedding;
+use App\Models\FaceScanLog;
 use App\Models\LeaveType;
 use App\Models\MoodCheckin;
 use App\Models\Notification;
@@ -25,6 +26,7 @@ beforeEach(function (): void {
         'services.face_recognition.url' => 'http://face-service.test',
         'services.face_recognition.api_key' => 'test-face-key',
         'services.face_recognition.model_version' => 'sface-2021dec-v1',
+        'services.face_recognition.duplicate_threshold' => 0.6,
     ]);
 
     $this->token = $this->postJson('/api/v1/auth/login', [
@@ -564,6 +566,90 @@ it('reports face enrollment status and enrolls a face', function (): void {
     Http::assertSent(fn ($request): bool => $request->hasHeader('X-API-Key', 'test-face-key'));
 });
 
+it('rejects a face already enrolled by another employee in the tenant', function (): void {
+    Http::fake(['*/v1/faces/enroll' => Http::response(essFaceEnrollmentResponse())]);
+
+    $employee = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail()->employee;
+    $otherEmployee = Employee::query()
+        ->where('tenant_id', $employee->tenant_id)
+        ->whereKeyNot($employee->id)
+        ->firstOrFail();
+    $embedding = essFaceEnrollmentResponse()['embedding'];
+
+    EmployeeFaceEmbedding::create([
+        'tenant_id' => $otherEmployee->tenant_id,
+        'employee_id' => $otherEmployee->id,
+        'embedding' => [],
+        'embedding_ciphertext' => $embedding,
+        'dimensions' => count($embedding),
+        'model_version' => 'sface-2021dec-v1',
+        'enrolled_at' => now(),
+    ]);
+
+    ($this->auth)()
+        ->post('/api/v1/me/face/enroll', ['images' => essFaceEnrollmentImages()])
+        ->assertConflict()
+        ->assertJsonPath(
+            'message',
+            'Wajah ini sudah terdaftar pada akun lain. Gunakan wajah pemilik akun.',
+        );
+
+    expect(EmployeeFaceEmbedding::where('employee_id', $employee->id)->exists())
+        ->toBeFalse()
+        ->and(FaceScanLog::where('employee_id', $employee->id)->where('reason', 'duplicate_face')->exists())
+        ->toBeTrue();
+});
+
+it('allows an employee to enroll their own face again', function (): void {
+    Http::fake(['*/v1/faces/enroll' => Http::response(essFaceEnrollmentResponse())]);
+
+    $employee = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail()->employee;
+    $embedding = essFaceEnrollmentResponse()['embedding'];
+    EmployeeFaceEmbedding::create([
+        'tenant_id' => $employee->tenant_id,
+        'employee_id' => $employee->id,
+        'embedding' => [],
+        'embedding_ciphertext' => $embedding,
+        'dimensions' => count($embedding),
+        'model_version' => 'sface-2021dec-v1',
+        'enrolled_at' => now()->subDay(),
+    ]);
+
+    ($this->auth)()
+        ->post('/api/v1/me/face/enroll', ['images' => essFaceEnrollmentImages()])
+        ->assertOk();
+
+    expect(EmployeeFaceEmbedding::where('employee_id', $employee->id)->count())->toBe(1);
+});
+
+it('does not treat the same face in another tenant as a duplicate', function (): void {
+    Http::fake(['*/v1/faces/enroll' => Http::response(essFaceEnrollmentResponse())]);
+
+    $otherTenant = Tenant::create([
+        'name' => 'Tenant Lain',
+        'slug' => 'tenant-lain-face-test',
+    ]);
+    $otherEmployee = Employee::create([
+        'tenant_id' => $otherTenant->id,
+        'employee_number' => 'OTHER-001',
+        'full_name' => 'Employee Tenant Lain',
+    ]);
+    $embedding = essFaceEnrollmentResponse()['embedding'];
+    EmployeeFaceEmbedding::create([
+        'tenant_id' => $otherTenant->id,
+        'employee_id' => $otherEmployee->id,
+        'embedding' => [],
+        'embedding_ciphertext' => $embedding,
+        'dimensions' => count($embedding),
+        'model_version' => 'sface-2021dec-v1',
+        'enrolled_at' => now(),
+    ]);
+
+    ($this->auth)()
+        ->post('/api/v1/me/face/enroll', ['images' => essFaceEnrollmentImages()])
+        ->assertOk();
+});
+
 it('requires at least three face images on enroll', function (): void {
     ($this->auth)()
         ->withHeader('Accept', 'application/json')
@@ -580,6 +666,22 @@ it('returns Indonesian validation when face images are missing', function (): vo
         ->assertJsonValidationErrors('images')
         ->assertJsonPath('message', 'Foto wajah wajib dikirim.')
         ->assertJsonPath('errors.images.0', 'Foto wajah wajib dikirim.');
+});
+
+it('explains which enrollment photo has no detectable face', function (): void {
+    Http::fake([
+        '*/v1/faces/enroll' => Http::response([
+            'detail' => 'image 1: exactly 1 face required, found 0',
+        ], 422),
+    ]);
+
+    ($this->auth)()
+        ->post('/api/v1/me/face/enroll', ['images' => essFaceEnrollmentImages()])
+        ->assertUnprocessable()
+        ->assertJsonPath(
+            'message',
+            'Wajah tidak terdeteksi pada foto ke-1. Pastikan wajah tegak, terang, dan terlihat penuh.',
+        );
 });
 
 it('requires re-enrollment for a legacy on-device template', function (): void {
