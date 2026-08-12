@@ -924,6 +924,14 @@ class EmployeeController extends Controller
                 $employee->user->update(['email' => $employee->email]);
             }
 
+            // Same for the name. The account's own Pengaturan screen shows it
+            // read-only precisely because this row owns it, so a rename typed
+            // by HR has to land there too — otherwise the topbar keeps greeting
+            // the person by the name they were hired under.
+            if ($employee->wasChanged('full_name') && $employee->user !== null && $employee->user->name !== $employee->full_name) {
+                $employee->user->update(['name' => $employee->full_name]);
+            }
+
             // The form shows one role, but an account may hold several — the
             // director carries manager and employee both. Saving the employee
             // with the role the form happened to display would sync the account
@@ -1080,6 +1088,13 @@ class EmployeeController extends Controller
         }
 
         $employee->forceFill(['user_id' => $user->id])->save();
+
+        // From this moment the Karyawan row owns the name — the account's own
+        // Pengaturan screen shows it read-only — so carry it over instead of
+        // leaving the topbar on whatever the account was registered as.
+        if ($user->name !== $employee->full_name) {
+            $user->update(['name' => $employee->full_name]);
+        }
 
         return back()->with('success', "Akun {$user->email} ditautkan ke {$employee->full_name}. Minta karyawan login ulang di aplikasi mobile.");
     }

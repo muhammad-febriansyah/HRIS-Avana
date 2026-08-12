@@ -497,6 +497,94 @@ it('refuses to link an account from another tenant', function (): void {
     expect($employee->fresh()->user_id)->toBeNull();
 });
 
+it('renames the linked login when the employee is renamed', function (): void {
+    // The topbar and the Pengaturan screen read users.name, so a rename typed
+    // by HR that stops at the employee row leaves the person greeted by their
+    // old name with no way to correct it themselves.
+    $employee = Employee::forTenant($this->tenant->id)->whereNotNull('user_id')->firstOrFail();
+
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $employee), [
+            'full_name' => 'Nida Raihani',
+            'email' => $employee->email,
+            'employment_status' => $employee->employment_status,
+            'status' => 'active',
+        ])
+        ->assertRedirect(route('avana.employees.index'));
+
+    expect($employee->user->fresh()->name)->toBe('Nida Raihani');
+});
+
+it('names the deleted employee still holding the email of a rejected login', function (): void {
+    // The trap this message exists for: the admin deletes a karyawan, retypes
+    // the same person with the same address, and the account left behind by the
+    // delete blocks it. Nothing on the Karyawan screen shows that account.
+    $gone = Employee::forTenant($this->tenant->id)->whereNotNull('user_id')->firstOrFail();
+    $email = $gone->user->email;
+    $gone->delete();
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), [
+            'full_name' => 'Karyawan Baru',
+            'email' => $email,
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'role_id' => Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->value('id'),
+            'password' => 'rahasia123',
+        ])
+        ->assertSessionHasErrors('email');
+
+    $message = session('errors')->first('email');
+
+    expect($message)->toContain($gone->full_name)
+        ->and($message)->toContain('sudah dihapus');
+});
+
+it('points an email held by an unlinked account at the linking flow', function (): void {
+    // The admin's own login has no employee behind it, so the fix is to link it
+    // rather than to invent a second address for the same human.
+    expect($this->admin->employee)->toBeNull();
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), [
+            'full_name' => 'Rina Admin',
+            'email' => $this->admin->email,
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'role_id' => Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->value('id'),
+            'password' => 'rahasia123',
+        ])
+        ->assertSessionHasErrors('email');
+
+    expect(session('errors')->first('email'))->toContain('Tautkan Akun');
+});
+
+it('keeps another tenant unnamed when its account holds the email', function (): void {
+    $otherTenant = Tenant::create(['name' => 'PT Seberang', 'slug' => 'pt-seberang-email']);
+
+    User::create([
+        'tenant_id' => $otherTenant->id,
+        'name' => 'Rahasia Seberang',
+        'email' => 'seberang@example.test',
+        'password' => Hash::make('rahasia123'),
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), [
+            'full_name' => 'Karyawan Baru',
+            'email' => 'seberang@example.test',
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'role_id' => Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->value('id'),
+            'password' => 'rahasia123',
+        ])
+        ->assertSessionHasErrors('email');
+
+    expect(session('errors')->first('email'))
+        ->toBe('Email sudah digunakan akun lain.')
+        ->and(session('errors')->first('email'))->not->toContain('Rahasia Seberang');
+});
+
 it('rejects a password alongside a linked account', function (): void {
     $employee = Employee::create([
         'tenant_id' => $this->tenant->id,

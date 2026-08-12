@@ -2,11 +2,11 @@
 
 namespace App\Http\Requests\Avana;
 
+use App\Concerns\DescribesEmailConflict;
 use App\Concerns\ResolvesTopApprover;
 use App\Models\AttendancePolicy;
 use App\Models\CustomField;
 use App\Models\Employee;
-use App\Models\User;
 use App\Support\Pph21Ter;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -15,7 +15,7 @@ use Illuminate\Validation\Validator;
 
 class StoreEmployeeRequest extends FormRequest
 {
-    use ResolvesTopApprover;
+    use DescribesEmailConflict, ResolvesTopApprover;
 
     /**
      * Fold the Atasan Langsung sentinel into manager_id + is_top_approver.
@@ -133,8 +133,8 @@ class StoreEmployeeRequest extends FormRequest
 
                 if (blank($email)) {
                     $validator->errors()->add('email', 'Email wajib diisi untuk membuat akun login.');
-                } elseif (User::where('email', $email)->exists()) {
-                    $validator->errors()->add('email', 'Email sudah digunakan akun lain.');
+                } elseif (($conflict = $this->emailConflictMessage($email, (int) $tenantId)) !== null) {
+                    $validator->errors()->add('email', $conflict);
                 }
 
                 // A new login must be told which role it holds. There is no
