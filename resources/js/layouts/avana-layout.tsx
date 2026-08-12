@@ -4,11 +4,8 @@ import type { PropsWithChildren } from 'react';
 import type { CSSProperties } from 'react';
 import WebsiteSettingController from '@/actions/App/Http/Controllers/Avana/WebsiteSettingController';
 import { GlobalSearch } from '@/components/avana-ui/global-search';
-import {
-    NotificationSheet
-    
-} from '@/components/avana-ui/notification-sheet';
-import type {NotificationItem} from '@/components/avana-ui/notification-sheet';
+import { NotificationSheet } from '@/components/avana-ui/notification-sheet';
+import type { NotificationItem } from '@/components/avana-ui/notification-sheet';
 import { WaIcon } from '@/components/avana-ui/wa-icon';
 import { SearchableSelect } from '@/components/searchable-select';
 import {
@@ -1016,7 +1013,9 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                                     className="cursor-pointer"
                                 >
                                     <AIcon name="settings" size={15} />
-                                    Pengaturan
+                                    {page.props.auth?.isSuperAdmin
+                                        ? 'Pengaturan'
+                                        : 'Edit Profil'}
                                 </Link>
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />

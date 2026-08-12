@@ -36,8 +36,8 @@ const RecoveryCodes = ({ codes }: { codes: string[] }) => {
         <div className="space-y-3 rounded-lg border border-border bg-muted/50 p-4">
             <div className="flex items-start justify-between gap-4">
                 <p className="text-sm text-muted-foreground">
-                    Store these somewhere safe. Each code signs you in once if
-                    you lose access to your authenticator app.
+                    Simpan di tempat aman. Tiap kode bisa dipakai sekali untuk
+                    masuk bila Anda kehilangan akses ke aplikasi authenticator.
                 </p>
                 <Button
                     type="button"
@@ -46,7 +46,7 @@ const RecoveryCodes = ({ codes }: { codes: string[] }) => {
                     onClick={handleCopy}
                 >
                     {copied ? <Check /> : <Copy />}
-                    {copied ? 'Copied' : 'Copy'}
+                    {copied ? 'Tersalin' : 'Salin'}
                 </Button>
             </div>
 
@@ -79,15 +79,15 @@ export default function ManageTwoFactor(props: Props) {
         <div className="space-y-6">
             <Heading
                 variant="small"
-                title="Two-factor authentication"
-                description="Add a one-time code from your authenticator app on top of your password"
+                title="Verifikasi dua langkah"
+                description="Tambah kode sekali pakai dari aplikasi authenticator di atas kata sandi"
             />
 
             {enabled && (
                 <div className="space-y-6">
                     <div className="flex items-center gap-2 text-sm font-medium text-emerald-600">
                         <ShieldCheck className="h-4 w-4" />
-                        Two-factor authentication is on
+                        Verifikasi dua langkah aktif
                     </div>
 
                     {showRecoveryCodes && recoveryCodes.length > 0 && (
@@ -102,7 +102,8 @@ export default function ManageTwoFactor(props: Props) {
                                 setShowRecoveryCodes((previous) => !previous)
                             }
                         >
-                            {showRecoveryCodes ? 'Hide' : 'Show'} recovery codes
+                            {showRecoveryCodes ? 'Sembunyikan' : 'Tampilkan'}{' '}
+                            kode pemulihan
                         </Button>
 
                         <Button
@@ -117,7 +118,7 @@ export default function ManageTwoFactor(props: Props) {
                                 );
                             }}
                         >
-                            Regenerate recovery codes
+                            Buat ulang kode pemulihan
                         </Button>
 
                         <Button
@@ -130,7 +131,7 @@ export default function ManageTwoFactor(props: Props) {
                                 })
                             }
                         >
-                            Turn off
+                            Matikan
                         </Button>
                     </div>
                 </div>
@@ -140,8 +141,8 @@ export default function ManageTwoFactor(props: Props) {
                 <div className="space-y-6">
                     <div className="space-y-4 rounded-lg border border-border bg-muted/50 p-4">
                         <p className="text-sm text-muted-foreground">
-                            Scan this code with your authenticator app, then
-                            enter the six digits it shows to finish.
+                            Pindai kode ini dengan aplikasi authenticator, lalu
+                            masukkan enam digit yang muncul.
                         </p>
 
                         {props.twoFactorQrCodeSvg && (
@@ -157,7 +158,7 @@ export default function ManageTwoFactor(props: Props) {
 
                         <div className="space-y-1">
                             <p className="text-xs text-muted-foreground">
-                                Can't scan it? Enter this key manually:
+                                Tidak bisa memindai? Masukkan kunci ini manual:
                             </p>
                             <p className="font-mono text-sm break-all">
                                 {props.twoFactorSecretKey}
@@ -178,7 +179,7 @@ export default function ManageTwoFactor(props: Props) {
                             <>
                                 <div className="grid gap-2">
                                     <Label htmlFor="code">
-                                        Code from your app
+                                        Kode dari aplikasi Anda
                                     </Label>
 
                                     <Input
@@ -202,7 +203,7 @@ export default function ManageTwoFactor(props: Props) {
                                         disabled={processing}
                                         data-test="confirm-two-factor-button"
                                     >
-                                        Confirm and turn on
+                                        Konfirmasi dan aktifkan
                                     </Button>
 
                                     <Button
@@ -214,7 +215,7 @@ export default function ManageTwoFactor(props: Props) {
                                             })
                                         }
                                     >
-                                        Cancel
+                                        Batal
                                     </Button>
                                 </div>
                             </>
@@ -232,7 +233,7 @@ export default function ManageTwoFactor(props: Props) {
                         router.post(enable.url(), {}, { preserveScroll: true })
                     }
                 >
-                    Turn on two-factor authentication
+                    Aktifkan verifikasi dua langkah
                 </Button>
             )}
         </div>

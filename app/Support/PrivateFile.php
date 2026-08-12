@@ -85,6 +85,7 @@ final class PrivateFile
      */
     private const PRIVATE_PREFIXES = [
         'employee-photos/',
+        'avatars/',
         'documents/',
         'employee-documents/',
         'claims/',

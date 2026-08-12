@@ -17,6 +17,24 @@ class ProfileUpdateRequest extends FormRequest
      */
     public function rules(): array
     {
-        return $this->profileRules($this->user()->id);
+        return $this->profileRules($this->user()->id) + [
+            'phone' => ['nullable', 'string', 'max:30'],
+        ];
+    }
+
+    /**
+     * Get the custom validation messages.
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'name.required' => 'Nama wajib diisi.',
+            'email.required' => 'Email wajib diisi.',
+            'email.email' => 'Format email tidak valid.',
+            'email.unique' => 'Email sudah digunakan akun lain.',
+            'phone.max' => 'Nomor telepon maksimal 30 karakter.',
+        ];
     }
 }
