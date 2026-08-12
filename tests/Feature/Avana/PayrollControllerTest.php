@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Avana\PayrollController;
 use App\Models\Attendance;
+use App\Models\AttendancePenalty;
+use App\Models\AttendancePenaltyRule;
 use App\Models\Employee;
 use App\Models\EmployeeSalaryComponent;
 use App\Models\PayrollComponent;
@@ -9,6 +11,8 @@ use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
 use App\Models\Role;
+use App\Models\SalaryChangeSet;
+use App\Models\SalaryMaster;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
@@ -168,6 +172,112 @@ it('computes a payroll run with items for every active employee', function (): v
     expect((float) $item->net_salary)->toBe(6_412_500.0);
     expect($item->calculation_snapshot)->toHaveKey('earnings');
     expect($item->calculation_snapshot['tax']['method'] ?? null)->toBe('ter_bulanan');
+
+    actingAs($this->admin)
+        ->get('spec-avana/payroll?period='.$period->id)
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->where(
+            'recipients',
+            fn ($recipients) => collect($recipients)
+                ->firstWhere('employee_id', $employee->id)['deduction'] === 'Rp 587.500',
+        ));
+});
+
+it('runs the explicitly selected period instead of another draft', function (): void {
+    $tenantId = $this->tenant->id;
+    $selected = PayrollPeriod::create([
+        'tenant_id' => $tenantId,
+        'code' => 'MN-20260101-SPEC',
+        'name' => 'Januari 2026 khusus',
+        'start_date' => '2026-01-01',
+        'end_date' => '2026-01-31',
+        'pay_date' => '2026-01-25',
+        'status' => 'draft',
+    ]);
+    $otherDraft = PayrollPeriod::forTenant($tenantId)
+        ->where('status', 'draft')
+        ->whereKeyNot($selected->id)
+        ->orderByDesc('start_date')
+        ->firstOrFail();
+    $otherRunCount = PayrollRun::forTenant($tenantId)
+        ->where('payroll_period_id', $otherDraft->id)
+        ->count();
+
+    actingAs($this->admin)
+        ->post('spec-avana/payroll/run', ['payroll_period_id' => $selected->id])
+        ->assertSessionHas('success');
+
+    expect(PayrollRun::forTenant($tenantId)->where('payroll_period_id', $selected->id)->exists())->toBeTrue()
+        ->and(PayrollRun::forTenant($tenantId)->where('payroll_period_id', $otherDraft->id)->count())->toBe($otherRunCount);
+});
+
+it('uses the master that is effective on the payroll period end date', function (): void {
+    $tenantId = $this->tenant->id;
+    $employee = Employee::forTenant($tenantId)->where('status', 'active')->orderBy('id')->firstOrFail();
+    EmployeeSalaryComponent::forTenant($tenantId)->where('employee_id', $employee->id)->delete();
+    $basic = payrollComponent($tenantId, 'BASIC');
+
+    $currentMaster = SalaryMaster::create([
+        'tenant_id' => $tenantId,
+        'code' => 'MASTER-AUG',
+        'category' => 'Organik',
+        'is_active' => true,
+    ]);
+    $futureMaster = SalaryMaster::create([
+        'tenant_id' => $tenantId,
+        'code' => 'MASTER-SEP',
+        'category' => 'Organik',
+        'is_active' => true,
+    ]);
+    $currentMaster->components()->create([
+        'payroll_component_id' => $basic->id,
+        'included' => true,
+        'amount' => 5_000_000,
+    ]);
+    $futureMaster->components()->create([
+        'payroll_component_id' => $basic->id,
+        'included' => true,
+        'amount' => 8_000_000,
+    ]);
+    $employee->update(['salary_master_id' => $currentMaster->id]);
+    SalaryChangeSet::create([
+        'tenant_id' => $tenantId,
+        'employee_id' => $employee->id,
+        'salary_master_id' => $futureMaster->id,
+        'change_type' => 'master_assignment',
+        'effective_start_date' => '2026-09-01',
+        'status' => 'active',
+        'created_by' => $this->admin->id,
+    ]);
+
+    $august = PayrollPeriod::create([
+        'tenant_id' => $tenantId,
+        'code' => 'MN-202608-EFFECTIVE',
+        'name' => 'Agustus 2026',
+        'start_date' => '2026-08-01',
+        'end_date' => '2026-08-31',
+        'pay_date' => '2026-08-25',
+        'status' => 'draft',
+    ]);
+    $september = PayrollPeriod::create([
+        'tenant_id' => $tenantId,
+        'code' => 'MN-202609-EFFECTIVE',
+        'name' => 'September 2026',
+        'start_date' => '2026-09-01',
+        'end_date' => '2026-09-30',
+        'pay_date' => '2026-09-25',
+        'status' => 'draft',
+    ]);
+
+    actingAs($this->admin)->post('spec-avana/payroll/run', ['payroll_period_id' => $august->id])->assertSessionHas('success');
+    actingAs($this->admin)->post('spec-avana/payroll/run', ['payroll_period_id' => $september->id])->assertSessionHas('success');
+
+    $augustItem = PayrollRunItem::where('payroll_period_id', $august->id)->where('employee_id', $employee->id)->firstOrFail();
+    $septemberItem = PayrollRunItem::where('payroll_period_id', $september->id)->where('employee_id', $employee->id)->firstOrFail();
+
+    expect($augustItem->calculation_snapshot['salary_master_id'])->toBe($currentMaster->id)
+        ->and($septemberItem->calculation_snapshot['salary_master_id'])->toBe($futureMaster->id)
+        ->and((float) $augustItem->gross_salary)->toBeLessThan((float) $septemberItem->gross_salary);
 });
 
 it('refreshes the existing run without duplicating items on re-run', function (): void {
@@ -304,7 +414,7 @@ it('applies the late-fine table to everyone at run time, no manual generate', fu
     $employee = Employee::forTenant($this->tenant->id)->orderBy('id')->firstOrFail();
     $period = PayrollPeriod::forTenant($this->tenant->id)->firstOrFail();
 
-    App\Models\AttendancePenaltyRule::create([
+    AttendancePenaltyRule::create([
         'tenant_id' => $this->tenant->id,
         'violation_type' => 'late',
         'min_minutes' => 10,
@@ -325,7 +435,7 @@ it('applies the late-fine table to everyone at run time, no manual generate', fu
     // No "Buat dari Absensi" click — the run itself must fine the lateness.
     actingAs($this->admin)->post('spec-avana/payroll/run')->assertSessionHas('success');
 
-    $penalty = App\Models\AttendancePenalty::forTenant($this->tenant->id)
+    $penalty = AttendancePenalty::forTenant($this->tenant->id)
         ->where('employee_id', $employee->id)
         ->where('penalty_type', 'deduction')
         ->firstOrFail();

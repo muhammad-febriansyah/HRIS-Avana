@@ -6,16 +6,19 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\EmployeeSalaryComponent;
 use App\Models\PayrollComponent;
+use App\Models\SalaryChangeSet;
 use App\Models\SalaryMaster;
 use App\Models\SalaryMasterComponent;
 use App\Models\User;
 use App\Services\EmployeeSalaryWriter;
+use App\Services\SalaryMasterAssignment;
 use App\Support\SalaryCompliance;
 use App\Support\SalaryPeriodLock;
 use App\Support\SalarySettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -43,17 +46,20 @@ class EmployeeSalaryController extends Controller
         $tenantId = (int) $request->user()->tenant_id;
 
         $employee = $this->selectedEmployee($request, $tenantId);
+        $selectedMasterId = $employee === null
+            ? null
+            : $this->selectedMasterId($request, $employee, $tenantId);
 
         return Inertia::render('avana/payroll-gaji-karyawan/index', [
             'employee' => $employee === null ? null : [
                 'id' => $employee->id,
                 'name' => $employee->full_name,
                 'nik' => $employee->employee_number,
-                'salary_master_id' => $employee->salary_master_id,
+                'salary_master_id' => $selectedMasterId,
                 'position' => $employee->position?->name,
                 'branch' => $employee->branch?->name,
             ],
-            'rows' => $employee === null ? [] : $this->rows($employee, $tenantId),
+            'rows' => $employee === null ? [] : $this->rows($employee, $tenantId, $selectedMasterId),
             'compliance' => $employee === null ? null : $this->compliance($employee, $tenantId),
             'employeeOptions' => Employee::forTenant($tenantId)
                 ->orderBy('full_name')
@@ -105,25 +111,68 @@ class EmployeeSalaryController extends Controller
 
         $employee = Employee::forTenant($tenantId)->findOrFail($data['employee_id']);
 
-        if (array_key_exists('salary_master_id', $data)) {
-            $employee->update(['salary_master_id' => $data['salary_master_id']]);
-        }
-
         $status = SalarySettings::statusFor($tenantId);
+        $masterId = array_key_exists('salary_master_id', $data)
+            ? ($data['salary_master_id'] === null ? null : (int) $data['salary_master_id'])
+            : $employee->salary_master_id;
+        $masterAmounts = $masterId === null
+            ? []
+            : SalaryMasterAssignment::templateComponents($tenantId, $masterId);
 
-        foreach ($data['components'] as $row) {
-            EmployeeSalaryWriter::record(
-                $tenantId,
-                (int) $employee->id,
-                (int) $row['payroll_component_id'],
-                (float) $row['amount'],
-                $from,
-                $data['reason'] ?? null,
-                (int) $request->user()->id,
-                $employee->salary_master_id === null ? null : (int) $employee->salary_master_id,
-                $status,
-            );
-        }
+        DB::transaction(function () use ($data, $employee, $tenantId, $from, $request, $status, $masterId, $masterAmounts): void {
+            Employee::forTenant($tenantId)
+                ->whereKey($employee->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $changeSet = SalaryChangeSet::create([
+                'tenant_id' => $tenantId,
+                'employee_id' => $employee->id,
+                'salary_master_id' => $masterId,
+                'change_type' => 'master_assignment',
+                'existing_strategy' => 'skip',
+                'effective_start_date' => $from->toDateString(),
+                'status' => $status,
+                'reason' => $data['reason'] ?? null,
+                'created_by' => $request->user()->id,
+            ]);
+
+            if ($status === 'active') {
+                SalaryMasterAssignment::retireExistingRows(
+                    $tenantId,
+                    (int) $employee->id,
+                    $from,
+                    false,
+                );
+            }
+
+            foreach ($data['components'] as $row) {
+                $componentId = (int) $row['payroll_component_id'];
+                $amount = (float) $row['amount'];
+                $sourceType = array_key_exists($componentId, $masterAmounts)
+                    && round((float) $masterAmounts[$componentId], 2) === round($amount, 2)
+                        ? 'master_copy'
+                        : 'employee_override';
+
+                EmployeeSalaryWriter::record(
+                    $tenantId,
+                    (int) $employee->id,
+                    $componentId,
+                    $amount,
+                    $from,
+                    $data['reason'] ?? null,
+                    (int) $request->user()->id,
+                    $masterId,
+                    $status,
+                    $changeSet->id,
+                    $sourceType,
+                );
+            }
+
+            if ($status === 'active' && $from->lte(today()) && array_key_exists('salary_master_id', $data)) {
+                $employee->update(['salary_master_id' => $masterId]);
+            }
+        });
 
         if ($status === 'pending_approval') {
             return back()->with('success', 'Gaji diajukan dan menunggu persetujuan');
@@ -161,18 +210,24 @@ class EmployeeSalaryController extends Controller
      *
      * @return list<array<string, mixed>>
      */
-    private function rows(Employee $employee, int $tenantId): array
+    private function rows(Employee $employee, int $tenantId, ?int $masterId): array
     {
-        $masterAmounts = $employee->salary_master_id === null
+        $masterAmounts = $masterId === null
             ? collect()
             : SalaryMasterComponent::query()
-                ->where('salary_master_id', $employee->salary_master_id)
+                ->where('salary_master_id', $masterId)
                 ->where('included', true)
                 ->get()
                 ->keyBy('payroll_component_id');
 
         $own = EmployeeSalaryComponent::forTenant($tenantId)
             ->where('employee_id', $employee->id)
+            ->where(fn ($query) => $query
+                ->where('source_type', 'employee_override')
+                ->when($masterId !== null, fn ($nested) => $nested
+                    ->orWhere(fn ($masterCopy) => $masterCopy
+                        ->where('source_type', 'master_copy')
+                        ->where('salary_master_id', $masterId))))
             ->inForce()
             ->effectiveOn()
             ->get()
@@ -207,6 +262,21 @@ class EmployeeSalaryController extends Controller
             ])
             ->values()
             ->all();
+    }
+
+    private function selectedMasterId(Request $request, Employee $employee, int $tenantId): ?int
+    {
+        if ($request->has('salary_master_id')) {
+            $masterId = $request->integer('salary_master_id') ?: null;
+
+            if ($masterId === null) {
+                return null;
+            }
+
+            return (int) SalaryMaster::forTenant($tenantId)->findOrFail($masterId)->id;
+        }
+
+        return SalaryMasterAssignment::effectiveMasterId($employee);
     }
 
     /**

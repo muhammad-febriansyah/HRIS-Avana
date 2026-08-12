@@ -28,12 +28,14 @@ use App\Models\SalaryMasterComponent;
 use App\Models\SalaryRapel;
 use App\Models\TaxProfile;
 use App\Models\UmrRate;
+use App\Services\SalaryMasterAssignment;
 use App\Support\AttendanceFines;
 use App\Support\OvertimeRules;
 use App\Support\Pph21Calculator;
 use App\Support\Pph21Ter;
 use App\Support\TaxForm1721;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\CarbonInterface;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -41,6 +43,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use Mpdf\Mpdf;
@@ -145,7 +148,7 @@ class PayrollController extends Controller
                     'name' => $item->employee?->full_name ?? '—',
                     'employee_number' => $item->employee?->employee_number,
                     'gross' => $this->rupiah($item->gross_salary),
-                    'deduction' => $this->rupiah($item->total_deduction + $item->bpjs_employee_total + $item->pph21_total),
+                    'deduction' => $this->rupiah($item->total_deduction),
                     'tax' => $this->rupiah($item->pph21_total),
                     'net' => $this->rupiah($item->net_salary),
                     'tax_method' => $snapshot['tax']['method'] ?? null,
@@ -367,97 +370,106 @@ class PayrollController extends Controller
         // executing, since it drives the bank disbursement (BPR manual 1.3.1).
         $data = $request->validate([
             'pay_date' => ['nullable', 'date'],
+            'payroll_period_id' => ['nullable', 'integer', Rule::exists('payroll_periods', 'id')->where('tenant_id', $tenantId)],
         ]);
 
-        $period = $this->resolveTargetPeriod($tenantId);
+        [$period, $run, $employees, $totals] = DB::transaction(function () use ($tenantId, $data, $request): array {
+            $period = $this->targetPeriodFor($request, $tenantId, true);
 
-        abort_if($period === null, 404);
+            abort_if($period === null, 404);
 
-        if ($period->status === 'locked') {
-            return back()->withErrors(['payroll' => 'Periode terkunci, tidak bisa dihitung ulang.']);
-        }
+            if ($period->status === 'locked') {
+                throw ValidationException::withMessages([
+                    'payroll' => 'Periode terkunci, tidak bisa dihitung ulang.',
+                ]);
+            }
 
-        if (! empty($data['pay_date']) && $data['pay_date'] !== $period->pay_date?->toDateString()) {
-            $period->update(['pay_date' => $data['pay_date']]);
-        }
+            if (! empty($data['pay_date']) && $data['pay_date'] !== $period->pay_date?->toDateString()) {
+                $period->update(['pay_date' => $data['pay_date']]);
+            }
 
-        $run = PayrollRun::firstOrNew([
-            'tenant_id' => $tenantId,
-            'payroll_period_id' => $period->id,
-            'branch_id' => null,
-        ]);
-        $run->status = 'calculated';
-        // Record the runner so approval can enforce segregation of duties. A
-        // recompute resets approval (and clears any prior rejection), so the
-        // latest runner is the accountable one.
-        $run->run_by = $request->user()->id;
-        $run->approved_by = null;
-        $run->approved_at = null;
-        $run->approval_note = null;
-        $run->rejected_by = null;
-        $run->rejected_at = null;
-        $run->rejection_note = null;
-        $run->save();
-
-        $employees = $this->payableEmployees($tenantId, $period);
-
-        $totalGross = 0.0;
-        $totalDeduction = 0.0;
-        $totalTax = 0.0;
-        $totalNet = 0.0;
-        $count = 0;
-
-        foreach ($employees as $employee) {
-            $pay = $this->computeEmployeePay($employee, $period, $tenantId);
-
-            PayrollRunItem::updateOrCreate(
-                ['payroll_run_id' => $run->id, 'employee_id' => $employee->id],
-                [
+            $run = PayrollRun::forTenant($tenantId)
+                ->where('payroll_period_id', $period->id)
+                ->whereNull('branch_id')
+                ->lockForUpdate()
+                ->first() ?? new PayrollRun([
                     'tenant_id' => $tenantId,
                     'payroll_period_id' => $period->id,
-                    'gross_salary' => $pay['gross'],
-                    'taxable_gross' => $pay['taxable_gross'],
-                    'tax_deductible_premium' => $pay['tax_deductible_premium'],
-                    'total_allowance' => max(0.0, $pay['gross'] - $pay['basic']),
-                    'total_deduction' => $pay['deduction'],
-                    'bpjs_employee_total' => $pay['bpjs_employee'],
-                    'bpjs_company_total' => $pay['bpjs_company'],
-                    'pph21_total' => $pay['pph21'],
-                    'net_salary' => $pay['net'],
-                    'calculation_snapshot' => [
-                        'earnings' => $pay['earnings'],
-                        'deductions' => $pay['deductions'],
-                        'present_days' => $pay['present_days'],
-                        'overtime_hours' => $pay['overtime_hours'],
-                        'overtime' => $pay['overtime_snapshot'],
-                        'payday' => $pay['payday_snapshot'],
-                        'proration_factor' => $pay['proration_factor'],
-                        'loan_ids' => $pay['loan_ids'],
-                        'gross' => $pay['gross'],
-                        'deduction' => $pay['deduction'],
-                        'bpjs' => $pay['bpjs_snapshot'],
-                        'tax' => $pay['tax_snapshot'],
-                        'net' => $pay['net'],
+                    'branch_id' => null,
+                ]);
+            $run->fill([
+                'status' => 'calculated',
+                'run_by' => $request->user()->id,
+                'approved_by' => null,
+                'approved_at' => null,
+                'approval_note' => null,
+                'rejected_by' => null,
+                'rejected_at' => null,
+                'rejection_note' => null,
+            ])->save();
+
+            $employees = $this->payableEmployees($tenantId, $period);
+            $employeeIds = $employees->pluck('id')->all();
+            $run->items()->whereNotIn('employee_id', $employeeIds)->delete();
+
+            $totals = ['gross' => 0.0, 'deduction' => 0.0, 'tax' => 0.0, 'net' => 0.0, 'count' => 0];
+
+            foreach ($employees as $employee) {
+                $pay = $this->computeEmployeePay($employee, $period, $tenantId);
+
+                PayrollRunItem::updateOrCreate(
+                    ['payroll_run_id' => $run->id, 'employee_id' => $employee->id],
+                    [
+                        'tenant_id' => $tenantId,
+                        'payroll_period_id' => $period->id,
+                        'gross_salary' => $pay['gross'],
+                        'taxable_gross' => $pay['taxable_gross'],
+                        'tax_deductible_premium' => $pay['tax_deductible_premium'],
+                        'total_allowance' => max(0.0, $pay['gross'] - $pay['basic']),
+                        'total_deduction' => $pay['deduction'],
+                        'bpjs_employee_total' => $pay['bpjs_employee'],
+                        'bpjs_company_total' => $pay['bpjs_company'],
+                        'pph21_total' => $pay['pph21'],
+                        'net_salary' => $pay['net'],
+                        'calculation_snapshot' => [
+                            'earnings' => $pay['earnings'],
+                            'deductions' => $pay['deductions'],
+                            'present_days' => $pay['present_days'],
+                            'overtime_hours' => $pay['overtime_hours'],
+                            'overtime' => $pay['overtime_snapshot'],
+                            'payday' => $pay['payday_snapshot'],
+                            'salary_sources' => $pay['salary_sources'],
+                            'salary_master_id' => $pay['salary_master_id'],
+                            'proration_factor' => $pay['proration_factor'],
+                            'loan_ids' => $pay['loan_ids'],
+                            'gross' => $pay['gross'],
+                            'deduction' => $pay['deduction'],
+                            'bpjs' => $pay['bpjs_snapshot'],
+                            'tax' => $pay['tax_snapshot'],
+                            'net' => $pay['net'],
+                        ],
+                        'status' => 'calculated',
                     ],
-                    'status' => 'calculated',
-                ],
-            );
+                );
 
-            $totalGross += $pay['gross'];
-            $totalDeduction += $pay['deduction'];
-            $totalTax += $pay['pph21'];
-            $totalNet += $pay['net'];
-            $count++;
-        }
+                $totals['gross'] += $pay['gross'];
+                $totals['deduction'] += $pay['deduction'];
+                $totals['tax'] += $pay['pph21'];
+                $totals['net'] += $pay['net'];
+                $totals['count']++;
+            }
 
-        $run->update([
-            'total_gross' => $totalGross,
-            'total_deduction' => $totalDeduction,
-            'total_tax' => $totalTax,
-            'total_net' => $totalNet,
-            'employee_count' => $count,
-            'status' => 'calculated',
-        ]);
+            $run->update([
+                'total_gross' => $totals['gross'],
+                'total_deduction' => $totals['deduction'],
+                'total_tax' => $totals['tax'],
+                'total_net' => $totals['net'],
+                'employee_count' => $totals['count'],
+                'status' => 'calculated',
+            ]);
+
+            return [$period, $run, $employees, $totals];
+        });
 
         // Anyone without a PTKP status was taxed as TK/0 — the strictest
         // category, and almost certainly not what they are. The run still
@@ -592,6 +604,7 @@ class PayrollController extends Controller
         $this->authorize('create', PayrollPeriod::class);
 
         $tenantId = $request->user()->tenant_id;
+        $asOf = now()->startOfDay();
 
         // Compute every employee's monthly bruto against the latest regular
         // (non-THR) period; fall back to the THR period when none exists.
@@ -600,112 +613,129 @@ class PayrollController extends Controller
             ->orderByDesc('start_date')
             ->first();
 
-        $year = (int) now()->year;
+        $year = (int) $asOf->year;
 
-        $period = PayrollPeriod::firstOrNew([
-            'tenant_id' => $tenantId,
-            'code' => 'THR-'.$year,
-        ]);
-        $period->name = 'THR '.$year;
-        $period->start_date = $year.'-01-01';
-        $period->end_date = $year.'-12-31';
-        $period->pay_date = now()->toDateString();
-        $period->status = 'draft';
-        $period->save();
+        [$totalThr, $totalThrTax] = DB::transaction(function () use ($tenantId, $year, $asOf, $basePeriod, $request): array {
+            DB::table('tenants')->where('id', $tenantId)->lockForUpdate()->first();
 
-        $run = PayrollRun::firstOrNew([
-            'tenant_id' => $tenantId,
-            'payroll_period_id' => $period->id,
-            'branch_id' => null,
-        ]);
-        $run->status = 'calculated';
-        // Record the runner so approval segregation applies to the THR run too,
-        // and reset any prior approval when THR is regenerated.
-        $run->run_by = $request->user()->id;
-        $run->approved_by = null;
-        $run->approved_at = null;
-        $run->save();
-
-        $employees = Employee::forTenant($tenantId)
-            ->where(function ($query): void {
-                $query->where('status', 'active')
-                    // Permenaker 6/2016: employees who resigned within 30 days
-                    // before the THR payout remain entitled to a prorated THR.
-                    ->orWhere(fn ($sub) => $sub
-                        ->whereNotNull('resign_date')
-                        ->where('resign_date', '>=', now()->subDays(30)->toDateString()));
-            })
-            ->get();
-
-        $totalThr = 0.0;
-        $totalThrTax = 0.0;
-        $count = 0;
-
-        foreach ($employees as $employee) {
-            $monthsWorked = $employee->join_date !== null
-                ? (int) floor(abs($employee->join_date->diffInMonths(now())))
-                : 12;
-
-            // THR is based on a full month's wage, never the prorated payslip.
-            $base = $this->monthlyBaseWage($employee, $tenantId);
-            // The regular month the THR rides on top of, for the tax lookup.
-            $pay = $this->computeEmployeePay($employee, $basePeriod ?? $period, $tenantId);
-
-            if ($base <= 0) {
-                $base = $pay['basic'] > 0 ? $pay['basic'] : $pay['gross'];
-            }
-
-            // Permenaker 6/2016: eligibility requires at least one continuous
-            // month of service; below that the entitlement is zero (row kept
-            // for a complete run register).
-            $factor = $monthsWorked >= 1 ? min(1.0, $monthsWorked / 12) : 0.0;
-            $thr = round($base * $factor);
-
-            // THR is taxable income in the month it is paid, and it is the
-            // reason a payslip jumps a TER bracket — leaving it untaxed was a
-            // shortfall the December reconciliation would have had to claw
-            // back in one lump.
-            $tax = $this->computeThrPph21($employee, $tenantId, (float) $thr, (float) $pay['taxable_gross'], $period);
-
-            PayrollRunItem::updateOrCreate(
-                ['payroll_run_id' => $run->id, 'employee_id' => $employee->id],
+            $period = PayrollPeriod::firstOrCreate(
+                ['tenant_id' => $tenantId, 'code' => 'THR-'.$year],
                 [
-                    'tenant_id' => $tenantId,
-                    'payroll_period_id' => $period->id,
-                    'gross_salary' => $thr,
-                    'taxable_gross' => $thr,
-                    'tax_deductible_premium' => 0,
-                    'total_allowance' => $thr,
-                    'total_deduction' => $tax['amount'],
-                    'bpjs_employee_total' => 0,
-                    'bpjs_company_total' => 0,
-                    'pph21_total' => $tax['amount'],
-                    'net_salary' => $thr - $tax['amount'],
-                    'calculation_snapshot' => [
-                        'months_worked' => $monthsWorked,
-                        'base' => $base,
-                        'factor' => $factor,
-                        'thr' => $thr,
-                        'formula' => 'THR = base x min(1, months_worked / 12)',
-                        'tax' => $tax['snapshot'],
-                    ],
-                    'status' => 'calculated',
+                    'name' => 'THR '.$year,
+                    'start_date' => $year.'-01-01',
+                    'end_date' => $year.'-12-31',
+                    'pay_date' => $asOf->toDateString(),
+                    'status' => 'draft',
                 ],
             );
+            $period = PayrollPeriod::forTenant($tenantId)
+                ->whereKey($period->id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-            $totalThr += $thr;
-            $totalThrTax += $tax['amount'];
-            $count++;
-        }
+            $run = PayrollRun::forTenant($tenantId)
+                ->where('payroll_period_id', $period->id)
+                ->whereNull('branch_id')
+                ->lockForUpdate()
+                ->first();
 
-        $run->update([
-            'total_gross' => $totalThr,
-            'total_deduction' => $totalThrTax,
-            'total_tax' => $totalThrTax,
-            'total_net' => $totalThr - $totalThrTax,
-            'employee_count' => $count,
-            'status' => 'calculated',
-        ]);
+            if ($period->status === 'locked' || $run?->status === 'locked') {
+                throw ValidationException::withMessages([
+                    'payroll' => 'THR sudah dikunci dan tidak dapat dihitung ulang.',
+                ]);
+            }
+
+            $period->update([
+                'name' => 'THR '.$year,
+                'start_date' => $year.'-01-01',
+                'end_date' => $year.'-12-31',
+                'pay_date' => $asOf->toDateString(),
+                'status' => 'draft',
+            ]);
+
+            $run ??= new PayrollRun([
+                'tenant_id' => $tenantId,
+                'payroll_period_id' => $period->id,
+                'branch_id' => null,
+            ]);
+            $run->fill([
+                'status' => 'calculated',
+                'run_by' => $request->user()->id,
+                'approved_by' => null,
+                'approved_at' => null,
+                'approval_note' => null,
+            ])->save();
+
+            $employees = Employee::forTenant($tenantId)
+                ->where(function ($query) use ($asOf): void {
+                    $query->where('status', 'active')
+                        ->orWhere(fn ($sub) => $sub
+                            ->whereNotNull('resign_date')
+                            ->where('resign_date', '>=', $asOf->copy()->subDays(30)->toDateString()));
+                })
+                ->get();
+
+            $run->items()->whereNotIn('employee_id', $employees->pluck('id'))->delete();
+
+            $totalThr = 0.0;
+            $totalThrTax = 0.0;
+
+            foreach ($employees as $employee) {
+                $monthsWorked = $employee->join_date !== null
+                    ? (int) floor(abs($employee->join_date->diffInMonths($asOf)))
+                    : 12;
+                $base = $this->monthlyBaseWage($employee, $tenantId, $asOf);
+                $pay = $this->computeEmployeePay($employee, $basePeriod ?? $period, $tenantId);
+
+                if ($base <= 0) {
+                    $base = $pay['basic'] > 0 ? $pay['basic'] : $pay['gross'];
+                }
+
+                $factor = $monthsWorked >= 1 ? min(1.0, $monthsWorked / 12) : 0.0;
+                $thr = round($base * $factor);
+                $tax = $this->computeThrPph21($employee, $tenantId, (float) $thr, (float) $pay['taxable_gross'], $period);
+
+                PayrollRunItem::updateOrCreate(
+                    ['payroll_run_id' => $run->id, 'employee_id' => $employee->id],
+                    [
+                        'tenant_id' => $tenantId,
+                        'payroll_period_id' => $period->id,
+                        'gross_salary' => $thr,
+                        'taxable_gross' => $thr,
+                        'tax_deductible_premium' => 0,
+                        'total_allowance' => $thr,
+                        'total_deduction' => $tax['amount'],
+                        'bpjs_employee_total' => 0,
+                        'bpjs_company_total' => 0,
+                        'pph21_total' => $tax['amount'],
+                        'net_salary' => $thr - $tax['amount'],
+                        'calculation_snapshot' => [
+                            'months_worked' => $monthsWorked,
+                            'base' => $base,
+                            'factor' => $factor,
+                            'thr' => $thr,
+                            'formula' => 'THR = base x min(1, months_worked / 12)',
+                            'tax' => $tax['snapshot'],
+                        ],
+                        'status' => 'calculated',
+                    ],
+                );
+
+                $totalThr += $thr;
+                $totalThrTax += $tax['amount'];
+            }
+
+            $run->update([
+                'total_gross' => $totalThr,
+                'total_deduction' => $totalThrTax,
+                'total_tax' => $totalThrTax,
+                'total_net' => $totalThr - $totalThrTax,
+                'employee_count' => $employees->count(),
+                'status' => 'calculated',
+            ]);
+
+            return [$totalThr, $totalThrTax];
+        });
 
         return back()->with('success', 'THR dihitung — total '.$this->rupiah($totalThr)
             .($totalThrTax > 0 ? ', PPh 21 '.$this->rupiah($totalThrTax) : ''));
@@ -945,25 +975,23 @@ class PayrollController extends Controller
             'payroll_period_id' => ['nullable', 'integer', Rule::exists('payroll_periods', 'id')->where('tenant_id', $tenantId)],
         ]);
 
-        $period = $this->targetPeriodFor($request, $tenantId);
+        DB::transaction(function () use ($request, $tenantId): void {
+            $period = $this->targetPeriodFor($request, $tenantId, true);
+            abort_if($period === null, 404);
 
-        abort_if($period === null, 404);
+            $run = PayrollRun::forTenant($tenantId)
+                ->where('payroll_period_id', $period->id)
+                ->orderByDesc('id')
+                ->lockForUpdate()
+                ->first();
+            abort_if($run === null, 404);
 
-        $run = PayrollRun::forTenant($tenantId)
-            ->where('payroll_period_id', $period->id)
-            ->orderByDesc('id')
-            ->first();
+            if (! in_array($run->status, ['approved', 'locked'], true)) {
+                throw ValidationException::withMessages([
+                    'payroll' => 'Payroll harus direview & disetujui sebelum dikunci.',
+                ]);
+            }
 
-        abort_if($run === null, 404);
-
-        // BR-11.3: payroll cannot be finalized before it is reviewed & approved.
-        if ($run->status !== 'approved' && $run->status !== 'locked') {
-            return back()->withErrors(['payroll' => 'Payroll harus direview & disetujui sebelum dikunci.']);
-        }
-
-        // Advancing installments + flipping status must be atomic so a mid-way
-        // failure cannot leave installments bumped without the run being locked.
-        DB::transaction(function () use ($run, $period, $tenantId): void {
             // Finalizing advances loan/cash-advance installments exactly once.
             if ($run->status !== 'locked') {
                 $this->advanceInstallments($run, $tenantId);
@@ -997,20 +1025,25 @@ class PayrollController extends Controller
             'reason' => ['required', 'string', 'min:5', 'max:500'],
         ]);
 
-        $period = PayrollPeriod::forTenant($tenantId)->findOrFail($data['payroll_period_id']);
+        DB::transaction(function () use ($tenantId, $request, $data): void {
+            $period = PayrollPeriod::forTenant($tenantId)
+                ->whereKey($data['payroll_period_id'])
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if ($period->status !== 'locked') {
-            return back()->withErrors(['payroll' => 'Periode belum terkunci, tidak perlu dibuka.']);
-        }
+            if ($period->status !== 'locked') {
+                throw ValidationException::withMessages([
+                    'payroll' => 'Periode belum terkunci, tidak perlu dibuka.',
+                ]);
+            }
 
-        $run = PayrollRun::forTenant($tenantId)
-            ->where('payroll_period_id', $period->id)
-            ->orderByDesc('id')
-            ->first();
+            $run = PayrollRun::forTenant($tenantId)
+                ->where('payroll_period_id', $period->id)
+                ->orderByDesc('id')
+                ->lockForUpdate()
+                ->first();
+            abort_if($run === null, 404);
 
-        abort_if($run === null, 404);
-
-        DB::transaction(function () use ($run, $period, $tenantId, $request, $data): void {
             // Reverse the installment advances made when the period was locked so
             // reopening does not leave loans/advances over-counted.
             if ($run->status === 'locked') {
@@ -1052,45 +1085,45 @@ class PayrollController extends Controller
             'payroll_period_id' => ['nullable', 'integer', Rule::exists('payroll_periods', 'id')->where('tenant_id', $tenantId)],
         ]);
 
-        $period = $this->targetPeriodFor($request, $tenantId);
+        DB::transaction(function () use ($request, $tenantId, $data): void {
+            $period = $this->targetPeriodFor($request, $tenantId, true);
+            abort_if($period === null, 404);
 
-        abort_if($period === null, 404);
+            $run = PayrollRun::forTenant($tenantId)
+                ->where('payroll_period_id', $period->id)
+                ->orderByDesc('id')
+                ->lockForUpdate()
+                ->first();
+            abort_if($run === null, 404);
 
-        $run = PayrollRun::forTenant($tenantId)
-            ->where('payroll_period_id', $period->id)
-            ->orderByDesc('id')
-            ->first();
+            if ($run->status === 'locked') {
+                throw ValidationException::withMessages(['payroll' => 'Payroll sudah dikunci.']);
+            }
 
-        abort_if($run === null, 404);
+            if (! in_array($run->status, ['calculated', 'approved'], true)) {
+                throw ValidationException::withMessages(['payroll' => 'Hitung payroll terlebih dahulu.']);
+            }
 
-        if ($run->status === 'locked') {
-            return back()->withErrors(['payroll' => 'Payroll sudah dikunci.']);
-        }
+            if (
+                $request->user()->tenant?->enforce_payroll_segregation
+                && $run->run_by !== null
+                && (int) $run->run_by === (int) $request->user()->id
+            ) {
+                throw ValidationException::withMessages([
+                    'payroll' => 'Pemroses payroll tidak boleh menyetujui hasilnya sendiri (segregation of duties). Minta pengguna lain untuk menyetujui.',
+                ]);
+            }
 
-        if ($run->status !== 'calculated' && $run->status !== 'approved') {
-            return back()->withErrors(['payroll' => 'Hitung payroll terlebih dahulu.']);
-        }
-
-        // Segregation of duties: when the tenant requires it, the person who ran
-        // the payroll may not approve their own run.
-        if (
-            $request->user()->tenant?->enforce_payroll_segregation
-            && $run->run_by !== null
-            && (int) $run->run_by === (int) $request->user()->id
-        ) {
-            return back()->withErrors(['payroll' => 'Pemroses payroll tidak boleh menyetujui hasilnya sendiri (segregation of duties). Minta pengguna lain untuk menyetujui.']);
-        }
-
-        $run->update([
-            'status' => 'approved',
-            'approved_by' => $request->user()->id,
-            'approved_at' => now(),
-            'approval_note' => $data['note'] ?? null,
-            // Approving clears any prior rejection.
-            'rejected_by' => null,
-            'rejected_at' => null,
-            'rejection_note' => null,
-        ]);
+            $run->update([
+                'status' => 'approved',
+                'approved_by' => $request->user()->id,
+                'approved_at' => now(),
+                'approval_note' => $data['note'] ?? null,
+                'rejected_by' => null,
+                'rejected_at' => null,
+                'rejection_note' => null,
+            ]);
+        });
 
         return back()->with('success', 'Payroll disetujui');
     }
@@ -1112,34 +1145,35 @@ class PayrollController extends Controller
             'payroll_period_id' => ['nullable', 'integer', Rule::exists('payroll_periods', 'id')->where('tenant_id', $tenantId)],
         ]);
 
-        $period = $this->targetPeriodFor($request, $tenantId);
+        DB::transaction(function () use ($request, $tenantId, $data): void {
+            $period = $this->targetPeriodFor($request, $tenantId, true);
+            abort_if($period === null, 404);
 
-        abort_if($period === null, 404);
+            $run = PayrollRun::forTenant($tenantId)
+                ->where('payroll_period_id', $period->id)
+                ->orderByDesc('id')
+                ->lockForUpdate()
+                ->first();
+            abort_if($run === null, 404);
 
-        $run = PayrollRun::forTenant($tenantId)
-            ->where('payroll_period_id', $period->id)
-            ->orderByDesc('id')
-            ->first();
+            if ($run->status === 'locked') {
+                throw ValidationException::withMessages(['payroll' => 'Payroll sudah dikunci, tidak bisa ditolak.']);
+            }
 
-        abort_if($run === null, 404);
+            if (! in_array($run->status, ['calculated', 'approved'], true)) {
+                throw ValidationException::withMessages(['payroll' => 'Hitung payroll terlebih dahulu.']);
+            }
 
-        if ($run->status === 'locked') {
-            return back()->withErrors(['payroll' => 'Payroll sudah dikunci, tidak bisa ditolak.']);
-        }
-
-        if ($run->status !== 'calculated' && $run->status !== 'approved') {
-            return back()->withErrors(['payroll' => 'Hitung payroll terlebih dahulu.']);
-        }
-
-        $run->update([
-            'status' => 'calculated',
-            'approved_by' => null,
-            'approved_at' => null,
-            'approval_note' => null,
-            'rejected_by' => $request->user()->id,
-            'rejected_at' => now(),
-            'rejection_note' => $data['note'],
-        ]);
+            $run->update([
+                'status' => 'calculated',
+                'approved_by' => null,
+                'approved_at' => null,
+                'approval_note' => null,
+                'rejected_by' => $request->user()->id,
+                'rejected_at' => now(),
+                'rejection_note' => $data['note'],
+            ]);
+        });
 
         return back()->with('success', 'Payroll ditolak, dikembalikan untuk diperbaiki');
     }
@@ -1150,7 +1184,7 @@ class PayrollController extends Controller
      */
     private function advanceInstallments(PayrollRun $run, int $tenantId): void
     {
-        foreach (Loan::forTenant($tenantId)->whereIn('id', $this->deductedLoanIds($run, $tenantId))->get() as $loan) {
+        foreach (Loan::forTenant($tenantId)->whereIn('id', $this->deductedLoanIds($run, $tenantId))->orderBy('id')->lockForUpdate()->get() as $loan) {
             $paid = min((int) $loan->tenor_months, (int) $loan->paid_installments + 1);
             $loan->paid_installments = $paid;
 
@@ -1169,7 +1203,7 @@ class PayrollController extends Controller
      */
     private function reverseInstallments(PayrollRun $run, int $tenantId): void
     {
-        foreach (Loan::forTenant($tenantId)->whereIn('id', $this->deductedLoanIds($run, $tenantId))->get() as $loan) {
+        foreach (Loan::forTenant($tenantId)->whereIn('id', $this->deductedLoanIds($run, $tenantId))->orderBy('id')->lockForUpdate()->get() as $loan) {
             $paid = max(0, (int) $loan->paid_installments - 1);
             $loan->paid_installments = $paid;
 
@@ -1210,17 +1244,28 @@ class PayrollController extends Controller
      * Resolve the period payroll actions should target: the latest draft period,
      * falling back to the most recent period overall.
      */
-    private function resolveTargetPeriod(int $tenantId): ?PayrollPeriod
+    private function resolveTargetPeriod(int $tenantId, bool $lock = false): ?PayrollPeriod
     {
-        return PayrollPeriod::forTenant($tenantId)
+        $query = PayrollPeriod::forTenant($tenantId)
             ->where('code', 'not like', 'THR-%')
             ->where('status', 'draft')
-            ->orderByDesc('start_date')
-            ->first()
-            ?? PayrollPeriod::forTenant($tenantId)
-                ->where('code', 'not like', 'THR-%')
-                ->orderByDesc('start_date')
-                ->first();
+            ->orderByDesc('start_date');
+
+        $period = $query->first();
+
+        if ($period !== null) {
+            return $lock ? $period->newQuery()->whereKey($period->id)->lockForUpdate()->first() : $period;
+        }
+
+        $query = PayrollPeriod::forTenant($tenantId)
+            ->where('code', 'not like', 'THR-%')
+            ->orderByDesc('start_date');
+
+        $period = $query->first();
+
+        return $lock && $period !== null
+            ? $period->newQuery()->whereKey($period->id)->lockForUpdate()->first()
+            : $period;
     }
 
     /**
@@ -1228,15 +1273,17 @@ class PayrollController extends Controller
      * (e.g. a per-row action, or a THR period which the implicit resolver
      * excludes), otherwise the default regular target period.
      */
-    private function targetPeriodFor(Request $request, int $tenantId): ?PayrollPeriod
+    private function targetPeriodFor(Request $request, int $tenantId, bool $lock = false): ?PayrollPeriod
     {
         $periodId = $request->input('payroll_period_id');
 
         if ($periodId !== null && $periodId !== '') {
-            return PayrollPeriod::forTenant($tenantId)->find((int) $periodId);
+            $query = PayrollPeriod::forTenant($tenantId)->whereKey((int) $periodId);
+
+            return ($lock ? $query->lockForUpdate() : $query)->first();
         }
 
-        return $this->resolveTargetPeriod($tenantId);
+        return $this->resolveTargetPeriod($tenantId, $lock);
     }
 
     /**
@@ -1461,8 +1508,12 @@ class PayrollController extends Controller
     {
         // Master Gaji (BPR reference) settings drive the attendance/overtime
         // windows, the day divisor and the overtime method for its employees.
-        $master = $employee->salary_master_id !== null
-            ? SalaryMaster::forTenant($tenantId)->find($employee->salary_master_id)
+        $effectiveMasterId = SalaryMasterAssignment::effectiveMasterId(
+            $employee,
+            $period->end_date ?? $period->pay_date,
+        );
+        $master = $effectiveMasterId !== null
+            ? SalaryMaster::forTenant($tenantId)->find($effectiveMasterId)
             : null;
 
         // Mapping Payday, when the employee is in a group, states the cut-off the
@@ -1535,6 +1586,17 @@ class PayrollController extends Controller
             ->with('component')
             ->get();
 
+        $salarySources = $salaryComponents->map(fn (EmployeeSalaryComponent $row): array => [
+            'id' => $row->id,
+            'component_id' => $row->payroll_component_id,
+            'component' => $row->component?->code,
+            'amount' => (float) $row->amount,
+            'salary_master_id' => $row->salary_master_id,
+            'effective_start_date' => $row->effective_start_date?->toDateString(),
+            'effective_end_date' => $row->effective_end_date?->toDateString(),
+            'change_set_id' => $row->salary_change_set_id,
+        ])->values()->all();
+
         // Component ids already paid, so a Master Gaji checklist does not
         // double-count a component already sourced from salary/position rows.
         $handledComponentIds = [];
@@ -1555,7 +1617,7 @@ class PayrollController extends Controller
             $handledComponentIds[$component->id] = true;
 
             if ($component->basis_type !== null) {
-                [$amount, $proratable] = $this->derivedComponentAmount($component, $employee, (float) $salaryComponent->amount, $presentDays, $overtimeHours, $tenantId);
+                [$amount, $proratable] = $this->derivedComponentAmount($component, $employee, (float) $salaryComponent->amount, $presentDays, $overtimeHours, $tenantId, $period->end_date);
                 $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasis, $bpjsBasis);
             } else {
                 // A percentage attached to an employee is still a percentage —
@@ -1567,7 +1629,7 @@ class PayrollController extends Controller
                         'percentage',
                         $presentDays,
                         $overtimeHours,
-                        $this->percentageBase($component, $employee, $tenantId),
+                        $this->percentageBase($component, $employee, $tenantId, $period->end_date),
                     )
                     : (float) $salaryComponent->amount;
 
@@ -1609,7 +1671,7 @@ class PayrollController extends Controller
                 }
 
                 if ($component->basis_type !== null) {
-                    [$amount] = $this->derivedComponentAmount($component, $employee, (float) $masterComponent->amount, $presentDays, $overtimeHours, $tenantId);
+                    [$amount] = $this->derivedComponentAmount($component, $employee, (float) $masterComponent->amount, $presentDays, $overtimeHours, $tenantId, $period->end_date);
                 } else {
                     // The template's own nominal is the primary source; fall back
                     // to the dimension-mapped Nilai Komponen when it is unset.
@@ -1624,7 +1686,7 @@ class PayrollController extends Controller
                         $component->calc_basis,
                         $presentDays,
                         $overtimeHours,
-                        $this->percentageBase($component, $employee, $tenantId),
+                        $this->percentageBase($component, $employee, $tenantId, $period->end_date),
                     );
                 }
 
@@ -1808,6 +1870,7 @@ class PayrollController extends Controller
                 $basic > 0 => $basic,
                 default => $gross,
             },
+            $period->end_date,
         );
 
         $taxableGross += (float) ($bpjs['taxable_company'] ?? 0.0);
@@ -1855,6 +1918,8 @@ class PayrollController extends Controller
                 'cut_off' => $payday->cutOffLabel(),
                 'window' => $attendanceRange,
             ] : null,
+            'salary_sources' => $salarySources,
+            'salary_master_id' => $effectiveMasterId,
             'proration_factor' => $factor,
             'loan_ids' => $loanIds,
             'basic' => $basic,
@@ -2003,7 +2068,7 @@ class PayrollController extends Controller
      * Sum an employee's full monthly fixed wage (earnings only, no proration and
      * no attendance-variable components) — the basis for THR and severance.
      */
-    private function monthlyBaseWage(Employee $employee, int $tenantId): float
+    private function monthlyBaseWage(Employee $employee, int $tenantId, CarbonInterface|string|null $on = null): float
     {
         $total = 0.0;
         $handledComponentIds = [];
@@ -2011,7 +2076,7 @@ class PayrollController extends Controller
         $salaryComponents = EmployeeSalaryComponent::forTenant($tenantId)
             ->where('employee_id', $employee->id)
             ->inForce()
-            ->effectiveOn()
+            ->effectiveOn($on)
             ->with('component')
             ->get();
 
@@ -2024,9 +2089,11 @@ class PayrollController extends Controller
             }
         }
 
-        if ($employee->salary_master_id !== null) {
+        $effectiveMasterId = SalaryMasterAssignment::effectiveMasterId($employee, $on);
+
+        if ($effectiveMasterId !== null) {
             $masterComponents = SalaryMasterComponent::query()
-                ->where('salary_master_id', $employee->salary_master_id)
+                ->where('salary_master_id', $effectiveMasterId)
                 ->where('included', true)
                 ->with('component')
                 ->get();
@@ -2072,7 +2139,7 @@ class PayrollController extends Controller
      * reads the employee's own figure, then their Master Gaji template, then
      * the component's fixed nominal.
      */
-    private function percentageBase(PayrollComponent $component, Employee $employee, int $tenantId): float
+    private function percentageBase(PayrollComponent $component, Employee $employee, int $tenantId, CarbonInterface|string|null $on = null): float
     {
         if ($component->calc_basis !== 'percentage') {
             return 0.0;
@@ -2082,7 +2149,7 @@ class PayrollController extends Controller
             ? PayrollComponent::forTenant($tenantId)->find($component->percentage_of_component_id)
             : PayrollComponent::forTenant($tenantId)->where('code', 'BASIC')->first();
 
-        return $this->componentOperandValue($reference, $employee, $tenantId);
+        return $this->componentOperandValue($reference, $employee, $tenantId, $on);
     }
 
     /**
@@ -2180,10 +2247,10 @@ class PayrollController extends Controller
      *
      * @return array{0: float, 1: bool}
      */
-    private function derivedComponentAmount(PayrollComponent $component, Employee $employee, float $attachmentAmount, int $presentDays, float $overtimeHours, int $tenantId): array
+    private function derivedComponentAmount(PayrollComponent $component, Employee $employee, float $attachmentAmount, int $presentDays, float $overtimeHours, int $tenantId, CarbonInterface|string|null $on = null): array
     {
         $attendanceBasis = ['per_present_day', 'per_overtime_hour'];
-        $percentBase = $this->percentageBase($component, $employee, $tenantId);
+        $percentBase = $this->percentageBase($component, $employee, $tenantId, $on);
 
         switch ($component->basis_type) {
             case 'fixed':
@@ -2198,7 +2265,7 @@ class PayrollController extends Controller
                 return [$amount, ! in_array($component->calc_basis, $attendanceBasis, true)];
 
             case 'formula':
-                return [$this->evaluateComponentFormula($component, $employee, $tenantId), false];
+                return [$this->evaluateComponentFormula($component, $employee, $tenantId, $on), false];
 
             default:
                 $amount = $this->amountForBasis($attachmentAmount, $component->calc_basis, $presentDays, $overtimeHours, $percentBase);
@@ -2263,7 +2330,7 @@ class PayrollController extends Controller
      * min/max. The operand is the referenced component's mapped/attachment value,
      * or the employee's monthly base wage for a UMR item.
      */
-    private function evaluateComponentFormula(PayrollComponent $component, Employee $employee, int $tenantId): float
+    private function evaluateComponentFormula(PayrollComponent $component, Employee $employee, int $tenantId, CarbonInterface|string|null $on = null): float
     {
         $formula = $component->relationLoaded('formula') && $component->formula !== null
             ? $component->formula->loadMissing('items.component')
@@ -2277,8 +2344,8 @@ class PayrollController extends Controller
 
         foreach ($formula->items as $item) {
             $operand = $item->tipe === 'umr'
-                ? $this->resolveUmr($employee, $tenantId)
-                : $this->componentOperandValue($item->component, $employee, $tenantId);
+                ? $this->resolveUmr($employee, $tenantId, $on)
+                : $this->componentOperandValue($item->component, $employee, $tenantId, $on);
 
             $total += $operand * (float) $item->nilai;
         }
@@ -2299,7 +2366,7 @@ class PayrollController extends Controller
      * recursing into its own basis: its Nilai Komponen mapping, then its
      * position/salary attachment amount, then a fixed basis value.
      */
-    private function componentOperandValue(?PayrollComponent $component, Employee $employee, int $tenantId): float
+    private function componentOperandValue(?PayrollComponent $component, Employee $employee, int $tenantId, CarbonInterface|string|null $on = null): float
     {
         if ($component === null) {
             return 0.0;
@@ -2314,7 +2381,7 @@ class PayrollController extends Controller
         $salaryAmount = EmployeeSalaryComponent::forTenant($tenantId)
             ->where('employee_id', $employee->id)
             ->inForce()
-            ->effectiveOn()
+            ->effectiveOn($on)
             ->where('payroll_component_id', $component->id)
             ->value('amount');
 
@@ -2322,9 +2389,11 @@ class PayrollController extends Controller
             return (float) $salaryAmount;
         }
 
-        if ($employee->salary_master_id !== null) {
+        $effectiveMasterId = SalaryMasterAssignment::effectiveMasterId($employee, $on);
+
+        if ($effectiveMasterId !== null) {
             $masterAmount = SalaryMasterComponent::query()
-                ->where('salary_master_id', $employee->salary_master_id)
+                ->where('salary_master_id', $effectiveMasterId)
                 ->where('payroll_component_id', $component->id)
                 ->where('included', true)
                 ->value('amount');
@@ -2343,16 +2412,17 @@ class PayrollController extends Controller
      * default (null branch). Falls back to the full monthly wage when no UMR is
      * configured, so a `umr` formula item still yields a value.
      */
-    private function resolveUmr(Employee $employee, int $tenantId): float
+    private function resolveUmr(Employee $employee, int $tenantId, CarbonInterface|string|null $on = null): float
     {
+        $date = $on instanceof CarbonInterface ? $on : Carbon::parse($on ?? now());
         $rate = UmrRate::forTenant($tenantId)
-            ->where('year', '<=', (int) now()->year)
+            ->where('year', '<=', (int) $date->year)
             ->where(fn ($q) => $q->where('branch_id', $employee->branch_id)->orWhereNull('branch_id'))
             ->orderByRaw('branch_id IS NULL') // branch-specific rate wins over the default
             ->orderByDesc('year')
             ->value('amount');
 
-        return $rate !== null ? (float) $rate : $this->monthlyBaseWage($employee, $tenantId);
+        return $rate !== null ? (float) $rate : $this->monthlyBaseWage($employee, $tenantId, $date);
     }
 
     /**
@@ -2360,10 +2430,14 @@ class PayrollController extends Controller
      *
      * @return array{employee: float, company: float, snapshot: array<string, mixed>}
      */
-    private function computeBpjs(Employee $employee, int $tenantId, float $fallbackWage): array
+    private function computeBpjs(Employee $employee, int $tenantId, float $fallbackWage, ?CarbonInterface $on = null): array
     {
+        $date = ($on ?? now())->toDateString();
         $profile = EmployeeBpjsProfile::where('tenant_id', $tenantId)
             ->where('employee_id', $employee->id)
+            ->where(fn ($query) => $query->whereNull('effective_start_date')->orWhereDate('effective_start_date', '<=', $date))
+            ->where(fn ($query) => $query->whereNull('effective_end_date')->orWhereDate('effective_end_date', '>=', $date))
+            ->orderByDesc('effective_start_date')
             ->first();
 
         // BPJS only applies to enrolled employees (those with a profile).
@@ -2396,7 +2470,11 @@ class PayrollController extends Controller
         $lines = [];
 
         $programs = BpjsProgram::where('is_active', true)
-            ->with(['rates' => fn ($query) => $query->where('is_active', true)->orderByDesc('effective_start_date')])
+            ->with(['rates' => fn ($query) => $query
+                ->where('is_active', true)
+                ->where(fn ($q) => $q->whereNull('effective_start_date')->orWhereDate('effective_start_date', '<=', $date))
+                ->where(fn ($q) => $q->whereNull('effective_end_date')->orWhereDate('effective_end_date', '>=', $date))
+                ->orderByDesc('effective_start_date')])
             ->get();
 
         foreach ($programs as $program) {
@@ -2427,7 +2505,16 @@ class PayrollController extends Controller
                 $deductibleEmployee += $employeePortion;
             }
 
-            $lines[$code] = ['employee' => $employeePortion, 'company' => $companyPortion];
+            $lines[$code] = [
+                'rate_id' => $rate->id,
+                'effective_start_date' => $rate->effective_start_date?->toDateString(),
+                'effective_end_date' => $rate->effective_end_date?->toDateString(),
+                'employee_rate' => (float) $rate->employee_rate,
+                'company_rate' => (float) $rate->company_rate,
+                'max_wage' => (float) $rate->max_wage,
+                'employee' => $employeePortion,
+                'company' => $companyPortion,
+            ];
         }
 
         return [

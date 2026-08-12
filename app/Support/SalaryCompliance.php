@@ -8,6 +8,7 @@ use App\Models\PayrollComponent;
 use App\Models\SalaryGrade;
 use App\Models\SalaryMasterComponent;
 use App\Models\UmrRate;
+use App\Services\SalaryMasterAssignment;
 
 /**
  * Judges a salary against the two references the payroll setup keeps: the
@@ -73,9 +74,11 @@ final class SalaryCompliance
             }
         }
 
-        if ($employee->salary_master_id !== null) {
+        $effectiveMasterId = SalaryMasterAssignment::effectiveMasterId($employee);
+
+        if ($effectiveMasterId !== null) {
             $masterComponents = SalaryMasterComponent::query()
-                ->where('salary_master_id', $employee->salary_master_id)
+                ->where('salary_master_id', $effectiveMasterId)
                 ->where('included', true)
                 ->with('component')
                 ->get();

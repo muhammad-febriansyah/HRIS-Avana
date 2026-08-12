@@ -19,8 +19,8 @@ import { LockedAlert } from './components';
 import { ImportModal } from './import-modal';
 import { PeriodTable } from './period-table';
 import { RecipientsTable } from './recipients-table';
-import { SlipDetail } from './slip-detail';
 import { SetupChecklist } from './setup-checklist';
+import { SlipDetail } from './slip-detail';
 import { SummaryCard } from './summary-card';
 import type { FlashProps, PayrollProps } from './types';
 
@@ -177,7 +177,10 @@ export default function AvanaPayroll({
     const confirmRun = () => {
         router.post(
             PayrollController.run().url,
-            { pay_date: payDate },
+            {
+                pay_date: payDate,
+                payroll_period_id: summary.period_id,
+            },
             {
                 preserveScroll: true,
                 onStart: () => setProcessing(true),
@@ -199,7 +202,10 @@ export default function AvanaPayroll({
     const confirmApprove = () => {
         router.post(
             PayrollController.approve().url,
-            { note: approvalNote },
+            {
+                note: approvalNote,
+                payroll_period_id: summary.period_id,
+            },
             {
                 preserveScroll: true,
                 onStart: () => setProcessing(true),
@@ -218,7 +224,10 @@ export default function AvanaPayroll({
 
         router.post(
             PayrollController.reject().url,
-            { note: approvalNote.trim() },
+            {
+                note: approvalNote.trim(),
+                payroll_period_id: summary.period_id,
+            },
             {
                 preserveScroll: true,
                 onStart: () => setProcessing(true),
@@ -233,7 +242,11 @@ export default function AvanaPayroll({
             return;
         }
 
-        router.post(PayrollController.lock().url, {}, { preserveScroll: true });
+        router.post(
+            PayrollController.lock().url,
+            { payroll_period_id: summary.period_id },
+            { preserveScroll: true },
+        );
     };
 
     const unlockPayroll = () => {

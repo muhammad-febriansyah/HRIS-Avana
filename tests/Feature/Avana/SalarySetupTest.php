@@ -9,10 +9,14 @@ use App\Models\EmployeeContract;
 use App\Models\EmployeeSalaryComponent;
 use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
+use App\Models\SalaryChangeSet;
 use App\Models\SalaryMaster;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\EmployeeSalaryWriter;
+use App\Services\SalaryMasterAssignment;
 use Database\Seeders\AvanaDemoSeeder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Route;
 
 use function Pest\Laravel\actingAs;
@@ -144,6 +148,35 @@ it('closes the previous version instead of overwriting it', function (): void {
     expect($versions[1]->effective_end_date)->toBeNull();
 });
 
+it('bounds a retroactive salary version by its active successor', function (): void {
+    PayrollPeriod::forTenant($this->tenant->id)->update(['status' => 'draft']);
+
+    postSalary($this, 6_000_000, '2026-07-01')->assertSessionHasNoErrors();
+    postSalary($this, 8_000_000, '2026-09-01')->assertSessionHasNoErrors();
+    postSalary($this, 7_000_000, '2026-08-01')->assertSessionHasNoErrors();
+
+    $basic = PayrollComponent::forTenant($this->tenant->id)->where('code', 'BASIC')->firstOrFail();
+    $versions = EmployeeSalaryComponent::forTenant($this->tenant->id)
+        ->where('employee_id', $this->employee->id)
+        ->where('payroll_component_id', $basic->id)
+        ->orderBy('effective_start_date')
+        ->get();
+
+    expect($versions)->toHaveCount(3)
+        ->and($versions[0]->effective_end_date?->toDateString())->toBe('2026-07-31')
+        ->and($versions[1]->effective_end_date?->toDateString())->toBe('2026-08-31')
+        ->and($versions[2]->effective_end_date)->toBeNull();
+
+    foreach (['2026-07-15', '2026-08-15', '2026-09-15'] as $date) {
+        expect(EmployeeSalaryComponent::forTenant($this->tenant->id)
+            ->where('employee_id', $this->employee->id)
+            ->where('payroll_component_id', $basic->id)
+            ->inForce()
+            ->effectiveOn($date)
+            ->count())->toBe(1);
+    }
+});
+
 it('tells the setting page the earliest date a salary change may start', function (): void {
     lockPeriodThrough($this, '2026-06-30');
 
@@ -230,6 +263,69 @@ it('shows the master nominal for every component of the chosen employee', functi
             ->has('rows', 2)
             ->where('rows', fn ($rows) => (float) collect($rows)
                 ->firstWhere('id', $transport->id)['master_amount'] === 500_000.0));
+});
+
+it('loads a newly selected master before an employee has an assignment', function (): void {
+    [, $transport] = seedMasterComponents($this);
+    $this->employee->update(['salary_master_id' => null]);
+
+    actingAs($this->admin)
+        ->get('spec-salary/gaji-karyawan?employee_id='.$this->employee->id.'&salary_master_id='.$this->master->id)
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('avana/payroll-gaji-karyawan/index', false)
+            ->where('employee.salary_master_id', $this->master->id)
+            ->has('rows', 2)
+            ->where('rows', fn ($rows) => (float) collect($rows)
+                ->firstWhere('id', $transport->id)['master_amount'] === 500_000.0));
+});
+
+it('does not carry an old master-only component into an individual master change', function (): void {
+    PayrollPeriod::forTenant($this->tenant->id)->update(['status' => 'draft']);
+    [$basic, $transport] = seedMasterComponents($this);
+
+    actingAs($this->admin)->post('spec-salary/penetapan-massal', [
+        'salary_master_id' => $this->master->id,
+        'employee_ids' => [$this->employee->id],
+        'effective_start_date' => '2026-07-01',
+    ])->assertSessionHas('success');
+
+    $replacement = SalaryMaster::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'MG-INDIVIDUAL-NEW',
+        'category' => 'Organik',
+        'is_active' => true,
+    ]);
+    $replacement->components()->create([
+        'payroll_component_id' => $basic->id,
+        'included' => true,
+        'amount' => 6_500_000,
+    ]);
+
+    actingAs($this->admin)
+        ->get('spec-salary/gaji-karyawan?employee_id='.$this->employee->id.'&salary_master_id='.$replacement->id)
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('rows', 1)
+            ->where('rows.0.id', $basic->id));
+
+    actingAs($this->admin)->post('spec-salary/gaji-karyawan', [
+        'employee_id' => $this->employee->id,
+        'salary_master_id' => $replacement->id,
+        'effective_start_date' => '2026-09-01',
+        'components' => [
+            ['payroll_component_id' => $basic->id, 'amount' => 6_500_000],
+        ],
+    ])->assertSessionHasNoErrors();
+
+    $effective = EmployeeSalaryComponent::forTenant($this->tenant->id)
+        ->where('employee_id', $this->employee->id)
+        ->inForce()
+        ->effectiveOn('2026-09-15')
+        ->pluck('amount', 'payroll_component_id');
+
+    expect((float) $effective[$basic->id])->toBe(6_500_000.0)
+        ->and($effective->has($transport->id))->toBeFalse();
 });
 
 it('saves a per-employee nominal for every fixed component at once', function (): void {
@@ -442,6 +538,97 @@ it('freezes the template nominal on the employee so a later master edit does not
         ->value('amount'))->toBe(5_000_000.0);
 });
 
+it('replaces copied master values while preserving an employee override', function (): void {
+    PayrollPeriod::forTenant($this->tenant->id)->update(['status' => 'draft']);
+    [$basic, $transport] = seedMasterComponents($this);
+
+    $legacyAllowance = PayrollComponent::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'TJ-LEGACY',
+        'name' => 'Tunjangan Master Lama',
+        'type' => 'earning',
+        'component_group' => 'penerimaan',
+        'status' => 'active',
+        'calc_basis' => 'fixed',
+    ]);
+    $this->master->components()->create([
+        'payroll_component_id' => $legacyAllowance->id,
+        'included' => true,
+        'amount' => 250_000,
+    ]);
+
+    actingAs($this->admin)->post('spec-salary/penetapan-massal', [
+        'salary_master_id' => $this->master->id,
+        'employee_ids' => [$this->employee->id],
+        'effective_start_date' => '2026-07-01',
+    ])->assertSessionHas('success');
+
+    EmployeeSalaryWriter::record(
+        (int) $this->tenant->id,
+        (int) $this->employee->id,
+        (int) $transport->id,
+        750_000,
+        Carbon::parse('2026-08-01'),
+    );
+
+    $replacement = SalaryMaster::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'MG-REPLACEMENT',
+        'category' => 'Organik',
+        'is_active' => true,
+    ]);
+    $replacement->components()->createMany([
+        ['payroll_component_id' => $basic->id, 'included' => true, 'amount' => 6_000_000],
+        ['payroll_component_id' => $transport->id, 'included' => true, 'amount' => 600_000],
+    ]);
+
+    actingAs($this->admin)->post('spec-salary/penetapan-massal', [
+        'salary_master_id' => $replacement->id,
+        'employee_ids' => [$this->employee->id],
+        'effective_start_date' => '2026-09-01',
+        'existing' => 'skip',
+    ])->assertSessionHas('success');
+
+    $effective = EmployeeSalaryComponent::forTenant($this->tenant->id)
+        ->where('employee_id', $this->employee->id)
+        ->inForce()
+        ->effectiveOn('2026-09-15')
+        ->pluck('amount', 'payroll_component_id');
+
+    expect((float) $effective[$basic->id])->toBe(6_000_000.0)
+        ->and((float) $effective[$transport->id])->toBe(750_000.0)
+        ->and($effective->has($legacyAllowance->id))->toBeFalse();
+});
+
+it('resolves a future master only when its effective date is reached', function (): void {
+    seedMasterComponents($this);
+    $futureMaster = SalaryMaster::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'MG-FUTURE',
+        'category' => 'Organik',
+        'is_active' => true,
+    ]);
+    $futureMaster->components()->create([
+        'payroll_component_id' => PayrollComponent::forTenant($this->tenant->id)->where('code', 'BASIC')->value('id'),
+        'included' => true,
+        'amount' => 8_000_000,
+    ]);
+
+    SalaryMasterAssignment::apply(
+        (int) $this->tenant->id,
+        $futureMaster,
+        collect([$this->employee]),
+        Carbon::parse('2026-09-01'),
+        actorId: (int) $this->admin->id,
+    );
+
+    $employee = $this->employee->fresh();
+
+    expect($employee->salary_master_id)->toBe($this->master->id)
+        ->and(SalaryMasterAssignment::effectiveMasterId($employee, '2026-08-31'))->toBe($this->master->id)
+        ->and(SalaryMasterAssignment::effectiveMasterId($employee, '2026-09-01'))->toBe($futureMaster->id);
+});
+
 it('holds a salary change pending and pays nothing until it is approved', function (): void {
     PayrollPeriod::forTenant($this->tenant->id)->update(['status' => 'draft']);
     $this->tenant->update(['require_salary_approval' => true]);
@@ -501,6 +688,40 @@ it('holds a salary change pending and pays nothing until it is approved', functi
         ->inForce()
         ->effectiveOn('2026-07-15')
         ->value('amount'))->toBe(7_000_000.0);
+});
+
+it('approves every component in one salary change-set and defers the master link', function (): void {
+    PayrollPeriod::forTenant($this->tenant->id)->update(['status' => 'draft']);
+    $this->tenant->update(['require_salary_approval' => true]);
+    [$basic, $transport] = seedMasterComponents($this);
+    $this->employee->update(['salary_master_id' => null]);
+
+    actingAs($this->admin)
+        ->post('spec-salary/gaji-karyawan', [
+            'employee_id' => $this->employee->id,
+            'salary_master_id' => $this->master->id,
+            'effective_start_date' => '2026-07-01',
+            'components' => [
+                ['payroll_component_id' => $basic->id, 'amount' => 7_000_000],
+                ['payroll_component_id' => $transport->id, 'amount' => 800_000],
+            ],
+        ])
+        ->assertSessionHasNoErrors();
+
+    $set = SalaryChangeSet::forTenant($this->tenant->id)->latest('id')->firstOrFail();
+    expect($set->status)->toBe('pending_approval');
+    expect($this->employee->fresh()->salary_master_id)->not->toBe($this->master->id);
+
+    $approver = User::where('tenant_id', $this->tenant->id)->where('id', '!=', $this->admin->id)->firstOrFail();
+    $approver->roles()->syncWithoutDetaching($this->admin->roles()->pluck('roles.id'));
+
+    actingAs($approver)
+        ->post('spec-salary/riwayat-gaji/'.$set->components()->firstOrFail()->id.'/approve')
+        ->assertSessionHas('success');
+
+    expect($set->fresh()->status)->toBe('active');
+    expect($set->components()->where('status', 'active')->count())->toBe(2);
+    expect($this->employee->fresh()->salary_master_id)->toBe($this->master->id);
 });
 
 it('refuses to let the author approve their own salary change', function (): void {

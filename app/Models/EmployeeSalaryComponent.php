@@ -9,7 +9,28 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 final class EmployeeSalaryComponent extends Model
 {
-    protected $guarded = [];
+    protected $fillable = [
+        'tenant_id',
+        'employee_id',
+        'employee_contract_id',
+        'salary_master_id',
+        'salary_change_set_id',
+        'source_type',
+        'payroll_component_id',
+        'amount',
+        'status',
+        'effective_start_date',
+        'effective_end_date',
+        'reason',
+        'created_by',
+        'updated_by',
+        'approved_by',
+        'approved_at',
+    ];
+
+    protected $attributes = [
+        'source_type' => 'employee_override',
+    ];
 
     protected function casts(): array
     {
@@ -17,6 +38,7 @@ final class EmployeeSalaryComponent extends Model
             'amount' => 'decimal:2',
             'effective_start_date' => 'date',
             'effective_end_date' => 'date',
+            'approved_at' => 'datetime',
         ];
     }
 
@@ -73,6 +95,11 @@ final class EmployeeSalaryComponent extends Model
     public function salaryMaster(): BelongsTo
     {
         return $this->belongsTo(SalaryMaster::class);
+    }
+
+    public function changeSet(): BelongsTo
+    {
+        return $this->belongsTo(SalaryChangeSet::class, 'salary_change_set_id');
     }
 
     public function createdBy(): BelongsTo

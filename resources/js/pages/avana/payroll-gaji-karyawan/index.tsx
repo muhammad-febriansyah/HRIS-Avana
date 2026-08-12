@@ -106,14 +106,18 @@ export default function GajiKaryawan({
     salaryFloor,
 }: Props) {
     const [amounts, setAmounts] = useState<Record<number, string>>({});
-    const [seededFor, setSeededFor] = useState<number | null>(null);
+    const [seededFor, setSeededFor] = useState<string | null>(null);
+    const seedKey =
+        employee === null
+            ? null
+            : `${employee.id}:${employee.salary_master_id ?? 'none'}`;
 
     // A different employee brings a different set of components, so the typed
     // figures start again rather than leaking onto the next person. Adjusting
     // the state during render (rather than in an effect) keeps the inputs from
     // flashing the previous employee's figures for a frame.
-    if (seededFor !== (employee?.id ?? null)) {
-        setSeededFor(employee?.id ?? null);
+    if (seededFor !== seedKey) {
+        setSeededFor(seedKey);
         setAmounts(
             Object.fromEntries(
                 rows.map((r) => [r.id, String(Math.round(inForce(r)))]),
@@ -123,7 +127,6 @@ export default function GajiKaryawan({
 
     const form = useForm({
         employee_id: employee?.id ?? 0,
-        salary_master_id: employee?.salary_master_id ?? '',
         effective_start_date: '',
         reason: '',
         components: [] as { payroll_component_id: number; amount: number }[],
@@ -162,10 +165,7 @@ export default function GajiKaryawan({
             EmployeeSalaryController.store().url,
             {
                 employee_id: employee.id,
-                salary_master_id:
-                    form.data.salary_master_id === ''
-                        ? null
-                        : Number(form.data.salary_master_id),
+                salary_master_id: employee.salary_master_id,
                 effective_start_date: form.data.effective_start_date || null,
                 reason: form.data.reason || null,
                 components: fixedRows.map((r) => ({
@@ -264,9 +264,22 @@ export default function GajiKaryawan({
                                 Master Gaji
                             </div>
                             <SearchableSelect
-                                value={String(form.data.salary_master_id ?? '')}
-                                onChange={(v) =>
-                                    form.setData('salary_master_id', v)
+                                value={String(employee?.salary_master_id ?? '')}
+                                onChange={(value) =>
+                                    router.get(
+                                        EmployeeSalaryController.index().url,
+                                        {
+                                            employee_id: employee?.id,
+                                            salary_master_id:
+                                                value === ''
+                                                    ? ''
+                                                    : Number(value),
+                                        },
+                                        {
+                                            preserveScroll: true,
+                                            replace: true,
+                                        },
+                                    )
                                 }
                                 placeholder="Pilih Master Gaji…"
                                 searchPlaceholder="Cari master…"

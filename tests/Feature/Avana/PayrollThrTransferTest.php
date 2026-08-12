@@ -65,6 +65,56 @@ it('creates a THR period and run with one item per active employee', function ()
     expect(PayrollRunItem::where('payroll_run_id', $run->id)->count())->toBe($activeCount);
 });
 
+it('does not recalculate a locked THR run', function (): void {
+    $tenantId = $this->tenant->id;
+
+    actingAs($this->admin)->post('spec-avana/payroll/thr')->assertSessionHas('success');
+
+    $period = PayrollPeriod::forTenant($tenantId)->where('code', 'THR-'.now()->year)->firstOrFail();
+    $run = PayrollRun::forTenant($tenantId)->where('payroll_period_id', $period->id)->firstOrFail();
+    $itemSnapshot = PayrollRunItem::where('payroll_run_id', $run->id)
+        ->orderBy('id')
+        ->get()
+        ->map->only(['id', 'gross_salary', 'total_deduction', 'net_salary', 'calculation_snapshot'])
+        ->all();
+
+    $period->update(['status' => 'locked']);
+    $run->update(['status' => 'locked']);
+
+    actingAs($this->admin)
+        ->post('spec-avana/payroll/thr')
+        ->assertSessionHasErrors('payroll');
+
+    expect($period->fresh()->status)->toBe('locked')
+        ->and($run->fresh()->status)->toBe('locked')
+        ->and(PayrollRunItem::where('payroll_run_id', $run->id)
+            ->orderBy('id')
+            ->get()
+            ->map->only(['id', 'gross_salary', 'total_deduction', 'net_salary', 'calculation_snapshot'])
+            ->all())->toBe($itemSnapshot);
+});
+
+it('removes an employee who is no longer eligible when THR is recalculated', function (): void {
+    $tenantId = $this->tenant->id;
+    $employee = Employee::forTenant($tenantId)->where('status', 'active')->orderBy('id')->firstOrFail();
+
+    actingAs($this->admin)->post('spec-avana/payroll/thr')->assertSessionHas('success');
+
+    $period = PayrollPeriod::forTenant($tenantId)->where('code', 'THR-'.now()->year)->firstOrFail();
+    $run = PayrollRun::forTenant($tenantId)->where('payroll_period_id', $period->id)->firstOrFail();
+
+    expect(PayrollRunItem::where('payroll_run_id', $run->id)->where('employee_id', $employee->id)->exists())->toBeTrue();
+
+    $employee->update(['status' => 'inactive', 'resign_date' => now()->subDays(31)->toDateString()]);
+
+    actingAs($this->admin)->post('spec-avana/payroll/thr')->assertSessionHas('success');
+
+    expect(PayrollRunItem::where('payroll_run_id', $run->id)->where('employee_id', $employee->id)->exists())->toBeFalse()
+        ->and((int) $run->fresh()->employee_count)->toBe(
+            PayrollRunItem::where('payroll_run_id', $run->id)->count(),
+        );
+});
+
 it('pays a full month base to an employee with at least a year of tenure', function (): void {
     $tenantId = $this->tenant->id;
 

@@ -7,10 +7,13 @@ use App\Models\Employee;
 use App\Models\EmployeeSalaryComponent;
 use App\Models\User;
 use App\Services\EmployeeSalaryWriter;
+use App\Services\SalaryMasterAssignment;
 use App\Support\SalaryPeriodLock;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -104,24 +107,50 @@ class SalaryHistoryController extends Controller
         $this->ensureCan($request, 'approve');
         $this->ensureOwnership($request, $version->tenant_id);
 
-        if ($version->status !== 'pending_approval') {
-            return back()->withErrors(['status' => 'Versi gaji ini tidak sedang menunggu persetujuan.']);
-        }
+        DB::transaction(function () use ($version, $request): void {
+            Employee::forTenant((int) $version->tenant_id)
+                ->whereKey($version->employee_id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if ($version->created_by !== null && (int) $version->created_by === (int) $request->user()->id) {
-            return back()->withErrors(['status' => 'Perubahan gaji tidak boleh disetujui oleh pembuatnya sendiri.']);
-        }
+            $lockedVersion = EmployeeSalaryComponent::forTenant((int) $version->tenant_id)
+                ->whereKey($version->id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        $refusal = SalaryPeriodLock::refusal(
-            (int) $version->tenant_id,
-            Carbon::parse($version->effective_start_date ?? now())->startOfDay(),
-        );
+            if ($lockedVersion->status !== 'pending_approval') {
+                throw ValidationException::withMessages([
+                    'status' => 'Versi gaji ini tidak sedang menunggu persetujuan.',
+                ]);
+            }
 
-        if ($refusal !== null) {
-            return back()->withErrors(['status' => $refusal]);
-        }
+            if ($lockedVersion->created_by !== null && (int) $lockedVersion->created_by === (int) $request->user()->id) {
+                throw ValidationException::withMessages([
+                    'status' => 'Perubahan gaji tidak boleh disetujui oleh pembuatnya sendiri.',
+                ]);
+            }
 
-        EmployeeSalaryWriter::approve($version, (int) $request->user()->id);
+            $refusal = SalaryPeriodLock::refusal(
+                (int) $lockedVersion->tenant_id,
+                Carbon::parse($lockedVersion->effective_start_date ?? now())->startOfDay(),
+            );
+
+            if ($refusal !== null) {
+                throw ValidationException::withMessages(['status' => $refusal]);
+            }
+
+            $changeSet = $lockedVersion->changeSet()
+                ->lockForUpdate()
+                ->first();
+
+            if ($changeSet !== null) {
+                SalaryMasterAssignment::approveChangeSet($changeSet, (int) $request->user()->id);
+
+                return;
+            }
+
+            EmployeeSalaryWriter::approve($lockedVersion, (int) $request->user()->id);
+        });
 
         return back()->with('success', 'Perubahan gaji disetujui');
     }
@@ -135,14 +164,32 @@ class SalaryHistoryController extends Controller
         $this->ensureCan($request, 'approve');
         $this->ensureOwnership($request, $version->tenant_id);
 
-        if ($version->status !== 'pending_approval') {
-            return back()->withErrors(['status' => 'Versi gaji ini tidak sedang menunggu persetujuan.']);
-        }
+        DB::transaction(function () use ($version, $request): void {
+            Employee::forTenant((int) $version->tenant_id)
+                ->whereKey($version->employee_id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        $version->update([
-            'status' => 'cancelled',
-            'updated_by' => $request->user()->id,
-        ]);
+            $lockedVersion = EmployeeSalaryComponent::forTenant((int) $version->tenant_id)
+                ->whereKey($version->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($lockedVersion->status !== 'pending_approval') {
+                throw ValidationException::withMessages([
+                    'status' => 'Versi gaji ini tidak sedang menunggu persetujuan.',
+                ]);
+            }
+
+            $changeSet = $lockedVersion->changeSet()->lockForUpdate()->first();
+            ($changeSet?->components()->where('status', 'pending_approval')->lockForUpdate()->get() ?? collect([$lockedVersion]))
+                ->each(fn (EmployeeSalaryComponent $pending): bool => (bool) $pending->update([
+                    'status' => 'cancelled',
+                    'updated_by' => $request->user()->id,
+                ]));
+
+            $changeSet?->update(['status' => 'rejected']);
+        });
 
         return back()->with('success', 'Perubahan gaji ditolak');
     }

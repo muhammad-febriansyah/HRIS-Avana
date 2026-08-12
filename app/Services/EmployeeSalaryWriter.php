@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
+use App\Models\Employee;
 use App\Models\EmployeeContract;
 use App\Models\EmployeeSalaryComponent;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Writes one component's nominal for an employee as a new salary version.
@@ -36,46 +38,66 @@ final class EmployeeSalaryWriter
         ?int $actorId = null,
         ?int $salaryMasterId = null,
         string $status = 'active',
+        ?int $changeSetId = null,
+        string $sourceType = 'employee_override',
     ): EmployeeSalaryComponent {
-        $scope = EmployeeSalaryComponent::forTenant($tenantId)
-            ->where('employee_id', $employeeId)
-            ->where('payroll_component_id', $componentId);
+        return DB::transaction(function () use ($tenantId, $employeeId, $componentId, $amount, $from, $reason, $actorId, $salaryMasterId, $status, $changeSetId, $sourceType): EmployeeSalaryComponent {
+            self::lockEmployee($tenantId, $employeeId);
 
-        $sameDay = (clone $scope)
-            ->where('status', $status)
-            ->whereDate('effective_start_date', $from->toDateString())
-            ->first();
+            $scope = EmployeeSalaryComponent::forTenant($tenantId)
+                ->where('employee_id', $employeeId)
+                ->where('payroll_component_id', $componentId);
 
-        if ($sameDay !== null) {
-            $sameDay->amount = $amount;
-            $sameDay->updated_by = $actorId ?? $sameDay->updated_by;
-            $sameDay->reason = $reason ?? $sameDay->reason;
-            $sameDay->salary_master_id = $salaryMasterId ?? $sameDay->salary_master_id;
-            $sameDay->save();
+            $sameDay = (clone $scope)
+                ->where('status', $status)
+                ->whereDate('effective_start_date', $from->toDateString())
+                ->when($status !== 'active', fn (Builder $query) => $query->where('salary_change_set_id', $changeSetId))
+                ->lockForUpdate()
+                ->first();
 
-            return $sameDay;
-        }
+            if ($sameDay !== null) {
+                $sameDay->fill([
+                    'amount' => $amount,
+                    'updated_by' => $actorId ?? $sameDay->updated_by,
+                    'reason' => $reason ?? $sameDay->reason,
+                    'salary_master_id' => $salaryMasterId,
+                    'salary_change_set_id' => $changeSetId ?? $sameDay->salary_change_set_id,
+                    'source_type' => $sourceType,
+                ]);
 
-        // A version still waiting for approval pays nothing, so it must not
-        // close the figure currently in force — that only happens once it is
-        // approved (see {@see self::approve()}).
-        if ($status === 'active') {
-            self::closePredecessors($scope, $from);
-        }
+                if ($status === 'active') {
+                    $sameDay->effective_end_date = self::successorEndDate($scope, $from, (int) $sameDay->id);
+                }
 
-        return EmployeeSalaryComponent::create([
-            'tenant_id' => $tenantId,
-            'employee_id' => $employeeId,
-            'employee_contract_id' => self::contractOn($tenantId, $employeeId, $from),
-            'salary_master_id' => $salaryMasterId,
-            'payroll_component_id' => $componentId,
-            'amount' => $amount,
-            'status' => $status,
-            'effective_start_date' => $from->toDateString(),
-            'reason' => $reason,
-            'created_by' => $actorId,
-            'updated_by' => $actorId,
-        ]);
+                $sameDay->save();
+
+                return $sameDay;
+            }
+
+            $endDate = null;
+
+            if ($status === 'active') {
+                self::closePredecessors($scope, $from);
+                $endDate = self::successorEndDate($scope, $from);
+            }
+
+            return EmployeeSalaryComponent::create([
+                'tenant_id' => $tenantId,
+                'employee_id' => $employeeId,
+                'employee_contract_id' => self::contractOn($tenantId, $employeeId, $from),
+                'salary_master_id' => $salaryMasterId,
+                'salary_change_set_id' => $changeSetId,
+                'source_type' => $sourceType,
+                'payroll_component_id' => $componentId,
+                'amount' => $amount,
+                'status' => $status,
+                'effective_start_date' => $from->toDateString(),
+                'effective_end_date' => $endDate,
+                'reason' => $reason,
+                'created_by' => $actorId,
+                'updated_by' => $actorId,
+            ]);
+        });
     }
 
     /**
@@ -88,6 +110,8 @@ final class EmployeeSalaryWriter
     public static function approve(EmployeeSalaryComponent $version, int $approverId): void
     {
         $from = Carbon::parse($version->effective_start_date ?? now())->startOfDay();
+
+        self::lockEmployee((int) $version->tenant_id, (int) $version->employee_id);
 
         $scope = EmployeeSalaryComponent::forTenant((int) $version->tenant_id)
             ->where('employee_id', $version->employee_id)
@@ -106,6 +130,7 @@ final class EmployeeSalaryWriter
 
         $version->update([
             'status' => 'active',
+            'effective_end_date' => self::successorEndDate($scope, $from),
             'approved_by' => $approverId,
             'approved_at' => now(),
         ]);
@@ -119,6 +144,7 @@ final class EmployeeSalaryWriter
     private static function closePredecessors($scope, Carbon $from): void
     {
         (clone $scope)
+            ->inForce()
             ->where(fn ($query) => $query
                 ->whereNull('effective_start_date')
                 ->orWhereDate('effective_start_date', '<', $from->toDateString()))
@@ -126,6 +152,32 @@ final class EmployeeSalaryWriter
                 ->whereNull('effective_end_date')
                 ->orWhereDate('effective_end_date', '>=', $from->toDateString()))
             ->update(['effective_end_date' => $from->copy()->subDay()->toDateString()]);
+    }
+
+    /**
+     * @param  Builder<EmployeeSalaryComponent>  $scope
+     */
+    private static function successorEndDate($scope, Carbon $from, ?int $exceptId = null): ?string
+    {
+        $successor = (clone $scope)
+            ->inForce()
+            ->when($exceptId !== null, fn (Builder $query) => $query->whereKeyNot($exceptId))
+            ->whereDate('effective_start_date', '>', $from->toDateString())
+            ->orderBy('effective_start_date')
+            ->lockForUpdate()
+            ->value('effective_start_date');
+
+        return $successor === null
+            ? null
+            : Carbon::parse($successor)->subDay()->toDateString();
+    }
+
+    private static function lockEmployee(int $tenantId, int $employeeId): void
+    {
+        Employee::forTenant($tenantId)
+            ->whereKey($employeeId)
+            ->lockForUpdate()
+            ->firstOrFail();
     }
 
     /**

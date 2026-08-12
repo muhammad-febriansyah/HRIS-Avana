@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DayCalcMethod;
 use App\Models\Employee;
 use App\Models\PayrollComponent;
+use App\Models\SalaryChangeSet;
 use App\Models\SalaryGrade;
 use App\Models\SalaryMaster;
 use App\Models\User;
@@ -17,6 +18,7 @@ use App\Support\SalarySettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -373,17 +375,40 @@ class SalaryMasterController extends Controller
             return back()->withErrors(['effective_start_date' => $refusal]);
         }
 
-        EmployeeSalaryWriter::record(
-            $tenantId,
-            (int) $data['employee_id'],
-            (int) $basic->id,
-            (float) $data['amount'],
-            $from,
-            $data['reason'] ?? null,
-            (int) $request->user()->id,
-            (int) $master->id,
-            SalarySettings::statusFor($tenantId),
-        );
+        $status = SalarySettings::statusFor($tenantId);
+
+        DB::transaction(function () use ($tenantId, $data, $from, $request, $master, $basic, $status): void {
+            $changeSet = SalaryChangeSet::create([
+                'tenant_id' => $tenantId,
+                'employee_id' => $data['employee_id'],
+                'salary_master_id' => $master->id,
+                'change_type' => 'individual',
+                'effective_start_date' => $from->toDateString(),
+                'status' => $status,
+                'reason' => $data['reason'] ?? null,
+                'created_by' => $request->user()->id,
+            ]);
+
+            EmployeeSalaryWriter::record(
+                $tenantId,
+                (int) $data['employee_id'],
+                (int) $basic->id,
+                (float) $data['amount'],
+                $from,
+                $data['reason'] ?? null,
+                (int) $request->user()->id,
+                (int) $master->id,
+                $status,
+                $changeSet->id,
+                'employee_override',
+            );
+
+            if ($status === 'active' && $from->lte(today())) {
+                Employee::forTenant($tenantId)
+                    ->whereKey($data['employee_id'])
+                    ->update(['salary_master_id' => $master->id]);
+            }
+        });
 
         $employee = Employee::forTenant($tenantId)->with('salaryGrade')->findOrFail($data['employee_id']);
         $wage = SalaryCompliance::monthlyWage($employee, $tenantId);

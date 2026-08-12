@@ -201,7 +201,9 @@ class SalaryAssignmentController extends Controller
         return $employees
             ->map(function (Employee $employee) use ($ownTotals, $template, $templateTotal, $deductionIds): array {
                 $own = $ownTotals[$employee->id] ?? collect();
-                $clashes = $own->whereIn('payroll_component_id', array_keys($template));
+                $clashes = $own
+                    ->where('source_type', 'employee_override')
+                    ->whereIn('payroll_component_id', array_keys($template));
 
                 return [
                     'id' => $employee->id,
