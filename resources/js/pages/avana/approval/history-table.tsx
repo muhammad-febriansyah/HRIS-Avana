@@ -1,118 +1,119 @@
-import { AIcon, C, card, statusBadge } from '@/lib/avana';
-import { DetailCell, EmployeeCell, headThStyle, TypeBadge } from './components';
-import type { ApprovalItem } from './types';
+import { useState } from 'react';
+import { card, statusBadge } from '@/lib/avana';
+import {
+    DetailCell,
+    EmployeeCell,
+    EmptyRow,
+    headThStyle,
+    ReasonCell,
+    RequestedCell,
+    rowStyle,
+    TableHeading,
+    TypeBadge,
+} from './components';
+import { Pagination } from './pagination';
+import type { ApprovalItem, PageMeta } from './types';
+
+interface HistoryTableProps {
+    items: ApprovalItem[];
+    meta: PageMeta;
+    days: number;
+    onPage: (page: number) => void;
+    onPerPage: (perPage: number) => void;
+}
 
 /** The read-only approval history table with status pills. */
-export function HistoryTable({ items }: { items: ApprovalItem[] }) {
+export function HistoryTable({
+    items,
+    meta,
+    days,
+    onPage,
+    onPerPage,
+}: HistoryTableProps) {
+    const [hovered, setHovered] = useState<string | null>(null);
+
     return (
         <div style={{ ...card, overflow: 'hidden' }}>
-            <div
-                style={{
-                    padding: '16px 18px',
-                    borderBottom: `1px solid ${C.border}`,
-                    fontSize: 15,
-                    fontWeight: 600,
-                    color: C.navy,
-                }}
-            >
-                Riwayat Persetujuan
-            </div>
-            <div style={{ overflowX: 'auto' }}>
+            <TableHeading
+                title="Riwayat Persetujuan"
+                subtitle={`Keputusan ${days} hari terakhir`}
+            />
+
+            <div style={{ overflowX: 'auto', maxHeight: 620 }}>
                 <table
                     style={{
                         width: '100%',
                         borderCollapse: 'collapse',
-                        minWidth: 760,
+                        minWidth: 900,
                     }}
                 >
                     <thead>
-                        <tr style={{ background: '#FAFBFD' }}>
-                            <th style={headThStyle}>Karyawan</th>
-                            <th style={headThStyle}>Jenis</th>
-                            <th style={headThStyle}>Detail</th>
-                            <th style={headThStyle}>Alasan</th>
-                            <th style={headThStyle}>Diajukan</th>
-                            <th style={headThStyle}>Status</th>
+                        <tr>
+                            <th style={{ ...headThStyle, width: '20%' }}>
+                                Karyawan
+                            </th>
+                            <th style={{ ...headThStyle, width: 110 }}>
+                                Jenis
+                            </th>
+                            <th style={{ ...headThStyle, width: '26%' }}>
+                                Detail
+                            </th>
+                            <th style={{ ...headThStyle, width: '22%' }}>
+                                Alasan
+                            </th>
+                            <th style={{ ...headThStyle, width: 150 }}>
+                                Diajukan
+                            </th>
+                            <th style={{ ...headThStyle, width: 120 }}>
+                                Status
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
                         {items.length === 0 && (
-                            <tr style={{ borderTop: `1px solid ${C.line}` }}>
-                                <td
-                                    colSpan={6}
-                                    style={{
-                                        padding: '48px 18px',
-                                        textAlign: 'center',
-                                        fontSize: 13.5,
-                                        color: C.muted,
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            alignItems: 'center',
-                                            gap: 10,
-                                        }}
-                                    >
-                                        <AIcon
-                                            name="history"
-                                            size={28}
-                                            color={C.faint}
-                                        />
-                                        <div>
-                                            Belum ada riwayat persetujuan.
-                                        </div>
-                                    </div>
-                                </td>
-                            </tr>
+                            <EmptyRow
+                                icon="history"
+                                message="Belum ada riwayat persetujuan."
+                                colSpan={6}
+                            />
                         )}
-                        {items.map((item) => {
+                        {items.map((item, index) => {
+                            const key = `${item.type}-${item.id}`;
                             const badge = statusBadge(item.status_label);
 
                             return (
                                 <tr
-                                    key={`${item.type}-${item.id}`}
-                                    style={{ borderTop: `1px solid ${C.line}` }}
+                                    key={key}
+                                    onMouseEnter={() => setHovered(key)}
+                                    onMouseLeave={() => setHovered(null)}
+                                    style={rowStyle(index, hovered === key)}
                                 >
-                                    <td style={{ padding: '12px 18px' }}>
+                                    <td style={{ padding: '14px 18px' }}>
                                         <EmployeeCell
                                             employee={item.employee}
                                         />
                                     </td>
-                                    <td style={{ padding: '12px 16px' }}>
+                                    <td style={{ padding: '14px 16px' }}>
                                         <TypeBadge type={item.type} />
                                     </td>
-                                    <td style={{ padding: '12px 16px' }}>
+                                    <td style={{ padding: '14px 16px' }}>
                                         <DetailCell item={item} />
                                     </td>
-                                    <td
-                                        style={{
-                                            padding: '12px 16px',
-                                            fontSize: 12.5,
-                                            color: C.muted,
-                                            maxWidth: 220,
-                                        }}
-                                    >
-                                        {item.reason ?? '—'}
+                                    <td style={{ padding: '14px 16px' }}>
+                                        <ReasonCell reason={item.reason} />
                                     </td>
-                                    <td
-                                        style={{
-                                            padding: '12px 16px',
-                                            fontSize: 12.5,
-                                            color: C.text,
-                                            whiteSpace: 'nowrap',
-                                        }}
-                                    >
-                                        {item.requested_at ?? '—'}
+                                    <td style={{ padding: '14px 16px' }}>
+                                        <RequestedCell item={item} />
                                     </td>
-                                    <td style={{ padding: '12px 16px' }}>
+                                    <td style={{ padding: '14px 16px' }}>
                                         <span
                                             style={{
+                                                display: 'inline-block',
                                                 padding: '3px 10px',
                                                 borderRadius: 100,
                                                 fontSize: 11.5,
                                                 fontWeight: 600,
+                                                whiteSpace: 'nowrap',
                                                 color: badge.color,
                                                 background: badge.bg,
                                             }}
@@ -126,6 +127,13 @@ export function HistoryTable({ items }: { items: ApprovalItem[] }) {
                     </tbody>
                 </table>
             </div>
+
+            <Pagination
+                meta={meta}
+                unit="keputusan"
+                onPage={onPage}
+                onPerPage={onPerPage}
+            />
         </div>
     );
 }

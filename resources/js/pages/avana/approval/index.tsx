@@ -1,9 +1,8 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { toast } from 'sonner';
 import ApprovalController from '@/actions/App/Http/Controllers/Avana/ApprovalController';
 import { AIcon, C } from '@/lib/avana';
-import { FilterChips } from './filter-chips';
 import { HistoryTable } from './history-table';
 import { PendingTable } from './pending-table';
 import { StatCards } from './stat-cards';
@@ -16,11 +15,14 @@ import type {
 
 export default function AvanaApproval({
     pending,
+    pendingMeta,
     history,
+    historyMeta,
     counts,
+    filters,
+    historyDays,
 }: ApprovalProps) {
     const { flash } = usePage<FlashProps>().props;
-    const [filter, setFilter] = useState<FilterKey>('all');
 
     useEffect(() => {
         if (flash?.success) {
@@ -28,10 +30,31 @@ export default function AvanaApproval({
         }
     }, [flash?.success]);
 
-    const visiblePending =
-        filter === 'all'
-            ? pending
-            : pending.filter((item) => item.type === filter);
+    /**
+     * Paging and filtering live in the URL: the tables are paginated
+     * server-side over eight merged sources, so the page number has to travel
+     * with the request, and a shared link reopens the same view.
+     */
+    const visit = (params: Record<string, string | number>) =>
+        router.get(ApprovalController.index().url, params, {
+            preserveScroll: true,
+            preserveState: true,
+            replace: true,
+        });
+
+    const base = { per_page: filters.per_page, jenis: filters.jenis };
+
+    const setFilter = (key: FilterKey) =>
+        visit({
+            ...base,
+            jenis: key,
+            // A narrower list makes any page but the first meaningless.
+            halaman: 1,
+            halaman_riwayat: historyMeta.current_page,
+        });
+
+    const setPerPage = (perPage: number) =>
+        visit({ ...base, per_page: perPage, halaman: 1, halaman_riwayat: 1 });
 
     const approve = (item: ApprovalItem) =>
         router.post(
@@ -83,25 +106,43 @@ export default function AvanaApproval({
                     </div>
                 </div>
 
-                {/* Stat cards */}
-                <StatCards counts={counts} />
-
-                {/* Filter chips */}
-                <FilterChips
-                    filter={filter}
+                {/* Stat cards double as the type filter */}
+                <StatCards
                     counts={counts}
+                    filter={filters.jenis}
                     onFilter={setFilter}
                 />
 
                 {/* Pending table */}
                 <PendingTable
-                    items={visiblePending}
+                    items={pending}
+                    meta={pendingMeta}
                     onApprove={approve}
                     onReject={reject}
+                    onPage={(page) =>
+                        visit({
+                            ...base,
+                            halaman: page,
+                            halaman_riwayat: historyMeta.current_page,
+                        })
+                    }
+                    onPerPage={setPerPage}
                 />
 
                 {/* History table */}
-                <HistoryTable items={history} />
+                <HistoryTable
+                    items={history}
+                    meta={historyMeta}
+                    days={historyDays}
+                    onPage={(page) =>
+                        visit({
+                            ...base,
+                            halaman: pendingMeta.current_page,
+                            halaman_riwayat: page,
+                        })
+                    }
+                    onPerPage={setPerPage}
+                />
             </div>
         </>
     );

@@ -120,10 +120,95 @@ it('renders the approval center with pending, history and counts props', functio
                 ->has('detail')
                 ->has('reason')
                 ->has('requested_at')
+                ->has('requested_ago')
                 ->has('status')
                 ->has('status_label'))
             ->has('history')
             ->has('counts'));
+});
+
+it('paginates the pending table and reports the page window', function (): void {
+    $baseline = actingAs($this->admin)
+        ->get(route('avana.approval'))
+        ->viewData('page')['props']['pendingMeta']['total'];
+
+    foreach (range(1, 12) as $index) {
+        makeApprovalLeave($this->tenant->id, ['reason' => "Pengajuan {$index}"]);
+    }
+
+    $total = $baseline + 12;
+
+    $first = actingAs($this->admin)
+        ->get(route('avana.approval'))
+        ->assertOk()
+        ->viewData('page')['props'];
+
+    expect($first['pendingMeta']['total'])->toBe($total);
+    expect($first['pendingMeta']['per_page'])->toBe(10);
+    expect($first['pendingMeta']['last_page'])->toBe((int) ceil($total / 10));
+    expect($first['pending'])->toHaveCount(10);
+    expect($first['pendingMeta']['from'])->toBe(1);
+    expect($first['pendingMeta']['to'])->toBe(10);
+
+    $second = actingAs($this->admin)
+        ->get(route('avana.approval', ['halaman' => 2]))
+        ->assertOk()
+        ->viewData('page')['props'];
+
+    expect($second['pendingMeta']['current_page'])->toBe(2);
+    expect($second['pending'])->toHaveCount(min(10, $total - 10));
+
+    // Page two must not repeat page one — the merge is sorted before slicing.
+    $firstKeys = collect($first['pending'])->map(fn (array $row): string => $row['type'].'-'.$row['id']);
+    $secondKeys = collect($second['pending'])->map(fn (array $row): string => $row['type'].'-'.$row['id']);
+
+    expect($firstKeys->intersect($secondKeys))->toBeEmpty();
+});
+
+it('clamps a page number past the end back to the last page', function (): void {
+    makeApprovalLeave($this->tenant->id);
+
+    $props = actingAs($this->admin)
+        ->get(route('avana.approval', ['halaman' => 99]))
+        ->assertOk()
+        ->viewData('page')['props'];
+
+    expect($props['pendingMeta']['current_page'])->toBe($props['pendingMeta']['last_page']);
+    expect($props['pending'])->not->toBeEmpty();
+});
+
+it('filters the pending table by request type server-side', function (): void {
+    makeApprovalLeave($this->tenant->id);
+    makeApprovalOvertime($this->tenant->id);
+
+    $props = actingAs($this->admin)
+        ->get(route('avana.approval', ['jenis' => 'lembur']))
+        ->assertOk()
+        ->viewData('page')['props'];
+
+    expect($props['filters']['jenis'])->toBe('lembur');
+    expect(collect($props['pending'])->pluck('type')->unique()->all())->toBe(['lembur']);
+
+    // The chips still show every type's count, so the filter is undoable.
+    expect($props['counts']['leave'])->toBeGreaterThan(0);
+});
+
+it('honours a whitelisted page size and ignores anything else', function (): void {
+    foreach (range(1, 12) as $index) {
+        makeApprovalLeave($this->tenant->id, ['reason' => "Baris {$index}"]);
+    }
+
+    $wide = actingAs($this->admin)
+        ->get(route('avana.approval', ['per_page' => 25]))
+        ->viewData('page')['props'];
+
+    expect($wide['pendingMeta']['per_page'])->toBe(25);
+
+    $bogus = actingAs($this->admin)
+        ->get(route('avana.approval', ['per_page' => 5000]))
+        ->viewData('page')['props'];
+
+    expect($bogus['pendingMeta']['per_page'])->toBe(10);
 });
 
 it('aggregates pending requests across types with per-type counts', function (): void {

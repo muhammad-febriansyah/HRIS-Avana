@@ -127,6 +127,18 @@ class ApprovalController extends Controller
     ];
 
     /**
+     * Page sizes the screen offers; the first is the default.
+     *
+     * @var array<int, int>
+     */
+    private const PAGE_SIZES = [10, 25, 50];
+
+    /**
+     * How far back the history table reaches.
+     */
+    private const HISTORY_DAYS = 90;
+
+    /**
      * Deterministic avatar background palette (mirrors LeaveRequestResource).
      *
      * @var array<int, string>
@@ -146,13 +158,27 @@ class ApprovalController extends Controller
 
         $tenantId = (int) $request->user()->tenant_id;
 
+        $perPage = in_array($request->integer('per_page'), self::PAGE_SIZES, true)
+            ? $request->integer('per_page')
+            : self::PAGE_SIZES[0];
+
+        $type = $request->string('jenis')->toString();
+        $filter = array_key_exists($type, self::TYPE_MODELS) ? $type : 'all';
+
         $pendingItems = $this->collectItems($request, $tenantId, ['pending'])
             ->sortByDesc('sort_ts')
             ->values();
 
-        $historyItems = $this->collectItems($request, $tenantId, ['approved', 'rejected'])
+        // History is bounded by date rather than by row count: "the last 90
+        // days" is something the screen can state, where "the last 30 rows"
+        // silently hides the rest once a tenant gets busy.
+        $historyItems = $this->collectItems(
+            $request,
+            $tenantId,
+            ['approved', 'rejected'],
+            now()->subDays(self::HISTORY_DAYS),
+        )
             ->sortByDesc('sort_ts')
-            ->take(30)
             ->values();
 
         $counts = [
@@ -167,11 +193,60 @@ class ApprovalController extends Controller
             'total' => $pendingItems->count(),
         ];
 
+        $filteredPending = $filter === 'all'
+            ? $pendingItems
+            : $pendingItems->where('type', $filter)->values();
+
+        $pendingPage = $this->paginateItems($filteredPending, $perPage, $request->integer('halaman', 1));
+        $historyPage = $this->paginateItems($historyItems, $perPage, $request->integer('halaman_riwayat', 1));
+
         return Inertia::render('avana/approval/index', [
-            'pending' => $pendingItems->map(fn (array $item): array => Arr::except($item, 'sort_ts'))->all(),
-            'history' => $historyItems->map(fn (array $item): array => Arr::except($item, 'sort_ts'))->all(),
+            'pending' => $pendingPage['data'],
+            'pendingMeta' => $pendingPage['meta'],
+            'history' => $historyPage['data'],
+            'historyMeta' => $historyPage['meta'],
             'counts' => $counts,
+            'filters' => [
+                'jenis' => $filter,
+                'per_page' => $perPage,
+            ],
+            'historyDays' => self::HISTORY_DAYS,
         ]);
+    }
+
+    /**
+     * Slice one page out of the merged, already-sorted item list.
+     *
+     * The rows come from eight unrelated tables, so there is no single query
+     * to paginate — the merge happens in PHP and so does the paging.
+     *
+     * @param  Collection<int, array<string, mixed>>  $items
+     * @return array{data: array<int, array<string, mixed>>, meta: array<string, int>}
+     */
+    private function paginateItems(Collection $items, int $perPage, int $page): array
+    {
+        $total = $items->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $current = min(max($page, 1), $lastPage);
+        $offset = ($current - 1) * $perPage;
+
+        $rows = $items
+            ->slice($offset, $perPage)
+            ->map(fn (array $item): array => Arr::except($item, 'sort_ts'))
+            ->values()
+            ->all();
+
+        return [
+            'data' => $rows,
+            'meta' => [
+                'current_page' => $current,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'total' => $total,
+                'from' => $total === 0 ? 0 : $offset + 1,
+                'to' => $offset + count($rows),
+            ],
+        ];
     }
 
     /**
@@ -260,10 +335,10 @@ class ApprovalController extends Controller
      * @param  array<int, string>  $statuses
      * @return Collection<int, array<string, mixed>>
      */
-    private function collectItems(Request $request, int $tenantId, array $statuses): Collection
+    private function collectItems(Request $request, int $tenantId, array $statuses, ?CarbonInterface $since = null): Collection
     {
         return collect(self::TYPE_MODELS)
-            ->flatMap(fn (string $modelClass, string $type): Collection => $this->itemsForType($request, $type, $modelClass, $tenantId, $statuses));
+            ->flatMap(fn (string $modelClass, string $type): Collection => $this->itemsForType($request, $type, $modelClass, $tenantId, $statuses, $since));
     }
 
     /**
@@ -273,11 +348,12 @@ class ApprovalController extends Controller
      * @param  array<int, string>  $statuses
      * @return Collection<int, array<string, mixed>>
      */
-    private function itemsForType(Request $request, string $type, string $modelClass, int $tenantId, array $statuses): Collection
+    private function itemsForType(Request $request, string $type, string $modelClass, int $tenantId, array $statuses, ?CarbonInterface $since = null): Collection
     {
         $query = $modelClass::query()
             ->where('tenant_id', $tenantId)
             ->whereIn('status', $this->statusesFor($type, $statuses))
+            ->when($since !== null, fn (Builder $builder) => $builder->where('created_at', '>=', $since))
             ->with('employee:id,full_name,employee_number,branch_id');
 
         $this->scopeToApprover($query, $request->user());
@@ -395,6 +471,9 @@ class ApprovalController extends Controller
                 default => $model->reason,
             },
             'requested_at' => $model->created_at?->format('d M Y H:i'),
+            // The exact stamp answers "when", this answers "how long has this
+            // been sitting here" — the question an approver actually has.
+            'requested_ago' => $model->created_at?->diffForHumans(),
             'status' => $model->status,
             'status_label' => self::STATUS_LABELS[$model->status] ?? $model->status,
             'sort_ts' => $model->created_at?->getTimestamp() ?? 0,

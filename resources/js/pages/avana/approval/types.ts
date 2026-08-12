@@ -35,6 +35,7 @@ export interface ApprovalItem {
     detail: string;
     reason: string | null;
     requested_at: string | null;
+    requested_ago: string | null;
     status: ApprovalStatus;
     status_label: ApprovalStatusLabel;
 }
@@ -51,10 +52,27 @@ export interface ApprovalCounts {
     total: number;
 }
 
+/** Paging state for one table, computed server-side over the merged rows. */
+export interface PageMeta {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    from: number;
+    to: number;
+}
+
 export interface ApprovalProps {
     pending: ApprovalItem[];
+    pendingMeta: PageMeta;
     history: ApprovalItem[];
+    historyMeta: PageMeta;
     counts: ApprovalCounts;
+    filters: {
+        jenis: FilterKey;
+        per_page: number;
+    };
+    historyDays: number;
 }
 
 export type FilterKey = 'all' | ApprovalType;
@@ -73,16 +91,3 @@ export const typeMeta: Record<
     dinas: { label: 'Dinas', icon: 'plane', color: '#16A34A' },
     data: { label: 'Data', icon: 'user-round-cog', color: '#DC2626' },
 };
-
-/** The filter chips shown above the pending table. */
-export const filters: { key: FilterKey; label: string }[] = [
-    { key: 'all', label: 'Semua' },
-    { key: 'leave', label: 'Cuti' },
-    { key: 'lembur', label: 'Lembur' },
-    { key: 'izin', label: 'Izin' },
-    { key: 'wfh', label: 'WFH' },
-    { key: 'koreksi', label: 'Koreksi' },
-    { key: 'klaim', label: 'Klaim' },
-    { key: 'dinas', label: 'Dinas' },
-    { key: 'data', label: 'Data' },
-];
