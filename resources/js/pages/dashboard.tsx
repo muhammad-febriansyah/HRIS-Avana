@@ -45,6 +45,8 @@ type OrphanAccount = {
 
 type DashboardProps = {
     orphanAccounts: OrphanAccount[];
+    orphanAccountsHref?: string | null;
+    orphanAccountsLabel?: string | null;
     kpis: Kpi[];
     activities: Activity[];
     approvals: Approval[];
@@ -182,6 +184,8 @@ export default function Dashboard() {
     const { props } = usePage<DashboardProps>();
     const {
         orphanAccounts,
+        orphanAccountsHref,
+        orphanAccountsLabel,
         kpis,
         activities,
         approvals,
@@ -215,7 +219,6 @@ export default function Dashboard() {
     const canOpenEmployees = allowedHrefs.has('/avana/employees');
     const canOpenReports = allowedHrefs.has('/avana/laporan');
     const canOpenAudit = allowedHrefs.has('/avana/audit');
-    const canOpenUsers = allowedHrefs.has('/avana/pengguna');
 
     useEffect(() => {
         if (flash?.success) {
@@ -354,13 +357,9 @@ export default function Dashboard() {
                                     ` +${orphanAccounts.length - 4} lainnya`}
                             </div>
                         </div>
-                        {(canOpenUsers || canOpenEmployees) && (
+                        {orphanAccountsHref && orphanAccountsLabel && (
                             <Link
-                                href={
-                                    canOpenUsers
-                                        ? '/avana/pengguna'
-                                        : '/avana/employees?akun=tanpa'
-                                }
+                                href={orphanAccountsHref}
                                 style={{
                                     ...btnOut,
                                     textDecoration: 'none',
@@ -369,7 +368,7 @@ export default function Dashboard() {
                                     flex: 'none',
                                 }}
                             >
-                                {canOpenUsers ? 'Buka Pengguna' : 'Buka Karyawan'}
+                                {orphanAccountsLabel}
                             </Link>
                         )}
                     </div>

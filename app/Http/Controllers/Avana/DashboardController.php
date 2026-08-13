@@ -19,6 +19,7 @@ use App\Models\PermissionRequest;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\AvanaNav;
 use App\Support\PrivateFile;
 use App\Support\TenantTime;
 use Illuminate\Http\Request;
@@ -111,6 +112,8 @@ class DashboardController extends Controller
 
         return Inertia::render('dashboard', [
             'orphanAccounts' => $this->orphanMobileAccounts($tenantId),
+            'orphanAccountsHref' => $this->orphanAccountsHref($user),
+            'orphanAccountsLabel' => $this->orphanAccountsLabel($user),
             'kpis' => $this->kpis($tenantId, $activeEmployees, $presentToday, $attendanceRate, $pendingLeave, $newHiresThisMonth),
             'activities' => $this->activities($tenantId),
             'approvals' => $this->approvals($tenantId),
@@ -1123,6 +1126,72 @@ class DashboardController extends Controller
                 'email' => $user->email,
                 'roles' => $user->roles->pluck('name')->implode(', '),
             ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Where the orphan-account warning should send the user to resolve it.
+     *
+     * Tenant roles that can open Pengguna should land there because the
+     * warning is about login accounts with no employee attached. Roles that
+     * only have the employee directory still need a useful place to go, but
+     * the old `akun=tanpa` filter showed the inverse problem (employees with no
+     * login) and routinely opened to an empty table.
+     */
+    private function orphanAccountsHref(User $user): ?string
+    {
+        $hrefs = collect(AvanaNav::forUser($user))
+            ->flatMap(fn (array $group): array => $this->navHrefs($group['items'] ?? []))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($hrefs->contains('/avana/pengguna')) {
+            return route('avana.pengguna', absolute: false);
+        }
+
+        if ($hrefs->contains('/avana/employees')) {
+            return route('avana.employees.index', absolute: false);
+        }
+
+        return null;
+    }
+
+    /**
+     * Copy that matches the dashboard warning destination.
+     */
+    private function orphanAccountsLabel(User $user): ?string
+    {
+        return match ($this->orphanAccountsHref($user)) {
+            '/avana/pengguna' => 'Buka Pengguna',
+            '/avana/employees' => 'Buka Karyawan',
+            default => null,
+        };
+    }
+
+    /**
+     * Flatten nested nav items into href strings.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<int, string>
+     */
+    private function navHrefs(array $items): array
+    {
+        return collect($items)
+            ->flatMap(function (array $item): array {
+                $hrefs = [];
+
+                if (is_string($item['href'] ?? null)) {
+                    $hrefs[] = $item['href'];
+                }
+
+                if (is_array($item['children'] ?? null)) {
+                    $hrefs = [...$hrefs, ...$this->navHrefs($item['children'])];
+                }
+
+                return $hrefs;
+            })
             ->values()
             ->all();
     }

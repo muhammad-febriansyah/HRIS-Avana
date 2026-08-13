@@ -104,3 +104,12 @@ it('scopes the headcount and approvals to the current tenant only', function ():
             ->where('kpis.2.value', (string) $pendingCount)
             ->has('approvals', min(4, $pendingCount)));
 });
+
+it('sends orphan-account fallback traffic to the employee directory without the wrong empty filter', function (): void {
+    actingAs($this->admin)
+        ->get('/test-dashboard')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('orphanAccountsHref', route('avana.employees.index', absolute: false))
+            ->where('orphanAccountsLabel', 'Buka Karyawan'));
+});
