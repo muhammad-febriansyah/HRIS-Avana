@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
 use App\Models\AttendancePolicy;
+use App\Models\Employee;
 use App\Models\User;
 use App\Support\DeviceIntegrity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -28,7 +30,8 @@ class AttendancePolicyController extends Controller
     {
         $this->ensureCanManage($request);
 
-        $policy = AttendancePolicy::resolve((int) ($request->user()->tenant_id ?? 0));
+        $tenantId = (int) ($request->user()->tenant_id ?? 0);
+        $policy = AttendancePolicy::resolve($tenantId);
 
         return Inertia::render('avana/absensi-kebijakan/index', [
             'policy' => [
@@ -44,7 +47,140 @@ class AttendancePolicyController extends Controller
                 'block_emulator' => (bool) $policy->block_emulator,
             ],
             'attestationEnabled' => DeviceIntegrity::attestationEnabled(),
+            'scopeOptions' => AttendancePolicy::scopeOptions(),
+            'overrides' => $this->overrides($tenantId),
+            'assignableEmployees' => $this->assignableEmployees($tenantId),
         ]);
+    }
+
+    /**
+     * Employees whose attendance scope departs from the tenant default, so an
+     * admin can see at a glance who is on WFA without opening each profile.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function overrides(int $tenantId): array
+    {
+        return Employee::forTenant($tenantId)
+            ->whereNotNull('attendance_scope')
+            ->orderBy('full_name')
+            ->get(['id', 'public_id', 'full_name', 'employee_number', 'attendance_scope'])
+            ->map(fn (Employee $employee): array => [
+                'id' => $employee->id,
+                'route_key' => $employee->getRouteKey(),
+                'name' => $employee->full_name,
+                'employee_number' => $employee->employee_number,
+                'attendance_scope' => $employee->attendance_scope,
+                'scope_label' => AttendancePolicy::scopeLabel($employee->attendance_scope),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Active employees still on the tenant default — the only ones the picker
+     * offers, so the same person cannot be added to the list twice.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function assignableEmployees(int $tenantId): array
+    {
+        return Employee::forTenant($tenantId)
+            ->where('status', 'active')
+            ->whereNull('attendance_scope')
+            ->orderBy('full_name')
+            ->get(['id', 'full_name', 'employee_number'])
+            ->map(fn (Employee $employee): array => [
+                'id' => $employee->id,
+                'name' => $employee->full_name,
+                'employee_number' => $employee->employee_number,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Give one employee a scope of their own — typically WFA for field staff —
+     * without loosening the geofence for everybody else.
+     */
+    public function storeOverride(Request $request): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+
+        $tenantId = (int) ($request->user()->tenant_id ?? 0);
+
+        $data = $request->validate([
+            'overrides' => ['nullable', 'array', 'min:1'],
+            'overrides.*.employee_id' => [
+                'required_with:overrides',
+                'integer',
+                Rule::exists('employees', 'id')->where('tenant_id', $tenantId)->whereNull('deleted_at'),
+            ],
+            'overrides.*.attendance_scope' => ['required_with:overrides', Rule::in(AttendancePolicy::SCOPES)],
+            'employee_ids' => ['nullable', 'array', 'min:1'],
+            'employee_ids.*' => [
+                'integer',
+                Rule::exists('employees', 'id')->where('tenant_id', $tenantId)->whereNull('deleted_at'),
+            ],
+            // Keep the single-id payload working for existing clients.
+            'employee_id' => [
+                'nullable',
+                'integer',
+                'required_without_all:employee_ids,overrides',
+                Rule::exists('employees', 'id')->where('tenant_id', $tenantId)->whereNull('deleted_at'),
+            ],
+            'attendance_scope' => ['nullable', 'required_without:overrides', Rule::in(AttendancePolicy::SCOPES)],
+        ]);
+
+        $assignments = collect($data['overrides'] ?? [])
+            ->map(fn (array $override): array => [
+                'employee_id' => (int) $override['employee_id'],
+                'attendance_scope' => $override['attendance_scope'],
+            ]);
+
+        if (isset($data['employee_ids'])) {
+            $assignments = $assignments->merge(collect($data['employee_ids'])->map(
+                fn (int|string $employeeId): array => [
+                    'employee_id' => (int) $employeeId,
+                    'attendance_scope' => $data['attendance_scope'],
+                ],
+            ));
+        }
+
+        if (isset($data['employee_id']) && ! isset($data['employee_ids']) && ! isset($data['overrides'])) {
+            $assignments->push([
+                'employee_id' => (int) $data['employee_id'],
+                'attendance_scope' => $data['attendance_scope'],
+            ]);
+        }
+
+        $assignments = $assignments->unique('employee_id')->values();
+
+        if ($assignments->isEmpty()) {
+            return back()->withErrors(['overrides' => 'Tambahkan minimal satu pengecualian.']);
+        }
+
+        DB::transaction(function () use ($tenantId, $assignments): void {
+            foreach ($assignments as $assignment) {
+                Employee::forTenant($tenantId)
+                    ->whereKey($assignment['employee_id'])
+                    ->update(['attendance_scope' => $assignment['attendance_scope']]);
+            }
+        });
+
+        return back()->with('success', $assignments->count().' pengecualian absensi tersimpan.');
+    }
+
+    /** Put an employee back on the tenant-wide policy. */
+    public function destroyOverride(Request $request, Employee $employee): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+
+        abort_unless((int) $employee->tenant_id === (int) $request->user()->tenant_id, 404);
+
+        $employee->update(['attendance_scope' => null]);
+
+        return back()->with('success', 'Karyawan kembali mengikuti kebijakan perusahaan.');
     }
 
     public function update(Request $request): RedirectResponse

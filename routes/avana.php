@@ -159,6 +159,9 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::get('absensi/log-wajah', [FaceScanLogController::class, 'index'])->name('absensi.log-wajah');
     Route::get('absensi/kebijakan', [AttendancePolicyController::class, 'edit'])->name('absensi.kebijakan');
     Route::put('absensi/kebijakan', [AttendancePolicyController::class, 'update'])->name('absensi.kebijakan.update');
+    // Per-employee exceptions to the tenant-wide scope, e.g. WFA for field staff.
+    Route::post('absensi/kebijakan/pengecualian', [AttendancePolicyController::class, 'storeOverride'])->name('absensi.kebijakan.pengecualian.store');
+    Route::delete('absensi/kebijakan/pengecualian/{employee}', [AttendancePolicyController::class, 'destroyOverride'])->name('absensi.kebijakan.pengecualian.destroy');
     Route::get('absensi/{attendance}', [AttendanceController::class, 'show'])->name('absensi.show');
     Route::delete('absensi/{attendance}', [AttendanceController::class, 'destroy'])->name('absensi.destroy');
     Route::post('absensi/corrections/{correction}/approve', [AttendanceController::class, 'approveCorrection'])->name('absensi.corrections.approve');

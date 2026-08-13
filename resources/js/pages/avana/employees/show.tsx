@@ -42,6 +42,13 @@ const GENDER_LABELS: Record<string, string> = {
     unspecified: 'Tidak ditentukan',
 };
 
+/** Per-employee attendance scope override; an absent key follows the tenant policy. */
+const ATTENDANCE_SCOPE_LABELS: Record<string, string> = {
+    assigned: 'Lokasi kerja sendiri',
+    any_branch: 'Semua cabang (radius tetap berlaku)',
+    anywhere: 'Bebas di mana saja (WFA)',
+};
+
 const fieldLabel: CSSProperties = { fontSize: 12, color: C.faint };
 const fieldValue: CSSProperties = { fontSize: 14, color: C.text, marginTop: 3 };
 const thCell: CSSProperties = {
@@ -485,6 +492,15 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                                     emp.work_location
                                         ? `${emp.work_location.name ?? '—'}${emp.work_location.radius_meter ? ` · radius ${emp.work_location.radius_meter} m` : ''}`
                                         : 'Otomatis (ikut cabang)'
+                                }
+                                indent
+                            />
+                            <Cell
+                                label="Kebijakan Absensi"
+                                value={
+                                    ATTENDANCE_SCOPE_LABELS[
+                                        emp.attendance_scope ?? ''
+                                    ] ?? 'Ikut kebijakan perusahaan'
                                 }
                                 indent
                             />

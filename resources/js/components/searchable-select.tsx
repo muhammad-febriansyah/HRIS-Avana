@@ -7,9 +7,9 @@ export interface SelectOption {
 }
 
 interface SearchableSelectProps {
-    value: string;
+    value: string | string[];
     options: SelectOption[];
-    onChange: (value: string) => void;
+    onChange: (value: any) => void;
     placeholder?: string;
     searchPlaceholder?: string;
     disabled?: boolean;
@@ -17,6 +17,7 @@ interface SearchableSelectProps {
     style?: React.CSSProperties;
     /** Show the search box only past this many options (default 8). */
     searchThreshold?: number;
+    multiple?: boolean;
 }
 
 /**
@@ -34,12 +35,14 @@ export function SearchableSelect({
     allowClear = false,
     style,
     searchThreshold = 8,
+    multiple = false,
 }: SearchableSelectProps) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const boxRef = useRef<HTMLDivElement>(null);
 
-    const selected = options.find((o) => o.value === value) ?? null;
+    const selectedValues = Array.isArray(value) ? value : [value];
+    const selected = options.filter((o) => selectedValues.includes(o.value));
     const showSearch = options.length > searchThreshold;
 
     const filtered = useMemo(() => {
@@ -69,7 +72,20 @@ export function SearchableSelect({
     }, [open]);
 
     const pick = (v: string) => {
+        if (multiple) {
+            onChange(
+                selectedValues.includes(v)
+                    ? selectedValues.filter(
+                          (selectedValue) => selectedValue !== v,
+                      )
+                    : [...selectedValues, v],
+            );
+
+            return;
+        }
+
         onChange(v);
+
         setOpen(false);
         setQuery('');
     };
@@ -101,13 +117,18 @@ export function SearchableSelect({
                     paddingBottom: 0,
                     paddingRight: 34,
                     paddingLeft: 13,
-                    color: selected
-                        ? ((style?.color as string | undefined) ?? C.text)
-                        : C.faint,
+                    color:
+                        selected.length > 0
+                            ? ((style?.color as string | undefined) ?? C.text)
+                            : C.faint,
                     ...(open ? { borderColor: C.primary } : {}),
                 }}
             >
-                {selected ? selected.label : placeholder}
+                {multiple
+                    ? selected.length > 0
+                        ? `${selected.length} karyawan dipilih`
+                        : placeholder
+                    : (selected[0]?.label ?? placeholder)}
                 <span
                     style={{
                         position: 'absolute',
@@ -118,11 +139,12 @@ export function SearchableSelect({
                         gap: 4,
                     }}
                 >
-                    {allowClear && selected && (
+                    {allowClear && selected.length > 0 && (
                         <span
                             onClick={(e) => {
                                 e.stopPropagation();
-                                pick('');
+                                onChange(multiple ? [] : '');
+                                setOpen(false);
                             }}
                             style={{ cursor: 'pointer', color: C.faint }}
                         >
@@ -207,14 +229,21 @@ export function SearchableSelect({
                                     padding: '9px 14px',
                                     fontSize: 13,
                                     border: 'none',
-                                    background:
-                                        o.value === value ? '#EEF2FF' : '#fff',
-                                    color:
-                                        o.value === value ? C.primary : C.text,
-                                    fontWeight: o.value === value ? 600 : 400,
+                                    background: selectedValues.includes(o.value)
+                                        ? '#EEF2FF'
+                                        : '#fff',
+                                    color: selectedValues.includes(o.value)
+                                        ? C.primary
+                                        : C.text,
+                                    fontWeight: selectedValues.includes(o.value)
+                                        ? 600
+                                        : 400,
                                     cursor: 'pointer',
                                 }}
                             >
+                                {multiple && selectedValues.includes(o.value)
+                                    ? '✓ '
+                                    : ''}
                                 {o.label}
                             </button>
                         ))}

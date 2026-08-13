@@ -82,6 +82,29 @@ final class AttendancePolicy extends Model
         );
     }
 
+    /** Human label for a scope, in the tenant's language. */
+    public static function scopeLabel(?string $scope): string
+    {
+        return match ($scope) {
+            self::SCOPE_ANY_BRANCH => 'Semua cabang (radius tetap berlaku)',
+            self::SCOPE_ANYWHERE => 'Bebas di mana saja (WFA)',
+            default => 'Lokasi kerja sendiri',
+        };
+    }
+
+    /**
+     * Every scope as a selectable option, strictest first.
+     *
+     * @return array<int, array{value: string, label: string}>
+     */
+    public static function scopeOptions(): array
+    {
+        return array_map(
+            fn (string $scope): array => ['value' => $scope, 'label' => self::scopeLabel($scope)],
+            self::SCOPES,
+        );
+    }
+
     public function blocksFace(): bool
     {
         return $this->face_enforcement === 'block';

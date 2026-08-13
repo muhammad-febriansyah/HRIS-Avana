@@ -109,6 +109,8 @@ export type Employee = {
         radius_meter?: number;
         status?: string;
     } | null;
+    /** Per-employee attendance scope override; null follows the tenant policy. */
+    attendance_scope?: string | null;
     manager?: ManagerRef | null;
     /** The Master Gaji this employee is attached to, if any. */
     salary_master_id?: number | null;
