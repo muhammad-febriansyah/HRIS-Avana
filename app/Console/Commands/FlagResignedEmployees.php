@@ -16,16 +16,23 @@ class FlagResignedEmployees extends Command
      * Flip still-active employees to inactive once their resign date is in the
      * past. Runs daily so a resignation keeps them payable through their final
      * day, then removes them from the next payroll run.
+     *
+     * Saved one row at a time rather than a single mass update: a mass update
+     * doesn't fire Eloquent's `saved` event, so EmployeeObserver would never
+     * run — the employee's login would stay active and their email would
+     * never be freed for a new hire to reuse.
      */
     public function handle(): int
     {
-        $affected = Employee::query()
+        $employees = Employee::query()
             ->where('status', 'active')
             ->whereNotNull('resign_date')
             ->whereDate('resign_date', '<', Carbon::today())
-            ->update(['status' => 'inactive']);
+            ->get();
 
-        $this->info("Deactivated {$affected} resigned employee(s).");
+        $employees->each(fn (Employee $employee) => $employee->update(['status' => 'inactive']));
+
+        $this->info("Deactivated {$employees->count()} resigned employee(s).");
 
         return self::SUCCESS;
     }

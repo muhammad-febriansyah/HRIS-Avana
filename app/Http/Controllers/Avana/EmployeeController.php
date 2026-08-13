@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Concerns\AppliesBranchScope;
+use App\Concerns\DescribesEmailConflict;
 use App\Exports\EmployeeBulkTemplateExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Avana\StoreEmployeeRequest;
@@ -44,6 +45,7 @@ class EmployeeController extends Controller
 {
     use AppliesBranchScope;
     use AuthorizesRequests;
+    use DescribesEmailConflict;
 
     /**
      * Columns selected for the employee DataTable (avoids loading wide rows).
@@ -228,7 +230,7 @@ class EmployeeController extends Controller
             'employees.*.email.email' => 'Format email tidak valid.',
         ]);
 
-        $this->validateBulkLogins($validated['employees']);
+        $this->validateBulkLogins($validated['employees'], $tenantId);
 
         $roleId = isset($validated['role_id']) ? (int) $validated['role_id'] : null;
 
@@ -845,7 +847,7 @@ class EmployeeController extends Controller
      *
      * @param  array<int, array<string, mixed>>  $rows
      */
-    private function validateBulkLogins(array $rows): void
+    private function validateBulkLogins(array $rows, int $tenantId): void
     {
         $errors = [];
         $seen = [];
@@ -863,8 +865,14 @@ class EmployeeController extends Controller
                 continue;
             }
 
-            if (isset($seen[$email]) || User::where('email', $email)->exists()) {
-                $errors["employees.{$index}.email"] = 'Email sudah digunakan akun lain.';
+            if (isset($seen[$email])) {
+                $errors["employees.{$index}.email"] = 'Email dipakai lebih dari satu baris di daftar ini.';
+
+                continue;
+            }
+
+            if (($conflict = $this->emailConflictMessage($email, $tenantId)) !== null) {
+                $errors["employees.{$index}.email"] = $conflict;
 
                 continue;
             }
@@ -896,6 +904,14 @@ class EmployeeController extends Controller
             : null;
 
         $employee->loadMissing('user.roles');
+
+        // Right before this employee's email actually lands on a `users` row
+        // (new account or a synced edit below), release it from whatever
+        // inactive ex-employee's account is still sitting on it — see
+        // DescribesEmailConflict::releaseStaleLogin().
+        if (filled($employee->email)) {
+            $this->releaseStaleLogin($employee->email, $tenantId, $employee->id);
+        }
 
         // Attaching an account that already exists, rather than minting one.
         // Guarded again here — the form validated it, but this method is also

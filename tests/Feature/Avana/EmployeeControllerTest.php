@@ -168,6 +168,54 @@ it('updates an existing employee', function (): void {
     expect($employee->fresh()->status)->toBe('inactive');
 });
 
+it('gives one employee WFA without touching the tenant policy', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $employee), [
+            'full_name' => $employee->full_name,
+            'employment_status' => $employee->employment_status,
+            'status' => $employee->status,
+            'attendance_scope' => 'anywhere',
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($employee->fresh()->attendance_scope)->toBe('anywhere');
+
+    // Everyone else still follows the tenant policy.
+    $other = Employee::forTenant($this->tenant->id)->whereKeyNot($employee->id)->firstOrFail();
+    expect($other->attendance_scope)->toBeNull();
+});
+
+it('clears the per-employee scope back to the tenant default', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $employee->update(['attendance_scope' => 'anywhere']);
+
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $employee), [
+            'full_name' => $employee->full_name,
+            'employment_status' => $employee->employment_status,
+            'status' => $employee->status,
+            'attendance_scope' => '',
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($employee->fresh()->attendance_scope)->toBeNull();
+});
+
+it('rejects an unknown attendance scope', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $employee), [
+            'full_name' => $employee->full_name,
+            'employment_status' => $employee->employment_status,
+            'status' => $employee->status,
+            'attendance_scope' => 'galaxy',
+        ])
+        ->assertSessionHasErrors('attendance_scope');
+});
+
 it('soft deletes an employee on destroy', function (): void {
     $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
 
@@ -540,6 +588,32 @@ it('names the deleted employee still holding the email of a rejected login', fun
         ->and($message)->toContain('sudah dihapus');
 });
 
+it('lets a new employee take an inactive ex-employee email with no error at all', function (): void {
+    // Resigning/deactivating an employee never deletes the row (only the
+    // Karyawan "delete" action soft-deletes), so this is the far more common
+    // "the email isn't really in use anymore" case than an outright delete —
+    // and unlike a delete, it needs no admin judgment call to resolve.
+    $resigned = Employee::forTenant($this->tenant->id)->whereNotNull('user_id')->firstOrFail();
+    $email = $resigned->user->email;
+    $resigned->update(['status' => 'inactive']);
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), [
+            'full_name' => 'Karyawan Baru',
+            'email' => $email,
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'role_id' => Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->value('id'),
+            'password' => 'rahasia123',
+        ])
+        ->assertSessionDoesntHaveErrors('email');
+
+    // The new account owns the address now; the ex-employee's account was
+    // released out of the way rather than deleted or left blocking it.
+    expect(User::where('email', $email)->first()?->employee?->full_name)->toBe('Karyawan Baru')
+        ->and($resigned->user->fresh()->email)->not->toBe($email);
+});
+
 it('points an email held by an unlinked account at the linking flow', function (): void {
     // The admin's own login has no employee behind it, so the fix is to link it
     // rather than to invent a second address for the same human.
@@ -768,6 +842,22 @@ it('rejects duplicate login emails within a bulk submit', function (): void {
     expect(Employee::where('full_name', 'Dup One')->exists())->toBeFalse();
 });
 
+it('names the existing account owner on a bulk row email conflict', function (): void {
+    // Bulk import used to fall back to a bare "Email sudah digunakan akun
+    // lain." with no name and no path forward — same gap as the single-add
+    // form, now routed through the same emailConflictMessage() helper.
+    $existing = Employee::forTenant($this->tenant->id)->whereNotNull('user_id')->firstOrFail();
+    $email = $existing->user->email;
+
+    actingAs($this->admin)->post(route('avana.employees.bulk.store'), [
+        'employees' => [
+            ['full_name' => 'Bulk Conflict', 'email' => $email, 'employment_status' => 'permanent', 'status' => 'active', 'password' => 'rahasia123'],
+        ],
+    ])->assertSessionHasErrors('employees.0.email');
+
+    expect(session('errors')->first('employees.0.email'))->toContain($existing->full_name);
+});
+
 /** Create a tenant-1 employee optionally linked to a login account. */
 function makeEmployeeWithLogin(int $tenantId, string $number, ?User $user): Employee
 {
@@ -842,6 +932,45 @@ it('toggles an employee login account between active and inactive', function ():
 
     actingAs($this->admin)->post(route('avana.employees.toggle-account', $employee));
     expect($user->fresh()->status)->toBe('active');
+});
+
+it('leaves a newly-inactive employee email untouched until someone actually reuses it', function (): void {
+    // Deactivation alone must not rename the email: the ex-employee's own
+    // next login attempt still has to resolve to their real account and
+    // report "Akun tidak aktif", not a generic "email atau kata sandi salah"
+    // because the address quietly moved out from under them.
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id, 'email' => 'lama@nusantara.test', 'status' => 'active']);
+    $employee = makeEmployeeWithLogin($this->tenant->id, 'EMP-FREE-1', $user);
+
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $employee), [
+            'full_name' => $employee->full_name,
+            'employment_status' => $employee->employment_status,
+            'status' => 'inactive',
+        ])
+        ->assertRedirect(route('avana.employees.index'));
+
+    expect($user->fresh()->email)->toBe('lama@nusantara.test');
+});
+
+it('frees an inactive employee login email the moment a new hire actually takes it', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id, 'email' => 'lama@nusantara.test', 'status' => 'active']);
+    $employee = makeEmployeeWithLogin($this->tenant->id, 'EMP-FREE-2', $user);
+    $employee->update(['status' => 'inactive']);
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), [
+            'full_name' => 'Pengganti',
+            'email' => 'lama@nusantara.test',
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'role_id' => Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->value('id'),
+            'password' => 'rahasia123',
+        ])
+        ->assertSessionDoesntHaveErrors('email');
+
+    expect($user->fresh()->email)->toBe("lama+former-{$employee->id}@nusantara.test")
+        ->and(User::where('email', 'lama@nusantara.test')->first()?->employee?->full_name)->toBe('Pengganti');
 });
 
 it('reports an error when the employee has no login account', function (): void {
