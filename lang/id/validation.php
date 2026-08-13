@@ -185,6 +185,15 @@ return [
             'required' => 'Kata sandi saat ini wajib diisi.',
             'current_password' => 'Kata sandi saat ini salah.',
         ],
+        'date' => [
+            // The generic "before_or_equal" line inserts the raw parameter
+            // value ("today") untranslated when it's a valid date string —
+            // this is the only field/rule pair that fires it.
+            'before_or_equal' => 'Tanggal tidak boleh di masa depan.',
+        ],
+        'expense_date' => [
+            'before_or_equal' => 'Tanggal pengeluaran tidak boleh di masa depan.',
+        ],
         'password' => [
             'confirmed' => 'Konfirmasi kata sandi tidak cocok.',
         ],
