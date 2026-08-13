@@ -185,6 +185,8 @@ class SocialController extends Controller
         ], [
             'body.required' => 'Tulis dulu isi postingannya.',
             'body.max' => 'Maksimal 500 karakter.',
+            'image.mimes' => 'Foto harus JPG, PNG, atau WEBP.',
+            'image.max' => 'Ukuran foto maksimal 5 MB.',
         ]);
 
         $attributes = [

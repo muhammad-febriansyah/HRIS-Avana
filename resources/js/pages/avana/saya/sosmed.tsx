@@ -170,6 +170,9 @@ function timeAgo(value: string | null): string {
     });
 }
 
+/** Mirrors the `image.max:5120` rule in EssSocialController::store. */
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
 /** KB below a megabyte — "0.0 MB" reads as if nothing was attached. */
 function fileSize(bytes: number): string {
     return bytes < 1024 * 1024
@@ -463,6 +466,29 @@ function ComposeModal({
     // Object URLs are revoked on replacement/unmount; leaking one per pick would
     // hold the whole image in memory for the life of the page.
     const attach = (file: File | null) => {
+        if (file) {
+            const allowedTypes = [
+                'image/jpeg',
+                'image/png',
+                'image/webp',
+            ];
+            if (!allowedTypes.includes(file.type)) {
+                form.setError(
+                    'image',
+                    'Foto harus JPG, PNG, atau WEBP.',
+                );
+                return;
+            }
+            if (file.size > MAX_IMAGE_BYTES) {
+                form.setError(
+                    'image',
+                    'Ukuran foto maksimal 5 MB.',
+                );
+                return;
+            }
+        }
+
+        form.clearErrors('image');
         setPreview((current) => {
             if (current) {
                 URL.revokeObjectURL(current);
@@ -1525,6 +1551,14 @@ export default function SayaSosmed({
             onSuccess: () => {
                 compose.reset();
                 setComposeOpen(false);
+            },
+            onError: (errors) => {
+                if (!errors.image && !errors.body && !errors.social_category_id) {
+                    compose.setError(
+                        'image',
+                        'Gagal mengirim postingan. Coba lagi.',
+                    );
+                }
             },
         });
     };
