@@ -17,6 +17,7 @@ use App\Models\Shift;
 use App\Models\ShiftSchedule;
 use App\Models\WfhRequest;
 use App\Services\ApprovalEngine;
+use App\Services\AttendanceCorrectionApproval;
 use App\Services\LeaveAttendanceMarker;
 use App\Support\Roster;
 use Carbon\CarbonInterface;
@@ -623,17 +624,20 @@ class MssController extends Controller
             return;
         }
 
-        $model->update(['status' => $approved ? 'approved' : 'rejected']);
-
         if ($model instanceof AttendanceCorrection) {
-            $model->update(['approver_id' => $manager->user_id]);
-
             if ($approved) {
-                $this->applyCorrection($model);
+                AttendanceCorrectionApproval::finalize($model, $manager->user_id);
+            } else {
+                $model->update([
+                    'status' => 'rejected',
+                    'approver_id' => $manager->user_id,
+                ]);
             }
 
             return;
         }
+
+        $model->update(['status' => $approved ? 'approved' : 'rejected']);
 
         if ($model instanceof Reimbursement) {
             $model->update([
@@ -648,45 +652,6 @@ class MssController extends Controller
             $this->decrementLeaveBalance($model);
             LeaveAttendanceMarker::mark($model);
         }
-    }
-
-    /**
-     * Write an approved correction to the attendance record: set the requested
-     * clock-in / clock-out on that day, recompute worked minutes when both are
-     * present, and link the record back to the request for the audit trail. The
-     * attendance row is created when the employee had no record for that day
-     * (the "forgot to clock in entirely" case).
-     */
-    private function applyCorrection(AttendanceCorrection $correction): void
-    {
-        $date = $correction->date;
-
-        $attendance = $correction->attendance ?? Attendance::firstOrNew([
-            'tenant_id' => $correction->tenant_id,
-            'employee_id' => $correction->employee_id,
-            'date' => $date->toDateString(),
-        ]);
-
-        if ($correction->requested_clock_in !== null) {
-            $attendance->clock_in_at = $date->copy()->setTimeFromTimeString($correction->requested_clock_in);
-        }
-
-        if ($correction->requested_clock_out !== null) {
-            $attendance->clock_out_at = $date->copy()->setTimeFromTimeString($correction->requested_clock_out);
-        }
-
-        if ($attendance->branch_id === null) {
-            $attendance->branch_id = $correction->employee?->branch_id;
-        }
-        $attendance->status = 'present';
-
-        if ($attendance->clock_in_at !== null && $attendance->clock_out_at !== null) {
-            $attendance->work_minutes = (int) $attendance->clock_in_at->diffInMinutes($attendance->clock_out_at);
-        }
-
-        $attendance->save();
-
-        $correction->update(['attendance_id' => $attendance->id]);
     }
 
     private function decrementLeaveBalance(LeaveRequest $leave): void

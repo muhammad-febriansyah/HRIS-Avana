@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AttendanceCorrection;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
@@ -71,6 +72,30 @@ function makeScopedLeave(int $tenantId, int $managerEmployeeId, string $name): L
     ]);
 }
 
+/** Create a pending attendance correction for a report of the given manager. */
+function makeScopedCorrection(int $tenantId, int $managerEmployeeId, string $name): AttendanceCorrection
+{
+    $report = Employee::create([
+        'tenant_id' => $tenantId,
+        'manager_id' => $managerEmployeeId,
+        'employee_number' => 'CORR-'.Str::random(6),
+        'full_name' => $name,
+        'employment_status' => 'permanent',
+        'status' => 'active',
+    ]);
+
+    return AttendanceCorrection::create([
+        'tenant_id' => $tenantId,
+        'employee_id' => $report->id,
+        'date' => '2026-07-01',
+        'correction_type' => 'manual',
+        'requested_clock_in' => '08:00',
+        'reason' => 'Lupa absen',
+        'current_approver_id' => $managerEmployeeId,
+        'status' => 'pending',
+    ]);
+}
+
 it('shows a manager their own reports and not another team', function (): void {
     [$mine, $myEmployee] = makeScopeManager($this->tenant->id, $this->managerRole->id, 'Manajer Satu');
     [, $theirEmployee] = makeScopeManager($this->tenant->id, $this->managerRole->id, 'Manajer Dua');
@@ -99,6 +124,19 @@ it('refuses a manager deciding another team\'s request', function (): void {
 
     actingAs($mine)
         ->post(route('avana.approval.approve', ['type' => 'leave', 'id' => $theirs->id]))
+        ->assertNotFound();
+
+    expect($theirs->fresh()->status)->toBe('pending');
+});
+
+it('refuses a manager deciding another team\'s attendance correction', function (): void {
+    [$mine] = makeScopeManager($this->tenant->id, $this->managerRole->id, 'Manajer Koreksi Satu');
+    [, $theirEmployee] = makeScopeManager($this->tenant->id, $this->managerRole->id, 'Manajer Koreksi Dua');
+
+    $theirs = makeScopedCorrection($this->tenant->id, $theirEmployee->id, 'Anggota Tim Koreksi Dua');
+
+    actingAs($mine)
+        ->post(route('avana.approval.approve', ['type' => 'koreksi', 'id' => $theirs->id]))
         ->assertNotFound();
 
     expect($theirs->fresh()->status)->toBe('pending');

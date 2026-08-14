@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
 use App\Services\ApprovalEngine;
+use App\Support\AttendanceCorrectionTimes;
 use Carbon\CarbonInterface;
 use DateTimeInterface;
 use Illuminate\Http\RedirectResponse;
@@ -127,8 +128,12 @@ class EssAttendanceController extends Controller
             'reason.required' => 'Alasan wajib diisi.',
         ]);
 
-        if (isset($data['requested_clock_in'], $data['requested_clock_out'])
-            && $data['requested_clock_out'] <= $data['requested_clock_in']) {
+        if (! AttendanceCorrectionTimes::rangeIsValid(
+            $employee,
+            $data['date'],
+            $data['requested_clock_in'] ?? null,
+            $data['requested_clock_out'] ?? null,
+        )) {
             return back()->withErrors(['requested_clock_out' => 'Jam pulang harus setelah jam masuk.']);
         }
 

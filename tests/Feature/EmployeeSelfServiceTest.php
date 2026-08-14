@@ -12,6 +12,8 @@ use App\Models\OvertimeRequest;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
 use App\Models\PermissionRequest;
+use App\Models\Shift;
+use App\Models\ShiftSchedule;
 use App\Models\User;
 use App\Support\AvanaNav;
 use Database\Seeders\AvanaDemoSeeder;
@@ -229,6 +231,36 @@ it('rejects a correction whose clock out precedes its clock in', function (): vo
         ->assertSessionHasErrors('requested_clock_out');
 
     expect(AttendanceCorrection::where('reason', 'Terbalik')->exists())->toBeFalse();
+});
+
+it('accepts a self-service correction that crosses midnight on a night shift', function (): void {
+    $date = now()->subDay()->toDateString();
+    $shift = Shift::create([
+        'tenant_id' => $this->employee->tenant_id,
+        'code' => 'MALAM-CORR-WEB',
+        'name' => 'Shift Malam Koreksi Web',
+        'start_time' => '22:00:00',
+        'end_time' => '06:00:00',
+        'late_tolerance_minutes' => 10,
+        'status' => 'active',
+    ]);
+    ShiftSchedule::create([
+        'tenant_id' => $this->employee->tenant_id,
+        'employee_id' => $this->employee->id,
+        'shift_id' => $shift->id,
+        'date' => $date,
+    ]);
+
+    $this->actingAs($this->user)
+        ->post('/avana/saya/koreksi-absensi', [
+            'date' => $date,
+            'requested_clock_in' => '22:00',
+            'requested_clock_out' => '06:00',
+            'reason' => 'Koreksi shift malam',
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect(AttendanceCorrection::where('reason', 'Koreksi shift malam')->exists())->toBeTrue();
 });
 
 it('rejects an izin clock time spanning more than one day', function (): void {

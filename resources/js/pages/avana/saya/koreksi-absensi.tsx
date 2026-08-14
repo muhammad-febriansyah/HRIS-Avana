@@ -2,6 +2,7 @@ import { Head, useForm, usePage } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
+import { storeCorrection } from '@/actions/App/Http/Controllers/Avana/EssAttendanceController';
 import { DatePicker } from '@/components/avana/date-picker';
 import { AIcon, btnProcess, C, thCell } from '@/lib/avana';
 import {
@@ -50,7 +51,7 @@ export default function SayaKoreksiAbsensi({
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
-        form.post('/avana/saya/koreksi-absensi', {
+        form.post(storeCorrection.url(), {
             preserveScroll: true,
             onSuccess: () => form.reset(),
         });

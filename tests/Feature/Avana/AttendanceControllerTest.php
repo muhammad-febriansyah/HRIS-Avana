@@ -204,13 +204,42 @@ it('approves an attendance correction and syncs the linked attendance', function
     ]);
 
     actingAs($this->admin)
-        ->post(route('avana.absensi.corrections.approve', $correction))
+        ->post(route('avana.approval.approve', ['type' => 'koreksi', 'id' => $correction->id]))
         ->assertSessionHas('success');
 
     expect($correction->fresh()->status)->toBe('approved');
     expect($correction->fresh()->approver_id)->toBe($this->admin->id);
     expect($attendance->fresh()->status)->toBe('present');
     expect($attendance->fresh()->clock_in_at?->format('H:i'))->toBe('08:00');
+});
+
+it('does not process an approved attendance correction twice', function (): void {
+    $attendance = makeAttendance($this->tenant->id, $this->shift->id, [
+        'status' => 'need_correction',
+        'clock_in_at' => null,
+    ]);
+
+    $correction = AttendanceCorrection::create([
+        'tenant_id' => $this->tenant->id,
+        'attendance_id' => $attendance->id,
+        'employee_id' => $attendance->employee_id,
+        'date' => TEST_DATE,
+        'correction_type' => 'clock_in',
+        'requested_clock_in' => '08:00:00',
+        'reason' => 'Lupa absen masuk',
+        'status' => 'pending',
+    ]);
+
+    $route = route('avana.approval.approve', ['type' => 'koreksi', 'id' => $correction->id]);
+
+    actingAs($this->admin)->post($route)->assertSessionHas('success');
+    $firstApproverId = $correction->fresh()->approver_id;
+
+    actingAs($this->admin)->post($route)->assertUnprocessable();
+
+    expect($correction->fresh()->status)->toBe('approved')
+        ->and($correction->fresh()->approver_id)->toBe($firstApproverId)
+        ->and(Attendance::whereKey($attendance->id)->count())->toBe(1);
 });
 
 it('rejects an attendance correction', function (): void {
@@ -228,7 +257,7 @@ it('rejects an attendance correction', function (): void {
     ]);
 
     actingAs($this->admin)
-        ->post(route('avana.absensi.corrections.reject', $correction))
+        ->post(route('avana.approval.reject', ['type' => 'koreksi', 'id' => $correction->id]))
         ->assertSessionHas('success');
 
     expect($correction->fresh()->status)->toBe('rejected');
@@ -253,7 +282,7 @@ it('returns 404 when approving a correction from another tenant', function (): v
     ]);
 
     actingAs($this->admin)
-        ->post(route('avana.absensi.corrections.approve', $correction))
+        ->post(route('avana.approval.approve', ['type' => 'koreksi', 'id' => $correction->id]))
         ->assertNotFound();
 
     expect($correction->fresh()->status)->toBe('pending');

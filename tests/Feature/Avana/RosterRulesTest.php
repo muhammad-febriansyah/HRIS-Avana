@@ -176,6 +176,141 @@ it('clears the lateness when the corrected time is inside the shift', function (
     expect((int) $fresh->late_minutes)->toBe(0);
 });
 
+it('recalculates worked minutes from the effective times on a partial correction', function (): void {
+    $attendance = Attendance::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->alice->id,
+        'branch_id' => $this->alice->branch_id,
+        'date' => $this->date,
+        'clock_in_at' => $this->date.' 09:00:00',
+        'clock_out_at' => $this->date.' 16:00:00',
+        'work_minutes' => 420,
+        'status' => 'present',
+    ]);
+    $correction = AttendanceCorrection::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->alice->id,
+        'attendance_id' => $attendance->id,
+        'date' => $this->date,
+        'requested_clock_in' => '08:00',
+        'reason' => 'Jam masuk salah',
+        'status' => 'pending',
+    ]);
+
+    AttendanceCorrectionApproval::finalize($correction, $this->admin->id);
+
+    expect($attendance->fresh()->clock_in_at?->format('H:i'))->toBe('08:00')
+        ->and($attendance->fresh()->clock_out_at?->format('H:i'))->toBe('16:00')
+        ->and($attendance->fresh()->work_minutes)->toBe(480);
+});
+
+it('recalculates worked minutes when only clock out is corrected', function (): void {
+    $attendance = Attendance::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->alice->id,
+        'branch_id' => $this->alice->branch_id,
+        'date' => $this->date,
+        'clock_in_at' => $this->date.' 08:00:00',
+        'clock_out_at' => $this->date.' 17:00:00',
+        'work_minutes' => 540,
+        'status' => 'present',
+    ]);
+    $correction = AttendanceCorrection::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->alice->id,
+        'attendance_id' => $attendance->id,
+        'date' => $this->date,
+        'requested_clock_out' => '16:00',
+        'reason' => 'Jam pulang salah',
+        'status' => 'pending',
+    ]);
+
+    AttendanceCorrectionApproval::finalize($correction, $this->admin->id);
+
+    expect($attendance->fresh()->clock_in_at?->format('H:i'))->toBe('08:00')
+        ->and($attendance->fresh()->clock_out_at?->format('H:i'))->toBe('16:00')
+        ->and($attendance->fresh()->work_minutes)->toBe(480);
+});
+
+it('stores a night shift correction across midnight on the roster work date', function (): void {
+    $malam = Shift::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'MALAM-CORR',
+        'name' => 'Shift Malam Koreksi',
+        'start_time' => '22:00:00',
+        'end_time' => '06:00:00',
+        'late_tolerance_minutes' => 10,
+        'status' => 'active',
+    ]);
+    ShiftSchedule::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->alice->id,
+        'date' => $this->date,
+        'shift_id' => $malam->id,
+    ]);
+    $correction = AttendanceCorrection::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->alice->id,
+        'date' => $this->date,
+        'requested_clock_in' => '22:00',
+        'requested_clock_out' => '06:00',
+        'reason' => 'Lupa absen shift malam',
+        'status' => 'pending',
+    ]);
+
+    AttendanceCorrectionApproval::finalize($correction, $this->admin->id);
+
+    $attendance = $correction->fresh()->attendance;
+
+    expect($attendance->date->toDateString())->toBe($this->date)
+        ->and($attendance->clock_in_at?->format('Y-m-d H:i'))->toBe($this->date.' 22:00')
+        ->and($attendance->clock_out_at?->format('Y-m-d H:i'))->toBe('2026-08-11 06:00')
+        ->and($attendance->work_minutes)->toBe(480)
+        ->and($attendance->shift_id)->toBe($malam->id);
+});
+
+it('keeps attendance correction finalization idempotent', function (): void {
+    $correction = AttendanceCorrection::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->alice->id,
+        'date' => $this->date,
+        'requested_clock_in' => '08:00',
+        'reason' => 'Lupa absen',
+        'status' => 'pending',
+    ]);
+
+    AttendanceCorrectionApproval::finalize($correction, $this->admin->id);
+    AttendanceCorrectionApproval::finalize($correction, $this->admin->id + 1);
+
+    expect($correction->fresh()->approver_id)->toBe($this->admin->id)
+        ->and(Attendance::forTenant($this->tenant->id)
+            ->where('employee_id', $this->alice->id)
+            ->whereDate('date', $this->date)
+            ->count())->toBe(1);
+});
+
+it('rolls back the attendance write when finalizing the correction fails', function (): void {
+    $correction = AttendanceCorrection::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->alice->id,
+        'date' => $this->date,
+        'requested_clock_in' => '08:00',
+        'requested_clock_out' => '16:00',
+        'reason' => 'Lupa absen',
+        'status' => 'pending',
+    ]);
+
+    expect(fn () => AttendanceCorrectionApproval::finalize($correction, 999999999))
+        ->toThrow(QueryException::class);
+
+    expect($correction->fresh()->status)->toBe('pending')
+        ->and($correction->fresh()->attendance_id)->toBeNull()
+        ->and(Attendance::forTenant($this->tenant->id)
+            ->where('employee_id', $this->alice->id)
+            ->whereDate('date', $this->date)
+            ->exists())->toBeFalse();
+});
+
 it('marks a day off from the web roster', function (): void {
     actingAs($this->admin)
         ->post(route('avana.roster.store'), [

@@ -3,6 +3,8 @@
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
 use App\Models\Employee;
+use App\Models\Shift;
+use App\Models\ShiftSchedule;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
 
@@ -70,6 +72,57 @@ it('rejects a correction with no times', function (): void {
         ])
         ->assertStatus(422)
         ->assertJsonValidationErrors(['requested_clock_in', 'requested_clock_out']);
+});
+
+it('rejects a reversed time range outside a night shift', function (): void {
+    ($this->auth)()
+        ->postJson('/api/v1/me/attendance/corrections', [
+            'date' => '2026-07-01',
+            'requested_clock_in' => '17:00',
+            'requested_clock_out' => '08:00',
+            'reason' => 'Jam terbalik',
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['requested_clock_out']);
+});
+
+it('rejects equal clock times', function (): void {
+    ($this->auth)()
+        ->postJson('/api/v1/me/attendance/corrections', [
+            'date' => '2026-07-01',
+            'requested_clock_in' => '08:00',
+            'requested_clock_out' => '08:00',
+            'reason' => 'Jam sama',
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['requested_clock_out']);
+});
+
+it('accepts a correction that crosses midnight on a night shift', function (): void {
+    $shift = Shift::create([
+        'tenant_id' => $this->manager->tenant_id,
+        'code' => 'MALAM-CORR-API',
+        'name' => 'Shift Malam Koreksi API',
+        'start_time' => '22:00:00',
+        'end_time' => '06:00:00',
+        'late_tolerance_minutes' => 10,
+        'status' => 'active',
+    ]);
+    ShiftSchedule::create([
+        'tenant_id' => $this->manager->tenant_id,
+        'employee_id' => $this->manager->id,
+        'shift_id' => $shift->id,
+        'date' => '2026-07-01',
+    ]);
+
+    ($this->auth)()
+        ->postJson('/api/v1/me/attendance/corrections', [
+            'date' => '2026-07-01',
+            'requested_clock_in' => '22:00',
+            'requested_clock_out' => '06:00',
+            'reason' => 'Shift malam',
+        ])
+        ->assertCreated();
 });
 
 it('rejects a future-dated correction', function (): void {
@@ -149,4 +202,36 @@ it('does not touch attendance when a correction is rejected', function (): void 
 
     expect($correction->fresh()->status)->toBe('rejected');
     expect(Attendance::where('employee_id', $this->sub->id)->whereDate('date', '2026-07-05')->exists())->toBeFalse();
+});
+
+it('keeps a late correction late when approved through MSS', function (): void {
+    $shift = Shift::create([
+        'tenant_id' => $this->manager->tenant_id,
+        'code' => 'PAGI-CORR-MSS',
+        'name' => 'Shift Pagi Koreksi MSS',
+        'start_time' => '08:00:00',
+        'end_time' => '17:00:00',
+        'late_tolerance_minutes' => 10,
+        'status' => 'active',
+    ]);
+    ShiftSchedule::create([
+        'tenant_id' => $this->manager->tenant_id,
+        'employee_id' => $this->sub->id,
+        'shift_id' => $shift->id,
+        'date' => '2026-07-05',
+    ]);
+    $correction = ($this->makeCorrection)([
+        'requested_clock_in' => '09:30',
+        'requested_clock_out' => '17:00',
+    ]);
+
+    ($this->auth)()
+        ->postJson('/api/v1/mss/approvals/koreksi-'.$correction->id.'/act', ['action' => 'approve'])
+        ->assertOk();
+
+    $attendance = $correction->fresh()->attendance;
+
+    expect($attendance->status)->toBe('late')
+        ->and($attendance->late_minutes)->toBe(90)
+        ->and($attendance->shift_id)->toBe($shift->id);
 });

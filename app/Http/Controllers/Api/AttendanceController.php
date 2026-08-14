@@ -16,6 +16,7 @@ use App\Services\FaceRecognitionException;
 use App\Services\FaceRecognitionService;
 use App\Services\FaceScanLogger;
 use App\Services\LeaveAttendanceMarker;
+use App\Services\TrackingService;
 use App\Support\DeviceIntegrity;
 use App\Support\Notifier;
 use App\Support\PrivateFile;
@@ -42,6 +43,7 @@ class AttendanceController extends Controller
     public function __construct(
         private readonly FaceScanLogger $scanLogger,
         private readonly FaceRecognitionService $faceRecognition,
+        private readonly TrackingService $trackingService,
     ) {}
 
     public function today(Request $request): JsonResponse
@@ -540,6 +542,8 @@ class AttendanceController extends Controller
         ]);
         $attendance->save();
 
+        $trackingSession = $this->trackingService->startForAttendance($attendance, $employee);
+
         $this->recordSelfie($request, $attendance, $employee, $data, $clockedAt);
 
         Notifier::attendancePunch(
@@ -552,7 +556,15 @@ class AttendanceController extends Controller
             $clockedAt->toDateString(),
         );
 
-        return response()->json(['message' => 'Clock-in berhasil', 'data' => $this->todayShape($attendance)]);
+        return response()->json([
+            'message' => 'Clock-in berhasil',
+            'data' => [
+                ...$this->todayShape($attendance),
+                'attendance_id' => $attendance->id,
+                'tracking_session_id' => $trackingSession->id,
+                'tracking' => $this->trackingService->sessionShape($trackingSession),
+            ],
+        ]);
     }
 
     /**
@@ -600,6 +612,8 @@ class AttendanceController extends Controller
         }
         $attendance->save();
 
+        $trackingSession = $this->trackingService->completeForAttendance($attendance, $clockedAt);
+
         $this->recordSelfie($request, $attendance, $employee, $data, $clockedAt);
 
         Notifier::attendancePunch(
@@ -612,7 +626,15 @@ class AttendanceController extends Controller
             $clockedAt->toDateString(),
         );
 
-        return response()->json(['message' => 'Clock-out berhasil', 'data' => $this->todayShape($attendance)]);
+        return response()->json([
+            'message' => 'Clock-out berhasil',
+            'data' => [
+                ...$this->todayShape($attendance),
+                'attendance_id' => $attendance->id,
+                'tracking_session_id' => $trackingSession?->id,
+                'tracking' => $this->trackingService->sessionShape($trackingSession),
+            ],
+        ]);
     }
 
     /**

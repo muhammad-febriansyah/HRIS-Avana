@@ -4,8 +4,11 @@ namespace App\Services;
 
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
+use App\Models\Employee;
+use App\Support\AttendanceCorrectionTimes;
 use App\Support\Roster;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class AttendanceCorrectionApproval
 {
@@ -19,68 +22,98 @@ class AttendanceCorrectionApproval
      */
     public static function finalize(AttendanceCorrection $correction, ?int $approverUserId): void
     {
-        $correction->update([
-            'status' => 'approved',
-            'approver_id' => $approverUserId,
-        ]);
+        DB::transaction(function () use ($correction, $approverUserId): void {
+            $lockedCorrection = AttendanceCorrection::query()
+                ->whereKey($correction->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        $date = Carbon::parse($correction->date);
+            if ($lockedCorrection->status === 'approved') {
+                return;
+            }
 
-        $attendance = $correction->attendance ?? Attendance::firstOrNew([
-            'tenant_id' => $correction->tenant_id,
-            'employee_id' => $correction->employee_id,
-            'date' => $date->toDateString(),
-        ]);
+            abort_unless($lockedCorrection->status === 'pending', 422, 'Pengajuan ini sudah diproses.');
 
-        $clockIn = $correction->requested_clock_in !== null
-            ? $date->copy()->setTimeFromTimeString($correction->requested_clock_in)
-            : null;
-        $clockOut = $correction->requested_clock_out !== null
-            ? $date->copy()->setTimeFromTimeString($correction->requested_clock_out)
-            : null;
+            $employee = Employee::forTenant((int) $lockedCorrection->tenant_id)
+                ->whereKey($lockedCorrection->employee_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $date = Carbon::parse($lockedCorrection->date);
+            $dateString = $date->toDateString();
 
-        if ($clockIn !== null) {
-            $attendance->clock_in_at = $clockIn;
-        }
-        if ($clockOut !== null) {
-            $attendance->clock_out_at = $clockOut;
-        }
-        if ($attendance->branch_id === null) {
-            $attendance->branch_id = $correction->employee?->branch_id;
-        }
+            $attendance = $lockedCorrection->attendance_id !== null
+                ? Attendance::forTenant($lockedCorrection->tenant_id)
+                    ->where('employee_id', $lockedCorrection->employee_id)
+                    ->whereKey($lockedCorrection->attendance_id)
+                    ->lockForUpdate()
+                    ->first()
+                : null;
 
-        // The corrected clock-in has to be judged against the shift the employee
-        // was rostered onto, not waved through as present: a correction that
-        // moves the arrival to 09:30 on an 08:00 shift is still late, and the
-        // old late_minutes would otherwise stay on the record contradicting it.
-        $clockedAt = $attendance->clock_in_at !== null
-            ? Carbon::parse($attendance->clock_in_at)
-            : null;
+            $attendance ??= Attendance::forTenant($lockedCorrection->tenant_id)
+                ->where('employee_id', $lockedCorrection->employee_id)
+                ->whereDate('date', $dateString)
+                ->lockForUpdate()
+                ->first();
+            $attendance ??= new Attendance([
+                'tenant_id' => $lockedCorrection->tenant_id,
+                'employee_id' => $lockedCorrection->employee_id,
+                'date' => $dateString,
+            ]);
 
-        if ($clockedAt !== null) {
             $shift = Roster::shiftFor(
-                (int) $attendance->tenant_id,
-                (int) $attendance->employee_id,
-                $date,
+                (int) $lockedCorrection->tenant_id,
+                (int) $lockedCorrection->employee_id,
+                $dateString,
             );
 
-            $verdict = Roster::evaluate($shift, $clockedAt);
+            if ($lockedCorrection->requested_clock_in !== null) {
+                $attendance->clock_in_at = AttendanceCorrectionTimes::onWorkDate(
+                    $date,
+                    $lockedCorrection->requested_clock_in,
+                    $shift,
+                );
+            }
 
-            $attendance->status = $verdict['status'];
-            $attendance->late_minutes = $verdict['late_minutes'];
-            $attendance->shift_id = $verdict['shift_id'] ?? $attendance->shift_id;
-        } else {
-            // No clock-in to judge — the correction only moved the clock-out.
-            $attendance->status = 'present';
-            $attendance->late_minutes = 0;
-        }
+            if ($lockedCorrection->requested_clock_out !== null) {
+                $attendance->clock_out_at = AttendanceCorrectionTimes::onWorkDate(
+                    $date,
+                    $lockedCorrection->requested_clock_out,
+                    $shift,
+                );
+            }
 
-        if ($clockIn !== null && $clockOut !== null) {
-            $attendance->work_minutes = max(0, (int) $clockIn->diffInMinutes($clockOut));
-        }
+            $attendance->branch_id ??= $employee->branch_id;
+            $attendance->shift_id ??= $shift?->id;
 
-        $attendance->save();
+            if ($attendance->clock_in_at !== null) {
+                $clockedAt = Carbon::parse($attendance->clock_in_at);
+                $verdict = Roster::evaluate($shift, $clockedAt, $dateString);
 
-        $correction->update(['attendance_id' => $attendance->id]);
+                $attendance->status = $verdict['status'];
+                $attendance->late_minutes = $verdict['late_minutes'];
+                $attendance->shift_id = $verdict['shift_id'] ?? $attendance->shift_id;
+            } else {
+                $attendance->status = 'need_correction';
+                $attendance->late_minutes = 0;
+            }
+
+            if ($attendance->clock_in_at !== null && $attendance->clock_out_at !== null) {
+                $clockIn = Carbon::parse($attendance->clock_in_at);
+                $clockOut = Carbon::parse($attendance->clock_out_at);
+                $attendance->work_minutes = $clockOut->greaterThanOrEqualTo($clockIn)
+                    ? (int) $clockIn->diffInMinutes($clockOut)
+                    : 0;
+            } else {
+                $attendance->work_minutes = 0;
+            }
+
+            $attendance->save();
+
+            $lockedCorrection->update([
+                'attendance_id' => $attendance->id,
+                'status' => 'approved',
+                'approver_id' => $approverUserId,
+            ]);
+        }, 3);
     }
 }

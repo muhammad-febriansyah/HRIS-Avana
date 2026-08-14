@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 final class Attendance extends Model
 {
@@ -68,5 +69,10 @@ final class Attendance extends Model
     public function selfies(): HasMany
     {
         return $this->hasMany(AttendanceSelfie::class);
+    }
+
+    public function trackingSession(): HasOne
+    {
+        return $this->hasOne(TrackingSession::class);
     }
 }

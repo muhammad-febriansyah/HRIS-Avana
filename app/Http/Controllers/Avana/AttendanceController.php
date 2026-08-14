@@ -6,11 +6,8 @@ use App\Concerns\AppliesBranchScope;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Avana\AttendanceResource;
 use App\Models\Attendance;
-use App\Models\AttendanceCorrection;
 use App\Models\Branch;
 use App\Models\Employee;
-use App\Services\ApprovalEngine;
-use App\Services\AttendanceCorrectionApproval;
 use App\Support\PrivateFile;
 use App\Support\TenantTime;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -459,43 +456,6 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Approve a pending attendance correction and sync the linked attendance.
-     */
-    public function approveCorrection(Request $request, AttendanceCorrection $correction): RedirectResponse
-    {
-        $this->ensureTenantOwnership($request, $correction);
-        $this->authorize('approveCorrection', Attendance::class);
-
-        // A workflow instance advances step-by-step; without one, approve here
-        // writes the correction to the attendance record directly.
-        if (! ApprovalEngine::decide($correction, $request->user()->id, 'approve')) {
-            AttendanceCorrectionApproval::finalize($correction, $request->user()->id);
-        }
-
-        return back()->with('success', $correction->fresh()?->status === 'approved'
-            ? 'Koreksi absensi disetujui'
-            : 'Persetujuan tercatat, menunggu tahap berikutnya');
-    }
-
-    /**
-     * Reject a pending attendance correction.
-     */
-    public function rejectCorrection(Request $request, AttendanceCorrection $correction): RedirectResponse
-    {
-        $this->ensureTenantOwnership($request, $correction);
-        $this->authorize('rejectCorrection', Attendance::class);
-
-        if (! ApprovalEngine::decide($correction, $request->user()->id, 'reject')) {
-            $correction->update([
-                'status' => 'rejected',
-                'approver_id' => $request->user()->id,
-            ]);
-        }
-
-        return back()->with('success', 'Koreksi absensi ditolak');
-    }
-
-    /**
      * Resolve the requested date (Y-m-d), defaulting to today when absent or invalid.
      *
      * "Today" is the tenant's own, not the server's: a Makassar office opening
@@ -513,13 +473,5 @@ class AttendanceController extends Controller
         }
 
         return TenantTime::startOfToday($tenantId);
-    }
-
-    /**
-     * Abort with 404 when the correction does not belong to the user's tenant.
-     */
-    private function ensureTenantOwnership(Request $request, AttendanceCorrection $correction): void
-    {
-        abort_if((int) $correction->tenant_id !== (int) $request->user()->tenant_id, 404);
     }
 }

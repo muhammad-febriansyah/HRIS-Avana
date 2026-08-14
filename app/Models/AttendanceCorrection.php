@@ -8,7 +8,20 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 final class AttendanceCorrection extends Model
 {
-    protected $guarded = [];
+    protected $fillable = [
+        'tenant_id',
+        'attendance_id',
+        'employee_id',
+        'date',
+        'correction_type',
+        'requested_clock_in',
+        'requested_clock_out',
+        'reason',
+        'file_path',
+        'approver_id',
+        'current_approver_id',
+        'status',
+    ];
 
     protected function casts(): array
     {

@@ -45,7 +45,7 @@ final class AttendancePolicy
     public function approveCorrection(User $user, Attendance|string $attendance = Attendance::class): bool
     {
         return $this->belongsToSameTenant($user, $attendance)
-            && $this->hasAttendancePermission($user, 'attendance.approve');
+            && $this->hasAttendancePermission($user, 'attendance.correction.approve');
     }
 
     /**
@@ -56,7 +56,7 @@ final class AttendancePolicy
     public function rejectCorrection(User $user, Attendance|string $attendance = Attendance::class): bool
     {
         return $this->belongsToSameTenant($user, $attendance)
-            && $this->hasAttendancePermission($user, 'attendance.approve');
+            && $this->hasAttendancePermission($user, 'attendance.correction.approve');
     }
 
     /**

@@ -7,9 +7,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
 use App\Services\ApprovalEngine;
+use App\Support\AttendanceCorrectionTimes;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Employee self-service attendance corrections: a request to set or fix a
@@ -52,11 +54,15 @@ class AttendanceCorrectionController extends Controller
             'reason' => ['required', 'string', 'max:1000'],
         ]);
 
-        if (isset($data['requested_clock_in'], $data['requested_clock_out'])
-            && $data['requested_clock_out'] <= $data['requested_clock_in']) {
-            return response()->json([
-                'message' => 'Jam pulang harus setelah jam masuk.',
-            ], 422);
+        if (! AttendanceCorrectionTimes::rangeIsValid(
+            $employee,
+            $data['date'],
+            $data['requested_clock_in'] ?? null,
+            $data['requested_clock_out'] ?? null,
+        )) {
+            throw ValidationException::withMessages([
+                'requested_clock_out' => 'Jam pulang harus setelah jam masuk.',
+            ]);
         }
 
         // Link the existing attendance row for that day when one exists so the

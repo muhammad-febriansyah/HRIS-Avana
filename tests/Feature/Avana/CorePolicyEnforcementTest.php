@@ -1,9 +1,11 @@
 <?php
 
+use App\Models\Attendance;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Policies\AttendancePolicy;
 use App\Policies\PayrollPolicy;
 use App\Support\Access;
 use Database\Seeders\AvanaDemoSeeder;
@@ -84,6 +86,14 @@ it('lets a wfh.create role submit a WFH request without approve rights', functio
     actingAs($user)
         ->post(route('avana.cuti.wfh.store'), [])
         ->assertRedirect(); // authorized → validation redirects back, not a 403
+});
+
+it('uses the seeded attendance correction permission for approve and reject', function (): void {
+    $user = userWithCodes($this->tenant->id, ['attendance.correction.approve']);
+    $policy = new AttendancePolicy;
+
+    expect($policy->approveCorrection($user, Attendance::class))->toBeTrue()
+        ->and($policy->rejectCorrection($user, Attendance::class))->toBeTrue();
 });
 
 it('splits payroll into distinct create, approve, update, and export gates', function (): void {

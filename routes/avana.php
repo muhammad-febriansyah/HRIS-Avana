@@ -164,9 +164,6 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::delete('absensi/kebijakan/pengecualian/{employee}', [AttendancePolicyController::class, 'destroyOverride'])->name('absensi.kebijakan.pengecualian.destroy');
     Route::get('absensi/{attendance}', [AttendanceController::class, 'show'])->name('absensi.show');
     Route::delete('absensi/{attendance}', [AttendanceController::class, 'destroy'])->name('absensi.destroy');
-    Route::post('absensi/corrections/{correction}/approve', [AttendanceController::class, 'approveCorrection'])->name('absensi.corrections.approve');
-    Route::post('absensi/corrections/{correction}/reject', [AttendanceController::class, 'rejectCorrection'])->name('absensi.corrections.reject');
-
     Route::get('cuti', [LeaveController::class, 'index'])->name('cuti');
     Route::post('cuti', [LeaveController::class, 'store'])->name('cuti.store');
     Route::post('cuti/{leave}/approve', [LeaveController::class, 'approve'])->name('cuti.approve');
