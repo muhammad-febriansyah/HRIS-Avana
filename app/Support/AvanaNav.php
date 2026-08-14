@@ -98,6 +98,8 @@ final class AvanaNav
                 self::parent('kehadiran', 'Kehadiran', 'fingerprint', [
                     self::leaf('absensi', 'Absensi', 'fingerprint', '/avana/absensi', 'attendance', ['attendance']),
                     self::leaf('absensi-monitor', 'Monitor Kehadiran', 'map-pinned', '/avana/absensi/monitor', 'attendance', ['attendance']),
+                    self::leaf('tracking-live', 'Live Tracking', 'locate-fixed', '/avana/tracking/live', 'attendance', ['attendance']),
+                    self::leaf('tracking-history', 'Riwayat Tracking', 'route', '/avana/tracking/history', 'attendance', ['attendance']),
                     self::leaf('absensi-kebijakan', 'Kebijakan Absensi', 'shield-check', '/avana/absensi/kebijakan', 'attendance', ['attendance']),
                     self::leaf('absensi-log-wajah', 'Log Verifikasi Wajah', 'scan-face', '/avana/absensi/log-wajah', 'attendance', ['attendance']),
                     // "Roster" is warehouse-and-hospital vocabulary; the people

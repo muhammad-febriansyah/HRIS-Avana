@@ -114,6 +114,7 @@ use App\Http\Controllers\Avana\TenantAppearanceController;
 use App\Http\Controllers\Avana\TenantController;
 use App\Http\Controllers\Avana\TenantSubscriptionController;
 use App\Http\Controllers\Avana\TimesheetController;
+use App\Http\Controllers\Avana\TrackingController;
 use App\Http\Controllers\Avana\UserController;
 use App\Http\Controllers\Avana\ViewTenantController;
 use App\Http\Controllers\Avana\WebsiteSettingController;
@@ -155,6 +156,9 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
 
     Route::get('absensi', [AttendanceController::class, 'index'])->name('absensi');
     Route::get('absensi/monitor', [AttendanceController::class, 'monitor'])->name('absensi.monitor');
+    Route::get('tracking/live', [TrackingController::class, 'live'])->name('tracking.live');
+    Route::get('tracking/history', [TrackingController::class, 'history'])->name('tracking.history');
+    Route::get('tracking/history/{trackingSession}', [TrackingController::class, 'show'])->name('tracking.show');
     // Registered before the {attendance} route so the literal path wins.
     Route::get('absensi/log-wajah', [FaceScanLogController::class, 'index'])->name('absensi.log-wajah');
     Route::get('absensi/kebijakan', [AttendancePolicyController::class, 'edit'])->name('absensi.kebijakan');

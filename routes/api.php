@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\ShiftSwapController;
 use App\Http\Controllers\Api\SocialController;
 use App\Http\Controllers\Api\SopController;
 use App\Http\Controllers\Api\TaxController;
+use App\Http\Controllers\Api\TrackingController;
 use App\Http\Controllers\Api\WfhController;
 use App\Http\Controllers\PakasirWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -94,6 +95,8 @@ Route::prefix('v1')->group(function (): void {
             Route::get('work-locations', [AttendanceController::class, 'workLocations']);
             Route::post('attendance/challenge', [AttendanceController::class, 'challenge']);
             Route::post('attendance/clock', [AttendanceController::class, 'clock']);
+            Route::get('tracking/active', [TrackingController::class, 'active']);
+            Route::post('tracking/locations', [TrackingController::class, 'store'])->middleware('throttle:120,1');
             Route::get('attendance/corrections', [AttendanceCorrectionController::class, 'index']);
             Route::post('attendance/corrections', [AttendanceCorrectionController::class, 'store']);
             Route::get('schedule', [ScheduleController::class, 'index']);
