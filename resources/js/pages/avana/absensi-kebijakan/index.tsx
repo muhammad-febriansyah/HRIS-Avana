@@ -533,7 +533,7 @@ function OverridePanel({
                 </div>
             </form>
 
-            {form.errors.overrides || form.errors.employee_ids ? (
+            {form.errors.overrides ? (
                 <div
                     style={{
                         fontSize: 12.5,
@@ -541,7 +541,7 @@ function OverridePanel({
                         marginBottom: 12,
                     }}
                 >
-                    {form.errors.overrides || form.errors.employee_ids}
+                    {form.errors.overrides}
                 </div>
             ) : null}
 
@@ -1092,17 +1092,6 @@ export default function AbsensiKebijakan({
                             </>
                         )}
 
-                        {activeTab === 'override' && (
-                            <div style={{ marginTop: 2 }}>
-                                <OverridePanel
-                                    overrides={overrides}
-                                    assignableEmployees={assignableEmployees}
-                                    scopeOptions={scopeOptions}
-                                    tenantScopeLabel={tenantScopeLabel}
-                                    embedded
-                                />
-                            </div>
-                        )}
                     </Section>
 
                     {/* Anti-Replay (nonce sekali pakai) is hidden for now: it
@@ -1111,18 +1100,31 @@ export default function AbsensiKebijakan({
                         in the form so whatever a tenant already has stays put
                         rather than being cleared by a save. */}
 
-                    <button
-                        type="submit"
-                        style={{
-                            ...btnSave,
-                            opacity: form.processing ? 0.6 : 1,
-                        }}
-                        disabled={form.processing}
-                    >
-                        <AIcon name="save" size={16} />
-                        Simpan Kebijakan
-                    </button>
+                    {activeTab !== 'override' && (
+                        <button
+                            type="submit"
+                            style={{
+                                ...btnSave,
+                                opacity: form.processing ? 0.6 : 1,
+                            }}
+                            disabled={form.processing}
+                        >
+                            <AIcon name="save" size={16} />
+                            Simpan Kebijakan
+                        </button>
+                    )}
                 </form>
+
+                {activeTab === 'override' && (
+                    <div style={{ marginTop: 16 }}>
+                        <OverridePanel
+                            overrides={overrides}
+                            assignableEmployees={assignableEmployees}
+                            scopeOptions={scopeOptions}
+                            tenantScopeLabel={tenantScopeLabel}
+                        />
+                    </div>
+                )}
             </div>
         </>
     );
