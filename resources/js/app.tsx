@@ -32,6 +32,9 @@ createInertiaApp({
     layout: (name) => {
         switch (true) {
             case name === 'welcome':
+            // Public marketing pages render without app chrome, same as the
+            // landing page they link back to.
+            case name.startsWith('public/'):
             // The error page stands alone: a 404 can land on a visitor with no
             // session, and the app chrome would render with nothing behind it.
             case name === 'error':

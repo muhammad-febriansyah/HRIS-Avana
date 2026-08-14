@@ -8,6 +8,12 @@ use Illuminate\Support\Facades\Route;
 Route::inertia('/', 'welcome')->name('home');
 
 /*
+ * Public marketing page for the Live Tracking feature. Static like the landing
+ * page — no controller, no data, nothing behind auth.
+ */
+Route::inertia('live-tracking', 'public/live-tracking')->name('live-tracking');
+
+/*
  * Public return page for a personal AI token purchase paid from the phone. The
  * app hands payment to an external browser, which has no Laravel session, so a
  * signed-in return page would bounce the buyer to a login screen after they had
