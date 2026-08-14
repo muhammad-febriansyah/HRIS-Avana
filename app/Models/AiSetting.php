@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\MeetingTranscriber;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -120,7 +121,8 @@ final class AiSetting extends Model
     public function resolved(): array
     {
         $provider = $this->provider ?: 'openai';
-        $apiKey = (string) ($this->api_key ?: config("prism.providers.{$provider}.api_key", ''));
+        $apiKey = $this->decryptedKey('api_key')
+            ?? (string) config("prism.providers.{$provider}.api_key", '');
         $model = (string) ($this->model ?: env('AI_MODEL', self::DEFAULT_MODEL));
 
         return [
@@ -187,7 +189,8 @@ final class AiSetting extends Model
     {
         $provider = (string) ($this->stt_provider ?: 'deepgram');
 
-        $apiKey = (string) ($this->stt_api_key ?: config("services.{$provider}.api_key", ''));
+        $apiKey = $this->decryptedKey('stt_api_key')
+            ?? (string) config("services.{$provider}.api_key", '');
 
         if (! $this->stt_enabled || $apiKey === '') {
             return null;
@@ -235,9 +238,9 @@ final class AiSetting extends Model
      */
     public function keyPreview(): ?string
     {
-        $key = (string) $this->api_key;
+        $key = $this->decryptedKey('api_key');
 
-        return $key === '' ? null : str_repeat('•', 8).substr($key, -4);
+        return $key === null ? null : str_repeat('•', 8).substr($key, -4);
     }
 
     /**
@@ -245,8 +248,36 @@ final class AiSetting extends Model
      */
     public function sttKeyPreview(): ?string
     {
-        $key = (string) $this->stt_api_key;
+        $key = $this->decryptedKey('stt_api_key');
 
-        return $key === '' ? null : str_repeat('•', 8).substr($key, -4);
+        return $key === null ? null : str_repeat('•', 8).substr($key, -4);
+    }
+
+    public function hasStoredKey(): bool
+    {
+        return filled($this->getRawOriginal('api_key'));
+    }
+
+    public function hasStoredSttKey(): bool
+    {
+        return filled($this->getRawOriginal('stt_api_key'));
+    }
+
+    /**
+     * Read an encrypted credential without letting a rotated application key
+     * take down AI consumers. Deployment-level provider keys remain a safe
+     * fallback while the stored credential is re-entered by a Super Admin.
+     */
+    private function decryptedKey(string $attribute): ?string
+    {
+        try {
+            $key = (string) $this->getAttribute($attribute);
+        } catch (DecryptException $exception) {
+            report($exception);
+
+            return null;
+        }
+
+        return $key === '' ? null : $key;
     }
 }

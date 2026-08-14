@@ -3,7 +3,10 @@
 use App\Models\AiSetting;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
+use Illuminate\Contracts\Encryption\DecryptException;
+use Illuminate\Encryption\Encrypter;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Inertia\Testing\AssertableInertia as Assert;
 
 use function Pest\Laravel\actingAs;
@@ -94,6 +97,40 @@ it('reports readiness based on the configured key', function (): void {
     // Ollama is ready without a key.
     $settings->update(['provider' => 'ollama', 'api_key' => null]);
     expect($settings->fresh()->isReady())->toBeTrue();
+});
+
+it('falls back to the deployment key when the stored key can no longer be decrypted', function (): void {
+    Exceptions::fake(DecryptException::class);
+
+    $settings = AiSetting::current();
+    $settings->update([
+        'provider' => 'openai',
+        'api_key' => 'sk-encrypted-with-an-old-key',
+        'is_enabled' => true,
+    ]);
+
+    $foreignEncrypter = new Encrypter(random_bytes(32), config('app.cipher'));
+    DB::table('ai_settings')->where('id', $settings->id)->update([
+        'api_key' => $foreignEncrypter->encrypt('sk-encrypted-with-an-old-key'),
+    ]);
+    config(['prism.providers.openai.api_key' => 'sk-from-deployment']);
+
+    $settings = $settings->fresh();
+
+    expect($settings->resolved()['api_key'])->toBe('sk-from-deployment')
+        ->and($settings->isReady())->toBeTrue()
+        ->and($settings->keyPreview())->toBeNull()
+        ->and($settings->hasStoredKey())->toBeTrue();
+
+    actingAs($this->superAdmin)
+        ->get(route('avana.ai-settings'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('settings.has_key', true)
+            ->where('settings.key_preview', null)
+            ->where('settings.is_ready', true));
+
+    Exceptions::assertReported(DecryptException::class);
 });
 
 it('saves the image generation settings', function (): void {
