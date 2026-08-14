@@ -52,13 +52,13 @@ interface TokenPack {
     price: number;
 }
 
-interface PageProps {
+type PageProps = {
     packages: Package[];
     cycles: string[];
     featureCatalog: FeatureOption[];
     tokenPacks: TokenPack[];
     flash?: { success?: string; error?: string };
-}
+};
 
 /** The custom branch of the quota picker, filed as a new pack on save. */
 interface TokenPackDraft {

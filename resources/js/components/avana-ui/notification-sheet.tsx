@@ -38,20 +38,28 @@ function timeAgo(iso: string | null): string {
     if (!iso) {
         return '';
     }
+
     const then = new Date(iso).getTime();
     const secs = Math.floor((Date.now() - then) / 1000);
+
     if (secs < 60) {
         return 'Baru saja';
     }
+
     const mins = Math.floor(secs / 60);
+
     if (mins < 60) {
         return `${mins} mnt lalu`;
     }
+
     const hrs = Math.floor(mins / 60);
+
     if (hrs < 24) {
         return `${hrs} jam lalu`;
     }
+
     const days = Math.floor(hrs / 24);
+
     if (days < 7) {
         return `${days} hari lalu`;
     }
@@ -77,6 +85,7 @@ export function NotificationSheet({ open, onClose, items, unread }: Props) {
                 onClose();
             }
         };
+
         if (open) {
             document.addEventListener('keydown', onKey);
         }
@@ -88,12 +97,13 @@ export function NotificationSheet({ open, onClose, items, unread }: Props) {
         preserveScroll: true,
         preserveState: true,
         only: ['notifications'],
-    } as const;
+    };
 
     const markRead = (id: number, isRead: boolean) => {
         if (isRead) {
             return;
         }
+
         router.post(`/avana/notifications/${id}/read`, {}, reloadOpts);
     };
 
@@ -101,6 +111,7 @@ export function NotificationSheet({ open, onClose, items, unread }: Props) {
         if (unread === 0) {
             return;
         }
+
         router.post('/avana/notifications/read-all', {}, reloadOpts);
     };
 
