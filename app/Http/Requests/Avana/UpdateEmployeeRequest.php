@@ -8,6 +8,7 @@ use App\Concerns\ResolvesTopApprover;
 use App\Models\AttendancePolicy;
 use App\Models\CustomField;
 use App\Models\Employee;
+use App\Support\EmployeeIdentity;
 use App\Support\MaritalStatus;
 use App\Support\Pph21Ter;
 use App\Support\WorkingAge;
@@ -54,7 +55,7 @@ class UpdateEmployeeRequest extends FormRequest
             'full_name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
             'phone' => ['required', 'string', 'max:50'],
-            'nik' => ['required', 'digits:16'],
+            'nik' => EmployeeIdentity::nikRules($tenantId, $employee?->getKey()),
             'gender' => ['required', 'in:male,female'],
             'birth_date' => ['required', 'date', ...WorkingAge::birthDateRules()],
             'birth_place' => ['required', 'string', 'max:255'],
@@ -92,6 +93,12 @@ class UpdateEmployeeRequest extends FormRequest
             'bpjs_kesehatan_number' => ['nullable', 'string', 'max:32'],
             'ptkp_status' => ['required', 'string', Rule::in(array_keys(Pph21Ter::statutoryCategoryMap()))],
             'bpjs_ketenagakerjaan_number' => ['nullable', 'string', 'max:32'],
+            // The payroll bank account, kept on its own row. Optional: a new
+            // hire is often on the books before their rekening arrives, and the
+            // transfer file simply leaves them out until it does.
+            'bank_name' => ['nullable', 'string', 'max:255'],
+            'bank_account_number' => ['nullable', 'string', 'max:50'],
+            'bank_account_holder' => ['nullable', 'string', 'max:255'],
             'manager_id' => [
                 'nullable',
                 Rule::exists('employees', 'id')->where('tenant_id', $tenantId),
@@ -187,6 +194,7 @@ class UpdateEmployeeRequest extends FormRequest
             'phone.required' => 'Nomor telepon wajib diisi.',
             'nik.required' => 'NIK wajib diisi.',
             'nik.digits' => 'NIK harus 16 digit angka.',
+            'nik.unique' => 'NIK ini sudah dipakai karyawan lain.',
             'gender.required' => 'Jenis kelamin wajib dipilih.',
             'birth_place.required' => 'Tempat lahir wajib diisi.',
             'birth_date.required' => 'Tanggal lahir wajib diisi.',
@@ -211,6 +219,7 @@ class UpdateEmployeeRequest extends FormRequest
             'status.required' => 'Status karyawan wajib dipilih.',
             'status.in' => 'Status karyawan tidak valid.',
             'employee_number.unique' => 'Nomor karyawan sudah digunakan.',
+            'bank_account_number.max' => 'Nomor rekening terlalu panjang.',
             'branch_id.exists' => 'Cabang yang dipilih tidak valid.',
             'work_location_id.exists' => 'Lokasi kerja yang dipilih tidak valid.',
             'department_id.exists' => 'Departemen yang dipilih tidak valid.',

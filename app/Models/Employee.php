@@ -149,6 +149,18 @@ final class Employee extends Model
         return $this->hasMany(EmployeeBankAccount::class);
     }
 
+    /**
+     * The account payroll pays into: the one flagged primary, else the oldest.
+     *
+     * Reads the loaded collection rather than querying, so the transfer file
+     * does not run one statement per employee.
+     */
+    public function primaryBankAccount(): ?EmployeeBankAccount
+    {
+        return $this->bankAccounts->firstWhere('is_primary', true)
+            ?? $this->bankAccounts->first();
+    }
+
     public function emergencyContacts(): HasMany
     {
         return $this->hasMany(EmployeeEmergencyContact::class);

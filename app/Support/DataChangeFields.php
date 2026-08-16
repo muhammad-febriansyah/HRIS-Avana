@@ -103,10 +103,18 @@ final class DataChangeFields
     /**
      * The validation rules for one field's proposed value.
      *
-     * @return array<int, string|In>
+     * The employee is needed for the rules that can only be judged against the
+     * rest of the tenant — a NIK is unique among colleagues, not in isolation —
+     * and for letting the requester keep the value they already hold.
+     *
+     * @return array<int, mixed>
      */
-    public static function rulesFor(string $key): array
+    public static function rulesFor(string $key, ?Employee $employee = null): array
     {
+        if ($key === 'nik' && $employee !== null) {
+            return EmployeeIdentity::nikRules((int) $employee->tenant_id, $employee->getKey(), required: false);
+        }
+
         $rules = self::EMPLOYEE_FIELDS[$key]['rules']
             ?? self::BANK_FIELDS[$key]['rules']
             ?? self::EMERGENCY_FIELDS[$key]['rules']

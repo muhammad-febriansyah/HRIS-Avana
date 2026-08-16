@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
+use App\Support\EmployeeIdentity;
 use App\Support\MaritalStatus;
 use App\Support\PrivateFile;
 use App\Support\WorkingAge;
@@ -32,7 +33,7 @@ class ProfileController extends Controller
             'phone' => ['nullable', 'string', 'max:50'],
             'address' => ['nullable', 'string', 'max:1000'],
             'email' => ['nullable', 'email', 'max:255'],
-            'nik' => ['nullable', 'digits:16'],
+            'nik' => EmployeeIdentity::nikRules((int) $employee->tenant_id, $employee->getKey(), required: false),
             'gender' => ['nullable', 'in:male,female'],
             'birth_place' => ['nullable', 'string', 'max:255'],
             'birth_date' => ['nullable', 'date', ...WorkingAge::birthDateRules()],
@@ -41,6 +42,7 @@ class ProfileController extends Controller
         ], [
             'email.email' => 'Format email tidak valid.',
             'nik.digits' => 'NIK harus 16 digit angka.',
+            'nik.unique' => 'NIK ini sudah dipakai karyawan lain.',
             'gender.in' => 'Jenis kelamin tidak valid.',
             'marital_status.in' => 'Status pernikahan tidak valid.',
             'birth_date.date' => 'Tanggal lahir tidak valid.',

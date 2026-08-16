@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { DatePicker } from '@/components/avana/date-picker';
 import { AIcon, btnSave, C, card } from '@/lib/avana';
+import { latestBirthDate } from '@/pages/avana/employees/types';
 import {
     Field,
     formatDate,
@@ -50,12 +51,7 @@ const GENDERS = [
     { value: 'female', label: 'Perempuan' },
 ];
 
-const MARITAL_STATUSES = [
-    'Lajang',
-    'Menikah',
-    'Cerai Hidup',
-    'Cerai Mati',
-];
+const MARITAL_STATUSES = ['Lajang', 'Menikah', 'Cerai Hidup', 'Cerai Mati'];
 
 export default function SayaProfil({ profile }: { profile: Profile }) {
     const { flash } = usePage<FlashProps>().props;
@@ -381,6 +377,7 @@ export default function SayaProfil({ profile }: { profile: Profile }) {
                                         placeholder="Pilih tanggal lahir"
                                         hasError={!!form.errors.birth_date}
                                         width="100%"
+                                        maxDate={latestBirthDate()}
                                     />
                                 </Field>
                                 <Field

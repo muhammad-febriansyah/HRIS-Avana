@@ -16,6 +16,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Models\UserDevice;
 use App\Models\WorkLocation;
+use App\Support\EmployeeIdentity;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -188,6 +189,151 @@ it('refuses a birth date that puts the employee under 17', function (): void {
         ]))
         ->assertRedirect(route('avana.employees.index'))
         ->assertSessionHasNoErrors();
+});
+
+it('refuses a NIK that already belongs to another employee in the tenant', function (): void {
+    $taken = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $taken->update(['nik' => '3201010101900001']);
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
+            'full_name' => 'NIK Kembar',
+            'nik' => '3201010101900001',
+        ]))
+        ->assertSessionHasErrors('nik');
+
+    expect(Employee::where('full_name', 'NIK Kembar')->exists())->toBeFalse();
+});
+
+it('lets an employee keep the NIK it already carries', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $employee->update(['nik' => '3201010101900002']);
+
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $employee), employeeFormPayload($this->tenant->id, [
+            'full_name' => $employee->full_name,
+            'nik' => '3201010101900002',
+        ]))
+        ->assertRedirect(route('avana.employees.index'))
+        ->assertSessionHasNoErrors();
+});
+
+it('refuses to move a NIK onto an employee who is not its owner', function (): void {
+    [$owner, $other] = Employee::forTenant($this->tenant->id)->take(2)->get()->all();
+    $owner->update(['nik' => '3201010101900003']);
+
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $other), employeeFormPayload($this->tenant->id, [
+            'full_name' => $other->full_name,
+            'nik' => '3201010101900003',
+        ]))
+        ->assertSessionHasErrors('nik');
+});
+
+it('scopes NIK uniqueness to the tenant', function (): void {
+    // Two companies on the platform may both employ the same person, and
+    // neither may learn that from a rejected form.
+    $mine = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $mine->update(['nik' => '3201010101900004']);
+
+    $otherTenant = Tenant::create([
+        'name' => 'Tetangga Sebelah',
+        'slug' => 'tetangga-sebelah',
+        'status' => 'active',
+    ]);
+
+    expect(EmployeeIdentity::employeeHolding('3201010101900004', (int) $otherTenant->id))
+        ->toBeNull()
+        ->and(EmployeeIdentity::employeeHolding('3201010101900004', (int) $this->tenant->id)?->id)
+        ->toBe($mine->id);
+});
+
+it('reports whether a NIK is still free', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $employee->update(['nik' => '3201010101900005']);
+
+    actingAs($this->admin)
+        ->getJson(route('avana.employees.nik-availability', ['nik' => '3201010101900005']))
+        ->assertOk()
+        ->assertJson(['available' => false]);
+
+    // The employee being edited is allowed to keep their own number.
+    actingAs($this->admin)
+        ->getJson(route('avana.employees.nik-availability', [
+            'nik' => '3201010101900005',
+            'employee' => $employee->getRouteKey(),
+        ]))
+        ->assertOk()
+        ->assertJson(['available' => true]);
+
+    actingAs($this->admin)
+        ->getJson(route('avana.employees.nik-availability', ['nik' => '3209090909990009']))
+        ->assertOk()
+        ->assertJson(['available' => true]);
+});
+
+it('stores the payroll bank account typed on the employee form', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $employee), employeeFormPayload($this->tenant->id, [
+            'full_name' => $employee->full_name,
+            'nik' => $employee->nik ?? '3201010101900011',
+            'bank_name' => 'BCA',
+            'bank_account_number' => '1234567890',
+        ]))
+        ->assertRedirect(route('avana.employees.index'))
+        ->assertSessionHasNoErrors();
+
+    $account = $employee->fresh()->bankAccounts()->first();
+
+    expect($account?->bank_name)->toBe('BCA')
+        ->and($account?->account_number)->toBe('1234567890')
+        // Left blank, the holder is the employee — the name the bank matches.
+        ->and($account?->account_holder)->toBe($employee->full_name)
+        ->and($account?->is_primary)->toBeTrue();
+});
+
+it('clears the bank account when both fields are emptied', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $employee->bankAccounts()->create([
+        'tenant_id' => $employee->tenant_id,
+        'bank_name' => 'BNI',
+        'account_number' => '999',
+        'account_holder' => $employee->full_name,
+        'is_primary' => true,
+    ]);
+
+    actingAs($this->admin)
+        ->put(route('avana.employees.update', $employee), employeeFormPayload($this->tenant->id, [
+            'full_name' => $employee->full_name,
+            'nik' => $employee->nik ?? '3201010101900012',
+            'bank_name' => '',
+            'bank_account_number' => '',
+        ]))
+        ->assertSessionHasNoErrors();
+
+    expect($employee->fresh()->bankAccounts()->count())->toBe(0);
+});
+
+it('sends the saved bank account back to the edit form', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $employee->bankAccounts()->create([
+        'tenant_id' => $employee->tenant_id,
+        'bank_name' => 'Mandiri',
+        'account_number' => '55667788',
+        'account_holder' => 'Nama Di Buku Tabungan',
+        'is_primary' => true,
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.employees.edit', $employee))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('employee.data.bank_name', 'Mandiri')
+            ->where('employee.data.bank_account_number', '55667788')
+            ->where('employee.data.bank_account_holder', 'Nama Di Buku Tabungan')
+            ->etc());
 });
 
 it('accepts a marital status from the fixed list', function (): void {

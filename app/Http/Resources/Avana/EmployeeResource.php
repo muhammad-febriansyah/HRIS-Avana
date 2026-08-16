@@ -182,6 +182,11 @@ final class EmployeeResource extends JsonResource
             // row, and are printed on the payslip and every filing.
             'bpjs_kesehatan_number' => $this->whenLoaded('bpjsProfile', fn () => $this->bpjsProfile?->bpjs_kesehatan_number),
             'bpjs_ketenagakerjaan_number' => $this->whenLoaded('bpjsProfile', fn () => $this->bpjsProfile?->bpjs_ketenagakerjaan_number),
+            // The payroll bank account, flattened: the form edits one account,
+            // and the transfer file reads the same row.
+            'bank_name' => $this->whenLoaded('bankAccounts', fn () => $this->primaryBankAccount()?->bank_name),
+            'bank_account_number' => $this->whenLoaded('bankAccounts', fn () => $this->primaryBankAccount()?->account_number),
+            'bank_account_holder' => $this->whenLoaded('bankAccounts', fn () => $this->primaryBankAccount()?->account_holder),
             // Every PPh 21 figure is worked out from this, so it belongs with
             // the employee rather than only on a tax screen.
             'ptkp_status' => $this->whenLoaded('taxProfile', fn () => $this->taxProfile?->ptkp_status),

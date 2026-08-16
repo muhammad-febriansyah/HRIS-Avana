@@ -2,13 +2,17 @@ import { Link } from '@inertiajs/react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
 import { useRef, useState } from 'react';
+import EmployeeController from '@/actions/App/Http/Controllers/Avana/EmployeeController';
 import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, C, card } from '@/lib/avana';
 import {
+    BANK_OPTIONS,
     DEFAULT_PASSWORD,
     EMPLOYEE_STEPS,
+    latestBirthDate,
     MARITAL_STATUSES,
+    MINIMUM_WORKING_AGE,
     NO_MANAGER,
     RELIGIONS,
     STEP_FIELDS,
@@ -86,6 +90,11 @@ interface EmployeeFormProps {
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
     customFields?: CustomFieldDef[];
     hasLogin?: boolean;
+    /**
+     * Route key of the employee being edited, so the NIK check knows which row
+     * is allowed to keep the number it already carries.
+     */
+    employeeKey?: string;
     /**
      * A new hire must leave this form with a way in — either a password that
      * creates a login, or an existing account linked to them. Editing someone
@@ -183,6 +192,7 @@ export function EmployeeForm({
     customFields = [],
     hasLogin = false,
     isCreate = false,
+    employeeKey,
 }: EmployeeFormProps) {
     const { data, setData, errors, processing } = form;
     const [step, setStep] = useState(0);
@@ -197,9 +207,158 @@ export function EmployeeForm({
      */
     const movedAt = useRef(0);
 
+    /** Latest birth date the server accepts, as `YYYY-MM-DD`. */
+    const birthDateCeiling = latestBirthDate();
+
+    /**
+     * Steps whose problems have been pointed out. A blank form painted red
+     * before anything is typed reads as broken, so the messages appear once the
+     * admin has asked to move on.
+     */
+    const [checked, setChecked] = useState<number[]>([]);
+
+    /** A NIK the server says belongs to somebody else, and the lookup's state. */
+    const [nikTaken, setNikTaken] = useState<string | null>(null);
+    const [checkingNik, setCheckingNik] = useState(false);
+
     const goToStep = (next: number) => {
         movedAt.current = Date.now();
         setStep(next);
+    };
+
+    /**
+     * What is wrong with the Data Personal step, by field.
+     *
+     * Mirrors the server's rules for these fields so a mistake is answered at
+     * the field that caused it. The server still owns the verdict; this only
+     * moves the same answer to the step it belongs to, instead of a rejected
+     * save two steps later that looks like a dead button.
+     */
+    const personalIssues = (): Record<string, string> => {
+        const issues: Record<string, string> = {};
+        const blank = (value: string) => String(value ?? '').trim() === '';
+
+        if (blank(data.full_name)) {
+            issues.full_name = 'Nama lengkap wajib diisi.';
+        }
+
+        if (blank(data.nik)) {
+            issues.nik = 'NIK wajib diisi.';
+        } else if (!/^\d{16}$/.test(data.nik.trim())) {
+            issues.nik = 'NIK harus 16 digit angka.';
+        } else if (nikTaken !== null) {
+            issues.nik = nikTaken;
+        }
+
+        if (blank(data.email)) {
+            issues.email = 'Email wajib diisi.';
+        } else if (!/^\S+@\S+\.\S+$/.test(data.email.trim())) {
+            issues.email = 'Format email tidak valid.';
+        }
+
+        if (blank(data.phone)) {
+            issues.phone = 'Nomor telepon wajib diisi.';
+        }
+
+        if (blank(data.birth_place)) {
+            issues.birth_place = 'Tempat lahir wajib diisi.';
+        }
+
+        if (blank(data.birth_date)) {
+            issues.birth_date = 'Tanggal lahir wajib diisi.';
+        } else if (data.birth_date > birthDateCeiling) {
+            issues.birth_date = `Umur minimal ${MINIMUM_WORKING_AGE} tahun.`;
+        }
+
+        if (blank(data.gender)) {
+            issues.gender = 'Jenis kelamin wajib dipilih.';
+        }
+
+        if (blank(data.religion)) {
+            issues.religion = 'Agama wajib dipilih.';
+        }
+
+        if (blank(data.marital_status)) {
+            issues.marital_status = 'Status pernikahan wajib dipilih.';
+        }
+
+        return issues;
+    };
+
+    const issues = step === 0 ? personalIssues() : {};
+
+    /**
+     * The message a field shows: whatever the server said, else what this step
+     * found once it has been checked.
+     */
+    const issueFor = (field: keyof EmployeeFormData): string | undefined =>
+        (errors as Record<string, string | undefined>)[field] ??
+        (checked.includes(step) ? issues[field] : undefined);
+
+    /**
+     * Ask the server whether the typed NIK is still free. Two employees sharing
+     * one KTP number split that person's payroll and attendance between two
+     * records, and only the server can see the other rows.
+     */
+    const nikIsFree = async (): Promise<boolean> => {
+        setCheckingNik(true);
+
+        try {
+            const response = await fetch(
+                EmployeeController.nikAvailability.url({
+                    query: {
+                        nik: data.nik.trim(),
+                        employee: employeeKey ?? '',
+                    },
+                }),
+                { headers: { Accept: 'application/json' } },
+            );
+
+            if (!response.ok) {
+                // A lookup that cannot run must not block the wizard; the same
+                // rule runs again on save, where it can refuse for real.
+                return true;
+            }
+
+            const body = (await response.json()) as {
+                available: boolean;
+                message: string | null;
+            };
+
+            setNikTaken(body.available ? null : body.message);
+
+            return body.available;
+        } catch {
+            return true;
+        } finally {
+            setCheckingNik(false);
+        }
+    };
+
+    /** Leave a step only once it holds nothing the save would reject. */
+    const goNext = async () => {
+        if (step !== 0) {
+            goToStep(step + 1);
+
+            return;
+        }
+
+        const found = personalIssues();
+
+        // The NIK is looked up whenever it is well formed, not only once the
+        // rest of the step is clean, so one click reports everything wrong
+        // rather than uncovering the duplicate on a second pass.
+        const free = /^\d{16}$/.test(data.nik.trim())
+            ? await nikIsFree()
+            : true;
+
+        if (!free || Object.keys(found).length > 0) {
+            setChecked((seen) => [...new Set([...seen, step])]);
+
+            return;
+        }
+
+        goToStep(step + 1);
     };
 
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -262,17 +421,29 @@ export function EmployeeForm({
                 .map(([, label]) => label);
 
         if (index === 0) {
-            return gaps([
-                [data.full_name, 'Nama Lengkap'],
-                [data.nik, 'NIK (KTP)'],
-                [data.email, 'Email'],
-                [data.phone, 'No. Telepon'],
-                [data.birth_place, 'Tempat Lahir'],
-                [data.birth_date, 'Tanggal Lahir'],
-                [data.gender, 'Jenis Kelamin'],
-                [data.religion, 'Agama'],
-                [data.marital_status, 'Status Pernikahan'],
-            ]);
+            return [
+                ...gaps([
+                    [data.full_name, 'Nama Lengkap'],
+                    [data.nik, 'NIK (KTP)'],
+                    [data.email, 'Email'],
+                    [data.phone, 'No. Telepon'],
+                    [data.birth_place, 'Tempat Lahir'],
+                    [data.birth_date, 'Tanggal Lahir'],
+                    [data.gender, 'Jenis Kelamin'],
+                    [data.religion, 'Agama'],
+                    [data.marital_status, 'Status Pernikahan'],
+                ]),
+                // A birth date the server will refuse counts as unfilled, or
+                // the step reads as done and the only sign of trouble arrives
+                // after a save that looks like it did nothing. Older rows carry
+                // such dates from before the rule existed, so an edit that
+                // meant to touch only the account still has to correct one.
+                ...(data.birth_date !== '' && data.birth_date > birthDateCeiling
+                    ? [
+                          `Tanggal Lahir (umur minimal ${MINIMUM_WORKING_AGE} tahun)`,
+                      ]
+                    : []),
+            ];
         }
 
         if (index === 1) {
@@ -310,6 +481,11 @@ export function EmployeeForm({
 
     // The last step's Simpan is gated by step 2, so it reports step 2's gaps.
     const missing = missingFor(step < lastStep ? step : 1);
+
+    // Data Personal answers a click rather than refusing it: pressing Lanjut is
+    // how the admin asks what is still wrong, so the button stays live and the
+    // messages land on the fields. The later steps keep the old gate.
+    const nextBlocked = step === 0 ? checkingNik : !stepComplete(step);
 
     const styleFor = (hasError: boolean, base: CSSProperties): CSSProperties =>
         hasError ? { ...base, ...errorBorder } : base;
@@ -349,7 +525,7 @@ export function EmployeeForm({
                             htmlFor="full_name"
                             label="Nama Lengkap"
                             required
-                            error={errors.full_name}
+                            error={issueFor('full_name')}
                         >
                             <input
                                 id="full_name"
@@ -358,7 +534,10 @@ export function EmployeeForm({
                                     setData('full_name', event.target.value)
                                 }
                                 placeholder="Masukkan nama sesuai KTP"
-                                style={styleFor(!!errors.full_name, inputStyle)}
+                                style={styleFor(
+                                    !!issueFor('full_name'),
+                                    inputStyle,
+                                )}
                             />
                         </Field>
 
@@ -366,18 +545,21 @@ export function EmployeeForm({
                             htmlFor="nik"
                             label="NIK (KTP)"
                             required
-                            error={errors.nik}
+                            error={issueFor('nik')}
                         >
                             <input
                                 id="nik"
                                 inputMode="numeric"
                                 maxLength={16}
                                 value={data.nik}
-                                onChange={(event) =>
-                                    setData('nik', event.target.value)
-                                }
+                                onChange={(event) => {
+                                    // The verdict belongs to the number that was
+                                    // looked up, not to whatever is typed next.
+                                    setNikTaken(null);
+                                    setData('nik', event.target.value);
+                                }}
                                 placeholder="16 digit NIK"
-                                style={styleFor(!!errors.nik, inputStyle)}
+                                style={styleFor(!!issueFor('nik'), inputStyle)}
                             />
                         </Field>
 
@@ -385,7 +567,7 @@ export function EmployeeForm({
                             htmlFor="email"
                             label="Email"
                             required
-                            error={errors.email}
+                            error={issueFor('email')}
                         >
                             <input
                                 id="email"
@@ -395,7 +577,10 @@ export function EmployeeForm({
                                     setData('email', event.target.value)
                                 }
                                 placeholder="nama@perusahaan.co.id"
-                                style={styleFor(!!errors.email, inputStyle)}
+                                style={styleFor(
+                                    !!issueFor('email'),
+                                    inputStyle,
+                                )}
                             />
                         </Field>
 
@@ -541,7 +726,7 @@ export function EmployeeForm({
                             htmlFor="phone"
                             label="No. Telepon"
                             required
-                            error={errors.phone}
+                            error={issueFor('phone')}
                         >
                             <input
                                 id="phone"
@@ -550,7 +735,10 @@ export function EmployeeForm({
                                     setData('phone', event.target.value)
                                 }
                                 placeholder="08xx-xxxx-xxxx"
-                                style={styleFor(!!errors.phone, inputStyle)}
+                                style={styleFor(
+                                    !!issueFor('phone'),
+                                    inputStyle,
+                                )}
                             />
                         </Field>
 
@@ -558,7 +746,7 @@ export function EmployeeForm({
                             htmlFor="birth_place"
                             label="Tempat Lahir"
                             required
-                            error={errors.birth_place}
+                            error={issueFor('birth_place')}
                         >
                             <input
                                 id="birth_place"
@@ -568,7 +756,7 @@ export function EmployeeForm({
                                 }
                                 placeholder="cth. Jakarta"
                                 style={styleFor(
-                                    !!errors.birth_place,
+                                    !!issueFor('birth_place'),
                                     inputStyle,
                                 )}
                             />
@@ -578,7 +766,17 @@ export function EmployeeForm({
                             htmlFor="birth_date"
                             label="Tanggal Lahir"
                             required
-                            error={errors.birth_date}
+                            error={
+                                issueFor('birth_date') ??
+                                // A date already on file that the save would
+                                // refuse is worth saying before Lanjut is even
+                                // pressed: older rows carry them, and the admin
+                                // did not type it this time round.
+                                (data.birth_date !== '' &&
+                                data.birth_date > birthDateCeiling
+                                    ? `Umur minimal ${MINIMUM_WORKING_AGE} tahun.`
+                                    : undefined)
+                            }
                         >
                             <DatePicker
                                 value={data.birth_date}
@@ -587,6 +785,11 @@ export function EmployeeForm({
                                 }
                                 placeholder="Pilih tanggal"
                                 width="100%"
+                                maxDate={birthDateCeiling}
+                                hasError={
+                                    data.birth_date !== '' &&
+                                    data.birth_date > birthDateCeiling
+                                }
                             />
                         </Field>
 
@@ -594,7 +797,7 @@ export function EmployeeForm({
                             htmlFor="gender"
                             label="Jenis Kelamin"
                             required
-                            error={errors.gender}
+                            error={issueFor('gender')}
                         >
                             <select
                                 id="gender"
@@ -602,7 +805,10 @@ export function EmployeeForm({
                                 onChange={(event) =>
                                     setData('gender', event.target.value)
                                 }
-                                style={styleFor(!!errors.gender, selectStyle)}
+                                style={styleFor(
+                                    !!issueFor('gender'),
+                                    selectStyle,
+                                )}
                             >
                                 <option value="">Pilih jenis kelamin</option>
                                 {options.genders.map((option) => (
@@ -620,7 +826,7 @@ export function EmployeeForm({
                             htmlFor="religion"
                             label="Agama"
                             required
-                            error={errors.religion}
+                            error={issueFor('religion')}
                         >
                             <select
                                 id="religion"
@@ -628,7 +834,10 @@ export function EmployeeForm({
                                 onChange={(event) =>
                                     setData('religion', event.target.value)
                                 }
-                                style={styleFor(!!errors.religion, selectStyle)}
+                                style={styleFor(
+                                    !!issueFor('religion'),
+                                    selectStyle,
+                                )}
                             >
                                 <option value="">Pilih agama</option>
                                 {RELIGIONS.map((religion) => (
@@ -643,7 +852,7 @@ export function EmployeeForm({
                             htmlFor="marital_status"
                             label="Status Pernikahan"
                             required
-                            error={errors.marital_status}
+                            error={issueFor('marital_status')}
                         >
                             <select
                                 id="marital_status"
@@ -655,7 +864,7 @@ export function EmployeeForm({
                                     )
                                 }
                                 style={styleFor(
-                                    !!errors.marital_status,
+                                    !!issueFor('marital_status'),
                                     selectStyle,
                                 )}
                             >
@@ -1031,7 +1240,10 @@ export function EmployeeForm({
                                 id="contract_number"
                                 value={data.contract_number}
                                 onChange={(event) =>
-                                    setData('contract_number', event.target.value)
+                                    setData(
+                                        'contract_number',
+                                        event.target.value,
+                                    )
                                 }
                                 placeholder="mis. PKWT-2026-001"
                                 style={styleFor(
@@ -1207,6 +1419,77 @@ export function EmployeeForm({
                                     </option>
                                 ))}
                             </select>
+                        </Field>
+
+                        <Field
+                            htmlFor="bank_name"
+                            label="Nama Bank"
+                            error={errors.bank_name}
+                            hint="Rekening tujuan transfer gaji. Kosong berarti karyawan tidak muncul di file transfer bank."
+                        >
+                            <input
+                                id="bank_name"
+                                list="bank-options"
+                                value={data.bank_name}
+                                onChange={(event) =>
+                                    setData('bank_name', event.target.value)
+                                }
+                                placeholder="mis. BCA"
+                                style={styleFor(!!errors.bank_name, inputStyle)}
+                            />
+                            <datalist id="bank-options">
+                                {BANK_OPTIONS.map((bank) => (
+                                    <option key={bank} value={bank} />
+                                ))}
+                            </datalist>
+                        </Field>
+
+                        <Field
+                            htmlFor="bank_account_number"
+                            label="Nomor Rekening"
+                            error={errors.bank_account_number}
+                        >
+                            <input
+                                id="bank_account_number"
+                                inputMode="numeric"
+                                value={data.bank_account_number}
+                                onChange={(event) =>
+                                    setData(
+                                        'bank_account_number',
+                                        event.target.value,
+                                    )
+                                }
+                                placeholder="mis. 1234567890"
+                                style={styleFor(
+                                    !!errors.bank_account_number,
+                                    inputStyle,
+                                )}
+                            />
+                        </Field>
+
+                        <Field
+                            htmlFor="bank_account_holder"
+                            label="Atas Nama"
+                            error={errors.bank_account_holder}
+                            hint="Kosongkan bila sama dengan nama karyawan."
+                        >
+                            <input
+                                id="bank_account_holder"
+                                value={data.bank_account_holder}
+                                onChange={(event) =>
+                                    setData(
+                                        'bank_account_holder',
+                                        event.target.value,
+                                    )
+                                }
+                                placeholder={
+                                    data.full_name || 'Nama pemilik rekening'
+                                }
+                                style={styleFor(
+                                    !!errors.bank_account_holder,
+                                    inputStyle,
+                                )}
+                            />
                         </Field>
 
                         <Field
@@ -1475,17 +1758,15 @@ export function EmployeeForm({
                         // instead of quietly turning this one into a submit.
                         key="wizard-next"
                         type="button"
-                        onClick={() => goToStep(step + 1)}
-                        disabled={!stepComplete(step)}
+                        onClick={goNext}
+                        disabled={nextBlocked}
                         style={{
                             ...navButtonStyle(C.primary, '#fff'),
-                            opacity: stepComplete(step) ? 1 : 0.55,
-                            cursor: stepComplete(step)
-                                ? 'pointer'
-                                : 'not-allowed',
+                            opacity: nextBlocked ? 0.55 : 1,
+                            cursor: nextBlocked ? 'not-allowed' : 'pointer',
                         }}
                     >
-                        Lanjut
+                        {checkingNik ? 'Memeriksa NIK…' : 'Lanjut'}
                         <AIcon name="chevron-right" size={16} color="#fff" />
                     </button>
                 ) : (

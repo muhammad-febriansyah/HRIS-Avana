@@ -800,9 +800,7 @@ function KontrakTab({
 
     if (contracts.length === 0) {
         return (
-            <div
-                style={{ display: 'grid', gap: 12, justifyItems: 'stretch' }}
-            >
+            <div style={{ display: 'grid', gap: 12, justifyItems: 'stretch' }}>
                 <EmptyTab
                     icon="file-text"
                     message="Belum ada kontrak kerja untuk karyawan ini."

@@ -114,12 +114,20 @@ export type Employee = {
     manager?: ManagerRef | null;
     /** The Master Gaji this employee is attached to, if any. */
     salary_master_id?: number | null;
-    salary_master?: { id: number; code: string; category: string | null } | null;
+    salary_master?: {
+        id: number;
+        code: string;
+        category: string | null;
+    } | null;
     /** BPJS membership numbers, kept on the employee's BPJS profile. */
     bpjs_kesehatan_number?: string | null;
     /** PTKP code the PPh 21 calculation is based on. */
     ptkp_status?: string | null;
     bpjs_ketenagakerjaan_number?: string | null;
+    /** Primary payroll bank account, flattened for the form. */
+    bank_name?: string | null;
+    bank_account_number?: string | null;
+    bank_account_holder?: string | null;
     contracts?: EmployeeContractRow[];
     custom_data?: Record<string, string>;
     held_assets?: HeldAsset[];
@@ -245,6 +253,9 @@ export type EmployeeFormData = {
     bpjs_kesehatan_number: string;
     ptkp_status: string;
     bpjs_ketenagakerjaan_number: string;
+    bank_name: string;
+    bank_account_number: string;
+    bank_account_holder: string;
     manager_id: string;
     status: string;
     password: string;
@@ -287,8 +298,52 @@ export const MARITAL_STATUSES = [
     'Cerai Mati',
 ] as const;
 
+/**
+ * Banks offered as suggestions on the payroll account field. The field stays
+ * free text — a tenant may pay through a BPR or a digital bank that no fixed
+ * list would carry — so this only saves typing for the common ones.
+ */
+export const BANK_OPTIONS = [
+    'BCA',
+    'Mandiri',
+    'BNI',
+    'BRI',
+    'BSI',
+    'CIMB Niaga',
+    'Permata',
+    'Danamon',
+    'BTN',
+    'Panin',
+    'OCBC',
+    'Maybank',
+    'Jago',
+    'SeaBank',
+] as const;
+
 /** Default password offered when creating an employee login. */
 export const DEFAULT_PASSWORD = 'karyawan123';
+
+/** Mirrors App\Support\WorkingAge::MINIMUM_YEARS. */
+export const MINIMUM_WORKING_AGE = 17;
+
+/**
+ * The latest birth date that still clears the minimum age, as `YYYY-MM-DD`.
+ *
+ * The server refuses anything later, so the form bounds its date picker to the
+ * same day rather than letting an admin pick a date that can only come back as
+ * an error — how several employee rows came to carry the date they were typed
+ * on instead of a birth date.
+ */
+export function latestBirthDate(): string {
+    const now = new Date();
+    const limit = new Date(
+        now.getFullYear() - MINIMUM_WORKING_AGE,
+        now.getMonth(),
+        now.getDate(),
+    );
+
+    return `${limit.getFullYear()}-${String(limit.getMonth() + 1).padStart(2, '0')}-${String(limit.getDate()).padStart(2, '0')}`;
+}
 
 /** Wizard steps for the employee form, in the order they are shown. */
 export const EMPLOYEE_STEPS = [
@@ -330,6 +385,9 @@ export const STEP_FIELDS: string[][] = [
         'contract_start_date',
         'contract_end_date',
         'bpjs_ketenagakerjaan_number',
+        'bank_name',
+        'bank_account_number',
+        'bank_account_holder',
         'bpjs_kesehatan_number',
         'ptkp_status',
         'join_date',

@@ -92,7 +92,7 @@ class EssDataChangeController extends Controller
         foreach ($data['changes'] as $index => $change) {
             validator(
                 [$change['field'] => $change['value']],
-                [$change['field'] => DataChangeFields::rulesFor($change['field'])],
+                [$change['field'] => DataChangeFields::rulesFor($change['field'], $employee)],
                 [],
                 [$change['field'] => DataChangeFields::label($change['field'])],
             )->validateWithBag('default');

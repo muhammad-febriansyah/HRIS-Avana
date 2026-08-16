@@ -1,12 +1,5 @@
-import {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState
-    
-} from 'react';
-import type {CSSProperties} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { AIcon, C, hexA } from '@/lib/avana';
 
@@ -68,7 +61,11 @@ const YEARS_AHEAD = 10;
  * already outside the bounds — an old birth date, a far-off contract — still
  * shows the year it is actually on rather than snapping to an edge.
  */
-function yearRange(include: number, minYear?: number, maxYear?: number): number[] {
+function yearRange(
+    include: number,
+    minYear?: number,
+    maxYear?: number,
+): number[] {
     const currentYear = new Date().getFullYear();
     const from = Math.min(minYear ?? currentYear - YEARS_BACK, include);
     const to = Math.max(maxYear ?? currentYear + YEARS_AHEAD, include);
@@ -161,6 +158,8 @@ export function DatePicker({
     hasError = false,
     minYear,
     maxYear,
+    minDate,
+    maxDate,
 }: {
     value: string;
     onChange: (value: string) => void;
@@ -179,10 +178,57 @@ export function DatePicker({
      */
     minYear?: number;
     maxYear?: number;
+    /**
+     * Selectable range as `YYYY-MM-DD`. Days outside it are greyed and inert,
+     * the year dropdown stops there, and an empty field opens on the nearest
+     * allowed month instead of today — a birth date field bounded to "17 years
+     * ago" must not open on a month where every day is refused, which is how
+     * employee rows ended up carrying the date they were typed on.
+     */
+    minDate?: string;
+    maxDate?: string;
 }) {
     const [open, setOpen] = useState(false);
     const selected = useMemo(() => parseYmd(value), [value]);
-    const [view, setView] = useState(() => parseYmd(value));
+
+    const floor = useMemo(
+        () => (minDate ? parseYmd(minDate) : null),
+        [minDate],
+    );
+    const ceiling = useMemo(
+        () => (maxDate ? parseYmd(maxDate) : null),
+        [maxDate],
+    );
+
+    /** Where the calendar opens when the field is empty. */
+    const openingMonth = useCallback((): Date => {
+        const now = new Date();
+
+        if (ceiling && now > ceiling) {
+            return ceiling;
+        }
+
+        if (floor && now < floor) {
+            return floor;
+        }
+
+        return now;
+    }, [ceiling, floor]);
+
+    const viewFor = useCallback(
+        (current: string): Date =>
+            current === '' ? openingMonth() : parseYmd(current),
+        [openingMonth],
+    );
+
+    const outOfRange = useCallback(
+        (date: Date): boolean =>
+            (floor !== null && date < floor && !sameDay(date, floor)) ||
+            (ceiling !== null && date > ceiling && !sameDay(date, ceiling)),
+        [floor, ceiling],
+    );
+
+    const [view, setView] = useState(() => viewFor(value));
     const rootRef = useRef<HTMLDivElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
     const [anchor, setAnchor] = useState({ top: 0, left: 0 });
@@ -233,9 +279,9 @@ export function DatePicker({
     // Re-anchor the visible month whenever the picker opens or the value moves.
     useEffect(() => {
         if (open) {
-            setView(parseYmd(value));
+            setView(viewFor(value));
         }
-    }, [open, value]);
+    }, [open, value, viewFor]);
 
     // Close on outside click or Escape, and follow the trigger while open.
     useEffect(() => {
@@ -401,8 +447,8 @@ export function DatePicker({
                                 month={view.getMonth()}
                                 year={view.getFullYear()}
                                 onChange={(m, y) => setView(new Date(y, m, 1))}
-                                minYear={minYear}
-                                maxYear={maxYear}
+                                minYear={minYear ?? floor?.getFullYear()}
+                                maxYear={maxYear ?? ceiling?.getFullYear()}
                             />
                             <button
                                 type="button"
@@ -462,11 +508,13 @@ export function DatePicker({
 
                                 const isSel = sameDay(cell, selected);
                                 const isToday = sameDay(cell, today);
+                                const blocked = outOfRange(cell);
 
                                 return (
                                     <button
                                         key={toYmd(cell)}
                                         type="button"
+                                        disabled={blocked}
                                         onClick={() => {
                                             onChange(toYmd(cell));
                                             setOpen(false);
@@ -475,18 +523,23 @@ export function DatePicker({
                                             height: 32,
                                             border: 'none',
                                             borderRadius: 8,
-                                            cursor: 'pointer',
+                                            cursor: blocked
+                                                ? 'not-allowed'
+                                                : 'pointer',
                                             fontSize: 12.5,
                                             fontWeight:
                                                 isSel || isToday ? 700 : 500,
                                             background: isSel
                                                 ? C.primary
                                                 : 'transparent',
-                                            color: isSel
-                                                ? '#fff'
-                                                : isToday
-                                                  ? C.primary
-                                                  : C.text,
+                                            color: blocked
+                                                ? C.faint
+                                                : isSel
+                                                  ? '#fff'
+                                                  : isToday
+                                                    ? C.primary
+                                                    : C.text,
+                                            opacity: blocked ? 0.4 : 1,
                                             outline:
                                                 isToday && !isSel
                                                     ? `1px solid ${hexA(C.primary, 0.4)}`
@@ -499,28 +552,30 @@ export function DatePicker({
                             })}
                         </div>
 
-                        {/* Footer: quick "today" */}
-                        <button
-                            type="button"
-                            onClick={() => {
-                                onChange(toYmd(today));
-                                setOpen(false);
-                            }}
-                            style={{
-                                marginTop: 10,
-                                width: '100%',
-                                height: 34,
-                                border: `1px solid ${C.border}`,
-                                borderRadius: 8,
-                                background: '#fff',
-                                fontSize: 12.5,
-                                fontWeight: 600,
-                                color: C.primary,
-                                cursor: 'pointer',
-                            }}
-                        >
-                            Hari ini
-                        </button>
+                        {/* Footer: quick "today", only while today is allowed */}
+                        {!outOfRange(today) && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    onChange(toYmd(today));
+                                    setOpen(false);
+                                }}
+                                style={{
+                                    marginTop: 10,
+                                    width: '100%',
+                                    height: 34,
+                                    border: `1px solid ${C.border}`,
+                                    borderRadius: 8,
+                                    background: '#fff',
+                                    fontSize: 12.5,
+                                    fontWeight: 600,
+                                    color: C.primary,
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                Hari ini
+                            </button>
+                        )}
                     </div>,
                     document.body,
                 )}
@@ -567,7 +622,9 @@ export function MonthPicker({
             year={year}
             minYear={minYear}
             maxYear={maxYear}
-            onChange={(m, y) => onChange(`${y}-${String(m + 1).padStart(2, '0')}`)}
+            onChange={(m, y) =>
+                onChange(`${y}-${String(m + 1).padStart(2, '0')}`)
+            }
             style={{
                 height: 40,
                 padding: '0 10px',

@@ -26,6 +26,7 @@ use App\Models\User;
 use App\Models\UserDevice;
 use App\Models\WorkLocation;
 use App\Support\ContractType;
+use App\Support\EmployeeIdentity;
 use App\Support\SalaryCompliance;
 use App\Support\TenantQuota;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -165,6 +166,7 @@ class EmployeeController extends Controller
         $bpjs = $this->pullBpjsNumbers($data);
         $ptkp = $this->pullPtkpStatus($data);
         $contract = $this->pullContract($data);
+        $bankAccount = $this->pullBankAccount($data);
         unset($data['password'], $data['role_id'], $data['link_user_id']);
         $data['tenant_id'] = $tenantId;
 
@@ -177,6 +179,7 @@ class EmployeeController extends Controller
         $this->syncBpjsNumbers($employee, $bpjs);
         $this->syncPtkpStatus($employee, $ptkp);
         $this->syncContract($employee, $contract);
+        $this->syncBankAccount($employee, $bankAccount);
         $this->syncEmployeeLogin(
             $employee,
             $password,
@@ -669,6 +672,7 @@ class EmployeeController extends Controller
         $bpjs = $this->pullBpjsNumbers($data);
         $ptkp = $this->pullPtkpStatus($data);
         $contract = $this->pullContract($data);
+        $bankAccount = $this->pullBankAccount($data);
         unset($data['password'], $data['role_id'], $data['link_user_id']);
 
         $employee->update($data);
@@ -676,6 +680,7 @@ class EmployeeController extends Controller
         $this->syncBpjsNumbers($employee, $bpjs);
         $this->syncPtkpStatus($employee, $ptkp);
         $this->syncContract($employee, $contract);
+        $this->syncBankAccount($employee, $bankAccount);
         $this->syncEmployeeLogin(
             $employee,
             $password,
@@ -702,6 +707,8 @@ class EmployeeController extends Controller
             'taxProfile' => fn ($query) => $query,
             // Newest first, so the form corrects the contract in force.
             'contracts' => fn ($query) => $query->latest('start_date')->latest('id'),
+            // The account payroll pays into; primary first.
+            'bankAccounts' => fn ($query) => $query->orderByDesc('is_primary')->orderBy('id'),
         ];
     }
 
@@ -785,6 +792,73 @@ class EmployeeController extends Controller
             ['tenant_id' => $employee->tenant_id, 'employee_id' => $employee->id],
             $numbers,
         );
+    }
+
+    /**
+     * Take the payroll bank account out of the employee payload.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>|null null when the form manages no account
+     */
+    private function pullBankAccount(array &$data): ?array
+    {
+        $account = [];
+
+        foreach (['bank_name', 'bank_account_number', 'bank_account_holder'] as $key) {
+            if (array_key_exists($key, $data)) {
+                $account[$key] = $data[$key];
+                unset($data[$key]);
+            }
+        }
+
+        return $account === [] ? null : $account;
+    }
+
+    /**
+     * Write the employee's primary bank account — the row the bank transfer
+     * file reads to know where the net pay goes.
+     *
+     * An account holder left blank is the employee themselves, which is the
+     * usual case and the one banks reject when the name does not match.
+     *
+     * @param  array<string, mixed>|null  $account
+     */
+    private function syncBankAccount(Employee $employee, ?array $account): void
+    {
+        if ($account === null) {
+            return;
+        }
+
+        $bankName = trim((string) ($account['bank_name'] ?? ''));
+        $number = trim((string) ($account['bank_account_number'] ?? ''));
+
+        $existing = $employee->bankAccounts()
+            ->orderByDesc('is_primary')
+            ->orderBy('id')
+            ->first();
+
+        // Clearing both fields removes the account rather than leaving a half
+        // empty row that the transfer file would export as a blank rekening.
+        if ($bankName === '' && $number === '') {
+            $existing?->delete();
+
+            return;
+        }
+
+        $values = [
+            'bank_name' => $bankName,
+            'account_number' => $number,
+            'account_holder' => trim((string) ($account['bank_account_holder'] ?? '')) ?: $employee->full_name,
+            'is_primary' => true,
+        ];
+
+        if ($existing !== null) {
+            $existing->update($values);
+
+            return;
+        }
+
+        $employee->bankAccounts()->create([...$values, 'tenant_id' => $employee->tenant_id]);
     }
 
     /**
@@ -1113,6 +1187,43 @@ class EmployeeController extends Controller
         }
 
         return back()->with('success', "Akun {$user->email} ditautkan ke {$employee->full_name}. Minta karyawan login ulang di aplikasi mobile.");
+    }
+
+    /**
+     * Whether a NIK is still free within the tenant.
+     *
+     * The wizard asks before it lets the admin leave the Data Personal step, so
+     * a duplicate is caught next to the field that caused it rather than as a
+     * rejected save three steps later.
+     */
+    public function nikAvailability(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Employee::class);
+
+        $validated = $request->validate([
+            'nik' => ['required', 'digits:16'],
+            // The employee being edited, so their own NIK does not read as taken.
+            'employee' => ['nullable', 'string'],
+        ]);
+
+        $current = $validated['employee'] ?? null;
+
+        $editing = $current !== null
+            ? Employee::forTenant($request->user()->tenant_id)
+                ->where((new Employee)->getRouteKeyName(), $current)
+                ->value('id')
+            : null;
+
+        $holder = EmployeeIdentity::employeeHolding(
+            $validated['nik'],
+            (int) $request->user()->tenant_id,
+            $editing !== null ? (int) $editing : null,
+        );
+
+        return response()->json([
+            'available' => $holder === null,
+            'message' => $holder !== null ? EmployeeIdentity::takenMessage($holder) : null,
+        ]);
     }
 
     /**

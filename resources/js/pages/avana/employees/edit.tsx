@@ -60,7 +60,9 @@ export default function EmployeesEdit({
         department_id: relationId(data.department),
         position_id: relationId(data.position),
         job_level_id: relationId(data.job_level),
-        salary_master_id: data.salary_master_id ? String(data.salary_master_id) : '',
+        salary_master_id: data.salary_master_id
+            ? String(data.salary_master_id)
+            : '',
         contract_number: activeContract?.contract_number ?? '',
         contract_type: activeContract?.contract_type ?? '',
         contract_start_date: activeContract?.start_date_raw ?? '',
@@ -68,6 +70,9 @@ export default function EmployeesEdit({
         bpjs_kesehatan_number: data.bpjs_kesehatan_number ?? '',
         ptkp_status: data.ptkp_status ?? '',
         bpjs_ketenagakerjaan_number: data.bpjs_ketenagakerjaan_number ?? '',
+        bank_name: data.bank_name ?? '',
+        bank_account_number: data.bank_account_number ?? '',
+        bank_account_holder: data.bank_account_holder ?? '',
         // Neither an approver puncak nor a not-yet-assigned employee has a
         // manager row, so the picker shows whichever sentinel says which of the
         // two they are — an empty field would read as "belum diisi" for both.
@@ -148,6 +153,7 @@ export default function EmployeesEdit({
                     options={options}
                     customFields={customFields}
                     hasLogin={data.has_login}
+                    employeeKey={data.route_key}
                     submitLabel="Simpan Perubahan"
                     cancelHref={EmployeeController.index().url}
                     onSubmit={handleSubmit}
