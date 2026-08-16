@@ -61,9 +61,11 @@ use App\Http\Controllers\Avana\FeatureController;
 use App\Http\Controllers\Avana\FieldVisitController;
 use App\Http\Controllers\Avana\HelpdeskController;
 use App\Http\Controllers\Avana\HiringRequestController;
+use App\Http\Controllers\Avana\IncentiveController;
 use App\Http\Controllers\Avana\JournalController;
 use App\Http\Controllers\Avana\LaporanController;
 use App\Http\Controllers\Avana\LearningController;
+use App\Http\Controllers\Avana\LeaveBalanceController;
 use App\Http\Controllers\Avana\LeaveController;
 use App\Http\Controllers\Avana\LeaveTypeController;
 use App\Http\Controllers\Avana\LetterTemplateController;
@@ -188,6 +190,14 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('cuti/wfh/{wfh}/approve', [WfhController::class, 'approve'])->name('cuti.wfh.approve');
     Route::post('cuti/wfh/{wfh}/reject', [WfhController::class, 'reject'])->name('cuti.wfh.reject');
 
+    // Saldo Cuti (yearly leave balances)
+    Route::get('cuti/saldo', [LeaveBalanceController::class, 'index'])->name('cuti.saldo');
+    Route::get('cuti/saldo/template', [LeaveBalanceController::class, 'template'])->name('cuti.saldo.template');
+    Route::post('cuti/saldo/generate', [LeaveBalanceController::class, 'generate'])->name('cuti.saldo.generate');
+    Route::post('cuti/saldo/carry-over', [LeaveBalanceController::class, 'carryOver'])->name('cuti.saldo.carry-over');
+    Route::post('cuti/saldo/import', [LeaveBalanceController::class, 'import'])->name('cuti.saldo.import');
+    Route::put('cuti/saldo', [LeaveBalanceController::class, 'update'])->name('cuti.saldo.update');
+
     // Jenis Cuti (leave types)
     Route::get('cuti/jenis', [LeaveTypeController::class, 'index'])->name('cuti.jenis');
     Route::get('cuti/jenis/create', [LeaveTypeController::class, 'create'])->name('cuti.jenis.create');
@@ -266,7 +276,12 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
 
     // Tarif TER PPh 21 (statutory withholding tariff as dated master data)
     Route::get('payroll/ter', [Pph21TerController::class, 'index'])->name('payroll.ter');
-    Route::post('payroll/ter/import', [Pph21TerController::class, 'import'])->name('payroll.ter.import');
+    Route::post('payroll/ter/preview', [Pph21TerController::class, 'preview'])
+        ->middleware('throttle:10,1')
+        ->name('payroll.ter.preview');
+    Route::post('payroll/ter/import', [Pph21TerController::class, 'import'])
+        ->middleware('throttle:10,1')
+        ->name('payroll.ter.import');
     Route::post('payroll/ter/reset', [Pph21TerController::class, 'reset'])->name('payroll.ter.reset');
     Route::put('payroll/ter/bracket/{rate}', [Pph21TerController::class, 'updateBracket'])->name('payroll.ter.bracket.update');
     Route::delete('payroll/ter/bracket/{rate}', [Pph21TerController::class, 'destroyBracket'])->name('payroll.ter.bracket.destroy');
@@ -304,8 +319,27 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('payroll/penetapan-massal', [SalaryAssignmentController::class, 'apply'])->name('payroll.penetapan-massal.apply');
 
     Route::get('payroll/riwayat-gaji', [SalaryHistoryController::class, 'index'])->name('payroll.riwayat-gaji');
+    Route::post('payroll/riwayat-gaji/batch/approve', [SalaryHistoryController::class, 'approveBatch'])->name('payroll.riwayat-gaji.batch.approve');
+    Route::post('payroll/riwayat-gaji/batch/reject', [SalaryHistoryController::class, 'rejectBatch'])->name('payroll.riwayat-gaji.batch.reject');
     Route::post('payroll/riwayat-gaji/{version}/approve', [SalaryHistoryController::class, 'approve'])->name('payroll.riwayat-gaji.approve');
     Route::post('payroll/riwayat-gaji/{version}/reject', [SalaryHistoryController::class, 'reject'])->name('payroll.riwayat-gaji.reject');
+
+    // Insentif — skema & aturan, penetapan karyawan, perhitungan per periode,
+    // lalu review/approval. Payroll hanya membayar yang sudah disetujui.
+    Route::get('payroll/insentif', [IncentiveController::class, 'index'])->name('payroll.insentif');
+    Route::get('payroll/insentif/riwayat', [IncentiveController::class, 'history'])->name('payroll.insentif.riwayat');
+    Route::post('payroll/insentif/skema', [IncentiveController::class, 'storeScheme'])->name('payroll.insentif.skema.store');
+    Route::put('payroll/insentif/skema/{scheme}', [IncentiveController::class, 'updateScheme'])->name('payroll.insentif.skema.update');
+    Route::delete('payroll/insentif/skema/{scheme}', [IncentiveController::class, 'destroyScheme'])->name('payroll.insentif.skema.destroy');
+    Route::post('payroll/insentif/skema/{scheme}/aturan', [IncentiveController::class, 'storeRule'])->name('payroll.insentif.aturan.store');
+    Route::delete('payroll/insentif/aturan/{rule}', [IncentiveController::class, 'destroyRule'])->name('payroll.insentif.aturan.destroy');
+    Route::post('payroll/insentif/skema/{scheme}/penetapan', [IncentiveController::class, 'assign'])->name('payroll.insentif.penetapan.store');
+    Route::delete('payroll/insentif/penetapan/{assignment}', [IncentiveController::class, 'unassign'])->name('payroll.insentif.penetapan.destroy');
+    Route::post('payroll/insentif/skema/{scheme}/hitung', [IncentiveController::class, 'calculate'])->name('payroll.insentif.hitung');
+    Route::put('payroll/insentif/perhitungan/{calculation}', [IncentiveController::class, 'updateCalculation'])->name('payroll.insentif.perhitungan.update');
+    Route::post('payroll/insentif/ajukan', [IncentiveController::class, 'submit'])->name('payroll.insentif.submit');
+    Route::post('payroll/insentif/setujui', [IncentiveController::class, 'approve'])->name('payroll.insentif.approve');
+    Route::post('payroll/insentif/tolak', [IncentiveController::class, 'reject'])->name('payroll.insentif.reject');
 
     Route::get('payroll/rapel', [SalaryRapelController::class, 'index'])->name('payroll.rapel');
     Route::post('payroll/rapel', [SalaryRapelController::class, 'store'])->name('payroll.rapel.store');

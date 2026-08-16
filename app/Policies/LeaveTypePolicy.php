@@ -39,9 +39,13 @@ final class LeaveTypePolicy
     /**
      * Determine whether the user can update the leave type.
      *
+     * Defaults to the class so a screen that edits leave master data in bulk —
+     * Saldo Cuti writes quotas across the tenant, not one type — can ask the
+     * same question without a model to hand.
+     *
      * @param  LeaveType|class-string<LeaveType>  $leaveType
      */
-    public function update(User $user, LeaveType|string $leaveType): bool
+    public function update(User $user, LeaveType|string $leaveType = LeaveType::class): bool
     {
         return $this->belongsToSameTenant($user, $leaveType)
             && $this->hasLeavePermission($user, 'leave.update');

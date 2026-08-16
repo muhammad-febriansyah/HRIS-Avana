@@ -1,4 +1,5 @@
 import type { InertiaFormProps } from '@inertiajs/react';
+import { Link } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { AIcon, C, card } from '@/lib/avana';
 import { LeaveRequestForm } from './leave-form';
@@ -46,6 +47,34 @@ export function CutiTab({
     return (
         <>
             {/* Saldo */}
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    marginBottom: 10,
+                }}
+            >
+                <div style={{ fontSize: 13, color: C.muted }}>
+                    Sisa jatah cuti seluruh karyawan tahun ini.
+                </div>
+                <Link
+                    href="/avana/cuti/saldo"
+                    style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: C.primary,
+                        textDecoration: 'none',
+                    }}
+                >
+                    Kelola Saldo Cuti
+                    <AIcon name="arrow-right" size={14} color={C.primary} />
+                </Link>
+            </div>
             <div
                 className="avn-3col"
                 style={{

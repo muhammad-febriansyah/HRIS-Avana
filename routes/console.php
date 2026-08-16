@@ -29,6 +29,12 @@ Schedule::command('avana:scan-attrition-alerts')->dailyAt('07:30');
 // them at half past ten.
 Schedule::command('avana:remind-attendance')->hourlyAt(30);
 
+// Open the year's leave balances. Daily rather than once on 1 January so a
+// tenant onboarded mid-year, or one whose leave types were set up late, still
+// gets its rows without anyone remembering to run the command. Existing rows —
+// including quotas HR adjusted by hand — are left untouched.
+Schedule::command('avana:generate-leave-balance')->dailyAt('00:45');
+
 // Drop face-scan diagnostics past their 60-day retention window.
 Schedule::command('model:prune', ['--model' => [FaceScanLog::class]])->dailyAt('01:00');
 

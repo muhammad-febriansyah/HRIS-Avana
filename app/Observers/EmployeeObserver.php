@@ -4,14 +4,30 @@ namespace App\Observers;
 
 use App\Models\Employee;
 use App\Models\User;
+use App\Services\LeaveBalanceProvisioner;
 
 /**
  * Keeps an employee's login account in step with their "Status Karyawan":
  * marking an employee inactive blocks their app login and revokes any active
- * sessions; marking them active again restores access.
+ * sessions; marking them active again restores access. Also opens the leave
+ * balances of a new hire so they do not have to wait for the next yearly run.
  */
 final class EmployeeObserver
 {
+    /**
+     * Give a new active employee this year's leave balances straight away —
+     * without a row, their Cuti screen reads "Belum ada data saldo" and an
+     * approved leave deducts nothing.
+     */
+    public function created(Employee $employee): void
+    {
+        if ($employee->status === 'inactive') {
+            return;
+        }
+
+        LeaveBalanceProvisioner::forEmployee($employee, (int) now()->year);
+    }
+
     /**
      * React whenever the status — or the moment a login is first linked —
      * changes, and reconcile the login account's access.

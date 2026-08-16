@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Avana\StoreLeaveRequest;
 use App\Http\Resources\Avana\LeaveRequestResource;
 use App\Models\Employee;
+use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\OvertimeRequest;
@@ -110,18 +111,7 @@ class LeaveController extends Controller
                     'name' => $employee->full_name,
                     'employee_number' => $employee->employee_number,
                 ]),
-            // Only quota owners carry a balance; sub-types draw from the parent.
-            'balances' => LeaveType::forTenant($tenantId)
-                ->roots()
-                ->where('status', 'active')
-                ->get()
-                ->map(fn (LeaveType $leaveType): array => [
-                    'id' => $leaveType->id,
-                    'jenis' => $leaveType->name,
-                    'total' => $leaveType->default_quota,
-                    'sisa' => $leaveType->default_quota,
-                    'pct' => '100%',
-                ]),
+            'balances' => $this->tenantBalances($tenantId),
             'overtimeRequests' => OvertimeRequest::forTenant($tenantId)
                 ->with('employee:id,full_name,employee_number,branch_id')
                 ->latest('id')
@@ -235,6 +225,50 @@ class LeaveController extends Controller
     private function statusLabel(string $status): string
     {
         return self::STATUS_LABELS[$status] ?? $status;
+    }
+
+    /**
+     * The tenant-wide saldo cards: real days from `leave_balances` for the
+     * current year, summed per quota-owning leave type.
+     *
+     * These used to be drawn from the leave type's `default_quota` with a
+     * hardcoded "100%", so the cards read full no matter how much leave had
+     * been taken. A type nobody holds a balance for yet is still listed, at
+     * zero, so the gap is visible rather than hidden.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function tenantBalances(int $tenantId): array
+    {
+        $year = (int) now()->year;
+
+        $totals = LeaveBalance::forTenant($tenantId)
+            ->where('year', $year)
+            ->selectRaw('leave_type_id, SUM(quota) as quota, SUM(remaining) as remaining')
+            ->groupBy('leave_type_id')
+            ->get()
+            ->keyBy('leave_type_id');
+
+        return LeaveType::forTenant($tenantId)
+            ->roots()
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get()
+            ->map(function (LeaveType $leaveType) use ($totals): array {
+                $row = $totals->get($leaveType->id);
+                $total = (float) ($row->quota ?? 0);
+                $remaining = (float) ($row->remaining ?? 0);
+
+                return [
+                    'id' => $leaveType->id,
+                    'jenis' => $leaveType->name,
+                    'total' => $total,
+                    'sisa' => $remaining,
+                    'pct' => ($total > 0 ? round($remaining / $total * 100) : 0).'%',
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**
