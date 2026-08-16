@@ -10,6 +10,7 @@ use App\Models\LeaveType;
 use App\Services\ApprovalEngine;
 use App\Services\LeaveApproval;
 use App\Services\LeaveQuota;
+use App\Support\RequestDateClash;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -104,6 +105,17 @@ class EssLeaveController extends Controller
         $start = Carbon::parse($data['start_date']);
         $end = Carbon::parse($data['end_date']);
         $totalDays = $start->diffInDays($end) + 1;
+
+        $clash = RequestDateClash::check(
+            (int) $employee->tenant_id,
+            (int) $employee->id,
+            $start->toDateString(),
+            $end->toDateString(),
+        );
+
+        if ($clash !== null) {
+            return back()->withErrors(['start_date' => $clash]);
+        }
 
         $type = LeaveType::forTenant($employee->tenant_id)
             ->with('parent')

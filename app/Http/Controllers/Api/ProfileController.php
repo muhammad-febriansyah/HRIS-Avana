@@ -6,6 +6,7 @@ use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Support\MaritalStatus;
 use App\Support\PrivateFile;
+use App\Support\WorkingAge;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -34,7 +35,7 @@ class ProfileController extends Controller
             'nik' => ['nullable', 'digits:16'],
             'gender' => ['nullable', 'in:male,female'],
             'birth_place' => ['nullable', 'string', 'max:255'],
-            'birth_date' => ['nullable', 'date'],
+            'birth_date' => ['nullable', 'date', ...WorkingAge::birthDateRules()],
             'religion' => ['nullable', 'string', 'max:255'],
             'marital_status' => ['nullable', 'string', Rule::in(MaritalStatus::OPTIONS)],
         ], [
@@ -43,6 +44,7 @@ class ProfileController extends Controller
             'gender.in' => 'Jenis kelamin tidak valid.',
             'marital_status.in' => 'Status pernikahan tidak valid.',
             'birth_date.date' => 'Tanggal lahir tidak valid.',
+            'birth_date.before_or_equal' => WorkingAge::message(),
         ]);
 
         $employee->update($data);

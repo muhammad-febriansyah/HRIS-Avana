@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\WfhRequest;
 use App\Services\AutoApproval;
 use App\Support\FeatureGate;
+use App\Support\RequestDateClash;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -38,6 +39,17 @@ class WfhController extends Controller
         ]);
 
         $employee = Employee::forTenant($tenantId)->findOrFail($data['employee_id']);
+
+        $clash = RequestDateClash::check(
+            (int) $tenantId,
+            (int) $employee->id,
+            $data['start_date'],
+            $data['end_date'],
+        );
+
+        if ($clash !== null) {
+            return back()->withErrors(['start_date' => $clash]);
+        }
 
         $wfh = WfhRequest::create([
             'tenant_id' => $tenantId,

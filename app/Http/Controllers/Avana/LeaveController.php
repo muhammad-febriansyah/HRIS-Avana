@@ -18,6 +18,7 @@ use App\Services\LeaveApproval;
 use App\Support\FeatureGate;
 use App\Support\OvertimeRules;
 use App\Support\OvertimeWindow;
+use App\Support\RequestDateClash;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
@@ -285,6 +286,17 @@ class LeaveController extends Controller
 
         $start = Carbon::parse($data['start_date']);
         $end = Carbon::parse($data['end_date']);
+
+        $clash = RequestDateClash::check(
+            (int) $tenantId,
+            (int) $employee->id,
+            $start->toDateString(),
+            $end->toDateString(),
+        );
+
+        if ($clash !== null) {
+            return back()->withErrors(['start_date' => $clash]);
+        }
 
         $leave = LeaveRequest::create([
             'tenant_id' => $tenantId,

@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\Employee;
+use App\Models\LeaveRequest;
+use App\Models\LeaveType;
 use App\Models\PermissionRequest;
 use App\Models\Role;
 use App\Models\Tenant;
@@ -121,6 +123,69 @@ it('creates a pending izin request scoped to the tenant', function (): void {
     expect($izin->tenant_id)->toBe($this->tenant->id);
     expect($izin->type)->toBe('keluar_kantor');
     expect($izin->status)->toBe('pending');
+});
+
+it('refuses an izin on a date the employee already has approved off', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    LeaveRequest::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $employee->id,
+        'leave_type_id' => LeaveType::forTenant($this->tenant->id)->value('id'),
+        'start_date' => '2026-07-20',
+        'end_date' => '2026-07-22',
+        'total_days' => 3,
+        'status' => 'approved',
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.cuti.izin.store'), [
+            'employee_id' => $employee->id,
+            'start_date' => '2026-07-22',
+            'end_date' => '2026-07-23',
+            'type' => 'keluar_kantor',
+            'reason' => 'Bentrok dengan cuti',
+        ])
+        ->assertSessionHasErrors('start_date');
+
+    expect(PermissionRequest::where('employee_id', $employee->id)
+        ->whereDate('start_date', '2026-07-22')
+        ->exists())->toBeFalse();
+
+    // The day after the leave ends is free, so it still goes through.
+    actingAs($this->admin)
+        ->post(route('avana.cuti.izin.store'), [
+            'employee_id' => $employee->id,
+            'start_date' => '2026-07-23',
+            'end_date' => '2026-07-23',
+            'type' => 'keluar_kantor',
+            'reason' => 'Di luar tanggal cuti',
+        ])
+        ->assertSessionHasNoErrors();
+});
+
+it('refuses a WFH request that overlaps an izin already submitted', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    makePermissionRequest($this->tenant->id, [
+        'employee_id' => $employee->id,
+        'start_date' => '2026-08-03',
+        'end_date' => '2026-08-04',
+        'status' => 'approved',
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.cuti.wfh.store'), [
+            'employee_id' => $employee->id,
+            'start_date' => '2026-08-04',
+            'end_date' => '2026-08-05',
+            'reason' => 'Bentrok dengan izin',
+        ])
+        ->assertSessionHasErrors('start_date');
+
+    expect(WfhRequest::where('employee_id', $employee->id)
+        ->whereDate('start_date', '2026-08-04')
+        ->exists())->toBeFalse();
 });
 
 it('creates an izin spanning several days', function (): void {

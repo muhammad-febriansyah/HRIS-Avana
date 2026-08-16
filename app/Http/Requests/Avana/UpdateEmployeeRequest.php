@@ -10,6 +10,7 @@ use App\Models\CustomField;
 use App\Models\Employee;
 use App\Support\MaritalStatus;
 use App\Support\Pph21Ter;
+use App\Support\WorkingAge;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -55,7 +56,7 @@ class UpdateEmployeeRequest extends FormRequest
             'phone' => ['required', 'string', 'max:50'],
             'nik' => ['required', 'digits:16'],
             'gender' => ['required', 'in:male,female'],
-            'birth_date' => ['required', 'date'],
+            'birth_date' => ['required', 'date', ...WorkingAge::birthDateRules()],
             'birth_place' => ['required', 'string', 'max:255'],
             'religion' => ['required', 'string', 'max:255'],
             'marital_status' => ['required', 'string', Rule::in(MaritalStatus::OPTIONS)],
@@ -189,6 +190,7 @@ class UpdateEmployeeRequest extends FormRequest
             'gender.required' => 'Jenis kelamin wajib dipilih.',
             'birth_place.required' => 'Tempat lahir wajib diisi.',
             'birth_date.required' => 'Tanggal lahir wajib diisi.',
+            'birth_date.before_or_equal' => WorkingAge::message(),
             'religion.required' => 'Agama wajib dipilih.',
             'marital_status.required' => 'Status pernikahan wajib dipilih.',
             'marital_status.in' => 'Status pernikahan tidak valid.',

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\WfhRequest;
 use App\Services\AutoApproval;
 use App\Support\FeatureGate;
+use App\Support\RequestDateClash;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -48,6 +49,17 @@ class WfhController extends Controller
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'reason' => ['nullable', 'string', 'max:1000'],
         ]);
+
+        $clash = RequestDateClash::check(
+            (int) $employee->tenant_id,
+            (int) $employee->id,
+            $data['start_date'],
+            $data['end_date'],
+        );
+
+        if ($clash !== null) {
+            return response()->json(['message' => $clash], 422);
+        }
 
         $wfh = WfhRequest::create([
             'tenant_id' => $employee->tenant_id,

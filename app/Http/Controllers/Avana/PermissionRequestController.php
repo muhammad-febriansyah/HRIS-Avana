@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\PermissionRequest;
 use App\Services\ApprovalEngine;
+use App\Support\RequestDateClash;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -38,6 +39,17 @@ class PermissionRequestController extends Controller
         ]);
 
         $employee = Employee::forTenant($tenantId)->findOrFail((int) $data['employee_id']);
+
+        $clash = RequestDateClash::check(
+            (int) $tenantId,
+            (int) $employee->id,
+            $data['start_date'],
+            $data['end_date'],
+        );
+
+        if ($clash !== null) {
+            return back()->withErrors(['start_date' => $clash]);
+        }
 
         $permission = PermissionRequest::create([
             'tenant_id' => $tenantId,

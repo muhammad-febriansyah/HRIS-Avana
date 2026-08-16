@@ -171,6 +171,25 @@ it('lets a PKWTT contract skip the end date but not a PKWT one', function (): vo
         ->assertSessionHasErrors('contract_end_date');
 });
 
+it('refuses a birth date that puts the employee under 17', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
+            'full_name' => 'Belum Cukup Umur',
+            'birth_date' => today()->subYears(16)->toDateString(),
+        ]))
+        ->assertSessionHasErrors('birth_date');
+
+    expect(Employee::where('full_name', 'Belum Cukup Umur')->exists())->toBeFalse();
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
+            'full_name' => 'Pas Tujuh Belas',
+            'birth_date' => today()->subYears(17)->toDateString(),
+        ]))
+        ->assertRedirect(route('avana.employees.index'))
+        ->assertSessionHasNoErrors();
+});
+
 it('accepts a marital status from the fixed list', function (): void {
     $branch = Branch::forTenant($this->tenant->id)->first();
 

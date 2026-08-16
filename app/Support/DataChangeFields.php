@@ -116,6 +116,11 @@ final class DataChangeFields
             $rules[] = Rule::in(self::FIELD_OPTIONS[$key]);
         }
 
+        // The age floor is relative to today, so it cannot live in the constant.
+        if ($key === 'birth_date') {
+            $rules = [...$rules, ...WorkingAge::birthDateRules()];
+        }
+
         return $rules;
     }
 

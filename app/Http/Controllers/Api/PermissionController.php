@@ -6,6 +6,7 @@ use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\PermissionRequest;
 use App\Services\ApprovalEngine;
+use App\Support\RequestDateClash;
 use Closure;
 use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
@@ -53,6 +54,17 @@ class PermissionController extends Controller
             'end_time' => ['nullable', 'date_format:H:i', 'after:start_time', self::singleDayOnly($request)],
             'reason' => ['nullable', 'string', 'max:1000'],
         ]);
+
+        $clash = RequestDateClash::check(
+            (int) $employee->tenant_id,
+            (int) $employee->id,
+            $data['start_date'],
+            $data['end_date'],
+        );
+
+        if ($clash !== null) {
+            return response()->json(['message' => $clash], 422);
+        }
 
         $permission = PermissionRequest::create([
             'tenant_id' => $employee->tenant_id,

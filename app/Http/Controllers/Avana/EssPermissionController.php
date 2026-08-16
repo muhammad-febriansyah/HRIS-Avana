@@ -6,6 +6,7 @@ use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\PermissionRequest;
 use App\Services\ApprovalEngine;
+use App\Support\RequestDateClash;
 use Closure;
 use DateTimeInterface;
 use Illuminate\Http\RedirectResponse;
@@ -85,6 +86,17 @@ class EssPermissionController extends Controller
             'type.required' => 'Jenis izin wajib dipilih.',
             'end_time.after' => 'Jam selesai harus setelah jam mulai.',
         ]);
+
+        $clash = RequestDateClash::check(
+            (int) $employee->tenant_id,
+            (int) $employee->id,
+            $data['start_date'],
+            $data['end_date'],
+        );
+
+        if ($clash !== null) {
+            return back()->withErrors(['start_date' => $clash]);
+        }
 
         $permission = PermissionRequest::create([
             'tenant_id' => $employee->tenant_id,
