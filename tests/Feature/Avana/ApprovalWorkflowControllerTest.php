@@ -2,6 +2,8 @@
 
 use App\Models\ApprovalStep;
 use App\Models\ApprovalWorkflow;
+use App\Models\Department;
+use App\Models\Employee;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -222,7 +224,7 @@ it('refuses a second workflow for a module that already has one', function (): v
 });
 
 it('allows a division-scoped workflow beside the tenant-wide default', function (): void {
-    $department = App\Models\Department::forTenant($this->tenant->id)->firstOrFail();
+    $department = Department::forTenant($this->tenant->id)->firstOrFail();
 
     actingAs($this->admin)
         ->post(route('avana.approval-workflow.store'), workflowPayload($this->tenant->id))
@@ -246,7 +248,7 @@ it('allows a division-scoped workflow beside the tenant-wide default', function 
 });
 
 it('refuses a second workflow for the same module and division', function (): void {
-    $department = App\Models\Department::forTenant($this->tenant->id)->firstOrFail();
+    $department = Department::forTenant($this->tenant->id)->firstOrFail();
 
     actingAs($this->admin)
         ->post(route('avana.approval-workflow.store'), workflowPayload($this->tenant->id, [
@@ -330,4 +332,39 @@ it('tells the wizard which modules are already taken', function (): void {
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->where('workflows.0.request_type', 'leave'));
+});
+
+it('labels a named approver with the employee, not whoever owns that user id', function (): void {
+    // `approver_user_id` holds an EMPLOYEE id. The preview used to read it as a
+    // user id, so a step aimed at employee 34 was announced under the name of
+    // user 34 — a different person entirely whenever the two sequences drifted.
+    $employee = Employee::forTenant($this->tenant->id)
+        ->whereNotNull('user_id')
+        ->whereColumn('id', '!=', 'user_id')
+        ->firstOrFail();
+
+    $decoy = User::find($employee->getKey());
+
+    expect($decoy?->name)->not->toBe($employee->full_name);
+
+    $workflow = ApprovalWorkflow::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Persetujuan Cuti',
+        'request_type' => 'leave',
+        'approval_mode' => 'sequential',
+        'is_active' => true,
+    ]);
+
+    $workflow->steps()->create([
+        'tenant_id' => $this->tenant->id,
+        'step_order' => 1,
+        'approver_type' => 'specific_user',
+        'approver_user_id' => $employee->getKey(),
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.approval-workflow'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('workflows.0.steps.0.approver_label', $employee->full_name));
 });

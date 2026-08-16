@@ -153,6 +153,19 @@ export default function Wizard({
         [modules, requestType],
     );
 
+    // Re-scoping the tenant-wide flow to one division does not add an
+    // exception — it MOVES the only flow the module has, and every other
+    // division silently drops back to single-step manager routing. A tenant
+    // lost its whole leave chain that way, so the wizard now says it out loud.
+    const narrowsDefaultScope =
+        mode === 'edit' &&
+        workflow?.department_id == null &&
+        departmentId !== null;
+
+    const scopeLabel =
+        options.departments.find((d) => d.value === departmentId)?.label ??
+        'divisi ini';
+
     /* ---------- step helpers ---------- */
 
     const patchStep = (uidKey: string, patch: Partial<StepDraft>) =>
@@ -193,6 +206,26 @@ export default function Wizard({
         setSteps((prev) =>
             prev.length <= 1 ? prev : prev.filter((s) => s.uid !== uidKey),
         );
+
+    /**
+     * Swap a step with its neighbour. Array order IS the approval order — the
+     * controller numbers `step_order` from the payload's index — so reordering
+     * here is what fixes a chain that was entered upside down.
+     */
+    const moveStep = (uidKey: string, direction: -1 | 1) =>
+        setSteps((prev) => {
+            const from = prev.findIndex((s) => s.uid === uidKey);
+            const to = from + direction;
+
+            if (from === -1 || to < 0 || to >= prev.length) {
+                return prev;
+            }
+
+            const next = [...prev];
+            [next[from], next[to]] = [next[to], next[from]];
+
+            return next;
+        });
 
     /* ---------- condition helpers ---------- */
 
@@ -441,6 +474,7 @@ export default function Wizard({
                                 Berlaku untuk Divisi
                             </div>
                             <select
+                                name="department_id"
                                 value={departmentId ?? ''}
                                 onChange={(e) =>
                                     setDepartmentId(
@@ -481,14 +515,15 @@ export default function Wizard({
                                 Divisi yang punya alurnya sendiri memakai alur
                                 itu; divisi lain memakai alur "Semua Divisi".
                             </div>
+                            {narrowsDefaultScope && (
+                                <ScopeWarning scopeLabel={scopeLabel} />
+                            )}
                         </div>
                         <ModuleStep
                             modules={modules}
                             taken={takenModules
                                 .filter((scope) =>
-                                    scope.endsWith(
-                                        `#${departmentId ?? 0}`,
-                                    ),
+                                    scope.endsWith(`#${departmentId ?? 0}`),
                                 )
                                 .map((scope) => scope.split('#')[0])}
                             value={requestType}
@@ -515,8 +550,13 @@ export default function Wizard({
                         setRefValue={setRefValue}
                         changeApproverType={changeApproverType}
                         removeStep={removeStep}
+                        moveStep={moveStep}
                         addStep={addStep}
                     />
+                )}
+
+                {current === 4 && narrowsDefaultScope && (
+                    <ScopeWarning scopeLabel={scopeLabel} />
                 )}
 
                 {current === 4 && (
@@ -942,6 +982,7 @@ function ApproverStep({
     setRefValue,
     changeApproverType,
     removeStep,
+    moveStep,
     addStep,
 }: {
     steps: StepDraft[];
@@ -951,6 +992,7 @@ function ApproverStep({
     setRefValue: (s: StepDraft, v: number | null) => void;
     changeApproverType: (uid: string, t: string) => void;
     removeStep: (uid: string) => void;
+    moveStep: (uid: string, direction: -1 | 1) => void;
     addStep: () => void;
 }) {
     return (
@@ -960,10 +1002,16 @@ function ApproverStep({
                     fontSize: 15,
                     fontWeight: 600,
                     color: C.navy,
-                    marginBottom: 14,
+                    marginBottom: 5,
                 }}
             >
                 Konfigurasi Approver
+            </div>
+            <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>
+                Urutan kartu adalah urutan persetujuan: Step 1 memutuskan lebih
+                dulu, step berikutnya baru menerima pengajuan setelah step
+                sebelumnya menyetujui. Pakai tombol panah untuk memindahkan
+                step.
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {steps.map((s, i) => {
@@ -993,20 +1041,26 @@ function ApproverStep({
                                     paddingBottom: 8,
                                 }}
                             >
-                                <span
-                                    title="Geser untuk mengurutkan"
+                                <div
                                     style={{
-                                        color: C.faint,
-                                        cursor: 'grab',
                                         display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 2,
                                     }}
                                 >
-                                    <AIcon
-                                        name="grip-vertical"
-                                        size={16}
-                                        color={C.faint}
+                                    <ReorderButton
+                                        icon="chevron-up"
+                                        title={`Naikkan step ${i + 1}`}
+                                        disabled={i === 0}
+                                        onClick={() => moveStep(s.uid, -1)}
                                     />
-                                </span>
+                                    <ReorderButton
+                                        icon="chevron-down"
+                                        title={`Turunkan step ${i + 1}`}
+                                        disabled={i === steps.length - 1}
+                                        onClick={() => moveStep(s.uid, 1)}
+                                    />
+                                </div>
                                 <span
                                     style={{
                                         width: 26,
@@ -1038,6 +1092,7 @@ function ApproverStep({
                             <div style={{ flex: 1, minWidth: 180 }}>
                                 <label style={fieldLabel}>Tipe Approver</label>
                                 <select
+                                    name={`approver_type_${i}`}
                                     value={s.approver_type}
                                     onChange={(e) =>
                                         changeApproverType(
@@ -1152,6 +1207,89 @@ function ApproverStep({
                 Tambah Step
             </button>
         </div>
+    );
+}
+
+/**
+ * Shown when an edit would move the module's only flow — the tenant-wide
+ * default — onto a single division, which leaves every other division with no
+ * flow at all rather than adding an exception for one of them.
+ */
+function ScopeWarning({ scopeLabel }: { scopeLabel: string }) {
+    return (
+        <div
+            role="alert"
+            style={{
+                display: 'flex',
+                gap: 10,
+                alignItems: 'flex-start',
+                marginTop: 12,
+                padding: '12px 14px',
+                border: `1px solid ${C.amber}`,
+                borderRadius: 10,
+                background: 'rgba(217,119,6,.07)',
+            }}
+        >
+            <AIcon
+                name="alert-triangle"
+                size={17}
+                color={C.amber}
+                style={{ flex: 'none', marginTop: 1 }}
+            />
+            <div style={{ fontSize: 12.5, lineHeight: 1.55, color: C.text }}>
+                <div style={{ fontWeight: 600, marginBottom: 2 }}>
+                    Alur default akan dipindah, bukan ditambah
+                </div>
+                Alur ini sekarang berlaku untuk semua divisi. Kalau diubah ke{' '}
+                <strong>{scopeLabel}</strong>, divisi lain kehilangan alur untuk
+                modul ini — pengajuan mereka kembali ke rute lama: satu tahap ke
+                atasan langsung saja. Kalau maksudnya membuat pengecualian untuk
+                satu divisi, kembalikan pilihan ini ke "Semua Divisi", simpan,
+                lalu buat alur baru khusus divisi tersebut.
+            </div>
+        </div>
+    );
+}
+
+/** One arrow of the step reorder control (up or down). */
+function ReorderButton({
+    icon,
+    title,
+    disabled,
+    onClick,
+}: {
+    icon: 'chevron-up' | 'chevron-down';
+    title: string;
+    disabled: boolean;
+    onClick: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            title={title}
+            aria-label={title}
+            style={{
+                height: 19,
+                width: 22,
+                border: `1px solid ${C.border}`,
+                borderRadius: 5,
+                background: '#fff',
+                padding: 0,
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: disabled ? 0.45 : 1,
+            }}
+        >
+            <AIcon
+                name={icon}
+                size={13}
+                color={disabled ? C.faint : C.primary}
+            />
+        </button>
     );
 }
 

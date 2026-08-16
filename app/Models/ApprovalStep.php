@@ -32,9 +32,16 @@ final class ApprovalStep extends Model
         return $this->belongsTo(ApprovalWorkflow::class, 'approval_workflow_id');
     }
 
-    public function approverUser(): BelongsTo
+    /**
+     * The named approver of a `specific_user` step. Despite the column name,
+     * `approver_user_id` holds an EMPLOYEE id: the wizard picks from employees,
+     * the store validation is `exists:employees,id` and ApprovalEngine resolves
+     * it with `Employee::find()`. Reading it as a user id names whoever happens
+     * to own that id in `users`, which is a different person.
+     */
+    public function approverEmployee(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'approver_user_id');
+        return $this->belongsTo(Employee::class, 'approver_user_id');
     }
 
     public function approverRole(): BelongsTo

@@ -82,7 +82,7 @@ class ApprovalWorkflowController extends Controller
         $workflows = ApprovalWorkflow::forTenant($tenantId)
             ->with([
                 'department:id,name',
-                'steps.approverUser:id,name',
+                'steps.approverEmployee:id,full_name',
                 'steps.approverRole:id,name',
                 'steps.approverDepartment:id,name',
                 'steps.approverPosition:id,name',
@@ -369,7 +369,7 @@ class ApprovalWorkflowController extends Controller
             'role' => $step->approverRole?->name ?? 'Role',
             'department' => $step->approverDepartment?->name ?? 'Departemen',
             'position' => $step->approverPosition?->name ?? 'Jabatan',
-            'specific_user' => $step->approverUser?->name ?? 'Karyawan',
+            'specific_user' => $step->approverEmployee?->full_name ?? 'Karyawan',
             default => ucwords(str_replace('_', ' ', (string) $step->approver_type)),
         };
     }

@@ -39,6 +39,7 @@ use App\Models\SocialCategory;
 use App\Models\Survey;
 use App\Models\SurveyQuestion;
 use App\Models\SurveyResponse;
+use App\Models\TaxProfile;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WorkLocation;
@@ -703,6 +704,11 @@ final class AvanaDemoSeeder extends Seeder
             return;
         }
 
+        // `approver_user_id` stores an EMPLOYEE id, not the admin's user id.
+        $adminEmployeeId = Employee::forTenant($tenant->id)
+            ->where('user_id', $admin->id)
+            ->value('id');
+
         // name => [request_type, [step approver types in order]]
         $workflows = [
             'Cuti 2 Level (Demo)' => ['leave', ['direct_manager', 'specific_user']],
@@ -725,7 +731,7 @@ final class AvanaDemoSeeder extends Seeder
                     'tenant_id' => $tenant->id,
                     'step_order' => $index + 1,
                     'approver_type' => $approverType,
-                    'approver_user_id' => $approverType === 'specific_user' ? $admin->id : null,
+                    'approver_user_id' => $approverType === 'specific_user' ? $adminEmployeeId : null,
                 ]);
             }
         }
@@ -1400,7 +1406,7 @@ final class AvanaDemoSeeder extends Seeder
                     'job_level_id' => $jobLevel->id,
                     'full_name' => $row['nama'],
                     'email' => $row['email'],
-                    'gender' => 'unspecified',
+                    'gender' => null,
                     'birth_date' => $this->parseIndoDate($row['lahir']),
                     'employment_status' => $employmentMap[$row['status']],
                     'join_date' => $this->parseIndoDate($row['masuk']),
@@ -1462,7 +1468,7 @@ final class AvanaDemoSeeder extends Seeder
                 'job_level_id' => $execLevel->id,
                 'full_name' => 'Hendra Wijaya',
                 'email' => 'direktur@nusantara.co.id',
-                'gender' => 'unspecified',
+                'gender' => 'male',
                 'birth_date' => $this->parseIndoDate('11 Mar 1978'),
                 'employment_status' => 'permanent',
                 'join_date' => $this->parseIndoDate('02 Jan 2018'),
@@ -1557,6 +1563,35 @@ final class AvanaDemoSeeder extends Seeder
             ['tenant_id' => $tenant->id, 'payroll_period_id' => $period->id, 'branch_id' => null],
             ['status' => 'draft', 'total_gross' => 5120000000, 'total_deduction' => 186000000, 'total_tax' => 114000000, 'total_net' => 4820000000, 'employee_count' => 1248],
         );
+
+        $this->seedTaxProfiles($tenant);
+    }
+
+    /**
+     * A PTKP status for everyone.
+     *
+     * Payroll refuses to run for an employee whose PTKP status is missing or
+     * unmapped — withholding on a guessed Kategori A is the wrong tax quietly
+     * charged — so demo data has to carry one, the same as real data must.
+     */
+    private function seedTaxProfiles(Tenant $tenant): void
+    {
+        $statuses = ['TK/0', 'TK/1', 'K/0', 'K/1', 'K/2', 'K/3'];
+
+        Employee::forTenant($tenant->id)
+            ->orderBy('id')
+            ->get(['id'])
+            ->each(function (Employee $employee, int $index) use ($tenant, $statuses): void {
+                TaxProfile::firstOrCreate(
+                    ['tenant_id' => $tenant->id, 'employee_id' => $employee->id],
+                    [
+                        'ptkp_status' => $statuses[$index % count($statuses)],
+                        'tax_method' => 'gross',
+                        'tax_subject' => 'pegawai_tetap',
+                        'effective_start_date' => '2026-01-01',
+                    ],
+                );
+            });
     }
 
     private function seedStatutory(): void

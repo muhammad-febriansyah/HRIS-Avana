@@ -1250,7 +1250,10 @@ class ClientModuleDataSeeder extends Seeder
                     'approval_workflow_id' => $workflow->id,
                     'step_order' => $order,
                     'approver_type' => $role,
-                    'approver_user_id' => $role === 'manager' ? null : $admin->id,
+                    // EMPLOYEE id — see ApprovalStep::approverEmployee().
+                    'approver_user_id' => $role === 'manager'
+                        ? null
+                        : Employee::forTenant($tenant->id)->where('user_id', $admin->id)->value('id'),
                     'approver_role_id' => null,
                 ]);
             }
