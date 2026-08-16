@@ -6,6 +6,7 @@ use App\Models\ApprovalStep;
 use App\Models\ApprovalWorkflow;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
+use App\Models\Department;
 use App\Models\Employee;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
@@ -70,7 +71,7 @@ function twoStepLeaveWorkflow(int $tenantId, int $specificApproverEmployeeId): A
 }
 
 it('prefers the requester division\'s own workflow over the tenant default', function (): void {
-    $department = App\Models\Department::forTenant($this->tenant->id)->firstOrFail();
+    $department = Department::forTenant($this->tenant->id)->firstOrFail();
     $this->subject->update(['department_id' => $department->id]);
 
     // Tenant-wide default: two steps starting at the direct manager.
@@ -114,7 +115,7 @@ it('prefers the requester division\'s own workflow over the tenant default', fun
 });
 
 it('falls back to the tenant default for a division without its own workflow', function (): void {
-    $departments = App\Models\Department::forTenant($this->tenant->id)->orderBy('id')->take(2)->get();
+    $departments = Department::forTenant($this->tenant->id)->orderBy('id')->take(2)->get();
     expect($departments)->toHaveCount(2);
 
     // Scoped flow belongs to the OTHER division; the requester sits elsewhere.
@@ -646,7 +647,7 @@ it('advances the workflow when approving from the approval center', function ():
     // skipped step 2 entirely and left the instance stranded on step 1.
     actingAs($this->admin)
         ->post(route('avana.approval.approve', ['type' => 'leave', 'id' => $leave->id]))
-        ->assertSessionHas('success', 'Persetujuan tercatat, menunggu tahap berikutnya');
+        ->assertSessionHas('success', 'Persetujuan tahap 1 dari 2 tercatat — pengajuan ini masih menunggu tahap 2.');
 
     $leave->refresh();
     expect($leave->status)->toBe('pending');

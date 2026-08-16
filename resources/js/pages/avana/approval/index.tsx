@@ -1,5 +1,5 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import ApprovalController from '@/actions/App/Http/Controllers/Avana/ApprovalController';
 import { AIcon, C } from '@/lib/avana';
@@ -24,11 +24,19 @@ export default function AvanaApproval({
 }: ApprovalProps) {
     const { flash } = usePage<FlashProps>().props;
 
+    // One toast per response, no more and no less. Keying on the message alone
+    // swallowed the second of two identical decisions; keying on a counter
+    // showed that decision twice, because the message and the counter land in
+    // separate renders. The flash object itself is new on every response and
+    // stable within one, so it is the thing to compare.
+    const announced = useRef<unknown>(null);
+
     useEffect(() => {
-        if (flash?.success) {
-            toast.success(flash.success, { id: flash.success });
+        if (flash?.success && announced.current !== flash) {
+            announced.current = flash;
+            toast.success(flash.success);
         }
-    }, [flash?.success]);
+    });
 
     /**
      * Paging and filtering live in the URL: the tables are paginated
@@ -56,19 +64,22 @@ export default function AvanaApproval({
     const setPerPage = (perPage: number) =>
         visit({ ...base, per_page: perPage, halaman: 1, halaman_riwayat: 1 });
 
-    const approve = (item: ApprovalItem) =>
+    const decide = (item: ApprovalItem, action: 'approve' | 'reject') =>
         router.post(
-            ApprovalController.approve({ type: item.type, id: item.id }).url,
+            ApprovalController[action]({ type: item.type, id: item.id }).url,
             {},
-            { preserveScroll: true },
+            {
+                preserveScroll: true,
+                // The component has to survive the visit for the guard above to
+                // remember what it already announced; the props still refresh,
+                // so the decided request leaves the list either way.
+                preserveState: true,
+            },
         );
 
-    const reject = (item: ApprovalItem) =>
-        router.post(
-            ApprovalController.reject({ type: item.type, id: item.id }).url,
-            {},
-            { preserveScroll: true },
-        );
+    const approve = (item: ApprovalItem) => decide(item, 'approve');
+
+    const reject = (item: ApprovalItem) => decide(item, 'reject');
 
     return (
         <>

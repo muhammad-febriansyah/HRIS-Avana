@@ -115,6 +115,17 @@ it('lets the manager the workflow named approve from the web', function (): void
     expect($instance->status)->toBe('pending');
 });
 
+it('says which step was recorded when the flow has another one', function (): void {
+    $leave = ($this->submitLeave)();
+
+    // "Persetujuan tercatat" alone read as a click that did nothing, because
+    // the request is still in the queue for the next step.
+    actingAs($this->manager->user)
+        ->post(route('avana.approval.approve', ['type' => 'leave', 'id' => $leave->id]))
+        ->assertSessionHas('success', fn (string $message): bool => str_contains($message, 'tahap 1 dari 2')
+            && str_contains($message, 'menunggu tahap 2'));
+});
+
 it('hands the second step to HC and finishes there', function (): void {
     $leave = ($this->submitLeave)();
 

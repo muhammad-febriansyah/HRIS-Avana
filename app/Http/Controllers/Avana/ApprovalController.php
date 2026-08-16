@@ -270,9 +270,18 @@ class ApprovalController extends Controller
         }
 
         // A multi-step workflow only advanced here; do not claim it is done.
-        return back()->with('success', $model->fresh()?->getAttribute('status') === 'approved'
-            ? self::MESSAGES[$type]['approve']
-            : 'Persetujuan tercatat, menunggu tahap berikutnya');
+        if ($model->fresh()?->getAttribute('status') === 'approved') {
+            return back()->with('success', self::MESSAGES[$type]['approve']);
+        }
+
+        // Naming the step is the whole point: the request stays in the queue
+        // because the flow has another level, not because the click was lost.
+        $progress = ApprovalEngine::progress($model);
+
+        return back()->with('success', $progress === null
+            ? 'Persetujuan tercatat, menunggu tahap berikutnya'
+            : 'Persetujuan tahap '.($progress['step'] - 1).' dari '.$progress['total']
+                .' tercatat — pengajuan ini masih menunggu tahap '.$progress['step'].'.');
     }
 
     /**

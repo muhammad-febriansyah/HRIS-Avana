@@ -340,6 +340,41 @@ class ApprovalEngine
     }
 
     /**
+     * Where a still-pending request sits in its workflow, or null when it is
+     * not workflow-driven.
+     *
+     * The approval screen needs this to say "tahap 1 dari 2" out loud: a
+     * two-level flow leaves the request in the queue after the first approval,
+     * and without naming the step that reads as a button that did nothing.
+     *
+     * @return array{step: int, total: int}|null
+     */
+    public static function progress(Model $approvable): ?array
+    {
+        $instance = ApprovalRequest::query()
+            ->where('approvable_type', $approvable::class)
+            ->where('approvable_id', $approvable->getKey())
+            ->where('status', 'pending')
+            ->with('workflow.steps')
+            ->first();
+
+        if ($instance === null || $instance->workflow === null) {
+            return null;
+        }
+
+        $total = self::effectiveSteps($instance->workflow, $approvable)->count();
+
+        if ($total === 0) {
+            return null;
+        }
+
+        return [
+            'step' => min((int) $instance->current_step, $total),
+            'total' => $total,
+        ];
+    }
+
+    /**
      * Approvable ids of pending, workflow-driven requests of the given type the
      * manager may act on but which are not routed to them by `current_approver_id`.
      * Sequential: the current step is a group (role/department/position) they
