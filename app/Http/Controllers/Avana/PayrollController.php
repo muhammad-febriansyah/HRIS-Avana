@@ -372,7 +372,7 @@ class PayrollController extends Controller
      */
     private function payrollInputChanges(int $tenantId, ?PayrollPeriod $period): array
     {
-        $changes = ['konfigurasi payroll (komponen, Master Gaji, gaji karyawan, lembur, denda, payday, BPJS)' => $this->latestConfigChangeAt($tenantId)];
+        $changes = ['konfigurasi payroll (komponen, Master Gaji, gaji karyawan, lembur, denda, payday, BPJS)' => $this->latestConfigChangeAt($tenantId, $period)];
 
         $start = $period?->start_date?->toDateString();
         $end = $period?->end_date?->toDateString();
@@ -406,17 +406,33 @@ class PayrollController extends Controller
      * components and their values, salary templates and per-employee rows,
      * overtime policy/multipliers, late-fine tiers, payday groups and BPJS
      * enrolments.
+     *
+     * Salary rows are dated, so they are judged against the period rather than
+     * counted wholesale: a raise that starts in October cannot change what an
+     * August run pays, and warning about it told HR to recompute a period the
+     * change never touches.
      */
-    private function latestConfigChangeAt(int $tenantId): ?string
+    private function latestConfigChangeAt(int $tenantId, ?PayrollPeriod $period = null): ?string
     {
         $masterIds = DB::table('salary_masters')->where('tenant_id', $tenantId)->pluck('id');
+        $start = $period?->start_date?->toDateString();
+        $end = $period?->end_date?->toDateString();
 
         $stamps = [
             DB::table('payroll_components')->where('tenant_id', $tenantId)->max('updated_at'),
             DB::table('payroll_component_values')->where('tenant_id', $tenantId)->max('updated_at'),
             DB::table('salary_masters')->where('tenant_id', $tenantId)->max('updated_at'),
             $masterIds->isEmpty() ? null : DB::table('salary_master_components')->whereIn('salary_master_id', $masterIds)->max('updated_at'),
-            DB::table('employee_salary_components')->where('tenant_id', $tenantId)->max('updated_at'),
+            DB::table('employee_salary_components')
+                ->where('tenant_id', $tenantId)
+                ->when($start !== null && $end !== null, fn ($query) => $query
+                    ->where(fn ($from) => $from
+                        ->whereNull('effective_start_date')
+                        ->orWhereDate('effective_start_date', '<=', $end))
+                    ->where(fn ($to) => $to
+                        ->whereNull('effective_end_date')
+                        ->orWhereDate('effective_end_date', '>=', $start)))
+                ->max('updated_at'),
             DB::table('overtime_policies')->where('tenant_id', $tenantId)->max('updated_at'),
             DB::table('overtime_rates')->where('tenant_id', $tenantId)->max('updated_at'),
             DB::table('attendance_penalty_rules')->where('tenant_id', $tenantId)->max('updated_at'),

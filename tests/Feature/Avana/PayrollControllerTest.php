@@ -484,6 +484,42 @@ it('flags the shown run as stale after a payroll config edit', function (): void
         ->assertInertia(fn (Assert $page) => $page->where('stale_run', true));
 });
 
+it('ignores a salary row that only takes effect after the period', function (): void {
+    actingAs($this->admin)->post('spec-avana/payroll/run')->assertSessionHas('success');
+
+    $period = PayrollPeriod::forTenant($this->tenant->id)->orderByDesc('start_date')->firstOrFail();
+    $employee = Employee::forTenant($this->tenant->id)->whereNotNull('position_id')->orderBy('id')->firstOrFail();
+
+    $this->travel(1)->minutes();
+
+    // A raise dated after the period cannot change what this run pays, so it is
+    // no reason to tell HR to recompute it.
+    EmployeeSalaryComponent::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $employee->id,
+        'payroll_component_id' => payrollComponent($this->tenant->id, 'BASIC')->id,
+        'amount' => 12_000_000,
+        'effective_start_date' => $period->end_date->copy()->addMonth()->toDateString(),
+    ]);
+
+    actingAs($this->admin)
+        ->get('spec-avana/payroll')
+        ->assertInertia(fn (Assert $page) => $page->where('stale_run', false));
+
+    // One that is in force during the period still is.
+    EmployeeSalaryComponent::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $employee->id,
+        'payroll_component_id' => payrollComponent($this->tenant->id, 'BASIC')->id,
+        'amount' => 11_000_000,
+        'effective_start_date' => $period->start_date->toDateString(),
+    ]);
+
+    actingAs($this->admin)
+        ->get('spec-avana/payroll')
+        ->assertInertia(fn (Assert $page) => $page->where('stale_run', true));
+});
+
 it('counts a late arrival as a worked day, like the rekap does', function (): void {
     $employee = Employee::forTenant($this->tenant->id)->whereNotNull('position_id')->orderBy('id')->firstOrFail();
 
