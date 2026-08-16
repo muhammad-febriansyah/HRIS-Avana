@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Exceptions\Pph21ConfigurationException;
+use App\Exports\PayrollTransferExport;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Avana\PayrollPeriodResource;
 use App\Models\Attendance;
 use App\Models\AttendancePenalty;
 use App\Models\AuditLog;
 use App\Models\BpjsProgram;
+use App\Models\Company;
 use App\Models\DayCalcMethod;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
@@ -45,12 +47,15 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Maatwebsite\Excel\Facades\Excel;
 use Mpdf\Mpdf;
 use Mpdf\Output\Destination;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PayrollController extends Controller
@@ -907,7 +912,7 @@ class PayrollController extends Controller
      * Export the bank transfer file (net pay per employee) for the latest run,
      * in a selectable per-bank column layout (?bank=bca|mandiri|bni|bri).
      */
-    public function transferFile(Request $request): StreamedResponse|RedirectResponse
+    public function transferFile(Request $request): StreamedResponse|BinaryFileResponse|RedirectResponse
     {
         $this->authorize('export', PayrollPeriod::class);
 
@@ -941,6 +946,14 @@ class PayrollController extends Controller
 
         $periodCode = $run->period?->code ?? 'run-'.$run->id;
         $note = (str_starts_with($periodCode, 'THR-') ? 'THR ' : 'Gaji ').($run->period?->name ?? $periodCode);
+
+        // The generic layout is the sheet finance reads and forwards, so it goes
+        // out as a proper document. The per-bank layouts stay bare CSV: an
+        // upload form rejects a file carrying a letterhead.
+        if ($format === 'generic') {
+            return $this->transferWorkbook($request, $run, $periodCode, $note);
+        }
+
         $filename = 'transfer-'.$format.'-'.$periodCode.'-'.now()->format('Y-m-d').'.csv';
 
         return response()->streamDownload(function () use ($run, $format, $header, $note): void {
@@ -973,6 +986,47 @@ class PayrollController extends Controller
 
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
+    /**
+     * The disbursement list as a finished document: the company's letterhead,
+     * the period being paid, one row per employee and a total, with the amounts
+     * written as rupiah.
+     */
+    private function transferWorkbook(Request $request, PayrollRun $run, string $periodCode, string $note): BinaryFileResponse
+    {
+        $company = Company::forTenant($request->user()->tenant_id)->first();
+        $tenant = $request->user()->tenant;
+
+        $logo = $company?->logo_path;
+        $logoFile = $logo !== null && Storage::disk('public')->exists($logo)
+            ? Storage::disk('public')->path($logo)
+            : null;
+
+        $rows = [];
+
+        foreach ($run->items as $item) {
+            $employee = $item->employee;
+            $bank = $employee?->primaryBankAccount();
+
+            $rows[] = [
+                'name' => $employee?->full_name ?? '-',
+                'bank' => $bank?->bank_name ?? '-',
+                'account' => $bank?->account_number ?? '-',
+                'holder' => $bank?->account_holder ?? $employee?->full_name ?? '-',
+                'net' => (int) round((float) $item->net_salary),
+            ];
+        }
+
+        $export = new PayrollTransferExport(
+            $rows,
+            $company?->legal_name ?: ($company?->name ?: ($tenant?->company_name ?: ($tenant?->name ?? 'Perusahaan'))),
+            $run->period?->name ?? $periodCode,
+            $note,
+            $logoFile,
+        );
+
+        return Excel::download($export, 'daftar-transfer-'.$periodCode.'-'.now()->format('Y-m-d').'.xlsx');
     }
 
     /**

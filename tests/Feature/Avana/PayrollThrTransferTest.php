@@ -1,5 +1,6 @@
 <?php
 
+use App\Exports\PayrollTransferExport;
 use App\Http\Controllers\Avana\PayrollController;
 use App\Models\Employee;
 use App\Models\EmployeeBankAccount;
@@ -14,6 +15,7 @@ use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
 use Database\Seeders\AvanaPayrollDemoSeeder;
 use Illuminate\Support\Facades\Route;
+use Maatwebsite\Excel\Facades\Excel;
 
 use function Pest\Laravel\actingAs;
 
@@ -232,7 +234,7 @@ it('prorates THR for an employee with less than a year of tenure', function (): 
     expect((float) $juniorItem->gross_salary)->toBeGreaterThan(0.0);
 });
 
-it('streams a bank transfer CSV for the latest regular run', function (): void {
+it('exports the disbursement list as a company-headed workbook', function (): void {
     $tenantId = $this->tenant->id;
     $this->seed(AvanaPayrollDemoSeeder::class);
 
@@ -256,16 +258,46 @@ it('streams a bank transfer CSV for the latest regular run', function (): void {
         ->firstOrFail()
         ->update(['status' => 'locked']);
 
-    $response = actingAs($this->admin)->get('spec-avana/payroll/transfer');
+    Excel::fake();
+    Excel::matchByRegex();
+
+    actingAs($this->admin)->get('spec-avana/payroll/transfer')->assertOk();
+
+    Excel::assertDownloaded('/^daftar-transfer-/', function (PayrollTransferExport $export) use ($employee): bool {
+        $sheet = $export->array();
+        $flat = collect($sheet)->map(fn (array $row) => implode('|', array_map(fn ($cell) => (string) $cell, $row)));
+
+        // The letterhead names the company, and the table carries the account.
+        expect($flat->first())->toContain('Nusantara')
+            ->and($flat->implode("\n"))->toContain('Bank Mandiri')
+            ->and($flat->implode("\n"))->toContain('1234567890')
+            ->and($flat->implode("\n"))->toContain($employee->full_name)
+            ->and($flat->implode("\n"))->toContain('TOTAL')
+            // Amounts are numbers the sheet formats as rupiah, not pre-formatted
+            // strings, so Excel can still total them.
+            ->and($export->columnFormats()['F'])->toContain('Rp');
+
+        return true;
+    });
+});
+
+it('keeps the per-bank layout a bare CSV', function (): void {
+    $tenantId = $this->tenant->id;
+    $this->seed(AvanaPayrollDemoSeeder::class);
+
+    actingAs($this->admin)->post('spec-avana/payroll/run')->assertSessionHas('success');
+
+    PayrollRun::forTenant($tenantId)
+        ->whereHas('period', fn ($query) => $query->where('code', 'not like', 'THR-%'))
+        ->latest('id')
+        ->firstOrFail()
+        ->update(['status' => 'locked']);
+
+    // A bank's upload form rejects anything but plain columns, so the branded
+    // sheet must never reach it.
+    $response = actingAs($this->admin)->get('spec-avana/payroll/transfer?bank=bca');
 
     $response->assertOk();
-    expect($response->headers->get('Content-Type'))->toContain('text/csv');
-
-    $content = $response->streamedContent();
-
-    // fputcsv quotes header fields containing spaces.
-    expect($content)->toContain('Nama,Bank,"No Rekening","Atas Nama",Net');
-    expect($content)->toContain('Bank Mandiri');
-    expect($content)->toContain('1234567890');
-    expect($content)->toContain($employee->full_name);
+    expect($response->headers->get('Content-Type'))->toContain('text/csv')
+        ->and($response->streamedContent())->toContain('No Rekening Tujuan');
 });

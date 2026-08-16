@@ -314,10 +314,16 @@ export default function AvanaPayroll({
     // filename (a blob URL would otherwise save as an extension-less UUID).
     const downloadTransfer = async (url: string) => {
         try {
-            const res = await fetch(url, { headers: { Accept: 'text/csv' } });
+            const res = await fetch(url);
             const contentType = res.headers.get('Content-Type') ?? '';
+            // The generic layout comes back as a branded xlsx, the per-bank
+            // layouts as bare CSV; anything else is the not-locked redirect.
+            const isFile =
+                contentType.includes('csv') ||
+                contentType.includes('spreadsheet') ||
+                contentType.includes('officedocument');
 
-            if (!res.ok || !contentType.includes('csv')) {
+            if (!res.ok || !isFile) {
                 toast.error(
                     'Kunci periode dulu sebelum unduh file transfer bank.',
                 );
@@ -327,7 +333,7 @@ export default function AvanaPayroll({
 
             const disposition = res.headers.get('Content-Disposition') ?? '';
             const filename =
-                disposition.match(/filename=([^;]+)/)?.[1]?.trim() ??
+                disposition.match(/filename="?([^";]+)"?/)?.[1]?.trim() ??
                 'transfer.csv';
 
             const blob = await res.blob();
@@ -580,7 +586,7 @@ export default function AvanaPayroll({
                                                 }}
                                             >
                                                 <option value="generic">
-                                                    Format Umum
+                                                    Daftar Transfer (Excel)
                                                 </option>
                                                 <option value="bca">BCA</option>
                                                 <option value="mandiri">
@@ -753,12 +759,13 @@ export default function AvanaPayroll({
                     >
                         <AIcon name="refresh-cw" size={18} color="#B45309" />
                         <div style={{ fontSize: 13, color: '#92400E' }}>
-                            <strong>Angka di bawah belum memakai pengaturan
-                            terbaru.</strong>{' '}
+                            <strong>
+                                Angka di bawah belum memakai pengaturan terbaru.
+                            </strong>{' '}
                             Konfigurasi payroll (Master Gaji, komponen, lembur,
-                            denda, payday, atau BPJS) berubah setelah perhitungan
-                            terakhir — klik <strong>Jalankan</strong> untuk
-                            menghitung ulang.
+                            denda, payday, atau BPJS) berubah setelah
+                            perhitungan terakhir — klik{' '}
+                            <strong>Jalankan</strong> untuk menghitung ulang.
                         </div>
                     </div>
                 )}

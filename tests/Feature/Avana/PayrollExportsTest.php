@@ -10,6 +10,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Support\Facades\Route;
+use Maatwebsite\Excel\Facades\Excel;
 
 use function Pest\Laravel\actingAs;
 
@@ -57,11 +58,13 @@ it('exports a BCA-format bank transfer file', function (): void {
     expect($response->streamedContent())->toContain('No Rekening Tujuan');
 });
 
-it('falls back to the generic bank format for an unknown bank', function (): void {
-    $response = actingAs($this->admin)->get('spec-export/payroll/transfer?bank=nonsense');
+it('falls back to the generic layout for an unknown bank', function (): void {
+    Excel::fake();
+    Excel::matchByRegex();
 
-    $response->assertOk();
-    expect($response->streamedContent())->toContain('Atas Nama');
+    actingAs($this->admin)->get('spec-export/payroll/transfer?bank=nonsense')->assertOk();
+
+    Excel::assertDownloaded('/^daftar-transfer-/');
 });
 
 it('exports the BPJS contribution report', function (): void {
