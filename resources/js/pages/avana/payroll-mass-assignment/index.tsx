@@ -146,6 +146,10 @@ export default function MassAssignment({
 }: Props) {
     const [picked, setPicked] = useState<number[]>([]);
     const [reason, setReason] = useState('');
+    // The refusal that came back from the last attempt, shown next to the field
+    // it belongs to: a mass assignment that silently does nothing reads as a
+    // broken button, not as "this date sits in a closed payroll".
+    const [failures, setFailures] = useState<Record<string, string>>({});
 
     // A new preview is a new set of people; carrying ticks across it would
     // apply the template to someone the filter no longer shows. The ticks are
@@ -219,15 +223,25 @@ export default function MassAssignment({
             },
             {
                 preserveScroll: true,
-                onSuccess: () => setReason(''),
-                onError: (errors) =>
+                onSuccess: () => {
+                    setReason('');
+                    setFailures({});
+                },
+                onError: (errors) => {
+                    setFailures(errors as Record<string, string>);
+                    // Every key is reported, not a hand-picked few: the reason
+                    // and preview-employee refusals used to fall through to a
+                    // bare "Penetapan gagal" that named nothing.
                     toast.error(
                         errors.effective_start_date ??
+                            errors.reason ??
                             errors.preview_token ??
                             errors.salary_master_id ??
                             errors.employee_ids ??
+                            Object.values(errors)[0] ??
                             'Penetapan gagal',
-                    ),
+                    );
+                },
             },
         );
     };
@@ -619,9 +633,20 @@ export default function MassAssignment({
                                 <div>
                                     <div style={fieldLabel}>
                                         Alasan penetapan
+                                        <span style={{ color: C.faint }}>
+                                            {' '}
+                                            · wajib bila gaji sudah berjalan
+                                        </span>
                                     </div>
                                     <input
-                                        style={input}
+                                        style={{
+                                            ...input,
+                                            ...(failures.reason
+                                                ? {
+                                                      border: '1px solid #DC2626',
+                                                  }
+                                                : {}),
+                                        }}
                                         type="text"
                                         placeholder="Penyesuaian UMR 2027, restrukturisasi…"
                                         value={reason}
@@ -666,6 +691,18 @@ export default function MassAssignment({
                                     Terapkan ke {picked.length} karyawan
                                 </button>
                             </div>
+
+                            {Object.values(failures).length > 0 && (
+                                <div
+                                    style={{
+                                        fontSize: 12.5,
+                                        color: '#DC2626',
+                                        marginTop: 12,
+                                    }}
+                                >
+                                    {Object.values(failures)[0]}
+                                </div>
+                            )}
 
                             {withOwnFigures > 0 && (
                                 <div

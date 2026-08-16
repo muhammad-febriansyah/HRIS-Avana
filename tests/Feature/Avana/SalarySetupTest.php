@@ -473,6 +473,36 @@ it('falls back to a safe effective date for a malformed preview URL', function (
             ->where('filters.effective_start_date', SalaryPeriodLock::suggestedDate((int) $this->tenant->id)->toDateString()));
 });
 
+it('never suggests an effective date a finalized payroll already covers', function (): void {
+    seedMasterComponents($this);
+
+    // A period paid in advance: today sits inside the window a locked payroll
+    // has already closed, so the date the form offers must clear it.
+    lockPeriodThrough($this, today()->addMonth()->endOfMonth()->toDateString());
+
+    $floor = today()->addMonth()->endOfMonth()->addDay()->toDateString();
+
+    expect(SalaryPeriodLock::suggestedDate((int) $this->tenant->id)->toDateString())
+        ->toBe($floor);
+
+    $props = actingAs($this->admin)
+        ->get('spec-salary/penetapan-massal?salary_master_id='.$this->master->id)
+        ->assertOk()
+        ->viewData('page')['props'];
+
+    // The date the screen offers is one the Terapkan button will accept, which
+    // is what the silently-refused mass assignment was about.
+    actingAs($this->admin)->post('spec-salary/penetapan-massal', [
+        'salary_master_id' => $this->master->id,
+        'employee_ids' => [$this->employee->id],
+        'preview_employee_ids' => $props['previewEmployeeIds'],
+        'preview_token' => $props['previewToken'],
+        'effective_start_date' => $props['filters']['effective_start_date'],
+        'existing' => 'skip',
+        'reason' => 'Penetapan massal (spec)',
+    ])->assertSessionHasNoErrors();
+});
+
 it('nets a deduction out of the preview totals rather than adding it', function (): void {
     [$basic] = seedMasterComponents($this);
 

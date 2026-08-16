@@ -165,16 +165,97 @@ class SalaryMasterController extends Controller
         return back()->with('success', 'Master Gaji disimpan');
     }
 
+    /**
+     * Save the whole setting form in one go: the master's own fields plus the
+     * component checklist and its nominals.
+     *
+     * The checklist used to save itself the moment a box was ticked or a nominal
+     * lost focus, so a typo was already stored before it could be spotted and
+     * leaving the form without pressing Simpan still changed the template.
+     * Nothing is written now until this request, and it lands back on the list.
+     */
     public function update(Request $request, SalaryMaster $master): RedirectResponse
     {
         $this->ensureCan($request, 'update');
         $this->ensureOwnership($request, $master->tenant_id);
 
         $data = $this->validateMaster($request, (int) $master->tenant_id, $master->id);
+        $components = $this->validateComponents($request, (int) $master->tenant_id);
 
-        $master->update($this->masterAttributes($data, $request));
+        DB::transaction(function () use ($master, $data, $request, $components): void {
+            $master->update($this->masterAttributes($data, $request));
 
-        return back()->with('success', 'Master Gaji diperbarui');
+            if ($components !== null) {
+                $this->syncComponents($master, $components);
+            }
+        });
+
+        return to_route('avana.payroll.master-gaji')->with('success', 'Master Gaji diperbarui');
+    }
+
+    /**
+     * The component checklist as the form posts it, or null when the request
+     * carries none (the list screen's inline edit does not send one).
+     *
+     * @return list<array<string, mixed>>|null
+     */
+    private function validateComponents(Request $request, int $tenantId): ?array
+    {
+        if (! is_array($request->input('components'))) {
+            return null;
+        }
+
+        $data = $request->validate([
+            'components' => ['array'],
+            'components.*.payroll_component_id' => [
+                'required',
+                'integer',
+                'distinct:strict',
+                Rule::exists('payroll_components', 'id')->where('tenant_id', $tenantId),
+            ],
+            'components.*.included' => ['required', 'boolean'],
+            'components.*.is_prorate' => ['required', 'boolean'],
+            'components.*.is_kompensasi' => ['required', 'boolean'],
+            'components.*.amount' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        return $data['components'];
+    }
+
+    /**
+     * Write the checklist onto the template: a row is kept while any flag is
+     * set on it and dropped once every flag is cleared, so an unticked
+     * component leaves nothing behind.
+     *
+     * @param  list<array<string, mixed>>  $components
+     */
+    private function syncComponents(SalaryMaster $master, array $components): void
+    {
+        foreach ($components as $component) {
+            $row = $master->components()->firstOrNew([
+                'payroll_component_id' => $component['payroll_component_id'],
+            ]);
+
+            $row->included = (bool) $component['included'];
+            $row->is_prorate = (bool) $component['is_prorate'];
+            $row->is_kompensasi = (bool) $component['is_kompensasi'];
+            // A nominal belongs to a component that is actually paid; keeping it
+            // on an unticked row would resurrect an old figure the next time
+            // somebody ticks the box back on.
+            $row->amount = $row->included ? $component['amount'] : 0;
+
+            $stillReferenced = $row->included || $row->is_prorate || $row->is_kompensasi;
+
+            if (! $stillReferenced) {
+                if ($row->exists) {
+                    $row->delete();
+                }
+
+                continue;
+            }
+
+            $row->save();
+        }
     }
 
     public function destroy(Request $request, SalaryMaster $master): RedirectResponse

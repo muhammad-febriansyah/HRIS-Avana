@@ -107,20 +107,29 @@ final class SalaryPeriodLock
     public static function suggestedDate(int $tenantId): Carbon
     {
         $today = Carbon::parse(today()->toDateString())->startOfDay();
+        $lockedThrough = self::lockedThrough($tenantId);
+
+        // A finalized payroll may run past today (a period paid in advance), and
+        // the suggestion must never land inside it: offering a date the very
+        // next click refuses is what made the form look broken.
+        $earliest = $lockedThrough !== null && $lockedThrough->greaterThanOrEqualTo($today)
+            ? $lockedThrough->copy()->addDay()
+            : $today;
+
         $containingPeriod = PayrollPeriod::forTenant($tenantId)
             ->where('code', 'not like', 'THR-%')
-            ->whereDate('start_date', '<=', $today->toDateString())
-            ->whereDate('end_date', '>=', $today->toDateString())
+            ->whereDate('start_date', '<=', $earliest->toDateString())
+            ->whereDate('end_date', '>=', $earliest->toDateString())
             ->orderByDesc('start_date')
             ->first(['start_date', 'end_date']);
 
-        if ($containingPeriod === null || $today->isSameDay($containingPeriod->start_date)) {
-            return Carbon::parse($today->toDateString())->startOfDay();
+        if ($containingPeriod === null || $earliest->isSameDay($containingPeriod->start_date)) {
+            return $earliest->copy();
         }
 
         $nextPeriodStart = PayrollPeriod::forTenant($tenantId)
             ->where('code', 'not like', 'THR-%')
-            ->whereDate('start_date', '>', $today->toDateString())
+            ->whereDate('start_date', '>', $earliest->toDateString())
             ->orderBy('start_date')
             ->value('start_date');
 

@@ -71,6 +71,55 @@ it('renders the setting page and saves the perhitungan fields', function (): voi
     expect($master->probation_months)->toBe(3);
 });
 
+it('saves the component checklist with the form and lands back on the list', function (): void {
+    $master = SalaryMaster::create(['tenant_id' => $this->tenant->id, 'code' => 'MG-SHEET', 'category' => 'Organik']);
+    $basic = PayrollComponent::forTenant($this->tenant->id)->where('code', 'BASIC')->firstOrFail();
+    $other = PayrollComponent::forTenant($this->tenant->id)->where('code', '!=', 'BASIC')->firstOrFail();
+
+    actingAs($this->admin)
+        ->put('spec-mg/master-gaji/'.$master->id, [
+            'code' => 'MG-SHEET',
+            'category' => 'Organik',
+            'components' => [
+                [
+                    'payroll_component_id' => $basic->id,
+                    'included' => true,
+                    'is_prorate' => true,
+                    'is_kompensasi' => false,
+                    'amount' => 7_250_000,
+                ],
+                [
+                    'payroll_component_id' => $other->id,
+                    'included' => false,
+                    'is_prorate' => false,
+                    'is_kompensasi' => false,
+                    'amount' => 900_000,
+                ],
+            ],
+        ])
+        // Saving used to leave HR on the form with no sign anything happened.
+        ->assertRedirect(route('avana.payroll.master-gaji'))
+        ->assertSessionHas('success');
+
+    $row = $master->components()->where('payroll_component_id', $basic->id)->firstOrFail();
+
+    expect($row->included)->toBeTrue()
+        ->and($row->is_prorate)->toBeTrue()
+        ->and((float) $row->amount)->toBe(7_250_000.0)
+        // Nothing is kept for a component nobody ticked.
+        ->and($master->components()->where('payroll_component_id', $other->id)->exists())->toBeFalse();
+});
+
+it('does not touch the template until the form is submitted', function (): void {
+    $master = SalaryMaster::create(['tenant_id' => $this->tenant->id, 'code' => 'MG-QUIET', 'category' => 'Organik']);
+
+    actingAs($this->admin)
+        ->get('spec-mg/master-gaji/'.$master->id.'/setting')
+        ->assertOk();
+
+    expect($master->components()->count())->toBe(0);
+});
+
 /**
  * A fixed earning component. It carries no rupiah figure of its own — the
  * nominal belongs to the Master Gaji that includes it, or to the employee's

@@ -18,34 +18,24 @@ interface Component {
     is_kompensasi: boolean;
 }
 
-/** One membership row: the included checkbox plus its monthly nominal input. */
+/**
+ * One membership row: the included checkbox plus its monthly nominal input.
+ *
+ * Nothing here talks to the server. Ticking a box and typing a nominal only
+ * change the form; they are written when Simpan is pressed, so a mistyped
+ * figure can still be corrected and leaving the page changes nothing.
+ */
 function MembershipRow({
     c,
-    masterId,
+    amount,
+    onAmount,
     onToggle,
 }: {
     c: Component;
-    masterId: number;
+    amount: string;
+    onAmount: (value: string) => void;
     onToggle: (checked: boolean) => void;
 }) {
-    const [amount, setAmount] = useState<string>(
-        c.amount ? String(c.amount) : '',
-    );
-
-    const saveAmount = () => {
-        const value = Number(amount) || 0;
-
-        if (value === c.amount) {
-            return;
-        }
-
-        router.post(
-            SalaryMasterController.setComponentAmount(masterId).url,
-            { payroll_component_id: c.id, amount: value },
-            { preserveScroll: true, preserveState: false },
-        );
-    };
-
     return (
         <div
             style={{
@@ -76,8 +66,7 @@ function MembershipRow({
                     <RupiahInput
                         style={{ ...input, width: 140, textAlign: 'right' }}
                         value={amount}
-                        onChange={setAmount}
-                        onBlur={saveAmount}
+                        onChange={onAmount}
                     />
                 </div>
             )}
@@ -223,21 +212,21 @@ function ChecklistSection({
     title,
     components,
     flag,
-    masterId,
+    amounts,
+    onFlag,
+    onAmount,
     withAmount = false,
 }: {
     title: string;
     components: Component[];
     flag: FlagKey;
-    masterId: number;
+    amounts: Record<number, string>;
+    onFlag: (componentId: number, flag: FlagKey, checked: boolean) => void;
+    onAmount: (componentId: number, value: string) => void;
     withAmount?: boolean;
 }) {
     const toggle = (c: Component, checked: boolean) =>
-        router.post(
-            SalaryMasterController.setComponent(masterId).url,
-            { payroll_component_id: c.id, flag, checked },
-            { preserveScroll: true, preserveState: false },
-        );
+        onFlag(c.id, flag, checked);
 
     const col = (group: 'penerimaan' | 'potongan') => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -260,7 +249,8 @@ function ChecklistSection({
                         <MembershipRow
                             key={c.id}
                             c={c}
-                            masterId={masterId}
+                            amount={amounts[c.id] ?? ''}
+                            onAmount={(value) => onAmount(c.id, value)}
                             onToggle={(checked) => toggle(c, checked)}
                         />
                     ) : (
@@ -337,7 +327,37 @@ export default function MasterGajiSetting({
         probation_months: master.probation_months ?? '',
     });
 
+    // The component checklist is form state too, so nothing about the template
+    // changes until Simpan is pressed.
+    const [sheet, setSheet] = useState<Component[]>(components);
+    const [amounts, setAmounts] = useState<Record<number, string>>(() =>
+        Object.fromEntries(
+            components.map((c) => [c.id, c.amount ? String(c.amount) : '']),
+        ),
+    );
+
+    const setFlag = (componentId: number, flag: FlagKey, checked: boolean) =>
+        setSheet((rows) =>
+            rows.map((row) =>
+                row.id === componentId ? { ...row, [flag]: checked } : row,
+            ),
+        );
+
+    const setAmount = (componentId: number, value: string) =>
+        setAmounts((rows) => ({ ...rows, [componentId]: value }));
+
     const save = () => {
+        form.transform((data) => ({
+            ...data,
+            components: sheet.map((c) => ({
+                payroll_component_id: c.id,
+                included: c.included,
+                is_prorate: c.is_prorate,
+                is_kompensasi: c.is_kompensasi,
+                amount: Number(amounts[c.id]) || 0,
+            })),
+        }));
+
         form.put(SalaryMasterController.update(master.id).url, {
             preserveScroll: true,
             onSuccess: () => toast.success('Master Gaji disimpan'),
@@ -541,9 +561,11 @@ export default function MasterGajiSetting({
                 {/* PENERIMAAN | POTONGAN membership */}
                 <ChecklistSection
                     title="PENERIMAAN | POTONGAN — centang & isi nominal"
-                    components={components}
+                    components={sheet}
                     flag="included"
-                    masterId={master.id}
+                    amounts={amounts}
+                    onFlag={setFlag}
+                    onAmount={setAmount}
                     withAmount
                 />
 
@@ -824,17 +846,21 @@ export default function MasterGajiSetting({
                 {/* KOMPONEN PRORATE / OVERTIME / KOMPENSASI */}
                 <ChecklistSection
                     title="KOMPONEN PRORATE"
-                    components={components}
+                    components={sheet}
                     flag="is_prorate"
-                    masterId={master.id}
+                    amounts={amounts}
+                    onFlag={setFlag}
+                    onAmount={setAmount}
                 />
                 {/* Komponen basis lembur ditandai "Tetap" di Setup Lembur —
                     satu daftar untuk seluruh tenant, sesuai desain setup. */}
                 <ChecklistSection
                     title="KOMPONEN KOMPENSASI"
-                    components={components}
+                    components={sheet}
                     flag="is_kompensasi"
-                    masterId={master.id}
+                    amounts={amounts}
+                    onFlag={setFlag}
+                    onAmount={setAmount}
                 />
 
                 {/* Tempel ke Pegawai */}
