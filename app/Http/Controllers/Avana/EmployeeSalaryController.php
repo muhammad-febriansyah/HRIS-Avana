@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Avana\StoreEmployeeSalaryRequest;
 use App\Models\Employee;
 use App\Models\EmployeeSalaryComponent;
 use App\Models\PayrollComponent;
@@ -19,7 +20,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -50,7 +50,8 @@ class EmployeeSalaryController extends Controller
             ? null
             : $this->selectedMasterId($request, $employee, $tenantId);
 
-        return Inertia::render('avana/payroll-gaji-karyawan/index', [
+        return Inertia::render('avana/payroll-master-gaji/index', [
+            'tab' => 'karyawan',
             'employee' => $employee === null ? null : [
                 'id' => $employee->id,
                 'name' => $employee->full_name,
@@ -62,6 +63,7 @@ class EmployeeSalaryController extends Controller
             'rows' => $employee === null ? [] : $this->rows($employee, $tenantId, $selectedMasterId),
             'compliance' => $employee === null ? null : $this->compliance($employee, $tenantId),
             'employeeOptions' => Employee::forTenant($tenantId)
+                ->where('status', 'active')
                 ->orderBy('full_name')
                 ->get(['id', 'full_name', 'employee_number'])
                 ->map(fn (Employee $e): array => [
@@ -78,6 +80,7 @@ class EmployeeSalaryController extends Controller
                     'label' => $m->code.' · '.$m->category,
                 ])->all(),
             'salaryFloor' => SalaryPeriodLock::lockedThrough($tenantId)?->addDay()->toDateString(),
+            'suggestedEffectiveDate' => SalaryPeriodLock::suggestedDate($tenantId)->toDateString(),
         ]);
     }
 
@@ -85,23 +88,14 @@ class EmployeeSalaryController extends Controller
      * Save one employee's salary: the Master Gaji they follow plus the nominal
      * of every component that differs from it, as one dated version.
      */
-    public function store(Request $request): RedirectResponse
+    public function store(StoreEmployeeSalaryRequest $request): RedirectResponse
     {
         $this->ensureCan($request, 'update');
 
         $tenantId = (int) $request->user()->tenant_id;
 
-        $data = $request->validate([
-            'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
-            'salary_master_id' => ['nullable', 'integer', Rule::exists('salary_masters', 'id')->where('tenant_id', $tenantId)],
-            'effective_start_date' => ['nullable', 'date'],
-            'reason' => ['nullable', 'string', 'max:255'],
-            'components' => ['required', 'array', 'min:1'],
-            'components.*.payroll_component_id' => ['required', 'integer', Rule::exists('payroll_components', 'id')->where('tenant_id', $tenantId)],
-            'components.*.amount' => ['required', 'numeric', 'min:0'],
-        ]);
-
-        $from = Carbon::parse($data['effective_start_date'] ?? now())->startOfDay();
+        $data = $request->validated();
+        $from = Carbon::createFromFormat('Y-m-d', $data['effective_start_date'])->startOfDay();
 
         $refusal = SalaryPeriodLock::refusal($tenantId, $from);
 
@@ -146,7 +140,17 @@ class EmployeeSalaryController extends Controller
                 );
             }
 
+            $salaryRows = collect($masterAmounts)
+                ->mapWithKeys(fn (float $amount, int $componentId): array => [$componentId => [
+                    'payroll_component_id' => $componentId,
+                    'amount' => $amount,
+                ]]);
+
             foreach ($data['components'] as $row) {
+                $salaryRows->put((int) $row['payroll_component_id'], $row);
+            }
+
+            foreach ($salaryRows as $row) {
                 $componentId = (int) $row['payroll_component_id'];
                 $amount = (float) $row['amount'];
                 $sourceType = array_key_exists($componentId, $masterAmounts)

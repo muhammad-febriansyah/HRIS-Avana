@@ -20,8 +20,10 @@ class PayslipController extends Controller
     {
         $employee = $this->currentEmployee($request);
 
+        // Only finalised runs — see PayrollRunItem::scopePublished().
         $data = PayrollRunItem::forTenant($employee->tenant_id)
             ->where('employee_id', $employee->id)
+            ->published()
             ->with('period:id,name')
             ->orderByDesc('id')
             ->get()
@@ -34,7 +36,14 @@ class PayslipController extends Controller
     {
         $employee = $this->currentEmployee($request);
 
-        abort_if((int) $item->tenant_id !== (int) $employee->tenant_id || (int) $item->employee_id !== (int) $employee->id, 404);
+        $item->loadMissing('run:id,status');
+
+        abort_if(
+            (int) $item->tenant_id !== (int) $employee->tenant_id
+            || (int) $item->employee_id !== (int) $employee->id
+            || ! $item->isPublished(),
+            404,
+        );
 
         $item->loadMissing('period:id,name');
         $snapshot = $item->calculation_snapshot ?? [];
@@ -44,7 +53,15 @@ class PayslipController extends Controller
             $lines[] = ['component_code' => '', 'component_name' => $row['name'] ?? '', 'type' => 'earning', 'amount' => (int) round((float) ($row['amount'] ?? 0))];
         }
         foreach (($snapshot['deductions'] ?? []) as $row) {
-            $lines[] = ['component_code' => '', 'component_name' => $row['name'] ?? '', 'type' => 'deduction', 'amount' => (int) round((float) ($row['amount'] ?? 0))];
+            $amount = (float) ($row['amount'] ?? 0);
+            // A negative deduction is the annual PPh 21 refund: money paid back,
+            // so it belongs on the earning side rather than as a minus figure.
+            $lines[] = [
+                'component_code' => '',
+                'component_name' => $row['name'] ?? '',
+                'type' => $amount < 0 ? 'earning' : 'deduction',
+                'amount' => (int) round(abs($amount)),
+            ];
         }
 
         return response()->json(['data' => [...$this->summary($item), 'lines' => $lines]]);
@@ -57,7 +74,14 @@ class PayslipController extends Controller
     {
         $employee = $this->currentEmployee($request);
 
-        abort_if((int) $item->tenant_id !== (int) $employee->tenant_id || (int) $item->employee_id !== (int) $employee->id, 404);
+        $item->loadMissing('run:id,status');
+
+        abort_if(
+            (int) $item->tenant_id !== (int) $employee->tenant_id
+            || (int) $item->employee_id !== (int) $employee->id
+            || ! $item->isPublished(),
+            404,
+        );
 
         $item->loadMissing(['employee.position', 'employee.department', 'employee.tenant', 'period']);
         $slipEmployee = $item->employee;
@@ -67,6 +91,8 @@ class PayslipController extends Controller
         $snapshot = $item->calculation_snapshot ?? [];
 
         $html = view('pdf.payslip', [
+            // Employees only ever reach a locked run, so their copy is final.
+            'final' => true,
             'company' => $slipEmployee->tenant?->company_name ?? $slipEmployee->tenant?->name ?? 'AvanaHR',
             'period' => $item->period?->name ?? '-',
             'employee' => [

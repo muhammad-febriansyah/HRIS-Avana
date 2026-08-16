@@ -32,6 +32,28 @@ final class PayrollRunItem extends Model
         return $query->where('tenant_id', $tenantId);
     }
 
+    /**
+     * Only the payslips an employee is allowed to see: those whose run is
+     * locked.
+     *
+     * A draft/calculated/approved run is still being worked on — re-running it
+     * replaces every figure — so a payslip read from one is a number the
+     * employee may be paid something different from. Finance reviews those in
+     * the admin screens; the employee sees a slip once it is final.
+     */
+    public function scopePublished(Builder $query): Builder
+    {
+        return $query->whereHas('run', fn (Builder $run) => $run->where('status', PayrollRun::STATUS_LOCKED));
+    }
+
+    /**
+     * Whether this payslip's run is final, so an employee may read it.
+     */
+    public function isPublished(): bool
+    {
+        return $this->run?->status === PayrollRun::STATUS_LOCKED;
+    }
+
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);

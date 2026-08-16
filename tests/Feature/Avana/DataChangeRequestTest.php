@@ -136,6 +136,16 @@ it('refuses a value its own field rules reject', function (): void {
     expect(DataChangeRequest::where('employee_id', $this->staff->id)->count())->toBe(0);
 });
 
+it('refuses a marital status outside the fixed list', function (): void {
+    actingAs($this->staff->user)
+        ->post(route('avana.saya.perubahan-data.store'), [
+            'changes' => [['field' => 'marital_status', 'value' => 'kawin siri']],
+        ])
+        ->assertSessionHasErrors('marital_status');
+
+    expect(DataChangeRequest::where('employee_id', $this->staff->id)->count())->toBe(0);
+});
+
 it('refuses a request that changes nothing', function (): void {
     actingAs($this->staff->user)
         ->post(route('avana.saya.perubahan-data.store'), [

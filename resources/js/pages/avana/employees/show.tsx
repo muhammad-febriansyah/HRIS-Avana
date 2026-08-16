@@ -2,6 +2,7 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import ContractController from '@/actions/App/Http/Controllers/Avana/ContractController';
 import EmployeeController from '@/actions/App/Http/Controllers/Avana/EmployeeController';
 import {
     ActionBtn,
@@ -14,6 +15,7 @@ import {
 } from '@/lib/avana';
 import type {
     Employee,
+    EmployeeContractRow,
     EmployeeDocumentRow,
     FlashProps,
     HeldAsset,
@@ -30,6 +32,7 @@ interface EmployeesShowProps {
 const empTabs = [
     { id: 'pribadi', label: 'Data Pribadi', icon: 'user' },
     { id: 'pegawai', label: 'Kepegawaian', icon: 'briefcase' },
+    { id: 'kontrak', label: 'Kontrak', icon: 'file-text' },
     { id: 'dokumen', label: 'Dokumen', icon: 'folder' },
     { id: 'cuti', label: 'Cuti', icon: 'palmtree' },
     { id: 'payrolltab', label: 'Payroll', icon: 'wallet' },
@@ -551,6 +554,14 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                     </div>
                 )}
 
+                {/* Kontrak — riwayat kontrak kerja karyawan ini. */}
+                {activeTab === 'kontrak' && (
+                    <KontrakTab
+                        contracts={emp.contracts ?? []}
+                        employeeRouteKey={emp.route_key}
+                    />
+                )}
+
                 {/* Dokumen — berkas milik karyawan ini. */}
                 {activeTab === 'dokumen' && (
                     <DokumenTab documents={emp.documents ?? []} />
@@ -739,6 +750,224 @@ function DokumenTab({ documents }: { documents: EmployeeDocumentRow[] }) {
                     </div>
                 );
             })}
+        </div>
+    );
+}
+
+/** Pill color for a contract status, amber while it is about to run out. */
+function contractStatusColor(row: EmployeeContractRow): string {
+    if (row.status === 'active') {
+        return row.expiring_soon ? C.amber : C.green;
+    }
+
+    return row.status === 'terminated' ? C.red : C.muted;
+}
+
+/**
+ * How long a contract still runs, in the words HR reads it: an active contract
+ * counts down, an open-ended one says so, and a lapsed one is called lapsed
+ * rather than shown as a negative number of days.
+ */
+function contractRemaining(row: EmployeeContractRow): string {
+    if (row.end_date === null) {
+        return 'Tanpa batas waktu';
+    }
+
+    if (row.days_to_expiry === null) {
+        return '—';
+    }
+
+    if (row.days_to_expiry < 0) {
+        return `Lewat ${Math.abs(row.days_to_expiry)} hari`;
+    }
+
+    return `${row.days_to_expiry} hari lagi`;
+}
+
+/**
+ * The employee's contract history. A contract belongs to a person, so it is
+ * read here rather than by hunting for their name in the tenant-wide Kontrak
+ * list; the rows still open the same Kontrak form, which returns to this page.
+ */
+function KontrakTab({
+    contracts,
+    employeeRouteKey,
+}: {
+    contracts: EmployeeContractRow[];
+    employeeRouteKey: string;
+}) {
+    const addHref = `${ContractController.create().url}?employee=${employeeRouteKey}`;
+
+    if (contracts.length === 0) {
+        return (
+            <div
+                style={{ display: 'grid', gap: 12, justifyItems: 'stretch' }}
+            >
+                <EmptyTab
+                    icon="file-text"
+                    message="Belum ada kontrak kerja untuk karyawan ini."
+                />
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <Link href={addHref} style={{ textDecoration: 'none' }}>
+                        <ActionBtn
+                            icon="plus"
+                            label="Tambah Kontrak"
+                            variant="primary"
+                        />
+                    </Link>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div style={{ ...card, overflow: 'hidden' }}>
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '14px 18px',
+                    borderBottom: `1px solid ${C.line}`,
+                }}
+            >
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: C.text }}>
+                    Riwayat Kontrak ({contracts.length})
+                </div>
+                <Link href={addHref} style={{ textDecoration: 'none' }}>
+                    <ActionBtn
+                        icon="plus"
+                        label="Tambah Kontrak"
+                        variant="primary"
+                    />
+                </Link>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                        <tr style={{ background: '#FAFBFD' }}>
+                            <th style={thCell}>No. Kontrak</th>
+                            <th style={{ ...thCell, padding: '12px 16px' }}>
+                                Jenis
+                            </th>
+                            <th style={{ ...thCell, padding: '12px 16px' }}>
+                                Periode
+                            </th>
+                            <th style={{ ...thCell, padding: '12px 16px' }}>
+                                Sisa
+                            </th>
+                            <th style={{ ...thCell, padding: '12px 16px' }}>
+                                Dokumen
+                            </th>
+                            <th style={thCell}>Status</th>
+                            <th style={{ ...thCell, textAlign: 'right' }}>
+                                Aksi
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {contracts.map((row) => (
+                            <tr
+                                key={row.id}
+                                style={{ borderTop: `1px solid ${C.line}` }}
+                            >
+                                <td
+                                    style={{
+                                        padding: '13px 18px',
+                                        fontSize: 13,
+                                        color: C.text,
+                                    }}
+                                >
+                                    {dash(row.contract_number)}
+                                </td>
+                                <td
+                                    style={{
+                                        padding: '13px 16px',
+                                        fontSize: 13,
+                                        color: C.muted,
+                                    }}
+                                >
+                                    {row.contract_type_label}
+                                </td>
+                                <td
+                                    style={{
+                                        padding: '13px 16px',
+                                        fontSize: 13,
+                                        color: C.muted,
+                                        whiteSpace: 'nowrap',
+                                    }}
+                                >
+                                    {dash(row.start_date)} –{' '}
+                                    {row.end_date ?? 'tanpa batas'}
+                                </td>
+                                <td
+                                    style={{
+                                        padding: '13px 16px',
+                                        fontSize: 13,
+                                        color: row.expiring_soon
+                                            ? C.amber
+                                            : C.muted,
+                                        fontWeight: row.expiring_soon
+                                            ? 600
+                                            : 400,
+                                        whiteSpace: 'nowrap',
+                                    }}
+                                >
+                                    {contractRemaining(row)}
+                                </td>
+                                <td style={{ padding: '13px 16px' }}>
+                                    {row.document ? (
+                                        <a
+                                            href={row.document.href}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            style={{ textDecoration: 'none' }}
+                                        >
+                                            <ActionBtn
+                                                icon="download"
+                                                label="Unduh"
+                                                variant="neutral"
+                                            />
+                                        </a>
+                                    ) : (
+                                        <span
+                                            style={{
+                                                fontSize: 12.5,
+                                                color: C.faint,
+                                            }}
+                                        >
+                                            Belum diunggah
+                                        </span>
+                                    )}
+                                </td>
+                                <td style={{ padding: '13px 18px' }}>
+                                    <Pill
+                                        label={row.status_label}
+                                        color={contractStatusColor(row)}
+                                    />
+                                </td>
+                                <td
+                                    style={{
+                                        padding: '13px 18px',
+                                        textAlign: 'right',
+                                    }}
+                                >
+                                    <Link
+                                        href={`${ContractController.edit(row.route_key).url}?employee=${employeeRouteKey}`}
+                                        style={{ textDecoration: 'none' }}
+                                    >
+                                        <ActionBtn
+                                            icon="pencil"
+                                            label="Ubah"
+                                            variant="primary"
+                                        />
+                                    </Link>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 }

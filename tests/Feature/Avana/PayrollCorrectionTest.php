@@ -46,7 +46,15 @@ it('stores and approves a payroll correction', function (): void {
     $correction = PayrollCorrection::forTenant($this->tenant->id)->firstOrFail();
     expect($correction->status)->toBe('pending');
 
+    // The maker cannot be the checker: approval comes from somebody else.
     actingAs($this->admin)
+        ->post(route('avana.payroll.koreksi.approve', $correction))
+        ->assertSessionHasErrors('status');
+
+    $approver = User::where('tenant_id', $this->tenant->id)->where('id', '!=', $this->admin->id)->firstOrFail();
+    $approver->roles()->syncWithoutDetaching($this->admin->roles()->pluck('roles.id'));
+
+    actingAs($approver)
         ->post(route('avana.payroll.koreksi.approve', $correction))
         ->assertSessionHas('success');
 

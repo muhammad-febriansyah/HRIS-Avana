@@ -476,3 +476,101 @@ it('tells the list which contracts carry a document', function (): void {
         ->and($rows['DOC-LIST-1']['document']['href'])->toContain('/dokumen')
         ->and($rows['DOC-LIST-2']['document'])->toBeNull();
 });
+
+it('lists the employee contracts on the employee page', function (): void {
+    $contract = makeContract([
+        'contract_number' => 'PKWT-TAB-1',
+        'contract_type' => 'pkwtt',
+        'end_date' => Carbon::today()->addDays(10)->toDateString(),
+    ]);
+    $contract->update([
+        'document_path' => 'kontrak/'.$this->tenant->id.'/tab.pdf',
+        'document_name' => 'PKWT Tab.pdf',
+        'document_size' => 1024,
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.employees.show', $this->employee))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/employees/show', false)
+            ->has('employee.data.contracts', 1, fn (Assert $row) => $row
+                ->where('contract_number', 'PKWT-TAB-1')
+                ->where('contract_type_label', 'PKWTT (Tetap)')
+                ->where('status_label', 'Aktif')
+                ->where('expiring_soon', true)
+                ->where('days_to_expiry', 10)
+                ->where('document.name', 'PKWT Tab.pdf')
+                ->etc()
+            )
+        );
+});
+
+it('preselects the employee when the contract form opens from their page', function (): void {
+    actingAs($this->admin)
+        ->get(route('avana.kontrak.create', ['employee' => $this->employee->public_id]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/kontrak/create', false)
+            ->where('selected_employee_id', $this->employee->id)
+            ->where('return_to', $this->employee->public_id)
+            ->etc()
+        );
+});
+
+it('ignores an employee key from another tenant on the contract form', function (): void {
+    $otherTenant = Tenant::create(['name' => 'PT Sebelah', 'slug' => 'pt-sebelah', 'status' => 'active']);
+    $outsider = Employee::create([
+        'tenant_id' => $otherTenant->id,
+        'employee_number' => 'OUT-0001',
+        'full_name' => 'Karyawan Tenant Lain',
+        'status' => 'active',
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.kontrak.create', ['employee' => $outsider->public_id]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('selected_employee_id', null)
+            ->where('return_to', null)
+            ->etc()
+        );
+});
+
+it('returns to the employee page after saving a contract opened from there', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.kontrak.store'), [
+            'employee_id' => $this->employee->id,
+            'contract_number' => 'PKWT-RETURN-1',
+            'contract_type' => 'pkwt',
+            'start_date' => Carbon::today()->toDateString(),
+            'status' => 'active',
+            'return_to' => $this->employee->public_id,
+        ])
+        ->assertRedirect(route('avana.employees.show', $this->employee));
+
+    $contract = EmployeeContract::where('contract_number', 'PKWT-RETURN-1')->firstOrFail();
+
+    actingAs($this->admin)
+        ->put(route('avana.kontrak.update', $contract), [
+            'employee_id' => $this->employee->id,
+            'contract_number' => 'PKWT-RETURN-1',
+            'contract_type' => 'pkwt',
+            'start_date' => Carbon::today()->toDateString(),
+            'status' => 'active',
+            'return_to' => $this->employee->public_id,
+        ])
+        ->assertRedirect(route('avana.employees.show', $this->employee));
+});
+
+it('keeps sending contracts saved from the list back to the list', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.kontrak.store'), [
+            'employee_id' => $this->employee->id,
+            'contract_number' => 'PKWT-RETURN-2',
+            'contract_type' => 'pkwt',
+            'start_date' => Carbon::today()->toDateString(),
+            'status' => 'active',
+        ])
+        ->assertRedirect(route('avana.kontrak'));
+});

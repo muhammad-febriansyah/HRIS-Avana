@@ -53,25 +53,23 @@ export default function PeriodCreate() {
             return;
         }
 
-        const startDate = new Date(start);
-        const addDays = (n: number) => {
-            const d = new Date(startDate);
-            d.setDate(d.getDate() + n);
+        // Built and formatted in local time throughout. `toISOString()` converts
+        // to UTC first, so east of Greenwich it moved the answer back a day: a
+        // monthly period starting 1 September ended 29 September, and every
+        // prorated salary in it was short by a day.
+        const [year, month, day] = start.split('-').map(Number);
+        const format = (d: Date) =>
+            `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-            return d.toISOString().slice(0, 10);
-        };
+        const addDays = (n: number) => format(new Date(year, month - 1, day + n));
 
         if (cycle === 'weekly') {
             setData('end_date', addDays(6));
         } else if (cycle === 'biweekly') {
             setData('end_date', addDays(13));
         } else {
-            const end = new Date(
-                startDate.getFullYear(),
-                startDate.getMonth() + 1,
-                0,
-            );
-            setData('end_date', end.toISOString().slice(0, 10));
+            // Day 0 of the next month is the last day of this one.
+            setData('end_date', format(new Date(year, month, 0)));
         }
     };
 

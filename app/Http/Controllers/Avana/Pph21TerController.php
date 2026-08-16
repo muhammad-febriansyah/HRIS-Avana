@@ -3,17 +3,23 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Avana\PreviewPph21TerImportRequest;
+use App\Http\Requests\Avana\PublishPph21TerImportRequest;
+use App\Http\Requests\Avana\RemovePph21TerBracketRequest;
+use App\Http\Requests\Avana\ResetPph21TerRequest;
+use App\Http\Requests\Avana\RevisePph21TerBracketRequest;
+use App\Http\Requests\Avana\UpdatePph21TerCategoryRequest;
 use App\Models\Pph21TerCategory;
 use App\Models\Pph21TerRate;
 use App\Models\User;
+use App\Services\Pph21TerPublisher;
 use App\Support\Pph21Ter;
 use App\Support\Pph21TerImport;
+use App\Support\Pph21TerPreviewToken;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -25,9 +31,16 @@ use Throwable;
  *
  * PP 58/2023 replaced the whole PPh 21 scheme, and its Lampiran is exactly the
  * sort of table a later PMK revises. This screen is how that revision is
- * entered — upload the official workbook, or edit a bracket by hand — instead
- * of shipping a release. Every version is dated, so publishing next year's
- * table never changes what last year's payslips charged.
+ * entered — upload the official workbook, or correct a bracket — instead of
+ * shipping a release. Every version is dated, so publishing next year's table
+ * never changes what last year's payslips charged.
+ *
+ * A published version is immutable. Nothing here edits a row that payroll has
+ * already read: every change — an import, a reset, a single corrected bracket,
+ * a PTKP status moved — closes the version in force the day before and
+ * publishes a new one, with the author, the reason and the workbook checksum
+ * recorded on every row. An import must be previewed first, and the preview is
+ * bound to the exact file it validated.
  *
  * Reading is open to anyone who can see payroll; writing is super-admin only,
  * because the rows are global and a tenant admin editing them would move the
@@ -35,6 +48,8 @@ use Throwable;
  */
 class Pph21TerController extends Controller
 {
+    public function __construct(private readonly Pph21TerPublisher $publisher) {}
+
     public function index(Request $request): Response
     {
         $this->ensureCanView($request);
@@ -53,231 +68,315 @@ class Pph21TerController extends Controller
             'categoryOptions' => collect(Pph21Ter::CATEGORIES)
                 ->map(fn (string $label, string $value): array => ['value' => $value, 'label' => $label])
                 ->values(),
+            // Set by preview(); the screen shows the old-versus-new comparison
+            // and only then unlocks the publish button.
+            'preview' => session('terPreview'),
         ]);
     }
 
     /**
-     * Replace a tariff from the official workbook.
+     * Validate an uploaded workbook and show what publishing it would change,
+     * without writing anything.
      *
-     * The upload is parsed in full before anything is written: a file that only
-     * half-reads must leave the tariff in force untouched rather than half
-     * replaced.
+     * The token handed back is bound to the file's checksum and to the
+     * effective date, source and reason that were previewed, so the publish
+     * step cannot quietly apply a different file or a different date than the
+     * one somebody looked at.
      */
-    public function import(Request $request): RedirectResponse
+    public function preview(PreviewPph21TerImportRequest $request): RedirectResponse
     {
-        $this->ensureSuperAdmin($request);
-
-        $data = $request->validate([
-            'file' => ['required', 'file', 'mimes:xlsx', 'max:5120'],
-            'effective_start_date' => ['required', 'date'],
-            'source' => ['nullable', 'string', 'max:255'],
-        ], [
-            'file.mimes' => 'Unggah berkas .xlsx (workbook resmi Setup TER PPh21).',
-        ]);
-
+        $data = $request->validated();
+        $path = $request->file('file')->getRealPath();
+        $checksum = hash_file('sha256', $path);
+        $parsed = $this->parseWorkbook($path);
         $from = Carbon::parse($data['effective_start_date'])->startOfDay();
 
-        try {
-            $parsed = Pph21TerImport::parse($request->file('file')->getRealPath());
-        } catch (RuntimeException $e) {
-            throw ValidationException::withMessages(['file' => $e->getMessage()]);
-        } catch (Throwable) {
-            throw ValidationException::withMessages(['file' => 'Berkas tidak bisa dibaca sebagai workbook TER.']);
-        }
+        $context = [
+            'checksum' => $checksum,
+            'effective_start_date' => $from->toDateString(),
+            'source' => $data['source'],
+            'reason' => $data['reason'],
+            'user_id' => (int) $request->user()->id,
+        ];
 
-        DB::transaction(function () use ($parsed, $from, $data): void {
-            foreach ($parsed['brackets'] as $category => $brackets) {
-                $this->publishBrackets($category, $brackets, $from, $data['source'] ?? 'Impor workbook resmi');
-            }
+        return back()->with('terPreview', [
+            ...$context,
+            'token' => Pph21TerPreviewToken::issue($context),
+            'file_name' => $request->file('file')->getClientOriginalName(),
+            'blockers' => $this->publisher->blockers($from),
+            'categories' => $this->previewCategories($parsed['brackets'], $from),
+            'category_map' => $this->previewCategoryMap($parsed['categories'], $from),
+            'sheets' => $parsed['sheets'],
+        ]);
+    }
 
-            if ($parsed['categories'] !== []) {
-                $this->publishCategoryMap($parsed['categories'], $from);
-            }
-        });
+    /**
+     * Publish a previewed workbook as a new dated version.
+     */
+    public function import(PublishPph21TerImportRequest $request): RedirectResponse
+    {
+        $data = $request->validated();
+        $path = $request->file('file')->getRealPath();
+        $checksum = hash_file('sha256', $path);
+        $from = Carbon::parse($data['effective_start_date'])->startOfDay();
 
-        Pph21Ter::forget();
+        Pph21TerPreviewToken::assertMatches($data['preview_token'], [
+            'checksum' => $checksum,
+            'effective_start_date' => $from->toDateString(),
+            'source' => $data['source'],
+            'reason' => $data['reason'],
+            'user_id' => (int) $request->user()->id,
+        ]);
+
+        $parsed = $this->parseWorkbook($path);
+
+        $this->publisher->publish(
+            $parsed['brackets'],
+            $parsed['categories'],
+            $from,
+            $data['source'],
+            $data['reason'],
+            $checksum,
+            (int) $request->user()->id,
+        );
 
         $summary = collect($parsed['brackets'])
             ->map(fn (array $rows, string $category): string => $category.' '.count($rows).' baris')
             ->implode(', ');
 
-        return back()->with('success', 'Tarif TER diperbarui dari berkas: '.$summary);
+        return back()->with('success', 'Tarif TER terbit berlaku '.$from->toDateString().': '.$summary);
     }
 
     /**
-     * Restore the PP 58/2023 tariff as enacted, effective from a date.
+     * Publish the PP 58/2023 tariff as enacted as a new dated version.
      */
-    public function reset(Request $request): RedirectResponse
+    public function reset(ResetPph21TerRequest $request): RedirectResponse
     {
-        $this->ensureSuperAdmin($request);
-
-        $data = $request->validate([
-            'effective_start_date' => ['required', 'date'],
-        ]);
-
+        $data = $request->validated();
         $from = Carbon::parse($data['effective_start_date'])->startOfDay();
 
-        DB::transaction(function () use ($from): void {
-            foreach (Pph21Ter::statutoryMonthly() as $category => $brackets) {
-                $this->publishBrackets($category, $this->fromStatutory($brackets), $from, 'PP 58/2023 & PMK 168/2023');
-            }
+        $this->publisher->publish(
+            $this->publisher->statutoryTables(),
+            Pph21Ter::statutoryCategoryMap(),
+            $from,
+            'PP 58/2023 & PMK 168/2023',
+            $data['reason'],
+            null,
+            (int) $request->user()->id,
+        );
 
-            $this->publishBrackets('HARIAN', $this->fromStatutory(Pph21Ter::statutoryDaily()), $from, 'PP 58/2023 & PMK 168/2023');
-            $this->publishCategoryMap(Pph21Ter::statutoryCategoryMap(), $from);
-        });
-
-        Pph21Ter::forget();
-
-        return back()->with('success', 'Tarif TER dikembalikan ke PP 58/2023');
+        return back()->with('success', 'Tarif TER kembali ke PP 58/2023, berlaku '.$from->toDateString());
     }
 
     /**
-     * Correct a single bracket of the tariff in force.
+     * Correct one bracket by publishing a new version of its whole category.
+     *
+     * The row that was read by a payroll run is never touched: the version in
+     * force is closed the day before, and the corrected table starts on the new
+     * effective date.
      */
-    public function updateBracket(Request $request, Pph21TerRate $rate): RedirectResponse
+    public function updateBracket(RevisePph21TerBracketRequest $request, Pph21TerRate $rate): RedirectResponse
     {
-        $this->ensureSuperAdmin($request);
+        $data = $request->validated();
+        $from = Carbon::parse($data['effective_start_date'])->startOfDay();
 
-        $data = $request->validate([
-            'income_min' => ['required', 'numeric', 'min:0'],
-            'income_max' => ['nullable', 'numeric', 'gt:income_min'],
-            'rate' => ['required', 'numeric', 'min:0', 'max:1'],
-        ], [
-            'income_max.gt' => 'Batas atas harus lebih besar dari batas bawah.',
-            'rate.max' => 'Tarif ditulis sebagai desimal, mis. 0,0225 untuk 2,25%.',
-        ]);
+        $this->publishRevision(
+            $rate,
+            $from,
+            $data['reason'],
+            (int) $request->user()->id,
+            fn (array $brackets): array => $this->replaceBracket($brackets, $rate, [
+                'income_min' => (float) $data['income_min'],
+                'income_max' => $data['income_max'] !== null ? (float) $data['income_max'] : null,
+                'rate' => (float) $data['rate'],
+            ]),
+        );
 
-        $rate->update($data);
-        Pph21Ter::forget();
-
-        return back()->with('success', 'Bracket TER diperbarui');
+        return back()->with('success', 'Bracket dikoreksi lewat versi baru berlaku '.$from->toDateString());
     }
 
-    public function destroyBracket(Request $request, Pph21TerRate $rate): RedirectResponse
+    /**
+     * Drop one bracket, again as a new version of the category.
+     *
+     * The remaining table still has to be a valid tariff — no gap, no missing
+     * open-ended top bracket — so removing a middle band is refused rather than
+     * leaving income nobody withholds on.
+     */
+    public function destroyBracket(RemovePph21TerBracketRequest $request, Pph21TerRate $rate): RedirectResponse
     {
-        $this->ensureSuperAdmin($request);
+        $data = $request->validated();
+        $from = Carbon::parse($data['effective_start_date'])->startOfDay();
 
-        $rate->delete();
-        Pph21Ter::forget();
+        $this->publishRevision(
+            $rate,
+            $from,
+            $data['reason'],
+            (int) $request->user()->id,
+            fn (array $brackets): array => array_values(array_filter(
+                $brackets,
+                fn (array $row): bool => abs($row['income_min'] - (float) $rate->income_min) > 0.001,
+            )),
+        );
 
-        return back()->with('success', 'Bracket TER dihapus');
+        return back()->with('success', 'Bracket dihapus lewat versi baru berlaku '.$from->toDateString());
     }
 
     /**
      * Move a PTKP status to another category, effective from a date.
+     *
+     * The whole mapping is republished, not just the row that moved, so the
+     * eight statuses always resolve from one dated version instead of eight
+     * independently dated ones.
      */
-    public function updateCategoryMap(Request $request): RedirectResponse
+    public function updateCategoryMap(UpdatePph21TerCategoryRequest $request): RedirectResponse
     {
-        $this->ensureSuperAdmin($request);
-
-        $data = $request->validate([
-            'ptkp_status' => ['required', Rule::in(Pph21Ter::PTKP_STATUSES)],
-            'category' => ['required', Rule::in(['A', 'B', 'C'])],
-            'effective_start_date' => ['required', 'date'],
-        ]);
-
+        $data = $request->validated();
         $from = Carbon::parse($data['effective_start_date'])->startOfDay();
 
-        DB::transaction(function () use ($data, $from): void {
-            Pph21TerCategory::query()
-                ->where('ptkp_status', $data['ptkp_status'])
-                ->effectiveOn($from)
-                ->update(['effective_end_date' => $from->copy()->subDay()->toDateString()]);
+        $map = $this->publisher->categoryMapOn($from->toDateString());
+        $map[$data['ptkp_status']] = $data['category'];
 
-            Pph21TerCategory::create([
-                'ptkp_status' => $data['ptkp_status'],
-                'category' => $data['category'],
-                'effective_start_date' => $from->toDateString(),
-            ]);
-        });
+        $this->publisher->publish(
+            $this->publisher->tablesOn($from->toDateString()),
+            $map,
+            $from,
+            'Koreksi kategori PTKP',
+            $data['reason'],
+            null,
+            (int) $request->user()->id,
+        );
 
-        Pph21Ter::forget();
-
-        return back()->with('success', 'Kategori PTKP diperbarui');
+        return back()->with('success', 'Kategori PTKP terbit sebagai versi baru berlaku '.$from->toDateString());
     }
 
     /**
-     * Publish a table for a category: close whatever is in force the day before
-     * the new set starts, then insert it.
+     * Republish a category with one bracket rewritten by the given callback.
      *
+     * @param  callable(list<array{income_min: float, income_max: float|null, rate: float}>): list<array{income_min: float, income_max: float|null, rate: float}>  $revise
+     */
+    private function publishRevision(Pph21TerRate $rate, Carbon $from, string $reason, int $actorId, callable $revise): void
+    {
+        $tables = $this->publisher->tablesOn($from->toDateString());
+        $category = $rate->category;
+
+        $tables[$category] = $revise($tables[$category] ?? []);
+
+        $this->publisher->publish(
+            $tables,
+            $this->publisher->categoryMapOn($from->toDateString()),
+            $from,
+            'Koreksi manual bracket '.$category,
+            $reason,
+            null,
+            $actorId,
+        );
+    }
+
+    /**
      * @param  list<array{income_min: float, income_max: float|null, rate: float}>  $brackets
-     */
-    private function publishBrackets(string $category, array $brackets, Carbon $from, string $source): void
-    {
-        if ($brackets === []) {
-            return;
-        }
-
-        Pph21TerRate::query()
-            ->where('category', $category)
-            ->effectiveOn($from)
-            ->update(['effective_end_date' => $from->copy()->subDay()->toDateString()]);
-
-        // A set already starting on this very day is a re-import, not a new
-        // version — drop it so the file replaces it cleanly.
-        Pph21TerRate::query()
-            ->where('category', $category)
-            ->whereDate('effective_start_date', $from->toDateString())
-            ->delete();
-
-        foreach ($brackets as $bracket) {
-            Pph21TerRate::create([
-                'category' => $category,
-                'income_min' => $bracket['income_min'],
-                'income_max' => $bracket['income_max'],
-                'rate' => $bracket['rate'],
-                'effective_start_date' => $from->toDateString(),
-                'source' => $source,
-            ]);
-        }
-    }
-
-    /**
-     * @param  array<string, string>  $map
-     */
-    private function publishCategoryMap(array $map, Carbon $from): void
-    {
-        Pph21TerCategory::query()
-            ->effectiveOn($from)
-            ->update(['effective_end_date' => $from->copy()->subDay()->toDateString()]);
-
-        Pph21TerCategory::query()
-            ->whereDate('effective_start_date', $from->toDateString())
-            ->delete();
-
-        foreach ($map as $status => $category) {
-            Pph21TerCategory::create([
-                'ptkp_status' => $status,
-                'category' => $category,
-                'effective_start_date' => $from->toDateString(),
-            ]);
-        }
-    }
-
-    /**
-     * Turn the [upper bound, rate] constants into publishable bracket rows.
-     *
-     * @param  list<array{0: int, 1: float}>  $brackets
+     * @param  array{income_min: float, income_max: float|null, rate: float}  $replacement
      * @return list<array{income_min: float, income_max: float|null, rate: float}>
      */
-    private function fromStatutory(array $brackets): array
+    private function replaceBracket(array $brackets, Pph21TerRate $rate, array $replacement): array
     {
-        $rows = [];
-        $min = 0.0;
+        $rewritten = [];
 
-        foreach ($brackets as [$upTo, $rate]) {
-            $isTop = $upTo >= PHP_INT_MAX;
-
-            $rows[] = [
-                'income_min' => $min,
-                'income_max' => $isTop ? null : (float) $upTo,
-                'rate' => $rate,
-            ];
-
-            $min = $isTop ? $min : (float) $upTo;
+        foreach ($brackets as $row) {
+            $rewritten[] = abs($row['income_min'] - (float) $rate->income_min) <= 0.001
+                ? $replacement
+                : $row;
         }
 
-        return $rows;
+        usort($rewritten, static fn (array $a, array $b): int => $a['income_min'] <=> $b['income_min']);
+
+        return array_values($rewritten);
+    }
+
+    /**
+     * Parse an uploaded workbook, turning every read/validation failure into a
+     * field error on the file input.
+     *
+     * @return array{
+     *     brackets: array<string, list<array{income_min: float, income_max: float|null, rate: float}>>,
+     *     categories: array<string, string>,
+     *     sheets: list<string>
+     * }
+     */
+    private function parseWorkbook(string $path): array
+    {
+        try {
+            return Pph21TerImport::parse($path);
+        } catch (RuntimeException $e) {
+            throw ValidationException::withMessages(['file' => $e->getMessage()]);
+        } catch (Throwable) {
+            throw ValidationException::withMessages(['file' => 'Berkas tidak bisa dibaca sebagai workbook TER.']);
+        }
+    }
+
+    /**
+     * Old versus new, per category, for the preview screen.
+     *
+     * @param  array<string, list<array{income_min: float, income_max: float|null, rate: float}>>  $incoming
+     * @return list<array<string, mixed>>
+     */
+    private function previewCategories(array $incoming, Carbon $from): array
+    {
+        $current = $this->publisher->tablesOn($from->toDateString());
+
+        return collect(Pph21Ter::CATEGORIES)
+            ->map(function (string $labelText, string $code) use ($incoming, $current): array {
+                $before = $current[$code] ?? [];
+                $after = $incoming[$code] ?? [];
+
+                return [
+                    'code' => $code,
+                    'label' => $labelText,
+                    'current_brackets' => count($before),
+                    'incoming_brackets' => count($after),
+                    'changed' => $this->normalise($before) !== $this->normalise($after),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, string>  $incoming
+     * @return list<array{ptkp_status: string, current: string|null, incoming: string|null, changed: bool}>
+     */
+    private function previewCategoryMap(array $incoming, Carbon $from): array
+    {
+        $current = $this->publisher->categoryMapOn($from->toDateString());
+
+        return collect(Pph21Ter::PTKP_STATUSES)
+            ->map(fn (string $status): array => [
+                'ptkp_status' => $status,
+                'current' => $current[$status] ?? null,
+                'incoming' => $incoming[$status] ?? null,
+                'changed' => ($current[$status] ?? null) !== ($incoming[$status] ?? null),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Bracket rows as comparable scalars, so "the same table" does not read as
+     * a change because of float formatting.
+     *
+     * @param  list<array{income_min: float, income_max: float|null, rate: float}>  $brackets
+     * @return list<string>
+     */
+    private function normalise(array $brackets): array
+    {
+        return array_map(
+            static fn (array $row): string => sprintf(
+                '%.2f|%s|%.6f',
+                $row['income_min'],
+                $row['income_max'] === null ? 'inf' : sprintf('%.2f', $row['income_max']),
+                $row['rate'],
+            ),
+            $brackets,
+        );
     }
 
     /**
@@ -303,6 +402,7 @@ class Pph21TerController extends Controller
                     'label' => $label,
                     'effective_from' => $rows->first()?->effective_start_date?->toDateString(),
                     'source' => $rows->first()?->source,
+                    'change_reason' => $rows->first()?->change_reason,
                     'brackets' => $rows->map(fn (Pph21TerRate $row): array => [
                         'id' => $row->id,
                         'income_min' => (float) $row->income_min,
@@ -356,7 +456,9 @@ class Pph21TerController extends Controller
             }
         }
 
-        if (! $hasOpenTop) {
+        // TER Harian stops at Rp2,5jt by design — above that the caller applies
+        // 50% × Pasal 17, so the missing open bracket is the rule, not a hole.
+        if (! $hasOpenTop && $rows->first()?->category !== 'HARIAN') {
             $issues[] = 'Tidak ada bracket teratas tanpa batas — penghasilan di atas nilai tertinggi tidak tertagih.';
         }
 
@@ -440,15 +542,5 @@ class Pph21TerController extends Controller
         $user->loadMissing('roles');
 
         return $user->roles->contains(fn ($role): bool => $role->code === 'super_admin');
-    }
-
-    /**
-     * The TER tables are GLOBAL statutory config shared by every tenant, so only
-     * a super admin may change them — a tenant admin editing them would move the
-     * tariff for the whole platform.
-     */
-    private function ensureSuperAdmin(Request $request): void
-    {
-        abort_unless($this->isSuperAdmin($request), 403);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Exceptions\Pph21ConfigurationException;
 use App\Models\Pph21TerCategory;
 use App\Models\Pph21TerRate;
 use Carbon\CarbonInterface;
@@ -206,13 +207,57 @@ final class Pph21Ter
      * Resolve the TER category (A/B/C) for a PTKP status code such as "TK/0",
      * using the mapping in force on `$on`. Unknown or empty statuses default to
      * A (the lowest-allowance category).
+     *
+     * Payroll must not take this default silently — a status nobody mapped is a
+     * configuration hole, not a category-A employee — so the payroll engine
+     * calls {@see self::categoryOrFail()} instead.
      */
     public static function category(?string $ptkpStatus, string|CarbonInterface|null $on = null): string
     {
-        $status = strtoupper(trim((string) $ptkpStatus));
-        $status = str_replace([' ', '-'], '', $status);
+        return self::categoryMap($on)[self::normaliseStatus($ptkpStatus)] ?? 'A';
+    }
 
-        return self::categoryMap($on)[$status] ?? 'A';
+    /**
+     * The TER category for a PTKP status, refusing to guess.
+     *
+     * @throws Pph21ConfigurationException when the status is empty or the
+     *                                     mapping in force does not cover it
+     */
+    public static function categoryOrFail(?string $ptkpStatus, string|CarbonInterface|null $on = null): string
+    {
+        $status = self::normaliseStatus($ptkpStatus);
+
+        if ($status === '') {
+            throw new Pph21ConfigurationException('Status PTKP belum diisi.');
+        }
+
+        $category = self::categoryMap($on)[$status] ?? null;
+
+        if ($category === null) {
+            throw new Pph21ConfigurationException(
+                "Status PTKP {$status} tidak ada di mapping Kategori TER yang berlaku pada ".self::dateKey($on).'.',
+            );
+        }
+
+        return $category;
+    }
+
+    /**
+     * Whether the mapping in force on a date covers a PTKP status.
+     */
+    public static function hasCategory(?string $ptkpStatus, string|CarbonInterface|null $on = null): bool
+    {
+        $status = self::normaliseStatus($ptkpStatus);
+
+        return $status !== '' && isset(self::categoryMap($on)[$status]);
+    }
+
+    /**
+     * "tk / 0" and "TK-0" are the same status as "TK/0" to a human typing it.
+     */
+    private static function normaliseStatus(?string $ptkpStatus): string
+    {
+        return str_replace([' ', '-'], '', strtoupper(trim((string) $ptkpStatus)));
     }
 
     /**

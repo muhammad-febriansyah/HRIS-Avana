@@ -18,6 +18,10 @@ final class OvertimeRequest extends Model
             // own date, and casting them to datetime would attach today's date
             // and quietly shift them across a timezone boundary.
             'hours' => 'decimal:2',
+            // Filled in by payroll from attendance; see OvertimePayableHours.
+            'actual_hours' => 'decimal:2',
+            'payable_hours' => 'decimal:2',
+            'hours_verified_at' => 'datetime',
         ];
     }
 

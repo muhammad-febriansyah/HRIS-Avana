@@ -3,10 +3,12 @@
 namespace App\Http\Requests\Avana;
 
 use App\Concerns\DescribesEmailConflict;
+use App\Concerns\NormalisesContractType;
 use App\Concerns\ResolvesTopApprover;
 use App\Models\AttendancePolicy;
 use App\Models\CustomField;
 use App\Models\Employee;
+use App\Support\MaritalStatus;
 use App\Support\Pph21Ter;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -15,7 +17,7 @@ use Illuminate\Validation\Validator;
 
 class UpdateEmployeeRequest extends FormRequest
 {
-    use DescribesEmailConflict, ResolvesTopApprover;
+    use DescribesEmailConflict, NormalisesContractType, ResolvesTopApprover;
 
     /**
      * Fold the Atasan Langsung sentinel into manager_id + is_top_approver.
@@ -23,6 +25,7 @@ class UpdateEmployeeRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->resolveTopApprover();
+        $this->normaliseContractType();
     }
 
     /**
@@ -48,17 +51,19 @@ class UpdateEmployeeRequest extends FormRequest
 
         return [
             'full_name' => ['required', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255'],
-            'phone' => ['nullable', 'string', 'max:50'],
-            'nik' => ['nullable', 'digits:16'],
-            'gender' => ['nullable', 'in:male,female,unspecified'],
-            'birth_date' => ['nullable', 'date'],
-            'birth_place' => ['nullable', 'string', 'max:255'],
-            'religion' => ['nullable', 'string', 'max:255'],
-            'marital_status' => ['nullable', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255'],
+            'phone' => ['required', 'string', 'max:50'],
+            'nik' => ['required', 'digits:16'],
+            'gender' => ['required', 'in:male,female'],
+            'birth_date' => ['required', 'date'],
+            'birth_place' => ['required', 'string', 'max:255'],
+            'religion' => ['required', 'string', 'max:255'],
+            'marital_status' => ['required', 'string', Rule::in(MaritalStatus::OPTIONS)],
+            // Alamat and the two BPJS numbers are the only fields an admin may
+            // leave for later: they arrive after the hire, not with it.
             'address' => ['nullable', 'string'],
             'employment_status' => ['required', 'in:probation,contract,permanent,resigned'],
-            'join_date' => ['nullable', 'date'],
+            'join_date' => ['required', 'date'],
             'status' => ['required', 'in:active,inactive'],
             'employee_number' => [
                 'nullable', 'string', 'max:255',
@@ -67,22 +72,24 @@ class UpdateEmployeeRequest extends FormRequest
                     ->whereNull('deleted_at')
                     ->ignore($employee),
             ],
-            'branch_id' => ['nullable', Rule::exists('branches', 'id')->where('tenant_id', $tenantId)],
-            'work_location_id' => ['nullable', Rule::exists('work_locations', 'id')->where('tenant_id', $tenantId)],
+            'branch_id' => ['required', Rule::exists('branches', 'id')->where('tenant_id', $tenantId)],
+            'work_location_id' => ['required', Rule::exists('work_locations', 'id')->where('tenant_id', $tenantId)],
             'attendance_scope' => ['nullable', Rule::in(AttendancePolicy::SCOPES)],
-            'department_id' => ['nullable', Rule::exists('departments', 'id')->where('tenant_id', $tenantId)],
-            'position_id' => ['nullable', Rule::exists('positions', 'id')->where('tenant_id', $tenantId)],
-            'job_level_id' => ['nullable', Rule::exists('job_levels', 'id')->where('tenant_id', $tenantId)],
-            'salary_master_id' => ['nullable', Rule::exists('salary_masters', 'id')->where('tenant_id', $tenantId)],
+            'department_id' => ['required', Rule::exists('departments', 'id')->where('tenant_id', $tenantId)],
+            'position_id' => ['required', Rule::exists('positions', 'id')->where('tenant_id', $tenantId)],
+            'job_level_id' => ['required', Rule::exists('job_levels', 'id')->where('tenant_id', $tenantId)],
+            'salary_master_id' => ['required', Rule::exists('salary_masters', 'id')->where('tenant_id', $tenantId)],
             // Contract details typed here create the row that the Kontrak
             // screen lists, so the same contract is not entered twice.
-            'contract_number' => ['nullable', 'string', 'max:255'],
-            'contract_type' => ['nullable', 'string', 'max:255', 'required_with:contract_number'],
-            'contract_start_date' => ['nullable', 'date', 'required_with:contract_number'],
-            'contract_end_date' => ['nullable', 'date', 'after:contract_start_date'],
+            'contract_number' => ['required', 'string', 'max:255'],
+            'contract_type' => ['required', 'string', 'max:255'],
+            'contract_start_date' => ['required', 'date'],
+            // A PKWTT runs until the employee leaves, so it is the one contract
+            // kind with no end date to type.
+            'contract_end_date' => ['nullable', 'date', 'after:contract_start_date', 'required_unless:contract_type,pkwtt'],
             // Kept on the employee's BPJS profile, not the employee row.
             'bpjs_kesehatan_number' => ['nullable', 'string', 'max:32'],
-            'ptkp_status' => ['nullable', 'string', Rule::in(array_keys(Pph21Ter::statutoryCategoryMap()))],
+            'ptkp_status' => ['required', 'string', Rule::in(array_keys(Pph21Ter::statutoryCategoryMap()))],
             'bpjs_ketenagakerjaan_number' => ['nullable', 'string', 'max:32'],
             'manager_id' => [
                 'nullable',
@@ -112,6 +119,10 @@ class UpdateEmployeeRequest extends FormRequest
                 ->where('status', 'active')
                 ->where('is_required', true)
                 ->get(['key', 'label']);
+
+            if (blank($this->managerChoice)) {
+                $validator->errors()->add('manager_id', 'Atasan langsung wajib dipilih.');
+            }
 
             $data = (array) $this->input('custom_data', []);
 
@@ -170,8 +181,29 @@ class UpdateEmployeeRequest extends FormRequest
     {
         return [
             'full_name.required' => 'Nama lengkap wajib diisi.',
+            'email.required' => 'Email wajib diisi.',
             'email.email' => 'Format email tidak valid.',
+            'phone.required' => 'Nomor telepon wajib diisi.',
+            'nik.required' => 'NIK wajib diisi.',
             'nik.digits' => 'NIK harus 16 digit angka.',
+            'gender.required' => 'Jenis kelamin wajib dipilih.',
+            'birth_place.required' => 'Tempat lahir wajib diisi.',
+            'birth_date.required' => 'Tanggal lahir wajib diisi.',
+            'religion.required' => 'Agama wajib dipilih.',
+            'marital_status.required' => 'Status pernikahan wajib dipilih.',
+            'marital_status.in' => 'Status pernikahan tidak valid.',
+            'join_date.required' => 'Tanggal masuk wajib diisi.',
+            'branch_id.required' => 'Cabang wajib dipilih.',
+            'work_location_id.required' => 'Lokasi kerja wajib dipilih.',
+            'department_id.required' => 'Departemen wajib dipilih.',
+            'position_id.required' => 'Jabatan wajib dipilih.',
+            'job_level_id.required' => 'Jenjang jabatan wajib dipilih.',
+            'salary_master_id.required' => 'Master gaji wajib dipilih.',
+            'contract_number.required' => 'Nomor kontrak wajib diisi.',
+            'contract_type.required' => 'Jenis kontrak wajib dipilih.',
+            'contract_start_date.required' => 'Tanggal mulai kontrak wajib diisi.',
+            'contract_end_date.required_unless' => 'Tanggal berakhir kontrak wajib diisi kecuali untuk PKWTT.',
+            'ptkp_status.required' => 'Status PTKP wajib dipilih.',
             'employment_status.required' => 'Status kepegawaian wajib dipilih.',
             'employment_status.in' => 'Status kepegawaian tidak valid.',
             'status.required' => 'Status karyawan wajib dipilih.',
@@ -183,8 +215,6 @@ class UpdateEmployeeRequest extends FormRequest
             'position_id.exists' => 'Posisi yang dipilih tidak valid.',
             'job_level_id.exists' => 'Jenjang jabatan yang dipilih tidak valid.',
             'salary_master_id.exists' => 'Master Gaji yang dipilih tidak valid.',
-            'contract_type.required_with' => 'Jenis kontrak wajib diisi bila nomor kontrak diisi.',
-            'contract_start_date.required_with' => 'Tanggal mulai kontrak wajib diisi bila nomor kontrak diisi.',
             'contract_end_date.after' => 'Tanggal berakhir kontrak harus setelah tanggal mulai.',
             'manager_id.exists' => 'Atasan yang dipilih tidak valid.',
             'manager_id.not_in' => 'Karyawan tidak dapat menjadi atasan untuk dirinya sendiri.',

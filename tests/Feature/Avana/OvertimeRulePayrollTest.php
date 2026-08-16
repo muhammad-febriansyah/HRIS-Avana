@@ -52,10 +52,14 @@ function overtimeBasisComponent(Employee $employee, string $code, float $amount,
     return $component;
 }
 
-/** File an approved overtime record inside the period. */
+/**
+ * File an approved overtime record inside the period, with the attendance that
+ * backs it — payroll pays the smaller of approved and actually-worked hours, so
+ * a record with no clock-out is worth nothing.
+ */
 function approvedOvertime(object $ctx, float $hours, string $dayType = 'workday'): OvertimeRequest
 {
-    return OvertimeRequest::create([
+    $overtime = OvertimeRequest::create([
         'tenant_id' => $ctx->tenant->id,
         'employee_id' => $ctx->employee->id,
         'branch_id' => $ctx->employee->branch_id,
@@ -64,6 +68,10 @@ function approvedOvertime(object $ctx, float $hours, string $dayType = 'workday'
         'hours' => $hours,
         'status' => 'approved',
     ]);
+
+    seedOvertimeAttendance($overtime, $hours);
+
+    return $overtime->refresh();
 }
 
 /** Run payroll and return this employee's item. */

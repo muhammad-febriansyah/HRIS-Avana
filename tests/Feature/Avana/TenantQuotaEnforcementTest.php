@@ -66,11 +66,11 @@ it('blocks a new employee once the package limit is reached', function (): void 
 
     actingAs($this->admin)
         ->from(route('avana.employees.index'))
-        ->post(route('avana.employees.store'), [
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
             'full_name' => 'Karyawan Kelebihan',
             'employment_status' => 'permanent',
             'status' => 'active',
-        ])
+        ]))
         ->assertSessionHasErrors('full_name');
 
     expect(Employee::where('tenant_id', $this->tenant->id)->count())->toBe($before);

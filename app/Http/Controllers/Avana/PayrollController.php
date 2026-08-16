@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Avana;
 
+use App\Exceptions\Pph21ConfigurationException;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Avana\PayrollPeriodResource;
 use App\Models\Attendance;
@@ -12,11 +13,11 @@ use App\Models\DayCalcMethod;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
 use App\Models\EmployeeSalaryComponent;
+use App\Models\IncentiveCalculation;
 use App\Models\Loan;
 use App\Models\OvertimeRequest;
 use App\Models\Payday;
 use App\Models\PayrollComponent;
-use App\Models\PayrollComponentValue;
 use App\Models\PayrollCorrection;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
@@ -28,8 +29,10 @@ use App\Models\SalaryMasterComponent;
 use App\Models\SalaryRapel;
 use App\Models\TaxProfile;
 use App\Models\UmrRate;
+use App\Services\OvertimePayableHours;
 use App\Services\SalaryMasterAssignment;
 use App\Support\AttendanceFines;
+use App\Support\BasicWageComponent;
 use App\Support\OvertimeRules;
 use App\Support\Pph21Calculator;
 use App\Support\Pph21Ter;
@@ -83,6 +86,8 @@ class PayrollController extends Controller
      * @var array<int, string>
      */
     private const DEDUCTIBLE_EMPLOYEE_PREMIUMS = ['jht', 'jp'];
+
+    public function __construct(private readonly OvertimePayableHours $overtimeHoursVerifier) {}
 
     /**
      * Display the payroll periods list, latest-run summary and a sample payslip.
@@ -315,19 +320,85 @@ class PayrollController extends Controller
      */
     private function runIsStale(int $tenantId, ?PayrollRun $run): bool
     {
-        if ($run === null || in_array($run->status, ['locked'], true)) {
-            return false;
+        return $this->staleReason($tenantId, $run) !== null;
+    }
+
+    /**
+     * What changed since the run was computed, or null when nothing did.
+     *
+     * Used for the warning on screen AND as the gate on approve/lock: a run
+     * computed on Monday, approved on Wednesday and locked on Friday pays what
+     * Monday's data said, even if somebody raised a salary, corrected an
+     * attendance, approved an incentive or filed a rapel in between. Finalising
+     * stale figures is how an employee gets paid a number nobody can point at.
+     */
+    private function staleReason(int $tenantId, ?PayrollRun $run): ?string
+    {
+        if ($run === null || $run->status === PayrollRun::STATUS_LOCKED) {
+            return null;
         }
 
-        $computedAt = PayrollRunItem::where('payroll_run_id', $run->id)->max('updated_at');
+        // An imported payroll is not derived from this data at all, so none of
+        // it can make the upload out of date.
+        if ($run->source === PayrollRun::SOURCE_IMPORT) {
+            return null;
+        }
+
+        // The moment the run was calculated — not the items' updated_at, which a
+        // recomputation producing identical figures never touches.
+        $computedAt = $run->computed_at?->toDateTimeString()
+            ?? PayrollRunItem::where('payroll_run_id', $run->id)->max('updated_at');
 
         if ($computedAt === null) {
-            return false;
+            return null;
         }
 
-        $changedAt = $this->latestConfigChangeAt($tenantId);
+        $period = $run->period ?? PayrollPeriod::find($run->payroll_period_id);
 
-        return $changedAt !== null && $changedAt > $computedAt;
+        foreach ($this->payrollInputChanges($tenantId, $period) as $label => $changedAt) {
+            if ($changedAt !== null && $changedAt > $computedAt) {
+                return $label;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Every input the run was computed from, with the moment it last changed:
+     * the tenant's configuration, and the transactions dated inside the period.
+     *
+     * @return array<string, string|null>
+     */
+    private function payrollInputChanges(int $tenantId, ?PayrollPeriod $period): array
+    {
+        $changes = ['konfigurasi payroll (komponen, Master Gaji, gaji karyawan, lembur, denda, payday, BPJS)' => $this->latestConfigChangeAt($tenantId)];
+
+        $start = $period?->start_date?->toDateString();
+        $end = $period?->end_date?->toDateString();
+
+        if ($start === null || $end === null) {
+            return $changes;
+        }
+
+        $between = fn (string $table, string $column) => DB::table($table)
+            ->where('tenant_id', $tenantId)
+            ->whereBetween($column, [$start, $end])
+            ->max('updated_at');
+
+        return $changes + [
+            'data kehadiran di periode ini' => $between('attendances', 'date'),
+            'pengajuan lembur di periode ini' => $between('overtime_requests', 'date'),
+            'koreksi gaji di periode ini' => $between('payroll_corrections', 'correction_date'),
+            'rapel di periode ini' => $between('salary_rapels', 'posting_date'),
+            'insentif periode ini' => DB::table('incentive_calculations')
+                ->where('tenant_id', $tenantId)
+                ->where('payroll_period_id', $period->id)
+                ->max('updated_at'),
+            'pinjaman/cicilan karyawan' => DB::table('loans')
+                ->where('tenant_id', $tenantId)
+                ->max('updated_at'),
+        ];
     }
 
     /**
@@ -388,17 +459,37 @@ class PayrollController extends Controller
                 $period->update(['pay_date' => $data['pay_date']]);
             }
 
+            // Only the revision still in play is recomputed. After an unlock the
+            // finalised run is closed off, so this opens the next revision
+            // instead of writing over what the payslips already said.
             $run = PayrollRun::forTenant($tenantId)
                 ->where('payroll_period_id', $period->id)
                 ->whereNull('branch_id')
+                ->current()
+                ->orderByDesc('id')
                 ->lockForUpdate()
                 ->first() ?? new PayrollRun([
                     'tenant_id' => $tenantId,
                     'payroll_period_id' => $period->id,
                     'branch_id' => null,
+                    'revision' => 1 + (int) PayrollRun::forTenant($tenantId)
+                        ->where('payroll_period_id', $period->id)
+                        ->max('revision'),
                 ]);
+            // Recomputing over an uploaded payroll would silently replace the
+            // tenant's own figures with the engine's. Both are legitimate, but
+            // swapping one for the other is a decision, not a side effect.
+            if ($run->exists && $run->source === PayrollRun::SOURCE_IMPORT && $run->items()->exists()) {
+                throw ValidationException::withMessages([
+                    'payroll' => 'Periode ini memakai payroll hasil impor. Menghitung ulang akan menimpanya — kosongkan hasil impor lebih dulu bila memang ingin dihitung sistem.',
+                ]);
+            }
+
             $run->fill([
                 'status' => 'calculated',
+                'computed_at' => now(),
+                'source' => PayrollRun::SOURCE_ENGINE,
+                'reconciliation' => null,
                 'run_by' => $request->user()->id,
                 'approved_by' => null,
                 'approved_at' => null,
@@ -409,6 +500,12 @@ class PayrollController extends Controller
             ])->save();
 
             $employees = $this->payableEmployees($tenantId, $period);
+
+            // A PTKP status nobody mapped to a TER category cannot be taxed on
+            // a guess: the whole run stops until the configuration is fixed,
+            // rather than withholding these employees at Kategori A.
+            $this->assertPtkpMapped($employees, $tenantId, $period);
+
             $employeeIds = $employees->pluck('id')->all();
             $run->items()->whereNotIn('employee_id', $employeeIds)->delete();
 
@@ -437,6 +534,8 @@ class PayrollController extends Controller
                             'present_days' => $pay['present_days'],
                             'overtime_hours' => $pay['overtime_hours'],
                             'overtime' => $pay['overtime_snapshot'],
+                            'overtime_records' => $pay['overtime_records'],
+                            'incentives' => $pay['incentives'],
                             'payday' => $pay['payday_snapshot'],
                             'salary_sources' => $pay['salary_sources'],
                             'salary_master_id' => $pay['salary_master_id'],
@@ -471,39 +570,29 @@ class PayrollController extends Controller
             return [$period, $run, $employees, $totals];
         });
 
-        // Anyone without a PTKP status was taxed as TK/0 — the strictest
-        // category, and almost certainly not what they are. The run still
-        // stands; it just should not go out unnoticed.
-        $missing = $this->employeesMissingPtkp($employees, $tenantId);
-
-        if ($missing !== []) {
-            return back()->with('success', 'Payroll dihitung')->with(
-                'warning',
-                count($missing).' karyawan belum punya status PTKP dan dihitung sebagai TK/0: '
-                    .implode(', ', array_slice($missing, 0, 5))
-                    .(count($missing) > 5 ? ', …' : '')
-                    .'. Lengkapi di Konfigurasi Payroll → Profil Pajak.',
-            );
-        }
-
         return back()->with('success', 'Payroll dihitung');
     }
 
     /**
-     * Names of the employees in this run whose tax profile carries no PTKP
-     * status, and who therefore fell back to TK/0.
+     * Stop the run when any employee's PTKP status is missing from the tax
+     * profile, or is not covered by the TER category mapping in force.
+     *
+     * Both cases used to resolve to Kategori A — the wrong tax, charged
+     * quietly, for as many months as it took somebody to notice. A payroll that
+     * refuses to run names exactly whose configuration to fix.
      *
      * @param  Collection<int, Employee>  $employees
-     * @return array<int, string>
+     *
+     * @throws ValidationException
      */
-    private function employeesMissingPtkp(iterable $employees, int $tenantId): array
+    private function assertPtkpMapped(iterable $employees, int $tenantId, PayrollPeriod $period): void
     {
+        $on = ($period->end_date ?? now())->toDateString();
+
         $statuses = TaxProfile::where('tenant_id', $tenantId)
-            ->whereNotNull('ptkp_status')
-            ->where('ptkp_status', '!=', '')
             ->pluck('ptkp_status', 'employee_id');
 
-        $missing = [];
+        $unmapped = [];
 
         foreach ($employees as $employee) {
             // Only the subjects whose tax actually depends on PTKP — a peserta
@@ -518,12 +607,22 @@ class PayrollController extends Controller
                 continue;
             }
 
-            if (! isset($statuses[$employee->id])) {
-                $missing[] = (string) $employee->full_name;
+            if (! Pph21Ter::hasCategory($statuses[$employee->id] ?? null, $on)) {
+                $unmapped[] = (string) $employee->full_name;
             }
         }
 
-        return $missing;
+        if ($unmapped === []) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'payroll' => count($unmapped).' karyawan punya status PTKP yang kosong atau tidak ada di mapping Kategori TER, '
+                .'jadi payroll dihentikan: '
+                .implode(', ', array_slice($unmapped, 0, 5))
+                .(count($unmapped) > 5 ? ', …' : '')
+                .'. Lengkapi di Konfigurasi Payroll → Profil Pajak, atau tambahkan statusnya di Tarif TER PPh 21.',
+        ]);
     }
 
     /**
@@ -559,6 +658,37 @@ class PayrollController extends Controller
         ], [
             'end_date.after' => 'Periode tidak boleh satu hari — tanggal selesai harus setelah tanggal mulai. Gaji bulanan yang diprorata akan terpotong mengikuti panjang periode.',
         ]);
+
+        // Two periods covering the same day would each pick up the attendance,
+        // overtime, corrections and rapel dated in the overlap — the same work
+        // paid twice, in two different payslips.
+        $overlapping = PayrollPeriod::forTenant($tenantId)
+            ->whereNotNull('start_date')
+            ->whereNotNull('end_date')
+            ->whereDate('start_date', '<=', $data['end_date'])
+            ->whereDate('end_date', '>=', $data['start_date'])
+            ->first();
+
+        if ($overlapping !== null) {
+            throw ValidationException::withMessages([
+                'start_date' => 'Rentang ini beririsan dengan periode '
+                    .($overlapping->name ?? $overlapping->code)
+                    .' ('.$overlapping->start_date->format('d M Y').'–'.$overlapping->end_date->format('d M Y').'). '
+                    .'Satu hari kerja hanya boleh masuk satu periode payroll.',
+            ]);
+        }
+
+        $salaryChangeInsidePeriod = EmployeeSalaryComponent::forTenant($tenantId)
+            ->where(fn ($query) => $query->whereNull('status')->orWhereIn('status', ['active', 'pending_approval']))
+            ->whereDate('effective_start_date', '>', $data['start_date'])
+            ->whereDate('effective_start_date', '<=', $data['end_date'])
+            ->exists();
+
+        if ($salaryChangeInsidePeriod) {
+            throw ValidationException::withMessages([
+                'start_date' => 'Rentang periode membelah perubahan gaji yang sudah dijadwalkan. Sesuaikan awal/akhir periode agar perubahan gaji jatuh tepat pada awal periode.',
+            ]);
+        }
 
         PayrollPeriod::create([
             'tenant_id' => $tenantId,
@@ -674,6 +804,8 @@ class PayrollController extends Controller
                             ->where('resign_date', '>=', $asOf->copy()->subDays(30)->toDateString()));
                 })
                 ->get();
+
+            $this->assertPtkpMapped($employees, $tenantId, $period);
 
             $run->items()->whereNotIn('employee_id', $employees->pluck('id'))->delete();
 
@@ -903,7 +1035,12 @@ class PayrollController extends Controller
 
         $snapshot = $item->calculation_snapshot ?? [];
 
+        $item->loadMissing('run:id,status');
+
         $html = view('pdf.payslip', [
+            // Admins may preview a payslip before the run is locked; the sheet
+            // is stamped so a preview cannot be handed over as the real thing.
+            'final' => $item->isPublished(),
             'company' => $employee->tenant?->company_name ?? $employee->tenant?->name ?? 'AvanaHR',
             'period' => $item->period?->name ?? '-',
             'employee' => [
@@ -914,11 +1051,11 @@ class PayrollController extends Controller
             ],
             'earnings' => array_map(
                 fn (array $row): array => ['name' => $row['name'], 'amount' => $this->rupiah($row['amount'])],
-                $snapshot['earnings'] ?? [],
+                [...($snapshot['earnings'] ?? []), ...$this->refundLines($snapshot['deductions'] ?? [])],
             ),
             'deductions' => array_map(
                 fn (array $row): array => ['name' => $row['name'], 'amount' => $this->rupiah($row['amount'])],
-                $snapshot['deductions'] ?? [],
+                $this->chargedDeductions($snapshot['deductions'] ?? []),
             ),
             'gross' => $this->rupiah($item->gross_salary),
             'deduction' => $this->rupiah($item->total_deduction),
@@ -981,6 +1118,7 @@ class PayrollController extends Controller
 
             $run = PayrollRun::forTenant($tenantId)
                 ->where('payroll_period_id', $period->id)
+                ->current()
                 ->orderByDesc('id')
                 ->lockForUpdate()
                 ->first();
@@ -992,11 +1130,29 @@ class PayrollController extends Controller
                 ]);
             }
 
+            // Checked again here, not only at approval: the gap between signing
+            // off and locking is exactly where a late salary change or an
+            // attendance correction slips in.
+            $stale = $this->staleReason($tenantId, $run);
+
+            if ($stale !== null) {
+                throw ValidationException::withMessages([
+                    'payroll' => 'Ada perubahan pada '.$stale.' setelah payroll dihitung. Jalankan ulang lalu setujui lagi sebelum mengunci.',
+                ]);
+            }
+
             // Finalizing advances loan/cash-advance installments exactly once.
             if ($run->status !== 'locked') {
                 $this->advanceInstallments($run, $tenantId);
                 $run->update(['status' => 'locked']);
             }
+
+            // The incentives this period paid are now history: locked rows are
+            // read-only, and a recalculation skips them.
+            IncentiveCalculation::forTenant($tenantId)
+                ->where('payroll_period_id', $period->id)
+                ->where('status', IncentiveCalculation::STATUS_APPROVED)
+                ->update(['status' => IncentiveCalculation::STATUS_LOCKED]);
 
             $period->update(['status' => 'locked']);
         });
@@ -1039,6 +1195,7 @@ class PayrollController extends Controller
 
             $run = PayrollRun::forTenant($tenantId)
                 ->where('payroll_period_id', $period->id)
+                ->current()
                 ->orderByDesc('id')
                 ->lockForUpdate()
                 ->first();
@@ -1048,8 +1205,18 @@ class PayrollController extends Controller
             // reopening does not leave loans/advances over-counted.
             if ($run->status === 'locked') {
                 $this->reverseInstallments($run, $tenantId);
-                $run->update(['status' => 'approved']);
+
+                // The finalised run stays exactly as it was paid; it is closed
+                // off, and the next calculation writes a new revision.
+                $run->update(['superseded_at' => now()]);
             }
+
+            // Incentives paid by the reopened period go back to approved: they
+            // are still signed off, but the period may now be recomputed.
+            IncentiveCalculation::forTenant($tenantId)
+                ->where('payroll_period_id', $period->id)
+                ->where('status', IncentiveCalculation::STATUS_LOCKED)
+                ->update(['status' => IncentiveCalculation::STATUS_APPROVED]);
 
             // Reopen the period so it can be recomputed or re-locked.
             $period->update(['status' => 'draft']);
@@ -1091,6 +1258,7 @@ class PayrollController extends Controller
 
             $run = PayrollRun::forTenant($tenantId)
                 ->where('payroll_period_id', $period->id)
+                ->current()
                 ->orderByDesc('id')
                 ->lockForUpdate()
                 ->first();
@@ -1111,6 +1279,23 @@ class PayrollController extends Controller
             ) {
                 throw ValidationException::withMessages([
                     'payroll' => 'Pemroses payroll tidak boleh menyetujui hasilnya sendiri (segregation of duties). Minta pengguna lain untuk menyetujui.',
+                ]);
+            }
+
+            $stale = $this->staleReason($tenantId, $run);
+
+            if ($stale !== null) {
+                throw ValidationException::withMessages([
+                    'payroll' => 'Ada perubahan pada '.$stale.' setelah payroll dihitung. Jalankan ulang perhitungan sebelum menyetujui.',
+                ]);
+            }
+
+            // An imported payroll never passed the engine's checks, so signing
+            // it off is a statement about somebody else's figures: it needs a
+            // note saying the reconciliation was read.
+            if ($run->source === PayrollRun::SOURCE_IMPORT && blank($data['note'] ?? null)) {
+                throw ValidationException::withMessages([
+                    'note' => 'Payroll hasil impor: tulis catatan persetujuan setelah memeriksa rekonsiliasinya (selisih, karyawan terlewat, karyawan tak terduga).',
                 ]);
             }
 
@@ -1151,6 +1336,7 @@ class PayrollController extends Controller
 
             $run = PayrollRun::forTenant($tenantId)
                 ->where('payroll_period_id', $period->id)
+                ->current()
                 ->orderByDesc('id')
                 ->lockForUpdate()
                 ->first();
@@ -1307,7 +1493,26 @@ class PayrollController extends Controller
             ->first();
 
         if ($employee !== null && $period !== null) {
-            $pay = $this->computeEmployeePay($employee, $period, $tenantId);
+            try {
+                $pay = $this->computeEmployeePay($employee, $period, $tenantId);
+            } catch (Pph21ConfigurationException $exception) {
+                // The sample slip is a convenience, not the payroll itself: a
+                // tax profile nobody has filled in should send HR to the screen
+                // that fixes it, not take the whole Payroll page down with a
+                // 500. Running payroll still refuses, by name, in
+                // assertPtkpMapped().
+                return [
+                    'employee' => $employee->full_name,
+                    'employee_id' => $employee->id,
+                    'notice' => 'Slip contoh belum bisa dihitung: '.$exception->getMessage()
+                        .' Lengkapi Status PTKP karyawan ini di BPJS & Pajak → Profil Pajak.',
+                    'earnings' => [],
+                    'deductions' => [],
+                    'gross' => $this->rupiah(0),
+                    'deduction' => $this->rupiah(0),
+                    'net' => $this->rupiah(0),
+                ];
+            }
 
             if ($pay['earnings'] !== [] || $pay['deductions'] !== []) {
                 // A saved run item enables a downloadable, protected PDF payslip.
@@ -1327,7 +1532,7 @@ class PayrollController extends Controller
                             'v' => $this->rupiah($row['amount']),
                             'why' => $this->explainEarning($row, $pay),
                         ],
-                        $pay['earnings'],
+                        [...$pay['earnings'], ...$this->refundLines($pay['deductions'])],
                     ),
                     'deductions' => array_map(
                         fn (array $row): array => [
@@ -1335,7 +1540,7 @@ class PayrollController extends Controller
                             'v' => $this->rupiah($row['amount']),
                             'why' => $this->explainDeduction($row, $pay, $employee, $tenantId),
                         ],
-                        $pay['deductions'],
+                        $this->chargedDeductions($pay['deductions']),
                     ),
                     'gross' => $this->rupiah($pay['gross']),
                     'deduction' => $this->rupiah($pay['deduction']),
@@ -1372,6 +1577,10 @@ class PayrollController extends Controller
      */
     private function explainEarning(array $row, array $pay): ?string
     {
+        if (str_starts_with($row['name'], 'Pengembalian PPh 21')) {
+            return $this->explainTaxRefund($row, $pay);
+        }
+
         if ($row['name'] === 'Lembur') {
             $overtime = $pay['overtime_snapshot'] ?? null;
 
@@ -1402,6 +1611,53 @@ class PayrollController extends Controller
     }
 
     /**
+     * Why an annual over-withholding is being paid back on this slip.
+     *
+     * @param  array{name: string, amount: float}  $row
+     * @param  array<string, mixed>  $pay
+     */
+    private function explainTaxRefund(array $row, array $pay): string
+    {
+        $tax = $pay['tax_snapshot'] ?? [];
+
+        return sprintf(
+            'Rekonsiliasi tahunan: PPh 21 setahun Rp %s lebih kecil dari yang sudah dipotong Rp %s, '
+                .'jadi selisih Rp %s dikembalikan pada slip ini.',
+            number_format((float) ($tax['annual_tax'] ?? 0), 0, ',', '.'),
+            number_format((float) ($tax['ytd_withheld'] ?? 0), 0, ',', '.'),
+            number_format((float) ($tax['tax_refund'] ?? abs($row['amount'])), 0, ',', '.'),
+        );
+    }
+
+    /**
+     * The refund rows hiding among the deductions, as positive earnings.
+     *
+     * @param  array<int, array{name: string, amount: float}>  $deductions
+     * @return array<int, array{name: string, amount: float}>
+     */
+    private function refundLines(array $deductions): array
+    {
+        return array_values(array_map(
+            static fn (array $row): array => [...$row, 'amount' => abs((float) $row['amount'])],
+            array_filter($deductions, static fn (array $row): bool => (float) $row['amount'] < 0),
+        ));
+    }
+
+    /**
+     * The deductions that really are deductions.
+     *
+     * @param  array<int, array{name: string, amount: float}>  $deductions
+     * @return array<int, array{name: string, amount: float}>
+     */
+    private function chargedDeductions(array $deductions): array
+    {
+        return array_values(array_filter(
+            $deductions,
+            static fn (array $row): bool => (float) $row['amount'] >= 0,
+        ));
+    }
+
+    /**
      * The matching explanation for a deduction line.
      *
      * @param  array{name: string, amount: float, loan_id?: int}  $row
@@ -1409,6 +1665,10 @@ class PayrollController extends Controller
      */
     private function explainDeduction(array $row, array $pay, Employee $employee, int $tenantId): ?string
     {
+        if (str_starts_with($row['name'], 'Pengembalian PPh 21')) {
+            return $this->explainTaxRefund($row, $pay);
+        }
+
         if ($row['name'] === 'PPh 21') {
             $tax = $pay['tax_snapshot'] ?? [];
             $method = $tax['method'] ?? null;
@@ -1556,10 +1816,17 @@ class PayrollController extends Controller
                 ->where('employee_id', $employee->id)
                 ->where('status', 'approved')
                 ->whereBetween('date', $overtimeRange)
-                ->get(['date', 'day_type', 'hours']);
+                ->get();
+
+            // An approval is a plan; attendance is the record. Pay the smaller
+            // of the two, and keep the working on each request so the payslip
+            // line can be explained. A re-run re-reads attendance, so an
+            // attendance correction lands before the period is locked.
+            $overtimeRecords = $this->overtimeHoursVerifier->verify($tenantId, $employee->id, $overtimeRecords);
         }
 
-        $overtimeHours = (float) $overtimeRecords->sum('hours');
+        $overtimeHours = $this->overtimeHoursVerifier->payableTotal($overtimeRecords);
+        $overtimeAudit = $this->overtimeHoursVerifier->audit($overtimeRecords);
 
         // Proration factor from the master's Jumlah Hari divisor + Perhitungan
         // Hari method — applied to that master's prorate-flagged components.
@@ -1614,26 +1881,30 @@ class PayrollController extends Controller
                 continue;
             }
 
+            if ($suppressFlatOvertime && $component->calc_basis === 'per_overtime_hour') {
+                continue;
+            }
+
             $handledComponentIds[$component->id] = true;
+
+            if ($component->calc_basis === 'per_overtime_hour') {
+                $hasCustomOvertime = true;
+            }
 
             if ($component->basis_type !== null) {
                 [$amount, $proratable] = $this->derivedComponentAmount($component, $employee, (float) $salaryComponent->amount, $presentDays, $overtimeHours, $tenantId, $period->end_date);
                 $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasis, $bpjsBasis);
             } else {
-                // A percentage attached to an employee is still a percentage —
-                // paying the figure itself would put "10%" on the payslip as
-                // Rp 10.
-                $amount = $component->calc_basis === 'percentage'
-                    ? $this->amountForBasis(
-                        (float) $salaryComponent->amount,
-                        'percentage',
-                        $presentDays,
-                        $overtimeHours,
-                        $this->percentageBase($component, $employee, $tenantId, $period->end_date),
-                    )
-                    : (float) $salaryComponent->amount;
+                $amount = $this->amountForBasis(
+                    (float) $salaryComponent->amount,
+                    $component->calc_basis,
+                    $presentDays,
+                    $overtimeHours,
+                    $this->percentageBase($component, $employee, $tenantId, $period->end_date),
+                );
+                $proratable = ! in_array($component->calc_basis, ['per_present_day', 'per_overtime_hour'], true);
 
-                $this->collectComponent($component, $amount, true, $earnings, $deductions, $basic, $overtimeBasis, $bpjsBasis);
+                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasis, $bpjsBasis);
             }
         }
 
@@ -1673,13 +1944,12 @@ class PayrollController extends Controller
                 if ($component->basis_type !== null) {
                     [$amount] = $this->derivedComponentAmount($component, $employee, (float) $masterComponent->amount, $presentDays, $overtimeHours, $tenantId, $period->end_date);
                 } else {
-                    // The template's own nominal is the primary source; fall back
-                    // to the dimension-mapped Nilai Komponen when it is unset.
+                    // The template's nominal is the only source. There is no
+                    // fallback: a component checked into a template with no
+                    // figure is worth nothing, because the alternative — reading
+                    // some other table — is payroll paying a number nobody
+                    // assigned on this screen.
                     $base = (float) $masterComponent->amount;
-
-                    if ($base <= 0.0) {
-                        $base = $this->resolveComponentValue($component, $employee, $tenantId) ?? 0.0;
-                    }
 
                     $amount = $this->amountForBasis(
                         $base,
@@ -1769,6 +2039,53 @@ class PayrollController extends Controller
             }
         }
 
+        // Insentif: only rows an approver signed off for this period, one line
+        // per scheme. The unique key on (scheme, employee, period) is what keeps
+        // a re-run from paying the same incentive twice — the rows are read,
+        // never created, here. Its payslip name follows the scheme's component
+        // so the taxable/BPJS treatment is the component's, not a guess.
+        $incentives = IncentiveCalculation::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->where('payroll_period_id', $period->id)
+            ->payable()
+            ->with('scheme.component:id,name,is_taxable,is_bpjs_base')
+            ->get();
+
+        foreach ($incentives as $incentive) {
+            $amount = (float) $incentive->amount;
+
+            if ($amount <= 0.0) {
+                continue;
+            }
+
+            $component = $incentive->scheme?->component;
+            $label = $component?->name ?? ('Insentif: '.($incentive->scheme?->name ?? 'Lainnya'));
+
+            $earnings[] = [
+                'name' => $label,
+                'amount' => $amount,
+                // An incentive is earned for the period as a whole; a mid-period
+                // joiner is prorated by the scheme itself, not again here.
+                'proratable' => false,
+                'taxable' => $component === null || (bool) $component->is_taxable,
+            ];
+
+            if ($component !== null && (bool) $component->is_bpjs_base) {
+                $bpjsBasis += $amount;
+            }
+        }
+
+        $incentiveSnapshot = $incentives
+            ->map(fn (IncentiveCalculation $row): array => [
+                'incentive_calculation_id' => $row->id,
+                'scheme' => $row->scheme?->code,
+                'amount' => (float) $row->amount,
+                'status' => $row->status,
+                'measured_value' => (float) $row->measured_value,
+            ])
+            ->values()
+            ->all();
+
         // Capture the full monthly figures before proration: the overtime rate is
         // built from a whole month's wage even when the month itself is partial.
         $fullBasic = $basic;
@@ -1824,6 +2141,7 @@ class PayrollController extends Controller
                     'hourly_rate' => round($resolved['basis'] / $divisor),
                     'divisor' => $divisor,
                     'hours' => $overtimeHours,
+                    'requested_hours' => (float) $overtimeRecords->sum('hours'),
                 ];
             }
         }
@@ -1891,6 +2209,14 @@ class PayrollController extends Controller
 
         if ($pph21['amount'] > 0) {
             $deductions[] = ['name' => 'PPh 21', 'amount' => $pph21['amount']];
+        } elseif ($pph21['amount'] < 0) {
+            // A negative balance is over-withholding handed back: a deduction
+            // line with a negative amount, so the payslip shows the refund
+            // where the tax normally sits and the net rises by it.
+            $deductions[] = [
+                'name' => 'Pengembalian PPh 21 (lebih potong)',
+                'amount' => $pph21['amount'],
+            ];
         }
 
         $deduction = (float) array_sum(array_column($deductions, 'amount'));
@@ -1907,6 +2233,11 @@ class PayrollController extends Controller
             'present_days' => $presentDays,
             'overtime_hours' => $overtimeHours,
             'overtime_snapshot' => $overtimeSnapshot,
+            // Requested vs actual vs payable for every approved request in the
+            // window — the audit trail behind the overtime line.
+            'overtime_records' => $overtimeAudit,
+            // Which approved incentives were paid into this payslip.
+            'incentives' => $incentiveSnapshot,
             // Which cut-off and pay date the employee's Mapping Payday group
             // produced, so the configuration is legible from the payslip.
             'payday_snapshot' => $payday !== null ? [
@@ -2020,7 +2351,8 @@ class PayrollController extends Controller
         $total = 0.0;
 
         foreach ($records as $record) {
-            $hours = (float) $record->hours;
+            // Payable, not requested: attendance has already capped this.
+            $hours = (float) ($record->payable_hours ?? 0);
 
             if ($hours <= 0) {
                 continue;
@@ -2083,7 +2415,9 @@ class PayrollController extends Controller
         foreach ($salaryComponents as $salaryComponent) {
             $component = $salaryComponent->component;
 
-            if ($component !== null && $component->type !== 'deduction') {
+            if ($component !== null
+                && $component->type !== 'deduction'
+                && ! in_array($component->calc_basis, ['per_present_day', 'per_overtime_hour'], true)) {
                 $handledComponentIds[$component->id] = true;
                 $total += (float) $salaryComponent->amount;
             }
@@ -2147,7 +2481,7 @@ class PayrollController extends Controller
 
         $reference = $component->percentage_of_component_id !== null
             ? PayrollComponent::forTenant($tenantId)->find($component->percentage_of_component_id)
-            : PayrollComponent::forTenant($tenantId)->where('code', 'BASIC')->first();
+            : BasicWageComponent::for($tenantId);
 
         return $this->componentOperandValue($reference, $employee, $tenantId, $on);
     }
@@ -2239,7 +2573,14 @@ class PayrollController extends Controller
      * Resolve a component amount from its "Dasar Perhitungan" (BPR manual 1.2.2)
      * when a basis_type is configured. Returns [amount, proratable].
      *
-     *   - fixed   : basis_value as the per-unit amount x attendance calc_basis
+     *   - fixed   : the employee's own nominal — their salary row, or the
+     *               Master Gaji template it was copied from — x attendance
+     *               calc_basis. Master Komponen holds no rupiah figure: two
+     *               places to type a nominal means payroll can pay a number
+     *               nobody assigned, which is exactly what it used to do when
+     *               this read `basis_value`. A Persentase component is the one
+     *               exception: its number is a percent, not rupiah, so it stays
+     *               on the component.
      *   - tabel   : the Nilai Komponen mapping value (fallback to the attachment
      *               amount) x attendance calc_basis
      *   - formula : the evaluated Master Formula (already a full value; not
@@ -2254,12 +2595,19 @@ class PayrollController extends Controller
 
         switch ($component->basis_type) {
             case 'fixed':
-                $amount = $this->amountForBasis((float) $component->basis_value, $component->calc_basis, $presentDays, $overtimeHours, $percentBase);
+                $base = $component->calc_basis === 'percentage'
+                    ? (float) $component->basis_value
+                    : $attachmentAmount;
+
+                $amount = $this->amountForBasis($base, $component->calc_basis, $presentDays, $overtimeHours, $percentBase);
 
                 return [$amount, ! in_array($component->calc_basis, $attendanceBasis, true)];
 
             case 'tabel':
-                $base = $this->resolveComponentValue($component, $employee, $tenantId) ?? $attachmentAmount;
+                // Kept as a basis type for old data only: its figure now comes
+                // from the same place as everything else, the employee's salary
+                // or the Master Gaji it was copied from.
+                $base = $attachmentAmount;
                 $amount = $this->amountForBasis($base, $component->calc_basis, $presentDays, $overtimeHours, $percentBase);
 
                 return [$amount, ! in_array($component->calc_basis, $attendanceBasis, true)];
@@ -2272,56 +2620,6 @@ class PayrollController extends Controller
 
                 return [$amount, ! in_array($component->calc_basis, $attendanceBasis, true)];
         }
-    }
-
-    /**
-     * Resolve the "Nilai Komponen" mapping value (BPR manual 1.2.4) for an
-     * employee: the most-specific row whose set dimensions all match. A row that
-     * sets a dimension the employee does not match is excluded; among the rest,
-     * the row constraining the most dimensions wins (newest breaks ties).
-     */
-    private function resolveComponentValue(PayrollComponent $component, Employee $employee, int $tenantId): ?float
-    {
-        $rows = PayrollComponentValue::forTenant($tenantId)
-            ->where('payroll_component_id', $component->id)
-            ->get();
-
-        $best = null;
-        $bestScore = -1;
-
-        foreach ($rows as $row) {
-            $dimensions = [
-                [$row->kategori, $employee->kategori],
-                [$row->employment_status, $employee->employment_status],
-                [$row->position_id, $employee->position_id],
-                [$row->job_level_id, $employee->job_level_id],
-                [$row->branch_id, $employee->branch_id],
-            ];
-
-            $score = 0;
-            $matches = true;
-
-            foreach ($dimensions as [$constraint, $actual]) {
-                if ($constraint === null || $constraint === '') {
-                    continue;
-                }
-
-                if ((string) $constraint !== (string) $actual) {
-                    $matches = false;
-
-                    break;
-                }
-
-                $score++;
-            }
-
-            if ($matches && ($score > $bestScore || ($score === $bestScore && $best !== null && $row->id > $best->id))) {
-                $best = $row;
-                $bestScore = $score;
-            }
-        }
-
-        return $best !== null ? (float) $best->value : null;
     }
 
     /**
@@ -2372,12 +2670,6 @@ class PayrollController extends Controller
             return 0.0;
         }
 
-        $mapped = $this->resolveComponentValue($component, $employee, $tenantId);
-
-        if ($mapped !== null) {
-            return $mapped;
-        }
-
         $salaryAmount = EmployeeSalaryComponent::forTenant($tenantId)
             ->where('employee_id', $employee->id)
             ->inForce()
@@ -2403,7 +2695,9 @@ class PayrollController extends Controller
             }
         }
 
-        return $component->basis_type === 'fixed' ? (float) $component->basis_value : 0.0;
+        // No fallback to the component's own figure: a rupiah nominal lives in
+        // Master Gaji or on the employee's salary, nowhere else.
+        return 0.0;
     }
 
     /**
@@ -2576,7 +2870,7 @@ class PayrollController extends Controller
         // The TER table in force for the period the THR is paid in.
         $on = ($period?->end_date ?? now())->toDateString();
 
-        $category = Pph21Ter::category($profile?->ptkp_status, $on);
+        $category = Pph21Ter::categoryOrFail($profile?->ptkp_status, $on);
         $combined = $regularGross + $thr;
 
         $taxOnCombined = $combined * Pph21Ter::monthlyRate($category, $combined, $on);
@@ -2616,20 +2910,42 @@ class PayrollController extends Controller
         $on = $period?->end_date ?? now();
         $year = (int) $on->year;
 
+        $subject = $profile?->tax_subject ?? 'pegawai_tetap';
+        $wageBasis = $profile?->wage_basis ?? 'monthly';
+
+        // TER Bulanan is a rate on the calendar month's bruto, so a weekly or
+        // biweekly run cannot be taxed on its own slice: each run within the
+        // month is charged on the month to date and credited with what the
+        // month's earlier finalised runs already withheld. Monthly cycles, a
+        // daily wage and the Pasal 17 subjects are taxed per masa pajak as
+        // before.
+        $aggregatesMonth = $period !== null
+            && ($period->cycle ?? 'monthly') !== 'monthly'
+            && Pph21Calculator::usesMonthlyTer($subject, $wageBasis);
+
+        $monthToDate = $aggregatesMonth
+            ? $this->withheldHistory($tenantId, $employee, $period, true)
+            : null;
+
+        $priorGross = $monthToDate !== null ? (float) $monthToDate->sum('taxable_gross') : 0.0;
+        $priorWithheld = $monthToDate !== null ? (float) $monthToDate->sum('pph21_total') : 0.0;
+
         $result = Pph21Calculator::compute(
-            $profile?->tax_subject ?? 'pegawai_tetap',
+            $subject,
             $profile?->ptkp_status,
-            $gross,
+            $gross + $priorGross,
             [
-                'wage_basis' => $profile?->wage_basis ?? 'monthly',
+                'wage_basis' => $wageBasis,
                 'daily_wage' => $profile?->daily_wage !== null ? (float) $profile->daily_wage : null,
                 'effective_on' => $on->toDateString(),
             ],
             fn (float $base): float => $this->progressiveTax($base, $tenantId, $year),
         );
 
+        $amount = round($result['amount'] - $priorWithheld);
+
         return [
-            'amount' => $result['amount'],
+            'amount' => $amount,
             'snapshot' => [
                 'method' => $result['method'],
                 'subject' => $result['subject'],
@@ -2638,7 +2954,13 @@ class PayrollController extends Controller
                 'ter_rate' => $result['ter_rate'],
                 'base' => $result['base'],
                 'gross' => $result['gross'],
-                'pph21_amount' => $result['amount'],
+                'pph21_amount' => $amount,
+                ...($aggregatesMonth ? [
+                    'cycle' => $period?->cycle,
+                    'month_gross' => round($gross + $priorGross),
+                    'month_withheld_before' => round($priorWithheld),
+                    'period_gross' => round($gross),
+                ] : []),
             ],
         ];
     }
@@ -2733,12 +3055,69 @@ class PayrollController extends Controller
             return false;
         }
 
-        if ((int) $period->end_date->month === 12) {
+        if ($employee->resign_date !== null
+            && $period->start_date !== null
+            && $employee->resign_date->between($period->start_date, $period->end_date)) {
             return true;
         }
 
-        return $employee->resign_date !== null
-            && $employee->resign_date->between($period->start_date, $period->end_date);
+        if ((int) $period->end_date->month !== 12) {
+            return false;
+        }
+
+        // A weekly or biweekly cycle has four or five periods ending in
+        // December, and only the last of them is the masa pajak terakhir —
+        // reconciling on each of them would charge the annual tax over and
+        // over. The one that covers 31 December is the final one; failing that
+        // (a cut-off ending mid-December), the one with no later period behind
+        // it in the same year.
+        if ((int) $period->end_date->day === 31) {
+            return true;
+        }
+
+        return ! PayrollPeriod::forTenant($period->tenant_id)
+            ->where('id', '!=', $period->id)
+            ->whereYear('end_date', (int) $period->end_date->year)
+            ->whereDate('end_date', '>', $period->end_date->toDateString())
+            ->exists();
+    }
+
+    /**
+     * Earlier payslips of this employee that count as tax already withheld.
+     *
+     * Only approved and locked runs count: a draft or a recalculated run holds
+     * figures that still change, and treating them as withheld would credit the
+     * employee for tax nobody has paid. A period that was re-run keeps more
+     * than one item, so only the newest run's item per period is taken —
+     * otherwise a rerun doubles the year-to-date.
+     *
+     * @return Collection<int, PayrollRunItem>
+     */
+    private function withheldHistory(int $tenantId, Employee $employee, PayrollPeriod $period, bool $sameMonthOnly): Collection
+    {
+        $anchor = $period->end_date ?? $period->start_date ?? now();
+        $year = (int) $anchor->year;
+        $month = (int) $anchor->month;
+
+        return PayrollRunItem::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->where('payroll_period_id', '!=', $period->id)
+            ->whereHas('run', fn ($query) => $query->whereIn('status', [
+                PayrollRun::STATUS_APPROVED,
+                PayrollRun::STATUS_LOCKED,
+            ]))
+            ->whereHas('period', function ($query) use ($year, $month, $sameMonthOnly): void {
+                $query->whereYear('end_date', $year);
+
+                if ($sameMonthOnly) {
+                    $query->whereMonth('end_date', $month);
+                }
+            })
+            ->orderBy('payroll_period_id')
+            ->orderByDesc('payroll_run_id')
+            ->get(['payroll_period_id', 'payroll_run_id', 'taxable_gross', 'tax_deductible_premium', 'pph21_total'])
+            ->unique('payroll_period_id')
+            ->values();
     }
 
     /**
@@ -2765,12 +3144,10 @@ class PayrollController extends Controller
 
         $year = (int) ($period->start_date?->year ?? now()->year);
 
-        // Year-to-date figures from every earlier run item this calendar year.
-        $prior = PayrollRunItem::forTenant($tenantId)
-            ->where('employee_id', $employee->id)
-            ->where('payroll_period_id', '!=', $period->id)
-            ->whereHas('period', fn ($query) => $query->whereYear('start_date', $year))
-            ->get(['taxable_gross', 'tax_deductible_premium', 'pph21_total']);
+        // Year-to-date figures from every earlier *finalised* payslip this
+        // calendar year — see withheldHistory() for why a draft run and a
+        // re-run must not count.
+        $prior = $this->withheldHistory($tenantId, $employee, $period, false);
 
         $ytdGross = (float) $prior->sum('taxable_gross');
         $ytdWithheld = (float) $prior->sum('pph21_total');
@@ -2787,7 +3164,14 @@ class PayrollController extends Controller
         $pkp = floor($pkp / 1000) * 1000; // taxable income is floored to thousands
 
         $annualTax = $this->progressiveTax($pkp, $tenantId, $year);
-        $amount = max(0.0, round($annualTax - $ytdWithheld));
+
+        // The balance, signed. Withholding more than the year owes is normal —
+        // TER charges on bruto and knows nothing of biaya jabatan, PTKP or the
+        // employee's own JHT/JP — and the excess is the employee's money: it is
+        // paid back on this payslip (PMK 168/2023 Pasal 21), not written off to
+        // zero.
+        $amount = round($annualTax - $ytdWithheld);
+        $refund = $amount < 0 ? abs($amount) : 0.0;
 
         return [
             'amount' => $amount,
@@ -2802,6 +3186,9 @@ class PayrollController extends Controller
                 'annual_tax' => $annualTax,
                 'ytd_withheld' => round($ytdWithheld),
                 'pph21_amount' => $amount,
+                // Positive when the year over-withheld: what goes back to the
+                // employee on this payslip.
+                'tax_refund' => $refund,
             ],
         ];
     }
@@ -2915,7 +3302,7 @@ class PayrollController extends Controller
             'taxable' => (bool) $component->is_taxable,
         ];
 
-        if ($component->code === 'BASIC') {
+        if (BasicWageComponent::matches($component->code)) {
             $basic += $amount;
         }
 

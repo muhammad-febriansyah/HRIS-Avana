@@ -27,7 +27,7 @@ interface SearchableSelectProps {
  */
 export function SearchableSelect({
     value,
-    options,
+    options = [],
     onChange,
     placeholder = 'Pilih…',
     searchPlaceholder = 'Cari…',

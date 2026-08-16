@@ -175,7 +175,7 @@ it('adds statutory overtime pay using the Kepmenaker multipliers', function (): 
     // = 1,5x20.000 + 2x20.000 = 70.000.
     setBasic($this, 3_460_000);
 
-    OvertimeRequest::create([
+    $overtime = OvertimeRequest::create([
         'tenant_id' => $this->tenant->id,
         'employee_id' => $this->employee->id,
         'branch_id' => $this->employee->branch_id,
@@ -183,6 +183,8 @@ it('adds statutory overtime pay using the Kepmenaker multipliers', function (): 
         'hours' => 2,
         'status' => 'approved',
     ]);
+
+    seedOvertimeAttendance($overtime, 2);
 
     $item = runResign($this);
     $overtime = collect($item->calculation_snapshot['earnings'])->firstWhere('name', 'Lembur');

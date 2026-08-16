@@ -21,12 +21,12 @@ it('names the required fields blocking the next step', function () {
 
     $page = visit('/avana/employees/create');
 
-    $page->assertSee('Lengkapi dulu: Nama Lengkap');
+    $page->assertSee('Lengkapi dulu: Nama Lengkap, NIK (KTP)');
 
     $page->fill('#full_name', 'Rahmat Uji');
-    $page->assertDontSee('Lengkapi dulu');
-
-    $page->click('Lanjut');
-    $page->assertSee('Lengkapi dulu: Atasan Langsung, Status Kepegawaian')
+    // Every personal field is required now, so naming the next gap is what
+    // keeps the greyed-out Lanjut explainable.
+    $page->assertSee('Lengkapi dulu: NIK (KTP)')
+        ->assertDontSee('Lengkapi dulu: Nama Lengkap')
         ->assertNoJavascriptErrors();
 });

@@ -150,7 +150,10 @@ it('reopens a locked period back to draft with an authorized reason', function (
         ->assertSessionHas('success');
 
     expect(PayrollPeriod::find($periodId)->status)->toBe('draft');
-    expect($this->run->fresh()->status)->toBe('approved');
+    // The finalised run is kept exactly as it was paid and closed off; the next
+    // calculation opens a new revision rather than overwriting it.
+    expect($this->run->fresh()->status)->toBe('locked');
+    expect($this->run->fresh()->superseded_at)->not->toBeNull();
 });
 
 it('requires a reason to unlock', function (): void {

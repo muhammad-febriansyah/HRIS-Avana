@@ -1,0 +1,21 @@
+<?php
+
+namespace App\Http\Requests\Avana;
+
+use Illuminate\Foundation\Http\FormRequest;
+
+class ResetPph21TerRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return $this->user()?->isSuperAdmin() === true;
+    }
+
+    public function rules(): array
+    {
+        return [
+            'effective_start_date' => ['required', 'date_format:Y-m-d'],
+            'reason' => ['required', 'string', 'min:10', 'max:500'],
+        ];
+    }
+}

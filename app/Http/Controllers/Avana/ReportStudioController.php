@@ -8,10 +8,10 @@ use App\Models\CustomField;
 use App\Models\Employee;
 use App\Models\EmployeeSalaryComponent;
 use App\Models\LeaveBalance;
-use App\Models\PayrollComponent;
 use App\Models\PerformanceReview;
 use App\Models\ReportStudioReport;
 use App\Models\User;
+use App\Support\BasicWageComponent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -266,7 +266,7 @@ class ReportStudioController extends Controller
             ->pluck('total', 'employee_id');
 
         // Effective basic salary (the BASIC payroll component) per employee.
-        $basicId = PayrollComponent::where('tenant_id', $tenantId)->where('code', 'BASIC')->value('id');
+        $basicId = BasicWageComponent::for((int) $tenantId)?->id;
         $gajiPokok = $basicId === null
             ? collect()
             : EmployeeSalaryComponent::forTenant($tenantId)

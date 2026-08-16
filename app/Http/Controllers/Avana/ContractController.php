@@ -86,8 +86,16 @@ class ContractController extends Controller
     {
         $this->authorize('create', EmployeeContract::class);
 
+        $tenantId = $request->user()->tenant_id;
+        // Opened from a single employee's Kontrak tab: that employee is already
+        // the answer to "whose contract is this", and the form goes back where
+        // it was opened from instead of dropping HR into the global list.
+        $employee = $this->employeeFromRouteKey($request->query('employee'), $tenantId);
+
         return Inertia::render('avana/kontrak/create', [
-            'employees' => $this->employeeOptions($request->user()->tenant_id),
+            'employees' => $this->employeeOptions($tenantId),
+            'selected_employee_id' => $employee?->id,
+            'return_to' => $employee?->public_id,
         ]);
     }
 
@@ -116,6 +124,10 @@ class ContractController extends Controller
                 'notes' => $contract->notes,
             ],
             'employees' => $this->employeeOptions($request->user()->tenant_id),
+            'return_to' => $this->employeeFromRouteKey(
+                $request->query('employee'),
+                $request->user()->tenant_id,
+            )?->public_id,
         ]);
     }
 
@@ -144,7 +156,7 @@ class ContractController extends Controller
 
         $this->storeDocument($request, $contract);
 
-        return redirect()->route('avana.kontrak')
+        return $this->redirectAfterWrite($request, $tenantId)
             ->with('success', 'Kontrak berhasil ditambahkan');
     }
 
@@ -163,7 +175,7 @@ class ContractController extends Controller
 
         $this->storeDocument($request, $contract);
 
-        return redirect()->route('avana.kontrak')
+        return $this->redirectAfterWrite($request, $request->user()->tenant_id)
             ->with('success', 'Kontrak berhasil diperbarui');
     }
 
@@ -359,6 +371,34 @@ class ContractController extends Controller
         $basic = SalaryCompliance::monthlyWage($employee, (int) $contract->tenant_id)['basic'];
 
         return $basic > 0.0 ? $basic : (float) $contract->basic_salary;
+    }
+
+    /**
+     * Resolve an employee from the opaque key a link carried, ignoring a key
+     * that names nobody in this tenant rather than trusting it.
+     */
+    private function employeeFromRouteKey(mixed $routeKey, ?int $tenantId): ?Employee
+    {
+        if (! is_string($routeKey) || $routeKey === '') {
+            return null;
+        }
+
+        return Employee::forTenant($tenantId)->where('public_id', $routeKey)->first();
+    }
+
+    /**
+     * Where a saved contract lands: back on the employee whose Kontrak tab
+     * opened the form, otherwise the global Kontrak list.
+     */
+    private function redirectAfterWrite(Request $request, ?int $tenantId): RedirectResponse
+    {
+        $employee = $this->employeeFromRouteKey($request->input('return_to'), $tenantId);
+
+        if ($employee !== null) {
+            return redirect()->route('avana.employees.show', $employee);
+        }
+
+        return redirect()->route('avana.kontrak');
     }
 
     /**

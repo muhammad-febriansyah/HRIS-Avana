@@ -222,6 +222,26 @@ export function SlipDetail({ slip, period, employees = [] }: SlipDetailProps) {
                 </a>
             </div>
             <div style={{ padding: '18px 22px' }}>
+                {slip.notice && (
+                    <div
+                        style={{
+                            display: 'flex',
+                            gap: 8,
+                            alignItems: 'flex-start',
+                            padding: '10px 12px',
+                            marginBottom: 14,
+                            borderRadius: 8,
+                            border: `1px solid ${C.amber}33`,
+                            background: `${C.amber}14`,
+                            color: C.amber,
+                            fontSize: 12.5,
+                            lineHeight: 1.5,
+                        }}
+                    >
+                        <AIcon name="triangle-alert" size={15} color={C.amber} />
+                        <span>{slip.notice}</span>
+                    </div>
+                )}
                 <div
                     style={{
                         fontSize: 11.5,

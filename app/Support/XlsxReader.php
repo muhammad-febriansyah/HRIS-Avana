@@ -21,6 +21,20 @@ use ZipArchive;
  */
 final class XlsxReader
 {
+    private const MAX_ARCHIVE_ENTRIES = 1_000;
+
+    private const MAX_TOTAL_UNCOMPRESSED_BYTES = 25_000_000;
+
+    private const MAX_ENTRY_UNCOMPRESSED_BYTES = 8_000_000;
+
+    private const MAX_SHEETS = 50;
+
+    private const MAX_ROWS_PER_SHEET = 10_000;
+
+    private const MAX_CELLS_PER_ROW = 100;
+
+    private const MAX_SHARED_STRINGS = 20_000;
+
     private const MAIN_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 
     private const REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -48,6 +62,9 @@ final class XlsxReader
             throw new RuntimeException('Berkas tidak bisa dibuka sebagai .xlsx.');
         }
 
+        self::assertArchiveLimits($zip);
+        self::assertPlainWorkbook($zip);
+
         $workbook = $zip->getFromName('xl/workbook.xml');
 
         if ($workbook === false) {
@@ -56,7 +73,15 @@ final class XlsxReader
             throw new RuntimeException('Berkas bukan workbook Excel (.xlsx) yang valid.');
         }
 
-        return new self($zip, self::readSharedStrings($zip), self::readSheetPaths($zip, $workbook));
+        $sheetPaths = self::readSheetPaths($zip, $workbook);
+
+        if (count($sheetPaths) > self::MAX_SHEETS) {
+            $zip->close();
+
+            throw new RuntimeException('Workbook memiliki terlalu banyak sheet.');
+        }
+
+        return new self($zip, self::readSharedStrings($zip), $sheetPaths);
     }
 
     /**
@@ -96,10 +121,18 @@ final class XlsxReader
         $rows = [];
 
         foreach ($sheet->xpath('//m:sheetData/m:row') ?: [] as $row) {
+            if (count($rows) >= self::MAX_ROWS_PER_SHEET) {
+                throw new RuntimeException(sprintf('Sheet "%s" melebihi batas %d baris.', $sheetName, self::MAX_ROWS_PER_SHEET));
+            }
+
             $cells = [];
             $index = 0;
 
             foreach ($row->children(self::MAIN_NS)->c ?? [] as $cell) {
+                if (count($cells) >= self::MAX_CELLS_PER_ROW) {
+                    throw new RuntimeException(sprintf('Sheet "%s" memiliki baris dengan terlalu banyak sel.', $sheetName));
+                }
+
                 // A writer may omit `r` on cells it stores in strict order, so
                 // fall back to the running position within the row.
                 $ref = rtrim(self::attr($cell, 'r'), '0123456789');
@@ -204,6 +237,10 @@ final class XlsxReader
         $strings = [];
 
         foreach ($doc->xpath('/m:sst/m:si') ?: [] as $item) {
+            if (count($strings) >= self::MAX_SHARED_STRINGS) {
+                throw new RuntimeException('Workbook memiliki terlalu banyak shared string.');
+            }
+
             // A string can be split across formatting runs; concatenate them.
             $text = '';
 
@@ -250,5 +287,71 @@ final class XlsxReader
         }
 
         return $paths;
+    }
+
+    /**
+     * Refuse workbooks that are not a plain, self-contained spreadsheet.
+     *
+     * An encrypted workbook is an OLE container, not a zip of XML parts, and
+     * reading one yields nothing usable. A workbook that pulls values from
+     * another file over an external link is worse: the numbers on screen are
+     * not the numbers in the file, so a tariff imported from one is unverifiable.
+     */
+    private static function assertPlainWorkbook(ZipArchive $zip): void
+    {
+        $refuse = function (ZipArchive $zip, string $message): never {
+            $zip->close();
+
+            throw new RuntimeException($message);
+        };
+
+        // The OLE parts an ECMA-376 encrypted package carries.
+        foreach (['EncryptionInfo', 'EncryptedPackage'] as $entry) {
+            if ($zip->locateName($entry, ZipArchive::FL_NOCASE) !== false) {
+                $refuse($zip, 'Workbook terenkripsi tidak bisa dibaca. Simpan ulang tanpa password.');
+            }
+        }
+
+        for ($index = 0; $index < $zip->numFiles; $index++) {
+            $name = (string) $zip->getNameIndex($index);
+
+            if (str_starts_with($name, 'xl/externalLinks/')) {
+                $refuse($zip, 'Workbook memuat tautan ke berkas lain (external link). Simpan sebagai nilai, bukan rumus antar-berkas.');
+            }
+
+            if (str_contains($name, '..') || str_starts_with($name, '/')) {
+                $refuse($zip, 'Struktur arsip workbook tidak wajar.');
+            }
+        }
+    }
+
+    private static function assertArchiveLimits(ZipArchive $zip): void
+    {
+        if ($zip->numFiles > self::MAX_ARCHIVE_ENTRIES) {
+            $zip->close();
+
+            throw new RuntimeException('Workbook memiliki terlalu banyak bagian arsip.');
+        }
+
+        $totalSize = 0;
+
+        for ($index = 0; $index < $zip->numFiles; $index++) {
+            $stat = $zip->statIndex($index);
+            $size = is_array($stat) ? (int) ($stat['size'] ?? 0) : 0;
+
+            if ($size > self::MAX_ENTRY_UNCOMPRESSED_BYTES) {
+                $zip->close();
+
+                throw new RuntimeException('Workbook memiliki bagian terkompresi yang terlalu besar.');
+            }
+
+            $totalSize += $size;
+
+            if ($totalSize > self::MAX_TOTAL_UNCOMPRESSED_BYTES) {
+                $zip->close();
+
+                throw new RuntimeException('Ukuran isi workbook setelah diekstrak terlalu besar.');
+            }
+        }
     }
 }

@@ -1,10 +1,12 @@
 <?php
 
 use App\Models\Employee;
+use App\Models\OvertimePolicy;
 use App\Models\OvertimeRequest;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\OvertimeRules;
 use Database\Seeders\AvanaDemoSeeder;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -190,6 +192,15 @@ it('derives the hours from the filed time range', function (): void {
     // The range is what an approver checks, so payroll must agree with it —
     // the client no longer sends a number at all.
     $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    // Rounding off, so this asserts the range → hours derivation itself rather
+    // than the tenant's rounding block (covered by OvertimeRoundingTest).
+    OvertimePolicy::updateOrCreate(
+        ['tenant_id' => $this->tenant->id],
+        ['rounding_minutes' => 0],
+    );
+    // The policy is cached per process, so a test that edits it says so.
+    OvertimeRules::forget();
 
     actingAs($this->admin)
         ->post(route('avana.cuti.lembur.store'), [

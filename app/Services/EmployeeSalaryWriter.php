@@ -74,6 +74,16 @@ final class EmployeeSalaryWriter
                 return $sameDay;
             }
 
+            // The figure this version replaces: the latest one that started
+            // before it. Read by start date rather than "in force on the day",
+            // because the caller may already have closed the predecessor.
+            $previousAmount = (clone $scope)
+                ->inForce()
+                ->whereDate('effective_start_date', '<', $from->toDateString())
+                ->orderByDesc('effective_start_date')
+                ->orderByDesc('id')
+                ->value('amount');
+
             $endDate = null;
 
             if ($status === 'active') {
@@ -90,6 +100,7 @@ final class EmployeeSalaryWriter
                 'source_type' => $sourceType,
                 'payroll_component_id' => $componentId,
                 'amount' => $amount,
+                'previous_amount' => $previousAmount === null ? null : (float) $previousAmount,
                 'status' => $status,
                 'effective_start_date' => $from->toDateString(),
                 'effective_end_date' => $endDate,

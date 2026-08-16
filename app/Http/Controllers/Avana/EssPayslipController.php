@@ -25,8 +25,11 @@ class EssPayslipController extends Controller
     {
         $employee = $this->currentEmployee($request);
 
+        // Only finalised runs: a payslip from a run still being reviewed is a
+        // figure the employee may not be paid.
         $items = PayrollRunItem::forTenant($employee->tenant_id)
             ->where('employee_id', $employee->id)
+            ->published()
             ->with('period:id,name')
             ->orderByDesc('id')
             ->get();
@@ -43,9 +46,12 @@ class EssPayslipController extends Controller
     {
         $employee = $this->currentEmployee($request);
 
+        $item->loadMissing('run:id,status');
+
         abort_if(
             (int) $item->tenant_id !== (int) $employee->tenant_id
-            || (int) $item->employee_id !== (int) $employee->id,
+            || (int) $item->employee_id !== (int) $employee->id
+            || ! $item->isPublished(),
             404,
         );
 
@@ -57,8 +63,17 @@ class EssPayslipController extends Controller
                 // Deliberately *_lines: summary() already carries a numeric
                 // `deductions` total, and reusing that key would overwrite it.
                 ...$this->summary($item),
-                'earning_lines' => $this->lines($snapshot['earnings'] ?? []),
-                'deduction_lines' => $this->lines($snapshot['deductions'] ?? []),
+                // A negative deduction is money coming back — the annual PPh 21
+                // refund — so it reads as an earning on the slip instead of a
+                // deduction with a minus sign in front of it.
+                'earning_lines' => $this->lines([
+                    ...($snapshot['earnings'] ?? []),
+                    ...$this->refunds($snapshot['deductions'] ?? []),
+                ]),
+                'deduction_lines' => $this->lines(array_filter(
+                    $snapshot['deductions'] ?? [],
+                    fn (array $row): bool => (float) ($row['amount'] ?? 0) >= 0,
+                )),
             ],
         ]);
     }
@@ -89,6 +104,20 @@ class EssPayslipController extends Controller
      * @param  array<int, array<string, mixed>>  $rows
      * @return array<int, array<string, mixed>>
      */
+    /**
+     * Deduction rows that are actually refunds, flipped to positive.
+     *
+     * @param  array<int, array<string, mixed>>  $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function refunds(array $rows): array
+    {
+        return array_values(array_map(
+            fn (array $row): array => [...$row, 'amount' => abs((float) ($row['amount'] ?? 0))],
+            array_filter($rows, fn (array $row): bool => (float) ($row['amount'] ?? 0) < 0),
+        ));
+    }
+
     private function lines(array $rows): array
     {
         return array_values(array_map(fn (array $row): array => [

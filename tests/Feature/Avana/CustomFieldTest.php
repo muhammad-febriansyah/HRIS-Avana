@@ -52,12 +52,12 @@ it('stores custom_data when creating an employee', function (): void {
     ]);
 
     actingAs($this->admin)
-        ->post(route('avana.employees.store'), [
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
             'full_name' => 'Budi Custom',
             'employment_status' => 'permanent',
             'status' => 'active',
             'custom_data' => ['nomor_bpjs' => '000123456'],
-        ])
+        ]))
         ->assertSessionHas('success');
 
     $employee = Employee::forTenant($this->tenant->id)->where('full_name', 'Budi Custom')->firstOrFail();
@@ -73,11 +73,11 @@ it('rejects an employee missing a required custom field', function (): void {
     ]);
 
     actingAs($this->admin)
-        ->post(route('avana.employees.store'), [
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
             'full_name' => 'Tanpa BPJS',
             'employment_status' => 'permanent',
             'status' => 'active',
             'custom_data' => [],
-        ])
+        ]))
         ->assertSessionHasErrors('custom_data.nomor_bpjs');
 });

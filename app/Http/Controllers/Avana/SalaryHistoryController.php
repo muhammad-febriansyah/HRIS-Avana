@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\EmployeeSalaryComponent;
+use App\Models\SalaryChangeSet;
 use App\Models\User;
 use App\Services\EmployeeSalaryWriter;
 use App\Services\SalaryMasterAssignment;
@@ -33,10 +34,9 @@ class SalaryHistoryController extends Controller
     private const MODULE = 'payroll';
 
     /**
-     * How many versions are listed when no employee is picked — enough to see
-     * recent activity across the company without loading years of history.
+     * How many salary-history rows are shown per page.
      */
-    private const RECENT_LIMIT = 200;
+    private const PER_PAGE = 25;
 
     public function index(Request $request): Response
     {
@@ -58,30 +58,41 @@ class SalaryHistoryController extends Controller
             ])
             ->orderByDesc('effective_start_date')
             ->orderByDesc('id')
-            ->limit($employeeId !== null ? 1000 : self::RECENT_LIMIT)
-            ->get()
-            ->map(fn (EmployeeSalaryComponent $row): array => [
-                'id' => $row->id,
-                'employee' => $row->employee?->full_name,
-                'employee_number' => $row->employee?->employee_number,
-                'component' => $row->component?->name,
-                'component_type' => $row->component?->type,
-                'amount' => (float) $row->amount,
-                'effective_start_date' => $row->effective_start_date?->toDateString(),
-                'effective_end_date' => $row->effective_end_date?->toDateString(),
-                'status' => $row->status ?? 'active',
-                'reason' => $row->reason,
-                'master' => $row->salaryMaster?->code,
-                'contract' => $row->contract?->contract_number,
-                'author' => $row->createdBy?->name,
-                'can_approve' => ($row->status ?? 'active') === 'pending_approval'
-                    && (int) $row->created_by !== $viewerId,
-            ])
-            ->values()
-            ->all();
+            ->paginate(self::PER_PAGE)
+            ->withQueryString();
 
         return Inertia::render('avana/payroll-riwayat-gaji/index', [
-            'versions' => $versions,
+            'versions' => [
+                'data' => $versions->getCollection()
+                    ->map(fn (EmployeeSalaryComponent $row): array => [
+                        'id' => $row->id,
+                        'employee' => $row->employee?->full_name,
+                        'employee_number' => $row->employee?->employee_number,
+                        'component' => $row->component?->name,
+                        'component_type' => $row->component?->type,
+                        'amount' => (float) $row->amount,
+                        'effective_start_date' => $row->effective_start_date?->toDateString(),
+                        'effective_end_date' => $row->effective_end_date?->toDateString(),
+                        'status' => $row->status ?? 'active',
+                        'reason' => $row->reason,
+                        'master' => $row->salaryMaster?->code,
+                        'contract' => $row->contract?->contract_number,
+                        'author' => $row->createdBy?->name,
+                        'can_approve' => ($row->status ?? 'active') === 'pending_approval'
+                            && (int) $row->created_by !== $viewerId,
+                    ])
+                    ->values()
+                    ->all(),
+                'meta' => [
+                    'current_page' => $versions->currentPage(),
+                    'last_page' => $versions->lastPage(),
+                    'per_page' => $versions->perPage(),
+                    'total' => $versions->total(),
+                    'from' => $versions->firstItem(),
+                    'to' => $versions->lastItem(),
+                ],
+            ],
+            'batches' => $this->pendingBatches($tenantId, $viewerId),
             'employeeId' => $employeeId,
             'employeeOptions' => Employee::forTenant($tenantId)
                 ->orderBy('full_name')
@@ -192,6 +203,146 @@ class SalaryHistoryController extends Controller
         });
 
         return back()->with('success', 'Perubahan gaji ditolak');
+    }
+
+    /**
+     * Approve a whole Penetapan Gaji Massal run at once.
+     *
+     * Hundreds of one-by-one approvals are signed without being read, so the
+     * run is reviewed as one thing — how many employees, how much the payroll
+     * changes by, and which people carried an exception — and signed once. The
+     * per-employee rules still hold: the preparer cannot approve their own run,
+     * and a change into a locked period is refused.
+     */
+    public function approveBatch(Request $request): RedirectResponse
+    {
+        $this->ensureCan($request, 'approve');
+
+        $tenantId = (int) $request->user()->tenant_id;
+        $data = $request->validate(['batch_id' => ['required', 'string', 'max:32']]);
+        $approverId = (int) $request->user()->id;
+
+        $approved = DB::transaction(function () use ($tenantId, $data, $approverId): int {
+            $changeSets = SalaryChangeSet::forTenant($tenantId)
+                ->where('batch_id', $data['batch_id'])
+                ->where('status', 'pending_approval')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
+            if ($changeSets->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'batch_id' => 'Tidak ada perubahan gaji yang menunggu persetujuan pada penetapan ini.',
+                ]);
+            }
+
+            if ($changeSets->contains(fn (SalaryChangeSet $set): bool => (int) $set->created_by === $approverId)) {
+                throw ValidationException::withMessages([
+                    'batch_id' => 'Penetapan yang Anda buat sendiri harus disetujui orang lain.',
+                ]);
+            }
+
+            foreach ($changeSets as $changeSet) {
+                $refusal = SalaryPeriodLock::refusal(
+                    $tenantId,
+                    Carbon::parse($changeSet->effective_start_date ?? now())->startOfDay(),
+                );
+
+                if ($refusal !== null) {
+                    throw ValidationException::withMessages(['batch_id' => $refusal]);
+                }
+
+                SalaryMasterAssignment::approveChangeSet($changeSet, $approverId);
+            }
+
+            return $changeSets->count();
+        });
+
+        return back()->with('success', $approved.' perubahan gaji disetujui sekaligus');
+    }
+
+    /** Turn a whole run down, with the reason recorded on every change set. */
+    public function rejectBatch(Request $request): RedirectResponse
+    {
+        $this->ensureCan($request, 'approve');
+
+        $tenantId = (int) $request->user()->tenant_id;
+        $data = $request->validate([
+            'batch_id' => ['required', 'string', 'max:32'],
+            'reason' => ['required', 'string', 'max:255'],
+        ]);
+
+        $rejected = DB::transaction(function () use ($tenantId, $data): int {
+            $changeSets = SalaryChangeSet::forTenant($tenantId)
+                ->where('batch_id', $data['batch_id'])
+                ->where('status', 'pending_approval')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($changeSets as $changeSet) {
+                $changeSet->components()
+                    ->where('status', 'pending_approval')
+                    ->update(['status' => 'rejected', 'reason' => $data['reason']]);
+
+                $changeSet->update(['status' => 'rejected', 'reason' => $data['reason']]);
+            }
+
+            return $changeSets->count();
+        });
+
+        return back()->with('success', $rejected.' perubahan gaji ditolak');
+    }
+
+    /**
+     * Mass assignment runs still waiting on an approver, summarised: who it
+     * touches, what it costs, and what is unusual about it.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function pendingBatches(int $tenantId, int $viewerId): array
+    {
+        $changeSets = SalaryChangeSet::forTenant($tenantId)
+            ->whereNotNull('batch_id')
+            ->where('status', 'pending_approval')
+            ->with(['components:id,salary_change_set_id,employee_id,payroll_component_id,amount,previous_amount,source_type', 'salaryMaster:id,code,category', 'createdBy:id,name'])
+            ->orderByDesc('id')
+            ->get()
+            ->groupBy('batch_id');
+
+        return $changeSets
+            ->map(function ($sets, string $batchId) use ($viewerId): array {
+                $components = $sets->flatMap(fn (SalaryChangeSet $set) => $set->components);
+
+                $newTotal = (float) $components->sum(fn (EmployeeSalaryComponent $row): float => (float) $row->amount);
+                $oldTotal = (float) $components->sum(fn (EmployeeSalaryComponent $row): float => (float) ($row->previous_amount ?? 0));
+
+                $first = $sets->first();
+
+                return [
+                    'batch_id' => $batchId,
+                    'master' => $first->salaryMaster?->code,
+                    'effective_start_date' => $first->effective_start_date?->toDateString(),
+                    'strategy' => $first->existing_strategy,
+                    'reason' => $first->reason,
+                    'author' => $first->createdBy?->name,
+                    'employee_count' => $sets->pluck('employee_id')->unique()->count(),
+                    'component_count' => $components->count(),
+                    'total_before' => $oldTotal,
+                    'total_after' => $newTotal,
+                    'total_delta' => $newTotal - $oldTotal,
+                    // The people this run is not treating like everybody else:
+                    // an approver should see them before signing.
+                    'exception_count' => $components
+                        ->where('source_type', 'employee_override')
+                        ->pluck('employee_id')
+                        ->unique()
+                        ->count(),
+                    'can_approve' => (int) $first->created_by !== $viewerId,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private function ensureOwnership(Request $request, int|string|null $tenantId): void

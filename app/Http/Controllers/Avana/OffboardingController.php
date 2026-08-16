@@ -8,7 +8,6 @@ use App\Models\Employee;
 use App\Models\EmployeeSalaryComponent;
 use App\Models\OffboardingCase;
 use App\Models\PayrollComponent;
-use App\Models\PayrollComponentValue;
 use App\Models\SalaryMasterComponent;
 use App\Models\User;
 use App\Services\SeveranceCalculator;
@@ -285,17 +284,9 @@ class OffboardingController extends Controller
             }
         }
 
-        $mapped = PayrollComponentValue::forTenant($tenantId)
-            ->where('payroll_component_id', $component->id)
-            ->where(fn ($q) => $q->whereNull('position_id')->orWhere('position_id', $employee->position_id))
-            ->orderByRaw('position_id IS NULL')
-            ->value('value');
-
-        if ($mapped !== null) {
-            return (float) $mapped;
-        }
-
-        return $component->basis_type === 'fixed' ? (float) $component->basis_value : 0.0;
+        // No third source: severance is worked out from the same figures payroll
+        // pays — the employee's salary, or the Master Gaji it was copied from.
+        return 0.0;
     }
 
     /**

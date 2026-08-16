@@ -8,6 +8,7 @@ import { AIcon, C, card } from '@/lib/avana';
 import {
     DEFAULT_PASSWORD,
     EMPLOYEE_STEPS,
+    MARITAL_STATUSES,
     NO_MANAGER,
     RELIGIONS,
     STEP_FIELDS,
@@ -85,6 +86,12 @@ interface EmployeeFormProps {
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
     customFields?: CustomFieldDef[];
     hasLogin?: boolean;
+    /**
+     * A new hire must leave this form with a way in — either a password that
+     * creates a login, or an existing account linked to them. Editing someone
+     * who never got an account does not force one on them.
+     */
+    isCreate?: boolean;
 }
 
 function SectionHeader({
@@ -175,6 +182,7 @@ export function EmployeeForm({
     onSubmit,
     customFields = [],
     hasLogin = false,
+    isCreate = false,
 }: EmployeeFormProps) {
     const { data, setData, errors, processing } = form;
     const [step, setStep] = useState(0);
@@ -248,17 +256,49 @@ export function EmployeeForm({
      * below the fold on a short window.
      */
     const missingFor = (index: number): string[] => {
+        const gaps = (pairs: [string, string][]): string[] =>
+            pairs
+                .filter(([value]) => String(value ?? '').trim().length === 0)
+                .map(([, label]) => label);
+
         if (index === 0) {
-            return data.full_name.trim().length > 0 ? [] : ['Nama Lengkap'];
+            return gaps([
+                [data.full_name, 'Nama Lengkap'],
+                [data.nik, 'NIK (KTP)'],
+                [data.email, 'Email'],
+                [data.phone, 'No. Telepon'],
+                [data.birth_place, 'Tempat Lahir'],
+                [data.birth_date, 'Tanggal Lahir'],
+                [data.gender, 'Jenis Kelamin'],
+                [data.religion, 'Agama'],
+                [data.marital_status, 'Status Pernikahan'],
+            ]);
         }
 
         if (index === 1) {
-            return [
-                data.manager_id.trim().length > 0 ? null : 'Atasan Langsung',
-                data.employment_status.trim().length > 0
-                    ? null
-                    : 'Status Kepegawaian',
-            ].filter((label): label is string => label !== null);
+            return gaps([
+                [data.manager_id, 'Atasan Langsung'],
+                [data.employment_status, 'Status Kepegawaian'],
+                [data.department_id, 'Departemen'],
+                [data.position_id, 'Jabatan'],
+                [data.job_level_id, 'Jenjang Jabatan'],
+                [data.salary_master_id, 'Master Gaji'],
+                [data.contract_number, 'Nomor Kontrak'],
+                [data.contract_type, 'Jenis Kontrak'],
+                [data.contract_start_date, 'Kontrak Mulai'],
+                // A PKWTT runs until the employee leaves, so it has no end date.
+                ...(data.contract_type === 'pkwtt'
+                    ? []
+                    : ([[data.contract_end_date, 'Kontrak Berakhir']] as [
+                          string,
+                          string,
+                      ][])),
+                [data.ptkp_status, 'Status PTKP'],
+                [data.join_date, 'Tanggal Masuk'],
+                [data.branch_id, 'Cabang'],
+                [data.work_location_id, 'Lokasi Kerja'],
+                [data.status, 'Status Karyawan'],
+            ]);
         }
 
         return [];
@@ -325,6 +365,7 @@ export function EmployeeForm({
                         <Field
                             htmlFor="nik"
                             label="NIK (KTP)"
+                            required
                             error={errors.nik}
                         >
                             <input
@@ -343,6 +384,7 @@ export function EmployeeForm({
                         <Field
                             htmlFor="email"
                             label="Email"
+                            required
                             error={errors.email}
                         >
                             <input
@@ -362,6 +404,10 @@ export function EmployeeForm({
                             label={
                                 hasLogin ? 'Reset Password' : 'Password Login'
                             }
+                            // On an employee who has no login yet, a password is
+                            // what creates one — unless an existing account is
+                            // linked below instead.
+                            required={isCreate && !data.link_user_id}
                             error={errors.password}
                         >
                             <div style={{ display: 'flex', gap: 8 }}>
@@ -494,6 +540,7 @@ export function EmployeeForm({
                         <Field
                             htmlFor="phone"
                             label="No. Telepon"
+                            required
                             error={errors.phone}
                         >
                             <input
@@ -510,6 +557,7 @@ export function EmployeeForm({
                         <Field
                             htmlFor="birth_place"
                             label="Tempat Lahir"
+                            required
                             error={errors.birth_place}
                         >
                             <input
@@ -529,6 +577,7 @@ export function EmployeeForm({
                         <Field
                             htmlFor="birth_date"
                             label="Tanggal Lahir"
+                            required
                             error={errors.birth_date}
                         >
                             <DatePicker
@@ -544,6 +593,7 @@ export function EmployeeForm({
                         <Field
                             htmlFor="gender"
                             label="Jenis Kelamin"
+                            required
                             error={errors.gender}
                         >
                             <select
@@ -569,6 +619,7 @@ export function EmployeeForm({
                         <Field
                             htmlFor="religion"
                             label="Agama"
+                            required
                             error={errors.religion}
                         >
                             <select
@@ -591,9 +642,10 @@ export function EmployeeForm({
                         <Field
                             htmlFor="marital_status"
                             label="Status Pernikahan"
+                            required
                             error={errors.marital_status}
                         >
-                            <input
+                            <select
                                 id="marital_status"
                                 value={data.marital_status}
                                 onChange={(event) =>
@@ -602,12 +654,20 @@ export function EmployeeForm({
                                         event.target.value,
                                     )
                                 }
-                                placeholder="cth. Menikah"
                                 style={styleFor(
                                     !!errors.marital_status,
-                                    inputStyle,
+                                    selectStyle,
                                 )}
-                            />
+                            >
+                                <option value="">
+                                    Pilih status pernikahan
+                                </option>
+                                {MARITAL_STATUSES.map((status) => (
+                                    <option key={status} value={status}>
+                                        {status}
+                                    </option>
+                                ))}
+                            </select>
                         </Field>
 
                         <Field
@@ -760,6 +820,7 @@ export function EmployeeForm({
                         <Field
                             htmlFor="department_id"
                             label="Departemen"
+                            required
                             error={errors.department_id}
                         >
                             <select
@@ -788,6 +849,7 @@ export function EmployeeForm({
                         <Field
                             htmlFor="position_id"
                             label="Jabatan"
+                            required
                             error={errors.position_id}
                         >
                             <select
@@ -816,6 +878,7 @@ export function EmployeeForm({
                         <Field
                             htmlFor="job_level_id"
                             label="Jenjang Jabatan"
+                            required
                             error={errors.job_level_id}
                         >
                             <select
@@ -961,6 +1024,7 @@ export function EmployeeForm({
                         <Field
                             htmlFor="contract_number"
                             label="Nomor Kontrak"
+                            required
                             error={errors.contract_number}
                         >
                             <input
@@ -980,6 +1044,7 @@ export function EmployeeForm({
                         <Field
                             htmlFor="contract_type"
                             label="Jenis Kontrak"
+                            required
                             error={errors.contract_type}
                         >
                             <select
@@ -1008,6 +1073,7 @@ export function EmployeeForm({
                         <Field
                             htmlFor="contract_start_date"
                             label="Kontrak Mulai"
+                            required
                             error={errors.contract_start_date}
                         >
                             <DatePicker
@@ -1023,6 +1089,8 @@ export function EmployeeForm({
                         <Field
                             htmlFor="contract_end_date"
                             label="Kontrak Berakhir"
+                            // A PKWTT has no end date to type.
+                            required={data.contract_type !== 'pkwtt'}
                             error={errors.contract_end_date}
                         >
                             <DatePicker
@@ -1038,6 +1106,7 @@ export function EmployeeForm({
                         <Field
                             htmlFor="salary_master_id"
                             label="Master Gaji"
+                            required
                             error={errors.salary_master_id}
                         >
                             <select
@@ -1113,6 +1182,7 @@ export function EmployeeForm({
                         <Field
                             htmlFor="ptkp_status"
                             label="Status PTKP"
+                            required
                             error={errors.ptkp_status}
                             hint="Dasar perhitungan PPh 21 — tanpa ini payroll memakai TK/0."
                         >
@@ -1142,6 +1212,7 @@ export function EmployeeForm({
                         <Field
                             htmlFor="join_date"
                             label="Tanggal Masuk"
+                            required
                             error={errors.join_date}
                         >
                             <DatePicker
@@ -1157,6 +1228,7 @@ export function EmployeeForm({
                         <Field
                             htmlFor="branch_id"
                             label="Cabang"
+                            required
                             error={errors.branch_id}
                         >
                             <select
@@ -1188,6 +1260,7 @@ export function EmployeeForm({
                         <Field
                             htmlFor="work_location_id"
                             label="Lokasi Kerja (Absensi)"
+                            required
                             error={errors.work_location_id}
                         >
                             <select
@@ -1219,6 +1292,7 @@ export function EmployeeForm({
                         <Field
                             htmlFor="status"
                             label="Status Karyawan"
+                            required
                             error={errors.status}
                         >
                             <select

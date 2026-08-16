@@ -27,6 +27,14 @@
     </style>
 </head>
 <body>
+    {{-- A payslip printed before the period is locked is a preview: the figures
+         can still change, so the page says so on every copy that leaves the
+         screen. --}}
+    @if (! ($final ?? true))
+        <div style="text-align:center; color:#B45309; background:#FFFBEB; border:1px solid #FDE68A; padding:8px 12px; font-size:11px; font-weight:bold; letter-spacing:.08em;">
+            DRAFT — PAYROLL BELUM DIKUNCI, ANGKA MASIH DAPAT BERUBAH
+        </div>
+    @endif
     <div class="sheet">
         <table class="head">
             <tr>

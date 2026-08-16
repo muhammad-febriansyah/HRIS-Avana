@@ -65,21 +65,30 @@ function earningAmount(object $ctx, string $name): ?float
     return $row !== null ? (float) $row['amount'] : null;
 }
 
-it('pays a fixed dasar perhitungan as its basis value', function (): void {
-    basisComponent($this, 'DP-FIX', ['name' => 'Tunjangan Tetap', 'basis_type' => 'fixed', 'basis_value' => 500_000]);
+it('pays a fixed dasar perhitungan from the Master Gaji nominal', function (): void {
+    // The rupiah figure lives on the salary template, not on the component: a
+    // nominal left on Master Komponen is ignored.
+    basisComponent(
+        $this,
+        'DP-FIX',
+        ['name' => 'Tunjangan Tetap', 'basis_type' => 'fixed', 'basis_value' => 900_000],
+        positionAmount: 500_000,
+    );
 
     expect(earningAmount($this, 'Tunjangan Tetap'))->toBe(500_000.0);
 });
 
-it('resolves a tabel dasar perhitungan from the most-specific Nilai Komponen row', function (): void {
-    $component = basisComponent($this, 'DP-TBL', ['name' => 'Tunjangan Tabel', 'basis_type' => 'tabel']);
+it('ignores Nilai Komponen rows and pays the Master Gaji nominal instead', function (): void {
+    // "Tabel" used to read its figure from a mapping table, which made Master
+    // Komponen a second source of money. Only the salary template pays now; the
+    // old rows are left in place for audit and simply not read.
+    $component = basisComponent(
+        $this,
+        'DP-TBL',
+        ['name' => 'Tunjangan Tabel', 'basis_type' => 'tabel'],
+        positionAmount: 400_000,
+    );
 
-    // Generic fallback (applies to anyone) and a position-specific override.
-    PayrollComponentValue::create([
-        'tenant_id' => $this->tenant->id,
-        'payroll_component_id' => $component->id,
-        'value' => 100_000,
-    ]);
     PayrollComponentValue::create([
         'tenant_id' => $this->tenant->id,
         'payroll_component_id' => $component->id,
@@ -87,7 +96,7 @@ it('resolves a tabel dasar perhitungan from the most-specific Nilai Komponen row
         'value' => 750_000,
     ]);
 
-    expect(earningAmount($this, 'Tunjangan Tabel'))->toBe(750_000.0);
+    expect(earningAmount($this, 'Tunjangan Tabel'))->toBe(400_000.0);
 });
 
 it('evaluates a formula dasar perhitungan from an operand component times its nilai', function (): void {
@@ -136,29 +145,33 @@ it('clamps a formula dasar perhitungan to basis_max', function (): void {
     expect(earningAmount($this, 'Bonus Dibatasi'))->toBe(800_000.0);
 });
 
-it('stores and deletes a Nilai Komponen mapping row via the controller', function (): void {
+it('refuses to store a Nilai Komponen nominal, and still lets old rows be deleted', function (): void {
     $component = basisComponent($this, 'DP-CRUD', ['name' => 'Tunjangan CRUD', 'basis_type' => 'tabel']);
 
+    // Writing a new nominal here would recreate the second source of money.
     actingAs($this->admin)
         ->post('spec-dp/komponen/component/'.$component->id.'/nilai', [
             'position_id' => $this->employee->position_id,
             'value' => 325_000,
             'note' => 'Uji',
         ])
-        ->assertSessionHas('success');
+        ->assertSessionHasErrors('value');
 
-    $value = PayrollComponentValue::forTenant($this->tenant->id)
-        ->where('payroll_component_id', $component->id)
-        ->firstOrFail();
+    expect(PayrollComponentValue::forTenant($this->tenant->id)->where('payroll_component_id', $component->id)->exists())
+        ->toBeFalse();
 
-    expect((float) $value->value)->toBe(325_000.0);
-    expect($value->position_id)->toBe($this->employee->position_id);
+    // Rows left over from before can still be cleaned up.
+    $legacy = PayrollComponentValue::create([
+        'tenant_id' => $this->tenant->id,
+        'payroll_component_id' => $component->id,
+        'value' => 325_000,
+    ]);
 
     actingAs($this->admin)
-        ->delete('spec-dp/komponen/nilai/'.$value->id)
+        ->delete('spec-dp/komponen/nilai/'.$legacy->id)
         ->assertSessionHas('success');
 
-    expect(PayrollComponentValue::find($value->id))->toBeNull();
+    expect(PayrollComponentValue::find($legacy->id))->toBeNull();
 });
 
 it('leaves legacy components (no basis_type) computing exactly as before', function (): void {

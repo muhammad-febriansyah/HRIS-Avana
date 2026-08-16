@@ -32,14 +32,14 @@ function employeePayload(object $ctx, array $overrides = []): array
 {
     $employee = $ctx->employee;
 
-    return array_merge([
+    return employeeFormPayload($employee->tenant_id, array_merge([
         'full_name' => $employee->full_name,
         'employee_number' => $employee->employee_number,
         'email' => $employee->email,
         'employment_status' => $employee->employment_status,
         'status' => $employee->status,
         'branch_id' => $employee->branch_id,
-    ], $overrides);
+    ], $overrides));
 }
 
 it('shows which Master Gaji the employee is paid from', function (): void {
@@ -162,6 +162,7 @@ it('corrects the same contract instead of stacking duplicates', function (): voi
         'contract_number' => 'PKWT-2026-002',
         'contract_type' => 'PKWT',
         'contract_start_date' => '2026-01-01',
+        'contract_end_date' => '2026-12-31',
     ]);
 
     actingAs($this->admin)->put(route('avana.employees.update', $this->employee), $payload)->assertRedirect();
@@ -177,20 +178,23 @@ it('corrects the same contract instead of stacking duplicates', function (): voi
     expect($contracts->first()->contract_type)->toBe('pkwtt');
 });
 
-it('leaves the contract alone when no number is typed', function (): void {
+it('refuses the form with no contract number and writes no contract', function (): void {
     $before = EmployeeContract::forTenant($this->tenant->id)->count();
 
     actingAs($this->admin)
         ->put(route('avana.employees.update', $this->employee), employeePayload($this, ['contract_number' => '']))
-        ->assertRedirect();
+        ->assertSessionHasErrors('contract_number');
 
     expect(EmployeeContract::forTenant($this->tenant->id)->count())->toBe($before);
 });
 
-it('requires the dates once a contract number is given', function (): void {
+it('requires the contract kind and its dates', function (): void {
     actingAs($this->admin)
         ->put(route('avana.employees.update', $this->employee), employeePayload($this, [
             'contract_number' => 'PKWT-2026-003',
+            'contract_type' => '',
+            'contract_start_date' => '',
+            'contract_end_date' => '',
         ]))
         ->assertSessionHasErrors(['contract_type', 'contract_start_date']);
 });
@@ -276,6 +280,7 @@ it('stores one spelling of a contract kind whatever was typed', function (): voi
             'contract_number' => 'PKWT-CASE-1',
             'contract_type' => 'PKWTT',
             'contract_start_date' => '2026-02-01',
+            'contract_end_date' => '',
         ]))
         ->assertRedirect();
 

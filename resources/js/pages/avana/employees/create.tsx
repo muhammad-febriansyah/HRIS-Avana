@@ -115,6 +115,7 @@ export default function EmployeesCreate({
                     submitLabel="Simpan Karyawan"
                     cancelHref={EmployeeController.index().url}
                     onSubmit={handleSubmit}
+                    isCreate
                 />
             </div>
         </>

@@ -135,9 +135,15 @@ final class AvanaNav
                     self::leaf('payroll-ter', 'Tarif TER PPh 21', 'percent', '/avana/payroll/ter', 'payroll', ['payroll']),
                     self::leaf('payroll-payday', 'Mapping Payday', 'calendar-check', '/avana/payroll/payday', 'payroll', ['payroll']),
                     self::leaf('payroll-lembur', 'Setup Lembur', 'timer', '/avana/payroll/lembur', 'payroll', ['payroll']),
-                    self::leaf('payroll-gaji-karyawan', 'Gaji Karyawan', 'user-cog', '/avana/payroll/gaji-karyawan', 'payroll', ['payroll']),
-                    self::leaf('payroll-penetapan-massal', 'Penetapan Gaji Massal', 'users', '/avana/payroll/penetapan-massal', 'payroll', ['payroll']),
+                    // Gaji Karyawan and Penetapan Gaji Massal are tabs of Master
+                    // Gaji now (see the "master" leaf above), not menu items of
+                    // their own — no leaf is seeded for either, so a new tenant
+                    // never gets a sidebar entry for them. Their routes stay
+                    // reachable: with no leaf to match, EnsureAvanaAccess falls
+                    // through to the parent "Payroll" leaf's gate, which is the
+                    // same `payroll` module their controllers already enforce.
                     self::leaf('payroll-riwayat-gaji', 'Riwayat Gaji', 'history', '/avana/payroll/riwayat-gaji', 'payroll', ['payroll']),
+                    self::leaf('payroll-insentif', 'Insentif', 'gift', '/avana/payroll/insentif', 'payroll', ['payroll']),
                     // Hidden for now at the client's request: the menu is
                     // trimmed to the screens the payroll setup documentation
                     // describes. They stay here as inactive rows rather than

@@ -13,6 +13,9 @@ final class SalaryChangeSet extends Model
         'tenant_id',
         'employee_id',
         'salary_master_id',
+        // Which Penetapan Gaji Massal run wrote this, so the run can be
+        // reviewed and approved as one decision.
+        'batch_id',
         'change_type',
         'existing_strategy',
         'effective_start_date',
@@ -54,5 +57,10 @@ final class SalaryChangeSet extends Model
     public function components(): HasMany
     {
         return $this->hasMany(EmployeeSalaryComponent::class);
+    }
+
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 }

@@ -311,6 +311,40 @@ final class OvertimeRules
      * Why a request cannot be filed, or null when it is within the ceilings.
      * Returns the message ready for a validation error.
      */
+    /**
+     * Whether an overtime filing overlaps one the employee already has that day.
+     *
+     * Overlapping filings are measured against the same clock-out, so both would
+     * be paid for the same hours worked. Cancelled and rejected filings are not
+     * in the way.
+     */
+    public static function overlapViolation(
+        int $tenantId,
+        int $employeeId,
+        Carbon $date,
+        string $startTime,
+        string $endTime,
+        ?int $exceptId = null,
+    ): ?string {
+        $clash = OvertimeRequest::forTenant($tenantId)
+            ->where('employee_id', $employeeId)
+            ->whereDate('date', $date->toDateString())
+            ->whereIn('status', ['pending', 'approved'])
+            ->whereNotNull('start_time')
+            ->whereNotNull('end_time')
+            ->where('start_time', '<', $endTime)
+            ->where('end_time', '>', $startTime)
+            ->when($exceptId !== null, fn ($query) => $query->whereKeyNot($exceptId))
+            ->first();
+
+        if ($clash === null) {
+            return null;
+        }
+
+        return 'Sudah ada pengajuan lembur '.$clash->start_time.'–'.$clash->end_time
+            .' pada tanggal itu. Rentang jam tidak boleh saling menimpa — jam yang sama tidak bisa dibayar dua kali.';
+    }
+
     public static function limitViolation(
         int $tenantId,
         int $employeeId,

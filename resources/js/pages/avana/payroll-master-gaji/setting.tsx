@@ -1,6 +1,7 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import SalaryAssignmentController from '@/actions/App/Http/Controllers/Avana/SalaryAssignmentController';
 import SalaryMasterController from '@/actions/App/Http/Controllers/Avana/SalaryMasterController';
 import { DatePicker } from '@/components/avana/date-picker';
 import { AIcon, C, card, RupiahInput } from '@/lib/avana';
@@ -109,12 +110,6 @@ interface Master {
     employees_count: number;
 }
 
-interface EmployeeOption {
-    id: number;
-    name: string;
-    salary_master_id: number | null;
-}
-
 interface DayCalcMethodOption {
     id: number;
     name: string;
@@ -155,7 +150,6 @@ interface Props {
     master: Master;
     components: Component[];
     dayCalcMethods: DayCalcMethodOption[];
-    employeeOptions: EmployeeOption[];
     gradeOptions: GradeOption[];
     salaries: EmployeeSalary[];
     salaryFloor: string | null;
@@ -316,13 +310,10 @@ export default function MasterGajiSetting({
     master,
     components,
     dayCalcMethods,
-    employeeOptions,
     gradeOptions,
     salaries,
     salaryFloor,
 }: Props) {
-    const [assignOpen, setAssignOpen] = useState(false);
-
     const form = useForm({
         code: master.code,
         category: master.category,
@@ -859,7 +850,13 @@ export default function MasterGajiSetting({
                             TEMPEL KE PEGAWAI ({master.employees_count})
                         </div>
                         <button
-                            onClick={() => setAssignOpen((v) => !v)}
+                            onClick={() =>
+                                router.visit(
+                                    SalaryAssignmentController.index({
+                                        query: { salary_master_id: master.id },
+                                    }).url,
+                                )
+                            }
                             style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -875,19 +872,13 @@ export default function MasterGajiSetting({
                             }}
                         >
                             <AIcon
-                                name={assignOpen ? 'x' : 'user-plus'}
+                                name="user-plus"
                                 size={14}
                                 color={C.primary}
                             />
-                            {assignOpen ? 'Tutup' : 'Pilih Pegawai'}
+                            Preview Penetapan
                         </button>
                     </div>
-                    {assignOpen && (
-                        <AssignPanel
-                            master={master}
-                            employeeOptions={employeeOptions}
-                        />
-                    )}
                 </div>
 
                 <SalaryValidationPanel
@@ -1158,99 +1149,6 @@ function SalaryValidationPanel({
                     </tbody>
                 </table>
             </div>
-        </div>
-    );
-}
-
-function AssignPanel({
-    master,
-    employeeOptions,
-}: {
-    master: Master;
-    employeeOptions: EmployeeOption[];
-}) {
-    const form = useForm<{ employee_ids: number[] }>({
-        employee_ids: employeeOptions
-            .filter((e) => e.salary_master_id === master.id)
-            .map((e) => e.id),
-    });
-
-    const toggle = (id: number) =>
-        form.setData(
-            'employee_ids',
-            form.data.employee_ids.includes(id)
-                ? form.data.employee_ids.filter((x) => x !== id)
-                : [...form.data.employee_ids, id],
-        );
-
-    const apply = () =>
-        form.post(SalaryMasterController.assign(master.id).url, {
-            preserveScroll: true,
-            onSuccess: () => toast.success('Master Gaji ditempel ke pegawai'),
-        });
-
-    return (
-        <div style={{ marginTop: 14 }}>
-            <div
-                style={{
-                    display: 'grid',
-                    gridTemplateColumns:
-                        'repeat(auto-fill, minmax(220px, 1fr))',
-                    gap: 6,
-                    maxHeight: 240,
-                    overflowY: 'auto',
-                    marginBottom: 12,
-                }}
-            >
-                {employeeOptions.map((e) => (
-                    <label
-                        key={e.id}
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 7,
-                            fontSize: 12.5,
-                            color: C.text,
-                            cursor: 'pointer',
-                        }}
-                    >
-                        <input
-                            type="checkbox"
-                            checked={form.data.employee_ids.includes(e.id)}
-                            onChange={() => toggle(e.id)}
-                        />
-                        {e.name}
-                        {e.salary_master_id !== null &&
-                            e.salary_master_id !== master.id && (
-                                <span
-                                    style={{ fontSize: 10.5, color: C.faint }}
-                                >
-                                    (lain)
-                                </span>
-                            )}
-                    </label>
-                ))}
-            </div>
-            <button
-                style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 7,
-                    padding: '9px 16px',
-                    borderRadius: 8,
-                    border: 'none',
-                    background: C.violet,
-                    color: '#fff',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                }}
-                disabled={form.processing}
-                onClick={apply}
-            >
-                <AIcon name="check" size={15} color="#fff" />
-                Terapkan
-            </button>
         </div>
     );
 }

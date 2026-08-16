@@ -1,7 +1,8 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import EmployeeSalaryController from '@/actions/App/Http/Controllers/Avana/EmployeeSalaryController';
+import SalaryHistoryController from '@/actions/App/Http/Controllers/Avana/SalaryHistoryController';
 import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, C, card, RupiahInput } from '@/lib/avana';
@@ -43,6 +44,7 @@ interface Props {
     employeeOptions: { id: number; name: string; nik: string | null }[];
     masterOptions: { id: number; label: string }[];
     salaryFloor: string | null;
+    suggestedEffectiveDate: string;
 }
 
 const input: React.CSSProperties = {
@@ -99,14 +101,17 @@ const inForce = (row: Row) =>
 
 export default function GajiKaryawan({
     employee,
-    rows,
+    rows = [],
     compliance,
-    employeeOptions,
-    masterOptions,
+    employeeOptions = [],
+    masterOptions = [],
     salaryFloor,
+    suggestedEffectiveDate,
 }: Props) {
     const [amounts, setAmounts] = useState<Record<number, string>>({});
     const [seededFor, setSeededFor] = useState<string | null>(null);
+    /** Server-side validation messages, shown beside the field they belong to. */
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
     const seedKey =
         employee === null
             ? null
@@ -127,7 +132,7 @@ export default function GajiKaryawan({
 
     const form = useForm({
         employee_id: employee?.id ?? 0,
-        effective_start_date: '',
+        effective_start_date: suggestedEffectiveDate,
         reason: '',
         components: [] as { payroll_component_id: number; amount: number }[],
     });
@@ -166,7 +171,7 @@ export default function GajiKaryawan({
             {
                 employee_id: employee.id,
                 salary_master_id: employee.salary_master_id,
-                effective_start_date: form.data.effective_start_date || null,
+                effective_start_date: form.data.effective_start_date,
                 reason: form.data.reason || null,
                 components: fixedRows.map((r) => ({
                     payroll_component_id: r.id,
@@ -175,50 +180,67 @@ export default function GajiKaryawan({
             },
             {
                 preserveScroll: true,
-                onSuccess: () => form.setData('reason', ''),
-                onError: (errors) =>
+                onSuccess: () => {
+                    setFieldErrors({});
+                    form.setData('reason', '');
+                },
+                onError: (errors) => {
+                    setFieldErrors(errors as Record<string, string>);
                     toast.error(
-                        errors.effective_start_date ??
+                        errors.reason ??
+                            errors.effective_start_date ??
                             errors.components ??
                             'Gaji gagal disimpan',
-                    ),
+                    );
+                },
             },
         );
     };
 
     return (
         <>
-            <Head title="Gaji Karyawan" />
-            <div style={{ padding: '28px 32px' }}>
+            <div>
+
+                {/* Satu layar untuk penetapan awal maupun penyesuaian
+                    individual: urutannya sama, dan versinya bertambah, bukan
+                    ditimpa — jadi slip gaji periode lalu tidak ikut berubah. */}
                 <div
                     style={{
+                        ...card,
+                        padding: '12px 16px',
+                        marginBottom: 18,
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 7,
+                        justifyContent: 'space-between',
+                        gap: 12,
+                        flexWrap: 'wrap',
                         fontSize: 12.5,
-                        color: C.faint,
-                        marginBottom: 7,
+                        color: C.muted,
                     }}
                 >
-                    <span>Payroll</span>
-                    <AIcon name="chevron-right" size={13} />
-                    <span style={{ color: C.muted }}>Gaji Karyawan</span>
-                </div>
-                <h1
-                    style={{
-                        fontSize: 24,
-                        fontWeight: 600,
-                        color: C.navy,
-                        margin: '0 0 4px',
-                    }}
-                >
-                    Gaji Karyawan
-                </h1>
-                <div style={{ fontSize: 14, color: C.muted, marginBottom: 18 }}>
-                    Pilih karyawan, pilih Master Gaji yang sudah ada, lalu ubah
-                    nominal yang berbeda untuk orang ini. Master Gaji tetap jadi
-                    template bersama — tidak perlu membuat master baru hanya
-                    karena nominalnya beda.
+                    <span>
+                        Alurnya: pilih karyawan → pilih Master Gaji → ubah
+                        nominal yang khusus → isi tanggal berlaku (awal periode)
+                        dan alasan → Simpan. Gaji lama tidak ditimpa; versi baru
+                        berlaku sejak tanggal itu.
+                    </span>
+                    {employee !== null && (
+                        <a
+                            href={
+                                SalaryHistoryController.index().url +
+                                '?employee_id=' +
+                                employee.id
+                            }
+                            style={{
+                                color: C.primary,
+                                fontWeight: 600,
+                                textDecoration: 'none',
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            Lihat riwayat gaji karyawan ini →
+                        </a>
+                    )}
                 </div>
 
                 <div style={{ ...card, padding: 18, marginBottom: 18 }}>
@@ -249,7 +271,8 @@ export default function GajiKaryawan({
                                 allowClear
                                 options={employeeOptions.map((e) => ({
                                     value: String(e.id),
-                                    label: (e.nik ? e.nik + ' · ' : '') + e.name,
+                                    label:
+                                        (e.nik ? e.nik + ' · ' : '') + e.name,
                                 }))}
                             />
                         </div>
@@ -342,7 +365,11 @@ export default function GajiKaryawan({
                                 style={ghostBtn}
                                 onClick={copyFromMaster}
                             >
-                                <AIcon name="copy" size={14} color={C.primary} />
+                                <AIcon
+                                    name="copy"
+                                    size={14}
+                                    color={C.primary}
+                                />
                                 Salin dari Master
                             </button>
                         </div>
@@ -432,7 +459,8 @@ export default function GajiKaryawan({
                                                                 setAmounts(
                                                                     (a) => ({
                                                                         ...a,
-                                                                        [r.id]: raw,
+                                                                        [r.id]:
+                                                                            raw,
                                                                     }),
                                                                 )
                                                             }
@@ -520,10 +548,16 @@ export default function GajiKaryawan({
                                         marginBottom: 6,
                                     }}
                                 >
-                                    Alasan perubahan
+                                    Alasan perubahan{' '}
+                                    <span style={{ color: C.red }}>*</span>
                                 </div>
                                 <input
-                                    style={input}
+                                    style={{
+                                        ...input,
+                                        borderColor: fieldErrors.reason
+                                            ? C.red
+                                            : C.line,
+                                    }}
                                     type="text"
                                     placeholder="Promosi, penyesuaian UMR, hasil review…"
                                     value={form.data.reason}
@@ -531,6 +565,17 @@ export default function GajiKaryawan({
                                         form.setData('reason', e.target.value)
                                     }
                                 />
+                                {fieldErrors.reason && (
+                                    <div
+                                        style={{
+                                            fontSize: 12,
+                                            color: C.red,
+                                            marginTop: 5,
+                                        }}
+                                    >
+                                        {fieldErrors.reason}
+                                    </div>
+                                )}
                             </div>
                             <button
                                 type="button"

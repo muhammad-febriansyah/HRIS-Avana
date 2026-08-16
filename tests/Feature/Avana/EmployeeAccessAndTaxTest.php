@@ -34,14 +34,14 @@ beforeEach(function (): void {
 
     /** The employee payload the form posts, with overrides merged on top. */
     $this->payload = function (array $overrides = []) {
-        return array_merge([
+        return employeeFormPayload($this->tenant->id, array_merge([
             'full_name' => $this->staff->full_name,
             'email' => $this->staff->email,
             'employment_status' => $this->staff->employment_status,
             'status' => $this->staff->status,
             'branch_id' => $this->staff->branch_id,
             'join_date' => $this->staff->join_date?->format('Y-m-d'),
-        ], $overrides);
+        ], $overrides));
     };
 });
 
@@ -145,15 +145,15 @@ it('shows the PTKP status on the employee page', function (): void {
         ->assertInertia(fn (Assert $page) => $page->where('employee.data.ptkp_status', 'TK/1'));
 });
 
-it('leaves the tax profile alone when the form carries no PTKP', function (): void {
+it('refuses a form with no PTKP and leaves the tax profile alone', function (): void {
     TaxProfile::updateOrCreate(
         ['tenant_id' => $this->tenant->id, 'employee_id' => $this->staff->id],
         ['ptkp_status' => 'K/3'],
     );
 
     actingAs($this->hr)
-        ->put(route('avana.employees.update', $this->staff), ($this->payload)())
-        ->assertRedirect();
+        ->put(route('avana.employees.update', $this->staff), ($this->payload)(['ptkp_status' => '']))
+        ->assertSessionHasErrors('ptkp_status');
 
     expect(TaxProfile::where('employee_id', $this->staff->id)->value('ptkp_status'))->toBe('K/3');
 });

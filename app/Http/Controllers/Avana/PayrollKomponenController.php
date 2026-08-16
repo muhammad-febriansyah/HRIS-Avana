@@ -13,9 +13,11 @@ use App\Models\PayrollFormula;
 use App\Models\PayrollFormulaItem;
 use App\Models\Position;
 use App\Models\User;
+use App\Support\BasicWageComponent;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -168,7 +170,7 @@ class PayrollKomponenController extends Controller
                 ->where(fn ($query) => $query->whereNull('component_group')->orWhere('component_group', '!=', 'potongan'))
                 ->where(fn ($query) => $query->whereNull('type')->orWhere('type', '!=', 'deduction'))
                 ->where(fn ($query) => $query->whereNull('calc_basis')->orWhere('calc_basis', '!=', 'percentage'))
-                ->orderByRaw("code = 'BASIC' DESC")
+                ->orderByRaw(BasicWageComponent::orderFirstSql())
                 ->orderBy('name')
                 ->get(['id', 'name'])
                 ->map(fn (PayrollComponent $c): array => ['id' => $c->id, 'name' => $c->name])
@@ -308,39 +310,20 @@ class PayrollKomponenController extends Controller
     }
 
     /**
-     * Add a "Nilai Komponen" mapping row for a component (BPR manual 1.2.4):
-     * a value scoped by any combination of kategori / status / posisi / pangkat
-     * / cabang. Blank dimensions apply to any employee.
+     * Retired: "Nilai Komponen" used to hold a rupiah figure scoped by
+     * kategori/status/posisi/pangkat/cabang, which made Master Komponen a second
+     * place a nominal could come from. Payroll no longer reads it, so writing
+     * new rows would only create figures nobody is paid — the endpoint says so
+     * instead of accepting them. Existing rows stay readable for audit.
      */
     public function storeComponentValue(Request $request, PayrollComponent $component): RedirectResponse
     {
         $this->ensureCan($request, 'update');
         $this->ensureOwnership($request, $component->tenant_id);
 
-        $tenantId = (int) $request->user()->tenant_id;
-
-        $data = $request->validate([
-            'kategori' => ['nullable', 'string', 'max:255'],
-            'employment_status' => ['nullable', 'string', 'max:255'],
-            'position_id' => ['nullable', 'integer', Rule::exists('positions', 'id')->where('tenant_id', $tenantId)],
-            'job_level_id' => ['nullable', 'integer', Rule::exists('job_levels', 'id')->where('tenant_id', $tenantId)],
-            'branch_id' => ['nullable', 'integer', Rule::exists('branches', 'id')->where('tenant_id', $tenantId)],
-            'value' => ['required', 'numeric', 'min:0'],
-            'note' => ['nullable', 'string', 'max:255'],
+        throw ValidationException::withMessages([
+            'value' => 'Nominal komponen sekarang hanya ditetapkan lewat Master Gaji, bukan di Master Komponen.',
         ]);
-
-        $component->componentValues()->create([
-            'tenant_id' => $tenantId,
-            'kategori' => $data['kategori'] ?? null,
-            'employment_status' => $data['employment_status'] ?? null,
-            'position_id' => $data['position_id'] ?? null,
-            'job_level_id' => $data['job_level_id'] ?? null,
-            'branch_id' => $data['branch_id'] ?? null,
-            'value' => $data['value'],
-            'note' => $data['note'] ?? null,
-        ]);
-
-        return back()->with('success', 'Nilai komponen disimpan');
     }
 
     public function destroyComponentValue(Request $request, PayrollComponentValue $value): RedirectResponse
@@ -468,9 +451,17 @@ class PayrollKomponenController extends Controller
     {
         $type = $data['basis_type'] ?? null;
 
+        // A rupiah nominal belongs to Master Gaji (and the employee's salary
+        // copied from it), never here: a component carrying its own figure gave
+        // payroll a second source to pay from, and it won — an employee could be
+        // paid a number nobody had assigned them. The one number that stays is
+        // a Persentase component's percent, which is not rupiah and has no
+        // meaning on a salary template.
+        $isPercentage = ($data['calc_basis'] ?? null) === 'percentage';
+
         return [
             'basis_type' => $type,
-            'basis_value' => $type === 'fixed' ? ($data['basis_value'] ?? null) : null,
+            'basis_value' => $type === 'fixed' && $isPercentage ? ($data['basis_value'] ?? null) : null,
             'basis_min' => $type === 'formula' ? ($data['basis_min'] ?? null) : null,
             'basis_max' => $type === 'formula' ? ($data['basis_max'] ?? null) : null,
             'basis_cut_off_day' => $data['basis_cut_off_day'] ?? null,

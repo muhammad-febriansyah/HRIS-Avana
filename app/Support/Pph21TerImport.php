@@ -74,6 +74,8 @@ final class Pph21TerImport
             throw new RuntimeException('Tidak ada tabel TER yang terbaca. Pastikan file punya sheet TER_A / TER_B / TER_C.');
         }
 
+        Pph21TerTableValidator::validate($brackets, $categories);
+
         return ['brackets' => $brackets, 'categories' => $categories, 'sheets' => $names];
     }
 
@@ -132,15 +134,6 @@ final class Pph21TerImport
         }
 
         usort($candidates, static fn (array $a, array $b): int => $a['income_min'] <=> $b['income_min']);
-
-        // Exactly one open-ended bracket, and it has to be the last.
-        $last = count($candidates) - 1;
-
-        foreach ($candidates as $index => $row) {
-            if ($index !== $last && $row['income_max'] === null) {
-                unset($candidates[$index]);
-            }
-        }
 
         return array_values($candidates);
     }

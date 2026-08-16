@@ -218,7 +218,7 @@ class PresentationDemoSeeder extends Seeder
                     'email' => $person['email'],
                     'gender' => $person['gender'],
                     'birth_date' => sprintf('%04d-%02d-%02d', $birthYear, 1 + ($i % 12), 1 + ($i % 27)),
-                    'marital_status' => $i % 3 === 0 ? 'single' : 'married',
+                    'marital_status' => $i % 3 === 0 ? 'Lajang' : 'Menikah',
                     'employment_status' => $employmentPool[$i % count($employmentPool)],
                     'join_date' => sprintf('%04d-%02d-%02d', $joinYear, $joinMonth, 1 + ($i % 27)),
                     'status' => 'active',

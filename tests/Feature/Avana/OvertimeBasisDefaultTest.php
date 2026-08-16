@@ -76,9 +76,12 @@ it('leaves the seeded overtime line and per-day allowances out of the basis', fu
         ->pluck('is_fixed', 'code')
         ->map(fn ($value): bool => (bool) $value);
 
+    // Per the setup documentation (§8.1) the fixed overtime basis is Gaji Pokok
+    // plus the fixed allowances, transport included; only the per-day allowance
+    // stays variable, and a deduction is not a wage at all.
     expect($flags['BASIC'])->toBeTrue()
         ->and($flags['TJ-JAB'])->toBeTrue()
-        ->and($flags['TJ-TRP'])->toBeFalse()
+        ->and($flags['TJ-TRP'])->toBeTrue()
         ->and($flags['TJ-MKN'])->toBeFalse()
         ->and($flags['POT-KOP'])->toBeFalse();
 });

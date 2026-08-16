@@ -15,6 +15,8 @@ interface ChangeableField {
     label: string;
     group: string;
     current: string | null;
+    /** Present when the field is picked from a fixed list, not typed. */
+    options: string[] | null;
 }
 
 interface Props {
@@ -162,37 +164,94 @@ export default function SayaPerubahanDataAjukan({ fields }: Props) {
                                                     label=""
                                                     hint={`Sekarang: ${field.current ?? '(kosong)'}`}
                                                 >
-                                                    <input
-                                                        value={
-                                                            form.data.values[
-                                                                field.key
-                                                            ] ?? ''
-                                                        }
-                                                        disabled={!checked}
-                                                        onChange={(event) =>
-                                                            form.setData(
-                                                                'values',
-                                                                {
-                                                                    ...form.data
-                                                                        .values,
-                                                                    [field.key]:
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                },
-                                                            )
-                                                        }
-                                                        placeholder="Nilai baru"
-                                                        style={{
-                                                            ...withError(
-                                                                inputStyle,
-                                                                false,
-                                                            ),
-                                                            background: checked
-                                                                ? '#fff'
-                                                                : C.surface,
-                                                        }}
-                                                    />
+                                                    {field.options ? (
+                                                        <select
+                                                            value={
+                                                                form.data
+                                                                    .values[
+                                                                    field.key
+                                                                ] ?? ''
+                                                            }
+                                                            disabled={!checked}
+                                                            onChange={(event) =>
+                                                                form.setData(
+                                                                    'values',
+                                                                    {
+                                                                        ...form
+                                                                            .data
+                                                                            .values,
+                                                                        [field.key]:
+                                                                            event
+                                                                                .target
+                                                                                .value,
+                                                                    },
+                                                                )
+                                                            }
+                                                            style={{
+                                                                ...withError(
+                                                                    inputStyle,
+                                                                    false,
+                                                                ),
+                                                                background:
+                                                                    checked
+                                                                        ? '#fff'
+                                                                        : C.surface,
+                                                            }}
+                                                        >
+                                                            <option value="">
+                                                                — Pilih —
+                                                            </option>
+                                                            {field.options.map(
+                                                                (option) => (
+                                                                    <option
+                                                                        key={
+                                                                            option
+                                                                        }
+                                                                        value={
+                                                                            option
+                                                                        }
+                                                                    >
+                                                                        {option}
+                                                                    </option>
+                                                                ),
+                                                            )}
+                                                        </select>
+                                                    ) : (
+                                                        <input
+                                                            value={
+                                                                form.data
+                                                                    .values[
+                                                                    field.key
+                                                                ] ?? ''
+                                                            }
+                                                            disabled={!checked}
+                                                            onChange={(event) =>
+                                                                form.setData(
+                                                                    'values',
+                                                                    {
+                                                                        ...form
+                                                                            .data
+                                                                            .values,
+                                                                        [field.key]:
+                                                                            event
+                                                                                .target
+                                                                                .value,
+                                                                    },
+                                                                )
+                                                            }
+                                                            placeholder="Nilai baru"
+                                                            style={{
+                                                                ...withError(
+                                                                    inputStyle,
+                                                                    false,
+                                                                ),
+                                                                background:
+                                                                    checked
+                                                                        ? '#fff'
+                                                                        : C.surface,
+                                                            }}
+                                                        />
+                                                    )}
                                                 </Field>
                                             </div>
                                         );

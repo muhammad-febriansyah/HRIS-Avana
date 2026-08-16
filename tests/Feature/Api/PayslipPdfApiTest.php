@@ -25,7 +25,9 @@ beforeEach(function (): void {
     $tenantId = $this->employee->tenant_id;
 
     $period = PayrollPeriod::create(['tenant_id' => $tenantId, 'code' => '2026-07', 'name' => 'Juli 2026']);
-    $run = PayrollRun::create(['tenant_id' => $tenantId, 'payroll_period_id' => $period->id, 'status' => 'approved']);
+    // Locked: an employee only ever reaches a payslip whose run is final.
+    $run = PayrollRun::create(['tenant_id' => $tenantId, 'payroll_period_id' => $period->id, 'status' => PayrollRun::STATUS_LOCKED]);
+    $this->run = $run;
 
     $make = fn (int $employeeId): PayrollRunItem => PayrollRunItem::create([
         'tenant_id' => $tenantId,
@@ -61,4 +63,25 @@ it('streams the employee payslip as a pdf', function (): void {
 
 it('rejects downloading another employees payslip', function (): void {
     ($this->auth)()->get('/api/v1/me/payslips/'.$this->foreignItem->id.'/pdf')->assertNotFound();
+});
+
+it('hides payslips from a run that is not locked yet', function (): void {
+    foreach ([PayrollRun::STATUS_CALCULATED, PayrollRun::STATUS_APPROVED, 'draft'] as $status) {
+        $this->run->update(['status' => $status]);
+
+        ($this->auth)()->getJson('/api/v1/me/payslips')->assertOk()->assertJsonCount(0, 'data');
+        ($this->auth)()->getJson('/api/v1/me/payslips/'.$this->item->id)->assertNotFound();
+        ($this->auth)()->get('/api/v1/me/payslips/'.$this->item->id.'/pdf')->assertNotFound();
+    }
+});
+
+it('shows the payslip once the run is locked', function (): void {
+    $this->run->update(['status' => PayrollRun::STATUS_APPROVED]);
+    ($this->auth)()->getJson('/api/v1/me/payslips')->assertOk()->assertJsonCount(0, 'data');
+
+    $this->run->update(['status' => PayrollRun::STATUS_LOCKED]);
+
+    ($this->auth)()->getJson('/api/v1/me/payslips')->assertOk()->assertJsonCount(1, 'data');
+    ($this->auth)()->getJson('/api/v1/me/payslips/'.$this->item->id)->assertOk();
+    ($this->auth)()->get('/api/v1/me/payslips/'.$this->item->id.'/pdf')->assertOk();
 });

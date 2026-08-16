@@ -37,7 +37,7 @@ it('locks every tenant screen once the term has lapsed', function (): void {
 
     // Writes are closed too, not just the screens that render them.
     actingAs($this->tenantAdmin)
-        ->post(route('avana.employees.store'), ['full_name' => 'Karyawan Baru'])
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, ['full_name' => 'Karyawan Baru']))
         ->assertRedirect(route('avana.locked'));
 });
 

@@ -10,6 +10,7 @@ use App\Models\OvertimeRate;
 use App\Models\PayrollComponent;
 use App\Models\SalaryMasterComponent;
 use App\Models\User;
+use App\Support\BasicWageComponent;
 use App\Support\FeatureGate;
 use App\Support\OvertimeRules;
 use App\Support\SalaryCompliance;
@@ -185,7 +186,7 @@ class OvertimeRuleController extends Controller
         $data = $request->validate(['is_fixed' => ['required', 'boolean']]);
 
         // Gaji Pokok always counts; PP 35/2021 gives no way to leave it out.
-        if ($component->code === 'BASIC' && ! $data['is_fixed']) {
+        if (BasicWageComponent::matches($component->code) && ! $data['is_fixed']) {
             throw ValidationException::withMessages([
                 'is_fixed' => 'Gaji Pokok selalu ikut basis lembur dan tidak bisa dilepas.',
             ]);
@@ -213,15 +214,15 @@ class OvertimeRuleController extends Controller
             ->where(fn ($query) => $query->whereNull('type')->orWhere('type', '!=', 'deduction'))
             ->where(fn ($query) => $query->whereNull('component_group')->orWhere('component_group', '!=', 'potongan'))
             ->where('code', '!=', 'LEMBUR')
-            ->orderByRaw("code = 'BASIC' DESC")
+            ->orderByRaw(BasicWageComponent::orderFirstSql())
             ->orderBy('name')
             ->get(['id', 'code', 'name', 'calc_basis', 'is_fixed'])
             ->map(fn (PayrollComponent $component): array => [
                 'id' => $component->id,
                 'code' => $component->code,
                 'name' => $component->name,
-                'is_fixed' => $component->code === 'BASIC' || (bool) $component->is_fixed,
-                'locked' => $component->code === 'BASIC',
+                'is_fixed' => BasicWageComponent::matches($component->code) || (bool) $component->is_fixed,
+                'locked' => BasicWageComponent::matches($component->code),
                 // Paid per present day or per overtime hour, so it is not a
                 // fixed allowance however it is ticked.
                 'variable' => in_array($component->calc_basis, ['per_present_day', 'per_overtime_hour'], true),

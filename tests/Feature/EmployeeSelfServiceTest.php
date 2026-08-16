@@ -430,3 +430,56 @@ it('loads another month into the dashboard calendar without leaking other months
             ->where('calendar.events.0.title', 'Bulan Depan')
             ->etc());
 });
+
+it('shows an employee their payslip only once the payroll run is locked', function (): void {
+    $run = PayrollRun::forTenant($this->employee->tenant_id)->firstOrFail();
+
+    $payslip = PayrollRunItem::create([
+        'tenant_id' => $this->employee->tenant_id,
+        'payroll_run_id' => $run->id,
+        'payroll_period_id' => $run->payroll_period_id,
+        'employee_id' => $this->employee->id,
+        'gross_salary' => 10_000_000,
+        'total_allowance' => 0,
+        'total_deduction' => 500_000,
+        'bpjs_employee_total' => 0,
+        'bpjs_company_total' => 0,
+        'pph21_total' => 0,
+        'net_salary' => 9_500_000,
+        'status' => 'calculated',
+        'calculation_snapshot' => [
+            'earnings' => [['name' => 'Gaji Pokok', 'amount' => 10_000_000]],
+            'deductions' => [['name' => 'BPJS', 'amount' => 500_000]],
+        ],
+    ]);
+
+    foreach ([PayrollRun::STATUS_CALCULATED, PayrollRun::STATUS_APPROVED] as $status) {
+        $run->update(['status' => $status]);
+
+        $this->actingAs($this->user)
+            ->get('/avana/saya/slip-gaji')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where(
+                'payslips',
+                fn ($rows) => collect($rows)->doesntContain('id', $payslip->id),
+            ));
+
+        $this->actingAs($this->user)
+            ->get("/avana/saya/slip-gaji/{$payslip->public_id}")
+            ->assertNotFound();
+    }
+
+    $run->update(['status' => PayrollRun::STATUS_LOCKED]);
+
+    $this->actingAs($this->user)
+        ->get('/avana/saya/slip-gaji')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where(
+            'payslips',
+            fn ($rows) => collect($rows)->contains('id', $payslip->id),
+        ));
+
+    $this->actingAs($this->user)
+        ->get("/avana/saya/slip-gaji/{$payslip->public_id}")
+        ->assertOk();
+});

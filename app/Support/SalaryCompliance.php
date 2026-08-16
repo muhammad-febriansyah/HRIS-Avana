@@ -62,7 +62,7 @@ final class SalaryCompliance
 
             $handled[$component->id] = true;
 
-            if ($component->code === 'BASIC') {
+            if (BasicWageComponent::matches($component->code)) {
                 $basic += (float) $row->amount;
                 $amounts[$component->id] = ($amounts[$component->id] ?? 0.0) + (float) $row->amount;
                 $effectiveFrom = $row->effective_start_date?->toDateString();
@@ -94,7 +94,7 @@ final class SalaryCompliance
                     continue;
                 }
 
-                if ($component->code === 'BASIC') {
+                if (BasicWageComponent::matches($component->code)) {
                     $basic += (float) $row->amount;
                     $amounts[$component->id] = ($amounts[$component->id] ?? 0.0) + (float) $row->amount;
                 } elseif ($component->calc_basis === 'percentage') {

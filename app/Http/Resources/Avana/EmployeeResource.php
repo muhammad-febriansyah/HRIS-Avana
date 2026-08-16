@@ -4,13 +4,16 @@ namespace App\Http\Resources\Avana;
 
 use App\Models\AssetAssignment;
 use App\Models\Employee;
+use App\Models\EmployeeContract;
 use App\Models\EmployeeDocument;
 use App\Models\LeaveRequest;
 use App\Models\PayrollRunItem;
+use App\Support\ContractType;
 use App\Support\PrivateFile;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Carbon;
 
 /**
  * @mixin Employee
@@ -63,6 +66,17 @@ final class EmployeeResource extends JsonResource
         'good' => 'Baik',
         'fair' => 'Cukup',
         'damaged' => 'Rusak',
+    ];
+
+    /**
+     * Indonesian labels for the contract status enum.
+     *
+     * @var array<string, string>
+     */
+    private const CONTRACT_STATUS_LABELS = [
+        'active' => 'Aktif',
+        'expired' => 'Berakhir',
+        'terminated' => 'Diberhentikan',
     ];
 
     /**
@@ -172,16 +186,8 @@ final class EmployeeResource extends JsonResource
             // the employee rather than only on a tax screen.
             'ptkp_status' => $this->whenLoaded('taxProfile', fn () => $this->taxProfile?->ptkp_status),
             'contracts' => $this->whenLoaded('contracts', fn () => $this->contracts
-                ->map(fn ($contract): array => [
-                    'id' => $contract->id,
-                    'contract_number' => $contract->contract_number,
-                    'contract_type' => $contract->contract_type,
-                    'start_date' => $contract->start_date?->format('d M Y'),
-                    'end_date' => $contract->end_date?->format('d M Y'),
-                    'start_date_raw' => $contract->start_date?->format('Y-m-d'),
-                    'end_date_raw' => $contract->end_date?->format('Y-m-d'),
-                    'status' => $contract->status,
-                ])->values()),
+                ->map(fn (EmployeeContract $contract): array => $this->contractRow($contract))
+                ->values()),
             'manager' => $this->whenLoaded('manager', fn () => $this->manager === null ? null : [
                 'id' => $this->manager->id,
                 'name' => $this->manager->full_name,
@@ -296,6 +302,44 @@ final class EmployeeResource extends JsonResource
         return ($value === floor($value)
             ? number_format($value, 0, ',', '.')
             : rtrim(number_format($value, 2, ',', '.'), '0')).' hari';
+    }
+
+    /**
+     * One row of the employee's contract history, shaped for the Kontrak tab on
+     * the employee page: the same facts the Kontrak list shows, so HR does not
+     * have to leave the employee to see whether a contract is signed, filed, or
+     * about to run out.
+     *
+     * @return array<string, mixed>
+     */
+    private function contractRow(EmployeeContract $contract): array
+    {
+        $daysToExpiry = $contract->end_date
+            ? (int) round(Carbon::today()->diffInDays($contract->end_date, false))
+            : null;
+
+        return [
+            'id' => $contract->id,
+            'route_key' => $contract->public_id,
+            'contract_number' => $contract->contract_number,
+            'contract_type' => $contract->contract_type,
+            'contract_type_label' => ContractType::label($contract->contract_type),
+            'start_date' => $contract->start_date?->format('d M Y'),
+            'end_date' => $contract->end_date?->format('d M Y'),
+            'start_date_raw' => $contract->start_date?->format('Y-m-d'),
+            'end_date_raw' => $contract->end_date?->format('Y-m-d'),
+            'status' => $contract->status,
+            'status_label' => self::CONTRACT_STATUS_LABELS[$contract->status] ?? $contract->status,
+            'days_to_expiry' => $daysToExpiry,
+            'expiring_soon' => $contract->status === 'active'
+                && $daysToExpiry !== null
+                && $daysToExpiry >= 0
+                && $daysToExpiry <= 30,
+            'document' => $contract->document_path === null ? null : [
+                'name' => $contract->document_name ?? 'kontrak.pdf',
+                'href' => route('avana.kontrak.dokumen', $contract),
+            ],
+        ];
     }
 
     /**

@@ -1186,7 +1186,6 @@ class EmployeeController extends Controller
             'genders' => [
                 ['value' => 'male', 'label' => 'Laki-laki'],
                 ['value' => 'female', 'label' => 'Perempuan'],
-                ['value' => 'unspecified', 'label' => 'Tidak ditentukan'],
             ],
             'statuses' => [
                 ['value' => 'active', 'label' => 'Aktif'],

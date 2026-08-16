@@ -7,9 +7,13 @@ use App\Models\Employee;
 use App\Models\PayrollComponent;
 use App\Models\SalaryRapel;
 use App\Models\User;
+use App\Support\SalaryPeriodLock;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -108,6 +112,7 @@ class SalaryRapelController extends Controller
             'posting_date' => $data['posting_date'],
             'reason' => $data['reason'],
             'status' => 'pending',
+            'created_by' => $request->user()->id,
         ]);
 
         return back()->with('success', 'Rapel gaji disimpan');
@@ -118,11 +123,35 @@ class SalaryRapelController extends Controller
         $this->ensureCan($request, 'approve');
         abort_if((int) $rapel->tenant_id !== (int) $request->user()->tenant_id, 404);
 
-        $rapel->update([
-            'status' => 'approved',
-            'approved_by' => $request->user()->id,
-            'approved_at' => now(),
-        ]);
+        DB::transaction(function () use ($request, $rapel): void {
+            // Locked while decided: two approvers clicking at once would both
+            // read "pending" and both stamp their name on the payment.
+            $locked = $rapel->newQuery()->whereKey($rapel->getKey())->lockForUpdate()->firstOrFail();
+
+            if ($locked->status !== 'pending') {
+                throw ValidationException::withMessages(['status' => 'Rapel gaji ini sudah diputuskan.']);
+            }
+
+            if ($locked->created_by !== null && (int) $locked->created_by === (int) $request->user()->id) {
+                throw ValidationException::withMessages([
+                    'status' => 'Rapel gaji tidak boleh disetujui oleh pembuatnya sendiri.',
+                ]);
+            }
+
+            $paidPeriod = SalaryPeriodLock::paidPeriodFor((int) $locked->tenant_id, Carbon::parse($locked->posting_date));
+
+            if ($paidPeriod !== null) {
+                throw ValidationException::withMessages([
+                    'status' => 'Periode '.($paidPeriod->name ?? $paidPeriod->code).' sudah dikunci — rapel gaji bertanggal itu tidak bisa disetujui lagi.',
+                ]);
+            }
+
+            $locked->update([
+                'status' => 'approved',
+                'approved_by' => $request->user()->id,
+                'approved_at' => now(),
+            ]);
+        });
 
         return back()->with('success', 'Rapel gaji disetujui');
     }
@@ -131,6 +160,16 @@ class SalaryRapelController extends Controller
     {
         $this->ensureCan($request, 'archive');
         abort_if((int) $rapel->tenant_id !== (int) $request->user()->tenant_id, 404);
+
+        // Deleting an approved row whose period is already locked would remove
+        // a line a payslip has stated and a bank file has paid.
+        if ($rapel->status === 'approved'
+            && SalaryPeriodLock::paidPeriodFor((int) $rapel->tenant_id, Carbon::parse($rapel->posting_date)) !== null
+        ) {
+            throw ValidationException::withMessages([
+                'status' => 'Rapel gaji ini sudah dibayarkan pada periode terkunci — tidak bisa dihapus.',
+            ]);
+        }
 
         $rapel->delete();
 

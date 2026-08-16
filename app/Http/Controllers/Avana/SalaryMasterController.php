@@ -11,7 +11,7 @@ use App\Models\SalaryGrade;
 use App\Models\SalaryMaster;
 use App\Models\User;
 use App\Services\EmployeeSalaryWriter;
-use App\Services\SalaryMasterAssignment;
+use App\Support\BasicWageComponent;
 use App\Support\SalaryCompliance;
 use App\Support\SalaryPeriodLock;
 use App\Support\SalarySettings;
@@ -55,7 +55,11 @@ class SalaryMasterController extends Controller
                 'included_count' => $m->included_count,
             ]);
 
+        // One screen, three tabs: Master Gaji → Gaji Karyawan → Penetapan
+        // Massal. Each keeps its own URL so links and redirects still land on
+        // the right tab.
         return Inertia::render('avana/payroll-master-gaji/index', [
+            'tab' => 'master',
             'masters' => $masters,
         ]);
     }
@@ -128,15 +132,6 @@ class SalaryMasterController extends Controller
                     'name' => $m->name,
                     'basis' => $m->basis,
                     'divisor' => $m->divisor,
-                ])->all(),
-            'employeeOptions' => Employee::forTenant($tenantId)
-                ->where('status', 'active')
-                ->orderBy('full_name')
-                ->get(['id', 'full_name', 'salary_master_id'])
-                ->map(fn (Employee $e): array => [
-                    'id' => $e->id,
-                    'name' => $e->full_name,
-                    'salary_master_id' => $e->salary_master_id,
                 ])->all(),
             'gradeOptions' => SalaryGrade::forTenant($tenantId)
                 ->orderBy('level')
@@ -272,47 +267,17 @@ class SalaryMasterController extends Controller
     }
 
     /**
-     * Attach this Master Gaji to the given employees (BPR manual: master gaji
-     * "ditempelkan ke data pegawai").
-     *
-     * The template's nominals are copied onto each employee as their own dated
-     * salary rows, so a later edit to the template does not silently re-price
-     * everyone it was attached to. An employee already carrying their own
-     * figure for a component keeps it.
+     * Keep the legacy endpoint harmless: every mass change must pass through
+     * the canonical preview before salary rows can be written.
      */
     public function assign(Request $request, SalaryMaster $master): RedirectResponse
     {
         $this->ensureCan($request, 'update');
         $this->ensureOwnership($request, $master->tenant_id);
 
-        $tenantId = (int) $request->user()->tenant_id;
-
-        $data = $request->validate([
-            'employee_ids' => ['required', 'array'],
-            'employee_ids.*' => ['integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
-            'effective_start_date' => ['nullable', 'date'],
-        ]);
-
-        $from = Carbon::parse($data['effective_start_date'] ?? now())->startOfDay();
-
-        $refusal = SalaryPeriodLock::refusal($tenantId, $from);
-
-        if ($refusal !== null) {
-            return back()->withErrors(['effective_start_date' => $refusal]);
-        }
-
-        SalaryMasterAssignment::apply(
-            $tenantId,
-            $master,
-            Employee::forTenant($tenantId)->whereIn('id', $data['employee_ids'])->get(),
-            $from,
-            null,
-            (int) $request->user()->id,
-            false,
-            SalarySettings::statusFor($tenantId),
-        );
-
-        return back()->with('success', 'Master Gaji ditempel ke pegawai');
+        return redirect()
+            ->route('avana.payroll.penetapan-massal', ['salary_master_id' => $master->id])
+            ->with('warning', 'Pilih karyawan dan periksa preview sebelum menerapkan Master Gaji.');
     }
 
     /**
@@ -354,20 +319,26 @@ class SalaryMasterController extends Controller
 
         $tenantId = (int) $request->user()->tenant_id;
 
+        if (! $master->is_active) {
+            return back()->withErrors(['salary_master_id' => 'Master Gaji nonaktif tidak dapat dipakai untuk mengubah gaji karyawan.']);
+        }
+
         $data = $request->validate([
-            'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
+            'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)->where('status', 'active')],
             'amount' => ['required', 'numeric', 'min:0'],
             'effective_start_date' => ['nullable', 'date'],
             'reason' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $basic = PayrollComponent::forTenant($tenantId)->where('code', 'BASIC')->first();
+        $basic = BasicWageComponent::for((int) $tenantId);
 
         if ($basic === null) {
             return back()->withErrors(['amount' => 'Komponen Gaji Pokok (BASIC) belum ada di Master Komponen.']);
         }
 
-        $from = Carbon::parse($data['effective_start_date'] ?? now())->startOfDay();
+        $from = Carbon::parse(
+            $data['effective_start_date'] ?? SalaryPeriodLock::suggestedDate($tenantId),
+        )->startOfDay();
 
         $refusal = SalaryPeriodLock::refusal($tenantId, $from);
 

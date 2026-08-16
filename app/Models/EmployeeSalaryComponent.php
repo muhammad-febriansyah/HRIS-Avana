@@ -18,6 +18,8 @@ final class EmployeeSalaryComponent extends Model
         'source_type',
         'payroll_component_id',
         'amount',
+        // What this version replaced, so a raise reads "from → to" on one row.
+        'previous_amount',
         'status',
         'effective_start_date',
         'effective_end_date',
@@ -36,6 +38,7 @@ final class EmployeeSalaryComponent extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'previous_amount' => 'decimal:2',
             'effective_start_date' => 'date',
             'effective_end_date' => 'date',
             'approved_at' => 'datetime',

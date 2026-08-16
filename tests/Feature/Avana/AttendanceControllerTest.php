@@ -26,10 +26,24 @@ beforeEach(function (): void {
 });
 
 /**
- * The fixed date used by the tests so KPIs stay deterministic and never
- * collide with the seeder's "today" rekap rows.
+ * The date these tests write attendance on.
+ *
+ * Derived from today rather than hard-coded: the seeder fills in a rekap for
+ * "today", so a fixed date breaks the whole file on the one day of the year it
+ * happens to match — which is exactly what it did. Far enough ahead that no
+ * seeded row can reach it, and stable within a run so the KPIs stay
+ * deterministic.
  */
-const TEST_DATE = '2026-08-15';
+function attendanceTestDate(): string
+{
+    return today()->addDays(45)->toDateString();
+}
+
+/** The day after, used by the range tests. */
+function attendanceTestDate2(): string
+{
+    return today()->addDays(46)->toDateString();
+}
 
 /**
  * Create an attendance row for the seeded tenant on the test date.
@@ -43,9 +57,9 @@ function makeAttendance(int $tenantId, int $shiftId, array $overrides = []): Att
         'employee_id' => $employee->id,
         'branch_id' => $employee->branch_id,
         'shift_id' => $shiftId,
-        'date' => TEST_DATE,
-        'clock_in_at' => TEST_DATE.' 08:00:00',
-        'clock_out_at' => TEST_DATE.' 17:00:00',
+        'date' => attendanceTestDate(),
+        'clock_in_at' => attendanceTestDate().' 08:00:00',
+        'clock_out_at' => attendanceTestDate().' 17:00:00',
         'late_minutes' => 0,
         'work_minutes' => 540,
         'status' => 'present',
@@ -57,7 +71,7 @@ it('renders the paginated absensi index with the expected props', function (): v
     makeAttendance($this->tenant->id, $this->shift->id);
 
     actingAs($this->admin)
-        ->get(route('avana.absensi', ['date' => TEST_DATE]))
+        ->get(route('avana.absensi', ['date' => attendanceTestDate()]))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('avana/absensi/index', false)
@@ -76,10 +90,10 @@ it('renders the paginated absensi index with the expected props', function (): v
                 ->has('status')
                 ->has('status_label')
                 ->etc())
-            ->where('filters.date_from', TEST_DATE)
-            ->where('filters.date_to', TEST_DATE)
-            ->where('range.from', TEST_DATE)
-            ->where('range.to', TEST_DATE)
+            ->where('filters.date_from', attendanceTestDate())
+            ->where('filters.date_to', attendanceTestDate())
+            ->where('range.from', attendanceTestDate())
+            ->where('range.to', attendanceTestDate())
             ->has('range.display')
             ->has('kpis.hadir')
             ->has('kpis.terlambat')
@@ -99,10 +113,10 @@ it('defaults to today when no date filter is supplied', function (): void {
 
 it('aggregates the absensi index across a date_from..date_to range', function (): void {
     makeAttendance($this->tenant->id, $this->shift->id, [
-        'date' => '2026-08-15', 'clock_in_at' => '2026-08-15 08:00:00', 'status' => 'present',
+        'date' => attendanceTestDate(), 'clock_in_at' => attendanceTestDate().' 08:00:00', 'status' => 'present',
     ]);
     makeAttendance($this->tenant->id, $this->shift->id, [
-        'date' => '2026-08-16', 'clock_in_at' => '2026-08-16 09:30:00', 'status' => 'late',
+        'date' => attendanceTestDate2(), 'clock_in_at' => attendanceTestDate2().' 09:30:00', 'status' => 'late',
     ]);
     // Outside the range — excluded.
     makeAttendance($this->tenant->id, $this->shift->id, [
@@ -110,11 +124,14 @@ it('aggregates the absensi index across a date_from..date_to range', function ()
     ]);
 
     actingAs($this->admin)
-        ->get(route('avana.absensi', ['date_from' => '2026-08-15', 'date_to' => '2026-08-16']))
+        ->get(route('avana.absensi', [
+            'date_from' => attendanceTestDate(),
+            'date_to' => today()->addDays(46)->toDateString(),
+        ]))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->where('range.from', '2026-08-15')
-            ->where('range.to', '2026-08-16')
+            ->where('range.from', attendanceTestDate())
+            ->where('range.to', today()->addDays(46)->toDateString())
             ->where('range.is_range', true)
             ->where('kpis.hadir', 1)
             ->where('kpis.terlambat', 1)
@@ -136,28 +153,28 @@ it('only lists attendances that belong to the current tenant', function (): void
     Attendance::create([
         'tenant_id' => $otherTenant->id,
         'employee_id' => $foreignEmployee->id,
-        'date' => TEST_DATE,
+        'date' => attendanceTestDate(),
         'status' => 'present',
         'late_minutes' => 0,
         'work_minutes' => 0,
     ]);
 
     actingAs($this->admin)
-        ->get(route('avana.absensi', ['date' => TEST_DATE]))
+        ->get(route('avana.absensi', ['date' => attendanceTestDate()]))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page->has('attendances.data', 1));
 });
 
 it('filters the rekap by the requested date', function (): void {
-    makeAttendance($this->tenant->id, $this->shift->id, ['date' => TEST_DATE]);
-    makeAttendance($this->tenant->id, $this->shift->id, ['date' => '2026-08-16']);
+    makeAttendance($this->tenant->id, $this->shift->id, ['date' => attendanceTestDate()]);
+    makeAttendance($this->tenant->id, $this->shift->id, ['date' => attendanceTestDate2()]);
 
     actingAs($this->admin)
-        ->get(route('avana.absensi', ['date' => TEST_DATE]))
+        ->get(route('avana.absensi', ['date' => attendanceTestDate()]))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->has('attendances.data', 1)
-            ->where('attendances.data.0.date_raw', TEST_DATE));
+            ->where('attendances.data.0.date_raw', attendanceTestDate()));
 });
 
 it('computes the status KPIs for the selected date with a grouped query', function (): void {
@@ -169,7 +186,7 @@ it('computes the status KPIs for the selected date with a grouped query', functi
             'employee_id' => $employees[$i]->id,
             'branch_id' => $employees[$i]->branch_id,
             'shift_id' => $this->shift->id,
-            'date' => TEST_DATE,
+            'date' => attendanceTestDate(),
             'late_minutes' => $status === 'late' ? 20 : 0,
             'work_minutes' => 0,
             'status' => $status,
@@ -177,7 +194,7 @@ it('computes the status KPIs for the selected date with a grouped query', functi
     }
 
     actingAs($this->admin)
-        ->get(route('avana.absensi', ['date' => TEST_DATE]))
+        ->get(route('avana.absensi', ['date' => attendanceTestDate()]))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->where('kpis.hadir', 1)
@@ -196,7 +213,7 @@ it('approves an attendance correction and syncs the linked attendance', function
         'tenant_id' => $this->tenant->id,
         'attendance_id' => $attendance->id,
         'employee_id' => $attendance->employee_id,
-        'date' => TEST_DATE,
+        'date' => attendanceTestDate(),
         'correction_type' => 'clock_in',
         'requested_clock_in' => '08:00:00',
         'reason' => 'Lupa absen masuk',
@@ -223,7 +240,7 @@ it('does not process an approved attendance correction twice', function (): void
         'tenant_id' => $this->tenant->id,
         'attendance_id' => $attendance->id,
         'employee_id' => $attendance->employee_id,
-        'date' => TEST_DATE,
+        'date' => attendanceTestDate(),
         'correction_type' => 'clock_in',
         'requested_clock_in' => '08:00:00',
         'reason' => 'Lupa absen masuk',
@@ -249,7 +266,7 @@ it('rejects an attendance correction', function (): void {
         'tenant_id' => $this->tenant->id,
         'attendance_id' => $attendance->id,
         'employee_id' => $attendance->employee_id,
-        'date' => TEST_DATE,
+        'date' => attendanceTestDate(),
         'correction_type' => 'clock_in',
         'requested_clock_in' => '08:00:00',
         'reason' => 'Salah jam',
@@ -275,7 +292,7 @@ it('returns 404 when approving a correction from another tenant', function (): v
     $correction = AttendanceCorrection::create([
         'tenant_id' => $otherTenant->id,
         'employee_id' => $foreignEmployee->id,
-        'date' => TEST_DATE,
+        'date' => attendanceTestDate(),
         'correction_type' => 'clock_in',
         'reason' => 'Test',
         'status' => 'pending',
@@ -331,7 +348,7 @@ it('returns 404 for an attendance detail from another tenant', function (): void
         'tenant_id' => $other->id,
         'employee_id' => $employee->id,
         'branch_id' => $employee->branch_id,
-        'date' => TEST_DATE,
+        'date' => attendanceTestDate(),
         'status' => 'present',
     ]);
 
@@ -348,7 +365,7 @@ it('renders the live monitor with map points, KPIs, and recent activity', functi
     ]);
 
     actingAs($this->admin)
-        ->get(route('avana.absensi.monitor', ['date' => TEST_DATE]))
+        ->get(route('avana.absensi.monitor', ['date' => attendanceTestDate()]))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('avana/absensi/monitor', false)
@@ -376,13 +393,13 @@ it('renders the live monitor with map points, KPIs, and recent activity', functi
 it('aggregates the monitor across a date_from..date_to range', function (): void {
     // Two check-ins on different days within the range.
     makeAttendance($this->tenant->id, $this->shift->id, [
-        'date' => '2026-08-15',
-        'clock_in_at' => '2026-08-15 08:00:00',
+        'date' => attendanceTestDate(),
+        'clock_in_at' => attendanceTestDate().' 08:00:00',
         'status' => 'present',
     ]);
     makeAttendance($this->tenant->id, $this->shift->id, [
-        'date' => '2026-08-16',
-        'clock_in_at' => '2026-08-16 09:30:00',
+        'date' => attendanceTestDate2(),
+        'clock_in_at' => attendanceTestDate2().' 09:30:00',
         'status' => 'late',
     ]);
     // Outside the range — must be excluded.
@@ -394,19 +411,19 @@ it('aggregates the monitor across a date_from..date_to range', function (): void
 
     actingAs($this->admin)
         ->get(route('avana.absensi.monitor', [
-            'date_from' => '2026-08-15',
-            'date_to' => '2026-08-16',
+            'date_from' => attendanceTestDate(),
+            'date_to' => today()->addDays(46)->toDateString(),
         ]))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->where('range.from', '2026-08-15')
-            ->where('range.to', '2026-08-16')
-            ->where('filters.date_from', '2026-08-15')
-            ->where('filters.date_to', '2026-08-16')
+            ->where('range.from', attendanceTestDate())
+            ->where('range.to', today()->addDays(46)->toDateString())
+            ->where('filters.date_from', attendanceTestDate())
+            ->where('filters.date_to', attendanceTestDate2())
             ->where('kpis.on_time', 1)
             ->where('kpis.late', 1)
             // Feed rows carry a day tag when the range spans multiple days.
-            ->where('activity.0.date', '16 Aug')
+            ->where('activity.0.date', today()->addDays(46)->format('d M'))
             ->has('activity', 2)
             ->etc());
 });
@@ -420,7 +437,7 @@ it('shows the branch name alongside the work location in the activity feed', fun
     ]);
 
     actingAs($this->admin)
-        ->get(route('avana.absensi.monitor', ['date' => TEST_DATE]))
+        ->get(route('avana.absensi.monitor', ['date' => attendanceTestDate()]))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->where('activity.0.location', $workLocation->name)
@@ -436,7 +453,7 @@ it('omits the branch when it already stands in as the activity location', functi
     $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
 
     actingAs($this->admin)
-        ->get(route('avana.absensi.monitor', ['date' => TEST_DATE]))
+        ->get(route('avana.absensi.monitor', ['date' => attendanceTestDate()]))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->where('activity.0.location', $employee->branch->name)
@@ -451,7 +468,7 @@ it('excludes attendance without GPS coordinates from monitor map points', functi
     ]);
 
     actingAs($this->admin)
-        ->get(route('avana.absensi.monitor', ['date' => TEST_DATE]))
+        ->get(route('avana.absensi.monitor', ['date' => attendanceTestDate()]))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page->has('points', 0));
 });
@@ -491,7 +508,7 @@ it('returns 404 when deleting an attendance from another tenant', function (): v
         'tenant_id' => $other->id,
         'employee_id' => $employee->id,
         'branch_id' => $employee->branch_id,
-        'date' => TEST_DATE,
+        'date' => attendanceTestDate(),
         'status' => 'present',
     ]);
 

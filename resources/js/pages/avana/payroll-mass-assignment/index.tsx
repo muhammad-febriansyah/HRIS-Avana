@@ -1,9 +1,10 @@
-import { Head, router } from '@inertiajs/react';
+import { router } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import SalaryAssignmentController from '@/actions/App/Http/Controllers/Avana/SalaryAssignmentController';
 import { DatePicker } from '@/components/avana/date-picker';
 import { SearchableSelect } from '@/components/searchable-select';
+import SalaryMasterController from '@/actions/App/Http/Controllers/Avana/SalaryMasterController';
 import { AIcon, C, card } from '@/lib/avana';
 
 interface Option {
@@ -21,6 +22,7 @@ interface PreviewRow {
     current_total: number;
     template_total: number;
     has_own_figures: boolean;
+    override_count: number;
 }
 
 interface Filters {
@@ -31,16 +33,35 @@ interface Filters {
     salary_grade_id: number | null;
     employment_status: string | null;
     assignment: string;
+    /** Field Kustom filters, keyed by field key (Client, Placement, NPO, …). */
+    custom: Record<string, string>;
+    /** all | active | none — contract in force on the effective date. */
+    contract: string;
+    effective_start_date: string;
+    existing: 'skip' | 'overwrite';
+}
+
+/** One Field Kustom the tenant defined for employees. */
+interface CustomFieldOption {
+    key: string;
+    label: string;
+    type: string;
+    options: string[];
 }
 
 interface Props {
     filters: Filters;
+    /** Set when the requested Master Gaji exists but is switched off. */
+    masterNotice: string | null;
     preview: PreviewRow[];
+    previewEmployeeIds: number[];
+    previewToken: string | null;
     template: {
         id: number;
         code: string;
         category: string;
         component_count: number;
+        variable_count: number;
         total: number;
     } | null;
     masterOptions: Option[];
@@ -48,6 +69,7 @@ interface Props {
     departmentOptions: Option[];
     positionOptions: Option[];
     gradeOptions: Option[];
+    customFieldOptions: CustomFieldOption[];
     salaryFloor: string | null;
 }
 
@@ -109,24 +131,26 @@ const ASSIGNMENT_SCOPES: { value: string; label: string }[] = [
 
 export default function MassAssignment({
     filters,
-    preview,
+    masterNotice,
+    preview = [],
+    previewEmployeeIds = [],
+    previewToken,
     template,
-    masterOptions,
-    branchOptions,
-    departmentOptions,
-    positionOptions,
-    gradeOptions,
+    masterOptions = [],
+    branchOptions = [],
+    departmentOptions = [],
+    positionOptions = [],
+    gradeOptions = [],
+    customFieldOptions = [],
     salaryFloor,
 }: Props) {
     const [picked, setPicked] = useState<number[]>([]);
-    const [from, setFrom] = useState('');
     const [reason, setReason] = useState('');
-    const [existing, setExisting] = useState<'skip' | 'overwrite'>('skip');
 
     // A new preview is a new set of people; carrying ticks across it would
     // apply the template to someone the filter no longer shows. The ticks are
     // reset during render so the Apply button never counts a stale selection.
-    const previewKey = preview.map((p) => p.id).join(',');
+    const previewKey = `${previewToken ?? 'none'}:${preview.map((p) => p.id).join(',')}`;
     const [seededFor, setSeededFor] = useState<string | null>(null);
 
     if (seededFor !== previewKey) {
@@ -148,13 +172,37 @@ export default function MassAssignment({
             { preserveScroll: true, replace: true },
         );
 
+    /** Filter on one Field Kustom without dropping the others. */
+    const setCustomFilter = (key: string, value: string) => {
+        const custom = { ...(filters.custom ?? {}) };
+
+        if (value === '') {
+            delete custom[key];
+        } else {
+            custom[key] = value;
+        }
+
+        router.get(
+            SalaryAssignmentController.index().url,
+            {
+                ...Object.fromEntries(
+                    Object.entries(filters).filter(
+                        ([k, v]) => v !== null && k !== 'custom',
+                    ),
+                ),
+                custom,
+            },
+            { preserveScroll: true, replace: true },
+        );
+    };
+
     const toggle = (id: number) =>
         setPicked((p) =>
             p.includes(id) ? p.filter((x) => x !== id) : [...p, id],
         );
 
     const apply = () => {
-        if (template === null || picked.length === 0) {
+        if (template === null || previewToken === null || picked.length === 0) {
             return;
         }
 
@@ -163,9 +211,11 @@ export default function MassAssignment({
             {
                 salary_master_id: template.id,
                 employee_ids: picked,
-                effective_start_date: from || null,
+                preview_employee_ids: previewEmployeeIds,
+                preview_token: previewToken,
+                effective_start_date: filters.effective_start_date,
                 reason: reason || null,
-                existing,
+                existing: filters.existing,
             },
             {
                 preserveScroll: true,
@@ -173,6 +223,7 @@ export default function MassAssignment({
                 onError: (errors) =>
                     toast.error(
                         errors.effective_start_date ??
+                            errors.preview_token ??
                             errors.salary_master_id ??
                             errors.employee_ids ??
                             'Penetapan gagal',
@@ -209,38 +260,7 @@ export default function MassAssignment({
 
     return (
         <>
-            <Head title="Penetapan Gaji Massal" />
-            <div style={{ padding: '28px 32px' }}>
-                <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 7,
-                        fontSize: 12.5,
-                        color: C.faint,
-                        marginBottom: 7,
-                    }}
-                >
-                    <span>Payroll</span>
-                    <AIcon name="chevron-right" size={13} />
-                    <span style={{ color: C.muted }}>Penetapan Gaji Massal</span>
-                </div>
-                <h1
-                    style={{
-                        fontSize: 24,
-                        fontWeight: 600,
-                        color: C.navy,
-                        margin: '0 0 4px',
-                    }}
-                >
-                    Penetapan Gaji Massal
-                </h1>
-                <div style={{ fontSize: 14, color: C.muted, marginBottom: 18 }}>
-                    Pilih Master Gaji, saring karyawannya, tinjau hasilnya, baru
-                    terapkan. Nominal template disalin menjadi gaji masing-masing
-                    karyawan, jadi mengubah master nanti tidak diam-diam
-                    mengubah gaji mereka.
-                </div>
+            <div>
 
                 <div style={{ ...card, padding: 18, marginBottom: 18 }}>
                     <div
@@ -271,7 +291,12 @@ export default function MassAssignment({
                                 }))}
                             />
                         </div>
-                        {select('branch_id', 'Cabang', branchOptions, 'Semua cabang')}
+                        {select(
+                            'branch_id',
+                            'Cabang',
+                            branchOptions,
+                            'Semua cabang',
+                        )}
                         {select(
                             'department_id',
                             'Departemen',
@@ -326,21 +351,67 @@ export default function MassAssignment({
                                 ))}
                             </select>
                         </div>
+                        <div>
+                            <div style={fieldLabel}>Kontrak</div>
+                            <select
+                                style={input}
+                                value={filters.contract ?? 'all'}
+                                onChange={(e) =>
+                                    setFilter('contract', e.target.value)
+                                }
+                            >
+                                <option value="all">Semua karyawan</option>
+                                <option value="active">
+                                    Kontrak aktif di tanggal berlaku
+                                </option>
+                                <option value="none">Tanpa kontrak aktif</option>
+                            </select>
+                        </div>
+                        {customFieldOptions.map((field) => (
+                            <div key={field.key}>
+                                <div style={fieldLabel}>{field.label}</div>
+                                {field.options.length > 0 ? (
+                                    <select
+                                        style={input}
+                                        value={filters.custom?.[field.key] ?? ''}
+                                        onChange={(e) =>
+                                            setCustomFilter(
+                                                field.key,
+                                                e.target.value,
+                                            )
+                                        }
+                                    >
+                                        <option value="">
+                                            Semua {field.label.toLowerCase()}
+                                        </option>
+                                        {field.options.map((option) => (
+                                            <option key={option} value={option}>
+                                                {option}
+                                            </option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    <input
+                                        style={input}
+                                        defaultValue={
+                                            filters.custom?.[field.key] ?? ''
+                                        }
+                                        placeholder={`Semua ${field.label.toLowerCase()}`}
+                                        onBlur={(e) =>
+                                            setCustomFilter(
+                                                field.key,
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                )}
+                            </div>
+                        ))}
                     </div>
                 </div>
 
                 {template === null ? (
-                    <div
-                        style={{
-                            ...card,
-                            padding: 40,
-                            textAlign: 'center',
-                            color: C.faint,
-                            fontSize: 13.5,
-                        }}
-                    >
-                        Pilih Master Gaji untuk melihat preview.
-                    </div>
+                    <PreviewPlaceholder notice={masterNotice} />
                 ) : (
                     <>
                         <div
@@ -363,8 +434,15 @@ export default function MassAssignment({
                                 · {template.category}
                             </span>
                             <span>
-                                {template.component_count} komponen tetap
+                                {template.component_count -
+                                    template.variable_count}{' '}
+                                komponen tetap
                             </span>
+                            {template.variable_count > 0 && (
+                                <span>
+                                    {template.variable_count} tarif variabel
+                                </span>
+                            )}
                             <span>
                                 Total template{' '}
                                 <strong style={{ color: C.navy }}>
@@ -372,8 +450,8 @@ export default function MassAssignment({
                                 </strong>
                             </span>
                             <span>
-                                {preview.length} karyawan cocok · {picked.length}{' '}
-                                dipilih
+                                {preview.length} karyawan cocok ·{' '}
+                                {picked.length} dipilih
                             </span>
                         </div>
 
@@ -471,10 +549,7 @@ export default function MassAssignment({
                                                             fontSize: 12.5,
                                                         }}
                                                     >
-                                                        {[
-                                                            p.position,
-                                                            p.branch,
-                                                        ]
+                                                        {[p.position, p.branch]
                                                             .filter(Boolean)
                                                             .join(' · ') || '—'}
                                                     </td>
@@ -522,8 +597,7 @@ export default function MassAssignment({
                             <div
                                 style={{
                                     display: 'grid',
-                                    gridTemplateColumns:
-                                        '200px 1fr 220px auto',
+                                    gridTemplateColumns: '200px 1fr 220px auto',
                                     gap: 12,
                                     alignItems: 'end',
                                 }}
@@ -531,9 +605,14 @@ export default function MassAssignment({
                                 <div>
                                     <div style={fieldLabel}>Berlaku mulai</div>
                                     <DatePicker
-                                        value={from}
-                                        onChange={setFrom}
-                                        placeholder="Hari ini"
+                                        value={filters.effective_start_date}
+                                        onChange={(value) =>
+                                            setFilter(
+                                                'effective_start_date',
+                                                value,
+                                            )
+                                        }
+                                        placeholder="Pilih tanggal"
                                         width={200}
                                     />
                                 </div>
@@ -557,12 +636,11 @@ export default function MassAssignment({
                                     </div>
                                     <select
                                         style={input}
-                                        value={existing}
+                                        value={filters.existing}
                                         onChange={(e) =>
-                                            setExisting(
-                                                e.target.value as
-                                                    | 'skip'
-                                                    | 'overwrite',
+                                            setFilter(
+                                                'existing',
+                                                e.target.value,
                                             )
                                         }
                                     >
@@ -580,7 +658,11 @@ export default function MassAssignment({
                                     onClick={apply}
                                     disabled={picked.length === 0}
                                 >
-                                    <AIcon name="check" size={15} color="#fff" />
+                                    <AIcon
+                                        name="check"
+                                        size={15}
+                                        color="#fff"
+                                    />
                                     Terapkan ke {picked.length} karyawan
                                 </button>
                             </div>
@@ -590,7 +672,7 @@ export default function MassAssignment({
                                     style={{
                                         fontSize: 12.5,
                                         color:
-                                            existing === 'overwrite'
+                                            filters.existing === 'overwrite'
                                                 ? '#B45309'
                                                 : C.muted,
                                         marginTop: 12,
@@ -598,7 +680,7 @@ export default function MassAssignment({
                                 >
                                     {withOwnFigures} karyawan terpilih punya
                                     nominal khusus.{' '}
-                                    {existing === 'overwrite'
+                                    {filters.existing === 'overwrite'
                                         ? 'Nominal itu akan diganti nominal template.'
                                         : 'Nominal itu dipertahankan; komponen lain tetap diisi template.'}
                                 </div>
@@ -622,5 +704,87 @@ export default function MassAssignment({
                 )}
             </div>
         </>
+    );
+}
+
+
+/**
+ * What fills the preview area before there is a preview: either an invitation to
+ * pick a template, or the reason the chosen one cannot be used — with the way
+ * out of it, so the screen is never a dead end.
+ */
+function PreviewPlaceholder({ notice }: { notice: string | null }) {
+    const blocked = notice !== null;
+    const tone = blocked ? C.amber : C.primary;
+
+    return (
+        <div
+            style={{
+                ...card,
+                padding: '44px 28px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                textAlign: 'center',
+                gap: 12,
+            }}
+        >
+            <div
+                style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 999,
+                    background: `${tone}1A`,
+                    display: 'grid',
+                    placeItems: 'center',
+                }}
+            >
+                <AIcon
+                    name={blocked ? 'triangle-alert' : 'users'}
+                    size={22}
+                    color={tone}
+                />
+            </div>
+
+            <div style={{ fontSize: 15.5, fontWeight: 600, color: C.navy }}>
+                {blocked
+                    ? 'Master Gaji ini tidak bisa dipakai'
+                    : 'Pilih Master Gaji dulu'}
+            </div>
+
+            <div
+                style={{
+                    fontSize: 13.5,
+                    color: C.muted,
+                    maxWidth: 520,
+                    lineHeight: 1.6,
+                }}
+            >
+                {notice ??
+                    'Setelah Master Gaji dipilih, preview menampilkan gaji tetap setiap karyawan sekarang dan setelah template diterapkan — sebelum apa pun disimpan.'}
+            </div>
+
+            {blocked && (
+                <a
+                    href={SalaryMasterController.index().url}
+                    style={{
+                        marginTop: 4,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 7,
+                        padding: '9px 16px',
+                        borderRadius: 9,
+                        background: C.primary,
+                        color: '#fff',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                    }}
+                >
+                    <AIcon name="file-cog" size={15} color="#fff" />
+                    Buka Master Gaji
+                </a>
+            )}
+        </div>
     );
 }

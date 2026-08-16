@@ -78,6 +78,11 @@ export interface ContractFormData {
     notes: string;
     /** The signed contract; null keeps whatever is already attached. */
     document: File | null;
+    /**
+     * Opaque key of the employee whose Kontrak tab opened this form; the save
+     * returns there instead of the global list. Empty when opened from the list.
+     */
+    return_to: string;
 }
 
 /** Empty defaults for the create form. */
@@ -90,6 +95,7 @@ export const emptyContractForm: ContractFormData = {
     status: 'active',
     notes: '',
     document: null,
+    return_to: '',
 };
 
 /** Contract type options surfaced in the create/edit form. */

@@ -31,11 +31,16 @@ function setRounding(int $tenantId, int $minutes): void
 }
 
 /** File an overtime request over the HR desk endpoint. */
-function fileRoundedOvertime(User $admin, Employee $employee, string $start, string $end)
+/**
+ * File one overtime stretch. Each filing takes its own date: two filings whose
+ * clock times overlap on the same day are refused, because they would both be
+ * measured against the same clock-out.
+ */
+function fileRoundedOvertime(User $admin, Employee $employee, string $start, string $end, string $date = '2026-05-06')
 {
     return actingAs($admin)->post(route('avana.cuti.lembur.store'), [
         'employee_id' => $employee->id,
-        'date' => '2026-05-06',
+        'date' => $date,
         'start_time' => $start,
         'end_time' => $end,
     ]);
@@ -50,12 +55,12 @@ it('rounds a stretch down to the tenant block', function (): void {
     expect((float) OvertimeRequest::latest('id')->first()->hours)->toBe(0.5);
 
     // 18:00–19:29 = 89 minutes, paid as one hour.
-    fileRoundedOvertime($this->admin, $this->employee, '18:00', '19:29')->assertSessionHasNoErrors();
+    fileRoundedOvertime($this->admin, $this->employee, '18:00', '19:29', '2026-05-07')->assertSessionHasNoErrors();
 
     expect((float) OvertimeRequest::latest('id')->first()->hours)->toBe(1.0);
 
     // 18:00–19:59 = 119 minutes, paid as one and a half.
-    fileRoundedOvertime($this->admin, $this->employee, '18:00', '19:59')->assertSessionHasNoErrors();
+    fileRoundedOvertime($this->admin, $this->employee, '18:00', '19:59', '2026-05-08')->assertSessionHasNoErrors();
 
     expect((float) OvertimeRequest::latest('id')->first()->hours)->toBe(1.5);
 });

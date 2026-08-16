@@ -25,9 +25,6 @@ beforeEach(function (): void {
  * The fixed range used by the generate tests so results stay deterministic
  * and never collide with the seeder's "today" rekap rows.
  */
-const PENALTY_RANGE_START = '2026-08-10';
-const PENALTY_RANGE_END = '2026-08-20';
-
 /**
  * Create an attendance row for the seeded tenant within the test range.
  */
@@ -40,11 +37,32 @@ function makePenaltyAttendance(int $tenantId, int $shiftId, array $overrides = [
         'employee_id' => $employee->id,
         'branch_id' => $employee->branch_id,
         'shift_id' => $shiftId,
-        'date' => '2026-08-15',
+        'date' => penaltyTestDate(),
         'late_minutes' => 0,
         'work_minutes' => 0,
         'status' => 'late',
     ], $overrides));
+}
+
+/**
+ * The date these tests write attendance on — derived from today, because the
+ * seeder already fills in a rekap for "today" and a fixed date collides with it
+ * on the one day of the year they match.
+ */
+function penaltyTestDate(): string
+{
+    return today()->addDays(45)->toDateString();
+}
+
+/** The generation window these tests ask for, around the dates they write. */
+function penaltyRangeStart(): string
+{
+    return today()->addDays(44)->toDateString();
+}
+
+function penaltyRangeEnd(): string
+{
+    return today()->addDays(47)->toDateString();
 }
 
 it('renders the paginated sanksi index with the expected props', function (): void {
@@ -53,7 +71,7 @@ it('renders the paginated sanksi index with the expected props', function (): vo
     AttendancePenalty::create([
         'tenant_id' => $this->tenant->id,
         'employee_id' => $employee->id,
-        'date' => '2026-08-15',
+        'date' => penaltyTestDate(),
         'violation_type' => 'late',
         'penalty_type' => 'deduction',
         'amount' => 50000,
@@ -91,7 +109,7 @@ it('only lists penalties that belong to the current tenant', function (): void {
     AttendancePenalty::create([
         'tenant_id' => $this->tenant->id,
         'employee_id' => $employee->id,
-        'date' => '2026-08-15',
+        'date' => penaltyTestDate(),
         'violation_type' => 'late',
         'penalty_type' => 'warning',
         'amount' => 0,
@@ -109,7 +127,7 @@ it('only lists penalties that belong to the current tenant', function (): void {
     AttendancePenalty::create([
         'tenant_id' => $otherTenant->id,
         'employee_id' => $foreignEmployee->id,
-        'date' => '2026-08-15',
+        'date' => penaltyTestDate(),
         'violation_type' => 'absent',
         'penalty_type' => 'warning',
         'amount' => 0,
@@ -137,7 +155,7 @@ it('creates a manual penalty for an employee', function (): void {
     actingAs($this->admin)
         ->post(route('avana.sanksi.store'), [
             'employee_id' => $employee->id,
-            'date' => '2026-08-15',
+            'date' => penaltyTestDate(),
             'violation_type' => 'early_leave',
             'penalty_type' => 'deduction',
             'amount' => 75000,
@@ -161,7 +179,7 @@ it('requires an amount when the penalty type is a deduction', function (): void 
     actingAs($this->admin)
         ->post(route('avana.sanksi.store'), [
             'employee_id' => $employee->id,
-            'date' => '2026-08-15',
+            'date' => penaltyTestDate(),
             'violation_type' => 'late',
             'penalty_type' => 'deduction',
         ])
@@ -184,32 +202,32 @@ it('generates penalties from late and absent attendance in the range', function 
 
     makePenaltyAttendance($this->tenant->id, $this->shift->id, [
         'employee_id' => $employees[0]->id,
-        'date' => '2026-08-15',
+        'date' => penaltyTestDate(),
         'status' => 'late',
         'late_minutes' => 30,
     ]);
     makePenaltyAttendance($this->tenant->id, $this->shift->id, [
         'employee_id' => $employees[1]->id,
-        'date' => '2026-08-16',
+        'date' => today()->addDays(46)->toDateString(),
         'status' => 'absent',
     ]);
     // present rows should never produce a penalty
     makePenaltyAttendance($this->tenant->id, $this->shift->id, [
         'employee_id' => $employees[0]->id,
-        'date' => '2026-08-17',
+        'date' => today()->addDays(47)->toDateString(),
         'status' => 'present',
     ]);
     // out-of-range row should be ignored
     makePenaltyAttendance($this->tenant->id, $this->shift->id, [
         'employee_id' => $employees[1]->id,
-        'date' => '2026-09-01',
+        'date' => today()->addDays(60)->toDateString(),
         'status' => 'late',
     ]);
 
     actingAs($this->admin)
         ->post(route('avana.sanksi.generate'), [
-            'start_date' => PENALTY_RANGE_START,
-            'end_date' => PENALTY_RANGE_END,
+            'start_date' => penaltyRangeStart(),
+            'end_date' => penaltyRangeEnd(),
         ])
         ->assertRedirect(route('avana.sanksi'))
         ->assertSessionHas('success');
@@ -223,14 +241,14 @@ it('generates penalties from late and absent attendance in the range', function 
 
 it('does not create duplicate penalties when generated twice', function (): void {
     makePenaltyAttendance($this->tenant->id, $this->shift->id, [
-        'date' => '2026-08-15',
+        'date' => penaltyTestDate(),
         'status' => 'late',
         'late_minutes' => 15,
     ]);
 
     $payload = [
-        'start_date' => PENALTY_RANGE_START,
-        'end_date' => PENALTY_RANGE_END,
+        'start_date' => penaltyRangeStart(),
+        'end_date' => penaltyRangeEnd(),
     ];
 
     actingAs($this->admin)->post(route('avana.sanksi.generate'), $payload);
@@ -248,7 +266,7 @@ it('deletes a penalty', function (): void {
     $penalty = AttendancePenalty::create([
         'tenant_id' => $this->tenant->id,
         'employee_id' => $employee->id,
-        'date' => '2026-08-15',
+        'date' => penaltyTestDate(),
         'violation_type' => 'late',
         'penalty_type' => 'warning',
         'amount' => 0,
@@ -274,7 +292,7 @@ it('returns 404 when deleting a penalty from another tenant', function (): void 
     $foreign = AttendancePenalty::create([
         'tenant_id' => $otherTenant->id,
         'employee_id' => $foreignEmployee->id,
-        'date' => '2026-08-15',
+        'date' => penaltyTestDate(),
         'violation_type' => 'late',
         'penalty_type' => 'warning',
         'amount' => 0,

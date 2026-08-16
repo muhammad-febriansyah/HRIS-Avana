@@ -59,6 +59,20 @@ class OvertimeController extends Controller
         $hours = $payable['hours'];
         $date = Carbon::parse($data['date']);
 
+        // Two requests covering the same clock time on the same day would both
+        // be measured against the same clock-out and both be paid for it.
+        $overlap = OvertimeRules::overlapViolation(
+            $tenantId,
+            (int) $employee->id,
+            $date,
+            $data['start_time'],
+            $data['end_time'],
+        );
+
+        if ($overlap !== null) {
+            throw ValidationException::withMessages(['start_time' => $overlap]);
+        }
+
         // PP 35/2021 caps overtime at 4 hours a day and 18 a week; the ceilings
         // themselves are tenant-configurable in Setup Lembur.
         $violation = OvertimeRules::limitViolation($tenantId, (int) $employee->id, $date, $hours);

@@ -192,8 +192,11 @@ final class AiToolkit
                     return $this->noEmployeeRecord('slip gaji pribadi');
                 }
 
+                // Same rule as the payslip screens: only a locked run's figures
+                // are the employee's, so the assistant cannot read out a draft.
                 $item = PayrollRunItem::where('tenant_id', $this->tenantId())
                     ->where('employee_id', $employee->id)
+                    ->published()
                     ->latest('payroll_period_id')
                     ->latest('id')
                     ->first();

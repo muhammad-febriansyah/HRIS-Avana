@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import ContractController from '@/actions/App/Http/Controllers/Avana/ContractController';
+import EmployeeController from '@/actions/App/Http/Controllers/Avana/EmployeeController';
 import { AIcon, C } from '@/lib/avana';
 import { KontrakForm } from './kontrak-form';
 import type { ContractFormData, EmployeeOption, FlashProps } from './types';
@@ -26,9 +27,15 @@ interface EditContract {
 interface KontrakEditProps {
     contract: EditContract;
     employees: EmployeeOption[];
+    /** Set when the form was opened from an employee's Kontrak tab. */
+    return_to?: string | null;
 }
 
-export default function KontrakEdit({ contract, employees }: KontrakEditProps) {
+export default function KontrakEdit({
+    contract,
+    employees,
+    return_to = null,
+}: KontrakEditProps) {
     const { flash } = usePage<FlashProps>().props;
 
     const form = useForm<ContractFormData>({
@@ -40,6 +47,7 @@ export default function KontrakEdit({ contract, employees }: KontrakEditProps) {
         status: contract.status,
         notes: contract.notes ?? '',
         document: null,
+        return_to: return_to ?? '',
     });
 
     useEffect(() => {
@@ -125,7 +133,11 @@ export default function KontrakEdit({ contract, employees }: KontrakEditProps) {
                     onRemoveDocument={removeDocument}
                     submitLabel="Simpan Perubahan"
                     submitIcon="check"
-                    cancelHref={ContractController.index().url}
+                    cancelHref={
+                        return_to
+                            ? EmployeeController.show(return_to).url
+                            : ContractController.index().url
+                    }
                     onSubmit={handleSubmit}
                 />
             </div>

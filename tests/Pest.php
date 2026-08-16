@@ -1,9 +1,19 @@
 <?php
 
+use App\Models\Attendance;
+use App\Models\Branch;
+use App\Models\Department;
 use App\Models\Employee;
+use App\Models\JobLevel;
+use App\Models\OvertimeRequest;
 use App\Models\PayrollComponent;
+use App\Models\PayrollPeriod;
+use App\Models\Position;
+use App\Models\Role;
 use App\Models\SalaryMaster;
+use App\Models\WorkLocation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /*
@@ -53,6 +63,68 @@ function something()
 }
 
 /**
+ * A complete Karyawan form submission, minus the login fields. Every field the
+ * form marks required is filled from the seeded tenant's own master data, so a
+ * test spells out only the part it is actually about.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function employeeFormPayload(int $tenantId, array $overrides = []): array
+{
+    static $sequence = 0;
+    $sequence++;
+
+    return array_merge([
+        'full_name' => 'Karyawan Uji '.$sequence,
+        'email' => 'karyawan.uji'.$sequence.'@example.test',
+        'phone' => '0812'.str_pad((string) $sequence, 8, '0', STR_PAD_LEFT),
+        'nik' => (string) (3200000000000000 + $sequence),
+        'gender' => 'male',
+        'birth_place' => 'Bandung',
+        'birth_date' => '1995-05-05',
+        'religion' => 'Islam',
+        'marital_status' => 'Lajang',
+        'employment_status' => 'permanent',
+        'join_date' => '2024-01-02',
+        'status' => 'active',
+        'branch_id' => Branch::where('tenant_id', $tenantId)->value('id'),
+        'work_location_id' => WorkLocation::where('tenant_id', $tenantId)->value('id'),
+        'department_id' => Department::where('tenant_id', $tenantId)->value('id'),
+        'position_id' => Position::where('tenant_id', $tenantId)->value('id'),
+        'job_level_id' => JobLevel::where('tenant_id', $tenantId)->value('id'),
+        // Not every seeded tenant has a Master Gaji yet, so the payload brings
+        // one rather than each test having to.
+        'salary_master_id' => SalaryMaster::firstOrCreate(
+            ['tenant_id' => $tenantId, 'code' => 'MG-UJI'],
+            ['category' => 'Uji', 'is_active' => true],
+        )->id,
+        'contract_number' => 'PKWT-UJI-'.$sequence,
+        'contract_type' => 'pkwt',
+        'contract_start_date' => '2024-01-02',
+        'contract_end_date' => '2025-01-02',
+        'ptkp_status' => 'TK/0',
+        'manager_id' => Employee::UNASSIGNED_MANAGER,
+    ], $overrides);
+}
+
+/**
+ * The same submission with the login half filled in, which is what creating an
+ * employee needs: a password makes the account, and a role tells it what it may
+ * see.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function employeeCreatePayload(int $tenantId, array $overrides = []): array
+{
+    return employeeFormPayload($tenantId, array_merge([
+        'password' => 'karyawan123',
+        'role_id' => Role::where('tenant_id', $tenantId)->value('id'),
+    ], $overrides));
+}
+
+/**
  * Give an employee a Master Gaji nominal for a component — the primary way
  * payroll now sources amounts. Creates a spec master and assigns it the first
  * time, then upserts the component line (with optional flag overrides).
@@ -90,4 +162,47 @@ function giveMasterComponent(
     );
 
     return $master;
+}
+
+/**
+ * Attendance evidence for an overtime record: present that day and clocked out
+ * `$hoursWorked` after the overtime was meant to start, which is what payroll
+ * measures payable overtime against.
+ */
+function seedOvertimeAttendance(
+    OvertimeRequest $overtime,
+    float $hoursWorked,
+    string $startTime = '17:00',
+): Attendance {
+    $date = $overtime->date->toDateString();
+    $start = Carbon::parse($date.' '.$startTime);
+
+    $overtime->forceFill(['start_time' => $startTime])->saveQuietly();
+
+    return Attendance::updateOrCreate(
+        [
+            'tenant_id' => $overtime->tenant_id,
+            'employee_id' => $overtime->employee_id,
+            'date' => $date,
+        ],
+        [
+            'branch_id' => $overtime->branch_id,
+            'status' => 'present',
+            'clock_in_at' => $start->copy()->subHours(8),
+            'clock_out_at' => $start->copy()->addMinutes((int) round($hoursWorked * 60)),
+        ],
+    );
+}
+
+/** Seed N present attendance days for an employee inside the period. */
+function seedPresentDays(int $tenantId, Employee $employee, PayrollPeriod $period, int $days): void
+{
+    $date = $period->start_date->copy();
+    for ($i = 0; $i < $days; $i++) {
+        Attendance::firstOrCreate(
+            ['tenant_id' => $tenantId, 'employee_id' => $employee->id, 'date' => $date->toDateString()],
+            ['branch_id' => $employee->branch_id, 'status' => 'present'],
+        );
+        $date->addDay();
+    }
 }

@@ -131,13 +131,22 @@ export type Employee = {
 /** One row of the employee's contract history. */
 export type EmployeeContractRow = {
     id: number;
+    /** Opaque URL key; the numeric id never travels in a link. */
+    route_key: string;
     contract_number: string | null;
     contract_type: string | null;
+    contract_type_label: string;
     start_date: string | null;
     end_date: string | null;
     start_date_raw: string | null;
     end_date_raw: string | null;
     status: string | null;
+    status_label: string;
+    /** Negative once the contract's end date has passed. */
+    days_to_expiry: number | null;
+    expiring_soon: boolean;
+    /** The signed contract on file, or null when none was ever uploaded. */
+    document: { name: string; href: string } | null;
 };
 
 /** Laravel paginator `meta` block carried by a resource collection. */
@@ -268,6 +277,14 @@ export const RELIGIONS = [
     'Buddha',
     'Konghucu',
     'Kepercayaan Lainnya',
+] as const;
+
+/** The four marital statuses Dukcapil prints on a KTP. */
+export const MARITAL_STATUSES = [
+    'Lajang',
+    'Menikah',
+    'Cerai Hidup',
+    'Cerai Mati',
 ] as const;
 
 /** Default password offered when creating an employee login. */

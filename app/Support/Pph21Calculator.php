@@ -75,14 +75,18 @@ final class Pph21Calculator
     {
         $gross = max(0.0, $monthlyGross);
         $on = $opts['effective_on'] ?? null;
-        $category = Pph21Ter::category($ptkpStatus, $on);
         $subject = in_array($subject, self::SUBJECTS, true) ? $subject : 'pegawai_tetap';
 
         $method = 'ter_bulanan';
         $rate = null;
         $base = $gross;
+        // Only the TER paths read the PTKP mapping, and they read it strictly:
+        // an unmapped status stops the calculation instead of silently
+        // withholding at Kategori A. The Pasal 17 paths never look it up.
+        $category = '-';
 
         if (in_array($subject, self::TER_MONTHLY, true)) {
+            $category = Pph21Ter::categoryOrFail($ptkpStatus, $on);
             $rate = Pph21Ter::monthlyRate($category, $gross, $on);
             $amount = round($gross * $rate);
         } elseif ($subject === 'bukan_pegawai') {
@@ -111,6 +115,7 @@ final class Pph21Calculator
                     $amount = round($progressive($base));
                 }
             } else {
+                $category = Pph21Ter::categoryOrFail($ptkpStatus, $on);
                 $rate = Pph21Ter::monthlyRate($category, $gross, $on);
                 $amount = round($gross * $rate);
             }
@@ -126,6 +131,21 @@ final class Pph21Calculator
             'base' => round($base),
             'gross' => round($gross),
         ];
+    }
+
+    /**
+     * Whether a subject is withheld on the calendar month's bruto via the
+     * monthly TER table.
+     *
+     * The distinction matters for weekly and biweekly payroll: monthly TER is a
+     * rate on the *month's* income, so each run within a month has to be
+     * charged on the month to date, whereas a daily wage or a Pasal 17 subject
+     * is taxed per masa pajak on its own.
+     */
+    public static function usesMonthlyTer(string $subject, string $wageBasis = 'monthly'): bool
+    {
+        return in_array($subject, self::TER_MONTHLY, true)
+            || ($subject === 'pegawai_tidak_tetap' && $wageBasis !== 'daily');
     }
 
     /**

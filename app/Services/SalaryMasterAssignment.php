@@ -10,6 +10,7 @@ use App\Models\SalaryMasterComponent;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Applying a Master Gaji to employees.
@@ -40,8 +41,11 @@ final class SalaryMasterAssignment
 
         $written = 0;
         $kept = 0;
+        // One id for the whole run, so its change sets can be reviewed and
+        // signed off as the single decision they are.
+        $batchId = (string) Str::ulid();
 
-        DB::transaction(function () use ($employees, $components, $master, $from, $reason, $actorId, $overwriteOwnFigures, $status, $tenantId, &$written, &$kept): void {
+        DB::transaction(function () use ($employees, $components, $master, $from, $reason, $actorId, $overwriteOwnFigures, $status, $tenantId, $batchId, &$written, &$kept): void {
             foreach ($employees as $employee) {
                 $employee = Employee::forTenant($tenantId)
                     ->whereKey($employee->id)
@@ -52,6 +56,7 @@ final class SalaryMasterAssignment
                     'tenant_id' => $tenantId,
                     'employee_id' => $employee->id,
                     'salary_master_id' => $master->id,
+                    'batch_id' => $batchId,
                     'change_type' => 'master_assignment',
                     'existing_strategy' => $overwriteOwnFigures ? 'overwrite' : 'skip',
                     'effective_start_date' => $from->toDateString(),
@@ -191,11 +196,9 @@ final class SalaryMasterAssignment
     }
 
     /**
-     * The fixed component nominals a template pays, keyed by component id.
-     *
-     * Variable components (per present day, per overtime hour) are left out:
-     * their value comes from attendance, so copying a figure onto the employee
-     * would freeze what should be computed.
+     * Every active component rate a template pays, keyed by component id.
+     * Variable values are unit rates, not payroll totals. They are copied too,
+     * so a later Master Gaji edit cannot re-price an earlier assignment.
      *
      * @return array<int, float>
      */
@@ -208,7 +211,6 @@ final class SalaryMasterAssignment
             ->get()
             ->filter(fn (SalaryMasterComponent $row): bool => $row->component !== null
                 && (int) $row->component->tenant_id === $tenantId
-                && in_array($row->component->calc_basis, [null, 'fixed'], true)
                 && ($row->component->status === null || $row->component->status === 'active'))
             ->mapWithKeys(fn (SalaryMasterComponent $row): array => [(int) $row->payroll_component_id => (float) $row->amount])
             ->all();

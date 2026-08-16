@@ -3,15 +3,10 @@ import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
-    AIcon,
-    ActionBtn,
-    btnOut,
-    btnP,
-    C,
-    card,
-    rp,
-    RupiahInput,
-} from '@/lib/avana';
+    storeComponent,
+    updateComponent,
+} from '@/actions/App/Http/Controllers/Avana/PayrollKomponenController';
+import { AIcon, ActionBtn, btnOut, btnP, C, card, rp } from '@/lib/avana';
 import FormulaTab from './formula-tab';
 import type {
     CalcType,
@@ -219,7 +214,10 @@ export default function PayrollKomponen({
             group: form.data.group,
             calc_basis,
             basis_type: tipe === 'rumus' ? 'formula' : 'fixed',
-            basis_value: form.data.basis_value,
+            // Only a Persentase component carries a number here, and it is a
+            // percent — a rupiah nominal belongs to Master Gaji, so nothing
+            // else is sent (the backend drops it either way).
+            basis_value: tipe === 'persentase' ? form.data.basis_value : '',
             payroll_formula_id:
                 tipe === 'rumus' ? form.data.payroll_formula_id : '',
             percentage_of_component_id:
@@ -237,13 +235,9 @@ export default function PayrollKomponen({
         };
 
         if (form.data.id) {
-            router.put(
-                `/avana/payroll/komponen/component/${form.data.id}`,
-                payload,
-                opts,
-            );
+            router.put(updateComponent(form.data.id).url, payload, opts);
         } else {
-            router.post('/avana/payroll/komponen/component', payload, opts);
+            router.post(storeComponent().url, payload, opts);
         }
     };
 
@@ -1039,7 +1033,7 @@ export default function PayrollKomponen({
                             </div>
                         </div>
 
-                        {form.data.tipe === 'rumus' ? (
+                        {form.data.tipe === 'rumus' && (
                             <div style={{ marginBottom: 14 }}>
                                 <label style={label}>Formula</label>
                                 <select
@@ -1060,36 +1054,24 @@ export default function PayrollKomponen({
                                     ))}
                                 </select>
                             </div>
-                        ) : (
+                        )}
+
+                        {form.data.tipe === 'persentase' && (
                             <div style={{ marginBottom: 14 }}>
-                                <label style={label}>
-                                    {form.data.tipe === 'persentase'
-                                        ? 'Persentase (%)'
-                                        : 'Nilai / Nominal (Rp)'}
-                                </label>
-                                {form.data.tipe === 'persentase' ? (
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        style={input}
-                                        value={form.data.basis_value}
-                                        onChange={(e) =>
-                                            form.setData(
-                                                'basis_value',
-                                                e.target.value,
-                                            )
-                                        }
-                                        placeholder="0"
-                                    />
-                                ) : (
-                                    <RupiahInput
-                                        style={input}
-                                        value={form.data.basis_value}
-                                        onChange={(raw) =>
-                                            form.setData('basis_value', raw)
-                                        }
-                                    />
-                                )}
+                                <label style={label}>Persentase (%)</label>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    style={input}
+                                    value={form.data.basis_value}
+                                    onChange={(e) =>
+                                        form.setData(
+                                            'basis_value',
+                                            e.target.value,
+                                        )
+                                    }
+                                    placeholder="0"
+                                />
                             </div>
                         )}
 
@@ -1098,9 +1080,7 @@ export default function PayrollKomponen({
                                 <label style={label}>Persentase dari</label>
                                 <select
                                     style={input}
-                                    value={
-                                        form.data.percentage_of_component_id
-                                    }
+                                    value={form.data.percentage_of_component_id}
                                     onChange={(e) =>
                                         form.setData(
                                             'percentage_of_component_id',
@@ -1539,11 +1519,11 @@ function ComponentDetail({
         ['Tipe Perhitungan', calcLabel],
         [
             'Nilai',
-            component.basis_value == null
-                ? '—'
-                : isPercentage
-                  ? `${component.basis_value}% dari ${component.percentage_of ?? 'Gaji Pokok'}`
-                  : rp(component.basis_value),
+            isPercentage
+                ? component.basis_value == null
+                    ? '—'
+                    : `${component.basis_value}% dari ${component.percentage_of ?? 'Gaji Pokok'}`
+                : 'Ditetapkan di Master Gaji',
         ],
         ['Kena PPh 21', component.is_taxable ? 'Ya' : 'Tidak'],
         ['Ikut basis BPJS', component.is_bpjs_base ? 'Ya' : 'Tidak'],

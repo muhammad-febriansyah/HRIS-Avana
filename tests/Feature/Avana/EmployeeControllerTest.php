@@ -81,14 +81,14 @@ it('creates an employee and auto-generates the employee number', function (): vo
     $department = Department::forTenant($this->tenant->id)->first();
 
     actingAs($this->admin)
-        ->post(route('avana.employees.store'), [
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
             'full_name' => 'Budi Santoso',
             'email' => 'budi@example.test',
             'employment_status' => 'contract',
             'status' => 'active',
             'branch_id' => $branch->id,
             'department_id' => $department->id,
-        ])
+        ]))
         ->assertRedirect(route('avana.employees.index'))
         ->assertSessionHas('success');
 
@@ -98,17 +98,123 @@ it('creates an employee and auto-generates the employee number', function (): vo
     expect($employee->employee_number)->toStartWith('EMP-');
 });
 
+it('offers only male and female as gender options on the create form', function (): void {
+    actingAs($this->admin)
+        ->get(route('avana.employees.create'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('options.genders', 2)
+            ->where('options.genders.0.value', 'male')
+            ->where('options.genders.1.value', 'female'));
+});
+
+it('rejects a gender outside male and female', function (): void {
+    $branch = Branch::forTenant($this->tenant->id)->first();
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
+            'full_name' => 'Gender Tidak Valid',
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'branch_id' => $branch->id,
+            'gender' => 'unspecified',
+        ]))
+        ->assertSessionHasErrors('gender');
+
+    expect(Employee::where('full_name', 'Gender Tidak Valid')->exists())->toBeFalse();
+});
+
+it('requires every field except alamat and the two BPJS numbers', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), ['full_name' => 'Kosong Semua'])
+        ->assertSessionHasErrors([
+            'email', 'phone', 'nik', 'gender', 'birth_place', 'birth_date',
+            'religion', 'marital_status', 'employment_status', 'join_date',
+            'branch_id', 'work_location_id', 'department_id', 'position_id',
+            'job_level_id', 'salary_master_id', 'contract_number',
+            'contract_type', 'contract_start_date', 'contract_end_date',
+            'ptkp_status', 'manager_id', 'password',
+        ]);
+
+    expect(Employee::where('full_name', 'Kosong Semua')->exists())->toBeFalse();
+});
+
+it('saves an employee with no alamat and no BPJS numbers', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
+            'full_name' => 'Tanpa Alamat',
+            'address' => '',
+            'bpjs_kesehatan_number' => '',
+            'bpjs_ketenagakerjaan_number' => '',
+        ]))
+        ->assertRedirect(route('avana.employees.index'))
+        ->assertSessionHasNoErrors();
+
+    expect(Employee::where('full_name', 'Tanpa Alamat')->exists())->toBeTrue();
+});
+
+it('lets a PKWTT contract skip the end date but not a PKWT one', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
+            'full_name' => 'Karyawan Tetap',
+            'contract_type' => 'pkwtt',
+            'contract_end_date' => '',
+        ]))
+        ->assertRedirect(route('avana.employees.index'));
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
+            'full_name' => 'Karyawan Kontrak',
+            'contract_type' => 'pkwt',
+            'contract_end_date' => '',
+        ]))
+        ->assertSessionHasErrors('contract_end_date');
+});
+
+it('accepts a marital status from the fixed list', function (): void {
+    $branch = Branch::forTenant($this->tenant->id)->first();
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
+            'full_name' => 'Sari Menikah',
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'branch_id' => $branch->id,
+            'marital_status' => 'Cerai Hidup',
+        ]))
+        ->assertRedirect(route('avana.employees.index'));
+
+    expect(Employee::where('full_name', 'Sari Menikah')->firstOrFail()->marital_status)
+        ->toBe('Cerai Hidup');
+});
+
+it('rejects a marital status outside the fixed list', function (): void {
+    $branch = Branch::forTenant($this->tenant->id)->first();
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
+            'full_name' => 'Status Ngawur',
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'branch_id' => $branch->id,
+            'marital_status' => 'menikah kali ya',
+        ]))
+        ->assertSessionHasErrors('marital_status');
+
+    expect(Employee::where('full_name', 'Status Ngawur')->exists())->toBeFalse();
+});
+
 it('assigns a tenant work location to the employee on store', function (): void {
     $workLocation = WorkLocation::forTenant($this->tenant->id)->firstOrFail();
 
     actingAs($this->admin)
-        ->post(route('avana.employees.store'), [
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
             'full_name' => 'Dewi Lokasi',
             'employment_status' => 'permanent',
             'status' => 'active',
             'branch_id' => $workLocation->branch_id,
             'work_location_id' => $workLocation->id,
-        ])
+        ]))
         ->assertRedirect(route('avana.employees.index'))
         ->assertSessionHas('success');
 
@@ -130,12 +236,12 @@ it('rejects a work location that belongs to another tenant', function (): void {
     ]);
 
     actingAs($this->admin)
-        ->post(route('avana.employees.store'), [
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
             'full_name' => 'Bocor Lokasi',
             'employment_status' => 'permanent',
             'status' => 'active',
             'work_location_id' => $foreignLocation->id,
-        ])
+        ]))
         ->assertSessionHasErrors('work_location_id');
 
     expect(Employee::where('full_name', 'Bocor Lokasi')->exists())->toBeFalse();
@@ -143,12 +249,12 @@ it('rejects a work location that belongs to another tenant', function (): void {
 
 it('validates required fields and the NIK format on store', function (): void {
     actingAs($this->admin)
-        ->post(route('avana.employees.store'), [
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
             'full_name' => '',
             'employment_status' => 'invalid',
             'nik' => '123',
             'status' => 'active',
-        ])
+        ]))
         ->assertSessionHasErrors(['full_name', 'employment_status', 'nik']);
 });
 
@@ -156,11 +262,11 @@ it('updates an existing employee', function (): void {
     $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
 
     actingAs($this->admin)
-        ->put(route('avana.employees.update', $employee), [
+        ->put(route('avana.employees.update', $employee), employeeFormPayload($this->tenant->id, [
             'full_name' => 'Nama Diperbarui',
             'employment_status' => $employee->employment_status,
             'status' => 'inactive',
-        ])
+        ]))
         ->assertRedirect(route('avana.employees.index'))
         ->assertSessionHas('success');
 
@@ -172,12 +278,12 @@ it('gives one employee WFA without touching the tenant policy', function (): voi
     $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
 
     actingAs($this->admin)
-        ->put(route('avana.employees.update', $employee), [
+        ->put(route('avana.employees.update', $employee), employeeFormPayload($this->tenant->id, [
             'full_name' => $employee->full_name,
             'employment_status' => $employee->employment_status,
             'status' => $employee->status,
             'attendance_scope' => 'anywhere',
-        ])
+        ]))
         ->assertSessionHasNoErrors();
 
     expect($employee->fresh()->attendance_scope)->toBe('anywhere');
@@ -192,12 +298,12 @@ it('clears the per-employee scope back to the tenant default', function (): void
     $employee->update(['attendance_scope' => 'anywhere']);
 
     actingAs($this->admin)
-        ->put(route('avana.employees.update', $employee), [
+        ->put(route('avana.employees.update', $employee), employeeFormPayload($this->tenant->id, [
             'full_name' => $employee->full_name,
             'employment_status' => $employee->employment_status,
             'status' => $employee->status,
             'attendance_scope' => '',
-        ])
+        ]))
         ->assertSessionHasNoErrors();
 
     expect($employee->fresh()->attendance_scope)->toBeNull();
@@ -207,12 +313,12 @@ it('rejects an unknown attendance scope', function (): void {
     $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
 
     actingAs($this->admin)
-        ->put(route('avana.employees.update', $employee), [
+        ->put(route('avana.employees.update', $employee), employeeFormPayload($this->tenant->id, [
             'full_name' => $employee->full_name,
             'employment_status' => $employee->employment_status,
             'status' => $employee->status,
             'attendance_scope' => 'galaxy',
-        ])
+        ]))
         ->assertSessionHasErrors('attendance_scope');
 });
 
@@ -377,7 +483,7 @@ it('creates a mobile login account when a password is set on store', function ()
     $role = Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->firstOrFail();
 
     actingAs($this->admin)
-        ->post(route('avana.employees.store'), [
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
             'full_name' => 'Login User',
             'email' => 'login.user@avanahr.test',
             'employment_status' => 'permanent',
@@ -385,7 +491,7 @@ it('creates a mobile login account when a password is set on store', function ()
             'branch_id' => $branch->id,
             'role_id' => $role->id,
             'password' => 'rahasia123',
-        ])
+        ]))
         ->assertRedirect(route('avana.employees.index'));
 
     $employee = Employee::where('full_name', 'Login User')->firstOrFail();
@@ -408,7 +514,7 @@ it('assigns the chosen role to the login account on store', function (): void {
     ]);
 
     actingAs($this->admin)
-        ->post(route('avana.employees.store'), [
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
             'full_name' => 'IT Person',
             'email' => 'it.person@avanahr.test',
             'employment_status' => 'permanent',
@@ -416,7 +522,7 @@ it('assigns the chosen role to the login account on store', function (): void {
             'branch_id' => $branch->id,
             'password' => 'rahasia123',
             'role_id' => $itRole->id,
-        ])
+        ]))
         ->assertRedirect(route('avana.employees.index'));
 
     $employee = Employee::where('full_name', 'IT Person')->firstOrFail();
@@ -433,7 +539,7 @@ it('changes an existing account role on update without a password', function ():
         'code' => 'staff_it',
     ]);
 
-    actingAs($this->admin)->post(route('avana.employees.store'), [
+    actingAs($this->admin)->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
         'full_name' => 'Role Switch',
         'email' => 'role.switch@avanahr.test',
         'employment_status' => 'permanent',
@@ -441,18 +547,18 @@ it('changes an existing account role on update without a password', function ():
         'branch_id' => $branch->id,
         'role_id' => Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->value('id'),
         'password' => 'rahasia123',
-    ]);
+    ]));
 
     $employee = Employee::where('full_name', 'Role Switch')->firstOrFail();
     expect($employee->user->roles->pluck('code'))->toContain('employee');
 
-    actingAs($this->admin)->put(route('avana.employees.update', $employee), [
+    actingAs($this->admin)->put(route('avana.employees.update', $employee), employeeFormPayload($this->tenant->id, [
         'full_name' => $employee->full_name,
         'email' => $employee->email,
         'employment_status' => $employee->employment_status,
         'status' => 'active',
         'role_id' => $itRole->id,
-    ])->assertRedirect(route('avana.employees.index'));
+    ]))->assertRedirect(route('avana.employees.index'));
 
     $roles = $employee->user->fresh()->roles->pluck('code');
     expect($roles)->toContain('staff_it');
@@ -473,12 +579,12 @@ it('links an existing account to an employee that has none', function (): void {
     expect($this->admin->employee)->toBeNull();
 
     actingAs($this->admin)
-        ->put(route('avana.employees.update', $employee), [
+        ->put(route('avana.employees.update', $employee), employeeFormPayload($this->tenant->id, [
             'full_name' => $employee->full_name,
             'employment_status' => 'permanent',
             'status' => 'active',
             'link_user_id' => $this->admin->id,
-        ])
+        ]))
         ->assertRedirect(route('avana.employees.index'));
 
     expect($employee->fresh()->user_id)->toBe($this->admin->id);
@@ -504,12 +610,12 @@ it('refuses to link an account that already belongs to another employee', functi
     ]);
 
     actingAs($this->admin)
-        ->put(route('avana.employees.update', $employee), [
+        ->put(route('avana.employees.update', $employee), employeeFormPayload($this->tenant->id, [
             'full_name' => $employee->full_name,
             'employment_status' => 'permanent',
             'status' => 'active',
             'link_user_id' => $taken->user_id,
-        ])
+        ]))
         ->assertSessionHasErrors('link_user_id');
 
     expect($employee->fresh()->user_id)->toBeNull();
@@ -534,12 +640,12 @@ it('refuses to link an account from another tenant', function (): void {
     ]);
 
     actingAs($this->admin)
-        ->put(route('avana.employees.update', $employee), [
+        ->put(route('avana.employees.update', $employee), employeeFormPayload($this->tenant->id, [
             'full_name' => $employee->full_name,
             'employment_status' => 'permanent',
             'status' => 'active',
             'link_user_id' => $outsider->id,
-        ])
+        ]))
         ->assertSessionHasErrors('link_user_id');
 
     expect($employee->fresh()->user_id)->toBeNull();
@@ -552,12 +658,12 @@ it('renames the linked login when the employee is renamed', function (): void {
     $employee = Employee::forTenant($this->tenant->id)->whereNotNull('user_id')->firstOrFail();
 
     actingAs($this->admin)
-        ->put(route('avana.employees.update', $employee), [
+        ->put(route('avana.employees.update', $employee), employeeFormPayload($this->tenant->id, [
             'full_name' => 'Nida Raihani',
             'email' => $employee->email,
             'employment_status' => $employee->employment_status,
             'status' => 'active',
-        ])
+        ]))
         ->assertRedirect(route('avana.employees.index'));
 
     expect($employee->user->fresh()->name)->toBe('Nida Raihani');
@@ -572,14 +678,14 @@ it('names the deleted employee still holding the email of a rejected login', fun
     $gone->delete();
 
     actingAs($this->admin)
-        ->post(route('avana.employees.store'), [
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
             'full_name' => 'Karyawan Baru',
             'email' => $email,
             'employment_status' => 'permanent',
             'status' => 'active',
             'role_id' => Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->value('id'),
             'password' => 'rahasia123',
-        ])
+        ]))
         ->assertSessionHasErrors('email');
 
     $message = session('errors')->first('email');
@@ -598,14 +704,14 @@ it('lets a new employee take an inactive ex-employee email with no error at all'
     $resigned->update(['status' => 'inactive']);
 
     actingAs($this->admin)
-        ->post(route('avana.employees.store'), [
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
             'full_name' => 'Karyawan Baru',
             'email' => $email,
             'employment_status' => 'permanent',
             'status' => 'active',
             'role_id' => Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->value('id'),
             'password' => 'rahasia123',
-        ])
+        ]))
         ->assertSessionDoesntHaveErrors('email');
 
     // The new account owns the address now; the ex-employee's account was
@@ -620,14 +726,14 @@ it('points an email held by an unlinked account at the linking flow', function (
     expect($this->admin->employee)->toBeNull();
 
     actingAs($this->admin)
-        ->post(route('avana.employees.store'), [
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
             'full_name' => 'Rina Admin',
             'email' => $this->admin->email,
             'employment_status' => 'permanent',
             'status' => 'active',
             'role_id' => Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->value('id'),
             'password' => 'rahasia123',
-        ])
+        ]))
         ->assertSessionHasErrors('email');
 
     expect(session('errors')->first('email'))->toContain('Tautkan Akun');
@@ -644,14 +750,14 @@ it('keeps another tenant unnamed when its account holds the email', function ():
     ]);
 
     actingAs($this->admin)
-        ->post(route('avana.employees.store'), [
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
             'full_name' => 'Karyawan Baru',
             'email' => 'seberang@example.test',
             'employment_status' => 'permanent',
             'status' => 'active',
             'role_id' => Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->value('id'),
             'password' => 'rahasia123',
-        ])
+        ]))
         ->assertSessionHasErrors('email');
 
     expect(session('errors')->first('email'))
@@ -669,13 +775,13 @@ it('rejects a password alongside a linked account', function (): void {
     ]);
 
     actingAs($this->admin)
-        ->put(route('avana.employees.update', $employee), [
+        ->put(route('avana.employees.update', $employee), employeeFormPayload($this->tenant->id, [
             'full_name' => $employee->full_name,
             'employment_status' => 'permanent',
             'status' => 'active',
             'link_user_id' => $this->admin->id,
             'password' => 'rahasia123',
-        ])
+        ]))
         ->assertSessionHasErrors('password');
 
     expect($employee->fresh()->user_id)->toBeNull();
@@ -700,12 +806,13 @@ it('offers only unlinked tenant accounts to the employee form', function (): voi
 
 it('persists the top-approver flag from the employee form', function (): void {
     actingAs($this->admin)
-        ->post(route('avana.employees.store'), [
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
             'full_name' => 'Direktur Utama',
             'employment_status' => 'permanent',
             'status' => 'active',
+            'manager_id' => Employee::NO_MANAGER,
             'is_top_approver' => true,
-        ])
+        ]))
         ->assertRedirect(route('avana.employees.index'));
 
     $employee = Employee::where('full_name', 'Direktur Utama')->firstOrFail();
@@ -721,49 +828,50 @@ it('rejects a role from another tenant on store', function (): void {
     ]);
 
     actingAs($this->admin)
-        ->post(route('avana.employees.store'), [
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
             'full_name' => 'Cross Tenant',
             'email' => 'cross.tenant@avanahr.test',
             'employment_status' => 'permanent',
             'status' => 'active',
             'password' => 'rahasia123',
             'role_id' => $foreignRole->id,
-        ])
+        ]))
         ->assertSessionHasErrors('role_id');
 });
 
 it('requires an email to create a login on store', function (): void {
     actingAs($this->admin)
-        ->post(route('avana.employees.store'), [
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
             'full_name' => 'No Email Login',
             'employment_status' => 'permanent',
             'status' => 'active',
+            'email' => '',
             'password' => 'rahasia123',
-        ])
+        ]))
         ->assertSessionHasErrors('email');
 
     expect(Employee::where('full_name', 'No Email Login')->exists())->toBeFalse();
 });
 
 it('resets an existing login password on update', function (): void {
-    actingAs($this->admin)->post(route('avana.employees.store'), [
+    actingAs($this->admin)->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
         'full_name' => 'Reset Target',
         'email' => 'reset.target@avanahr.test',
         'employment_status' => 'permanent',
         'status' => 'active',
         'role_id' => Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->value('id'),
         'password' => 'lamalama1',
-    ]);
+    ]));
 
     $employee = Employee::where('full_name', 'Reset Target')->firstOrFail();
 
-    actingAs($this->admin)->put(route('avana.employees.update', $employee), [
+    actingAs($this->admin)->put(route('avana.employees.update', $employee), employeeFormPayload($this->tenant->id, [
         'full_name' => $employee->full_name,
         'email' => $employee->email,
         'employment_status' => $employee->employment_status,
         'status' => 'active',
         'password' => 'barubaru99',
-    ])->assertRedirect(route('avana.employees.index'));
+    ]))->assertRedirect(route('avana.employees.index'));
 
     expect(Hash::check('barubaru99', $employee->user->fresh()->password))->toBeTrue();
 });
@@ -810,13 +918,14 @@ it('allows a bulk batch with no role when no row creates a login', function (): 
 });
 
 it('refuses to create a login on the employee form with no role picked', function (): void {
-    actingAs($this->admin)->post(route('avana.employees.store'), [
+    actingAs($this->admin)->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
         'full_name' => 'No Role Login',
         'email' => 'norole.login@avanahr.test',
         'employment_status' => 'permanent',
         'status' => 'active',
         'password' => 'rahasia123',
-    ])->assertSessionHasErrors('role_id');
+        'role_id' => '',
+    ]))->assertSessionHasErrors('role_id');
 
     expect(Employee::where('full_name', 'No Role Login')->exists())->toBeFalse();
 });
@@ -943,11 +1052,12 @@ it('leaves a newly-inactive employee email untouched until someone actually reus
     $employee = makeEmployeeWithLogin($this->tenant->id, 'EMP-FREE-1', $user);
 
     actingAs($this->admin)
-        ->put(route('avana.employees.update', $employee), [
+        ->put(route('avana.employees.update', $employee), employeeFormPayload($this->tenant->id, [
             'full_name' => $employee->full_name,
+            'email' => $user->email,
             'employment_status' => $employee->employment_status,
             'status' => 'inactive',
-        ])
+        ]))
         ->assertRedirect(route('avana.employees.index'));
 
     expect($user->fresh()->email)->toBe('lama@nusantara.test');
@@ -959,14 +1069,14 @@ it('frees an inactive employee login email the moment a new hire actually takes 
     $employee->update(['status' => 'inactive']);
 
     actingAs($this->admin)
-        ->post(route('avana.employees.store'), [
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
             'full_name' => 'Pengganti',
             'email' => 'lama@nusantara.test',
             'employment_status' => 'permanent',
             'status' => 'active',
             'role_id' => Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->value('id'),
             'password' => 'rahasia123',
-        ])
+        ]))
         ->assertSessionDoesntHaveErrors('email');
 
     expect($user->fresh()->email)->toBe("lama+former-{$employee->id}@nusantara.test")
@@ -994,12 +1104,12 @@ it('turns the "Tidak ada — Approver Puncak" choice into a director', function 
     // This is what the form actually posts; the earlier test sets the flag by
     // hand and so never exercised the sentinel the UI sends.
     actingAs($this->admin)
-        ->post(route('avana.employees.store'), [
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
             'full_name' => 'Hendra Direksi',
             'employment_status' => 'permanent',
             'status' => 'active',
             'manager_id' => 'none',
-        ])
+        ]))
         ->assertRedirect(route('avana.employees.index'));
 
     $employee = Employee::where('full_name', 'Hendra Direksi')->firstOrFail();
@@ -1148,12 +1258,12 @@ it('keeps the "Belum ditentukan" choice out of the director flag', function (): 
     // only "Tidak ada — Approver Puncak", so a fresh tenant could not record a
     // rank-and-file employee without granting them self-approval.
     actingAs($this->admin)
-        ->post(route('avana.employees.store'), [
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
             'full_name' => 'Sari Staf',
             'employment_status' => 'permanent',
             'status' => 'active',
             'manager_id' => 'unassigned',
-        ])
+        ]))
         ->assertRedirect(route('avana.employees.index'));
 
     $employee = Employee::where('full_name', 'Sari Staf')->firstOrFail();
@@ -1167,12 +1277,12 @@ it('drops the director flag when a director is moved to "Belum ditentukan"', fun
     $director->update(['manager_id' => null, 'is_top_approver' => true]);
 
     actingAs($this->admin)
-        ->put(route('avana.employees.update', $director), [
+        ->put(route('avana.employees.update', $director), employeeFormPayload($this->tenant->id, [
             'full_name' => $director->full_name,
             'employment_status' => $director->employment_status,
             'status' => 'active',
             'manager_id' => 'unassigned',
-        ])
+        ]))
         ->assertRedirect();
 
     expect($director->fresh()->is_top_approver)->toBeFalse()
@@ -1186,12 +1296,12 @@ it('clears the director flag once somebody is given a manager', function (): voi
     $manager = Employee::forTenant($this->tenant->id)->whereKeyNot($director->id)->firstOrFail();
 
     actingAs($this->admin)
-        ->put(route('avana.employees.update', $director), [
+        ->put(route('avana.employees.update', $director), employeeFormPayload($this->tenant->id, [
             'full_name' => $director->full_name,
             'employment_status' => $director->employment_status,
             'status' => 'active',
             'manager_id' => (string) $manager->id,
-        ])
+        ]))
         ->assertRedirect();
 
     expect($director->fresh()->is_top_approver)->toBeFalse()
@@ -1202,12 +1312,12 @@ it('does not flag a director as missing a manager on the chart', function (): vo
     // The chart tags a manager-less employee, but a director is meant to be
     // one — the flag is what tells the two apart.
     actingAs($this->admin)
-        ->post(route('avana.employees.store'), [
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
             'full_name' => 'Direktur Chart',
             'employment_status' => 'permanent',
             'status' => 'active',
             'manager_id' => 'none',
-        ])
+        ]))
         ->assertRedirect();
 
     actingAs($this->admin)

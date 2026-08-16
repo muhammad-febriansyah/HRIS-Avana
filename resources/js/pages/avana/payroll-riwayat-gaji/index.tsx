@@ -1,8 +1,10 @@
 import { Head, router } from '@inertiajs/react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import SalaryHistoryController from '@/actions/App/Http/Controllers/Avana/SalaryHistoryController';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, C, card } from '@/lib/avana';
+import type { PaginationMeta } from '../employees/types';
 
 interface Version {
     id: number;
@@ -21,11 +23,58 @@ interface Version {
     can_approve: boolean;
 }
 
+/** One Penetapan Gaji Massal run waiting on an approver. */
+interface Batch {
+    batch_id: string;
+    master: string | null;
+    effective_start_date: string | null;
+    strategy: string | null;
+    reason: string | null;
+    author: string | null;
+    employee_count: number;
+    component_count: number;
+    total_before: number;
+    total_after: number;
+    total_delta: number;
+    exception_count: number;
+    can_approve: boolean;
+}
+
 interface Props {
-    versions: Version[];
+    versions: {
+        data: Version[];
+        meta: PaginationMeta;
+    };
+    batches: Batch[];
     employeeId: number | null;
     employeeOptions: { id: number; name: string; nik: string | null }[];
 }
+
+const pageItems = (current: number, last: number): (number | 'gap')[] => {
+    if (last <= 7) {
+        return Array.from({ length: last }, (_, index) => index + 1);
+    }
+
+    const items: (number | 'gap')[] = [1];
+    const start = Math.max(2, current - 1);
+    const end = Math.min(last - 1, current + 1);
+
+    if (start > 2) {
+        items.push('gap');
+    }
+
+    for (let page = start; page <= end; page++) {
+        items.push(page);
+    }
+
+    if (end < last - 1) {
+        items.push('gap');
+    }
+
+    items.push(last);
+
+    return items;
+};
 
 const th: React.CSSProperties = {
     textAlign: 'left',
@@ -85,9 +134,36 @@ const statusLabel: Record<string, string> = {
 
 export default function RiwayatGaji({
     versions,
+    batches,
     employeeId,
     employeeOptions,
 }: Props) {
+    const meta = versions.meta;
+    const [rejectReason, setRejectReason] = useState('');
+
+    /** Approve or turn down a whole mass-assignment run in one decision. */
+    const decideBatch = (batchId: string, action: 'approve' | 'reject') => {
+        if (action === 'reject' && rejectReason.trim() === '') {
+            toast.error('Tulis alasan penolakan');
+
+            return;
+        }
+
+        router.post(
+            action === 'approve'
+                ? SalaryHistoryController.approveBatch().url
+                : SalaryHistoryController.rejectBatch().url,
+            action === 'approve'
+                ? { batch_id: batchId }
+                : { batch_id: batchId, reason: rejectReason },
+            {
+                preserveScroll: true,
+                onSuccess: () => setRejectReason(''),
+                onError: (errors) =>
+                    toast.error(errors.batch_id ?? 'Aksi gagal'),
+            },
+        );
+    };
     const decide = (id: number, action: 'approve' | 'reject') =>
         router.post(
             action === 'approve'
@@ -104,7 +180,17 @@ export default function RiwayatGaji({
     const pick = (value: string) =>
         router.get(
             SalaryHistoryController.index().url,
-            value === '' ? {} : { employee_id: Number(value) },
+            value === '' ? {} : { employee_id: Number(value), page: 1 },
+            { preserveState: true, preserveScroll: true, replace: true },
+        );
+
+    const goToPage = (page: number) =>
+        router.get(
+            SalaryHistoryController.index().url,
+            {
+                employee_id: employeeId ?? undefined,
+                page,
+            },
             { preserveState: true, preserveScroll: true, replace: true },
         );
 
@@ -142,6 +228,141 @@ export default function RiwayatGaji({
                     slip gaji periode lalu tetap memakai nominal saat itu.
                 </div>
 
+                {batches.length > 0 && (
+                    <div style={{ ...card, padding: 18, marginBottom: 18 }}>
+                        <div
+                            style={{
+                                fontSize: 14,
+                                fontWeight: 600,
+                                color: C.text,
+                                marginBottom: 4,
+                            }}
+                        >
+                            Penetapan Massal Menunggu Persetujuan
+                        </div>
+                        <div
+                            style={{
+                                fontSize: 12.5,
+                                color: C.muted,
+                                marginBottom: 12,
+                            }}
+                        >
+                            Satu penetapan disetujui sekaligus — periksa jumlah
+                            karyawan, total perubahan, dan pengecualiannya dulu.
+                        </div>
+
+                        {batches.map((batch) => (
+                            <div
+                                key={batch.batch_id}
+                                style={{
+                                    border: `1px solid ${C.line}`,
+                                    borderRadius: 10,
+                                    padding: 14,
+                                    marginBottom: 10,
+                                    display: 'grid',
+                                    gap: 10,
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        flexWrap: 'wrap',
+                                        gap: 18,
+                                        fontSize: 13,
+                                        color: C.text,
+                                    }}
+                                >
+                                    <span>
+                                        <strong>{batch.master ?? '—'}</strong> ·
+                                        berlaku {batch.effective_start_date}
+                                    </span>
+                                    <span>
+                                        {batch.employee_count} karyawan ·{' '}
+                                        {batch.component_count} komponen
+                                    </span>
+                                    <span>
+                                        Total {rupiah(batch.total_before)} →{' '}
+                                        <strong>
+                                            {rupiah(batch.total_after)}
+                                        </strong>{' '}
+                                        (
+                                        {batch.total_delta >= 0 ? '+' : ''}
+                                        {rupiah(batch.total_delta)})
+                                    </span>
+                                    <span
+                                        style={{
+                                            color:
+                                                batch.exception_count > 0
+                                                    ? '#B45309'
+                                                    : C.muted,
+                                        }}
+                                    >
+                                        {batch.exception_count} pengecualian
+                                        (nominal khusus)
+                                    </span>
+                                    <span style={{ color: C.faint }}>
+                                        oleh {batch.author ?? '—'} ·{' '}
+                                        {batch.strategy === 'overwrite'
+                                            ? 'timpa nominal khusus'
+                                            : 'pertahankan nominal khusus'}
+                                    </span>
+                                </div>
+
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        gap: 8,
+                                        flexWrap: 'wrap',
+                                        alignItems: 'center',
+                                    }}
+                                >
+                                    <input
+                                        style={{
+                                            padding: '7px 11px',
+                                            borderRadius: 8,
+                                            border: `1px solid ${C.line}`,
+                                            fontSize: 12.5,
+                                            minWidth: 220,
+                                        }}
+                                        placeholder="Alasan penolakan…"
+                                        value={rejectReason}
+                                        onChange={(e) =>
+                                            setRejectReason(e.target.value)
+                                        }
+                                    />
+                                    <button
+                                        type="button"
+                                        style={approveBtn}
+                                        disabled={!batch.can_approve}
+                                        title={
+                                            batch.can_approve
+                                                ? undefined
+                                                : 'Penetapan yang Anda buat sendiri harus disetujui orang lain'
+                                        }
+                                        onClick={() =>
+                                            decideBatch(
+                                                batch.batch_id,
+                                                'approve',
+                                            )
+                                        }
+                                    >
+                                        Setujui semua
+                                    </button>
+                                    <button
+                                        type="button"
+                                        style={rejectBtn}
+                                        onClick={() =>
+                                            decideBatch(batch.batch_id, 'reject')
+                                        }
+                                    >
+                                        Tolak semua
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
                 <div style={{ ...card, padding: 18, marginBottom: 18 }}>
                     <div style={{ maxWidth: 420 }}>
                         <SearchableSelect
@@ -164,7 +385,7 @@ export default function RiwayatGaji({
                                 marginTop: 10,
                             }}
                         >
-                            Menampilkan 200 perubahan terbaru seluruh karyawan.
+                            Menampilkan riwayat gaji terbaru seluruh karyawan.
                         </div>
                     )}
                 </div>
@@ -192,7 +413,7 @@ export default function RiwayatGaji({
                             </tr>
                         </thead>
                         <tbody>
-                            {versions.length === 0 ? (
+                            {versions.data.length === 0 ? (
                                 <tr>
                                     <td
                                         style={{
@@ -207,7 +428,7 @@ export default function RiwayatGaji({
                                     </td>
                                 </tr>
                             ) : (
-                                versions.map((v) => (
+                                versions.data.map((v) => (
                                     <tr key={v.id}>
                                         <td style={td}>
                                             {v.employee ?? '—'}
@@ -330,6 +551,140 @@ export default function RiwayatGaji({
                             )}
                         </tbody>
                     </table>
+
+                    {meta.last_page > 1 && (
+                        <div
+                            style={{
+                                padding: '14px 18px',
+                                borderTop: `1px solid ${C.line}`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                flexWrap: 'wrap',
+                                gap: 12,
+                            }}
+                        >
+                            <div style={{ fontSize: 13, color: C.muted }}>
+                                Menampilkan{' '}
+                                <span style={{ color: C.text, fontWeight: 500 }}>
+                                    {meta.from ?? 0}–{meta.to ?? 0}
+                                </span>{' '}
+                                dari{' '}
+                                <span style={{ color: C.text, fontWeight: 500 }}>
+                                    {meta.total.toLocaleString('id-ID')}
+                                </span>{' '}
+                                riwayat gaji
+                            </div>
+
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    gap: 6,
+                                    alignItems: 'center',
+                                }}
+                            >
+                                <button
+                                    type="button"
+                                    disabled={meta.current_page <= 1}
+                                    onClick={() => goToPage(meta.current_page - 1)}
+                                    style={{
+                                        height: 34,
+                                        minWidth: 34,
+                                        padding: '0 10px',
+                                        border: `1px solid ${C.line}`,
+                                        background: '#fff',
+                                        borderRadius: 8,
+                                        fontSize: 13,
+                                        color:
+                                            meta.current_page <= 1
+                                                ? C.faint
+                                                : C.text,
+                                        cursor:
+                                            meta.current_page <= 1
+                                                ? 'not-allowed'
+                                                : 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                    }}
+                                >
+                                    <AIcon name="chevron-left" size={15} />
+                                </button>
+
+                                {pageItems(meta.current_page, meta.last_page).map(
+                                    (item, index) =>
+                                        item === 'gap' ? (
+                                            <span
+                                                key={`gap-${index}`}
+                                                style={{
+                                                    color: C.faint,
+                                                    padding: '0 4px',
+                                                }}
+                                            >
+                                                …
+                                            </span>
+                                        ) : (
+                                            <button
+                                                key={item}
+                                                type="button"
+                                                onClick={() => goToPage(item)}
+                                                style={{
+                                                    height: 34,
+                                                    minWidth: 34,
+                                                    border:
+                                                        item === meta.current_page
+                                                            ? 'none'
+                                                            : `1px solid ${C.line}`,
+                                                    background:
+                                                        item === meta.current_page
+                                                            ? C.primary
+                                                            : '#fff',
+                                                    borderRadius: 8,
+                                                    fontSize: 13,
+                                                    color:
+                                                        item === meta.current_page
+                                                            ? '#fff'
+                                                            : C.text,
+                                                    fontWeight:
+                                                        item === meta.current_page
+                                                            ? 600
+                                                            : 400,
+                                                    cursor: 'pointer',
+                                                }}
+                                            >
+                                                {item}
+                                            </button>
+                                        ),
+                                )}
+
+                                <button
+                                    type="button"
+                                    disabled={meta.current_page >= meta.last_page}
+                                    onClick={() => goToPage(meta.current_page + 1)}
+                                    style={{
+                                        height: 34,
+                                        minWidth: 34,
+                                        padding: '0 10px',
+                                        border: `1px solid ${C.line}`,
+                                        background: '#fff',
+                                        borderRadius: 8,
+                                        fontSize: 13,
+                                        color:
+                                            meta.current_page >= meta.last_page
+                                                ? C.faint
+                                                : C.text,
+                                        cursor:
+                                            meta.current_page >= meta.last_page
+                                                ? 'not-allowed'
+                                                : 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                    }}
+                                >
+                                    <AIcon name="chevron-right" size={15} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </>

@@ -48,7 +48,13 @@ const GENDERS = [
     { value: '', label: '— Pilih —' },
     { value: 'male', label: 'Laki-laki' },
     { value: 'female', label: 'Perempuan' },
-    { value: 'unspecified', label: 'Tidak disebutkan' },
+];
+
+const MARITAL_STATUSES = [
+    'Lajang',
+    'Menikah',
+    'Cerai Hidup',
+    'Cerai Mati',
 ];
 
 export default function SayaProfil({ profile }: { profile: Profile }) {
@@ -400,8 +406,7 @@ export default function SayaProfil({ profile }: { profile: Profile }) {
                                     label="Status Pernikahan"
                                     error={form.errors.marital_status}
                                 >
-                                    <input
-                                        placeholder="cth. Menikah"
+                                    <select
                                         value={form.data.marital_status}
                                         onChange={(event) =>
                                             form.setData(
@@ -410,10 +415,17 @@ export default function SayaProfil({ profile }: { profile: Profile }) {
                                             )
                                         }
                                         style={withError(
-                                            inputStyle,
+                                            selectStyle,
                                             !!form.errors.marital_status,
                                         )}
-                                    />
+                                    >
+                                        <option value="">— Pilih —</option>
+                                        {MARITAL_STATUSES.map((status) => (
+                                            <option key={status} value={status}>
+                                                {status}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </Field>
                             </div>
 

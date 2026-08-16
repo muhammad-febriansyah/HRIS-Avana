@@ -29,7 +29,9 @@ it('renders master komponen with components and formulas', function (): void {
             ->has('mappingOptions'));
 });
 
-it('creates a component with a fixed dasar perhitungan', function (): void {
+it('creates a fixed component without keeping a rupiah nominal on it', function (): void {
+    // The nominal belongs to Master Gaji; a figure posted here is dropped so
+    // payroll can never pay from a second, unassigned source.
     actingAs($this->admin)
         ->post(route('avana.payroll.komponen.component.store'), [
             'code' => 'TJ-FIX',
@@ -43,7 +45,7 @@ it('creates a component with a fixed dasar perhitungan', function (): void {
 
     $c = PayrollComponent::forTenant($this->tenant->id)->where('code', 'TJ-FIX')->firstOrFail();
     expect($c->basis_type)->toBe('fixed');
-    expect((float) $c->basis_value)->toBe(450_000.0);
+    expect($c->basis_value)->toBeNull();
 });
 
 it('creates a taxable earning component in the penerimaan group', function (): void {

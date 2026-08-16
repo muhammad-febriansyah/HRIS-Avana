@@ -104,6 +104,18 @@ class OvertimeController extends Controller
         $hours = $payable['hours'];
         $date = Carbon::parse($data['date']);
 
+        $overlap = OvertimeRules::overlapViolation(
+            (int) $employee->tenant_id,
+            (int) $employee->id,
+            $date,
+            $data['start_time'],
+            $data['end_time'],
+        );
+
+        if ($overlap !== null) {
+            throw ValidationException::withMessages(['start_time' => $overlap]);
+        }
+
         // PP 35/2021 caps overtime at 4 hours a day and 18 a week; the mobile
         // client files against the same ceilings the web does.
         $violation = OvertimeRules::limitViolation(

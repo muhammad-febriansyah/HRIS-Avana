@@ -47,8 +47,7 @@ it('renders the setting page and saves the perhitungan fields', function (): voi
         ->assertInertia(fn ($page) => $page
             ->component('avana/payroll-master-gaji/setting', false)
             ->has('master')
-            ->has('components')
-            ->has('employeeOptions'));
+            ->has('components'));
 
     actingAs($this->admin)
         ->put('spec-mg/master-gaji/'.$master->id, [
@@ -72,7 +71,12 @@ it('renders the setting page and saves the perhitungan fields', function (): voi
     expect($master->probation_months)->toBe(3);
 });
 
-function fixedComponent(object $ctx, string $code, float $value): PayrollComponent
+/**
+ * A fixed earning component. It carries no rupiah figure of its own — the
+ * nominal belongs to the Master Gaji that includes it, or to the employee's
+ * salary row copied from that template.
+ */
+function fixedComponent(object $ctx, string $code): PayrollComponent
 {
     return PayrollComponent::create([
         'tenant_id' => $ctx->tenant->id,
@@ -84,7 +88,6 @@ function fixedComponent(object $ctx, string $code, float $value): PayrollCompone
         'status' => 'active',
         'calc_basis' => 'fixed',
         'basis_type' => 'fixed',
-        'basis_value' => $value,
     ]);
 }
 
@@ -99,10 +102,10 @@ function mgEarnings(object $ctx): Collection
 }
 
 it('pays a component checked into the employee assigned salary master', function (): void {
-    $component = fixedComponent($this, 'MG-TJ', 300_000);
+    $component = fixedComponent($this, 'MG-TJ');
 
     $master = SalaryMaster::create(['tenant_id' => $this->tenant->id, 'code' => 'MG-1', 'category' => 'Organik', 'is_active' => true]);
-    $master->components()->create(['payroll_component_id' => $component->id, 'is_prorate' => false]);
+    $master->components()->create(['payroll_component_id' => $component->id, 'is_prorate' => false, 'amount' => 300_000]);
 
     $this->employee->update(['salary_master_id' => $master->id]);
 
@@ -111,7 +114,7 @@ it('pays a component checked into the employee assigned salary master', function
 });
 
 it('does not double-count a component present in both the master and a per-employee row', function (): void {
-    $component = fixedComponent($this, 'MG-DUP', 250_000);
+    $component = fixedComponent($this, 'MG-DUP');
 
     // A per-employee salary row for the same component overrides the master, so
     // the component is paid exactly once (the salary row wins).
@@ -119,11 +122,11 @@ it('does not double-count a component present in both the master and a per-emplo
         'tenant_id' => $this->tenant->id,
         'employee_id' => $this->employee->id,
         'payroll_component_id' => $component->id,
-        'amount' => 0,
+        'amount' => 250_000,
     ]);
 
     $master = SalaryMaster::create(['tenant_id' => $this->tenant->id, 'code' => 'MG-2', 'category' => 'Organik', 'is_active' => true]);
-    $master->components()->create(['payroll_component_id' => $component->id, 'included' => true]);
+    $master->components()->create(['payroll_component_id' => $component->id, 'included' => true, 'amount' => 250_000]);
 
     $this->employee->update(['salary_master_id' => $master->id]);
 
@@ -163,11 +166,11 @@ it('creates a master, checks a component, and assigns an employee via the contro
     expect((bool) $row->included)->toBeTrue();
     expect((bool) $row->is_prorate)->toBeTrue();
 
+    // Assigning employees is no longer done from the template: it hands over to
+    // Penetapan Gaji Massal, where the change is previewed before it is applied.
     actingAs($this->admin)
         ->post('spec-mg/master-gaji/'.$master->id.'/assign', ['employee_ids' => [$this->employee->id]])
-        ->assertSessionHas('success');
-
-    expect($this->employee->fresh()->salary_master_id)->toBe($master->id);
+        ->assertRedirect(route('avana.payroll.penetapan-massal', ['salary_master_id' => $master->id]));
 
     // Clearing every flag removes the row from the checklist entirely.
     foreach (['included', 'is_prorate'] as $flag) {
@@ -209,13 +212,13 @@ it('counts attendance from the master periode window (bulan lalu)', function ():
 });
 
 it('prorates a master component by the Jumlah Hari divisor', function (): void {
-    $component = fixedComponent($this, 'MG-PRO', 1_000_000);
+    $component = fixedComponent($this, 'MG-PRO');
 
     $master = SalaryMaster::create([
         'tenant_id' => $this->tenant->id, 'code' => 'MG-DIV', 'category' => 'Organik', 'is_active' => true,
         'day_divisor' => 20, 'day_calc_method' => 'absen',
     ]);
-    $master->components()->create(['payroll_component_id' => $component->id, 'included' => true, 'is_prorate' => true]);
+    $master->components()->create(['payroll_component_id' => $component->id, 'included' => true, 'is_prorate' => true, 'amount' => 1_000_000]);
     $this->employee->update(['salary_master_id' => $master->id]);
 
     // 10 present days in the Juni period window, divisor 20 => factor 0.5.
@@ -250,10 +253,13 @@ function seedOvertimeSetup(object $ctx, SalaryMaster $master): void
         ['included' => true, 'amount' => 30_000],
     );
 
-    OvertimeRequest::create([
+    $overtime = OvertimeRequest::create([
         'tenant_id' => $ctx->tenant->id, 'employee_id' => $ctx->employee->id, 'branch_id' => $ctx->employee->branch_id,
         'date' => $ctx->period->start_date->copy()->addDay()->toDateString(), 'hours' => 5, 'status' => 'approved',
     ]);
+
+    // Payroll pays min(approved, worked): the clock-out has to back the hours.
+    seedOvertimeAttendance($overtime, 5);
 }
 
 it('pays statutory overtime and suppresses the flat component when the master is Reguler', function (): void {

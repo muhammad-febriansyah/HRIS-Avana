@@ -34,6 +34,16 @@ function pascal(name: string): string {
 const ICON_ALIASES: Record<string, string> = {
     palmtree: 'TreePalm',
     'upload-cloud': 'CloudUpload',
+    // Lucide renamed these; the old names render nothing at all, which reads as
+    // a broken icon rather than a missing one.
+    'alert-triangle': 'TriangleAlert',
+    'alert-circle': 'CircleAlert',
+    'alert-octagon': 'OctagonAlert',
+    'shield-alert': 'ShieldAlert',
+    'check-circle-2': 'CircleCheckBig',
+    'check-circle': 'CircleCheck',
+    'x-circle': 'CircleX',
+    'loader-2': 'LoaderCircle',
 };
 
 interface AIconProps {

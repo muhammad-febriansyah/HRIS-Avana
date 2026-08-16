@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\Auditable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -15,7 +16,18 @@ use Illuminate\Database\Eloquent\Model;
  */
 final class Pph21TerCategory extends Model
 {
-    protected $guarded = [];
+    use Auditable;
+
+    protected $fillable = [
+        'ptkp_status',
+        'category',
+        'effective_start_date',
+        'effective_end_date',
+        'source',
+        'source_checksum',
+        'change_reason',
+        'created_by',
+    ];
 
     protected function casts(): array
     {

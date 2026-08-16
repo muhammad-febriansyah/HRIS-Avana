@@ -5,6 +5,8 @@ namespace App\Support;
 use App\Models\Employee;
 use App\Models\EmployeeBankAccount;
 use App\Models\EmployeeEmergencyContact;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\In;
 
 /**
  * The employee data a "Perubahan Data Pribadi" request may touch: what it is
@@ -31,7 +33,17 @@ final class DataChangeFields
         'birth_place' => ['label' => 'Tempat Lahir', 'rules' => ['nullable', 'string', 'max:255'], 'group' => 'Data Pribadi'],
         'birth_date' => ['label' => 'Tanggal Lahir', 'rules' => ['nullable', 'date'], 'group' => 'Data Pribadi'],
         'religion' => ['label' => 'Agama', 'rules' => ['nullable', 'string', 'max:255'], 'group' => 'Data Pribadi'],
-        'marital_status' => ['label' => 'Status Pernikahan', 'rules' => ['nullable', 'string', 'max:255'], 'group' => 'Data Pribadi'],
+        'marital_status' => ['label' => 'Status Pernikahan', 'rules' => ['nullable', 'string'], 'group' => 'Data Pribadi'],
+    ];
+
+    /**
+     * Fields the employee picks from a fixed list rather than typing freely, so
+     * the request cannot smuggle a value the admin console would reject.
+     *
+     * @var array<string, array<int, string>>
+     */
+    private const FIELD_OPTIONS = [
+        'marital_status' => MaritalStatus::OPTIONS,
     ];
 
     /**
@@ -75,7 +87,7 @@ final class DataChangeFields
      * The catalogue the form renders: key, label, group and the employee's
      * current value, so the screen can show "dari → menjadi".
      *
-     * @return array<int, array{key: string, label: string, group: string, current: string|null}>
+     * @return array<int, array{key: string, label: string, group: string, current: string|null, options: array<int, string>|null}>
      */
     public static function catalogue(Employee $employee): array
     {
@@ -84,20 +96,27 @@ final class DataChangeFields
             'label' => self::label($key),
             'group' => self::group($key),
             'current' => self::currentValue($employee, $key),
+            'options' => self::FIELD_OPTIONS[$key] ?? null,
         ], self::keys());
     }
 
     /**
      * The validation rules for one field's proposed value.
      *
-     * @return array<int, string>
+     * @return array<int, string|In>
      */
     public static function rulesFor(string $key): array
     {
-        return self::EMPLOYEE_FIELDS[$key]['rules']
+        $rules = self::EMPLOYEE_FIELDS[$key]['rules']
             ?? self::BANK_FIELDS[$key]['rules']
             ?? self::EMERGENCY_FIELDS[$key]['rules']
             ?? ['nullable', 'string', 'max:255'];
+
+        if (array_key_exists($key, self::FIELD_OPTIONS)) {
+            $rules[] = Rule::in(self::FIELD_OPTIONS[$key]);
+        }
+
+        return $rules;
     }
 
     public static function label(string $key): string

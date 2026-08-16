@@ -20,6 +20,14 @@ use App\Models\Employee;
 trait ResolvesTopApprover
 {
     /**
+     * What the Atasan Langsung control was set to before the sentinel was
+     * folded away. Both sentinels leave `manager_id` null, so this is the only
+     * thing that still tells "direksi" and "belum ditentukan" apart from a
+     * control the admin never touched.
+     */
+    protected ?string $managerChoice = null;
+
+    /**
      * Translate the sentinel into the two columns the app actually stores.
      */
     protected function resolveTopApprover(): void
@@ -29,6 +37,7 @@ trait ResolvesTopApprover
         }
 
         $manager = $this->input('manager_id');
+        $this->managerChoice = $manager === null ? null : (string) $manager;
 
         if ($manager === Employee::NO_MANAGER) {
             $this->merge(['manager_id' => null, 'is_top_approver' => true]);

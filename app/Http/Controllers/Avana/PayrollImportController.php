@@ -10,11 +10,13 @@ use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
 use App\Models\User;
+use App\Support\SalaryCompliance;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -210,15 +212,36 @@ final class PayrollImportController extends Controller
     private function writeRun(User $user, PayrollPeriod $period, int $tenantId, array $rows, string $fileName): void
     {
         DB::transaction(function () use ($user, $period, $tenantId, $rows, $fileName): void {
-            $run = PayrollRun::firstOrNew([
-                'tenant_id' => $tenantId,
-                'payroll_period_id' => $period->id,
-                'branch_id' => null,
-            ]);
+            // The revision still in play; a superseded (already paid) run is
+            // history and never written into again.
+            $run = PayrollRun::forTenant($tenantId)
+                ->where('payroll_period_id', $period->id)
+                ->whereNull('branch_id')
+                ->current()
+                ->orderByDesc('id')
+                ->first() ?? new PayrollRun([
+                    'tenant_id' => $tenantId,
+                    'payroll_period_id' => $period->id,
+                    'branch_id' => null,
+                    'revision' => 1 + (int) PayrollRun::forTenant($tenantId)
+                        ->where('payroll_period_id', $period->id)
+                        ->max('revision'),
+                ]);
+
+            // Uploading over a computed run would replace figures the engine
+            // derived from salaries, attendance and approvals with numbers from
+            // a file, under the same run id. The two flows do not mix silently:
+            // recompute or discard the engine run first.
+            if ($run->exists && $run->source !== PayrollRun::SOURCE_IMPORT && $run->items()->exists()) {
+                throw ValidationException::withMessages([
+                    'file' => 'Periode ini sudah punya hasil perhitungan sistem. Impor payroll tidak boleh menimpanya — jalankan periode baru atau kosongkan hasil perhitungan lebih dulu.',
+                ]);
+            }
 
             // An upload is a fresh statement of the period's pay, so any earlier
             // approval on this run no longer applies to what it now holds.
             $run->status = 'calculated';
+            $run->source = PayrollRun::SOURCE_IMPORT;
             $run->run_by = $user->id;
             $run->approved_by = null;
             $run->approved_at = null;
@@ -288,8 +311,90 @@ final class PayrollImportController extends Controller
                 'total_net' => $totals['net'],
                 'employee_count' => count($rows),
                 'status' => 'calculated',
+                'source' => PayrollRun::SOURCE_IMPORT,
+                // What the approver has to answer for: whose pay the file
+                // states, who it left out, and whose figure disagrees with the
+                // salary the system holds.
+                'reconciliation' => $this->reconcile($tenantId, $period, $rows, $fileName, $user),
             ]);
         });
+    }
+
+    /**
+     * Compare an uploaded payroll against the salaries the system holds.
+     *
+     * An import bypasses the engine, so nothing else would ever notice that the
+     * file pays somebody twice their contract, or quietly leaves three people
+     * out. This does not block the upload — the tenant's own system may be
+     * right — it states the differences so approving the run is a decision
+     * somebody takes with the facts in front of them.
+     *
+     * @param  array<int, array<string, mixed>>  $rows
+     * @return array<string, mixed>
+     */
+    private function reconcile(int $tenantId, PayrollPeriod $period, array $rows, string $fileName, User $user): array
+    {
+        $payable = $this->payableEmployees($tenantId, $period)->keyBy('id');
+        $imported = collect($rows)->keyBy(fn (array $row): int => (int) $row['employee']->id);
+
+        $variances = [];
+
+        foreach ($rows as $row) {
+            /** @var Employee $employee */
+            $employee = $row['employee'];
+            $expected = SalaryCompliance::monthlyWage($employee, $tenantId)['total'];
+            $gross = (float) $row['gross'];
+            $delta = $gross - $expected;
+
+            // A tolerance, not a rule: variable pay (attendance allowances,
+            // overtime, incentives) legitimately moves gross around, so only a
+            // difference worth asking about is listed.
+            if ($expected > 0.0 && abs($delta) / $expected < 0.1) {
+                continue;
+            }
+
+            $variances[] = [
+                'employee_id' => $employee->id,
+                'employee' => $employee->full_name,
+                'employee_number' => $employee->employee_number,
+                'expected_fixed_wage' => round($expected),
+                'imported_gross' => round($gross),
+                'delta' => round($delta),
+            ];
+        }
+
+        $missing = $payable
+            ->reject(fn (Employee $employee): bool => $imported->has($employee->id))
+            ->map(fn (Employee $employee): array => [
+                'employee_id' => $employee->id,
+                'employee' => $employee->full_name,
+                'employee_number' => $employee->employee_number,
+            ])
+            ->values()
+            ->all();
+
+        $unexpected = $imported
+            ->reject(fn (array $row): bool => $payable->has((int) $row['employee']->id))
+            ->map(fn (array $row): array => [
+                'employee_id' => $row['employee']->id,
+                'employee' => $row['employee']->full_name,
+                'employee_number' => $row['employee']->employee_number,
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'file' => $fileName,
+            'imported_at' => now()->toDateTimeString(),
+            'imported_by' => $user->id,
+            'row_count' => count($rows),
+            'payable_count' => $payable->count(),
+            // Employees this period would pay that the file says nothing about.
+            'missing' => $missing,
+            // Rows for people this period would not have paid at all.
+            'unexpected' => $unexpected,
+            'variances' => $variances,
+        ];
     }
 
     /**

@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Avana\PayrollController;
-use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
 use App\Models\OvertimeRequest;
@@ -9,9 +8,13 @@ use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
+use App\Models\SalaryMaster;
+use App\Models\TaxProfile;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\SalaryMasterAssignment;
 use Database\Seeders\AvanaDemoSeeder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Route;
 
 use function Pest\Laravel\actingAs;
@@ -41,19 +44,6 @@ function configureComponent(Employee $employee, string $code, string $basis, flo
     return $component;
 }
 
-/** Seed N present attendance days for an employee inside the period. */
-function seedPresentDays(int $tenantId, Employee $employee, PayrollPeriod $period, int $days): void
-{
-    $date = $period->start_date->copy();
-    for ($i = 0; $i < $days; $i++) {
-        Attendance::firstOrCreate(
-            ['tenant_id' => $tenantId, 'employee_id' => $employee->id, 'date' => $date->toDateString()],
-            ['branch_id' => $employee->branch_id, 'status' => 'present'],
-        );
-        $date->addDay();
-    }
-}
-
 /** Run payroll and return the computed item for the employee. */
 function runAndItem(object $ctx): PayrollRunItem
 {
@@ -76,10 +66,33 @@ it('scales a per_present_day component by the present day count', function (): v
     expect((float) $earnings->firstWhere('name', 'Tunjangan Makan')['amount'])->toBe(25_000.0 * $presentDays);
 });
 
+it('uses the assigned per-day rate snapshot after the master rate changes', function (): void {
+    $component = configureComponent($this->employee, 'TJ-MKN', 'per_present_day', 25_000);
+    $master = SalaryMaster::forTenant($this->tenant->id)->findOrFail($this->employee->salary_master_id);
+
+    SalaryMasterAssignment::apply(
+        (int) $this->tenant->id,
+        $master,
+        collect([$this->employee]),
+        Carbon::parse($this->period->start_date),
+        actorId: (int) $this->admin->id,
+    );
+
+    $master->components()->where('payroll_component_id', $component->id)->update(['amount' => 100_000]);
+    seedPresentDays($this->tenant->id, $this->employee, $this->period, 10);
+
+    $item = runAndItem($this);
+    $earnings = collect($item->calculation_snapshot['earnings']);
+    $presentDays = (int) $item->calculation_snapshot['present_days'];
+
+    expect((float) $earnings->firstWhere('name', 'Tunjangan Makan')['amount'])
+        ->toBe(25_000.0 * $presentDays);
+});
+
 it('scales a per_overtime_hour component by approved overtime hours', function (): void {
     configureComponent($this->employee, 'TJ-TRP', 'per_overtime_hour', 30_000);
 
-    OvertimeRequest::create([
+    $overtime = OvertimeRequest::create([
         'tenant_id' => $this->tenant->id,
         'employee_id' => $this->employee->id,
         'branch_id' => $this->employee->branch_id,
@@ -87,6 +100,8 @@ it('scales a per_overtime_hour component by approved overtime hours', function (
         'hours' => 5,
         'status' => 'approved',
     ]);
+
+    seedOvertimeAttendance($overtime, 5);
 
     $item = runAndItem($this);
     $earnings = collect($item->calculation_snapshot['earnings']);
@@ -204,15 +219,19 @@ it('keeps the employee JHT and JP aside for the year-end deduction', function ()
     expect((float) $item->taxable_gross)->toBe(6_063_320.0);
 });
 
-it('warns when a payroll run had to fall back to TK/0', function (): void {
+it('stops a payroll run when somebody has no PTKP status', function (): void {
     configureComponent($this->employee, 'BASIC', 'fixed', 5_800_000);
 
-    // The demo tenant leaves most employees without a tax profile, and TK/0 is
-    // the strictest category — a run that guessed it should say so.
+    // A missing PTKP status used to be guessed as TK/0 — the strictest
+    // category, and the wrong tax quietly charged. The run now refuses until
+    // the profile is filled in.
+    TaxProfile::where('tenant_id', $this->tenant->id)
+        ->where('employee_id', $this->employee->id)
+        ->update(['ptkp_status' => null]);
+
     actingAs($this->admin)
         ->post('spec-calc/payroll/run')
-        ->assertSessionHas('success')
-        ->assertSessionHas('warning');
+        ->assertSessionHasErrors('payroll');
 
-    expect(session('warning'))->toContain('status PTKP');
+    expect(session('errors')->first('payroll'))->toContain('status PTKP');
 });

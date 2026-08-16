@@ -143,12 +143,20 @@ it('stores and approves a rapel through the controller', function (): void {
     $rapel = SalaryRapel::forTenant($this->tenant->id)->latest('id')->firstOrFail();
     expect($rapel->status)->toBe('pending');
 
+    // The maker cannot be the checker: approval comes from somebody else.
     actingAs($this->admin)
+        ->post('spec-rapel/rapel/'.$rapel->id.'/approve')
+        ->assertSessionHasErrors('status');
+
+    $approver = User::where('tenant_id', $this->tenant->id)->where('id', '!=', $this->admin->id)->firstOrFail();
+    $approver->roles()->syncWithoutDetaching($this->admin->roles()->pluck('roles.id'));
+
+    actingAs($approver)
         ->post('spec-rapel/rapel/'.$rapel->id.'/approve')
         ->assertSessionHas('success');
 
     expect($rapel->fresh()->status)->toBe('approved');
-    expect((int) $rapel->fresh()->approved_by)->toBe($this->admin->id);
+    expect((int) $rapel->fresh()->approved_by)->toBe($approver->id);
 });
 
 it('rejects a posting date before the effective date', function (): void {

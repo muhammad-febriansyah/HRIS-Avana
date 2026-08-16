@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Avana;
 
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
+use App\Support\MaritalStatus;
 use App\Support\PrivateFile;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -43,15 +45,16 @@ class EssProfileController extends Controller
             'address' => ['nullable', 'string', 'max:1000'],
             'email' => ['nullable', 'email', 'max:255'],
             'nik' => ['nullable', 'digits:16'],
-            'gender' => ['nullable', 'in:male,female,unspecified'],
+            'gender' => ['nullable', 'in:male,female'],
             'birth_place' => ['nullable', 'string', 'max:255'],
             'birth_date' => ['nullable', 'date'],
             'religion' => ['nullable', 'string', 'max:255'],
-            'marital_status' => ['nullable', 'string', 'max:255'],
+            'marital_status' => ['nullable', 'string', Rule::in(MaritalStatus::OPTIONS)],
         ], [
             'email.email' => 'Format email tidak valid.',
             'nik.digits' => 'NIK harus 16 digit angka.',
             'gender.in' => 'Jenis kelamin tidak valid.',
+            'marital_status.in' => 'Status pernikahan tidak valid.',
             'birth_date.date' => 'Tanggal lahir tidak valid.',
         ]);
 

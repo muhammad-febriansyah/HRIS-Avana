@@ -58,10 +58,74 @@ final class SalaryPeriodLock
     {
         $lockedThrough = self::lockedThrough($tenantId);
 
-        if ($lockedThrough === null || $from->copy()->startOfDay()->greaterThan($lockedThrough)) {
+        if ($lockedThrough !== null && $from->copy()->startOfDay()->lessThanOrEqualTo($lockedThrough)) {
+            return self::message($lockedThrough);
+        }
+
+        $splitPeriod = PayrollPeriod::forTenant($tenantId)
+            ->where('code', 'not like', 'THR-%')
+            ->whereNotNull('start_date')
+            ->whereNotNull('end_date')
+            ->whereDate('start_date', '<', $from->toDateString())
+            ->whereDate('end_date', '>=', $from->toDateString())
+            ->orderBy('start_date')
+            ->first(['name', 'start_date', 'end_date']);
+
+        if ($splitPeriod === null) {
             return null;
         }
 
-        return self::message($lockedThrough);
+        return 'Tanggal berlaku berada di tengah periode '.$splitPeriod->name.' ('
+            .$splitPeriod->start_date->translatedFormat('d F Y').'–'.$splitPeriod->end_date->translatedFormat('d F Y')
+            .'). Gunakan tanggal awal periode agar perhitungan gaji tidak mencampur dua versi dalam satu periode.';
+    }
+
+    /**
+     * Suggest a safe date for the salary forms. Existing period starts are
+     * preferred because payroll calculates one salary version per period.
+     */
+    /**
+     * Whether a payroll period covering this date has already been finalised.
+     *
+     * Different question from refusal(): a salary change must start on a period
+     * boundary, but a correction, a rapel or an incentive legitimately sits in
+     * the middle of a period. What none of them may do is change a period that
+     * has already been paid.
+     */
+    public static function paidPeriodFor(int $tenantId, Carbon $on): ?PayrollPeriod
+    {
+        return PayrollPeriod::query()
+            ->where('tenant_id', $tenantId)
+            ->where('status', 'locked')
+            ->whereNotNull('start_date')
+            ->whereNotNull('end_date')
+            ->whereDate('start_date', '<=', $on->toDateString())
+            ->whereDate('end_date', '>=', $on->toDateString())
+            ->first();
+    }
+
+    public static function suggestedDate(int $tenantId): Carbon
+    {
+        $today = Carbon::parse(today()->toDateString())->startOfDay();
+        $containingPeriod = PayrollPeriod::forTenant($tenantId)
+            ->where('code', 'not like', 'THR-%')
+            ->whereDate('start_date', '<=', $today->toDateString())
+            ->whereDate('end_date', '>=', $today->toDateString())
+            ->orderByDesc('start_date')
+            ->first(['start_date', 'end_date']);
+
+        if ($containingPeriod === null || $today->isSameDay($containingPeriod->start_date)) {
+            return Carbon::parse($today->toDateString())->startOfDay();
+        }
+
+        $nextPeriodStart = PayrollPeriod::forTenant($tenantId)
+            ->where('code', 'not like', 'THR-%')
+            ->whereDate('start_date', '>', $today->toDateString())
+            ->orderBy('start_date')
+            ->value('start_date');
+
+        return $nextPeriodStart === null
+            ? Carbon::parse($containingPeriod->end_date->toDateString())->addDay()->startOfDay()
+            : Carbon::parse($nextPeriodStart)->startOfDay();
     }
 }
