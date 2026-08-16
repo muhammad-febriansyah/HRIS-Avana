@@ -11,6 +11,7 @@ use App\Models\LeaveType;
 use App\Models\Position;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\ApprovalEngine;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -114,7 +115,7 @@ class ApprovalWorkflowController extends Controller
         $tenantId = $request->user()->tenant_id;
         $data = $this->validatePayload($request, $tenantId);
 
-        DB::transaction(function () use ($data, $tenantId): void {
+        $workflow = DB::transaction(function () use ($data, $tenantId): ApprovalWorkflow {
             /** @var ApprovalWorkflow $workflow */
             $workflow = ApprovalWorkflow::create([
                 'tenant_id' => $tenantId,
@@ -127,10 +128,18 @@ class ApprovalWorkflowController extends Controller
             ]);
 
             $this->syncSteps($workflow, $tenantId, $data['steps']);
+
+            return $workflow;
         });
 
+        // A flow written after the requests it governs still governs them: they
+        // are waiting for a decision, and this is now how that decision is made.
+        $routed = ApprovalEngine::rerouteFor($workflow->fresh());
+
         return redirect()->route('avana.approval-workflow')
-            ->with('success', 'Alur persetujuan dibuat');
+            ->with('success', $routed > 0
+                ? 'Alur persetujuan dibuat, '.$routed.' pengajuan yang masih menunggu mengikuti alur ini'
+                : 'Alur persetujuan dibuat');
     }
 
     /**
@@ -158,8 +167,15 @@ class ApprovalWorkflowController extends Controller
             $this->syncSteps($workflow, $tenantId, $data['steps']);
         });
 
+        // Requests already waiting keep the approver they were routed to when
+        // they were submitted, so an edited flow left them stranded on somebody
+        // it no longer names. They follow the flow as it stands now.
+        $rerouted = ApprovalEngine::rerouteFor($workflow->fresh());
+
         return redirect()->route('avana.approval-workflow')
-            ->with('success', 'Alur persetujuan diperbarui');
+            ->with('success', $rerouted > 0
+                ? 'Alur persetujuan diperbarui, '.$rerouted.' pengajuan yang masih menunggu dialihkan ke approver baru'
+                : 'Alur persetujuan diperbarui');
     }
 
     /**
@@ -171,6 +187,10 @@ class ApprovalWorkflowController extends Controller
         $this->ensureTenantOwnership($request, $workflow);
 
         $workflow->update(['is_active' => ! $workflow->is_active]);
+
+        // Switching a flow on or off changes who decides the requests already
+        // waiting under it, so they are re-routed rather than left in limbo.
+        ApprovalEngine::rerouteFor($workflow->fresh());
 
         return back()->with('success', $workflow->is_active ? 'Alur diaktifkan' : 'Alur dinonaktifkan');
     }
@@ -184,6 +204,11 @@ class ApprovalWorkflowController extends Controller
         $this->ensureTenantOwnership($request, $workflow);
 
         DB::transaction(function () use ($workflow): void {
+            $workflow->update(['is_active' => false]);
+            // Hand the waiting requests back to manager routing before the flow
+            // they point at is gone, or they wait on an approver nobody can name.
+            ApprovalEngine::rerouteFor($workflow->fresh());
+
             $workflow->steps()->delete();
             $workflow->delete();
         });

@@ -57,6 +57,28 @@ class ApprovalEngine
     ];
 
     /**
+     * The active workflow that governs this employee's request of the given
+     * type, or null when none does.
+     *
+     * A division-scoped flow beats the tenant-wide default: the requester's
+     * department picks its own chain when one exists, everyone else falls back
+     * to the flow with no department.
+     */
+    private static function workflowFor(Employee $subject, string $type): ?ApprovalWorkflow
+    {
+        return ApprovalWorkflow::forTenant($subject->tenant_id)
+            ->where('request_type', $type)
+            ->where('is_active', true)
+            ->where(fn ($query) => $query
+                ->whereNull('department_id')
+                ->when($subject->department_id !== null, fn ($sub) => $sub->orWhere('department_id', $subject->department_id)))
+            ->with('steps')
+            ->orderByRaw('department_id IS NULL')
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    /**
      * Route a freshly submitted request through its workflow, if one is active.
      *
      * Returns true when the request was placed on a workflow (its
@@ -71,19 +93,7 @@ class ApprovalEngine
             return false;
         }
 
-        // A division-scoped flow beats the tenant-wide default: the requester's
-        // department picks its own chain when one exists, everyone else falls
-        // back to the flow with no department.
-        $workflow = ApprovalWorkflow::forTenant($subject->tenant_id)
-            ->where('request_type', $type)
-            ->where('is_active', true)
-            ->where(fn ($query) => $query
-                ->whereNull('department_id')
-                ->when($subject->department_id !== null, fn ($sub) => $sub->orWhere('department_id', $subject->department_id)))
-            ->with('steps')
-            ->orderByRaw('department_id IS NULL')
-            ->orderByDesc('id')
-            ->first();
+        $workflow = self::workflowFor($subject, $type);
 
         if ($workflow === null) {
             return false;
@@ -337,6 +347,145 @@ class ApprovalEngine
         }
 
         return $approver;
+    }
+
+    /**
+     * Re-route the requests still waiting for a decision after the tenant edited
+     * their approval flow.
+     *
+     * Editing a flow replaces its steps and can move it to another division, but
+     * the requests already in flight kept the approver they were routed to when
+     * they were submitted — so a request filed under the old configuration
+     * waited on somebody the flow no longer names, and it showed up in nobody's
+     * queue but HR's. Every pending request the change touches is re-resolved:
+     * those on this flow follow its new steps, and those the flow now covers but
+     * which were submitted before it did are placed on it.
+     *
+     * Returns how many requests were re-routed.
+     */
+    public static function rerouteFor(ApprovalWorkflow $workflow): int
+    {
+        $modelClass = array_search($workflow->request_type, self::TYPE_FOR_MODEL, true);
+
+        if ($modelClass === false) {
+            return 0;
+        }
+
+        $workflow->load('steps');
+
+        return self::replaceRoutingOn($workflow) + self::adoptUnroutedRequests($workflow, $modelClass);
+    }
+
+    /**
+     * Point the requests already on this flow at whoever its steps name now.
+     */
+    private static function replaceRoutingOn(ApprovalWorkflow $workflow): int
+    {
+        $instances = ApprovalRequest::query()
+            ->where('approval_workflow_id', $workflow->id)
+            ->where('status', 'pending')
+            ->orderBy('id')
+            ->get();
+
+        $rerouted = 0;
+
+        foreach ($instances as $instance) {
+            $approvable = $instance->approvable;
+
+            if ($approvable === null || $approvable->getAttribute('status') !== 'pending') {
+                continue;
+            }
+
+            $subject = Employee::forTenant((int) $workflow->tenant_id)
+                ->find((int) $approvable->getAttribute('employee_id'));
+            $steps = self::effectiveSteps($workflow, $approvable);
+
+            // A flow that was switched off, emptied of steps, or moved to a
+            // division this employee is not in no longer governs the request:
+            // it goes back to the manager routing it would have had without one.
+            if (! $workflow->is_active || $steps->isEmpty() || ($subject !== null && self::workflowFor($subject, $workflow->request_type)?->id !== $workflow->id)) {
+                DB::transaction(function () use ($instance, $approvable, $subject): void {
+                    $instance->delete();
+                    $approvable->update(['current_approver_id' => $subject?->manager_id]);
+                });
+
+                $rerouted++;
+
+                continue;
+            }
+
+            // Steps are replaced wholesale on save, so a cursor past the end of
+            // the new list is pulled back onto the last step that exists.
+            $step = min(max((int) $instance->current_step, 1), $steps->count());
+            $current = $steps->get($step - 1);
+            $spread = self::isParallel($workflow) || ($current !== null && self::isGroupStep($current));
+            $concrete = ($current === null || $spread) ? null : self::resolveConcreteApprover($current, $subject);
+
+            DB::transaction(function () use ($instance, $approvable, $subject, $step, $spread, $concrete): void {
+                $instance->update([
+                    'current_step' => $step,
+                    'current_approver_id' => $concrete?->user_id,
+                ]);
+                $approvable->update([
+                    'current_approver_id' => $spread
+                        ? null
+                        : ($concrete !== null ? $concrete->getKey() : $subject?->manager_id),
+                ]);
+            });
+
+            if ($current !== null) {
+                self::notifyApprovers($approvable, collect([$current]), $subject);
+            }
+
+            $rerouted++;
+        }
+
+        return $rerouted;
+    }
+
+    /**
+     * Put the pending requests this flow now covers, but which were submitted
+     * before it did, onto it.
+     *
+     * @param  class-string<Model>  $modelClass
+     */
+    private static function adoptUnroutedRequests(ApprovalWorkflow $workflow, string $modelClass): int
+    {
+        if (! $workflow->is_active || $workflow->steps->isEmpty()) {
+            return 0;
+        }
+
+        $alreadyRouted = ApprovalRequest::query()
+            ->where('tenant_id', $workflow->tenant_id)
+            ->where('approvable_type', $modelClass)
+            ->where('status', 'pending')
+            ->pluck('approvable_id');
+
+        $adopted = 0;
+
+        $modelClass::query()
+            ->where('tenant_id', $workflow->tenant_id)
+            ->where('status', 'pending')
+            ->when(
+                $alreadyRouted->isNotEmpty(),
+                fn ($query) => $query->whereNotIn((new $modelClass)->getQualifiedKeyName(), $alreadyRouted),
+            )
+            ->orderBy('id')
+            ->get()
+            ->each(function (Model $approvable) use ($workflow, &$adopted): void {
+                $subject = Employee::forTenant((int) $workflow->tenant_id)
+                    ->find((int) $approvable->getAttribute('employee_id'));
+
+                if ($subject === null || self::workflowFor($subject, $workflow->request_type)?->id !== $workflow->id) {
+                    return;
+                }
+
+                if (self::start($approvable, $subject)) {
+                    $adopted++;
+                }
+            });
+
+        return $adopted;
     }
 
     /**

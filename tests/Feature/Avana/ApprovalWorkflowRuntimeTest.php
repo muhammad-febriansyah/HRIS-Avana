@@ -3,6 +3,7 @@
 use App\Models\ApprovalRequest;
 use App\Models\ApprovalStep;
 use App\Models\ApprovalWorkflow;
+use App\Models\Department;
 use App\Models\DutyTravel;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
@@ -562,4 +563,79 @@ it('still refuses someone no request is waiting on', function (): void {
     actingAs($stranger->user)
         ->get(route('avana.approval'))
         ->assertForbidden();
+});
+
+it('re-routes a waiting request when the flow it sits on is edited', function (): void {
+    $leave = ($this->submitLeave)();
+
+    expect((int) $leave->fresh()->current_approver_id)->toBe((int) $this->manager->id);
+
+    $newApprover = Employee::forTenant($this->tenant->id)
+        ->whereNotNull('user_id')
+        ->whereNotIn('id', [$this->staff->id, $this->manager->id])
+        ->firstOrFail();
+
+    // The tenant rewrites step 1 to name somebody else. The request was already
+    // waiting on the old approver and used to stay there for good.
+    actingAs($this->hr)
+        ->put(route('avana.approval-workflow.update', $this->workflow), [
+            'name' => $this->workflow->name,
+            'request_type' => 'leave',
+            'approval_mode' => 'sequential',
+            'is_active' => true,
+            'steps' => [
+                ['approver_type' => 'specific_user', 'approver_user_id' => $newApprover->id],
+            ],
+            'conditions' => [],
+        ])
+        ->assertRedirect(route('avana.approval-workflow'));
+
+    expect((int) $leave->fresh()->current_approver_id)->toBe((int) $newApprover->id);
+
+    $instance = ApprovalRequest::where('approvable_id', $leave->id)->firstOrFail();
+
+    expect($instance->current_step)->toBe(1)
+        ->and($instance->status)->toBe('pending');
+
+    actingAs($newApprover->user)
+        ->post(route('avana.approval.approve', ['type' => 'leave', 'id' => $leave->id]))
+        ->assertRedirect();
+
+    expect($leave->fresh()->status)->toBe('approved');
+});
+
+it('adopts a waiting request once the flow is scoped to its division', function (): void {
+    // Scoped to a division the requester is not in, so their leave is filed
+    // without a workflow and routes to their manager.
+    $otherDepartment = Department::forTenant($this->tenant->id)
+        ->where('id', '!=', $this->staff->department_id)
+        ->firstOrFail();
+
+    $this->workflow->update(['department_id' => $otherDepartment->id]);
+
+    $leave = ($this->submitLeave)();
+
+    expect(ApprovalRequest::where('approvable_id', $leave->id)->exists())->toBeFalse();
+
+    // Correcting the division has to reach the request already waiting, which
+    // is the whole reason the flow was corrected.
+    actingAs($this->hr)
+        ->put(route('avana.approval-workflow.update', $this->workflow), [
+            'name' => $this->workflow->name,
+            'request_type' => 'leave',
+            'approval_mode' => 'sequential',
+            'is_active' => true,
+            'department_id' => $this->staff->department_id,
+            'steps' => [
+                ['approver_type' => 'direct_manager'],
+            ],
+            'conditions' => [],
+        ])
+        ->assertRedirect(route('avana.approval-workflow'));
+
+    $instance = ApprovalRequest::where('approvable_id', $leave->id)->firstOrFail();
+
+    expect($instance->current_step)->toBe(1)
+        ->and($instance->approval_workflow_id)->toBe($this->workflow->id)
+        ->and((int) $leave->fresh()->current_approver_id)->toBe((int) $this->manager->id);
 });
