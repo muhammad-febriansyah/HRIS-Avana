@@ -205,11 +205,21 @@ it('disburses a THR period through approve, lock and transfer by period id', fun
         ->assertSessionHas('success');
     expect($thrRun->fresh()->status)->toBe('locked');
 
+    // The default (generic) layout is the sheet finance reads and forwards, so
+    // it goes out as a workbook with the company's letterhead.
     $response = actingAs($this->hrAdmin)
         ->get(route('avana.payroll.transfer', ['payroll_period_id' => $thr->id]));
 
     $response->assertOk();
-    expect($response->headers->get('Content-Type'))->toContain('text/csv');
+    expect($response->headers->get('Content-Type'))
+        ->toContain('spreadsheetml.sheet');
+
+    // A per-bank layout stays bare CSV: an upload form rejects a letterhead.
+    $csv = actingAs($this->hrAdmin)
+        ->get(route('avana.payroll.transfer', ['payroll_period_id' => $thr->id, 'bank' => 'bca']));
+
+    $csv->assertOk();
+    expect($csv->headers->get('Content-Type'))->toContain('text/csv');
 });
 
 it('still targets the regular period when no period id is given', function (): void {

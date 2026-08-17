@@ -41,7 +41,9 @@ it('renders every avana page for super admin without a server error', function (
     $failures = [];
 
     foreach (avanaPageUris() as $uri) {
-        $status = actingAs($this->superadmin)->get('/'.$uri)->status();
+        // getStatusCode(), not status(): a route that answers with a file
+        // returns a Symfony response, which carries no status() of its own.
+        $status = actingAs($this->superadmin)->get('/'.$uri)->getStatusCode();
 
         if ($status >= 400) {
             $failures[] = "/{$uri} → {$status}";
@@ -57,7 +59,7 @@ it('renders core avana pages for an HR admin without a server error', function (
     $serverErrors = [];
 
     foreach (avanaPageUris() as $uri) {
-        $status = actingAs($this->admin)->get('/'.$uri)->status();
+        $status = actingAs($this->admin)->get('/'.$uri)->getStatusCode();
 
         if ($status >= 500) {
             $serverErrors[] = "/{$uri} → {$status}";
