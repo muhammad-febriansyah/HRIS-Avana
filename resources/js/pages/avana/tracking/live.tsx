@@ -7,7 +7,7 @@ import {
 } from '@/actions/App/Http/Controllers/Avana/TrackingController';
 import { TrackingMap } from '@/components/tracking/tracking-map';
 import type { LiveTrackingEmployee } from '@/components/tracking/tracking-map';
-import { AIcon, btnOut, C, card } from '@/lib/avana';
+import { AIcon, btnExport, btnOut, C, card } from '@/lib/avana';
 
 interface Option {
     id: number;
@@ -26,8 +26,8 @@ interface LiveTrackingProps {
     polling_interval: number;
 }
 
-const controlClass =
-    'h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
+const selectClass =
+    'h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
 
 function formatDuration(seconds: number): string {
     const hours = Math.floor(seconds / 3600);
@@ -81,22 +81,22 @@ export default function LiveTracking({
     polling_interval,
 }: LiveTrackingProps) {
     usePoll(polling_interval, { only: ['employees'] });
-    const [selectedId, setSelectedId] = useState<number | null>(
-        employees.find((employee) => employee.latitude != null)?.employee_id ??
-            employees[0]?.employee_id ??
-            null,
-    );
+    // Nobody is selected until the admin actually clicks a marker/row — the
+    // road route is only worth an OSRM request once someone asks for it.
+    const [selectedId, setSelectedId] = useState<number | null>(null);
     const [search, setSearch] = useState(filters.search ?? '');
     const [departmentId, setDepartmentId] = useState(
         filters.department_id?.toString() ?? '',
     );
     const [shiftId, setShiftId] = useState(filters.shift_id?.toString() ?? '');
 
+    // If the selected employee drops out of the (polled/filtered) list,
+    // clear the selection instead of silently jumping to someone else.
     const effectiveSelectedId = employees.some(
         (employee) => employee.employee_id === selectedId,
     )
         ? selectedId
-        : (employees[0]?.employee_id ?? null);
+        : null;
 
     const selected = useMemo(
         () =>
@@ -147,16 +147,30 @@ export default function LiveTracking({
 
                 <form
                     onSubmit={applyFilters}
-                    className="mb-4 flex flex-wrap gap-2"
+                    style={{ ...card, padding: 12 }}
+                    className="mb-4 flex flex-wrap items-center gap-2"
                 >
-                    <input
-                        className={`${controlClass} min-w-56 flex-1`}
-                        value={search}
-                        onChange={(event) => setSearch(event.target.value)}
-                        placeholder="Cari nama / nomor karyawan"
-                    />
+                    <div className="relative min-w-56 flex-1">
+                        <AIcon
+                            name="search"
+                            size={16}
+                            color={C.faint}
+                            style={{
+                                position: 'absolute',
+                                left: 12,
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                            }}
+                        />
+                        <input
+                            className="h-10 w-full rounded-lg border border-transparent bg-slate-50 pr-3 pl-9 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                            placeholder="Cari nama / nomor karyawan"
+                        />
+                    </div>
                     <select
-                        className={controlClass}
+                        className={selectClass}
                         value={departmentId}
                         onChange={(event) =>
                             setDepartmentId(event.target.value)
@@ -170,7 +184,7 @@ export default function LiveTracking({
                         ))}
                     </select>
                     <select
-                        className={controlClass}
+                        className={selectClass}
                         value={shiftId}
                         onChange={(event) => setShiftId(event.target.value)}
                     >
@@ -181,7 +195,9 @@ export default function LiveTracking({
                             </option>
                         ))}
                     </select>
-                    <button type="submit" style={btnOut}>
+                    {/* Warning-toned on purpose (not the usual green "save" tone) — the
+                        admin asked this to stand out from the neutral filter controls. */}
+                    <button type="submit" style={btnExport}>
                         <AIcon name="search" size={16} /> Terapkan
                     </button>
                 </form>

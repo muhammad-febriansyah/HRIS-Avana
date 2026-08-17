@@ -21,6 +21,7 @@ export interface LiveTrackingEmployee {
     is_mocked: boolean;
     is_suspicious: boolean;
     recorded_at: string | null;
+    trail: { latitude: number; longitude: number; recorded_at: string | null }[];
 }
 
 interface TrackingMapProps {

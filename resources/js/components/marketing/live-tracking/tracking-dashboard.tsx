@@ -32,7 +32,7 @@ const SIDEBAR = [
 const LIVE_MARKERS: MapMarker[] = [
     { id: 'febri', x: 55, y: 40, label: 'Febri', tone: 'brand', pulse: true },
     { id: 'alex', x: 82, y: 72, label: 'Alex', tone: 'brand' },
-    { id: 'ardo', x: 27, y: 82, label: 'Ardo', tone: 'muted' },
+    { id: 'raffa', x: 27, y: 82, label: 'Raffa', tone: 'muted' },
 ];
 
 export function StatusDot({ status }: { status: DemoEmployee['status'] }) {

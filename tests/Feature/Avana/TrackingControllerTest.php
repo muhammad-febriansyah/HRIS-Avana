@@ -39,7 +39,7 @@ beforeEach(function (): void {
     };
 });
 
-it('renders tenant scoped live tracking employees', function (): void {
+it('renders tenant scoped live tracking employees with a recent trail', function (): void {
     $session = ($this->makeTrackingSession)();
     EmployeeLastLocation::create([
         'tenant_id' => $this->employee->tenant_id,
@@ -50,6 +50,19 @@ it('renders tenant scoped live tracking employees', function (): void {
         'accuracy' => 8,
         'recorded_at' => now(),
     ]);
+    foreach (range(1, 3) as $index) {
+        TrackingLocation::create([
+            'tracking_session_id' => $session->id,
+            'tenant_id' => $this->employee->tenant_id,
+            'employee_id' => $this->employee->id,
+            'client_uuid' => (string) Str::uuid(),
+            'latitude' => -6.2146 - ($index / 1000),
+            'longitude' => 106.8451,
+            'accuracy' => 8,
+            'is_accepted' => true,
+            'recorded_at' => now()->subMinutes(30 - $index),
+        ]);
+    }
 
     actingAs($this->admin)
         ->get(route('avana.tracking.live'))
@@ -60,6 +73,7 @@ it('renders tenant scoped live tracking employees', function (): void {
             ->where('employees.0.employee_id', $this->employee->id)
             ->where('employees.0.latitude', -6.2146)
             ->where('employees.0.status', 'active')
+            ->has('employees.0.trail', 3)
             ->has('departments')
             ->has('shifts'));
 });

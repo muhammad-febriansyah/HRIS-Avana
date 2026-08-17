@@ -1,14 +1,14 @@
 import 'leaflet/dist/leaflet.css';
+import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import L from 'leaflet';
-import { useEffect } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+import { MapContainer, Polyline, TileLayer, useMap } from 'react-leaflet';
 import {
-    CircleMarker,
-    MapContainer,
-    Polyline,
-    Popup,
-    TileLayer,
-    useMap,
-} from 'react-leaflet';
+    FullscreenButton,
+    FullscreenSync,
+    useFullscreenToggle,
+} from './fullscreen-control.client';
+import { RoadRoute, sampleWaypoints } from './road-route.client';
 import type { RoutePoint } from './route-history-map';
 
 function FitRoute({ points }: { points: RoutePoint[] }) {
@@ -41,11 +41,15 @@ export default function RouteHistoryMapClient({
     const route = points.map(
         (point) => [point.latitude, point.longitude] as [number, number],
     );
+    const waypoints = useMemo(() => sampleWaypoints(points, 8), [points]);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const { isFullscreen, toggle } = useFullscreenToggle(containerRef);
 
     return (
         <div
-            className="overflow-hidden rounded-xl border border-slate-200"
-            style={{ height }}
+            ref={containerRef}
+            className="relative overflow-hidden rounded-xl border border-slate-200 bg-white"
+            style={{ height: isFullscreen ? '100vh' : height }}
         >
             <MapContainer
                 center={center}
@@ -54,62 +58,35 @@ export default function RouteHistoryMapClient({
                 scrollWheelZoom
             >
                 <FitRoute points={points} />
+                <FullscreenSync isFullscreen={isFullscreen} />
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
+                {/* Raw GPS trail — actual recorded points, straight lines between them. */}
                 {route.length > 1 && (
                     <Polyline
                         positions={route}
                         pathOptions={{
-                            color: '#2563EB',
-                            weight: 5,
-                            opacity: 0.8,
+                            color: '#93C5FD',
+                            weight: 3,
+                            opacity: 0.6,
+                            dashArray: '4 6',
                         }}
                     />
                 )}
-                {points[0] && (
-                    <CircleMarker
-                        center={center}
-                        radius={9}
-                        pathOptions={{
-                            color: '#FFF',
-                            weight: 3,
-                            fillColor: '#16A34A',
-                            fillOpacity: 1,
-                        }}
-                    >
-                        <Popup>
-                            Mulai ·{' '}
-                            {new Date(points[0].recorded_at).toLocaleTimeString(
-                                'id-ID',
-                            )}
-                        </Popup>
-                    </CircleMarker>
-                )}
-                {points.length > 1 && (
-                    <CircleMarker
-                        center={[
-                            points.at(-1)!.latitude,
-                            points.at(-1)!.longitude,
-                        ]}
-                        radius={9}
-                        pathOptions={{
-                            color: '#FFF',
-                            weight: 3,
-                            fillColor: '#DC2626',
-                            fillOpacity: 1,
-                        }}
-                    >
-                        <Popup>
-                            Selesai ·{' '}
-                            {new Date(
-                                points.at(-1)!.recorded_at,
-                            ).toLocaleTimeString('id-ID')}
-                        </Popup>
-                    </CircleMarker>
+                {/* Road-snapped route through the same trail, via OSRM, with
+                    the full turn-by-turn itinerary UI. */}
+                {waypoints.length > 1 && (
+                    <RoadRoute
+                        waypoints={waypoints}
+                        color="#2563EB"
+                        startLabel="Mulai"
+                        endLabel="Selesai"
+                    />
                 )}
             </MapContainer>
+            <FullscreenButton isFullscreen={isFullscreen} onToggle={toggle} />
         </div>
     );
 }

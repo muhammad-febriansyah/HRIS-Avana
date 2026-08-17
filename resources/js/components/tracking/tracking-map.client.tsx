@@ -1,6 +1,7 @@
 import 'leaflet/dist/leaflet.css';
+import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import L from 'leaflet';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
     CircleMarker,
     MapContainer,
@@ -9,6 +10,12 @@ import {
     Tooltip,
     useMap,
 } from 'react-leaflet';
+import {
+    FullscreenButton,
+    FullscreenSync,
+    useFullscreenToggle,
+} from './fullscreen-control.client';
+import { RoadRoute, sampleWaypoints } from './road-route.client';
 import type { LiveTrackingEmployee } from './tracking-map';
 
 interface TrackingMapClientProps {
@@ -94,11 +101,24 @@ export default function TrackingMapClient({
             ),
         [employees],
     );
+    const selectedEmployee = visible.find(
+        (employee) => employee.employee_id === selectedId,
+    );
+    const selectedWaypoints = useMemo(
+        () =>
+            selectedEmployee && selectedEmployee.trail.length > 1
+                ? sampleWaypoints(selectedEmployee.trail, 8)
+                : [],
+        [selectedEmployee],
+    );
+    const containerRef = useRef<HTMLDivElement>(null);
+    const { isFullscreen, toggle } = useFullscreenToggle(containerRef);
 
     return (
         <div
-            className="overflow-hidden rounded-xl border border-slate-200"
-            style={{ height }}
+            ref={containerRef}
+            className="relative overflow-hidden rounded-xl border border-slate-200 bg-white"
+            style={{ height: isFullscreen ? '100vh' : height }}
         >
             <MapContainer
                 center={[-6.1754, 106.8272]}
@@ -107,10 +127,22 @@ export default function TrackingMapClient({
                 scrollWheelZoom
             >
                 <MapViewport employees={visible} selectedId={selectedId} />
+                <FullscreenSync isFullscreen={isFullscreen} />
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
+                {/* Road-snapped trail for the selected employee's last 30
+                    minutes. No endpoint pins — the employee's own coloured
+                    dot below already marks their current position, and a
+                    second marker on the same spot would just be confusing. */}
+                {selectedWaypoints.length > 1 && (
+                    <RoadRoute
+                        waypoints={selectedWaypoints}
+                        color={markerColor(selectedEmployee!.status)}
+                        showEndpoints={false}
+                    />
+                )}
                 {visible.map((employee) => {
                     const selected = employee.employee_id === selectedId;
 
@@ -141,6 +173,7 @@ export default function TrackingMapClient({
                     );
                 })}
             </MapContainer>
+            <FullscreenButton isFullscreen={isFullscreen} onToggle={toggle} />
         </div>
     );
 }

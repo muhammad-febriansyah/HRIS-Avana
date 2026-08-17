@@ -201,6 +201,15 @@ final class TrackingController extends Controller
             $age <= 600 => 'stale',
             default => 'offline',
         };
+        // Recent trail (last 30 minutes, capped) used to draw the road-snapped
+        // route on the live map. Only fetched per session, so keep it lean.
+        $trail = TrackingLocation::query()
+            ->where('tracking_session_id', $session->id)
+            ->where('is_accepted', true)
+            ->where('recorded_at', '>=', now()->subMinutes(30))
+            ->orderBy('recorded_at')
+            ->limit(30)
+            ->get(['latitude', 'longitude', 'recorded_at']);
 
         return [
             'id' => $session->id,
@@ -223,6 +232,11 @@ final class TrackingController extends Controller
             'is_mocked' => (bool) $last?->is_mocked,
             'is_suspicious' => (bool) $last?->is_suspicious,
             'recorded_at' => $last?->recorded_at?->toIso8601String(),
+            'trail' => $trail->map(fn (TrackingLocation $point): array => [
+                'latitude' => (float) $point->latitude,
+                'longitude' => (float) $point->longitude,
+                'recorded_at' => $point->recorded_at?->toIso8601String(),
+            ])->values(),
         ];
     }
 

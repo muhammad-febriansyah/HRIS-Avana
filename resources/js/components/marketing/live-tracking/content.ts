@@ -179,12 +179,12 @@ export const DEMO_EMPLOYEES: DemoEmployee[] = [
         initials: 'AL',
     },
     {
-        id: 'ardo',
-        name: 'Ardo',
+        id: 'raffa',
+        name: 'Raffa',
         department: 'Delivery',
         status: 'idle',
         updated: '4 menit lalu',
-        initials: 'AR',
+        initials: 'RA',
     },
     {
         id: 'sari',

@@ -12,7 +12,7 @@ import {
 const MARKERS: MapMarker[] = [
     { id: 'febri', x: 52, y: 38, label: 'Febri', tone: 'brand', pulse: true },
     { id: 'alex', x: 84, y: 66, label: 'Alex', tone: 'brand' },
-    { id: 'ardo', x: 24, y: 84, label: 'Ardo', tone: 'muted' },
+    { id: 'raffa', x: 24, y: 84, label: 'Raffa', tone: 'muted' },
 ];
 
 /**
