@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\WfhRequest;
+use App\Services\ApprovalEngine;
 use App\Services\AutoApproval;
 use App\Support\FeatureGate;
 use App\Support\RequestDateClash;
@@ -57,6 +58,8 @@ class WfhController extends Controller
             'start_date' => $data['start_date'],
             'end_date' => $data['end_date'],
             'reason' => $data['reason'] ?? null,
+            // Without an approver the request lands in nobody's queue but HR's.
+            'current_approver_id' => $employee->manager_id,
             'status' => 'pending',
         ]);
 
@@ -67,6 +70,9 @@ class WfhController extends Controller
 
             return back()->with('success', 'Pengajuan WFH langsung disetujui (approver puncak)');
         }
+
+        // Route through the configured approval workflow when one is active.
+        ApprovalEngine::start($wfh, $employee);
 
         return back()->with('success', 'Pengajuan WFH dibuat');
     }
@@ -79,9 +85,13 @@ class WfhController extends Controller
         $this->ensureTenantOwnership($request, $wfh);
         $this->authorize('approve', $wfh);
 
-        $wfh->update(['status' => 'approved']);
+        if (! ApprovalEngine::decide($wfh, $request->user()->id, 'approve')) {
+            AutoApproval::wfh($wfh);
+        }
 
-        return back()->with('success', 'WFH disetujui');
+        return back()->with('success', $wfh->fresh()?->status === 'approved'
+            ? 'WFH disetujui'
+            : 'Persetujuan tercatat, menunggu tahap berikutnya');
     }
 
     /**
@@ -92,7 +102,9 @@ class WfhController extends Controller
         $this->ensureTenantOwnership($request, $wfh);
         $this->authorize('reject', $wfh);
 
-        $wfh->update(['status' => 'rejected']);
+        if (! ApprovalEngine::decide($wfh, $request->user()->id, 'reject')) {
+            $wfh->update(['status' => 'rejected']);
+        }
 
         return back()->with('success', 'WFH ditolak');
     }

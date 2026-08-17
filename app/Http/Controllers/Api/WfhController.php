@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\WfhRequest;
+use App\Services\ApprovalEngine;
 use App\Services\AutoApproval;
 use App\Support\FeatureGate;
 use App\Support\RequestDateClash;
@@ -81,6 +82,9 @@ class WfhController extends Controller
                 'data' => ['id' => $wfh->id, 'status' => 'approved'],
             ], 201);
         }
+
+        // Route through the configured approval workflow when one is active.
+        ApprovalEngine::start($wfh, $employee);
 
         return response()->json(['message' => 'Pengajuan WFH terkirim', 'data' => ['id' => $wfh->id]], 201);
     }

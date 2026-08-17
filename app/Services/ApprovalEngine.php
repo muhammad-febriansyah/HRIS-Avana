@@ -15,6 +15,7 @@ use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
 use App\Models\Reimbursement;
 use App\Models\User;
+use App\Models\WfhRequest;
 use App\Support\Notifier;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -35,8 +36,10 @@ use Illuminate\Support\Facades\DB;
  * back as an employee id. The parallel `approval_requests` row tracks the step
  * cursor and keeps a user-id copy for its own foreign key.
  *
- * Not yet handled (documented limitations): per-workflow/per-step `conditions`
- * are ignored, and `approval_mode = parallel` is processed sequentially.
+ * A workflow's `conditions` add an extra approver to the end of the chain when
+ * the request's own values match, and `approval_mode = parallel` opens every
+ * step at once and finishes when each of them has been approved by somebody
+ * that step names.
  */
 class ApprovalEngine
 {
@@ -54,6 +57,7 @@ class ApprovalEngine
         AttendanceCorrection::class => 'attendance_correction',
         DutyTravel::class => 'duty_travel',
         DataChangeRequest::class => 'data_change',
+        WfhRequest::class => 'wfh',
     ];
 
     /**
@@ -178,7 +182,7 @@ class ApprovalEngine
         // routing that actually stuck.
         $advancedTo = null;
 
-        $handled = DB::transaction(function () use ($instance, $approvable, $subject, $workflow, $effective, $actorUserId, $action, $note, &$advancedTo): bool {
+        $handled = DB::transaction(function () use ($instance, $approvable, $subject, $workflow, $effective, $actorUserId, $action, $note, $override, &$advancedTo): bool {
             if ($action === 'reject') {
                 self::log($instance, $actorUserId, 'reject', $instance->current_step, $note);
                 $instance->update(['status' => 'rejected']);
@@ -187,23 +191,46 @@ class ApprovalEngine
                 return true;
             }
 
-            // Parallel: the request is approved only once every step has been
-            // approved by a distinct approver.
+            // Parallel: every step must be approved, each by an approver that
+            // step actually names. Counting distinct approvers instead let two
+            // holders of one step's role satisfy a flow whose other step —
+            // the manager, Finance — had never seen the request.
             if ($workflow !== null && self::isParallel($workflow)) {
-                $approvedBy = ApprovalLog::query()
+                $satisfied = self::satisfiedSteps($instance);
+
+                if ($actorUserId !== null && ApprovalLog::query()
                     ->where('approval_request_id', $instance->id)
                     ->where('action', 'approve')
-                    ->pluck('approver_id');
-
-                if ($actorUserId !== null && $approvedBy->contains($actorUserId)) {
+                    ->where('approver_id', $actorUserId)
+                    ->exists()
+                ) {
                     return true; // already counted — idempotent
                 }
 
-                self::log($instance, $actorUserId, 'approve', null, $note);
+                $open = self::stepOrdersFor($effective, $subject, $actorUserId)
+                    ->reject(fn (int $order): bool => in_array($order, $satisfied, true));
 
-                $distinct = $approvedBy->push($actorUserId)->filter()->unique()->count();
+                // An admin stepping in answers for whichever step is still
+                // waiting: HR holds no step of their own here (they often hold
+                // no employee record either), and without this their decision
+                // was accepted and then quietly recorded nowhere.
+                if ($open->isEmpty() && $override) {
+                    $open = $effective->keys()
+                        ->map(fn (int $index): int => $index + 1)
+                        ->reject(fn (int $order): bool => in_array($order, $satisfied, true))
+                        ->values();
+                }
 
-                if ($distinct >= max(1, $effective->count())) {
+                // Every step this approver covers already has its approval, so
+                // there is nothing for them to add.
+                if ($open->isEmpty()) {
+                    return true;
+                }
+
+                $satisfied[] = $open->first();
+                self::log($instance, $actorUserId, 'approve', $open->first(), $note);
+
+                if (count(array_unique($satisfied)) >= max(1, $effective->count())) {
                     $instance->update(['status' => 'approved']);
                     self::finalize($approvable, $actorUserId);
                 }
@@ -304,6 +331,66 @@ class ApprovalEngine
                 ->all(),
             default => [],
         };
+    }
+
+    /**
+     * The step orders of a parallel instance that already carry an approval.
+     *
+     * @return array<int, int>
+     */
+    private static function satisfiedSteps(ApprovalRequest $instance): array
+    {
+        return ApprovalLog::query()
+            ->where('approval_request_id', $instance->id)
+            ->where('action', 'approve')
+            ->whereNotNull('step_order')
+            ->pluck('step_order')
+            ->map(fn ($order): int => (int) $order)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The 1-based orders of the steps this user is one of the approvers for.
+     *
+     * @param  Collection<int, ApprovalStep>  $steps
+     * @return Collection<int, int>
+     */
+    private static function stepOrdersFor(Collection $steps, ?Employee $subject, ?int $actorUserId): Collection
+    {
+        if ($actorUserId === null || $subject === null) {
+            // A system-driven decision (a top approver's auto-approval) answers
+            // for the whole flow rather than one step of it.
+            return $steps->keys()->map(fn (int $index): int => $index + 1);
+        }
+
+        $employee = Employee::forTenant((int) $subject->tenant_id)
+            ->where('user_id', $actorUserId)
+            ->first();
+
+        $roleIds = User::find($actorUserId)?->roles()->pluck('roles.id')->all() ?? [];
+        $subjectManagerId = $subject->manager_id !== null ? (int) $subject->manager_id : null;
+        $subjectId = (int) $subject->getKey();
+
+        return $steps
+            ->filter(function (ApprovalStep $step) use ($employee, $roleIds, $subjectManagerId, $subjectId): bool {
+                // A role step is held by whoever carries the role, which is a
+                // property of the account — an HR admin with no employee record
+                // of their own still holds the step their role names.
+                if ($step->approver_type === 'role') {
+                    return in_array($step->approver_role_id, $roleIds, true)
+                        && ($employee === null || (int) $employee->getKey() !== $subjectId);
+                }
+
+                // Every other targeting names a person in the org chart, so it
+                // takes an employee record to match.
+                return $employee !== null
+                    && self::viewerMatchesStep($step, $employee, $roleIds, $subjectManagerId, $subjectId);
+            })
+            ->keys()
+            ->map(fn (int $index): int => $index + 1)
+            ->values();
     }
 
     /**
@@ -575,8 +662,14 @@ class ApprovalEngine
                     ->where('action', 'approve')
                     ->exists();
 
+                // Only steps still waiting count: a colleague who already
+                // answered the one step this person covers takes it off their
+                // desk, exactly as it does in a sequential flow.
+                $satisfied = self::satisfiedSteps($instance);
+
                 $eligible = ! $alreadyApproved && $effective->contains(
-                    fn (ApprovalStep $step): bool => self::viewerMatchesStep($step, $manager, $roleIds, $subjectManagerId, $subjectId),
+                    fn (ApprovalStep $step, int $index): bool => ! in_array($index + 1, $satisfied, true)
+                        && self::viewerMatchesStep($step, $manager, $roleIds, $subjectManagerId, $subjectId),
                 );
             } else {
                 // The step currently awaiting approval (1-based current_step).
@@ -652,18 +745,25 @@ class ApprovalEngine
             ->where('user_id', $actor->id)
             ->first();
 
-        if ($employee === null) {
-            return false;
-        }
-
         $roleIds = $actor->roles()->pluck('roles.id')->all();
         $subjectManagerId = $subject?->manager_id !== null ? (int) $subject->manager_id : null;
         $subjectId = $subject?->getKey() !== null ? (int) $subject->getKey() : null;
 
         if ($workflow !== null && self::isParallel($workflow)) {
-            return $effective->contains(
-                fn (ApprovalStep $step): bool => self::viewerMatchesStep($step, $employee, $roleIds, $subjectManagerId, $subjectId),
-            );
+            // Role steps are held by the account, so this answers for an admin
+            // with no employee record of their own too — otherwise their own
+            // step's approval was filed as an override of somebody else's.
+            return self::stepOrdersFor($effective, $subject, $actor->id)->isNotEmpty();
+        }
+
+        if ($employee === null) {
+            // Every other targeting names somebody in the org chart, except a
+            // role step, which the account alone can satisfy.
+            $step = $effective->get($instance->current_step - 1);
+
+            return $step !== null
+                && $step->approver_type === 'role'
+                && in_array($step->approver_role_id, $roleIds, true);
         }
 
         $step = $effective->get($instance->current_step - 1);
@@ -767,8 +867,9 @@ class ApprovalEngine
         }
 
         $actual = match ($field) {
-            'days' => $approvable->getAttribute('total_days'),
-            'amount' => $approvable->getAttribute('amount'),
+            'days' => self::dayCount($approvable),
+            'amount' => self::moneyValue($approvable),
+            'hours' => $approvable->getAttribute('hours'),
             default => null,
         };
 
@@ -787,6 +888,50 @@ class ApprovalEngine
             '<=' => $a <= $b,
             default => false,
         };
+    }
+
+    /**
+     * How many days a request covers.
+     *
+     * Leave stores the number outright (a half day counts as 0.5); the other
+     * dated types — izin, WFH, perjalanan dinas — only carry the range, so a
+     * condition on them would never have matched anything.
+     */
+    private static function dayCount(Model $approvable): int|float|null
+    {
+        $stored = $approvable->getAttribute('total_days');
+
+        if ($stored !== null) {
+            return (float) $stored;
+        }
+
+        $start = $approvable->getAttribute('start_date');
+        $end = $approvable->getAttribute('end_date');
+
+        if ($start === null || $end === null) {
+            return null;
+        }
+
+        return $start->diffInDays($end) + 1;
+    }
+
+    /**
+     * The rupiah value a condition on "nominal" should read: a claim's amount,
+     * or the budget a duty travel was filed with.
+     */
+    private static function moneyValue(Model $approvable): int|float|null
+    {
+        $amount = $approvable->getAttribute('amount');
+
+        if ($amount !== null) {
+            return (float) $amount;
+        }
+
+        if ($approvable instanceof DutyTravel) {
+            return (float) $approvable->estimated_cost + (float) $approvable->per_diem;
+        }
+
+        return null;
     }
 
     /**
@@ -838,14 +983,19 @@ class ApprovalEngine
     }
 
     /**
-     * Run the request type's own approval side effects on the final step, so a
-     * workflow-finalized request is identical to a hand-approved one.
+     * Run the request type's own approval side effects, so a request approved
+     * on a workflow's last step, straight from the approval centre, or on the
+     * spot because a top approver filed it, all end up in the same state.
+     *
+     * `$actorUserId` is the USER id of whoever approved, which the types that
+     * stamp an approver record.
      */
-    private static function finalize(Model $approvable, ?int $actorUserId): void
+    public static function finalize(Model $approvable, ?int $actorUserId): void
     {
         match (true) {
             $approvable instanceof LeaveRequest => LeaveApproval::finalize($approvable, $actorUserId),
             $approvable instanceof OvertimeRequest => AutoApproval::overtime($approvable),
+            $approvable instanceof WfhRequest => AutoApproval::wfh($approvable),
             $approvable instanceof Reimbursement => AutoApproval::reimbursement($approvable, $actorUserId),
             $approvable instanceof PermissionRequest => $approvable->update(['status' => 'approved']),
             $approvable instanceof AttendanceCorrection => AttendanceCorrectionApproval::finalize($approvable, $actorUserId),
@@ -855,7 +1005,7 @@ class ApprovalEngine
                 'approved_by' => $actorUserId,
             ]),
             $approvable instanceof DataChangeRequest => DataChangeApproval::finalize($approvable, $actorUserId),
-            default => null,
+            default => $approvable->update(['status' => 'approved']),
         };
     }
 }

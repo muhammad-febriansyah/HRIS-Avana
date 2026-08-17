@@ -39,7 +39,10 @@ export interface StepDraft {
     condition: null;
 }
 
-export type ConditionField = 'days' | 'amount' | 'leave_type';
+export type ConditionField = 'days' | 'amount' | 'hours' | 'leave_type';
+
+/** Which condition fields each module can be judged on, keyed by request type. */
+export type ConditionFieldMap = Record<string, ConditionField[]>;
 export type ConditionOperator = '>' | '>=' | '=' | '<' | '<=';
 
 export interface ConditionDraft {

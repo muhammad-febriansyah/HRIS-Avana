@@ -166,6 +166,15 @@ class DutyTravelController extends Controller
             'current_approver_id' => $employee->manager_id,
         ]);
 
+        // A top approver (director) has no manager above them, so their own
+        // trip is approved on the spot rather than left waiting.
+        if ($employee->is_top_approver) {
+            ApprovalEngine::finalize($travel, $employee->user_id);
+
+            return redirect()->route('avana.dinas')
+                ->with('success', 'Perjalanan dinas langsung disetujui (approver puncak)');
+        }
+
         ApprovalEngine::start($travel, $employee);
 
         return redirect()->route('avana.dinas')

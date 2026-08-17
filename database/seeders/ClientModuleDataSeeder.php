@@ -48,6 +48,7 @@ use App\Models\PerformanceCycle;
 use App\Models\PerformanceReview;
 use App\Models\Permission;
 use App\Models\PermissionRequest;
+use App\Models\Reimbursement;
 use App\Models\Role;
 use App\Models\SavedReport;
 use App\Models\Shift;
@@ -1212,8 +1213,11 @@ class ClientModuleDataSeeder extends Seeder
 
         $workflowBlueprints = [
             ['name' => 'Persetujuan Cuti', 'request_type' => 'leave', 'approval_mode' => 'sequential'],
-            ['name' => 'Persetujuan Lembur', 'request_type' => 'lembur', 'approval_mode' => 'sequential'],
-            ['name' => 'Persetujuan Reimburse', 'request_type' => 'reimburse', 'approval_mode' => 'parallel'],
+            // The keys are the canonical ones ApprovalEngine routes on; the
+            // older `lembur` / `reimburse` aliases seeded flows the engine never
+            // matched, so they looked configured and did nothing.
+            ['name' => 'Persetujuan Lembur', 'request_type' => 'overtime', 'approval_mode' => 'sequential'],
+            ['name' => 'Persetujuan Reimburse', 'request_type' => 'reimbursement', 'approval_mode' => 'parallel'],
             ['name' => 'Persetujuan Perjalanan Dinas', 'request_type' => 'duty_travel', 'approval_mode' => 'sequential'],
         ];
 
@@ -1221,8 +1225,8 @@ class ClientModuleDataSeeder extends Seeder
 
         $morphMap = [
             'leave' => LeaveRequest::class,
-            'lembur' => OvertimeRequest::class,
-            'reimburse' => 'App\\Models\\ReimbursementRequest',
+            'overtime' => OvertimeRequest::class,
+            'reimbursement' => Reimbursement::class,
             'duty_travel' => DutyTravel::class,
         ];
 

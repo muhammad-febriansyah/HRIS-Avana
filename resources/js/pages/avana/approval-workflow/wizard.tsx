@@ -17,6 +17,7 @@ import type {
     ApproverTypeDef,
     ConditionDraft,
     ConditionField,
+    ConditionFieldMap,
     ModuleDef,
     Option,
     StepDraft,
@@ -53,9 +54,16 @@ const WIZARD_STEPS = [
     { n: 4, label: 'Selesai' },
 ];
 
+/** Satuan yang ikut ditulis di ringkasan kondisi. */
+const UNIT_SUFFIX: Partial<Record<ConditionField, string>> = {
+    days: ' hari',
+    hours: ' jam',
+};
+
 const FIELD_LABELS: Record<ConditionField, string> = {
     days: 'Jumlah Hari',
     amount: 'Nominal (Rp)',
+    hours: 'Jumlah Jam',
     leave_type: 'Jenis Cuti',
 };
 
@@ -87,6 +95,8 @@ interface WizardProps {
     /** Modules that already have a workflow — one per module is the rule. */
     takenModules: string[];
     approverTypes: ApproverTypeDef[];
+    /** Condition fields each module can be judged on, keyed by request type. */
+    conditionFields: ConditionFieldMap;
     options: WizardOptions;
     onClose: () => void;
 }
@@ -97,6 +107,7 @@ export default function Wizard({
     modules,
     takenModules,
     approverTypes,
+    conditionFields,
     options,
     onClose,
 }: WizardProps) {
@@ -229,13 +240,18 @@ export default function Wizard({
 
     /* ---------- condition helpers ---------- */
 
+    // Only the fields this module carries a value for; a condition on anything
+    // else could never match, so it is not offered.
+    const availableFields: ConditionField[] =
+        conditionFields[requestType] ?? [];
+
     const addCondition = () =>
         setConditions((prev) => [
             ...prev,
             {
                 uid: uid(),
                 enabled: true,
-                field: 'days',
+                field: availableFields[0] ?? 'days',
                 operator: '>',
                 value: '',
                 extra_approver_type: firstApproverType,
@@ -562,6 +578,7 @@ export default function Wizard({
                 {current === 4 && (
                     <FinishStep
                         conditions={conditions}
+                        availableFields={availableFields}
                         approverTypes={approverTypes}
                         options={options}
                         addCondition={addCondition}
@@ -1295,6 +1312,7 @@ function ReorderButton({
 
 function FinishStep({
     conditions,
+    availableFields,
     approverTypes,
     options,
     addCondition,
@@ -1303,6 +1321,7 @@ function FinishStep({
     summary,
 }: {
     conditions: ConditionDraft[];
+    availableFields: ConditionField[];
     approverTypes: ApproverTypeDef[];
     options: WizardOptions;
     addCondition: () => void;
@@ -1337,7 +1356,7 @@ function FinishStep({
         const fieldText =
             c.field === 'leave_type'
                 ? `jenis cuti ${options.leaveTypes.find((t) => String(t.value) === c.value)?.label ?? c.value}`
-                : `${FIELD_LABELS[c.field].toLowerCase()} ${c.operator} ${c.value}${c.field === 'days' ? ' hari' : ''}`;
+                : `${FIELD_LABELS[c.field].toLowerCase()} ${c.operator} ${c.value}${UNIT_SUFFIX[c.field] ?? ''}`;
         const typeLabel =
             approverTypes.find((a) => a.key === c.extra_approver_type)?.label ??
             c.extra_approver_type;
@@ -1354,234 +1373,274 @@ function FinishStep({
 
     return (
         <div>
-            <div
-                style={{
-                    fontSize: 15,
-                    fontWeight: 600,
-                    color: C.navy,
-                    marginBottom: 4,
-                }}
-            >
-                Kondisi Tambahan (Opsional)
-            </div>
-            <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 16 }}>
-                Atur kondisi khusus jika diperlukan, misalnya berdasarkan jumlah
-                hari cuti.
-            </div>
+            {/* A module with no measurable value of its own — koreksi absen,
+                perubahan data — takes no conditions, so the builder is hidden
+                rather than offering a rule that could never match. */}
+            {availableFields.length > 0 && (
+                <>
+                    <div
+                        style={{
+                            fontSize: 15,
+                            fontWeight: 600,
+                            color: C.navy,
+                            marginBottom: 4,
+                        }}
+                    >
+                        Kondisi Tambahan (Opsional)
+                    </div>
+                    <div
+                        style={{
+                            fontSize: 12.5,
+                            color: C.muted,
+                            marginBottom: 16,
+                        }}
+                    >
+                        Atur kondisi khusus jika diperlukan — approver tambahan
+                        dipakai hanya saat pengajuan memenuhi kondisi ini.
+                    </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {conditions.map((c) => {
-                    const needsRef =
-                        approverTypes.find(
-                            (a) => a.key === c.extra_approver_type,
-                        )?.ref != null;
+                    <div
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 10,
+                        }}
+                    >
+                        {conditions.map((c) => {
+                            const needsRef =
+                                approverTypes.find(
+                                    (a) => a.key === c.extra_approver_type,
+                                )?.ref != null;
 
-                    return (
-                        <div
-                            key={c.uid}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 10,
-                                flexWrap: 'wrap',
-                                padding: 14,
-                                border: `1px solid ${C.border}`,
-                                borderRadius: 12,
-                                background: c.enabled ? '#fff' : '#FAFBFD',
-                            }}
-                        >
-                            <Toggle
-                                on={c.enabled}
-                                onClick={() =>
-                                    patchCondition(c.uid, {
-                                        enabled: !c.enabled,
-                                    })
-                                }
-                            />
-                            <span style={{ fontSize: 13, color: C.muted }}>
-                                Jika
-                            </span>
-                            <select
-                                value={c.field}
-                                onChange={(e) =>
-                                    patchCondition(c.uid, {
-                                        field: e.target
-                                            .value as ConditionDraft['field'],
-                                        value: '',
-                                    })
-                                }
-                                style={{ ...select, width: 'auto' }}
-                            >
-                                {(
-                                    Object.keys(
-                                        FIELD_LABELS,
-                                    ) as ConditionField[]
-                                ).map((f) => (
-                                    <option key={f} value={f}>
-                                        {FIELD_LABELS[f]}
-                                    </option>
-                                ))}
-                            </select>
-                            <select
-                                value={c.operator}
-                                onChange={(e) =>
-                                    patchCondition(c.uid, {
-                                        operator: e.target
-                                            .value as ConditionDraft['operator'],
-                                    })
-                                }
-                                style={{ ...select, width: 64 }}
-                            >
-                                {['>', '>=', '=', '<', '<='].map((op) => (
-                                    <option key={op} value={op}>
-                                        {op}
-                                    </option>
-                                ))}
-                            </select>
-                            {c.field === 'leave_type' ? (
-                                <select
-                                    value={c.value}
-                                    onChange={(e) =>
-                                        patchCondition(c.uid, {
-                                            value: e.target.value,
-                                        })
-                                    }
-                                    style={{ ...select, width: 'auto' }}
+                            return (
+                                <div
+                                    key={c.uid}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 10,
+                                        flexWrap: 'wrap',
+                                        padding: 14,
+                                        border: `1px solid ${C.border}`,
+                                        borderRadius: 12,
+                                        background: c.enabled
+                                            ? '#fff'
+                                            : '#FAFBFD',
+                                    }}
                                 >
-                                    <option value="">Pilih jenis…</option>
-                                    {options.leaveTypes.map((t) => (
-                                        <option key={t.value} value={t.value}>
-                                            {t.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            ) : c.field === 'amount' ? (
-                                <RupiahInput
-                                    value={c.value}
-                                    onChange={(raw) =>
-                                        patchCondition(c.uid, { value: raw })
-                                    }
-                                    style={{ ...input, width: 150 }}
-                                />
-                            ) : (
-                                <>
-                                    <input
-                                        type="number"
-                                        value={c.value}
-                                        onChange={(e) =>
+                                    <Toggle
+                                        on={c.enabled}
+                                        onClick={() =>
                                             patchCondition(c.uid, {
-                                                value: e.target.value,
+                                                enabled: !c.enabled,
                                             })
                                         }
-                                        placeholder="0"
-                                        style={{ ...input, width: 90 }}
                                     />
-                                    {c.field === 'days' && (
-                                        <span
-                                            style={{
-                                                fontSize: 13,
-                                                color: C.muted,
-                                            }}
-                                        >
-                                            hari
-                                        </span>
-                                    )}
-                                </>
-                            )}
-                            <span style={{ fontSize: 13, color: C.muted }}>
-                                maka tambah approver:
-                            </span>
-                            <select
-                                value={c.extra_approver_type}
-                                onChange={(e) =>
-                                    patchCondition(c.uid, {
-                                        extra_approver_type: e.target.value,
-                                        extra_approver_ref: null,
-                                    })
-                                }
-                                style={{ ...select, width: 'auto' }}
-                            >
-                                {approverTypes.map((a) => (
-                                    <option key={a.key} value={a.key}>
-                                        {a.label}
-                                    </option>
-                                ))}
-                            </select>
-                            {needsRef && (
-                                <select
-                                    value={
-                                        c.extra_approver_ref == null
-                                            ? ''
-                                            : String(c.extra_approver_ref)
-                                    }
-                                    onChange={(e) =>
-                                        patchCondition(c.uid, {
-                                            extra_approver_ref:
-                                                e.target.value === ''
-                                                    ? null
-                                                    : Number(e.target.value),
-                                        })
-                                    }
-                                    style={{ ...select, width: 'auto' }}
-                                >
-                                    <option value="">Pilih…</option>
-                                    {extraRefOptions(c.extra_approver_type).map(
-                                        (o) => (
-                                            <option
-                                                key={o.value}
-                                                value={o.value}
-                                            >
-                                                {o.label}
+                                    <span
+                                        style={{ fontSize: 13, color: C.muted }}
+                                    >
+                                        Jika
+                                    </span>
+                                    <select
+                                        value={c.field}
+                                        onChange={(e) =>
+                                            patchCondition(c.uid, {
+                                                field: e.target
+                                                    .value as ConditionDraft['field'],
+                                                value: '',
+                                            })
+                                        }
+                                        style={{ ...select, width: 'auto' }}
+                                    >
+                                        {availableFields.map((f) => (
+                                            <option key={f} value={f}>
+                                                {FIELD_LABELS[f]}
                                             </option>
-                                        ),
+                                        ))}
+                                    </select>
+                                    <select
+                                        value={c.operator}
+                                        onChange={(e) =>
+                                            patchCondition(c.uid, {
+                                                operator: e.target
+                                                    .value as ConditionDraft['operator'],
+                                            })
+                                        }
+                                        style={{ ...select, width: 64 }}
+                                    >
+                                        {['>', '>=', '=', '<', '<='].map(
+                                            (op) => (
+                                                <option key={op} value={op}>
+                                                    {op}
+                                                </option>
+                                            ),
+                                        )}
+                                    </select>
+                                    {c.field === 'leave_type' ? (
+                                        <select
+                                            value={c.value}
+                                            onChange={(e) =>
+                                                patchCondition(c.uid, {
+                                                    value: e.target.value,
+                                                })
+                                            }
+                                            style={{ ...select, width: 'auto' }}
+                                        >
+                                            <option value="">
+                                                Pilih jenis…
+                                            </option>
+                                            {options.leaveTypes.map((t) => (
+                                                <option
+                                                    key={t.value}
+                                                    value={t.value}
+                                                >
+                                                    {t.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    ) : c.field === 'amount' ? (
+                                        <RupiahInput
+                                            value={c.value}
+                                            onChange={(raw) =>
+                                                patchCondition(c.uid, {
+                                                    value: raw,
+                                                })
+                                            }
+                                            style={{ ...input, width: 150 }}
+                                        />
+                                    ) : (
+                                        <>
+                                            <input
+                                                type="number"
+                                                value={c.value}
+                                                onChange={(e) =>
+                                                    patchCondition(c.uid, {
+                                                        value: e.target.value,
+                                                    })
+                                                }
+                                                placeholder="0"
+                                                style={{ ...input, width: 90 }}
+                                            />
+                                            {c.field === 'days' && (
+                                                <span
+                                                    style={{
+                                                        fontSize: 13,
+                                                        color: C.muted,
+                                                    }}
+                                                >
+                                                    hari
+                                                </span>
+                                            )}
+                                        </>
                                     )}
-                                </select>
-                            )}
-                            <button
-                                onClick={() => removeCondition(c.uid)}
-                                title="Hapus kondisi"
-                                style={{
-                                    marginLeft: 'auto',
-                                    height: 34,
-                                    width: 34,
-                                    border: `1px solid ${C.border}`,
-                                    borderRadius: 8,
-                                    background: '#fff',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                }}
-                            >
-                                <AIcon name="trash-2" size={14} color={C.red} />
-                            </button>
-                        </div>
-                    );
-                })}
-            </div>
+                                    <span
+                                        style={{ fontSize: 13, color: C.muted }}
+                                    >
+                                        maka tambah approver:
+                                    </span>
+                                    <select
+                                        value={c.extra_approver_type}
+                                        onChange={(e) =>
+                                            patchCondition(c.uid, {
+                                                extra_approver_type:
+                                                    e.target.value,
+                                                extra_approver_ref: null,
+                                            })
+                                        }
+                                        style={{ ...select, width: 'auto' }}
+                                    >
+                                        {approverTypes.map((a) => (
+                                            <option key={a.key} value={a.key}>
+                                                {a.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {needsRef && (
+                                        <select
+                                            value={
+                                                c.extra_approver_ref == null
+                                                    ? ''
+                                                    : String(
+                                                          c.extra_approver_ref,
+                                                      )
+                                            }
+                                            onChange={(e) =>
+                                                patchCondition(c.uid, {
+                                                    extra_approver_ref:
+                                                        e.target.value === ''
+                                                            ? null
+                                                            : Number(
+                                                                  e.target
+                                                                      .value,
+                                                              ),
+                                                })
+                                            }
+                                            style={{ ...select, width: 'auto' }}
+                                        >
+                                            <option value="">Pilih…</option>
+                                            {extraRefOptions(
+                                                c.extra_approver_type,
+                                            ).map((o) => (
+                                                <option
+                                                    key={o.value}
+                                                    value={o.value}
+                                                >
+                                                    {o.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    )}
+                                    <button
+                                        onClick={() => removeCondition(c.uid)}
+                                        title="Hapus kondisi"
+                                        style={{
+                                            marginLeft: 'auto',
+                                            height: 34,
+                                            width: 34,
+                                            border: `1px solid ${C.border}`,
+                                            borderRadius: 8,
+                                            background: '#fff',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                        }}
+                                    >
+                                        <AIcon
+                                            name="trash-2"
+                                            size={14}
+                                            color={C.red}
+                                        />
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
 
-            <button
-                onClick={addCondition}
-                style={{
-                    marginTop: 12,
-                    width: '100%',
-                    height: 42,
-                    border: `1.5px dashed ${C.border}`,
-                    borderRadius: 10,
-                    background: '#fff',
-                    color: C.primary,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 7,
-                }}
-            >
-                <AIcon name="plus" size={15} color={C.primary} />
-                Tambah Kondisi
-            </button>
+                    <button
+                        onClick={addCondition}
+                        style={{
+                            marginTop: 12,
+                            width: '100%',
+                            height: 42,
+                            border: `1.5px dashed ${C.border}`,
+                            borderRadius: 10,
+                            background: '#fff',
+                            color: C.primary,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 7,
+                        }}
+                    >
+                        <AIcon name="plus" size={15} color={C.primary} />
+                        Tambah Kondisi
+                    </button>
+                </>
+            )}
 
             {/* Ringkasan */}
             <div

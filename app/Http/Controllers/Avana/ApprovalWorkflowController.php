@@ -41,21 +41,47 @@ class ApprovalWorkflowController extends Controller
         ['key' => 'overtime', 'label' => 'Lembur (Overtime)', 'description' => 'Pengajuan lembur', 'icon' => 'clock', 'color' => '#6E9BE6'],
         ['key' => 'reimbursement', 'label' => 'Klaim (Reimbursement)', 'description' => 'Pengajuan klaim biaya', 'icon' => 'receipt', 'color' => '#D97706'],
         ['key' => 'permission', 'label' => 'Izin', 'description' => 'Pengajuan izin karyawan', 'icon' => 'clock', 'color' => '#0EA5E9'],
+        ['key' => 'wfh', 'label' => 'WFH (Kerja dari Rumah)', 'description' => 'Pengajuan kerja dari rumah', 'icon' => 'house', 'color' => '#0D9488'],
         ['key' => 'attendance_correction', 'label' => 'Koreksi Absen', 'description' => 'Pengajuan koreksi absensi', 'icon' => 'calendar', 'color' => '#7C3AED'],
         ['key' => 'duty_travel', 'label' => 'Perjalanan Dinas', 'description' => 'Pengajuan perjalanan dinas', 'icon' => 'plane', 'color' => '#16A34A'],
-        ['key' => 'document_request', 'label' => 'Permintaan Dokumen', 'description' => 'Permintaan dokumen HR', 'icon' => 'folder', 'color' => '#0E1A3A'],
         ['key' => 'data_change', 'label' => 'Perubahan Data Pribadi', 'description' => 'Pengajuan perubahan data', 'icon' => 'user-round-cog', 'color' => '#DC2626'],
     ];
 
     /**
-     * Legacy request_type aliases → module label, so workflows seeded before
-     * the canonical keys existed still render a friendly module name.
+     * Labels for request types the picker no longer offers, so a workflow
+     * stored under one still renders a friendly module name.
+     *
+     * `lembur` / `reimburse` are the keys used before the canonical ones.
+     * `document_request` was offered by the wizard while no such request
+     * existed to route: there is no model behind it, so the engine could never
+     * run a flow built for it and the tenant was configuring nothing. It is off
+     * the picker until the feature itself exists.
      *
      * @var array<string, string>
      */
     private const LEGACY_MODULE_LABELS = [
         'lembur' => 'Lembur (Overtime)',
         'reimburse' => 'Klaim (Reimbursement)',
+        'document_request' => 'Permintaan Dokumen (tidak aktif)',
+    ];
+
+    /**
+     * The "Kondisi Tambahan" fields each module can actually be judged on.
+     *
+     * A condition is evaluated against the request's own values, so offering
+     * every field everywhere let a tenant save a rule the engine could never
+     * match — a nominal on an izin, a leave type on a koreksi. Modules absent
+     * here carry no measurable value and take no conditions at all.
+     *
+     * @var array<string, array<int, string>>
+     */
+    private const CONDITION_FIELDS = [
+        'leave' => ['days', 'leave_type'],
+        'overtime' => ['hours'],
+        'reimbursement' => ['amount'],
+        'permission' => ['days'],
+        'wfh' => ['days'],
+        'duty_travel' => ['days', 'amount'],
     ];
 
     /**
@@ -97,6 +123,7 @@ class ApprovalWorkflowController extends Controller
             'workflows' => $workflows,
             'modules' => self::MODULES,
             'approverTypes' => self::APPROVER_TYPES,
+            'conditionFields' => self::CONDITION_FIELDS,
             'options' => $this->options($tenantId),
             'kpis' => [
                 'total' => $workflows->count(),
@@ -262,7 +289,10 @@ class ApprovalWorkflowController extends Controller
             'steps.*.approver_user_id' => ['nullable', 'integer', "exists:employees,id,tenant_id,{$tenantId}"],
 
             'conditions' => ['nullable', 'array', 'max:10'],
-            'conditions.*.field' => ['required', Rule::in(['days', 'amount', 'leave_type'])],
+            'conditions.*.field' => [
+                'required',
+                Rule::in(self::CONDITION_FIELDS[$request->input('request_type')] ?? []),
+            ],
             'conditions.*.operator' => ['required', Rule::in(['>', '>=', '=', '<', '<='])],
             'conditions.*.value' => ['required', 'string', 'max:120'],
             'conditions.*.extra_approver_type' => ['required', Rule::in($approverKeys)],

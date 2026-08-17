@@ -85,6 +85,17 @@ class AttendanceCorrectionController extends Controller
             'status' => 'pending',
         ]);
 
+        // A top approver (director) has no manager above them, so their own
+        // request is approved on the spot rather than left waiting.
+        if ($employee->is_top_approver) {
+            ApprovalEngine::finalize($correction, $employee->user_id);
+
+            return response()->json([
+                'message' => 'Koreksi absen langsung disetujui (approver puncak)',
+                'data' => ['id' => $correction->id, 'status' => 'approved'],
+            ], 201);
+        }
+
         // Route through the configured approval workflow when one is active.
         ApprovalEngine::start($correction, $employee);
 

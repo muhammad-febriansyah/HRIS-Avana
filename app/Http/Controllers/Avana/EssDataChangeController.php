@@ -130,6 +130,11 @@ class EssDataChangeController extends Controller
 
         // A tenant that configured a "Perubahan Data Pribadi" workflow gets its
         // steps; otherwise the request stays with the employee's own manager.
+        //
+        // Deliberately no top-approver shortcut here, unlike the other request
+        // types: these fields include the bank account payroll pays into, so
+        // even a director's own change is reviewed by somebody else (HR sees
+        // requests nobody else is routed to).
         ApprovalEngine::start($changeRequest, $employee);
 
         return redirect()

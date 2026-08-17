@@ -149,6 +149,16 @@ class EssTravelController extends Controller
             'current_approver_id' => $employee->manager_id,
         ]);
 
+        // A top approver (director) has nobody above them, so their own trip is
+        // settled on the spot rather than left waiting.
+        if ($employee->is_top_approver) {
+            ApprovalEngine::finalize($travel, $employee->user_id);
+
+            return redirect()
+                ->route('avana.saya.perjalanan-dinas')
+                ->with('success', 'Perjalanan dinas langsung disetujui (approver puncak)');
+        }
+
         // A tenant that configured a "Perjalanan Dinas" workflow gets its steps;
         // otherwise the trip stays with the employee's own manager.
         ApprovalEngine::start($travel, $employee);

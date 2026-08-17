@@ -15,10 +15,6 @@ use App\Models\Reimbursement;
 use App\Models\User;
 use App\Models\WfhRequest;
 use App\Services\ApprovalEngine;
-use App\Services\AttendanceCorrectionApproval;
-use App\Services\AutoApproval;
-use App\Services\DataChangeApproval;
-use App\Services\LeaveApproval;
 use App\Support\DataChangeFields;
 use App\Support\PendingApprover;
 use Carbon\CarbonInterface;
@@ -266,19 +262,19 @@ class ApprovalController extends Controller
         $model = $this->resolveModel($request, $type, $id);
 
         if (! ApprovalEngine::decide($model, $request->user()->id, 'approve')) {
-            $this->finalizeApproved($model, (int) $request->user()->id);
+            ApprovalEngine::finalize($model, (int) $request->user()->id);
         }
 
         // A multi-step workflow only advanced here; do not claim it is done.
         if ($model->fresh()?->getAttribute('status') === 'approved') {
-            return back()->with('success', self::MESSAGES[$type]['approve']);
+            return $this->afterDeciding($request, self::MESSAGES[$type]['approve']);
         }
 
         // Naming the step is the whole point: the request stays in the queue
         // because the flow has another level, not because the click was lost.
         $progress = ApprovalEngine::progress($model);
 
-        return back()->with('success', $progress === null
+        return $this->afterDeciding($request, $progress === null
             ? 'Persetujuan tercatat, menunggu tahap berikutnya'
             : 'Persetujuan tahap '.($progress['step'] - 1).' dari '.$progress['total']
                 .' tercatat — pengajuan ini masih menunggu tahap '.$progress['step'].'.');
@@ -308,33 +304,22 @@ class ApprovalController extends Controller
             }
         }
 
-        return back()->with('success', self::MESSAGES[$type]['reject']);
+        return $this->afterDeciding($request, self::MESSAGES[$type]['reject']);
     }
 
     /**
-     * Approve a request that is not workflow-driven, through the same services
-     * the module screens and the engine's own finalize step use — so a leave
-     * approved here draws down the right balance (a sub-type charges its parent
-     * quota) and a correction is actually written onto the attendance row.
+     * Where to send an approver once they have decided.
+     *
+     * An approver whose only licence for this screen was the request itself
+     * loses it the moment they decide — sending them "back" answered 403 to
+     * the very click that worked. They land on the dashboard with the outcome
+     * instead; anyone still holding the screen stays on it.
      */
-    private function finalizeApproved(Model $model, int $approverUserId): void
+    private function afterDeciding(Request $request, string $message): RedirectResponse
     {
-        match (true) {
-            $model instanceof LeaveRequest => LeaveApproval::finalize($model, $approverUserId),
-            $model instanceof OvertimeRequest => AutoApproval::overtime($model),
-            $model instanceof WfhRequest => AutoApproval::wfh($model),
-            $model instanceof AttendanceCorrection => AttendanceCorrectionApproval::finalize($model, $approverUserId),
-            // Stamps the approver, which is also what keeps Finance's four-eyes
-            // rule honest: whoever approved a claim cannot pay it out.
-            $model instanceof Reimbursement => AutoApproval::reimbursement($model, $approverUserId),
-            $model instanceof DutyTravel => $model->update([
-                'status' => 'approved',
-                'approved_by' => $approverUserId,
-            ]),
-            // Approving writes the proposed values onto the employee record.
-            $model instanceof DataChangeRequest => DataChangeApproval::finalize($model, $approverUserId),
-            default => $model->update(['status' => 'approved']),
-        };
+        return $this->canApprove($request)
+            ? back()->with('success', $message)
+            : redirect()->route('dashboard')->with('success', $message);
     }
 
     /**

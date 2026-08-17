@@ -111,6 +111,14 @@ class EssPermissionController extends Controller
             'status' => 'pending',
         ]);
 
+        // A top approver (director) has nobody above them, so their own request
+        // is settled on the spot rather than left waiting.
+        if ($employee->is_top_approver) {
+            ApprovalEngine::finalize($permission, $employee->user_id);
+
+            return back()->with('success', 'Pengajuan izin langsung disetujui (approver puncak)');
+        }
+
         ApprovalEngine::start($permission, $employee);
 
         return back()->with('success', 'Pengajuan izin terkirim');

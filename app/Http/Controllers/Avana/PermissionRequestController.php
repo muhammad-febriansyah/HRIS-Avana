@@ -64,6 +64,14 @@ class PermissionRequestController extends Controller
             'status' => 'pending',
         ]);
 
+        // A top approver (director) has no manager above them, so their own
+        // request is approved on the spot rather than left waiting.
+        if ($employee->is_top_approver) {
+            ApprovalEngine::finalize($permission, $employee->user_id);
+
+            return back()->with('success', 'Pengajuan izin langsung disetujui (approver puncak)');
+        }
+
         // Route through the configured approval workflow when one is active.
         ApprovalEngine::start($permission, $employee);
 

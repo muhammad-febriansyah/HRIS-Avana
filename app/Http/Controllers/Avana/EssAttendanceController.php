@@ -155,6 +155,15 @@ class EssAttendanceController extends Controller
             'status' => 'pending',
         ]);
 
+        // A top approver (director) has nobody above them, so their own request
+        // is settled on the spot — and the correction is written onto the
+        // attendance row right away.
+        if ($employee->is_top_approver) {
+            ApprovalEngine::finalize($correction, $employee->user_id);
+
+            return back()->with('success', 'Koreksi absen langsung disetujui (approver puncak)');
+        }
+
         ApprovalEngine::start($correction, $employee);
 
         return back()->with('success', 'Pengajuan koreksi absen terkirim');

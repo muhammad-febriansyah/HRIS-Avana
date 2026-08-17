@@ -7,6 +7,7 @@ import { AIcon, ActionBtn, btnP, C, card, thCell } from '@/lib/avana';
 import type {
     ApproverTypeDef,
     ModuleDef,
+    ConditionFieldMap,
     WizardOptions,
     WorkflowRow,
 } from './types';
@@ -16,6 +17,7 @@ interface IndexProps {
     workflows: WorkflowRow[];
     modules: ModuleDef[];
     approverTypes: ApproverTypeDef[];
+    conditionFields: ConditionFieldMap;
     options: WizardOptions;
     kpis: { total: number; active: number };
 }
@@ -31,6 +33,7 @@ export default function ApprovalWorkflowIndex({
     workflows,
     modules,
     approverTypes,
+    conditionFields,
     options,
 }: IndexProps) {
     const { flash } = usePage<FlashProps>().props;
@@ -98,10 +101,10 @@ export default function ApprovalWorkflowIndex({
                     takenModules={workflows
                         .filter((w) => w.id !== editing?.id)
                         .map(
-                            (w) =>
-                                `${w.request_type}#${w.department_id ?? 0}`,
+                            (w) => `${w.request_type}#${w.department_id ?? 0}`,
                         )}
                     approverTypes={approverTypes}
+                    conditionFields={conditionFields}
                     options={options}
                     onClose={closeWizard}
                 />
@@ -548,9 +551,16 @@ function StatusPill({ active }: { active: boolean }) {
     );
 }
 
+/** Satuan yang ikut ditulis di pratinjau kondisi. */
+const PREVIEW_UNIT: Record<string, string> = {
+    days: ' hari',
+    hours: ' jam',
+};
+
 const PREVIEW_FIELD: Record<string, string> = {
     days: 'jumlah hari',
     amount: 'nominal',
+    hours: 'jumlah jam',
     leave_type: 'jenis cuti',
 };
 
@@ -585,7 +595,7 @@ function PreviewModal({
         const fieldPart =
             c.field === 'leave_type'
                 ? `jenis cuti ${options.leaveTypes.find((t) => String(t.value) === c.value)?.label ?? c.value}`
-                : `${PREVIEW_FIELD[c.field] ?? c.field} ${c.operator} ${c.value}${c.field === 'days' ? ' hari' : ''}`;
+                : `${PREVIEW_FIELD[c.field] ?? c.field} ${c.operator} ${c.value}${PREVIEW_UNIT[c.field] ?? ''}`;
         const typeLabel =
             approverTypes.find((a) => a.key === c.extra_approver_type)?.label ??
             c.extra_approver_type;
