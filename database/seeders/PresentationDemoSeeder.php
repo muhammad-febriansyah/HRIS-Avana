@@ -15,6 +15,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WebsiteSetting;
 use App\Models\WorkLocation;
+use App\Support\PrivateFile;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -63,7 +64,7 @@ class PresentationDemoSeeder extends Seeder
         $jobLevel = JobLevel::forTenant($tenant->id)->first();
 
         Storage::disk('public')->makeDirectory('branding');
-        Storage::disk('public')->makeDirectory('avatars');
+        Storage::disk(PrivateFile::DISK)->makeDirectory('avatars');
 
         $workLocations = $this->seedWorkLocations($tenant, $branches);
 
@@ -269,8 +270,10 @@ class PresentationDemoSeeder extends Seeder
     {
         $saved = 0;
         foreach ($employees as $employee) {
+            // Avatars live on the private disk with every other personal
+            // upload; the screens reach them through a signed link.
             $path = 'avatars/'.strtolower($employee->employee_number).'.png';
-            if (! Storage::disk('public')->exists($path)) {
+            if (! Storage::disk(PrivateFile::DISK)->exists($path)) {
                 $url = 'https://api.dicebear.com/9.x/avataaars/png?'.http_build_query([
                     'seed' => $employee->full_name,
                     'size' => 200,
@@ -280,7 +283,7 @@ class PresentationDemoSeeder extends Seeder
                 if ($bytes === null) {
                     continue;
                 }
-                Storage::disk('public')->put($path, $bytes);
+                Storage::disk(PrivateFile::DISK)->put($path, $bytes);
             }
 
             if ($employee->photo_path !== $path) {

@@ -101,11 +101,23 @@ final class PrivateFile
     ];
 
     /**
+     * The upload trees this application keeps private, for anything that has to
+     * tell a private path from a public one — the sweep that moves files left
+     * on the public disk, above all.
+     *
+     * @return array<int, string>
+     */
+    public static function privatePrefixes(): array
+    {
+        return self::PRIVATE_PREFIXES;
+    }
+
+    /**
      * A URL for a path that may belong to either disk.
      *
-     * An avatar is whichever of two things exists: the employee's own photo,
-     * which is private, or a generated cartoon, which is not. Resolving by
-     * prefix keeps both working without a filesystem probe per row.
+     * Uploads people make about themselves are private; the assets a tenant
+     * publishes — logos, onboarding slides, generated images — are not.
+     * Resolving by prefix keeps both working without a filesystem probe per row.
      */
     public static function urlFor(?string $path): ?string
     {

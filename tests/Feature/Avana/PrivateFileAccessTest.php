@@ -106,10 +106,23 @@ it('hands the documents screen a signed link rather than a storage URL', functio
         });
 });
 
-it('leaves a generated avatar on the public disk', function (): void {
+it('keeps an avatar private, since it is the user own photo', function (): void {
+    // Avatars used to include a generated cartoon that was safe to serve
+    // publicly. What the profile screen stores now is a photo the user
+    // uploaded of themselves, so it goes out signed like any other upload.
     $url = PrivateFile::urlFor('avatars/user-1.png');
 
-    expect($url)->toContain('/storage/avatars/user-1.png')
+    expect($url)->toContain('/berkas/avatars/user-1.png')
+        ->and($url)->toContain('signature=')
+        ->and($url)->not->toContain('/storage/');
+});
+
+it('still serves company branding straight off the public disk', function (): void {
+    // A logo is meant to be public — it is on letterheads and login screens —
+    // so it must not be dragged behind a signature.
+    $url = PrivateFile::urlFor('company-logos/tenant-1.png');
+
+    expect($url)->toContain('/storage/company-logos/tenant-1.png')
         ->and($url)->not->toContain('signature=');
 });
 
