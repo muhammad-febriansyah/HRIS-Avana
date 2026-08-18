@@ -1,12 +1,18 @@
 import { Head, router } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { AIcon, C } from '@/lib/avana';
+import { ActivityTable } from './activity-table';
 import { AuditTable } from './audit-table';
 import { filterSelectStyle, Pagination } from './components';
-import type { AuditProps } from './types';
+import type { AuditProps, AuditTab } from './types';
 
-export default function AvanaAudit({ logs, filters }: AuditProps) {
-    const meta = logs.meta;
+const TAB_META: Record<AuditTab, { label: string; icon: string; color: string }> = {
+    changes: { label: 'Perubahan Data', icon: 'history', color: C.primary },
+    activity: { label: 'Aktivitas Pengguna', icon: 'activity', color: C.violet },
+};
+
+export default function AvanaAudit({ tab, logs, activity, tenants, filters }: AuditProps) {
+    const meta = tab === 'changes' ? logs?.meta : activity?.meta;
     const [search, setSearch] = useState(filters.search ?? '');
     const isFirstSearch = useRef(true);
 
@@ -20,7 +26,7 @@ export default function AvanaAudit({ logs, filters }: AuditProps) {
         const timeout = setTimeout(() => {
             router.get(
                 window.location.pathname,
-                { ...filters, search: search || undefined, page: 1 },
+                { ...filters, tab, search: search || undefined, page: 1 },
                 { preserveState: true, preserveScroll: true, replace: true },
             );
         }, 300);
@@ -32,7 +38,7 @@ export default function AvanaAudit({ logs, filters }: AuditProps) {
     const applyFilter = (key: string, value: string) => {
         router.get(
             window.location.pathname,
-            { ...filters, [key]: value || undefined, page: 1 },
+            { ...filters, tab, [key]: value || undefined, page: 1 },
             { preserveState: true, preserveScroll: true, replace: true },
         );
     };
@@ -40,8 +46,20 @@ export default function AvanaAudit({ logs, filters }: AuditProps) {
     const goToPage = (page: number) => {
         router.get(
             window.location.pathname,
-            { ...filters, page },
+            { ...filters, tab, page },
             { preserveState: true, preserveScroll: true },
+        );
+    };
+
+    const switchTab = (nextTab: AuditTab) => {
+        if (nextTab === tab) {
+            return;
+        }
+
+        router.get(
+            window.location.pathname,
+            { tenant_id: filters.tenant_id ?? undefined, tab: nextTab, page: 1 },
+            { preserveScroll: true },
         );
     };
 
@@ -77,9 +95,49 @@ export default function AvanaAudit({ logs, filters }: AuditProps) {
                         Audit Trail
                     </h1>
                     <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>
-                        Catatan perubahan data sensitif: karyawan, payroll,
-                        cuti, peran, pengguna &amp; tenant
+                        Catatan perubahan data sensitif dan aktivitas pengguna
+                        {tenants.length > 0 ? ' di seluruh tenant' : ' di tenant Anda'}
                     </div>
+                </div>
+
+                {/* Tabs */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                    {(Object.keys(TAB_META) as AuditTab[]).map((key) => {
+                        const isActive = key === tab;
+                        const meta_ = TAB_META[key];
+
+                        return (
+                            <button
+                                key={key}
+                                onClick={() => switchTab(key)}
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 7,
+                                    height: 38,
+                                    padding: '0 16px',
+                                    borderRadius: 9,
+                                    border: 'none',
+                                    fontSize: 13.5,
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    color: isActive ? '#fff' : meta_.color,
+                                    background: isActive
+                                        ? meta_.color
+                                        : meta_.color === C.primary
+                                          ? 'rgba(47,84,201,.1)'
+                                          : 'rgba(124,58,237,.1)',
+                                    boxShadow: isActive
+                                        ? '0 2px 6px rgba(15,23,42,.14)'
+                                        : 'none',
+                                    transition: '.15s',
+                                }}
+                            >
+                                <AIcon name={meta_.icon} size={15} />
+                                {meta_.label}
+                            </button>
+                        );
+                    })}
                 </div>
 
                 {/* Table card */}
@@ -124,10 +182,12 @@ export default function AvanaAudit({ logs, filters }: AuditProps) {
                             />
                             <input
                                 value={search}
-                                onChange={(event) =>
-                                    setSearch(event.target.value)
+                                onChange={(event) => setSearch(event.target.value)}
+                                placeholder={
+                                    tab === 'changes'
+                                        ? 'Cari entitas atau aksi…'
+                                        : 'Cari keterangan atau halaman…'
                                 }
-                                placeholder="Cari entitas atau aksi…"
                                 style={{
                                     width: '100%',
                                     height: 38,
@@ -141,27 +201,65 @@ export default function AvanaAudit({ logs, filters }: AuditProps) {
                                 }}
                             />
                         </div>
-                        <select
-                            aria-label="Aksi"
-                            value={filters.action ?? ''}
-                            onChange={(event) =>
-                                applyFilter('action', event.target.value)
-                            }
-                            style={filterSelectStyle}
-                        >
-                            <option value="">Semua Aksi</option>
-                            <option value="created">Dibuat</option>
-                            <option value="updated">Diubah</option>
-                            <option value="deleted">Dihapus</option>
-                        </select>
+
+                        {tab === 'changes' ? (
+                            <select
+                                aria-label="Aksi"
+                                value={filters.action ?? ''}
+                                onChange={(event) => applyFilter('action', event.target.value)}
+                                style={filterSelectStyle}
+                            >
+                                <option value="">Semua Aksi</option>
+                                <option value="created">Dibuat</option>
+                                <option value="updated">Diubah</option>
+                                <option value="deleted">Dihapus</option>
+                            </select>
+                        ) : (
+                            <select
+                                aria-label="Aktivitas"
+                                value={filters.event ?? ''}
+                                onChange={(event) => applyFilter('event', event.target.value)}
+                                style={filterSelectStyle}
+                            >
+                                <option value="">Semua Aktivitas</option>
+                                <option value="login">Masuk</option>
+                                <option value="logout">Keluar</option>
+                                <option value="login_failed">Login Gagal</option>
+                                <option value="page_view">Buka Halaman</option>
+                                <option value="data_created">Buat Data</option>
+                                <option value="data_updated">Ubah Data</option>
+                                <option value="data_deleted">Hapus Data</option>
+                            </select>
+                        )}
+
+                        {tenants.length > 0 && (
+                            <select
+                                aria-label="Tenant"
+                                value={filters.tenant_id ?? ''}
+                                onChange={(event) => applyFilter('tenant_id', event.target.value)}
+                                style={filterSelectStyle}
+                            >
+                                <option value="">Semua Tenant</option>
+                                {tenants.map((option) => (
+                                    <option key={option.id} value={option.id}>
+                                        {option.name}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
+
                         <div style={{ flex: 1 }} />
                     </div>
 
                     {/* Table */}
-                    <AuditTable rows={logs.data} />
+                    {tab === 'changes' ? (
+                        <AuditTable rows={logs?.data ?? []} />
+                    ) : (
+                        <ActivityTable rows={activity?.data ?? []} />
+                    )}
 
                     {/* Pagination footer */}
-                    <Pagination meta={meta} onGoToPage={goToPage} />
+                    {meta && <Pagination meta={meta} onGoToPage={goToPage} />}
                 </div>
             </div>
         </>

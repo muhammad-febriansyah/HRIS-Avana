@@ -2,8 +2,11 @@
 
 namespace App\Providers;
 
+use App\Concerns\Auditable;
+use App\Http\Middleware\LogPageActivity;
 use App\Models\Announcement;
 use App\Models\AttendanceCorrection;
+use App\Models\AuditLog;
 use App\Models\DataChangeRequest;
 use App\Models\DutyTravel;
 use App\Models\Employee;
@@ -28,11 +31,16 @@ use App\Observers\RequestDecisionObserver;
 use App\Observers\SubscriptionObserver;
 use App\Observers\TenantObserver;
 use App\Policies\PayrollPolicy;
+use App\Services\ActivityLogger;
 use App\Support\GeneratedImageBag;
 use App\Support\SubscriptionStatusCache;
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Events\Failed;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -66,6 +74,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
         $this->registerPolicies();
         $this->registerNotificationObservers();
+        $this->registerActivityLogging();
         $this->shareBranding();
         $this->renderErrorsWithInertia();
     }
@@ -136,6 +145,56 @@ class AppServiceProvider extends ServiceProvider
         Invoice::observe(InvoiceObserver::class);
         Subscription::observe(SubscriptionObserver::class);
         Tenant::observe(TenantObserver::class);
+    }
+
+    /**
+     * Feed the "Aktivitas" tab of the audit trail: authentication events
+     * straight from Fortify's Login/Logout/Failed events, and data changes
+     * mirrored from whatever {@see Auditable} just wrote (page
+     * visits are logged separately, by {@see LogPageActivity}).
+     */
+    protected function registerActivityLogging(): void
+    {
+        Event::listen(Login::class, function (Login $event): void {
+            /** @var User $user */
+            $user = $event->user;
+
+            ActivityLogger::log('login', "{$user->name} masuk ke sistem", user: $user);
+        });
+
+        Event::listen(Logout::class, function (Logout $event): void {
+            /** @var User|null $user */
+            $user = $event->user;
+
+            if ($user === null) {
+                return;
+            }
+
+            ActivityLogger::log('logout', "{$user->name} keluar dari sistem", user: $user);
+        });
+
+        Event::listen(Failed::class, function (Failed $event): void {
+            $email = $event->credentials['email'] ?? null;
+
+            ActivityLogger::log(
+                'login_failed',
+                'Percobaan login gagal'.($email ? " untuk {$email}" : ''),
+                user: null,
+            );
+        });
+
+        AuditLog::created(function (AuditLog $log): void {
+            $labels = ['created' => 'membuat', 'updated' => 'mengubah', 'deleted' => 'menghapus'];
+            $verb = $labels[$log->action] ?? $log->action;
+            $entity = class_basename((string) $log->auditable_type);
+
+            ActivityLogger::log(
+                'data_'.$log->action,
+                "{$verb} data {$entity} #{$log->auditable_id}",
+                properties: ['auditable_type' => $log->auditable_type, 'auditable_id' => $log->auditable_id],
+                user: $log->user,
+            );
+        });
     }
 
     /**

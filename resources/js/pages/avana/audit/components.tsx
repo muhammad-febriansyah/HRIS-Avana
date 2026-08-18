@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { AIcon, C } from '@/lib/avana';
-import type { AuditRow, PaginationMeta } from './types';
+import type { ActivityRow, AuditRow, PaginationMeta } from './types';
 
 /* ---------- shared presentational helpers for the audit page ---------- */
 
@@ -37,6 +37,33 @@ export function actionBadge(action: AuditRow['action']): {
                 color: C.primary,
                 bg: 'rgba(47,84,201,.1)',
             };
+    }
+}
+
+/** Visual treatment for each activity event. */
+export function activityBadge(event: ActivityRow['event']): {
+    label: string;
+    color: string;
+    bg: string;
+    icon: string;
+} {
+    switch (event) {
+        case 'login':
+            return { label: 'Masuk', color: C.green, bg: 'rgba(22,163,74,.1)', icon: 'log-in' };
+        case 'logout':
+            return { label: 'Keluar', color: C.muted, bg: 'rgba(107,114,128,.12)', icon: 'log-out' };
+        case 'login_failed':
+            return { label: 'Login Gagal', color: C.red, bg: 'rgba(220,38,38,.1)', icon: 'shield-alert' };
+        case 'page_view':
+            return { label: 'Buka Halaman', color: C.sky, bg: 'rgba(110,155,230,.14)', icon: 'eye' };
+        case 'data_created':
+            return { label: 'Buat Data', color: C.green, bg: 'rgba(22,163,74,.1)', icon: 'circle-plus' };
+        case 'data_updated':
+            return { label: 'Ubah Data', color: C.primary, bg: 'rgba(47,84,201,.1)', icon: 'pencil' };
+        case 'data_deleted':
+            return { label: 'Hapus Data', color: C.red, bg: 'rgba(220,38,38,.1)', icon: 'trash-2' };
+        default:
+            return { label: event, color: C.violet, bg: 'rgba(124,58,237,.1)', icon: 'activity' };
     }
 }
 

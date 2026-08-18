@@ -4,10 +4,13 @@ namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\Tenant;
 use App\Models\User;
+use App\Models\UserActivityLog;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -29,6 +32,14 @@ class AuditController extends Controller
     private const ACTIONS = ['created', 'updated', 'deleted'];
 
     /**
+     * Valid activity events, used to validate the event filter on the
+     * "Aktivitas" tab.
+     *
+     * @var array<int, string>
+     */
+    private const EVENTS = ['login', 'logout', 'login_failed', 'page_view', 'data_created', 'data_updated', 'data_deleted'];
+
+    /**
      * Page-size choices offered to the user.
      *
      * @var array<int, int>
@@ -44,24 +55,55 @@ class AuditController extends Controller
     private const LABEL_KEYS = ['full_name', 'name', 'company_name', 'title', 'reason', 'code', 'employee_number', 'email'];
 
     /**
-     * Render the tenant-scoped, paginated audit trail.
+     * Render the audit trail: a "Perubahan Data" tab (data changes) and an
+     * "Aktivitas" tab (login/logout/page-view/data-change activity), each
+     * scoped to every tenant for a super admin and to just their own for a
+     * tenant user.
      */
     public function index(Request $request): Response
     {
         $this->ensureCanViewAudit($request);
 
-        $tenantId = $request->user()->tenant_id;
-
-        $search = trim((string) $request->query('search', '')) ?: null;
-        $action = in_array($request->query('action'), self::ACTIONS, true)
-            ? $request->query('action')
+        /** @var User $user */
+        $user = $request->user();
+        $tab = $request->query('tab') === 'activity' ? 'activity' : 'changes';
+        $tenantFilter = $user->isSuperAdmin() && $request->filled('tenant_id')
+            ? (int) $request->query('tenant_id')
             : null;
+
         $perPage = in_array((int) $request->query('per_page'), self::PER_PAGE, true)
             ? (int) $request->query('per_page')
             : 15;
 
+        return Inertia::render('avana/audit/index', [
+            'tab' => $tab,
+            'logs' => fn () => $tab === 'changes' ? $this->changesData($request, $user, $tenantFilter, $perPage) : null,
+            'activity' => fn () => $tab === 'activity' ? $this->activityData($request, $user, $tenantFilter, $perPage) : null,
+            'tenants' => fn () => $user->isSuperAdmin() ? Tenant::query()->orderBy('name')->get(['id', 'name']) : [],
+            'filters' => [
+                'search' => trim((string) $request->query('search', '')) ?: null,
+                'action' => in_array($request->query('action'), self::ACTIONS, true) ? $request->query('action') : null,
+                'event' => in_array($request->query('event'), self::EVENTS, true) ? $request->query('event') : null,
+                'tenant_id' => $tenantFilter,
+                'per_page' => (string) $perPage,
+            ],
+        ]);
+    }
+
+    /**
+     * Data-change tab payload: the existing paginated `audit_logs` view.
+     *
+     * @return array<string, mixed>
+     */
+    private function changesData(Request $request, User $user, ?int $tenantFilter, int $perPage): array
+    {
+        $search = trim((string) $request->query('search', '')) ?: null;
+        $action = in_array($request->query('action'), self::ACTIONS, true)
+            ? $request->query('action')
+            : null;
+
         $logs = AuditLog::query()
-            ->forTenant($tenantId)
+            ->forViewer($user, $tenantFilter)
             ->with('user:id,name')
             ->when($search !== null, function ($query) use ($search): void {
                 $query->where(function ($inner) use ($search): void {
@@ -77,28 +119,73 @@ class AuditController extends Controller
 
         $labels = $this->resolveLabels($logs->getCollection());
 
-        $rows = $logs->getCollection()
-            ->map(fn (AuditLog $log): array => $this->transform($log, $labels))
-            ->all();
+        return [
+            'data' => $logs->getCollection()
+                ->map(fn (AuditLog $log): array => $this->transform($log, $labels))
+                ->all(),
+            'meta' => $this->meta($logs),
+        ];
+    }
 
-        return Inertia::render('avana/audit/index', [
-            'logs' => [
-                'data' => $rows,
-                'meta' => [
-                    'current_page' => $logs->currentPage(),
-                    'last_page' => $logs->lastPage(),
-                    'per_page' => $logs->perPage(),
-                    'total' => $logs->total(),
-                    'from' => $logs->firstItem(),
-                    'to' => $logs->lastItem(),
-                ],
-            ],
-            'filters' => [
-                'search' => $search,
-                'action' => $action,
-                'per_page' => (string) $perPage,
-            ],
-        ]);
+    /**
+     * Activity tab payload: logins, page visits, and mirrored data changes
+     * from `user_activity_logs`.
+     *
+     * @return array<string, mixed>
+     */
+    private function activityData(Request $request, User $user, ?int $tenantFilter, int $perPage): array
+    {
+        $search = trim((string) $request->query('search', '')) ?: null;
+        $event = in_array($request->query('event'), self::EVENTS, true)
+            ? $request->query('event')
+            : null;
+
+        $logs = UserActivityLog::query()
+            ->forViewer($user, $tenantFilter)
+            ->with('user:id,name')
+            ->when($search !== null, function ($query) use ($search): void {
+                $query->where(function ($inner) use ($search): void {
+                    $inner->where('description', 'like', "%{$search}%")
+                        ->orWhere('path', 'like', "%{$search}%");
+                });
+            })
+            ->when($event !== null, fn ($query) => $query->where('event', $event))
+            ->latest('created_at')
+            ->latest('id')
+            ->paginate($perPage)
+            ->withQueryString();
+
+        return [
+            'data' => $logs->getCollection()
+                ->map(fn (UserActivityLog $log): array => [
+                    'id' => $log->id,
+                    'event' => $log->event,
+                    'description' => $log->description,
+                    'user' => $log->user?->name,
+                    'ip_address' => $log->ip_address,
+                    'path' => $log->path,
+                    'created_at' => $log->created_at?->format('d M Y, H:i'),
+                ])
+                ->all(),
+            'meta' => $this->meta($logs),
+        ];
+    }
+
+    /**
+     * Shape a paginator's meta block, shared by both tabs.
+     *
+     * @return array<string, int|null>
+     */
+    private function meta(LengthAwarePaginator $paginator): array
+    {
+        return [
+            'current_page' => $paginator->currentPage(),
+            'last_page' => $paginator->lastPage(),
+            'per_page' => $paginator->perPage(),
+            'total' => $paginator->total(),
+            'from' => $paginator->firstItem(),
+            'to' => $paginator->lastItem(),
+        ];
     }
 
     /**

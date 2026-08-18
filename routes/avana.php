@@ -122,13 +122,14 @@ use App\Http\Controllers\Avana\ViewTenantController;
 use App\Http\Controllers\Avana\WebsiteSettingController;
 use App\Http\Controllers\Avana\WfhController;
 use App\Http\Middleware\EnsureAvanaAccess;
+use App\Http\Middleware\LogPageActivity;
 use Illuminate\Support\Facades\Route;
 
 /*
  * AvanaHR (authenticated). Tenant scoping is enforced inside the controllers
  * via <Model>::forTenant($request->user()->tenant_id).
  */
-Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana')->name('avana.')->group(function () {
+Route::middleware(['auth', 'verified', EnsureAvanaAccess::class, LogPageActivity::class])->prefix('avana')->name('avana.')->group(function () {
     Route::post('view-tenant', [ViewTenantController::class, 'store'])->name('view-tenant');
     Route::post('notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
     Route::post('notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
