@@ -967,6 +967,7 @@ final class AvanaDemoSeeder extends Seeder
             'delegation' => ['Delegasi Approval', 'core', ['delegation']],
             // Time & Attendance
             'attendance' => ['Attendance', 'time', ['attendance']],
+            'tracking' => ['Live Tracking', 'time', ['attendance']],
             'leave' => ['Leave', 'time', ['leave']],
             'overtime' => ['Overtime', 'time', ['overtime']],
             'wfh' => ['WFH', 'time', ['wfh']],

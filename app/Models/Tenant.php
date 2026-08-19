@@ -52,7 +52,7 @@ final class Tenant extends Model
     {
         return $this->features()
             ->where('is_enabled', true)
-            ->whereIn('feature_id', Feature::query()->where('code', $code)->select('id'))
+            ->whereIn('feature_id', Feature::query()->where('code', $code)->where('is_active', true)->select('id'))
             ->exists();
     }
 

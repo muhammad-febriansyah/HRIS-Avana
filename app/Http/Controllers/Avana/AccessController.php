@@ -189,7 +189,9 @@ class AccessController extends Controller
         // impersonated tenant has none). Drives each row's master "Aktif" switch.
         $enabledFeatureCodes = $tenant === null
             ? collect()
-            : Feature::whereIn('id', $tenant->features()->where('is_enabled', true)->pluck('feature_id'))->pluck('code');
+            : Feature::where('is_active', true)
+                ->whereIn('id', $tenant->features()->where('is_enabled', true)->pluck('feature_id'))
+                ->pluck('code');
 
         $featureNames = Feature::query()->pluck('name', 'code');
 

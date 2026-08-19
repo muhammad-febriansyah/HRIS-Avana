@@ -25,8 +25,17 @@ final class TrackingService
 
     public function __construct(private readonly DistanceService $distanceService) {}
 
-    public function startForAttendance(Attendance $attendance, Employee $employee): TrackingSession
+    /**
+     * Opens the GPS session that rides along with a clock-in. Returns null
+     * without creating anything when the tenant has switched Live Tracking
+     * off — attendance still clocks in fine, it just travels alone.
+     */
+    public function startForAttendance(Attendance $attendance, Employee $employee): ?TrackingSession
     {
+        if (! $employee->tenant->hasFeature('tracking')) {
+            return null;
+        }
+
         return DB::transaction(function () use ($attendance, $employee): TrackingSession {
             $lockedAttendance = Attendance::query()->lockForUpdate()->findOrFail($attendance->id);
 

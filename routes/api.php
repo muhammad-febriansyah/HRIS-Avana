@@ -95,8 +95,8 @@ Route::prefix('v1')->group(function (): void {
             Route::get('work-locations', [AttendanceController::class, 'workLocations']);
             Route::post('attendance/challenge', [AttendanceController::class, 'challenge']);
             Route::post('attendance/clock', [AttendanceController::class, 'clock']);
-            Route::get('tracking/active', [TrackingController::class, 'active']);
-            Route::post('tracking/locations', [TrackingController::class, 'store'])->middleware('throttle:120,1');
+            Route::get('tracking/active', [TrackingController::class, 'active'])->middleware('feature:tracking');
+            Route::post('tracking/locations', [TrackingController::class, 'store'])->middleware(['feature:tracking', 'throttle:120,1']);
             Route::get('attendance/corrections', [AttendanceCorrectionController::class, 'index']);
             Route::post('attendance/corrections', [AttendanceCorrectionController::class, 'store']);
             Route::get('schedule', [ScheduleController::class, 'index']);

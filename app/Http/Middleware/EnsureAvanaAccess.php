@@ -94,7 +94,8 @@ class EnsureAvanaAccess
         $requiredFeatures = AvanaNav::featureCodes($requirement['feature']);
 
         if ($requiredFeatures !== [] && $user->tenant_id !== null) {
-            $enabled = Feature::whereIn('id', $user->tenant?->features()->where('is_enabled', true)->pluck('feature_id') ?? collect())
+            $enabled = Feature::where('is_active', true)
+                ->whereIn('id', $user->tenant?->features()->where('is_enabled', true)->pluck('feature_id') ?? collect())
                 ->pluck('code');
 
             foreach ($requiredFeatures as $code) {

@@ -55,6 +55,7 @@ final class FeatureGate
         // Deliberately not memoised: a stale set would keep a switched-off
         // module reachable, and the query is one indexed read on a short table.
         return Feature::query()
+            ->where('is_active', true)
             ->whereIn('id', $tenant->features()->where('is_enabled', true)->select('feature_id'))
             ->pluck('code');
     }

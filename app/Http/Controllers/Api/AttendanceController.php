@@ -561,7 +561,7 @@ class AttendanceController extends Controller
             'data' => [
                 ...$this->todayShape($attendance),
                 'attendance_id' => $attendance->id,
-                'tracking_session_id' => $trackingSession->id,
+                'tracking_session_id' => $trackingSession?->id,
                 'tracking' => $this->trackingService->sessionShape($trackingSession),
             ],
         ]);
