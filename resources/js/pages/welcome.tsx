@@ -1,22 +1,19 @@
 import { Head, usePage } from '@inertiajs/react';
-import { AiAssistantSection } from '@/components/marketing/ai-assistant-section';
-import { AnalyticsSection } from '@/components/marketing/analytics-section';
-import { ApprovalSection } from '@/components/marketing/approval-section';
-import { ControlSection } from '@/components/marketing/control-section';
-import { EmployeeJourney } from '@/components/marketing/employee-journey';
-import { FaqSection } from '@/components/marketing/faq-section';
+import { AiInsightSection } from '@/components/marketing/ai-insight-section';
+import { BottomCta } from '@/components/marketing/bottom-cta';
 import { FinalCta } from '@/components/marketing/final-cta';
+import { FreeTrialBanner } from '@/components/marketing/free-trial-banner';
 import { HeroSection } from '@/components/marketing/hero-section';
-import { MobileSection } from '@/components/marketing/mobile-section';
-import { PayrollJourney } from '@/components/marketing/payroll-journey';
-import { PlatformComparison } from '@/components/marketing/platform-comparison';
+import { ImplementationSection } from '@/components/marketing/implementation-section';
+import { ModulesSection } from '@/components/marketing/modules-section';
+import { PricingSection } from '@/components/marketing/pricing-section';
 import { ProblemSection } from '@/components/marketing/problem-section';
-import { ProductTour } from '@/components/marketing/product-tour';
-import { RoleSection } from '@/components/marketing/role-section';
+import { ProductDemoSection } from '@/components/marketing/product-demo-section';
+import { ProofSection } from '@/components/marketing/proof-section';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { SiteNavbar } from '@/components/marketing/site-navbar';
-import { SolutionBento } from '@/components/marketing/solution-bento';
-import { TalentSection } from '@/components/marketing/talent-section';
+import { SolutionSection } from '@/components/marketing/solution-section';
+import { TrustStrip } from '@/components/marketing/trust-strip';
 import { WhatsAppFab } from '@/components/marketing/whatsapp-fab';
 
 const DESCRIPTION =
@@ -58,23 +55,20 @@ export default function Welcome() {
 
                 <main>
                     <HeroSection />
+                    <TrustStrip />
                     <ProblemSection />
-                    <EmployeeJourney />
-                    <SolutionBento />
-                    <PayrollJourney />
-                    <ApprovalSection />
-                    <TalentSection />
-                    <AnalyticsSection />
-                    <AiAssistantSection />
-                    <MobileSection />
-                    <RoleSection />
-                    <PlatformComparison brand={brand} logo={logo} />
-                    <ControlSection />
-                    <ProductTour />
-                    <FaqSection />
+                    <SolutionSection />
+                    <ModulesSection />
+                    <AiInsightSection />
+                    <ProductDemoSection />
+                    <ProofSection />
+                    <ImplementationSection />
+                    <PricingSection />
+                    <FreeTrialBanner />
                     <FinalCta />
                 </main>
 
+                <BottomCta />
                 <SiteFooter brand={brand} logo={logo} />
 
                 <WhatsAppFab />

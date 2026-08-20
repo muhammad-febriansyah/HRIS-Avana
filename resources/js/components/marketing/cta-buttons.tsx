@@ -61,10 +61,13 @@ export function DemoButton({
     variant = 'primary',
     className,
     withArrow = true,
+    children = 'Jadwalkan Demo',
 }: {
     variant?: Variant;
     className?: string;
     withArrow?: boolean;
+    /** Overrides the default "Jadwalkan Demo" label — the destination stays the same. */
+    children?: ReactNode;
 }) {
     const { demo } = useCtaTargets();
 
@@ -75,7 +78,7 @@ export function DemoButton({
             variant={variant}
             className={className}
         >
-            Jadwalkan Demo
+            {children}
             {withArrow && <ArrowRight className="h-4 w-4" aria-hidden />}
         </CtaLink>
     );

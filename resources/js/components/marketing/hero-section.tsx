@@ -1,88 +1,165 @@
-import { Sparkles } from 'lucide-react';
+import { CheckCircle2, Sparkles, Star, TrendingUp } from 'lucide-react';
 import { motion } from 'motion/react';
-import { DemoButton, TrialButton } from './cta-buttons';
-import { PriceNote } from './price-note';
+import { DemoButton } from './cta-buttons';
 import { Container, Reveal } from './reveal';
+import { useCtaTargets } from './use-cta';
+import { WhatsAppIcon } from './whatsapp-fab';
+
+const FEATURE_PILLS = [
+    'PPh 21 TER 2024 & BPJS',
+    'Live GPS Attendance',
+    'AI Workforce Intelligence',
+    'Multi-Branch Ready',
+];
+
+const REVIEWER_AVATARS = [
+    'https://ik.imagekit.io/b8izy6rik/hrd2.png',
+    'https://ik.imagekit.io/b8izy6rik/hrd3.png',
+    'https://ik.imagekit.io/b8izy6rik/hrd4.png',
+    'https://ik.imagekit.io/b8izy6rik/hrd1.png',
+];
 
 /**
- * Hero — copy on the left, product visual on the right.
- *
- * The visual is a screenshot of the real dashboard, captured from the demo
- * tenant with names, e-mails and the tenant logo replaced (see
- * `public/avana/landing/screenshots/`). It ships with its own browser chrome
- * here so it reads as an application window.
+ * Hero — copy on the left, a large product/people visual on the right with
+ * floating stat badges. Ported 1:1 from the AvanaHR reference site (copy,
+ * gradient wash, floating cards); CTAs stay wired to the real product
+ * destinations (DemoButton, WhatsApp).
  */
 export function HeroSection() {
+    const { whatsappWith } = useCtaTargets();
+    const whatsappHref = whatsappWith(
+        'Halo AvanaHR, saya ingin mengetahui lebih lanjut mengenai platform HRIS AvanaHR.',
+    );
+
     return (
-        <section className="relative -mt-[68px] overflow-hidden pt-[68px] lg:-mt-20 lg:pt-20">
-            {/* Backdrop: soft brand wash + faint grid, both decorative. */}
+        <section
+            id="hero"
+            className="relative -mt-[68px] overflow-hidden pt-[68px] lg:-mt-20 lg:pt-20"
+        >
+            {/* Backdrop: gradient wash + soft radial blobs, all decorative. */}
             <div
                 aria-hidden
-                className="pointer-events-none absolute inset-x-0 -top-24 h-[780px] bg-[radial-gradient(70%_60%_at_12%_18%,rgba(47,84,201,0.10),transparent_70%),radial-gradient(48%_46%_at_88%_8%,rgba(110,155,230,0.16),transparent_70%)]"
+                className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(135deg,#EAF0FF_0%,#F4F7FC_45%,#DDEAFF_100%)]"
             />
             <div
                 aria-hidden
-                className="pointer-events-none absolute inset-x-0 -top-20 h-[720px] [mask-image:linear-gradient(to_bottom,black,transparent_78%)]"
-                style={{
-                    backgroundImage:
-                        'linear-gradient(to right, rgba(14,26,58,0.035) 1px, transparent 1px), linear-gradient(to bottom, rgba(14,26,58,0.035) 1px, transparent 1px)',
-                    backgroundSize: '52px 52px',
-                }}
+                className="pointer-events-none absolute top-0 right-0 -z-10 h-[800px] w-[800px] -translate-y-[30%] translate-x-[30%] rounded-full bg-[radial-gradient(circle,rgba(49,95,212,0.12)_0%,transparent_70%)]"
+            />
+            <div
+                aria-hidden
+                className="pointer-events-none absolute bottom-0 left-0 -z-10 h-[600px] w-[600px] -translate-x-[30%] translate-y-[30%] rounded-full bg-[radial-gradient(circle,rgba(16,42,92,0.06)_0%,transparent_70%)]"
             />
 
             <Container className="relative pt-12 pb-14 sm:pt-16 lg:pt-20 lg:pb-20">
                 <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-14">
                     <div className="text-center lg:text-left">
                         <Reveal>
-                            <p className="inline-flex items-center gap-2 rounded-full border border-[#DDE5F5] bg-white/80 py-1.5 pr-4 pl-2 text-[12.5px] font-semibold text-[#2F54C9] shadow-soft backdrop-blur sm:text-[13px]">
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#2F54C9] px-2 py-1 text-[10.5px] font-bold tracking-[0.06em] text-white uppercase">
-                                    <Sparkles className="h-3 w-3" aria-hidden />
-                                    AvanaHR
-                                </span>
-                                Manage People. Simplify HR. Empower Your People.
+                            <p className="inline-flex items-center gap-2 rounded-full border border-[#DDE5F5] bg-white/80 px-4 py-2 text-xs font-semibold tracking-wide text-avana-navy shadow-avana-subtle backdrop-blur sm:text-sm">
+                                <Sparkles
+                                    className="h-4 w-4 shrink-0 text-avana-blue"
+                                    aria-hidden
+                                />
+                                <span>AI-NATIVE HR &amp; WORKFORCE PLATFORM</span>
                             </p>
                         </Reveal>
 
                         <Reveal delay={0.05}>
-                            <h1 className="mt-5 text-[32px] leading-[1.14] font-bold tracking-[-0.025em] text-[#0E1A3A] sm:text-[38px] lg:text-[36px] xl:text-[40px]">
-                                <span className="block">
-                                    HR Lebih Sederhana.
-                                </span>
-                                <span className="block">
-                                    Karyawan Lebih Terlayani.
-                                </span>
-                                <span className="block text-[#2F54C9]">
-                                    Bisnis Lebih Terkendali.
+                            <h1 className="mt-5 text-4xl leading-[1.08] font-bold tracking-tight text-avana-navy sm:text-5xl lg:text-[62px]">
+                                HR Tidak Cukup <br />
+                                <span className="text-avana-blue">
+                                    Hanya Punya Data.
                                 </span>
                             </h1>
                         </Reveal>
 
                         <Reveal delay={0.1}>
-                            <p className="mx-auto mt-6 max-w-xl text-[15.5px] leading-relaxed text-pretty text-[#5B6478] sm:text-[17px] lg:mx-0">
-                                AvanaHR menyatukan HR Management, Attendance,
-                                Payroll, Finance, Talent Management, Employee
-                                Self Service, hingga Analytics dalam satu
-                                platform.
+                            <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-avana-text sm:text-xl lg:mx-0">
+                                Hubungkan proses HR, data workforce, analytics,
+                                dan AI dalam satu platform — bantu tim HR Anda
+                                memahami kondisi tenaga kerja dan mengambil
+                                keputusan lebih baik.
                             </p>
                         </Reveal>
 
-                        <Reveal delay={0.15}>
-                            <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
-                                <DemoButton className="w-full sm:w-auto" />
-                                <TrialButton className="w-full sm:w-auto" />
+                        <Reveal delay={0.13}>
+                            <div className="mt-6 flex flex-wrap justify-center gap-2 text-xs font-semibold lg:justify-start">
+                                {FEATURE_PILLS.map((feature) => (
+                                    <span
+                                        key={feature}
+                                        className="inline-flex items-center gap-1.5 rounded-full border border-avana-border bg-white/80 px-3 py-1.5 text-avana-navy shadow-avana-subtle"
+                                    >
+                                        <CheckCircle2
+                                            className="h-3.5 w-3.5 shrink-0 text-emerald-500"
+                                            aria-hidden
+                                        />
+                                        {feature}
+                                    </span>
+                                ))}
                             </div>
                         </Reveal>
 
-                        <Reveal delay={0.2}>
-                            <div className="mt-4 flex justify-center lg:-ml-3.5 lg:justify-start">
-                                <PriceNote />
+                        <Reveal delay={0.18}>
+                            <div className="mt-6 flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row lg:justify-start">
+                                <DemoButton
+                                    className="w-full sm:w-auto"
+                                    withArrow
+                                >
+                                    Lihat Demo AvanaHR
+                                </DemoButton>
+                                {whatsappHref && (
+                                    <a
+                                        href={whatsappHref}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex h-11 w-full items-center justify-center gap-2.5 rounded-full border border-avana-border bg-white/90 px-7 text-[15px] font-semibold text-avana-navy shadow-avana-subtle backdrop-blur transition-colors duration-200 hover:border-[#25D366] hover:bg-white sm:h-12 sm:w-auto"
+                                    >
+                                        <WhatsAppIcon className="h-5 w-5 text-[#25D366]" />
+                                        Chat dengan AvanaHR
+                                    </a>
+                                )}
+                            </div>
+                        </Reveal>
+
+                        <Reveal delay={0.22}>
+                            <div className="mt-6 flex flex-col items-center gap-4 border-t border-avana-border/40 pt-4 sm:flex-row sm:justify-center lg:justify-start">
+                                <div className="flex -space-x-2">
+                                    {REVIEWER_AVATARS.map((src, i) => (
+                                        <img
+                                            key={src}
+                                            src={src}
+                                            alt={`HR Profesional Indonesia ${i + 1}`}
+                                            loading="lazy"
+                                            className="inline-block h-9 w-9 rounded-full object-cover ring-2 ring-white"
+                                        />
+                                    ))}
+                                </div>
+                                <div className="flex flex-col items-center sm:items-start">
+                                    <div className="flex items-center gap-0.5 text-amber-400">
+                                        {Array.from({ length: 5 }).map(
+                                            (_, i) => (
+                                                <Star
+                                                    key={i}
+                                                    className="h-3.5 w-3.5 fill-current"
+                                                    aria-hidden
+                                                />
+                                            ),
+                                        )}
+                                        <span className="ml-2 text-xs font-bold text-avana-navy">
+                                            Platform HR Modern Indonesia
+                                        </span>
+                                    </div>
+                                    <p className="mt-0.5 text-[11px] text-avana-muted">
+                                        Dirancang khusus untuk manajemen &amp;
+                                        tim HR di Indonesia
+                                    </p>
+                                </div>
                             </div>
                         </Reveal>
                     </div>
 
                     <motion.div
                         data-reveal
-                        className="relative lg:-mr-10 xl:-mr-20"
+                        className="relative flex items-end justify-center lg:-mr-10 lg:self-end xl:-mr-16"
                         initial={{ opacity: 0, y: 28 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{
@@ -93,34 +170,58 @@ export function HeroSection() {
                     >
                         <div
                             aria-hidden
-                            className="pointer-events-none absolute inset-x-8 top-10 bottom-8 rounded-[2rem] bg-[radial-gradient(60%_50%_at_50%_50%,rgba(47,84,201,0.16),transparent)] blur-2xl"
+                            className="pointer-events-none absolute bottom-0 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(49,95,212,0.15)_0%,transparent_70%)] sm:h-[520px] sm:w-[520px]"
                         />
-                        <figure className="overflow-hidden rounded-2xl border border-[#E1E7F2] bg-white shadow-frame">
-                            <div className="flex items-center gap-2 border-b border-[#F0F3F9] bg-[#FAFBFE] px-4 py-3">
-                                {[0, 1, 2].map((dot) => (
-                                    <span
-                                        key={dot}
-                                        aria-hidden
-                                        className="h-2.5 w-2.5 rounded-full bg-[#E4E9F2]"
-                                    />
-                                ))}
-                                <span className="mx-auto hidden h-6 w-full max-w-[240px] items-center justify-center rounded-md border border-[#EDF1F7] bg-white text-[10px] text-[#9CA3AF] sm:flex">
-                                    Dashboard HR
-                                </span>
+
+                        <img
+                            src="/avana/landing/images/22.png"
+                            alt="Tim Profesional HR Indonesia — AvanaHR"
+                            className="relative z-10 block w-full max-w-[520px] object-contain object-bottom select-none sm:max-w-[620px]"
+                            style={{ maxHeight: '80vh', minHeight: '260px' }}
+                            fetchPriority="high"
+                            decoding="async"
+                            draggable={false}
+                        />
+
+                        <div className="absolute top-16 right-0 z-20 flex max-w-[210px] items-center gap-3 rounded-2xl border border-avana-border bg-white/95 p-3 shadow-avana-hover backdrop-blur-sm animate-float sm:p-4 xl:-right-4">
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-avana-light text-avana-blue">
+                                <TrendingUp className="h-5 w-5" aria-hidden />
                             </div>
-                            <img
-                                src="/avana/landing/screenshots/dashboard-hero.png"
-                                alt="Dashboard HR AvanaHR: total karyawan, kehadiran, pending approval, payroll berjalan dan antrean persetujuan"
-                                width={1180}
-                                height={780}
-                                fetchPriority="high"
-                                decoding="async"
-                                className="block w-full"
-                            />
-                        </figure>
-                        <p className="mt-4 text-center text-[12px] text-[#8A93A6]">
-                            Tangkapan layar aplikasi dengan data demo.
-                        </p>
+                            <div>
+                                <div className="text-xs font-bold text-avana-navy">
+                                    Workforce Analytics
+                                </div>
+                                <div className="text-[10px] text-avana-muted">
+                                    Data terhubung 1 platform
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="absolute top-[35%] left-0 z-20 flex max-w-[210px] -translate-y-1/2 items-center gap-3 rounded-2xl border border-avana-border bg-white/95 p-3 shadow-avana-hover backdrop-blur-sm animate-float-slow sm:p-4 xl:-left-8">
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-avana-blue text-white">
+                                <Sparkles className="h-5 w-5" aria-hidden />
+                            </div>
+                            <div>
+                                <div className="text-xs font-bold text-avana-navy">
+                                    AI + Insight
+                                </div>
+                                <div className="text-[10px] text-avana-muted">
+                                    Bantu HR baca kondisi tim
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="absolute right-2 bottom-4 z-20 flex items-center gap-3 rounded-2xl border border-avana-border bg-white/95 px-4 py-3 shadow-avana-hover backdrop-blur-sm xl:-right-2">
+                            <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-emerald-500" />
+                            <div>
+                                <div className="text-xs font-extrabold text-avana-navy">
+                                    Payroll &amp; TER PPh 21
+                                </div>
+                                <div className="text-[10px] font-semibold text-emerald-600">
+                                    100% Otomatis &amp; Akurat
+                                </div>
+                            </div>
+                        </div>
                     </motion.div>
                 </div>
             </Container>

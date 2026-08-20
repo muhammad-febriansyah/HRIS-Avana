@@ -22,11 +22,10 @@ import type { ComponentType } from 'react';
 
 export type Icon = ComponentType<{ className?: string }>;
 
-export const NAV_ITEMS: { name: string; link: string }[] = [
-    { name: 'Home', link: '#top' },
-    { name: 'Platform', link: '#platform' },
-    { name: 'Solusi', link: '#solusi' },
-    { name: 'FAQ', link: '#faq' },
+export const NAV_ITEMS: { name: string; link: string; badge?: string }[] = [
+    { name: 'Produk & Modul', link: '#platform' },
+    { name: 'Solusi Terpadu', link: '#solusi' },
+    { name: 'AI & Analytics', link: '#ai', badge: 'Native' },
 ];
 
 /**
@@ -34,12 +33,10 @@ export const NAV_ITEMS: { name: string; link: string }[] = [
  * dropped from the top bar stay reachable down here.
  */
 export const FOOTER_EXPLORE: { name: string; link: string }[] = [
-    { name: 'Platform', link: '#platform' },
-    { name: 'Solusi', link: '#solusi' },
-    { name: 'Payroll', link: '#payroll' },
-    { name: 'Talenta', link: '#talenta' },
-    { name: 'Analitik', link: '#analitik' },
-    { name: 'FAQ', link: '#faq' },
+    { name: 'Produk & Modul', link: '#platform' },
+    { name: 'Solusi Terpadu', link: '#solusi' },
+    { name: 'AI & Analytics', link: '#ai' },
+    { name: 'Harga', link: '#harga' },
 ];
 
 /**
@@ -511,8 +508,7 @@ export const FAQS: Faq[] = [
 export const FOOTER_PRODUCT: { label: string; href: string }[] = [
     { label: 'HR Management', href: '#solusi' },
     { label: 'Attendance', href: '#platform' },
-    { label: 'Payroll', href: '#payroll' },
-    { label: 'Talent', href: '#talenta' },
-    { label: 'Analytics', href: '#analitik' },
+    { label: 'Payroll & Finance', href: '#platform' },
+    { label: 'Talent Management', href: '#platform' },
     { label: 'AI Assistant', href: '#ai' },
 ];
