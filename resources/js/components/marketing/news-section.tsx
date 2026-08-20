@@ -29,7 +29,7 @@ function formatDate(value: string | null): string | null {
 
 /**
  * Latest published articles from the news/berita CMS (`App\Models\News`),
- * shown as a 3-column card grid. Renders nothing when there's no published
+ * shown as an even 3-card grid. Renders nothing when there's no published
  * article yet — never shows an empty section on a fresh install.
  */
 export function NewsSection({ news }: { news: NewsItem[] }) {
@@ -37,7 +37,7 @@ export function NewsSection({ news }: { news: NewsItem[] }) {
         return null;
     }
 
-    const [featured, ...rest] = news;
+    const items = news.slice(0, 3);
 
     return (
         <section
@@ -64,67 +64,14 @@ export function NewsSection({ news }: { news: NewsItem[] }) {
                     </Reveal>
                 </div>
 
-                <div className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-3">
-                    <Reveal delay={0.05} className="lg:col-span-2 lg:row-span-2">
-                        <Link
-                            href={`/berita/${featured.slug}`}
-                            className="group flex h-full flex-col overflow-hidden rounded-3xl border border-avana-border bg-white shadow-avana-card transition-shadow duration-300 hover:shadow-avana-hover"
-                        >
-                            <div className="relative aspect-[16/9] w-full overflow-hidden bg-avana-soft lg:aspect-[16/10]">
-                                {featured.image_url ? (
-                                    <img
-                                        src={featured.image_url}
-                                        alt={featured.title}
-                                        loading="lazy"
-                                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                    />
-                                ) : (
-                                    <div className="flex h-full w-full items-center justify-center text-avana-muted">
-                                        AvanaHR
-                                    </div>
-                                )}
-                                {featured.category && (
-                                    <span className="absolute top-4 left-4 rounded-full bg-avana-navy/90 px-3 py-1 text-[11px] font-bold tracking-wide text-white uppercase backdrop-blur">
-                                        {featured.category}
-                                    </span>
-                                )}
-                            </div>
-                            <div className="flex flex-1 flex-col p-6 sm:p-7">
-                                {formatDate(featured.published_at) && (
-                                    <span className="flex items-center gap-1.5 text-xs font-medium text-avana-muted">
-                                        <CalendarDays
-                                            className="h-3.5 w-3.5"
-                                            aria-hidden
-                                        />
-                                        {formatDate(featured.published_at)}
-                                    </span>
-                                )}
-                                <h3 className="mt-3 text-xl leading-snug font-bold text-avana-navy transition-colors group-hover:text-avana-blue sm:text-2xl">
-                                    {featured.title}
-                                </h3>
-                                {featured.excerpt && (
-                                    <p className="mt-3 line-clamp-2 text-[14.5px] leading-relaxed text-avana-text/80 sm:text-[15px]">
-                                        {featured.excerpt}
-                                    </p>
-                                )}
-                                <span className="mt-auto inline-flex items-center gap-1.5 pt-5 text-[13.5px] font-semibold text-avana-blue">
-                                    Baca selengkapnya
-                                    <ArrowRight
-                                        className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
-                                        aria-hidden
-                                    />
-                                </span>
-                            </div>
-                        </Link>
-                    </Reveal>
-
-                    {rest.slice(0, 4).map((item, i) => (
-                        <Reveal key={item.id} delay={0.08 + i * 0.05}>
+                <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                    {items.map((item, i) => (
+                        <Reveal key={item.id} delay={i * 0.06}>
                             <Link
                                 href={`/berita/${item.slug}`}
-                                className="group flex h-full gap-4 rounded-2xl border border-avana-border bg-white p-4 shadow-sm transition-shadow duration-300 hover:shadow-lift"
+                                className="group flex h-full flex-col overflow-hidden rounded-2xl border border-avana-border bg-white shadow-sm transition-shadow duration-300 hover:shadow-lift"
                             >
-                                <div className="relative h-20 w-24 shrink-0 overflow-hidden rounded-xl bg-avana-soft sm:h-24 sm:w-28">
+                                <div className="relative aspect-[16/10] w-full overflow-hidden bg-avana-soft">
                                     {item.image_url ? (
                                         <img
                                             src={item.image_url}
@@ -133,25 +80,41 @@ export function NewsSection({ news }: { news: NewsItem[] }) {
                                             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                                         />
                                     ) : (
-                                        <div className="flex h-full w-full items-center justify-center text-[10px] text-avana-muted">
+                                        <div className="flex h-full w-full items-center justify-center text-avana-muted">
                                             AvanaHR
                                         </div>
                                     )}
-                                </div>
-                                <div className="flex min-w-0 flex-1 flex-col">
                                     {item.category && (
-                                        <span className="text-[11px] font-bold tracking-wide text-avana-blue uppercase">
+                                        <span className="absolute top-3 left-3 rounded-full bg-avana-navy/90 px-2.5 py-1 text-[10.5px] font-bold tracking-wide text-white uppercase backdrop-blur">
                                             {item.category}
                                         </span>
                                     )}
-                                    <h4 className="mt-1 line-clamp-2 text-[14px] leading-snug font-semibold text-avana-navy transition-colors group-hover:text-avana-blue sm:text-[15px]">
-                                        {item.title}
-                                    </h4>
+                                </div>
+                                <div className="flex flex-1 flex-col p-5">
                                     {formatDate(item.published_at) && (
-                                        <span className="mt-auto pt-2 text-[11.5px] text-avana-muted">
+                                        <span className="flex items-center gap-1.5 text-xs font-medium text-avana-muted">
+                                            <CalendarDays
+                                                className="h-3.5 w-3.5"
+                                                aria-hidden
+                                            />
                                             {formatDate(item.published_at)}
                                         </span>
                                     )}
+                                    <h3 className="mt-2.5 line-clamp-2 text-[16px] leading-snug font-bold text-avana-navy transition-colors group-hover:text-avana-blue">
+                                        {item.title}
+                                    </h3>
+                                    {item.excerpt && (
+                                        <p className="mt-2 line-clamp-2 text-[13.5px] leading-relaxed text-avana-text/80">
+                                            {item.excerpt}
+                                        </p>
+                                    )}
+                                    <span className="mt-auto inline-flex items-center gap-1.5 pt-4 text-[13px] font-semibold text-avana-blue">
+                                        Baca selengkapnya
+                                        <ArrowRight
+                                            className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
+                                            aria-hidden
+                                        />
+                                    </span>
                                 </div>
                             </Link>
                         </Reveal>

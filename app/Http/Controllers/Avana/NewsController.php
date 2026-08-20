@@ -33,7 +33,7 @@ class NewsController extends Controller
         }
 
         return Inertia::render('avana/berita/index', [
-            'news' => $query->paginate(9)->withQueryString()->through(fn (News $news): array => $this->transform($news)),
+            'news' => $query->paginate(6)->withQueryString()->through(fn (News $news): array => $this->transform($news)),
             'filters' => ['q' => $search],
         ]);
     }
