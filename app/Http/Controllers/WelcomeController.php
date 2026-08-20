@@ -13,7 +13,7 @@ class WelcomeController extends Controller
         $news = News::query()
             ->where('status', 'published')
             ->latestFirst()
-            ->limit(6)
+            ->limit(3)
             ->get()
             ->map(fn (News $item): array => [
                 'id' => $item->id,

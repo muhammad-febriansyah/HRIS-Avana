@@ -392,18 +392,18 @@ export default function Berita({
                                         variant="danger"
                                         onClick={() => setConfirm(item)}
                                     />
+                                    <ActionBtn
+                                        icon="eye"
+                                        label="Detail"
+                                        variant="warning"
+                                        onClick={() =>
+                                            router.visit(
+                                                NewsController.show(item.id)
+                                                    .url,
+                                            )
+                                        }
+                                    />
                                 </div>
-                                <Link
-                                    href={NewsController.show(item.id).url}
-                                    style={{
-                                        color: C.primary,
-                                        fontSize: 13,
-                                        fontWeight: 600,
-                                        textDecoration: 'none',
-                                    }}
-                                >
-                                    Baca detail →
-                                </Link>
                             </div>
                         ))}
                     </div>
