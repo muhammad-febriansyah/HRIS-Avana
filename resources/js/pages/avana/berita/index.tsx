@@ -1,6 +1,6 @@
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import type { CSSProperties, FormEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import NewsController from '@/actions/App/Http/Controllers/Avana/NewsController';
 import { RichEditor } from '@/components/avana-ui/rich-editor';
@@ -35,7 +35,6 @@ type Data = {
     image: File | null;
     remove_image: boolean;
 };
-type Flash = { flash?: { success?: string } };
 type NewsPage = {
     data: Item[];
     current_page: number;
@@ -81,16 +80,12 @@ export default function Berita({
     news: NewsPage;
     filters: { q: string };
 }) {
-    const { flash } = usePage<Flash>().props;
     const [openForm, setOpenForm] = useState(false);
     const [editing, setEditing] = useState<Item | null>(null);
     const [confirm, setConfirm] = useState<Item | null>(null);
     const [manualSlug, setManualSlug] = useState(false);
     const [search, setSearch] = useState(filters.q);
     const form = useForm<Data>(empty());
-    useEffect(() => {
-        if (flash?.success) toast.success(flash.success, { id: flash.success });
-    }, [flash?.success]);
 
     const open = (item?: Item) => {
         setEditing(item ?? null);
@@ -140,11 +135,12 @@ export default function Berita({
         );
     };
     const remove = () => {
-        if (confirm)
+        if (confirm) {
             router.delete(NewsController.destroy(confirm.id).url, {
                 preserveScroll: true,
                 onSuccess: () => setConfirm(null),
             });
+        }
     };
     const submitSearch = (event: FormEvent) => {
         event.preventDefault();
@@ -519,6 +515,7 @@ export default function Berita({
                                     onChange={(e) => {
                                         const title = e.target.value;
                                         form.setData('title', title);
+
                                         if (!manualSlug) {
                                             form.setData('slug', toSlug(title));
                                         }

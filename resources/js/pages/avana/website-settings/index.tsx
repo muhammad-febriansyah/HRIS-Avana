@@ -1,7 +1,6 @@
-import { Head, useForm, usePage } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import type { FormEvent } from 'react';
-import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
+import { useState } from 'react';
 import WebsiteSettingController from '@/actions/App/Http/Controllers/Avana/WebsiteSettingController';
 import { RichEditor } from '@/components/avana-ui/rich-editor';
 import { AIcon, btnSave, C, card } from '@/lib/avana';
@@ -12,11 +11,10 @@ import {
     textareaStyle,
     withError,
 } from './components';
-import type { FlashProps, FormData, ImageField, PageProps } from './types';
+import type { FormData, ImageField, PageProps } from './types';
 import { TABS } from './types';
 
 export default function WebsiteSettings({ settings }: PageProps) {
-    const { flash } = usePage<FlashProps>().props;
     const [tab, setTab] = useState('umum');
     const [removed, setRemoved] = useState<Record<ImageField, boolean>>({
         logo: false,
@@ -50,12 +48,6 @@ export default function WebsiteSettings({ settings }: PageProps) {
         remove_favicon: false,
         remove_og_image: false,
     });
-
-    useEffect(() => {
-        if (flash?.success) {
-            toast.success(flash.success, { id: flash.success });
-        }
-    }, [flash?.success]);
 
     const pickImage = (field: ImageField, file: File) => {
         form.setData(field, file);
