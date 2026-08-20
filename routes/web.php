@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountDeletionController;
 use App\Http\Controllers\AiTokenReturnController;
 use App\Http\Controllers\Avana\DashboardController;
 use App\Http\Controllers\PrivacyPolicyController;
@@ -30,6 +31,7 @@ Route::get('berita/{news:slug}', [PublicNewsController::class, 'show'])->name('b
  */
 Route::get('kebijakan-privasi', PrivacyPolicyController::class)->name('privacy');
 Route::get('syarat-ketentuan', TermsOfServiceController::class)->name('terms');
+Route::get('delete-account', AccountDeletionController::class)->name('account-deletion');
 
 /*
  * Public return page for a personal AI token purchase paid from the phone. The

@@ -123,6 +123,32 @@ final class WebsiteSetting extends Model
             HTML;
     }
 
+    public static function defaultAccountDeletionHtml(): string
+    {
+        return <<<'HTML'
+            <h2>Penghapusan Akun dan Data AvanaHR</h2>
+            <p>Pengguna AvanaHR dapat mengajukan permintaan penghapusan akun dan data pribadi yang terkait dengan penggunaan layanan AvanaHR.</p>
+            <h2>Cara Mengajukan Penghapusan Data</h2>
+            <p>Untuk meminta penghapusan akun atau data:</p>
+            <ol><li>Hubungi administrator atau HR perusahaan tempat Anda terdaftar di AvanaHR; atau</li><li>Kirim permintaan penghapusan data melalui kontak resmi AvanaHR yang tercantum pada website kami.</li></ol>
+            <p>Dalam permintaan tersebut, sertakan informasi yang diperlukan untuk memverifikasi akun Anda, seperti nama dan alamat email yang digunakan pada AvanaHR.</p>
+            <h2>Data yang Dapat Dihapus</h2>
+            <p>Setelah permintaan berhasil diverifikasi, data yang dapat dihapus dapat mencakup:</p>
+            <ul><li>informasi akun dan profil;</li><li>foto profil;</li><li>data perangkat terkait akun;</li><li>data atau dokumen pribadi yang tidak lagi diwajibkan untuk disimpan;</li><li>data lain yang dapat dihapus sesuai kebijakan perusahaan dan ketentuan yang berlaku.</li></ul>
+            <h2>Data yang Mungkin Tetap Disimpan</h2>
+            <p>Sebagian data terkait ketenagakerjaan dapat tetap disimpan apabila diperlukan untuk:</p>
+            <ul><li>administrasi perusahaan;</li><li>pencatatan kehadiran;</li><li>payroll dan penggajian;</li><li>perpajakan;</li><li>audit;</li><li>penyelesaian sengketa;</li><li>kewajiban hukum atau peraturan yang berlaku.</li></ul>
+            <p>Data yang tetap disimpan hanya akan dipertahankan selama diperlukan untuk tujuan tersebut dan sesuai dengan kebijakan retensi data perusahaan serta ketentuan hukum yang berlaku.</p>
+            <h2>Proses Permintaan</h2>
+            <p>Permintaan penghapusan akan ditinjau dan diverifikasi terlebih dahulu untuk melindungi akun dan data pengguna dari permintaan yang tidak sah.</p>
+            <p>Apabila akun Anda dikelola oleh perusahaan atau organisasi tempat Anda bekerja, permintaan penghapusan tertentu dapat memerlukan persetujuan atau koordinasi dengan administrator perusahaan tersebut.</p>
+            <h2>Kontak</h2>
+            <p>Untuk pertanyaan atau permintaan terkait penghapusan data AvanaHR, silakan menghubungi kami melalui informasi kontak resmi yang tersedia di:</p>
+            <p><strong>https://avanahr.id/</strong></p>
+            <p>Informasi lebih lanjut mengenai pengelolaan data dapat dilihat pada Kebijakan Privasi AvanaHR.</p>
+            HTML;
+    }
+
     /**
      * Public branding, contact and social fields shared with the frontend
      * (Inertia props) for the navbar, footer and landing page.
