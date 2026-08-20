@@ -92,12 +92,12 @@ export function TrialButton({
     variant?: Variant;
     className?: string;
 }) {
-    const { trial } = useCtaTargets();
+    const { trial, trialExternal } = useCtaTargets();
 
     return (
         <CtaLink
             href={trial}
-            external={false}
+            external={trialExternal}
             variant={variant}
             className={className}
         >

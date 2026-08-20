@@ -2,6 +2,7 @@ import { usePage } from '@inertiajs/react';
 import { login } from '@/routes';
 
 const DEMO_MESSAGE = 'Halo, saya ingin menjadwalkan demo AvanaHR.';
+const TRIAL_MESSAGE = 'Halo, saya ingin coba gratis AvanaHR.';
 
 export type CtaTargets = {
     /** "Jadwalkan Demo" — WhatsApp, then email, then the contact block in the footer. */
@@ -10,7 +11,10 @@ export type CtaTargets = {
      * "Coba Avana" — points at the login screen, not registration: self-serve
      * sign-up is not open yet, so sending visitors there would dead-end them.
      */
+    /** "Coba Gratis" href — WhatsApp with a prefilled trial message, falling back to login. */
     trial: string;
+    /** Whether `trial` points at WhatsApp (external) or the login screen. */
+    trialExternal: boolean;
     login: string;
     /** Direct WhatsApp link with the demo message, or null when no number is configured. */
     whatsapp: string | null;
@@ -36,6 +40,7 @@ export function useCtaTargets(): CtaTargets {
             : null;
 
     const whatsapp = whatsappWith(DEMO_MESSAGE);
+    const trialWhatsapp = whatsappWith(TRIAL_MESSAGE);
 
     const demo = whatsapp
         ? { href: whatsapp, external: true }
@@ -50,7 +55,8 @@ export function useCtaTargets(): CtaTargets {
 
     return {
         demo,
-        trial: login().url,
+        trial: trialWhatsapp ?? login().url,
+        trialExternal: trialWhatsapp !== null,
         login: login().url,
         whatsapp,
         whatsappWith,

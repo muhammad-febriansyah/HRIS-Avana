@@ -45,7 +45,7 @@ export const FOOTER_EXPLORE: { name: string; link: string }[] = [
  */
 export const PRICE_NOTE = {
     prefix: 'Mulai',
-    amount: 'Rp8.000',
+    amount: 'Rp5.000',
     period: 'per bulan',
 } as const;
 

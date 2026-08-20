@@ -2,8 +2,13 @@ import {
     ArrowRight,
     BarChart3,
     Check,
+    ClipboardCheck,
     Fingerprint,
+    Handshake,
+    MapPin,
+    Mic,
     Palmtree,
+    ShieldCheck,
     Sparkles,
     Target,
     UserPlus,
@@ -25,7 +30,7 @@ type Module = {
 };
 
 /**
- * The 8 concrete product modules, each with its own real screenshot — one
+ * The concrete product modules, each with its own real screenshot — one
  * level more granular than the 6 platform areas in `SolutionSection`.
  */
 const MODULES: Module[] = [
@@ -125,16 +130,94 @@ const MODULES: Module[] = [
             'Filter & export report',
         ],
     },
+    {
+        title: 'CRM',
+        icon: Handshake,
+        tagline: 'Manajemen Klien & Sales Pipeline',
+        desc: 'Kelola kontak, deal, dan pipeline penjualan dalam satu tempat, lengkap dengan aktivitas, tugas tindak lanjut, dan insight performa tim sales.',
+        screenshot: '/avana/landing/screenshots/crm.png',
+        highlights: [
+            'Pipeline deal drag & drop per tahap',
+            'Kontak & aktivitas tim sales terpusat',
+            'Insight nilai pipeline & deal won',
+        ],
+    },
+    {
+        title: 'Live Tracking',
+        icon: MapPin,
+        tagline: 'Pantau Karyawan Lapangan Real-Time',
+        desc: 'Pantau posisi karyawan lapangan secara real-time selama sesi kerja aktif, lengkap dengan rute perjalanan, jarak tempuh, dan riwayat tracking.',
+        screenshot: '/avana/landing/screenshots/live-tracking.png',
+        highlights: [
+            'Posisi live selama Clock In-Clock Out',
+            'Rute & jarak tempuh otomatis',
+            'Riwayat tracking per karyawan',
+        ],
+    },
+    {
+        title: 'Rapat & Transkrip',
+        icon: Mic,
+        tagline: 'Voice Note Rapat dengan AI',
+        desc: 'Rekam rapat dari aplikasi HP, lalu biarkan AI mengubahnya jadi transkrip, ringkasan, dan daftar tindak lanjut otomatis, tanpa perlu notulen manual.',
+        screenshot: '/avana/landing/screenshots/rapat.png',
+        highlights: [
+            'Rekaman suara diubah jadi transkrip otomatis',
+            'Ringkasan & tindak lanjut oleh AI',
+            'Riwayat rapat tersimpan per karyawan',
+        ],
+    },
+    {
+        title: 'Visiting Pekerjaan',
+        icon: ClipboardCheck,
+        tagline: 'Tasklist Kunjungan Lapangan',
+        desc: 'Catat kunjungan lapangan dan klien karyawan lengkap dengan tasklist per kunjungan, sehingga progres tugas di lokasi klien terpantau jelas.',
+        screenshot: '/avana/landing/screenshots/visiting.png',
+        highlights: [
+            'Tasklist per kunjungan & progres selesai',
+            'Terhubung ke lokasi, klien, dan cabang',
+            'Riwayat kunjungan per karyawan',
+        ],
+    },
+    {
+        title: 'Settlement',
+        icon: ShieldCheck,
+        tagline: 'Klaim Dinas dengan Deteksi Fraud AI',
+        desc: 'Kelola klaim biaya perjalanan dinas dari pengajuan, persetujuan manager, hingga verifikasi Finance — dengan AI yang memeriksa keaslian bukti pengeluaran dan menandai risiko fraud.',
+        screenshot: '/avana/landing/screenshots/settlement.png',
+        highlights: [
+            'Alur persetujuan manager & verifikasi Finance',
+            'Skor risiko fraud otomatis pada bukti pengeluaran',
+            'Terhubung langsung ke pembayaran',
+        ],
+    },
+];
+
+/** Grid columns at the `lg` breakpoint — kept in sync with the centering math below. */
+const GRID_COLS = 4;
+
+/** Static so Tailwind's scanner can see every class it needs to generate. */
+const COL_START_CLASSES = [
+    '',
+    'lg:col-start-1',
+    'lg:col-start-2',
+    'lg:col-start-3',
+    'lg:col-start-4',
 ];
 
 /**
- * The 8 concrete product modules as a clickable grid with a live screenshot
+ * The concrete product modules as a clickable grid with a live screenshot
  * showcase below — one level more granular than the abstract value-flow in
  * `SolutionSection` above it.
  */
 export function ModulesSection() {
     const [active, setActive] = useState(0);
     const current = MODULES[active];
+
+    // When the module count doesn't fill the last row evenly, center that
+    // row's cards instead of leaving them stranded against the left edge.
+    const remainder = MODULES.length % GRID_COLS;
+    const lastRowStart = MODULES.length - remainder;
+    const leadingGap = Math.floor((GRID_COLS - remainder) / 2);
 
     return (
         <section id="platform" className="scroll-mt-28 py-20 lg:py-28">
@@ -156,11 +239,22 @@ export function ModulesSection() {
                 <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     {MODULES.map((module, index) => {
                         const isActive = index === active;
+                        const isLastRow =
+                            remainder > 0 && index >= lastRowStart;
+                        const colStart = isLastRow
+                            ? leadingGap + (index - lastRowStart) + 1
+                            : 0;
 
                         return (
                             <Reveal
                                 key={module.title}
                                 delay={(index % 4) * 0.05}
+                                className={cn(
+                                    COL_START_CLASSES[colStart],
+                                    isLastRow &&
+                                        remainder === 1 &&
+                                        'lg:col-span-2',
+                                )}
                             >
                                 <button
                                     type="button"
