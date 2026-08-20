@@ -2,6 +2,7 @@ import { Check, ShieldCheck, Sparkles } from 'lucide-react';
 import { PRICE_NOTE } from './content';
 import { DemoButton } from './cta-buttons';
 import { Container, Reveal } from './reveal';
+import { useCtaTargets } from './use-cta';
 
 const VALUE_POINTS = [
     'Proses HR lebih terhubung tanpa silo data',
@@ -9,7 +10,7 @@ const VALUE_POINTS = [
     'Executive Analytics dan fitur AI Assistant',
     'Kalkulasi otomatis PPh 21 TER & BPJS',
     'Mobile app absensi dengan GPS & Face Recognition',
-    'Approval workflow fleksibel per divisi & jabatan',
+    'Dukungan implementasi dan migrasi data',
 ];
 
 const INCLUSIONS = [
@@ -25,6 +26,11 @@ const INCLUSIONS = [
  * the demo CTA. Visual language ported from the AvanaHR reference site.
  */
 export function PricingSection() {
+    const { whatsappWith } = useCtaTargets();
+    const enterpriseHref = whatsappWith(
+        'Halo AvanaHR, saya ingin mengetahui penawaran harga paket untuk perusahaan kami.',
+    );
+
     return (
         <section
             id="harga"
@@ -128,7 +134,23 @@ export function PricingSection() {
                                 ))}
                             </div>
 
-                            <DemoButton className="w-full" />
+                            <DemoButton className="w-full">
+                                Lihat Paket &amp; Konsultasi
+                            </DemoButton>
+
+                            {enterpriseHref && (
+                                <div className="mt-4 text-center">
+                                    <a
+                                        href={enterpriseHref}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs font-semibold text-avana-blue hover:underline"
+                                    >
+                                        Butuh penawaran custom enterprise?
+                                        Hubungi Sales →
+                                    </a>
+                                </div>
+                            )}
                         </div>
                     </Reveal>
                 </div>

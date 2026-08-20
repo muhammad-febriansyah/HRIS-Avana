@@ -1,16 +1,18 @@
+import { Link } from '@inertiajs/react';
 import {
+    ArrowRight,
     CheckCircle2,
     CreditCard,
     HeadphonesIcon,
     LayoutDashboard,
 } from 'lucide-react';
-import { DemoButton, TrialButton } from './cta-buttons';
 import { Container, Reveal } from './reveal';
+import { useCtaTargets } from './use-cta';
 
 const FEATURES = [
     {
         icon: CheckCircle2,
-        title: 'Setup & Migrasi Dibantu',
+        title: 'Setup & Migrasi Gratis',
         note: 'Tim kami siap membantu Anda',
     },
     {
@@ -30,12 +32,10 @@ const FEATURES = [
     },
 ];
 
-/**
- * Free-trial-style promo banner. Copy stays generic ("Coba Avana") rather
- * than a specific trial length — that hasn't been established anywhere in
- * the product data, so we don't invent a day count here.
- */
+/** Free-trial promo banner — 3-month trial, same claim as the navbar's top bar. */
 export function FreeTrialBanner() {
+    const { login } = useCtaTargets();
+
     return (
         <section className="relative bg-white py-16 md:py-24">
             <Container>
@@ -57,12 +57,13 @@ export function FreeTrialBanner() {
                         <div className="relative z-10 flex w-full flex-col items-center justify-center p-8 text-center text-white lg:w-[40%] lg:items-start lg:px-10 lg:py-14 lg:text-left">
                             <div className="mb-3 flex items-center gap-2 text-xs font-bold tracking-widest text-blue-200 uppercase">
                                 <span className="hidden h-px w-8 bg-blue-300/50 lg:block" />
-                                Mulai Kapan Saja
+                                Penawaran Terbatas
                             </div>
 
                             <h2 className="mb-4 text-3xl leading-tight font-extrabold lg:text-4xl">
-                                Hai, Coba Avana <br className="hidden lg:block" />
-                                Sekarang Juga!
+                                Hai, Coba Gratis{' '}
+                                <br className="hidden lg:block" />
+                                3 Bulan Pertama!
                             </h2>
 
                             <p className="mx-auto mb-8 max-w-sm text-sm leading-relaxed text-blue-50 opacity-90 md:text-base lg:mx-0">
@@ -71,16 +72,13 @@ export function FreeTrialBanner() {
                                 Buktikan sendiri kemudahannya sekarang juga!
                             </p>
 
-                            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-                                <TrialButton
-                                    variant="inverse"
-                                    className="w-full sm:w-auto"
-                                />
-                                <DemoButton
-                                    variant="ghostInverse"
-                                    className="w-full sm:w-auto"
-                                />
-                            </div>
+                            <Link
+                                href={login}
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-white px-8 py-3.5 font-extrabold text-avana-blue shadow-xl shadow-black/10 transition-all duration-300 hover:-translate-y-1 hover:bg-blue-50 hover:shadow-2xl hover:shadow-black/20 sm:w-auto"
+                            >
+                                Mulai Uji Coba Gratis
+                                <ArrowRight className="h-4 w-4" aria-hidden />
+                            </Link>
                         </div>
 
                         {/* Right: feature list */}

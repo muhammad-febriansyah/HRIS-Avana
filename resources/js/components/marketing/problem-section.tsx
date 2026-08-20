@@ -2,6 +2,15 @@ import { AlertCircle } from 'lucide-react';
 import { PAIN_POINTS } from './content';
 import { Container, Reveal } from './reveal';
 
+/** Short rose-pill callout per pain point — restates the cost, not a stat. */
+const HIGHLIGHTS: Record<string, string> = {
+    'Data tersebar di banyak sistem':
+        'Silo data menghambat efisiensi operasional.',
+    'Proses masih administratif': 'Waktu tersita untuk kerja manual.',
+    'Pengajuan sulit dipantau': 'Approval tercecer di banyak kanal.',
+    'Data belum jadi insight': 'Keputusan tanpa data yang utuh.',
+};
+
 /**
  * Problem framing: the scattered-tooling status quo AvanaHR replaces.
  *
@@ -20,17 +29,17 @@ export function ProblemSection() {
                     </span>
 
                     <h2 className="text-3xl leading-tight font-extrabold text-avana-navy sm:text-4xl lg:text-[44px]">
-                        Masih Mengelola HR dengan{' '}
+                        Data HR Bertambah. <br className="hidden sm:inline" />
                         <span className="text-avana-blue">
-                            Banyak Aplikasi?
+                            Apakah Insight-nya Ikut Bertambah?
                         </span>
                     </h2>
 
                     <p className="text-base leading-relaxed font-normal text-avana-text sm:text-lg">
-                        Data karyawan, absensi, payroll, cuti dan performance
-                        tersebar di banyak sistem yang berbeda — HR kesulitan
-                        melihat kondisi workforce sebagai satu kesatuan yang
-                        utuh.
+                        Saat perusahaan berkembang, data HR semakin banyak.
+                        Tantangannya bukan hanya menyimpan data di
+                        spreadsheet, tetapi menghubungkannya agar HR dapat
+                        melihat kondisi workforce secara utuh.
                     </p>
                 </Reveal>
 
@@ -42,8 +51,9 @@ export function ProblemSection() {
                                 Sering Dialami Tim HR
                             </span>
                             <h3 className="text-xl font-extrabold text-avana-navy">
-                                {PAIN_POINTS.length} tantangan yang paling
-                                sering dihadapi tim HR setiap hari.
+                                &ldquo;Berapa banyak waktu yang habis hanya
+                                untuk rekap absensi &amp; hitung pajak
+                                manual?&rdquo;
                             </h3>
                         </div>
 
@@ -60,10 +70,10 @@ export function ProblemSection() {
 
                         <div className="relative z-10 border-t border-avana-border pt-3 text-xs text-avana-muted">
                             <strong className="text-avana-navy">
-                                AvanaHR menyatukan
+                                AvanaHR hadir
                             </strong>{' '}
-                            proses tersebut dalam satu ekosistem HR, sehingga
-                            tim HR bisa fokus pada pengembangan karyawan.
+                            untuk mengotomasi pekerjaan repetitif agar tim HR
+                            bisa fokus pada pengembangan karyawan.
                         </div>
                     </Reveal>
 
@@ -92,8 +102,10 @@ export function ProblemSection() {
                                     </div>
                                 </div>
 
-                                <span className="shrink-0 pt-2 text-xs font-semibold text-avana-muted sm:pt-0">
-                                    0{i + 1}
+                                <span className="shrink-0 pt-2 text-xs font-semibold text-rose-600 sm:pt-0 sm:text-right">
+                                    <span className="inline-block rounded-full border border-rose-100 bg-rose-50 px-3 py-1">
+                                        {HIGHLIGHTS[point.title] ?? point.body}
+                                    </span>
                                 </span>
                             </Reveal>
                         ))}

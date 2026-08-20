@@ -1,22 +1,38 @@
-import { Sparkles } from 'lucide-react';
+import { CheckCircle2, Sparkles } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { DemoButton, TrialButton } from './cta-buttons';
 import { PriceNote } from './price-note';
 import { Container, Reveal } from './reveal';
+
+const TRUST_POINTS = [
+    'Sesi Demo Personal 30 Menit',
+    'Tanpa Komitmen / Kartu Kredit',
+    'Gratis Konsultasi Kebutuhan HR',
+];
 
 /**
  * Closing call to action. Defaults to the main landing copy; feature pages
  * pass their own headline and body while keeping the same treatment.
  */
 export function FinalCta({
-    title = 'Saatnya Mengubah Cara Perusahaan Mengelola People.',
-    body = 'Mulai dari HR Administration sampai Payroll dan Talent Management — kelola proses HR dalam satu platform bersama AvanaHR.',
-    supporting = 'Lihat langsung bagaimana AvanaHR dapat disesuaikan dengan proses HR perusahaan Anda.',
+    title = (
+        <>
+            Siap Melihat Apa yang Bisa{' '}
+            <span className="text-blue-400">AvanaHR Lakukan</span> untuk Tim
+            Anda?
+        </>
+    ),
+    body = 'Jadwalkan demo dan lihat bagaimana AvanaHR menghubungkan proses HR, workforce data, analytics, dan AI dalam satu platform terpadu.',
+    supporting,
     showPrice = true,
+    showTrustPoints = true,
 }: {
-    title?: string;
+    title?: ReactNode;
     body?: string;
+    /** Extra line under the trust points — used by feature pages for a more specific closing note. */
     supporting?: string;
     showPrice?: boolean;
+    showTrustPoints?: boolean;
 } = {}) {
     return (
         <section className="py-20 lg:py-28">
@@ -68,9 +84,27 @@ export function FinalCta({
                                     <PriceNote tone="dark" />
                                 </div>
                             )}
-                            <p className="mt-4 text-[13.5px] text-blue-200/70">
-                                {supporting}
-                            </p>
+                            {showTrustPoints && (
+                                <div className="mt-6 flex flex-wrap items-center justify-center gap-6 text-xs text-blue-200/70">
+                                    {TRUST_POINTS.map((point) => (
+                                        <div
+                                            key={point}
+                                            className="flex items-center gap-1.5"
+                                        >
+                                            <CheckCircle2
+                                                className="h-4 w-4 text-emerald-400"
+                                                aria-hidden
+                                            />
+                                            <span>{point}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            {supporting && (
+                                <p className="mt-4 text-[13.5px] text-blue-200/70">
+                                    {supporting}
+                                </p>
+                            )}
                         </div>
                     </div>
                 </Reveal>

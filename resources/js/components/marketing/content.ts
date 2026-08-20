@@ -504,11 +504,3 @@ export const FAQS: Faq[] = [
     },
 ];
 
-/** Section 27 — footer product links point at the sections above. */
-export const FOOTER_PRODUCT: { label: string; href: string }[] = [
-    { label: 'HR Management', href: '#solusi' },
-    { label: 'Attendance', href: '#platform' },
-    { label: 'Payroll & Finance', href: '#platform' },
-    { label: 'Talent Management', href: '#platform' },
-    { label: 'AI Assistant', href: '#ai' },
-];

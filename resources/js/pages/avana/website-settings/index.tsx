@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import WebsiteSettingController from '@/actions/App/Http/Controllers/Avana/WebsiteSettingController';
+import { RichEditor } from '@/components/avana-ui/rich-editor';
 import { AIcon, btnSave, C, card } from '@/lib/avana';
 import {
     Field,
@@ -39,6 +40,9 @@ export default function WebsiteSettings({ settings }: PageProps) {
         contact_phone: settings.contact_phone ?? '',
         contact_whatsapp: settings.contact_whatsapp ?? '',
         contact_address: settings.contact_address ?? '',
+        playstore_url: settings.playstore_url ?? '',
+        appstore_url: settings.appstore_url ?? '',
+        privacy_policy: settings.privacy_policy ?? '',
         logo: null,
         favicon: null,
         og_image: null,
@@ -442,6 +446,90 @@ export default function WebsiteSettings({ settings }: PageProps) {
                                         textareaStyle,
                                         !!form.errors.contact_address,
                                     )}
+                                />
+                            </Field>
+                        </div>
+                    )}
+
+                    {tab === 'aplikasi' && (
+                        <div style={{ display: 'grid', gap: 18 }}>
+                            <div
+                                style={{
+                                    fontSize: 13,
+                                    color: C.muted,
+                                    lineHeight: 1.6,
+                                }}
+                            >
+                                Tautan resmi aplikasi mobile AvanaHR. Tombol
+                                unduh di footer situs publik hanya muncul
+                                kalau tautannya diisi di sini — kosongkan
+                                kalau listing-nya belum publik.
+                            </div>
+                            <div
+                                style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '1fr 1fr',
+                                    gap: 18,
+                                }}
+                            >
+                                <Field
+                                    label="Google Play Store"
+                                    hint="URL listing aplikasi di Play Store"
+                                    error={form.errors.playstore_url}
+                                >
+                                    {text('playstore_url', {
+                                        placeholder:
+                                            'https://play.google.com/store/apps/details?id=...',
+                                    })}
+                                </Field>
+                                <Field
+                                    label="Apple App Store"
+                                    hint="URL listing aplikasi di App Store"
+                                    error={form.errors.appstore_url}
+                                >
+                                    {text('appstore_url', {
+                                        placeholder:
+                                            'https://apps.apple.com/app/...',
+                                    })}
+                                </Field>
+                            </div>
+                        </div>
+                    )}
+
+                    {tab === 'privasi' && (
+                        <div style={{ display: 'grid', gap: 18 }}>
+                            <div
+                                style={{
+                                    fontSize: 13,
+                                    color: C.muted,
+                                    lineHeight: 1.6,
+                                }}
+                            >
+                                Isi halaman{' '}
+                                <a
+                                    href="/kebijakan-privasi"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ color: C.primary }}
+                                >
+                                    /kebijakan-privasi
+                                </a>{' '}
+                                — bisa dipakai sebagai URL Kebijakan Privasi
+                                saat submit aplikasi ke Play Store / App
+                                Store.
+                            </div>
+                            <Field
+                                label="Isi Kebijakan Privasi"
+                                error={form.errors.privacy_policy}
+                            >
+                                <RichEditor
+                                    value={form.data.privacy_policy}
+                                    onChange={(value) =>
+                                        form.setData('privacy_policy', value)
+                                    }
+                                    placeholder="Tulis kebijakan privasi..."
+                                    hasError={!!form.errors.privacy_policy}
+                                    minHeight={360}
                                 />
                             </Field>
                         </div>

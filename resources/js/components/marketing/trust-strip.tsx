@@ -1,48 +1,44 @@
 import {
     BarChart3,
     Building2,
+    Cpu,
     FileCheck,
-    MapPin,
     ShieldCheck,
-    Workflow,
 } from 'lucide-react';
 import { Reveal } from './reveal';
 
 /**
  * Trust strip — capability badges in an auto-scrolling marquee, right under
  * the hero. Badges are real, shipped capabilities (see `content.ts`
- * SOLUTIONS/PAIN_POINTS), never invented customer names or numeric claims.
+ * SOLUTIONS/PAIN_POINTS), never invented customer names or numeric claims —
+ * the reference site's "Bank-Grade Security" badge is swapped for the actual
+ * access-control feature we ship (role-based access + audit trail).
  */
 const CAPABILITY_BADGES = [
     {
-        icon: FileCheck,
-        title: 'PPh 21 TER 2024',
-        desc: 'Tarif efektif rata-rata terkini',
-    },
-    {
-        icon: ShieldCheck,
-        title: 'BPJS Otomatis',
-        desc: 'Kesehatan & Ketenagakerjaan',
-    },
-    {
-        icon: MapPin,
-        title: 'Live GPS Attendance',
-        desc: 'Absensi & tracking lokasi real-time',
-    },
-    {
-        icon: Building2,
-        title: 'Multi-Cabang & Shift',
-        desc: 'Siap untuk banyak lokasi kerja',
-    },
-    {
-        icon: Workflow,
-        title: 'Alur Persetujuan Fleksibel',
-        desc: 'Approval berjenjang sesuai struktur',
+        icon: Cpu,
+        title: 'AI-Native HR Platform',
+        desc: 'Workforce insight cerdas',
     },
     {
         icon: BarChart3,
         title: 'Workforce Analytics',
-        desc: 'Laporan & dashboard real-time',
+        desc: 'Real-time data reporting',
+    },
+    {
+        icon: ShieldCheck,
+        title: 'Role-Based Access & Audit',
+        desc: 'Kontrol akses & jejak aktivitas ketat',
+    },
+    {
+        icon: Building2,
+        title: 'Multi-Branch & Shift',
+        desc: 'Siap untuk multi-lokasi',
+    },
+    {
+        icon: FileCheck,
+        title: '100% Regulasi RI',
+        desc: 'TER PPh 21 & BPJS terkini',
     },
 ];
 
@@ -56,7 +52,7 @@ export function TrustStrip() {
                     100% { transform: translateX(-50%); }
                   }
                   .avana-trust-marquee {
-                    animation: avana-trust-marquee 32s linear infinite;
+                    animation: avana-trust-marquee 35s linear infinite;
                   }
                   .avana-trust-marquee:hover {
                     animation-play-state: paused;
@@ -66,13 +62,14 @@ export function TrustStrip() {
 
             <Reveal>
                 <p className="mb-8 text-center text-xs font-semibold tracking-wider text-avana-muted uppercase sm:text-sm">
-                    Kapabilitas yang siap dipakai
+                    Dipercaya oleh organisasi yang berkembang
                 </p>
             </Reveal>
 
             <div className="relative flex max-w-[100vw] overflow-hidden">
                 <div className="avana-trust-marquee flex w-max gap-4 pr-4 pl-4 sm:gap-6 sm:pl-6">
                     {[
+                        ...CAPABILITY_BADGES,
                         ...CAPABILITY_BADGES,
                         ...CAPABILITY_BADGES,
                         ...CAPABILITY_BADGES,

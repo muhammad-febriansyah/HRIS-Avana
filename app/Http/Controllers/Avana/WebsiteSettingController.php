@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
 use App\Models\WebsiteSetting;
+use App\Support\HtmlSanitizer;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -66,6 +67,9 @@ class WebsiteSettingController extends Controller
                 'contact_phone' => $settings->contact_phone,
                 'contact_whatsapp' => $settings->contact_whatsapp,
                 'contact_address' => $settings->contact_address,
+                'playstore_url' => $settings->playstore_url,
+                'appstore_url' => $settings->appstore_url,
+                'privacy_policy' => $settings->privacy_policy,
                 'logo_url' => $settings->logoUrl(),
                 'favicon_url' => $settings->faviconUrl(),
                 'og_image_url' => $settings->ogImageUrl(),
@@ -96,12 +100,19 @@ class WebsiteSettingController extends Controller
             'contact_phone' => ['nullable', 'string', 'max:50'],
             'contact_whatsapp' => ['nullable', 'string', 'max:50'],
             'contact_address' => ['nullable', 'string', 'max:500'],
+            'playstore_url' => ['nullable', 'url', 'max:255'],
+            'appstore_url' => ['nullable', 'url', 'max:255'],
+            'privacy_policy' => ['nullable', 'string'],
             'logo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp,svg', 'max:2048'],
             'og_image' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:2048'],
             'favicon' => ['nullable', 'file', 'mimes:ico,png,svg', 'max:1024'],
         ]);
 
         $settings = WebsiteSetting::current();
+
+        if (array_key_exists('privacy_policy', $validated) && $validated['privacy_policy'] !== null) {
+            $validated['privacy_policy'] = HtmlSanitizer::clean($validated['privacy_policy']);
+        }
 
         // Text fields.
         $settings->fill(collect($validated)->except(array_keys(self::IMAGE_FIELDS))->all());

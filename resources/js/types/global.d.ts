@@ -19,6 +19,10 @@ export interface Website {
         linkedin: string | null;
         tiktok: string | null;
     };
+    apps: {
+        playstore_url: string | null;
+        appstore_url: string | null;
+    };
 }
 
 declare module 'react' {

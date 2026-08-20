@@ -6,6 +6,8 @@ import { FreeTrialBanner } from '@/components/marketing/free-trial-banner';
 import { HeroSection } from '@/components/marketing/hero-section';
 import { ImplementationSection } from '@/components/marketing/implementation-section';
 import { ModulesSection } from '@/components/marketing/modules-section';
+import type { NewsItem } from '@/components/marketing/news-section';
+import { NewsSection } from '@/components/marketing/news-section';
 import { PricingSection } from '@/components/marketing/pricing-section';
 import { ProblemSection } from '@/components/marketing/problem-section';
 import { ProductDemoSection } from '@/components/marketing/product-demo-section';
@@ -24,7 +26,7 @@ const DESCRIPTION =
  * `components/marketing/*` and reads its copy from `content.ts`, so this file
  * only owns page-level concerns: document head and section order.
  */
-export default function Welcome() {
+export default function Welcome({ news }: { news: NewsItem[] }) {
     const { website } = usePage().props;
     const brand = website.site_name ?? 'AvanaHR';
     const logo = website.logo_url ?? '/avana/logo-full.png';
@@ -62,6 +64,7 @@ export default function Welcome() {
                     <AiInsightSection />
                     <ProductDemoSection />
                     <ProofSection />
+                    <NewsSection news={news} />
                     <ImplementationSection />
                     <PricingSection />
                     <FreeTrialBanner />
