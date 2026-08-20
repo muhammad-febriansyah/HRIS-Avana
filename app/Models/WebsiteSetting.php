@@ -101,6 +101,29 @@ final class WebsiteSetting extends Model
     }
 
     /**
+     * Starting content for `terms_of_service`, seeded the same way as
+     * {@see defaultPrivacyPolicyHtml()}.
+     */
+    public static function defaultTermsOfServiceHtml(): string
+    {
+        return <<<'HTML'
+            <p>Dengan menggunakan AvanaHR, perusahaan ("Tenant") dan penggunanya dianggap menyetujui syarat dan ketentuan berikut.</p>
+            <h2>Penggunaan layanan</h2>
+            <ul>
+            <li>Tenant bertanggung jawab atas keakuratan data yang diinput ke dalam sistem, termasuk data karyawan dan komponen payroll.</li>
+            <li>Akun pengguna bersifat personal dan tidak boleh dibagikan ke pihak lain di luar organisasi Tenant.</li>
+            <li>Fitur yang tersedia mengikuti paket langganan yang aktif; sebagian fitur (mis. Live Tracking, AI Assistant) perlu diaktifkan terlebih dahulu oleh admin tenant.</li>
+            </ul>
+            <h2>Langganan &amp; pembayaran</h2>
+            <p>Rincian harga dan komponen yang termasuk dalam paket dijelaskan pada halaman Harga. Perubahan paket atau jumlah pengguna dapat memengaruhi tagihan periode berikutnya.</p>
+            <h2>Data milik Tenant</h2>
+            <p>Data yang diinput Tenant (data karyawan, payroll, dokumen) tetap menjadi milik Tenant. Kebijakan penyimpanan dan perlindungan data dijelaskan lebih rinci pada Kebijakan Privasi.</p>
+            <h2>Perubahan ketentuan</h2>
+            <p>Ketentuan ini dapat diperbarui sewaktu-waktu. Perubahan signifikan akan diinformasikan kepada admin tenant melalui kanal kontak yang terdaftar.</p>
+            HTML;
+    }
+
+    /**
      * Public branding, contact and social fields shared with the frontend
      * (Inertia props) for the navbar, footer and landing page.
      *

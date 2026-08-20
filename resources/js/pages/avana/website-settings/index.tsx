@@ -43,6 +43,7 @@ export default function WebsiteSettings({ settings }: PageProps) {
         playstore_url: settings.playstore_url ?? '',
         appstore_url: settings.appstore_url ?? '',
         privacy_policy: settings.privacy_policy ?? '',
+        terms_of_service: settings.terms_of_service ?? '',
         logo: null,
         favicon: null,
         og_image: null,
@@ -529,6 +530,46 @@ export default function WebsiteSettings({ settings }: PageProps) {
                                     }
                                     placeholder="Tulis kebijakan privasi..."
                                     hasError={!!form.errors.privacy_policy}
+                                    minHeight={360}
+                                />
+                            </Field>
+                        </div>
+                    )}
+
+                    {tab === 'syarat' && (
+                        <div style={{ display: 'grid', gap: 18 }}>
+                            <div
+                                style={{
+                                    fontSize: 13,
+                                    color: C.muted,
+                                    lineHeight: 1.6,
+                                }}
+                            >
+                                Isi halaman{' '}
+                                <a
+                                    href="/syarat-ketentuan"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ color: C.primary }}
+                                >
+                                    /syarat-ketentuan
+                                </a>
+                                .
+                            </div>
+                            <Field
+                                label="Isi Syarat & Ketentuan"
+                                error={form.errors.terms_of_service}
+                            >
+                                <RichEditor
+                                    value={form.data.terms_of_service}
+                                    onChange={(value) =>
+                                        form.setData(
+                                            'terms_of_service',
+                                            value,
+                                        )
+                                    }
+                                    placeholder="Tulis syarat & ketentuan..."
+                                    hasError={!!form.errors.terms_of_service}
                                     minHeight={360}
                                 />
                             </Field>

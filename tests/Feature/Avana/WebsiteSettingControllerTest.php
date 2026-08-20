@@ -68,6 +68,7 @@ it('saves the mobile app store links and privacy policy for a super admin', func
             'playstore_url' => 'https://play.google.com/store/apps/details?id=id.avanahr.app',
             'appstore_url' => 'https://apps.apple.com/id/app/avanahr/id0000000000',
             'privacy_policy' => '<p>Kebijakan privasi kustom.</p>',
+            'terms_of_service' => '<p>Syarat & ketentuan kustom.</p>',
         ])
         ->assertSessionHas('success');
 
@@ -76,6 +77,7 @@ it('saves the mobile app store links and privacy policy for a super admin', func
     expect($settings->playstore_url)->toBe('https://play.google.com/store/apps/details?id=id.avanahr.app');
     expect($settings->appstore_url)->toBe('https://apps.apple.com/id/app/avanahr/id0000000000');
     expect($settings->privacy_policy)->toContain('Kebijakan privasi kustom.');
+    expect($settings->terms_of_service)->toContain('Syarat &amp; ketentuan kustom.');
 });
 
 it('validates the play store and app store links are proper URLs', function (): void {

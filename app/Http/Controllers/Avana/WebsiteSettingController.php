@@ -70,6 +70,7 @@ class WebsiteSettingController extends Controller
                 'playstore_url' => $settings->playstore_url,
                 'appstore_url' => $settings->appstore_url,
                 'privacy_policy' => $settings->privacy_policy,
+                'terms_of_service' => $settings->terms_of_service,
                 'logo_url' => $settings->logoUrl(),
                 'favicon_url' => $settings->faviconUrl(),
                 'og_image_url' => $settings->ogImageUrl(),
@@ -103,6 +104,7 @@ class WebsiteSettingController extends Controller
             'playstore_url' => ['nullable', 'url', 'max:255'],
             'appstore_url' => ['nullable', 'url', 'max:255'],
             'privacy_policy' => ['nullable', 'string'],
+            'terms_of_service' => ['nullable', 'string'],
             'logo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp,svg', 'max:2048'],
             'og_image' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:2048'],
             'favicon' => ['nullable', 'file', 'mimes:ico,png,svg', 'max:1024'],
@@ -112,6 +114,10 @@ class WebsiteSettingController extends Controller
 
         if (array_key_exists('privacy_policy', $validated) && $validated['privacy_policy'] !== null) {
             $validated['privacy_policy'] = HtmlSanitizer::clean($validated['privacy_policy']);
+        }
+
+        if (array_key_exists('terms_of_service', $validated) && $validated['terms_of_service'] !== null) {
+            $validated['terms_of_service'] = HtmlSanitizer::clean($validated['terms_of_service']);
         }
 
         // Text fields.

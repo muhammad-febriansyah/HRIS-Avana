@@ -22,6 +22,25 @@ test('a super admin can edit the privacy policy content shown on the public page
         );
 });
 
+test('the terms of service page renders the seeded default content when unconfigured', function () {
+    $this->get(route('terms'))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('public/legal/terms')
+            ->where('content', WebsiteSetting::defaultTermsOfServiceHtml())
+        );
+});
+
+test('a super admin can edit the terms of service content shown on the public page', function () {
+    WebsiteSetting::current()->update(['terms_of_service' => '<p>Custom syarat & ketentuan AvanaHR.</p>']);
+
+    $this->get(route('terms'))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('content', '<p>Custom syarat & ketentuan AvanaHR.</p>')
+        );
+});
+
 test('the landing page shares the app store links only once configured, so the footer badges stay conditional', function () {
     $this->get(route('home'))
         ->assertInertia(fn (AssertableInertia $page) => $page
