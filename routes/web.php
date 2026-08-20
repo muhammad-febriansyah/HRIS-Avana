@@ -5,6 +5,7 @@ use App\Http\Controllers\Avana\DashboardController;
 use App\Http\Controllers\PrivacyPolicyController;
 use App\Http\Controllers\PrivateFileController;
 use App\Http\Controllers\PublicNewsController;
+use App\Http\Controllers\TermsOfServiceController;
 use App\Http\Controllers\WelcomeController;
 use Illuminate\Support\Facades\Route;
 
@@ -24,11 +25,11 @@ Route::get('berita', [PublicNewsController::class, 'index'])->name('berita');
 Route::get('berita/{news:slug}', [PublicNewsController::class, 'show'])->name('berita.show');
 
 /*
- * Static legal pages linked from the footer. No controller, no data, nothing
- * behind auth — same pattern as the Live Tracking marketing page.
+ * Legal pages linked from the footer — content is editable by a super admin
+ * (Pengaturan Website → Kebijakan Privasi / Syarat & Ketentuan).
  */
 Route::get('kebijakan-privasi', PrivacyPolicyController::class)->name('privacy');
-Route::inertia('syarat-ketentuan', 'public/legal/terms')->name('terms');
+Route::get('syarat-ketentuan', TermsOfServiceController::class)->name('terms');
 
 /*
  * Public return page for a personal AI token purchase paid from the phone. The
