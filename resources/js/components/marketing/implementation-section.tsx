@@ -4,8 +4,9 @@ import {
     Headphones,
     ShieldCheck,
 } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { DemoButton } from './cta-buttons';
-import { Container, Reveal, SectionHeading } from './reveal';
+import { Container, Reveal } from './reveal';
 
 const GUARANTEES: { title: string; desc: string; icon: Icon }[] = [
     {
@@ -63,19 +64,28 @@ export function ImplementationSection() {
                         </Reveal>
 
                         <div className="lg:col-span-7">
-                            <SectionHeading
-                                align="left"
-                                eyebrow="Pendampingan Ahli AvanaHR"
-                                title={
-                                    <>
-                                        Bukan Sekadar Software. <br />
-                                        <span className="text-[#7C9BFF]">
-                                            Kami Membantu Anda Menjalankannya.
-                                        </span>
-                                    </>
-                                }
-                                description="Anda tidak perlu khawatir soal kerumitan transisi sistem HRIS baru. Tim spesialis implementasi AvanaHR hadir mendampingi seluruh proses setup hingga tim Anda mandiri."
-                            />
+                            <Reveal>
+                                <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-[12px] font-semibold tracking-[0.08em] text-blue-200 uppercase backdrop-blur-sm">
+                                    <Sparkles
+                                        className="h-3.5 w-3.5 text-blue-300"
+                                        aria-hidden
+                                    />
+                                    Pendampingan Ahli AvanaHR
+                                </span>
+                                <h2 className="mt-4 text-[26px] leading-[1.2] font-bold tracking-[-0.01em] text-white sm:text-[32px] lg:text-[36px]">
+                                    Bukan Sekadar Software. <br />
+                                    <span className="text-[#7C9BFF]">
+                                        Kami Membantu Anda Menjalankannya.
+                                    </span>
+                                </h2>
+                                <p className="mt-4 text-[15px] leading-relaxed text-blue-100/80 sm:text-[16px]">
+                                    Anda tidak perlu khawatir soal kerumitan
+                                    transisi sistem HRIS baru. Tim spesialis
+                                    implementasi AvanaHR hadir mendampingi
+                                    seluruh proses setup hingga tim Anda
+                                    mandiri.
+                                </p>
+                            </Reveal>
 
                             <Reveal delay={0.08}>
                                 <div className="mt-8 space-y-3">
