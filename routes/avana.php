@@ -71,6 +71,7 @@ use App\Http\Controllers\Avana\MeetingController;
 use App\Http\Controllers\Avana\MenuBuilderController;
 use App\Http\Controllers\Avana\MoodController;
 use App\Http\Controllers\Avana\MovementController;
+use App\Http\Controllers\Avana\NewsController;
 use App\Http\Controllers\Avana\NotificationController;
 use App\Http\Controllers\Avana\OffboardingController;
 use App\Http\Controllers\Avana\OkrController;
@@ -553,6 +554,13 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class])->prefix('avana
     Route::post('onboarding-slides', [OnboardingSlideController::class, 'store'])->name('onboarding-slides.store');
     Route::post('onboarding-slides/{onboardingSlide}', [OnboardingSlideController::class, 'update'])->name('onboarding-slides.update');
     Route::delete('onboarding-slides/{onboardingSlide}', [OnboardingSlideController::class, 'destroy'])->name('onboarding-slides.destroy');
+
+    // Berita platform (super admin)
+    Route::get('berita', [NewsController::class, 'index'])->name('berita');
+    Route::get('berita/{news}', [NewsController::class, 'show'])->name('berita.show');
+    Route::post('berita', [NewsController::class, 'store'])->name('berita.store');
+    Route::post('berita/{news}', [NewsController::class, 'update'])->name('berita.update');
+    Route::delete('berita/{news}', [NewsController::class, 'destroy'])->name('berita.destroy');
 
     // Kinerja (performance management)
     Route::get('kinerja', [PerformanceController::class, 'index'])->name('kinerja');

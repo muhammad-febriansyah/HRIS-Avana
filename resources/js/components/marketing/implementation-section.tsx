@@ -1,36 +1,31 @@
-import { Rocket, ShieldCheck, Sliders, UserPlus, Users2 } from 'lucide-react';
+import {
+    FolderSync,
+    GraduationCap,
+    Headphones,
+    ShieldCheck,
+} from 'lucide-react';
 import { DemoButton } from './cta-buttons';
 import { Container, Reveal, SectionHeading } from './reveal';
 
-/**
- * Onboarding flow — what actually happens between signing up and running
- * payroll live on Avana. Kept generic and process-shaped rather than an SLA
- * claim, since no fixed turnaround time is guaranteed to every tenant.
- */
-const STEPS: { title: string; desc: string; icon: Icon }[] = [
+const GUARANTEES: { title: string; desc: string; icon: Icon }[] = [
     {
-        title: 'Setup Data Karyawan',
-        desc: 'Import data profil, unit kerja, dan saldo cuti karyawan ke dalam sistem.',
-        icon: UserPlus,
+        title: 'Pemetaan Workflow & SOP',
+        desc: 'Penyesuaian kebijakan absensi shift, lembur, dan alur persetujuan bertingkat.',
+        icon: Headphones,
     },
     {
-        title: 'Konfigurasi Payroll & Approval',
-        desc: 'Atur komponen gaji, jadwal absensi, serta alur persetujuan sesuai kebijakan perusahaan.',
-        icon: Sliders,
+        title: 'Migrasi Database Karyawan Aman',
+        desc: 'Bantuan import data profil, saldo cuti, dan master gaji tanpa risiko selip.',
+        icon: FolderSync,
     },
     {
-        title: 'Training Tim',
-        desc: 'Pendampingan untuk tim HR dan sosialisasi aplikasi mobile ke seluruh karyawan.',
-        icon: Users2,
-    },
-    {
-        title: 'Go Live',
-        desc: 'Sistem berjalan penuh — absensi, payroll, dan approval berjalan di Avana.',
-        icon: Rocket,
+        title: 'Training & Pendampingan Penuh',
+        desc: 'Sesi pengenalan aplikasi untuk tim HR serta sosialisasi mobile app ke seluruh staf.',
+        icon: GraduationCap,
     },
 ] as const;
 
-type Icon = typeof UserPlus;
+type Icon = typeof Headphones;
 
 /** Onboarding-flow section — how a company gets from sign-up to running Avana live. */
 export function ImplementationSection() {
@@ -60,8 +55,8 @@ export function ImplementationSection() {
                                         Tim Support & Onboarding
                                     </div>
                                     <div className="text-[11px] text-[#5B6478]">
-                                        Mendampingi sampai sistem siap
-                                        dipakai
+                                        Siap mendampingi hingga sistem siap
+                                        pakai
                                     </div>
                                 </div>
                             </div>
@@ -70,38 +65,29 @@ export function ImplementationSection() {
                         <div className="lg:col-span-7">
                             <SectionHeading
                                 align="left"
-                                eyebrow="Proses Onboarding"
+                                eyebrow="Pendampingan Ahli AvanaHR"
                                 title={
                                     <>
                                         Bukan Sekadar Software. <br />
                                         <span className="text-[#7C9BFF]">
-                                            Kami Dampingi Sampai Berjalan.
+                                            Kami Membantu Anda Menjalankannya.
                                         </span>
                                     </>
                                 }
-                                description="Tim implementasi Avana membantu setiap tahap transisi ke sistem baru, dari setup data sampai tim Anda mandiri menjalankannya."
+                                description="Anda tidak perlu khawatir soal kerumitan transisi sistem HRIS baru. Tim spesialis implementasi AvanaHR hadir mendampingi seluruh proses setup hingga tim Anda mandiri."
                             />
 
                             <Reveal delay={0.08}>
-                                <ol className="mt-8 space-y-3">
-                                    {STEPS.map((step, i) => {
-                                        const Icon = step.icon;
-                                        const isLast =
-                                            i === STEPS.length - 1;
+                                <div className="mt-8 space-y-3">
+                                    {GUARANTEES.map((item) => {
+                                        const Icon = item.icon;
 
                                         return (
-                                            <li
-                                                key={step.title}
+                                            <div
+                                                key={item.title}
                                                 className="flex items-start gap-3.5 rounded-xl border border-white/10 bg-white/5 p-3.5"
                                             >
-                                                <span
-                                                    className={
-                                                        'grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[13px] font-bold ' +
-                                                        (isLast
-                                                            ? 'bg-emerald-400/20 text-emerald-300'
-                                                            : 'bg-[#2F54C9]/25 text-[#93AEFF]')
-                                                    }
-                                                >
+                                                <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#2F54C9]/20 text-[#93AEFF]">
                                                     <Icon
                                                         className="h-4 w-4"
                                                         aria-hidden
@@ -109,26 +95,26 @@ export function ImplementationSection() {
                                                 </span>
                                                 <span className="min-w-0">
                                                     <span className="block text-[14px] font-bold text-white">
-                                                        {i + 1}.{' '}
-                                                        {step.title}
+                                                        {item.title}
                                                     </span>
                                                     <span className="mt-0.5 block text-[13px] text-[#B9C4E0]">
-                                                        {step.desc}
+                                                        {item.desc}
                                                     </span>
                                                 </span>
-                                            </li>
+                                            </div>
                                         );
                                     })}
-                                </ol>
+                                </div>
                             </Reveal>
 
                             <Reveal delay={0.14}>
                                 <div className="mt-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
                                     <DemoButton
                                         variant="primary"
-                                        withArrow={false}
                                         className="w-full sm:w-auto"
-                                    />
+                                    >
+                                        Konsultasi Kebutuhan Perusahaan
+                                    </DemoButton>
                                     <div className="flex items-center gap-1.5 text-[12px] text-[#B9C4E0]">
                                         <ShieldCheck
                                             className="h-4 w-4 shrink-0 text-emerald-400"

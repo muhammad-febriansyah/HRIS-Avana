@@ -22,6 +22,9 @@ export interface Settings {
     contact_phone: string | null;
     contact_whatsapp: string | null;
     contact_address: string | null;
+    playstore_url: string | null;
+    appstore_url: string | null;
+    privacy_policy: string | null;
     logo_url: string | null;
     favicon_url: string | null;
     og_image_url: string | null;
@@ -52,6 +55,9 @@ export interface FormData {
     contact_phone: string;
     contact_whatsapp: string;
     contact_address: string;
+    playstore_url: string;
+    appstore_url: string;
+    privacy_policy: string;
     logo: File | null;
     favicon: File | null;
     og_image: File | null;
@@ -67,4 +73,6 @@ export const TABS: { id: string; label: string; icon: string }[] = [
     { id: 'seo', label: 'SEO', icon: 'search' },
     { id: 'sosial', label: 'Sosial Media', icon: 'share-2' },
     { id: 'kontak', label: 'Kontak', icon: 'phone' },
+    { id: 'aplikasi', label: 'Aplikasi Mobile', icon: 'smartphone' },
+    { id: 'privasi', label: 'Kebijakan Privasi', icon: 'shield' },
 ];

@@ -1,73 +1,246 @@
-import { ArrowRight, Check } from 'lucide-react';
+import {
+    ArrowRight,
+    BarChart3,
+    Check,
+    Fingerprint,
+    Palmtree,
+    Sparkles,
+    Target,
+    UserPlus,
+    Users,
+    Wallet,
+} from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { SOLUTIONS } from './content';
 import { DemoButton } from './cta-buttons';
 import { Container, Reveal, SectionHeading } from './reveal';
 
+type Module = {
+    title: string;
+    icon: typeof Users;
+    tagline: string;
+    desc: string;
+    screenshot: string;
+    highlights: string[];
+};
+
 /**
- * Section 14 (platform overview) — the six product areas as a clickable
- * module grid with a detail panel below. Same `SOLUTIONS` data as the bento
- * grid further down the page, but presented as an interactive picker so a
- * visitor can dwell on one module at a time before scrolling on.
+ * The 8 concrete product modules, each with its own real screenshot — one
+ * level more granular than the 6 platform areas in `SolutionSection`.
+ */
+const MODULES: Module[] = [
+    {
+        title: 'Core HR',
+        icon: Users,
+        tagline: 'Manajemen Data Karyawan',
+        desc: 'Database profil karyawan lengkap, riwayat karir, struktur organisasi interaktif, SOP perusahaan, dan manajemen dokumen digital terpusat.',
+        screenshot: '/avana/landing/screenshots/employees.png',
+        highlights: [
+            'Struktur organisasi real-time',
+            'Manajemen kontrak & mutasi',
+            'Digital employee file',
+        ],
+    },
+    {
+        title: 'Payroll',
+        icon: Wallet,
+        tagline: 'Otomasi Penggajian & Pajak',
+        desc: 'Kelola proses payroll bersama data HR dalam satu platform. Otomatisasi perhitungan PPh 21 tarif TER 2024, BPJS Ketenagakerjaan & Kesehatan, serta slip gaji instan.',
+        screenshot: '/avana/landing/screenshots/payroll.png',
+        highlights: [
+            'Kalkulasi tarif TER PPh 21 2024',
+            'BPJS Ketenagakerjaan & Kesehatan',
+            'Multi komponen gaji & insentif',
+        ],
+    },
+    {
+        title: 'Attendance',
+        icon: Fingerprint,
+        tagline: 'Absensi GPS & Shift Roster',
+        desc: 'Pantau kehadiran kerja secara akurat dengan geotagging GPS, verifikasi wajah, manajemen pola shift roster fleksibel, dan tukar shift mandiri.',
+        screenshot: '/avana/landing/screenshots/absensi.png',
+        highlights: [
+            'Live GPS tracking & face verification',
+            'Manajemen jadwal shift kompleks',
+            'Timesheet otomatis & koreksi',
+        ],
+    },
+    {
+        title: 'Leave & Cuti',
+        icon: Palmtree,
+        tagline: 'Manajemen Cuti & Izin',
+        desc: 'Otomatisasi pengajuan dan persetujuan cuti berjenjang, perhitungan sisa kuota cuti tahunan, rekap lembur, serta permohonan dinas kerja.',
+        screenshot: '/avana/landing/screenshots/dashboard-hero.png',
+        highlights: [
+            'Alur persetujuan multi-level',
+            'Kalkulasi sisa cuti otomatis',
+            'Integrasi langsung ke payroll',
+        ],
+    },
+    {
+        title: 'Recruitment',
+        icon: UserPlus,
+        tagline: 'Talent Acquisition & Hiring',
+        desc: 'Kelola requisition lowongan kerja, hiring request dari user department, pipeline pelamar kerja, jadwal interview, hingga proses onboarding digital.',
+        screenshot: '/avana/landing/screenshots/rekrutmen.png',
+        highlights: [
+            'Applicant Tracking System (ATS)',
+            'Progres kandidat per tahap',
+            'Onboarding digital terhubung',
+        ],
+    },
+    {
+        title: 'Performance',
+        icon: Target,
+        tagline: 'Manajemen Kinerja & OKR',
+        desc: 'Evaluasi kinerja berkala (KPI / OKR), self-assessment dan penilaian atasan, serta talent matrix nine-box untuk perencanaan suksesi kepemimpinan.',
+        screenshot: '/avana/landing/screenshots/kinerja.png',
+        highlights: [
+            'OKR & Goal tracking',
+            'Self-assessment & penilaian atasan',
+            'Pemetaan talent nine-box',
+        ],
+    },
+    {
+        title: 'AI Intelligence',
+        icon: Sparkles,
+        tagline: 'Kecerdasan Buatan HR',
+        desc: 'AI Assistant yang membaca SOP perusahaan yang dipublikasikan, membantu HR dan karyawan menjawab pertanyaan kebijakan sesuai konteks internal.',
+        screenshot: '/avana/landing/screenshots/dashboard.png',
+        highlights: [
+            'Jawaban bersumber dari SOP internal',
+            'Provider & model AI dapat dikonfigurasi',
+            'Tersedia untuk HR dan karyawan',
+        ],
+    },
+    {
+        title: 'Workforce Analytics',
+        icon: BarChart3,
+        tagline: 'Executive HR Dashboard',
+        desc: 'Bantu HR melihat data tenaga kerja dengan perspektif yang lebih terhubung melalui grafik headcount, absensi, payroll, dan demografi karyawan.',
+        screenshot: '/avana/landing/screenshots/analytics.png',
+        highlights: [
+            'Prediksi risiko resign (attrition)',
+            'Sebaran demografi & masa kerja',
+            'Filter & export report',
+        ],
+    },
+];
+
+/**
+ * The 8 concrete product modules as a clickable grid with a live screenshot
+ * showcase below — one level more granular than the abstract value-flow in
+ * `SolutionSection` above it.
  */
 export function ModulesSection() {
     const [active, setActive] = useState(0);
-    const current = SOLUTIONS[active];
-    const features = [...current.highlights, ...current.more];
+    const current = MODULES[active];
 
     return (
-        <section
-            id="platform"
-            className="scroll-mt-28 py-20 lg:py-28"
-        >
+        <section id="platform" className="scroll-mt-28 py-20 lg:py-28">
             <Container>
                 <SectionHeading
-                    eyebrow="Fitur & modul"
-                    title="Satu Platform untuk Proses HR yang Terhubung."
-                    description="Kelola seluruh siklus karyawan — dari rekrutmen hingga payroll dan analitik — tanpa berpindah-pindah aplikasi."
+                    eyebrow="Fitur & modul komprehensif"
+                    title={
+                        <>
+                            Satu Platform untuk{' '}
+                            <br className="hidden sm:inline" />
+                            <span className="text-[#2F54C9]">
+                                Proses HR yang Terhubung
+                            </span>
+                        </>
+                    }
+                    description="Kelola seluruh siklus karyawan dari rekrutmen hingga payroll dan analitik tanpa perlu berpindah-pindah aplikasi yang terpisah."
                 />
 
-                <div className="mt-12 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-6">
-                    {SOLUTIONS.map((solution, index) => {
+                <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {MODULES.map((module, index) => {
                         const isActive = index === active;
 
                         return (
-                            <Reveal key={solution.id} delay={(index % 3) * 0.05}>
+                            <Reveal
+                                key={module.title}
+                                delay={(index % 4) * 0.05}
+                            >
                                 <button
                                     type="button"
                                     onClick={() => setActive(index)}
                                     aria-pressed={isActive}
                                     className={cn(
-                                        'flex h-full w-full cursor-pointer flex-col justify-between rounded-2xl border p-5 text-left transition-[background-color,border-color,box-shadow,transform] duration-200',
+                                        'flex h-full w-full cursor-pointer flex-col justify-between rounded-2xl border p-6 text-left transition-[background-color,border-color,box-shadow,transform] duration-200',
                                         isActive
                                             ? 'scale-[1.02] border-[#0E1A3A] bg-gradient-to-b from-[#16234A] to-[#0E1A3A] text-white shadow-avana-hover'
-                                            : 'border-[#E7ECF5] bg-white text-[#0E1A3A] hover:border-[#C9D6F0] hover:shadow-lift',
+                                            : 'border-[#E7ECF5] bg-[#F8FAFD] text-[#0E1A3A] hover:bg-[#EEF2FB]',
                                     )}
                                 >
-                                    <span
+                                    <div>
+                                        <div className="mb-4 flex items-center justify-between">
+                                            <span
+                                                className={cn(
+                                                    'grid h-12 w-12 place-items-center rounded-xl transition-colors',
+                                                    isActive
+                                                        ? 'bg-[#2F54C9] text-white'
+                                                        : 'bg-white text-[#2F54C9] shadow-sm',
+                                                )}
+                                            >
+                                                <module.icon
+                                                    className="h-6 w-6"
+                                                    aria-hidden
+                                                />
+                                            </span>
+                                            {isActive && (
+                                                <span className="rounded-full bg-[#2F54C9] px-2 py-0.5 text-[10px] font-bold tracking-wider text-white uppercase">
+                                                    Aktif
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <h3
+                                            className={cn(
+                                                'mb-1 text-lg font-bold',
+                                                isActive
+                                                    ? 'text-white'
+                                                    : 'text-[#0E1A3A]',
+                                            )}
+                                        >
+                                            {module.title}
+                                        </h3>
+                                        <p
+                                            className={cn(
+                                                'mb-2 text-xs font-semibold',
+                                                isActive
+                                                    ? 'text-blue-200'
+                                                    : 'text-[#2F54C9]',
+                                            )}
+                                        >
+                                            {module.tagline}
+                                        </p>
+                                        <p
+                                            className={cn(
+                                                'line-clamp-2 text-xs leading-relaxed',
+                                                isActive
+                                                    ? 'text-white/80'
+                                                    : 'text-[#3B455C]/80',
+                                            )}
+                                        >
+                                            {module.desc}
+                                        </p>
+                                    </div>
+
+                                    <div
                                         className={cn(
-                                            'grid h-11 w-11 place-items-center rounded-xl transition-colors duration-200',
+                                            'mt-4 flex items-center justify-between border-t pt-3 text-xs font-bold',
                                             isActive
-                                                ? 'bg-[#2F54C9] text-white'
-                                                : 'bg-[#EEF2FB] text-[#2F54C9]',
+                                                ? 'border-white/10 text-white'
+                                                : 'border-[#E7ECF5] text-[#2F54C9]',
                                         )}
                                     >
-                                        <solution.icon
-                                            className="h-5 w-5"
+                                        <span>Lihat Tampilan UI</span>
+                                        <ArrowRight
+                                            className="h-3.5 w-3.5"
                                             aria-hidden
                                         />
-                                    </span>
-                                    <span
-                                        className={cn(
-                                            'mt-4 text-[15px] font-semibold',
-                                            isActive
-                                                ? 'text-white'
-                                                : 'text-[#0E1A3A]',
-                                        )}
-                                    >
-                                        {solution.title}
-                                    </span>
+                                    </div>
                                 </button>
                             </Reveal>
                         );
@@ -77,27 +250,28 @@ export function ModulesSection() {
                 <Reveal delay={0.1} className="mt-6">
                     <div className="rounded-[28px] border border-[#E7ECF5] bg-[#F8FAFD] p-6 sm:p-10">
                         <div className="grid gap-8 lg:grid-cols-12 lg:items-center">
-                            <div className="lg:col-span-7">
+                            <div className="lg:col-span-5">
                                 <span className="inline-flex items-center rounded-full border border-[#E2E9F6] bg-white px-3.5 py-1 text-[12px] font-semibold tracking-[0.08em] text-[#2F54C9] uppercase">
-                                    Modul {current.number}
+                                    Modul Terpilih
                                 </span>
-                                <h3 className="mt-4 text-2xl font-bold tracking-[-0.01em] text-[#0E1A3A] sm:text-[28px]">
+                                <h3 className="mt-4 text-2xl font-extrabold tracking-[-0.01em] text-[#0E1A3A] sm:text-[28px]">
                                     {current.title}
                                 </h3>
-                                <p className="mt-3 text-[15px] leading-relaxed text-[#5B6478] sm:text-[16px]">
-                                    {current.copy}
+                                <p className="mt-1 text-[13.5px] font-semibold text-[#2F54C9]">
+                                    {current.tagline}
                                 </p>
-                                <div className="mt-6">
-                                    <DemoButton variant="primary" />
-                                </div>
-                            </div>
+                                <p className="mt-3 text-[15px] leading-relaxed text-[#5B6478] sm:text-[16px]">
+                                    {current.desc}
+                                </p>
 
-                            <div className="lg:col-span-5">
-                                <ul className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-1">
-                                    {features.map((feature) => (
-                                        <li
-                                            key={feature}
-                                            className="flex items-center gap-2.5 rounded-xl border border-[#EDF1F8] bg-white px-3.5 py-2.5 text-[13.5px] font-medium text-[#3B455C]"
+                                <div className="mt-5 space-y-2.5">
+                                    <div className="text-[12px] font-bold tracking-wider text-[#0E1A3A] uppercase">
+                                        Fitur Unggulan:
+                                    </div>
+                                    {current.highlights.map((item) => (
+                                        <div
+                                            key={item}
+                                            className="flex items-center gap-2.5 text-[14px] text-[#3B455C]"
                                         >
                                             <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#E7F6EE] text-[#1F9D55]">
                                                 <Check
@@ -105,10 +279,44 @@ export function ModulesSection() {
                                                     aria-hidden
                                                 />
                                             </span>
-                                            {feature}
-                                        </li>
+                                            {item}
+                                        </div>
                                     ))}
-                                </ul>
+                                </div>
+
+                                <div className="mt-6">
+                                    <DemoButton variant="primary">
+                                        Coba Modul {current.title}
+                                    </DemoButton>
+                                </div>
+                            </div>
+
+                            <div className="lg:col-span-7">
+                                <div className="rounded-2xl border border-avana-border bg-white p-2 shadow-avana-hover sm:p-3">
+                                    <div className="mb-2 flex items-center justify-between border-b border-[#F0F3F9] px-3 py-1.5 text-xs text-avana-muted">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="h-2 w-2 rounded-full bg-gray-300" />
+                                            <span className="h-2 w-2 rounded-full bg-gray-300" />
+                                            <span className="h-2 w-2 rounded-full bg-gray-300" />
+                                        </div>
+                                        <span className="font-mono text-[11px] text-avana-muted">
+                                            app.avanahr.id/modul/
+                                            {current.title
+                                                .toLowerCase()
+                                                .replace(/\s+/g, '-')}
+                                        </span>
+                                        <div className="w-6" />
+                                    </div>
+
+                                    <div className="flex max-h-[380px] items-start justify-center overflow-hidden rounded-xl border border-[#F0F3F9] bg-[#F8FAFD] sm:max-h-[460px]">
+                                        <img
+                                            src={current.screenshot}
+                                            alt={`Tampilan ${current.title} di AvanaHR`}
+                                            loading="lazy"
+                                            className="h-auto w-full rounded-lg object-contain"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -119,7 +327,7 @@ export function ModulesSection() {
                         href="#solusi"
                         className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-[#2F54C9] hover:text-[#2546AD]"
                     >
-                        Lihat detail semua modul
+                        Lihat cakupan platform
                         <ArrowRight className="h-3.5 w-3.5" aria-hidden />
                     </a>
                 </Reveal>

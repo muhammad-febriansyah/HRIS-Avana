@@ -365,6 +365,61 @@ html {
     color: #64748b;
 }
 
+.article-body {
+    margin-top: 32px;
+    color: #334155;
+    font-size: 16px;
+    line-height: 1.8;
+}
+
+.article-body > * + * {
+    margin-top: 1em;
+}
+
+.article-body h2,
+.article-body h3 {
+    color: #0e1a3a;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.article-body h2 {
+    font-size: 1.35em;
+}
+
+.article-body h3 {
+    font-size: 1.15em;
+}
+
+.article-body ul,
+.article-body ol {
+    padding-left: 1.5em;
+}
+
+.article-body ul {
+    list-style: disc;
+}
+
+.article-body ol {
+    list-style: decimal;
+}
+
+.article-body a {
+    color: #2f54c9;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.article-body strong {
+    color: #0e1a3a;
+}
+
+.article-body blockquote {
+    border-left: 3px solid #2f54c9;
+    color: #64748b;
+    padding-left: 1em;
+}
+
 .avn-burger {
     display: none;
 }

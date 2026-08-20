@@ -2,16 +2,33 @@
 
 use App\Http\Controllers\AiTokenReturnController;
 use App\Http\Controllers\Avana\DashboardController;
+use App\Http\Controllers\PrivacyPolicyController;
 use App\Http\Controllers\PrivateFileController;
+use App\Http\Controllers\PublicNewsController;
+use App\Http\Controllers\WelcomeController;
 use Illuminate\Support\Facades\Route;
 
-Route::inertia('/', 'welcome')->name('home');
+Route::get('/', WelcomeController::class)->name('home');
 
 /*
  * Public marketing page for the Live Tracking feature. Static like the landing
  * page — no controller, no data, nothing behind auth.
  */
 Route::inertia('live-tracking', 'public/live-tracking')->name('live-tracking');
+
+/*
+ * Public news/berita — read-only, published articles only. Separate from the
+ * super-admin CMS at avana/berita (NewsPolicy gates that one to super admins).
+ */
+Route::get('berita', [PublicNewsController::class, 'index'])->name('berita');
+Route::get('berita/{news:slug}', [PublicNewsController::class, 'show'])->name('berita.show');
+
+/*
+ * Static legal pages linked from the footer. No controller, no data, nothing
+ * behind auth — same pattern as the Live Tracking marketing page.
+ */
+Route::get('kebijakan-privasi', PrivacyPolicyController::class)->name('privacy');
+Route::inertia('syarat-ketentuan', 'public/legal/terms')->name('terms');
 
 /*
  * Public return page for a personal AI token purchase paid from the phone. The
