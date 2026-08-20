@@ -34,7 +34,7 @@ export function SiteNavbar({
     activePage?: 'live-tracking';
 }) {
     const { auth } = usePage().props;
-    const { login: loginUrl } = useCtaTargets();
+    const { trial: trialUrl, trialExternal } = useCtaTargets();
     const [scrolled, setScrolled] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
     const [activeSection, setActiveSection] = useState('');
@@ -211,12 +211,18 @@ export function SiteNavbar({
                             Dashboard
                         </Link>
                     ) : (
-                        <Link
-                            href={loginUrl}
+                        <a
+                            href={trialUrl}
+                            target={trialExternal ? '_blank' : undefined}
+                            rel={
+                                trialExternal
+                                    ? 'noopener noreferrer'
+                                    : undefined
+                            }
                             className="inline-flex h-11 items-center rounded-full bg-avana-blue px-6 text-[14px] font-bold text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-avana-blue-hover hover:shadow-avana-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-avana-blue active:translate-y-0"
                         >
                             Coba Gratis
-                        </Link>
+                        </a>
                     )}
                 </div>
 
@@ -297,12 +303,18 @@ export function SiteNavbar({
                                 Dashboard
                             </Link>
                         ) : (
-                            <Link
-                                href={loginUrl}
+                            <a
+                                href={trialUrl}
+                                target={trialExternal ? '_blank' : undefined}
+                                rel={
+                                    trialExternal
+                                        ? 'noopener noreferrer'
+                                        : undefined
+                                }
                                 className="inline-flex h-12 items-center justify-center rounded-full bg-avana-blue text-[15px] font-bold text-white"
                             >
                                 Coba Gratis
-                            </Link>
+                            </a>
                         )}
                     </div>
                 </div>

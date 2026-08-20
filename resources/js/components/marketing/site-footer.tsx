@@ -58,14 +58,8 @@ function PlayStoreGlyph({ className }: { className?: string }) {
                 d="M4.5 2.7c-.4.2-.6.6-.6 1.1v16.4c0 .5.2.9.6 1.1l9.8-9.3z"
                 fill="#00D2FF"
             />
-            <path
-                d="M17.9 10.4 14.6 8.5 4.7 2.8l9.6 9.2z"
-                fill="#00F076"
-            />
-            <path
-                d="M4.7 21.2l9.9-5.7 3.3-1.9-3.6-3.4z"
-                fill="#F73177"
-            />
+            <path d="M17.9 10.4 14.6 8.5 4.7 2.8l9.6 9.2z" fill="#00F076" />
+            <path d="M4.7 21.2l9.9-5.7 3.3-1.9-3.6-3.4z" fill="#F73177" />
             <path
                 d="M17.9 10.4l-3.6 3.4 3.6 3.4 4.3-2.5c.7-.4.7-1.3 0-1.7z"
                 fill="#FFCF00"
@@ -116,7 +110,7 @@ export function SiteFooter({
     anchorPrefix?: string;
 }) {
     const { website } = usePage().props;
-    const { login: loginUrl, trial } = useCtaTargets();
+    const { login: loginUrl, trial, trialExternal } = useCtaTargets();
 
     const socials = (
         [
@@ -167,7 +161,7 @@ export function SiteFooter({
                         src={logo}
                         alt={brand}
                         loading="lazy"
-                        className="h-9 w-auto rounded-xl bg-white p-2 object-contain"
+                        className="h-9 w-auto rounded-xl bg-white object-contain p-2"
                     />
                     <p className="mt-5 max-w-xs text-[14px] leading-relaxed text-blue-200/80">
                         {website.tagline ??
@@ -323,9 +317,20 @@ export function SiteFooter({
                         <ColumnHeading>Perusahaan</ColumnHeading>
                         <ul className="mt-6 space-y-3">
                             <li>
-                                <Link href={trial} className={LINK_CLASS}>
-                                    Coba Avana
-                                </Link>
+                                {trialExternal ? (
+                                    <a
+                                        href={trial}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={LINK_CLASS}
+                                    >
+                                        Coba Avana
+                                    </a>
+                                ) : (
+                                    <Link href={trial} className={LINK_CLASS}>
+                                        Coba Avana
+                                    </Link>
+                                )}
                             </li>
                             <li>
                                 <Link href={loginUrl} className={LINK_CLASS}>
@@ -392,8 +397,8 @@ export function SiteFooter({
             <div className="relative border-t border-white/10">
                 <Container className="flex flex-col items-center justify-between gap-4 py-6 sm:flex-row">
                     <p className="order-3 text-[13px] text-blue-200/60 sm:order-1">
-                        &copy; {new Date().getFullYear()} {brand}. Seluruh
-                        hak cipta dilindungi.
+                        &copy; {new Date().getFullYear()} {brand}. Seluruh hak
+                        cipta dilindungi.
                     </p>
 
                     <div className="order-2 flex items-center gap-1.5 text-[13px] text-blue-200/60">
