@@ -8,12 +8,13 @@ import { NAV_ITEMS } from './content';
 import { useCtaTargets } from './use-cta';
 
 /**
- * Sticky marketing navbar, drawn as a floating pill.
+ * Sticky marketing navbar, drawn as a full-width fixed bar.
  *
- * The pill starts transparent over the hero, then picks up a hairline border,
- * a blurred background and a very soft shadow once the page scrolls. The width
- * never animates, so the six anchors and the two actions never collide on
- * narrow desktops.
+ * It starts transparent over the hero, then picks up a hairline border, a
+ * blurred white background and a soft shadow once the page scrolls — the
+ * same shell language as the rest of the site (avana-navy text, avana-blue
+ * accents). The bar's height never animates, so the anchors and the actions
+ * never collide on narrow desktops.
  */
 export function SiteNavbar({
     brand,
@@ -33,10 +34,11 @@ export function SiteNavbar({
     activePage?: 'live-tracking';
 }) {
     const { auth } = usePage().props;
-    const { demo, login: loginUrl } = useCtaTargets();
+    const { login: loginUrl } = useCtaTargets();
     const [scrolled, setScrolled] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
     const [activeSection, setActiveSection] = useState('');
+    const [infoBarOpen, setInfoBarOpen] = useState(true);
 
     useEffect(() => {
         const onScroll = () => {
@@ -89,55 +91,85 @@ export function SiteNavbar({
     const items = [
         ...NAV_ITEMS.map((item) => ({
             name: item.name,
+            badge: item.badge,
             href: `${anchorPrefix}${item.link}`,
             isActive: !anchorPrefix && activeSection === item.link,
             isRoute: false,
         })),
         {
             name: 'Live Tracking',
+            badge: undefined as string | undefined,
             href: trackingUrl,
             isActive: activePage === 'live-tracking',
             isRoute: true,
         },
     ];
 
-    const demoProps = demo.external
-        ? {
-              href: demo.href,
-              target: '_blank' as const,
-              rel: 'noopener noreferrer',
-          }
-        : { href: demo.href };
-
     return (
-        <header className="sticky top-0 z-50 px-4 pt-3 sm:px-6 sm:pt-4">
+        <header
+            className={cn(
+                'sticky top-0 z-50 transition-[background-color,box-shadow,border-color] duration-300',
+                scrolled || mobileOpen
+                    ? 'border-b border-avana-border/60 bg-white/95 shadow-avana-subtle backdrop-blur-md'
+                    : 'border-b border-transparent bg-white/80 backdrop-blur-sm',
+            )}
+        >
+            {infoBarOpen && (
+                <div className="relative flex items-center justify-between gap-2 border-b border-avana-blue/30 bg-avana-navy px-4 py-2.5 text-[11px] text-white shadow-sm sm:text-xs">
+                    <div className="flex flex-1 flex-col items-center justify-center gap-1.5 pr-6 text-center sm:flex-row sm:gap-3">
+                        <p className="font-medium text-blue-100/90">
+                            Berhenti buang waktu rekap manual! Transformasi HR
+                            Anda sekarang &amp; nikmati{' '}
+                            <strong className="text-white">
+                                Gratis Ujicoba 3 Bulan
+                            </strong>
+                            .
+                        </p>
+                        <a
+                            href="#harga"
+                            className="font-bold text-white underline hover:text-blue-200"
+                        >
+                            Selengkapnya
+                        </a>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setInfoBarOpen(false)}
+                        aria-label="Tutup"
+                        className="absolute top-1/2 right-2 -translate-y-1/2 rounded-full p-1 hover:bg-white/20 sm:right-4"
+                    >
+                        <X className="h-4 w-4" aria-hidden />
+                    </button>
+                </div>
+            )}
+
             <nav
                 aria-label="Navigasi utama"
-                className={cn(
-                    'relative mx-auto flex h-14 w-full max-w-[1080px] items-center justify-between gap-3 rounded-full border pr-2 pl-5 transition-[background-color,box-shadow,border-color] duration-300 lg:h-16',
-                    scrolled || mobileOpen
-                        ? 'border-[#E7ECF5] bg-white/85 shadow-soft backdrop-blur-xl'
-                        : 'border-transparent bg-transparent',
-                )}
+                className="mx-auto flex h-16 w-full max-w-[1200px] items-center justify-between gap-3 px-5 sm:px-8 lg:h-[72px]"
             >
                 <Link
                     href="/"
-                    className="flex shrink-0 items-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#2F54C9]"
+                    className="flex shrink-0 items-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-avana-blue"
                 >
                     <BrandLogo
                         src={logo}
                         alt={`${brand} — beranda`}
-                        className="h-7 w-auto object-contain lg:h-8"
+                        className="h-8 w-auto object-contain lg:h-9"
                     />
                 </Link>
 
-                <ul className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-0.5 lg:flex">
+                <ul className="hidden items-center gap-1 lg:flex">
                     {items.map((item) => {
                         const className = cn(
-                            'rounded-full px-3 py-2 text-[13.5px] font-medium transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F54C9]',
+                            'flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[14px] font-medium transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-avana-blue',
                             item.isActive
-                                ? 'bg-[#2F54C9]/10 text-[#2F54C9]'
-                                : 'text-[#3B455C] hover:bg-[#F4F6FB] hover:text-[#0E1A3A]',
+                                ? 'bg-avana-light text-avana-blue'
+                                : 'text-avana-text/80 hover:text-avana-blue',
+                        );
+                        const badge = item.badge && (
+                            <span className="rounded-full bg-avana-light px-2 py-0.5 text-[10.5px] font-bold tracking-wider text-avana-blue uppercase">
+                                {item.badge}
+                            </span>
                         );
 
                         return (
@@ -151,6 +183,7 @@ export function SiteNavbar({
                                         className={className}
                                     >
                                         {item.name}
+                                        {badge}
                                     </Link>
                                 ) : (
                                     <a
@@ -161,6 +194,7 @@ export function SiteNavbar({
                                         className={className}
                                     >
                                         {item.name}
+                                        {badge}
                                     </a>
                                 )}
                             </li>
@@ -168,29 +202,21 @@ export function SiteNavbar({
                     })}
                 </ul>
 
-                <div className="hidden shrink-0 items-center gap-2 lg:flex">
+                <div className="hidden shrink-0 items-center gap-4 lg:flex">
                     {auth.user ? (
                         <Link
                             href={dashboard().url}
-                            className="inline-flex h-10 items-center rounded-full bg-[#2F54C9] px-5 text-[14px] font-semibold text-white shadow-[0_8px_20px_-8px_rgba(47,84,201,0.55)] transition-colors hover:bg-[#2546AD] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F54C9]"
+                            className="inline-flex h-11 items-center rounded-full bg-avana-blue px-6 text-[14px] font-bold text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-avana-blue-hover hover:shadow-avana-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-avana-blue active:translate-y-0"
                         >
                             Dashboard
                         </Link>
                     ) : (
-                        <>
-                            <Link
-                                href={loginUrl}
-                                className="inline-flex h-10 items-center rounded-full border border-[#DDE5F5] bg-white px-4 text-[14px] font-semibold text-[#0E1A3A] transition-colors hover:border-[#2F54C9] hover:text-[#2F54C9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F54C9]"
-                            >
-                                Masuk
-                            </Link>
-                            <a
-                                {...demoProps}
-                                className="inline-flex h-10 items-center rounded-full bg-[#2F54C9] px-5 text-[14px] font-semibold text-white shadow-[0_8px_20px_-8px_rgba(47,84,201,0.55)] transition-colors hover:bg-[#2546AD] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F54C9]"
-                            >
-                                Jadwalkan Demo
-                            </a>
-                        </>
+                        <Link
+                            href={loginUrl}
+                            className="inline-flex h-11 items-center rounded-full bg-avana-blue px-6 text-[14px] font-bold text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-avana-blue-hover hover:shadow-avana-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-avana-blue active:translate-y-0"
+                        >
+                            Coba Gratis
+                        </Link>
                     )}
                 </div>
 
@@ -201,8 +227,8 @@ export function SiteNavbar({
                     aria-controls="menu-mobile"
                     aria-label={mobileOpen ? 'Tutup menu' : 'Buka menu'}
                     className={cn(
-                        'ml-auto grid h-10 w-10 cursor-pointer place-items-center rounded-full text-[#0E1A3A] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F54C9] lg:hidden',
-                        mobileOpen ? 'bg-[#EEF2FB]' : 'hover:bg-[#F4F6FB]',
+                        'ml-auto grid h-10 w-10 cursor-pointer place-items-center rounded-full text-avana-text transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-avana-blue lg:hidden',
+                        mobileOpen ? 'bg-avana-light' : 'hover:bg-avana-soft',
                     )}
                 >
                     {mobileOpen ? (
@@ -216,15 +242,20 @@ export function SiteNavbar({
             {mobileOpen && (
                 <div
                     id="menu-mobile"
-                    className="mx-auto mt-2 w-full max-w-[1080px] rounded-3xl border border-[#E7ECF5] bg-white/95 p-3 shadow-lift backdrop-blur-xl lg:hidden"
+                    className="border-t border-avana-border bg-white px-5 pt-4 pb-6 shadow-avana-card lg:hidden"
                 >
                     <ul className="space-y-0.5">
                         {items.map((item) => {
                             const className = cn(
-                                'block rounded-xl px-4 py-3 text-[15px] font-medium',
+                                'flex items-center justify-between gap-2 rounded-xl px-4 py-3 text-[15px] font-medium',
                                 item.isActive
-                                    ? 'bg-[#2F54C9]/10 text-[#2F54C9]'
-                                    : 'text-[#1A2333] hover:bg-[#F4F6FB]',
+                                    ? 'bg-avana-light text-avana-blue'
+                                    : 'text-avana-text hover:bg-avana-soft',
+                            );
+                            const badge = item.badge && (
+                                <span className="rounded-full bg-avana-light px-2 py-0.5 text-[10px] font-bold tracking-wider text-avana-blue uppercase">
+                                    {item.badge}
+                                </span>
                             );
 
                             return (
@@ -241,6 +272,7 @@ export function SiteNavbar({
                                             className={className}
                                         >
                                             {item.name}
+                                            {badge}
                                         </Link>
                                     ) : (
                                         <a
@@ -249,35 +281,28 @@ export function SiteNavbar({
                                             className={className}
                                         >
                                             {item.name}
+                                            {badge}
                                         </a>
                                     )}
                                 </li>
                             );
                         })}
                     </ul>
-                    <div className="mt-3 flex flex-col gap-2 border-t border-[#EDF1F8] pt-3">
+                    <div className="mt-3 flex flex-col gap-2.5 border-t border-avana-border pt-4">
                         {auth.user ? (
                             <Link
                                 href={dashboard().url}
-                                className="inline-flex h-11 items-center justify-center rounded-full bg-[#2F54C9] text-[15px] font-semibold text-white"
+                                className="inline-flex h-12 items-center justify-center rounded-full bg-avana-blue text-[15px] font-bold text-white"
                             >
                                 Dashboard
                             </Link>
                         ) : (
-                            <>
-                                <Link
-                                    href={loginUrl}
-                                    className="inline-flex h-11 items-center justify-center rounded-full border border-[#DFE6F4] text-[15px] font-semibold text-[#0E1A3A]"
-                                >
-                                    Masuk
-                                </Link>
-                                <a
-                                    {...demoProps}
-                                    className="inline-flex h-11 items-center justify-center rounded-full bg-[#2F54C9] text-[15px] font-semibold text-white"
-                                >
-                                    Jadwalkan Demo
-                                </a>
-                            </>
+                            <Link
+                                href={loginUrl}
+                                className="inline-flex h-12 items-center justify-center rounded-full bg-avana-blue text-[15px] font-bold text-white"
+                            >
+                                Coba Gratis
+                            </Link>
                         )}
                     </div>
                 </div>

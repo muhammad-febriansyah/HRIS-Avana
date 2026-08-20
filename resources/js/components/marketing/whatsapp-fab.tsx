@@ -1,7 +1,9 @@
+import { X } from 'lucide-react';
+import { useState } from 'react';
 import { useCtaTargets } from './use-cta';
 
 /** WhatsApp glyph — the official mark, drawn as a single path. */
-function WhatsAppIcon({ className }: { className?: string }) {
+export function WhatsAppIcon({ className }: { className?: string }) {
     return (
         <svg
             viewBox="0 0 24 24"
@@ -18,32 +20,56 @@ function WhatsAppIcon({ className }: { className?: string }) {
  * Floating WhatsApp action, pinned bottom-right.
  *
  * Only rendered when a WhatsApp number is configured in the website settings —
- * the landing page never invents a contact channel. It rests as a plain circle
- * and widens into a labelled pill on hover or keyboard focus, so it stays out
- * of the way of the page content underneath.
+ * the landing page never invents a contact channel. A dismissible tooltip
+ * badge sits beside the button on larger screens, and the button itself
+ * carries a pulsing "online" ring to draw the eye without being obnoxious.
  */
 export function WhatsAppFab() {
     const { whatsapp } = useCtaTargets();
+    const [showTooltip, setShowTooltip] = useState(true);
 
     if (!whatsapp) {
         return null;
     }
 
     return (
-        <a
-            href={whatsapp}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Hubungi kami lewat WhatsApp"
-            className="group fixed right-4 bottom-4 z-50 inline-flex h-14 min-w-14 items-center justify-center rounded-full bg-[#25D366] px-4 text-white shadow-[0_12px_30px_-10px_rgba(37,211,102,0.75)] transition-[transform,box-shadow,background-color] duration-200 hover:-translate-y-0.5 hover:bg-[#1EBE5B] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0E1A3A] sm:right-6 sm:bottom-6"
-        >
-            <WhatsAppIcon className="h-6 w-6 shrink-0" />
-            {/* Collapsed to zero width at rest; the label only unfurls on hover
-             * or focus. Touch devices never fire hover, so they keep the
-             * circle — the aria-label carries the meaning either way. */}
-            <span className="ml-0 max-w-0 overflow-hidden text-[14.5px] font-semibold whitespace-nowrap opacity-0 transition-[max-width,opacity,margin] duration-300 ease-out group-hover:ml-2.5 group-hover:max-w-[180px] group-hover:opacity-100 group-focus-visible:ml-2.5 group-focus-visible:max-w-[180px] group-focus-visible:opacity-100">
-                Chat via WhatsApp
-            </span>
-        </a>
+        <div className="pointer-events-auto fixed right-4 bottom-4 z-50 flex items-end gap-3 sm:right-6 sm:bottom-6">
+            {showTooltip && (
+                <div className="hidden animate-in fade-in-50 slide-in-from-bottom-2 items-center gap-2.5 rounded-2xl border border-avana-border bg-white p-3 pr-3.5 shadow-avana-hover sm:flex">
+                    <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-[#25D366]" />
+                    <div className="text-xs font-semibold text-avana-navy">
+                        <span>Butuh konsultasi cepat? </span>
+                        <a
+                            href={whatsapp}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-bold text-[#25D366] hover:underline"
+                        >
+                            Chat via WhatsApp
+                        </a>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setShowTooltip(false)}
+                        className="ml-1 shrink-0 p-0.5 text-gray-400 hover:text-gray-600"
+                        aria-label="Tutup"
+                    >
+                        <X className="h-3.5 w-3.5" />
+                    </button>
+                </div>
+            )}
+
+            <a
+                href={whatsapp}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Chat dengan AvanaHR di WhatsApp"
+                className="group relative flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-xl shadow-emerald-700/30 transition-all duration-300 hover:scale-105 hover:bg-[#1EBE5B] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0E1A3A] sm:h-16 sm:w-16"
+            >
+                <span className="absolute -top-1 -right-1 h-4 w-4 animate-ping rounded-full border-2 border-white bg-emerald-300" />
+                <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full border-2 border-white bg-emerald-300" />
+                <WhatsAppIcon className="h-7 w-7 sm:h-8 sm:w-8" />
+            </a>
+        </div>
     );
 }

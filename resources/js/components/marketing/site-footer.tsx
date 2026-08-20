@@ -14,7 +14,7 @@ import type { ComponentType } from 'react';
 import { liveTracking } from '@/routes';
 import { BrandLogo } from './brand-logo';
 import { FOOTER_EXPLORE, FOOTER_PRODUCT } from './content';
-import { Container } from './reveal';
+import { Container, Reveal } from './reveal';
 import { useCtaTargets } from './use-cta';
 
 type Social = {
@@ -24,11 +24,14 @@ type Social = {
 };
 
 const LINK_CLASS =
-    'rounded-sm text-[14px] text-[#5B6478] transition-colors hover:text-[#2F54C9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F54C9]';
+    'inline-block rounded-sm text-[14px] text-blue-100/70 transition-[color,transform] duration-200 hover:translate-x-1 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60';
+
+const SOCIAL_CLASS =
+    'grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/5 text-blue-200 transition-all duration-200 hover:-translate-y-0.5 hover:border-avana-blue hover:bg-avana-blue hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60';
 
 function ColumnHeading({ children }: { children: string }) {
     return (
-        <h2 className="text-[12px] font-semibold tracking-[0.08em] text-[#0E1A3A] uppercase">
+        <h2 className="text-[12px] font-bold tracking-[0.18em] text-blue-400 uppercase">
             {children}
         </h2>
     );
@@ -37,10 +40,11 @@ function ColumnHeading({ children }: { children: string }) {
 /**
  * Footer.
  *
- * Four columns — brand, product, page sections, contact — over a bottom bar
- * carrying the copyright and the account actions. Every link points somewhere
- * that exists: landing sections, the login route, and whichever
- * contact channels are actually filled in on the website settings.
+ * Dark navy footer — brand column with contact + socials, product and page
+ * link columns, over a bottom bar carrying the copyright and account
+ * actions. Every link points somewhere that exists: landing sections, the
+ * login route, and whichever contact channels are actually filled in on the
+ * website settings.
  */
 export function SiteFooter({
     brand,
@@ -53,7 +57,7 @@ export function SiteFooter({
     anchorPrefix?: string;
 }) {
     const { website } = usePage().props;
-    const { login: loginUrl, trial, demo } = useCtaTargets();
+    const { login: loginUrl, trial } = useCtaTargets();
 
     const socials = (
         [
@@ -86,38 +90,73 @@ export function SiteFooter({
     return (
         <footer
             id="kontak"
-            className="relative scroll-mt-28 border-t border-[#E7ECF5] bg-[#F8FAFD]"
+            className="relative scroll-mt-28 overflow-hidden bg-avana-navy text-white"
         >
             <div
                 aria-hidden
-                className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#2F54C9]/35 to-transparent"
+                className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-avana-blue/60 to-transparent"
+            />
+            <div
+                aria-hidden
+                className="pointer-events-none absolute -top-40 left-1/2 h-80 w-[640px] -translate-x-1/2 rounded-full bg-avana-blue/10 blur-[120px]"
             />
 
-            <Container className="grid grid-cols-2 gap-x-6 gap-y-10 py-14 lg:grid-cols-12 lg:gap-8 lg:py-16">
-                <div className="col-span-2 lg:col-span-4">
+            <Container className="relative grid grid-cols-1 gap-x-6 gap-y-12 py-16 sm:grid-cols-2 lg:grid-cols-12 lg:gap-8 lg:py-20">
+                <Reveal className="sm:col-span-2 lg:col-span-4">
                     <BrandLogo
                         src={logo}
                         alt={brand}
                         loading="lazy"
-                        className="h-9 w-auto object-contain"
+                        className="h-9 w-auto rounded-xl bg-white p-2 object-contain"
                     />
-                    <p className="mt-4 max-w-xs text-[14px] leading-relaxed text-[#5B6478]">
+                    <p className="mt-5 max-w-xs text-[14px] leading-relaxed text-blue-200/80">
                         {website.tagline ??
                             'Platform HR yang menyatukan HR Management, Attendance, Payroll, Finance, Talent, Employee Self Service dan Analytics.'}
                     </p>
 
-                    <a
-                        {...(demo.external
-                            ? {
-                                  href: demo.href,
-                                  target: '_blank',
-                                  rel: 'noopener noreferrer',
-                              }
-                            : { href: demo.href })}
-                        className="mt-6 inline-flex h-11 items-center rounded-full bg-[#2F54C9] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[#2546AD] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F54C9]"
-                    >
-                        Jadwalkan Demo
-                    </a>
+                    {hasContact && (
+                        <ul className="mt-6 space-y-3 text-[14px] text-blue-100/80">
+                            {website.contact.address && (
+                                <li className="flex items-start gap-3">
+                                    <MapPin
+                                        className="mt-0.5 h-4.5 w-4.5 shrink-0 text-avana-blue"
+                                        aria-hidden
+                                    />
+                                    <span className="leading-snug">
+                                        {website.contact.address}
+                                    </span>
+                                </li>
+                            )}
+                            {website.contact.email && (
+                                <li className="flex items-center gap-3">
+                                    <Mail
+                                        className="h-4.5 w-4.5 shrink-0 text-avana-blue"
+                                        aria-hidden
+                                    />
+                                    <a
+                                        href={`mailto:${website.contact.email}`}
+                                        className="transition-colors hover:text-white"
+                                    >
+                                        {website.contact.email}
+                                    </a>
+                                </li>
+                            )}
+                            {website.contact.phone && (
+                                <li className="flex items-center gap-3">
+                                    <Phone
+                                        className="h-4.5 w-4.5 shrink-0 text-avana-blue"
+                                        aria-hidden
+                                    />
+                                    <a
+                                        href={`tel:${website.contact.phone}`}
+                                        className="transition-colors hover:text-white"
+                                    >
+                                        {website.contact.phone}
+                                    </a>
+                                </li>
+                            )}
+                        </ul>
+                    )}
 
                     {socials.length > 0 && (
                         <ul className="mt-7 flex flex-wrap gap-2.5">
@@ -128,7 +167,7 @@ export function SiteFooter({
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         aria-label={social.label}
-                                        className="grid h-10 w-10 place-items-center rounded-xl border border-[#E3E9F5] bg-white text-[#6B7280] transition-[color,border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-[#C9D6F0] hover:text-[#2F54C9] hover:shadow-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F54C9]"
+                                        className={SOCIAL_CLASS}
                                     >
                                         <social.icon
                                             className="h-4 w-4"
@@ -139,145 +178,97 @@ export function SiteFooter({
                             ))}
                         </ul>
                     )}
-                </div>
+                </Reveal>
 
-                <nav className="col-span-1 lg:col-span-2" aria-label="Produk">
-                    <ColumnHeading>Produk</ColumnHeading>
-                    <ul className="mt-5 space-y-3">
-                        {FOOTER_PRODUCT.map((item) => (
-                            <li key={item.label}>
-                                <a
-                                    href={`${anchorPrefix}${item.href}`}
-                                    className={LINK_CLASS}
-                                >
-                                    {item.label}
-                                </a>
-                            </li>
-                        ))}
-                        <li>
-                            <Link
-                                href={liveTracking().url}
-                                className={LINK_CLASS}
-                            >
-                                Live Tracking
-                            </Link>
-                        </li>
-                    </ul>
-                </nav>
-
-                <nav
-                    className="col-span-1 lg:col-span-2"
-                    aria-label="Jelajahi halaman"
+                <Reveal
+                    as="section"
+                    delay={0.05}
+                    className="col-span-1 lg:col-span-2 lg:col-start-6"
                 >
-                    <ColumnHeading>Jelajahi</ColumnHeading>
-                    <ul className="mt-5 space-y-3">
-                        {FOOTER_EXPLORE.map((item) => (
-                            <li key={item.link}>
-                                <a
-                                    href={`${anchorPrefix}${item.link}`}
+                    <nav aria-label="Produk">
+                        <ColumnHeading>Produk &amp; Fitur</ColumnHeading>
+                        <ul className="mt-6 space-y-3">
+                            {FOOTER_PRODUCT.map((item) => (
+                                <li key={item.label}>
+                                    <a
+                                        href={`${anchorPrefix}${item.href}`}
+                                        className={LINK_CLASS}
+                                    >
+                                        {item.label}
+                                    </a>
+                                </li>
+                            ))}
+                            <li>
+                                <Link
+                                    href={liveTracking().url}
                                     className={LINK_CLASS}
                                 >
-                                    {item.name}
+                                    Live Tracking
+                                </Link>
+                            </li>
+                        </ul>
+                    </nav>
+                </Reveal>
+
+                <Reveal as="section" delay={0.1} className="col-span-1 lg:col-span-2">
+                    <nav aria-label="Solusi terpadu">
+                        <ColumnHeading>Solusi Terpadu</ColumnHeading>
+                        <ul className="mt-6 space-y-3">
+                            {FOOTER_EXPLORE.map((item) => (
+                                <li key={item.link}>
+                                    <a
+                                        href={`${anchorPrefix}${item.link}`}
+                                        className={LINK_CLASS}
+                                    >
+                                        {item.name}
+                                    </a>
+                                </li>
+                            ))}
+                        </ul>
+                    </nav>
+                </Reveal>
+
+                <Reveal as="section" delay={0.15} className="col-span-1 lg:col-span-2">
+                    <nav aria-label="Akun">
+                        <ColumnHeading>Akun</ColumnHeading>
+                        <ul className="mt-6 space-y-3">
+                            <li>
+                                <Link href={trial} className={LINK_CLASS}>
+                                    Coba Avana
+                                </Link>
+                            </li>
+                            <li>
+                                <Link href={loginUrl} className={LINK_CLASS}>
+                                    Masuk
+                                </Link>
+                            </li>
+                            <li>
+                                <a
+                                    href={`${anchorPrefix}#kontak`}
+                                    className={LINK_CLASS}
+                                >
+                                    Hubungi Kami
                                 </a>
                             </li>
-                        ))}
-                    </ul>
-                </nav>
-
-                {hasContact && (
-                    <div className="col-span-2 lg:col-span-4">
-                        <ColumnHeading>Kontak</ColumnHeading>
-                        <ul className="mt-5 space-y-4">
-                            {website.contact.email && (
-                                <li className="flex items-start gap-3">
-                                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[#E3E9F5] bg-white text-[#2F54C9]">
-                                        <Mail className="h-4 w-4" aria-hidden />
-                                    </span>
-                                    <span>
-                                        <span className="block text-[12px] text-[#8A93A6]">
-                                            Email
-                                        </span>
-                                        <a
-                                            href={`mailto:${website.contact.email}`}
-                                            className={LINK_CLASS}
-                                        >
-                                            {website.contact.email}
-                                        </a>
-                                    </span>
-                                </li>
-                            )}
-                            {website.contact.phone && (
-                                <li className="flex items-start gap-3">
-                                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[#E3E9F5] bg-white text-[#2F54C9]">
-                                        <Phone
-                                            className="h-4 w-4"
-                                            aria-hidden
-                                        />
-                                    </span>
-                                    <span>
-                                        <span className="block text-[12px] text-[#8A93A6]">
-                                            Telepon
-                                        </span>
-                                        <a
-                                            href={`tel:${website.contact.phone}`}
-                                            className={LINK_CLASS}
-                                        >
-                                            {website.contact.phone}
-                                        </a>
-                                    </span>
-                                </li>
-                            )}
-                            {website.contact.address && (
-                                <li className="flex items-start gap-3">
-                                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[#E3E9F5] bg-white text-[#2F54C9]">
-                                        <MapPin
-                                            className="h-4 w-4"
-                                            aria-hidden
-                                        />
-                                    </span>
-                                    <span>
-                                        <span className="block text-[12px] text-[#8A93A6]">
-                                            Alamat
-                                        </span>
-                                        <span className="block max-w-xs text-[14px] leading-relaxed text-[#5B6478]">
-                                            {website.contact.address}
-                                        </span>
-                                    </span>
-                                </li>
-                            )}
                         </ul>
-                    </div>
-                )}
+                    </nav>
+                </Reveal>
             </Container>
 
-            <div className="border-t border-[#E7ECF5]">
+            <div className="relative border-t border-white/10">
                 <Container className="flex flex-col items-center justify-between gap-4 py-6 sm:flex-row">
-                    <p className="order-2 text-[13px] text-[#8A93A6] sm:order-1">
-                        © {new Date().getFullYear()} {brand}. Seluruh hak cipta
-                        dilindungi.
+                    <p className="order-2 text-[13px] text-blue-200/60 sm:order-1">
+                        &copy; {new Date().getFullYear()} {brand}. Seluruh
+                        hak cipta dilindungi.
                     </p>
 
-                    <div className="order-1 flex items-center gap-2 sm:order-2">
-                        <Link
-                            href={loginUrl}
-                            className="rounded-full px-3.5 py-2 text-[13.5px] font-medium text-[#3B455C] transition-colors hover:text-[#2F54C9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F54C9]"
-                        >
-                            Masuk
-                        </Link>
-                        <Link
-                            href={trial}
-                            className="rounded-full border border-[#DFE6F4] bg-white px-3.5 py-2 text-[13.5px] font-medium text-[#0E1A3A] transition-colors hover:border-[#2F54C9] hover:text-[#2F54C9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F54C9]"
-                        >
-                            Coba Avana
-                        </Link>
-                        <a
-                            href="#top"
-                            aria-label="Kembali ke atas"
-                            className="grid h-9 w-9 place-items-center rounded-full border border-[#DFE6F4] bg-white text-[#3B455C] transition-colors hover:border-[#2F54C9] hover:text-[#2F54C9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F54C9]"
-                        >
-                            <ArrowUp className="h-4 w-4" aria-hidden />
-                        </a>
-                    </div>
+                    <a
+                        href="#top"
+                        aria-label="Kembali ke atas"
+                        className="order-1 grid h-9 w-9 place-items-center rounded-full border border-white/15 text-blue-200 transition-colors hover:border-avana-blue hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60 sm:order-2"
+                    >
+                        <ArrowUp className="h-4 w-4" aria-hidden />
+                    </a>
                 </Container>
             </div>
         </footer>
