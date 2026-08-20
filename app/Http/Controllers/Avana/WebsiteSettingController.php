@@ -71,6 +71,7 @@ class WebsiteSettingController extends Controller
                 'appstore_url' => $settings->appstore_url,
                 'privacy_policy' => $settings->privacy_policy,
                 'terms_of_service' => $settings->terms_of_service,
+                'account_deletion' => $settings->account_deletion,
                 'logo_url' => $settings->logoUrl(),
                 'favicon_url' => $settings->faviconUrl(),
                 'og_image_url' => $settings->ogImageUrl(),
@@ -105,6 +106,7 @@ class WebsiteSettingController extends Controller
             'appstore_url' => ['nullable', 'url', 'max:255'],
             'privacy_policy' => ['nullable', 'string'],
             'terms_of_service' => ['nullable', 'string'],
+            'account_deletion' => ['nullable', 'string'],
             'logo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp,svg', 'max:2048'],
             'og_image' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:2048'],
             'favicon' => ['nullable', 'file', 'mimes:ico,png,svg', 'max:1024'],
@@ -118,6 +120,10 @@ class WebsiteSettingController extends Controller
 
         if (array_key_exists('terms_of_service', $validated) && $validated['terms_of_service'] !== null) {
             $validated['terms_of_service'] = HtmlSanitizer::clean($validated['terms_of_service']);
+        }
+
+        if (array_key_exists('account_deletion', $validated) && $validated['account_deletion'] !== null) {
+            $validated['account_deletion'] = HtmlSanitizer::clean($validated['account_deletion']);
         }
 
         // Text fields.

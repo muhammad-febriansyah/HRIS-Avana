@@ -26,6 +26,7 @@ export interface Settings {
     appstore_url: string | null;
     privacy_policy: string | null;
     terms_of_service: string | null;
+    account_deletion: string | null;
     logo_url: string | null;
     favicon_url: string | null;
     og_image_url: string | null;
@@ -60,6 +61,7 @@ export interface FormData {
     appstore_url: string;
     privacy_policy: string;
     terms_of_service: string;
+    account_deletion: string;
     logo: File | null;
     favicon: File | null;
     og_image: File | null;
@@ -77,5 +79,6 @@ export const TABS: { id: string; label: string; icon: string }[] = [
     { id: 'kontak', label: 'Kontak', icon: 'phone' },
     { id: 'aplikasi', label: 'Aplikasi Mobile', icon: 'smartphone' },
     { id: 'privasi', label: 'Kebijakan Privasi', icon: 'shield' },
+    { id: 'hapus-akun', label: 'Penghapusan Akun', icon: 'user-x' },
     { id: 'syarat', label: 'Syarat & Ketentuan', icon: 'file-text' },
 ];

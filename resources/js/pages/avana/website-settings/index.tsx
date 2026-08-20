@@ -42,6 +42,7 @@ export default function WebsiteSettings({ settings }: PageProps) {
         appstore_url: settings.appstore_url ?? '',
         privacy_policy: settings.privacy_policy ?? '',
         terms_of_service: settings.terms_of_service ?? '',
+        account_deletion: settings.account_deletion ?? '',
         logo: null,
         favicon: null,
         og_image: null,
@@ -454,9 +455,9 @@ export default function WebsiteSettings({ settings }: PageProps) {
                                 }}
                             >
                                 Tautan resmi aplikasi mobile AvanaHR. Tombol
-                                unduh di footer situs publik hanya muncul
-                                kalau tautannya diisi di sini — kosongkan
-                                kalau listing-nya belum publik.
+                                unduh di footer situs publik hanya muncul kalau
+                                tautannya diisi di sini — kosongkan kalau
+                                listing-nya belum publik.
                             </div>
                             <div
                                 style={{
@@ -508,8 +509,7 @@ export default function WebsiteSettings({ settings }: PageProps) {
                                     /kebijakan-privasi
                                 </a>{' '}
                                 — bisa dipakai sebagai URL Kebijakan Privasi
-                                saat submit aplikasi ke Play Store / App
-                                Store.
+                                saat submit aplikasi ke Play Store / App Store.
                             </div>
                             <Field
                                 label="Isi Kebijakan Privasi"
@@ -522,6 +522,44 @@ export default function WebsiteSettings({ settings }: PageProps) {
                                     }
                                     placeholder="Tulis kebijakan privasi..."
                                     hasError={!!form.errors.privacy_policy}
+                                    minHeight={360}
+                                />
+                            </Field>
+                        </div>
+                    )}
+
+                    {tab === 'hapus-akun' && (
+                        <div style={{ display: 'grid', gap: 18 }}>
+                            <div
+                                style={{
+                                    fontSize: 13,
+                                    color: C.muted,
+                                    lineHeight: 1.6,
+                                }}
+                            >
+                                Isi halaman{' '}
+                                <a
+                                    href="/delete-account"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ color: C.primary }}
+                                >
+                                    /delete-account
+                                </a>{' '}
+                                — gunakan URL ini sebagai halaman penghapusan
+                                data di Google Play Console.
+                            </div>
+                            <Field
+                                label="Isi Penghapusan Akun dan Data"
+                                error={form.errors.account_deletion}
+                            >
+                                <RichEditor
+                                    value={form.data.account_deletion}
+                                    onChange={(value) =>
+                                        form.setData('account_deletion', value)
+                                    }
+                                    placeholder="Tulis informasi penghapusan akun dan data..."
+                                    hasError={!!form.errors.account_deletion}
                                     minHeight={360}
                                 />
                             </Field>
@@ -555,10 +593,7 @@ export default function WebsiteSettings({ settings }: PageProps) {
                                 <RichEditor
                                     value={form.data.terms_of_service}
                                     onChange={(value) =>
-                                        form.setData(
-                                            'terms_of_service',
-                                            value,
-                                        )
+                                        form.setData('terms_of_service', value)
                                     }
                                     placeholder="Tulis syarat & ketentuan..."
                                     hasError={!!form.errors.terms_of_service}

@@ -41,6 +41,19 @@ test('a super admin can edit the terms of service content shown on the public pa
         );
 });
 
+test('the account deletion page renders the configured content', function () {
+    WebsiteSetting::current()->update([
+        'account_deletion' => '<p>Penghapusan akun AvanaHR.</p>',
+    ]);
+
+    $this->get(route('account-deletion'))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('public/legal/account-deletion')
+            ->where('content', '<p>Penghapusan akun AvanaHR.</p>')
+        );
+});
+
 test('the landing page shares the app store links only once configured, so the footer badges stay conditional', function () {
     $this->get(route('home'))
         ->assertInertia(fn (AssertableInertia $page) => $page
