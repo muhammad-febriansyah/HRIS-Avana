@@ -32,13 +32,11 @@ export default function TermsOfService({ content }: { content: string }) {
                             </p>
                         </Reveal>
 
-                        <Reveal delay={0.05}>
-                            <div
-                                className="article-body"
-                                // Sanitised server-side (HtmlSanitizer) before storage, same as News::body.
-                                dangerouslySetInnerHTML={{ __html: content }}
-                            />
-                        </Reveal>
+                        <div
+                            className="article-body"
+                            // Sanitised server-side before storage.
+                            dangerouslySetInnerHTML={{ __html: content }}
+                        />
                     </Container>
                 </main>
 
