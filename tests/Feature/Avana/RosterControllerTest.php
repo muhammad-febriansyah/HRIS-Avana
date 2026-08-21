@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\Role;
 use App\Models\Shift;
@@ -297,6 +298,77 @@ it('rejects a bulk-assign shift from another tenant', function (): void {
             'dates' => ['2026-06-29'],
         ])
         ->assertSessionHasErrors('shift_id');
+});
+
+it('re-judges an already clocked-in attendance once a shift is assigned after the fact', function (): void {
+    $shift = Shift::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'PAGI9',
+        'name' => 'Pagi',
+        'start_time' => '09:00:00',
+        'end_time' => '18:00:00',
+        'late_tolerance_minutes' => 0,
+        'status' => 'active',
+    ]);
+
+    // Punched in before the roster had a shift for the day: judged
+    // "present, 0 late minutes" against nothing to be late for.
+    $attendance = Attendance::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'date' => WEEK_START,
+        'clock_in_at' => WEEK_START.' 09:21:00',
+        'status' => 'present',
+        'late_minutes' => 0,
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.roster.store'), [
+            'employee_id' => $this->employee->id,
+            'shift_id' => $shift->id,
+            'date' => WEEK_START,
+        ])
+        ->assertSessionHas('success');
+
+    $attendance->refresh();
+
+    expect($attendance->status)->toBe('late');
+    expect($attendance->late_minutes)->toBe(21);
+    expect($attendance->shift_id)->toBe($shift->id);
+});
+
+it('does not touch a leave-marked attendance when a shift is assigned to that date', function (): void {
+    $shift = Shift::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'PAGI9',
+        'name' => 'Pagi',
+        'start_time' => '09:00:00',
+        'end_time' => '18:00:00',
+        'late_tolerance_minutes' => 0,
+        'status' => 'active',
+    ]);
+
+    $attendance = Attendance::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'date' => WEEK_START,
+        'clock_in_at' => WEEK_START.' 09:21:00',
+        'status' => 'leave',
+        'late_minutes' => 0,
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.roster.store'), [
+            'employee_id' => $this->employee->id,
+            'shift_id' => $shift->id,
+            'date' => WEEK_START,
+        ])
+        ->assertSessionHas('success');
+
+    $attendance->refresh();
+
+    expect($attendance->status)->toBe('leave');
+    expect($attendance->late_minutes)->toBe(0);
 });
 
 it('copies the previous week roster onto the current week', function (): void {

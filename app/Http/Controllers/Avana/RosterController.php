@@ -268,6 +268,15 @@ class RosterController extends Controller
             ShiftSchedule::whereIn('id', $updateIds)->update(['shift_id' => $validated['shift_id']]);
         }
 
+        // A bulk "isi cepat" often lands on days people already clocked into
+        // before the shift existed on the roster — re-judge those rows now
+        // that there is a shift to judge them against.
+        foreach ($employeeIds as $employeeId) {
+            foreach ($dates as $date) {
+                Roster::reconcileAttendance($tenantId, (int) $employeeId, $date, $shift);
+            }
+        }
+
         $total = count($employeeIds) * $dates->count();
 
         $message = "Shift diterapkan ke {$total} jadwal.";
@@ -341,6 +350,10 @@ class RosterController extends Controller
                     'updated_at' => $now,
                 ];
             }
+
+            // Same reasoning as bulkStore(): a target date may already carry a
+            // clocked-in attendance row waiting on a shift to be judged by.
+            Roster::reconcileAttendance($tenantId, (int) $schedule->employee_id, $target, $shift);
         }
 
         if ($insert !== []) {
@@ -422,7 +435,16 @@ class RosterController extends Controller
 
         abort_if((int) $schedule->tenant_id !== (int) $request->user()->tenant_id, 404);
 
+        $tenantId = (int) $schedule->tenant_id;
+        $employeeId = (int) $schedule->employee_id;
+        $date = $schedule->date->format('Y-m-d');
+
         $schedule->delete();
+
+        // The day goes back to unscheduled — re-judge any clocked-in
+        // attendance so it does not stay pinned to a shift that no longer
+        // exists on the roster.
+        Roster::reconcileAttendance($tenantId, $employeeId, $date, null);
 
         return back()->with('success', 'Jadwal dihapus');
     }

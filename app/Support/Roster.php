@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\RosterPattern;
 use App\Models\Shift;
@@ -173,15 +174,55 @@ final class Roster
 
         if ($schedule !== null) {
             $schedule->update(['shift_id' => $shiftId]);
-
-            return $schedule;
+        } else {
+            $schedule = ShiftSchedule::create([
+                'tenant_id' => $tenantId,
+                'employee_id' => $employeeId,
+                'date' => $on,
+                'shift_id' => $shiftId,
+            ]);
         }
 
-        return ShiftSchedule::create([
-            'tenant_id' => $tenantId,
-            'employee_id' => $employeeId,
-            'date' => $on,
-            'shift_id' => $shiftId,
+        self::reconcileAttendance($tenantId, $employeeId, $on, $shiftId !== null ? Shift::forTenant($tenantId)->find($shiftId) : null);
+
+        return $schedule;
+    }
+
+    /**
+     * Re-judge an already-punched attendance row against a shift assigned (or
+     * changed) after the fact.
+     *
+     * A clock-in is judged against whatever shift is on the roster *at that
+     * moment* — so someone who punches in before their shift for the day gets
+     * scheduled is permanently locked at "present, 0 late minutes" even once
+     * the roster catches up, unless something goes back and re-judges it. This
+     * is that something: call it right after {@see assign()} (or any bulk
+     * write to `shift_schedules`) so a late roster entry still lands on an
+     * already-clocked-in attendance row instead of only affecting future ones.
+     *
+     * Only rows still in their as-clocked state ("present"/"late") are
+     * touched — a leave, an absence mark, or a correction already decided the
+     * day some other way and must not be overwritten.
+     */
+    public static function reconcileAttendance(int $tenantId, int $employeeId, string $date, ?Shift $shift): void
+    {
+        $attendance = Attendance::forTenant($tenantId)
+            ->where('employee_id', $employeeId)
+            ->whereDate('date', $date)
+            ->whereNotNull('clock_in_at')
+            ->whereIn('status', ['present', 'late'])
+            ->first();
+
+        if ($attendance === null) {
+            return;
+        }
+
+        $judged = self::evaluate($shift, $attendance->clock_in_at, $date);
+
+        $attendance->update([
+            'shift_id' => $judged['shift_id'],
+            'status' => $judged['status'],
+            'late_minutes' => $judged['late_minutes'],
         ]);
     }
 
