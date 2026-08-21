@@ -274,6 +274,57 @@ it('submits scores for a review', function (): void {
     expect($review->review_date->toDateString())->toBe('2026-07-15');
 });
 
+it('rejects manager-scoring by someone who isn\'t the assigned reviewer', function (): void {
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
+    $reviewerEmployee = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $review = makePerformanceReview($this->tenant->id, [
+        'status' => 'manager_review',
+        'cycle_id' => $cycle->id,
+        'reviewer_id' => $reviewerEmployee->id,
+    ]);
+
+    $role = Role::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'performance-scorer',
+        'name' => 'Performance Scorer',
+        'is_system' => false,
+    ]);
+    $role->permissions()->syncWithoutDetaching(
+        Permission::whereIn('code', ['performance.view', 'performance.update'])->pluck('id'),
+    );
+
+    $someoneElse = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $someoneElse->roles()->sync([$role->id]);
+
+    actingAs($someoneElse)
+        ->post(route('avana.kinerja.score', $review), ['manager_score' => 80])
+        ->assertForbidden();
+
+    // The assigned reviewer's own user account may score it.
+    $reviewerEmployee->update(['user_id' => $someoneElse->id]);
+
+    actingAs($someoneElse->fresh())
+        ->post(route('avana.kinerja.score', $review), ['manager_score' => 80])
+        ->assertSessionHas('success');
+});
+
+it('reopens a completed review for correction', function (): void {
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
+    $review = makePerformanceReview($this->tenant->id, ['status' => 'completed', 'cycle_id' => $cycle->id]);
+
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.reopen', $review), [
+            'to' => 'manager_review',
+            'reason' => 'Salah input nilai',
+        ])
+        ->assertSessionHas('success');
+
+    $review->refresh();
+
+    expect($review->status)->toBe('manager_review');
+    expect($review->notes)->toContain('Salah input nilai');
+});
+
 it('rejects submitting a score from an invalid status', function (): void {
     $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
     $review = makePerformanceReview($this->tenant->id, ['status' => 'pending', 'cycle_id' => $cycle->id]);
