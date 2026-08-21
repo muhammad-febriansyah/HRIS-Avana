@@ -11,19 +11,16 @@ import type {
     EmployeeOption,
     FlashProps,
     ReviewFormData,
-    SelectOption,
 } from './types';
 
 interface KinerjaCreateProps {
     employees: EmployeeOption[];
     cycleOptions: CycleOption[];
-    statuses: SelectOption[];
 }
 
 export default function KinerjaCreate({
     employees,
     cycleOptions,
-    statuses,
 }: KinerjaCreateProps) {
     const { flash } = usePage<FlashProps>().props;
 
@@ -83,7 +80,6 @@ export default function KinerjaCreate({
                     form={form}
                     employees={employees}
                     cycleOptions={cycleOptions}
-                    statuses={statuses}
                     submitLabel="Simpan Penilaian"
                     submitIcon="plus"
                     cancelHref={PerformanceController.index().url}

@@ -2,6 +2,7 @@ import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import KpiIndicatorController from '@/actions/App/Http/Controllers/Avana/KpiIndicatorController';
 import PerformanceController from '@/actions/App/Http/Controllers/Avana/PerformanceController';
 import { DatePicker } from '@/components/avana/date-picker';
 import {
@@ -29,6 +30,7 @@ import {
 import { emptyCycleForm, emptyScoreForm } from './types';
 import type {
     CycleFormData,
+    CycleRow,
     KinerjaIndexProps,
     ReviewRow,
     ScoreFormData,
@@ -47,12 +49,33 @@ const scoreCellStyle: CSSProperties = {
     color: C.text,
 };
 
+const CYCLE_STATUS_TRANSITIONS: Record<string, string> = {
+    draft: 'active',
+    active: 'closed',
+    closed: 'active',
+};
+
+/** The next cycle status a one-click action can advance to, or null if terminal. */
+function nextCycleStatus(status: string): string | null {
+    return CYCLE_STATUS_TRANSITIONS[status] ?? null;
+}
+
+/** Label for the cycle status advance action. */
+function cycleStatusActionLabel(status: string): string {
+    if (status === 'draft') {
+        return 'Aktifkan';
+    }
+
+    if (status === 'active') {
+        return 'Tutup';
+    }
+
+    return 'Buka Kembali';
+}
+
 export default function KinerjaIndex({
     reviews,
     cycles,
-    employees,
-    cycleOptions,
-    statuses,
     cycleStatuses,
     kpis,
 }: KinerjaIndexProps) {
@@ -82,6 +105,20 @@ export default function KinerjaIndex({
         });
     };
 
+    const advanceCycleStatus = (cycle: CycleRow) => {
+        const to = nextCycleStatus(cycle.status);
+
+        if (!to) {
+            return;
+        }
+
+        router.patch(
+            PerformanceController.updateCycleStatus(cycle.id).url,
+            { status: to },
+            { preserveScroll: true },
+        );
+    };
+
     const openCycle = () => {
         cycleForm.clearErrors();
         cycleForm.setData({ ...emptyCycleForm });
@@ -105,15 +142,10 @@ export default function KinerjaIndex({
     const openScore = (review: ReviewRow) => {
         scoreForm.clearErrors();
         scoreForm.setData({
-            self_score:
-                review.self_score !== null ? String(review.self_score) : '',
             manager_score:
                 review.manager_score !== null
                     ? String(review.manager_score)
                     : '',
-            final_score:
-                review.final_score !== null ? String(review.final_score) : '',
-            status: review.status,
             review_date: review.review_date ?? '',
         });
         setScoreReview(review);
@@ -223,6 +255,13 @@ export default function KinerjaIndex({
                         >
                             <AIcon name="gem" size={16} color={C.text} />
                             Laporan HAV
+                        </Link>
+                        <Link
+                            href={KpiIndicatorController.index()}
+                            style={{ ...btnOut, textDecoration: 'none' }}
+                        >
+                            <AIcon name="list-checks" size={16} color={C.text} />
+                            Definisi KPI
                         </Link>
                         <button onClick={openCycle} style={btnOut}>
                             <AIcon
@@ -597,10 +636,33 @@ export default function KinerjaIndex({
                                         >
                                             {cycle.reviews_count}
                                         </td>
-                                        <td style={{ padding: '13px 16px' }}>
+                                        <td
+                                            style={{
+                                                padding: '13px 16px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 8,
+                                            }}
+                                        >
                                             <CycleStatusBadge
                                                 status={cycle.status}
                                             />
+                                            {nextCycleStatus(cycle.status) && (
+                                                <ActionBtn
+                                                    icon="arrow-right"
+                                                    label={cycleStatusActionLabel(
+                                                        cycle.status,
+                                                    )}
+                                                    title={cycleStatusActionLabel(
+                                                        cycle.status,
+                                                    )}
+                                                    onClick={() =>
+                                                        advanceCycleStatus(
+                                                            cycle,
+                                                        )
+                                                    }
+                                                />
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
@@ -908,119 +970,41 @@ export default function KinerjaIndex({
                         >
                             <div
                                 style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: '1fr 1fr 1fr',
-                                    gap: 14,
+                                    fontSize: 12.5,
+                                    color: C.muted,
                                 }}
                             >
-                                <div>
-                                    <label style={fieldLabelStyle}>
-                                        Skor Mandiri
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        max={100}
-                                        step="0.01"
-                                        value={scoreForm.data.self_score}
-                                        onChange={(event) =>
-                                            scoreForm.setData(
-                                                'self_score',
-                                                event.target.value,
-                                            )
-                                        }
-                                        placeholder="0 - 100"
-                                        style={withError(
-                                            inputStyle,
-                                            !!scoreForm.errors.self_score,
-                                        )}
-                                    />
-                                    <FieldError
-                                        message={scoreForm.errors.self_score}
-                                    />
-                                </div>
-                                <div>
-                                    <label style={fieldLabelStyle}>
-                                        Skor Atasan
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        max={100}
-                                        step="0.01"
-                                        value={scoreForm.data.manager_score}
-                                        onChange={(event) =>
-                                            scoreForm.setData(
-                                                'manager_score',
-                                                event.target.value,
-                                            )
-                                        }
-                                        placeholder="0 - 100"
-                                        style={withError(
-                                            inputStyle,
-                                            !!scoreForm.errors.manager_score,
-                                        )}
-                                    />
-                                    <FieldError
-                                        message={scoreForm.errors.manager_score}
-                                    />
-                                </div>
-                                <div>
-                                    <label style={fieldLabelStyle}>
-                                        Skor Akhir
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        max={100}
-                                        step="0.01"
-                                        value={scoreForm.data.final_score}
-                                        onChange={(event) =>
-                                            scoreForm.setData(
-                                                'final_score',
-                                                event.target.value,
-                                            )
-                                        }
-                                        placeholder="0 - 100"
-                                        style={withError(
-                                            inputStyle,
-                                            !!scoreForm.errors.final_score,
-                                        )}
-                                    />
-                                    <FieldError
-                                        message={scoreForm.errors.final_score}
-                                    />
-                                </div>
+                                {scoreReview.self_score !== null && (
+                                    <>Skor mandiri: {scoreReview.self_score}. </>
+                                )}
+                                Mengirim skor memindahkan status ke Kalibrasi.
                             </div>
 
                             <div>
                                 <label style={fieldLabelStyle}>
-                                    Status{' '}
-                                    <span style={{ color: C.red }}>*</span>
+                                    Skor Atasan
                                 </label>
-                                <select
-                                    value={scoreForm.data.status}
+                                <input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    step="0.01"
+                                    value={scoreForm.data.manager_score}
                                     onChange={(event) =>
                                         scoreForm.setData(
-                                            'status',
+                                            'manager_score',
                                             event.target.value,
                                         )
                                     }
+                                    placeholder="0 - 100"
                                     style={withError(
-                                        selectStyle,
-                                        !!scoreForm.errors.status,
+                                        inputStyle,
+                                        !!scoreForm.errors.manager_score,
                                     )}
-                                >
-                                    {statuses.map((option) => (
-                                        <option
-                                            key={option.value}
-                                            value={option.value}
-                                        >
-                                            {option.label}
-                                        </option>
-                                    ))}
-                                </select>
-                                <FieldError message={scoreForm.errors.status} />
+                                />
+                                <FieldError
+                                    message={scoreForm.errors.manager_score}
+                                />
                             </div>
 
                             <div>

@@ -7,35 +7,32 @@ import { AIcon, btnOut, btnP, C, card } from '@/lib/avana';
 import {
     FieldError,
     fieldLabelStyle,
-    inputStyle,
     selectStyle,
     textareaStyle,
     withError,
 } from './components';
-import type {
-    CycleOption,
-    EmployeeOption,
-    ReviewFormData,
-    SelectOption,
-} from './types';
+import type { CycleOption, EmployeeOption, ReviewFormData } from './types';
 
 interface KinerjaFormProps {
     form: InertiaFormProps<ReviewFormData>;
     employees: EmployeeOption[];
     cycleOptions: CycleOption[];
-    statuses: SelectOption[];
     submitLabel: string;
     submitIcon: string;
     cancelHref: string;
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }
 
-/** Shared create/edit form for a performance review. */
+/**
+ * Shared create/edit form for a performance review's metadata (cycle,
+ * employee, reviewer, notes, review date). Scores and status move through
+ * the workflow actions on the edit page instead — this form no longer
+ * accepts them, matching what the server validates.
+ */
 export function KinerjaForm({
     form,
     employees,
     cycleOptions,
-    statuses,
     submitLabel,
     submitIcon,
     cancelHref,
@@ -83,34 +80,6 @@ export function KinerjaForm({
 
                     <div>
                         <label style={fieldLabelStyle}>
-                            Status <span style={{ color: C.red }}>*</span>
-                        </label>
-                        <select
-                            value={data.status}
-                            onChange={(event) =>
-                                setData('status', event.target.value)
-                            }
-                            style={withError(selectStyle, !!errors.status)}
-                        >
-                            {statuses.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                    {option.label}
-                                </option>
-                            ))}
-                        </select>
-                        <FieldError message={errors.status} />
-                    </div>
-                </div>
-
-                <div
-                    style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
-                        gap: 16,
-                    }}
-                >
-                    <div>
-                        <label style={fieldLabelStyle}>
                             Karyawan <span style={{ color: C.red }}>*</span>
                         </label>
                         <SearchableSelect
@@ -129,7 +98,15 @@ export function KinerjaForm({
                         />
                         <FieldError message={errors.employee_id} />
                     </div>
+                </div>
 
+                <div
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: 16,
+                    }}
+                >
                     <div>
                         <label style={fieldLabelStyle}>Penilai</label>
                         <SearchableSelect
@@ -148,82 +125,20 @@ export function KinerjaForm({
                         />
                         <FieldError message={errors.reviewer_id} />
                     </div>
-                </div>
-
-                <div
-                    style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr 1fr',
-                        gap: 16,
-                    }}
-                >
-                    <div>
-                        <label style={fieldLabelStyle}>Skor Mandiri</label>
-                        <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            step="0.01"
-                            value={data.self_score}
-                            onChange={(event) =>
-                                setData('self_score', event.target.value)
-                            }
-                            placeholder="0 - 100"
-                            style={withError(inputStyle, !!errors.self_score)}
-                        />
-                        <FieldError message={errors.self_score} />
-                    </div>
 
                     <div>
-                        <label style={fieldLabelStyle}>Skor Atasan</label>
-                        <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            step="0.01"
-                            value={data.manager_score}
-                            onChange={(event) =>
-                                setData('manager_score', event.target.value)
+                        <label style={fieldLabelStyle}>Tanggal Penilaian</label>
+                        <DatePicker
+                            value={data.review_date}
+                            onChange={(nextValue) =>
+                                setData('review_date', nextValue)
                             }
-                            placeholder="0 - 100"
-                            style={withError(
-                                inputStyle,
-                                !!errors.manager_score,
-                            )}
+                            placeholder="Pilih tanggal"
+                            hasError={!!errors.review_date}
+                            width="100%"
                         />
-                        <FieldError message={errors.manager_score} />
+                        <FieldError message={errors.review_date} />
                     </div>
-
-                    <div>
-                        <label style={fieldLabelStyle}>Skor Akhir</label>
-                        <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            step="0.01"
-                            value={data.final_score}
-                            onChange={(event) =>
-                                setData('final_score', event.target.value)
-                            }
-                            placeholder="0 - 100"
-                            style={withError(inputStyle, !!errors.final_score)}
-                        />
-                        <FieldError message={errors.final_score} />
-                    </div>
-                </div>
-
-                <div>
-                    <label style={fieldLabelStyle}>Tanggal Penilaian</label>
-                    <DatePicker
-                        value={data.review_date}
-                        onChange={(nextValue) =>
-                            setData('review_date', nextValue)
-                        }
-                        placeholder="Pilih tanggal"
-                        hasError={!!errors.review_date}
-                        width="100%"
-                    />
-                    <FieldError message={errors.review_date} />
                 </div>
 
                 <div>

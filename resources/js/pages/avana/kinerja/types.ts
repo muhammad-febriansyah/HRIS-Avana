@@ -73,15 +73,15 @@ export interface KinerjaIndexProps {
     kpis: KinerjaKpis;
 }
 
-/** Flat form payload backing both the create and edit review forms. */
+/**
+ * Flat form payload backing both the create and edit review forms.
+ * Scores and status are workflow-controlled server-side (submit-score,
+ * calibrate, reopen) and are not part of this payload.
+ */
 export interface ReviewFormData {
     cycle_id: string;
     employee_id: string;
     reviewer_id: string;
-    self_score: string;
-    manager_score: string;
-    final_score: string;
-    status: string;
     notes: string;
     review_date: string;
 }
@@ -91,10 +91,6 @@ export const emptyReviewForm: ReviewFormData = {
     cycle_id: '',
     employee_id: '',
     reviewer_id: '',
-    self_score: '',
-    manager_score: '',
-    final_score: '',
-    status: 'pending',
     notes: '',
     review_date: '',
 };
@@ -117,22 +113,31 @@ export const emptyCycleForm: CycleFormData = {
     description: '',
 };
 
-/** Flat form payload backing the submit-score modal on the index page. */
+/**
+ * Flat form payload backing the submit-score modal on the index page. Moves
+ * the review from manager_review to calibration; status is not client-set.
+ */
 export interface ScoreFormData {
-    self_score: string;
     manager_score: string;
-    final_score: string;
-    status: string;
     review_date: string;
 }
 
 /** Empty defaults for the submit-score form. */
 export const emptyScoreForm: ScoreFormData = {
-    self_score: '',
     manager_score: '',
-    final_score: '',
-    status: 'pending',
     review_date: '',
+};
+
+/** Flat form payload backing the reopen-completed-review action. */
+export interface ReopenFormData {
+    to: string;
+    reason: string;
+}
+
+/** Empty defaults for the reopen form. */
+export const emptyReopenForm: ReopenFormData = {
+    to: 'manager_review',
+    reason: '',
 };
 
 /** Selectable review status enum options. */
@@ -140,6 +145,7 @@ export const REVIEW_STATUS_OPTIONS: SelectOption[] = [
     { value: 'pending', label: 'Menunggu' },
     { value: 'self_review', label: 'Penilaian Mandiri' },
     { value: 'manager_review', label: 'Penilaian Atasan' },
+    { value: 'calibration', label: 'Kalibrasi' },
     { value: 'completed', label: 'Selesai' },
 ];
 
@@ -206,5 +212,92 @@ export function cycleStatusLabel(status: string): string {
     return (
         CYCLE_STATUS_OPTIONS.find((option) => option.value === status)?.label ??
         status
+    );
+}
+
+/** A master KPI indicator, as serialized by `KpiIndicatorController`. */
+export interface KpiIndicatorRow {
+    id: number;
+    name: string;
+    unit: string | null;
+    direction: string;
+    category: string | null;
+    description: string | null;
+    is_active: boolean;
+}
+
+/** A KPI indicator option for the item picker. */
+export interface KpiIndicatorOption {
+    id: number;
+    name: string;
+    unit: string | null;
+    direction: string;
+}
+
+/** A Key Result option for the "from Key Result" item picker. */
+export interface KeyResultOption {
+    id: number;
+    title: string;
+    objective_title: string | null;
+    progress: number;
+}
+
+/** A KPI item assigned to a review, as serialized by `PerformanceController@edit`. */
+export interface KpiItemRow {
+    id: number;
+    source: 'manual' | 'key_result';
+    kpi_indicator_id: number | null;
+    key_result_id: number | null;
+    label: string;
+    weight: number;
+    direction: string;
+    target_value: number | null;
+    actual_value: number | null;
+    achievement_pct: number;
+}
+
+/** Flat form payload backing the add-manual-KPI-item inline form. */
+export interface KpiItemManualFormData {
+    source: 'manual';
+    kpi_indicator_id: string;
+    weight: string;
+    target_value: string;
+    actual_value: string;
+}
+
+/** Empty defaults for the add-manual-KPI-item form. */
+export const emptyKpiItemManualForm: KpiItemManualFormData = {
+    source: 'manual',
+    kpi_indicator_id: '',
+    weight: '',
+    target_value: '',
+    actual_value: '',
+};
+
+/** Flat form payload backing the add-from-Key-Result inline form. */
+export interface KpiItemKeyResultFormData {
+    source: 'key_result';
+    key_result_id: string;
+    weight: string;
+}
+
+/** Empty defaults for the add-from-Key-Result form. */
+export const emptyKpiItemKeyResultForm: KpiItemKeyResultFormData = {
+    source: 'key_result',
+    key_result_id: '',
+    weight: '',
+};
+
+/** Selectable KPI indicator direction enum options. */
+export const KPI_DIRECTION_OPTIONS: SelectOption[] = [
+    { value: 'higher_better', label: 'Makin tinggi makin baik' },
+    { value: 'lower_better', label: 'Makin rendah makin baik' },
+];
+
+/** Indonesian label for a KPI indicator direction enum value. */
+export function kpiDirectionLabel(direction: string): string {
+    return (
+        KPI_DIRECTION_OPTIONS.find((option) => option.value === direction)
+            ?.label ?? direction
     );
 }

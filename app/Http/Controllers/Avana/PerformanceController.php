@@ -4,8 +4,11 @@ namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
+use App\Models\KeyResult;
+use App\Models\KpiIndicator;
 use App\Models\PerformanceCycle;
 use App\Models\PerformanceFeedback;
+use App\Models\PerformanceKpiItem;
 use App\Models\PerformanceReview;
 use App\Models\User;
 use App\Services\PerformanceReviewWorkflow;
@@ -158,8 +161,7 @@ class PerformanceController extends Controller
 
         return Inertia::render('avana/kinerja/create', [
             'employees' => $this->employeeOptions($tenantId),
-            'cycleOptions' => $this->cycleOptions($tenantId),
-            'statuses' => $this->reviewStatusOptions(),
+            'cycleOptions' => $this->cycleOptions($tenantId, activeOnly: true),
         ]);
     }
 
@@ -173,7 +175,11 @@ class PerformanceController extends Controller
 
         $tenantId = $request->user()->tenant_id;
 
-        $review->load(['feedbacks' => fn ($query) => $query->latest('id'), 'feedbacks.reviewer:id,full_name']);
+        $review->load([
+            'feedbacks' => fn ($query) => $query->latest('id'),
+            'feedbacks.reviewer:id,full_name',
+            'kpiItems' => fn ($query) => $query->latest('id'),
+        ]);
 
         return Inertia::render('avana/kinerja/edit', [
             'review' => [
@@ -192,8 +198,23 @@ class PerformanceController extends Controller
             'feedbacks' => $review->feedbacks->map(fn (PerformanceFeedback $feedback): array => $this->transformFeedback($feedback))->all(),
             'feedbackTypes' => $this->feedbackTypeOptions(),
             'employees' => $this->employeeOptions($tenantId),
-            'cycleOptions' => $this->cycleOptions($tenantId),
+            // The review's own cycle stays selectable even if it's no longer
+            // active, so the form doesn't render with a blank selection.
+            'cycleOptions' => collect($this->cycleOptions($tenantId, activeOnly: true))
+                ->when(
+                    $review->cycle !== null && $review->cycle->status !== 'active',
+                    fn ($options) => $options->push(['id' => $review->cycle->id, 'name' => $review->cycle->name])
+                )
+                ->unique('id')
+                ->values()
+                ->all(),
             'statuses' => $this->reviewStatusOptions(),
+            'kpiItems' => $review->kpiItems->map(fn ($item): array => $this->transformKpiItem($item))->all(),
+            'kpiIndicatorOptions' => $this->kpiIndicatorOptions($tenantId),
+            'keyResultOptions' => $this->keyResultOptions($tenantId, $review->employee_id),
+            'can' => [
+                'approve' => $this->userCan($request, 'approve'),
+            ],
         ]);
     }
 
@@ -477,6 +498,79 @@ class PerformanceController extends Controller
     }
 
     /**
+     * Build the row shape consumed by the KPI item panel.
+     *
+     * @return array<string, mixed>
+     */
+    private function transformKpiItem(PerformanceKpiItem $item): array
+    {
+        return [
+            'id' => $item->id,
+            'source' => $item->source,
+            'kpi_indicator_id' => $item->kpi_indicator_id,
+            'key_result_id' => $item->key_result_id,
+            'label' => $item->label,
+            'weight' => (float) $item->weight,
+            'direction' => $item->direction,
+            'target_value' => $item->target_value !== null ? (float) $item->target_value : null,
+            'actual_value' => $item->actual_value !== null ? (float) $item->actual_value : null,
+            'achievement_pct' => (float) $item->achievement_pct,
+        ];
+    }
+
+    /**
+     * Build the tenant's active KPI indicator options for the item picker.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function kpiIndicatorOptions(int $tenantId): array
+    {
+        return KpiIndicator::forTenant($tenantId)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'unit', 'direction'])
+            ->map(fn (KpiIndicator $indicator): array => [
+                'id' => $indicator->id,
+                'name' => $indicator->name,
+                'unit' => $indicator->unit,
+                'direction' => $indicator->direction,
+            ])
+            ->all();
+    }
+
+    /**
+     * Build the reviewed employee's Key Result options for the item picker.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function keyResultOptions(int $tenantId, int $employeeId): array
+    {
+        return KeyResult::forTenant($tenantId)
+            ->whereHas('objective', fn ($query) => $query->where('employee_id', $employeeId))
+            ->with('objective:id,title')
+            ->get(['id', 'objective_id', 'title', 'progress'])
+            ->map(fn (KeyResult $keyResult): array => [
+                'id' => $keyResult->id,
+                'title' => $keyResult->title,
+                'objective_title' => $keyResult->objective?->title,
+                'progress' => $keyResult->progress,
+            ])
+            ->all();
+    }
+
+    /**
+     * True when the acting user may perform the given action, without
+     * aborting — for building `can` capability flags in the response.
+     */
+    private function userCan(Request $request, string $action): bool
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        return $user->isSuperAdmin() || $user->hasPermissionTo(self::MODULE.'.'.$action);
+    }
+
+    /**
      * Abort with 422 unless the given cycle is currently active. Reviews may
      * only be created or edited under an open cycle.
      */
@@ -623,13 +717,16 @@ class PerformanceController extends Controller
     }
 
     /**
-     * Build the tenant's selectable cycle options.
+     * Build the tenant's selectable cycle options. Reviews may only be
+     * created/edited under an active cycle, so `$activeOnly` narrows the list
+     * accordingly (the index page still wants every cycle, for filtering).
      *
      * @return array<int, array<string, mixed>>
      */
-    private function cycleOptions(int $tenantId): array
+    private function cycleOptions(int $tenantId, bool $activeOnly = false): array
     {
         return PerformanceCycle::forTenant($tenantId)
+            ->when($activeOnly, fn ($query) => $query->where('status', 'active'))
             ->latest('id')
             ->get(['id', 'name'])
             ->map(fn (PerformanceCycle $cycle): array => [

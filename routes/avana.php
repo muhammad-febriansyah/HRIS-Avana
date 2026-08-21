@@ -63,6 +63,7 @@ use App\Http\Controllers\Avana\HelpdeskController;
 use App\Http\Controllers\Avana\HiringRequestController;
 use App\Http\Controllers\Avana\IncentiveController;
 use App\Http\Controllers\Avana\JournalController;
+use App\Http\Controllers\Avana\KpiIndicatorController;
 use App\Http\Controllers\Avana\LaporanController;
 use App\Http\Controllers\Avana\LearningController;
 use App\Http\Controllers\Avana\LeaveBalanceController;
@@ -91,6 +92,7 @@ use App\Http\Controllers\Avana\PayrollImportController;
 use App\Http\Controllers\Avana\PayrollKomponenController;
 use App\Http\Controllers\Avana\PayrollUmrController;
 use App\Http\Controllers\Avana\PerformanceController;
+use App\Http\Controllers\Avana\PerformanceKpiItemController;
 use App\Http\Controllers\Avana\PermissionRequestController;
 use App\Http\Controllers\Avana\Pph21TerController;
 use App\Http\Controllers\Avana\RecruitmentController;
@@ -632,6 +634,18 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class, LogPageActivity
     // 360 feedback on a performance review
     Route::post('kinerja/{review}/feedback', [PerformanceController::class, 'storeFeedback'])->name('kinerja.feedback.store');
     Route::delete('kinerja/feedback/{feedback}', [PerformanceController::class, 'destroyFeedback'])->name('kinerja.feedback.destroy');
+
+    // Definisi KPI (master indicator catalogue)
+    Route::get('kinerja/indikator', [KpiIndicatorController::class, 'index'])->name('kinerja.indikator');
+    Route::get('kinerja/indikator/options', [KpiIndicatorController::class, 'options'])->name('kinerja.indikator.options');
+    Route::post('kinerja/indikator', [KpiIndicatorController::class, 'store'])->name('kinerja.indikator.store');
+    Route::put('kinerja/indikator/{indicator}', [KpiIndicatorController::class, 'update'])->name('kinerja.indikator.update');
+    Route::delete('kinerja/indikator/{indicator}', [KpiIndicatorController::class, 'destroy'])->name('kinerja.indikator.destroy');
+
+    // KPI items assigned to a review
+    Route::post('kinerja/{review}/kpi-item', [PerformanceKpiItemController::class, 'store'])->name('kinerja.kpi-item.store');
+    Route::put('kinerja/kpi-item/{item}', [PerformanceKpiItemController::class, 'update'])->name('kinerja.kpi-item.update');
+    Route::delete('kinerja/kpi-item/{item}', [PerformanceKpiItemController::class, 'destroy'])->name('kinerja.kpi-item.destroy');
 
     // OKR & Goal (objectives + key results)
     Route::get('okr', [OkrController::class, 'index'])->name('okr');
