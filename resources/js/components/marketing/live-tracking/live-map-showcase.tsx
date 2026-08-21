@@ -10,9 +10,9 @@ import {
 } from './tracking-dashboard';
 
 const MARKERS: MapMarker[] = [
-    { id: 'febri', x: 52, y: 38, label: 'Febri', tone: 'brand', pulse: true },
-    { id: 'alex', x: 84, y: 66, label: 'Alex', tone: 'brand' },
-    { id: 'raffa', x: 24, y: 84, label: 'Raffa', tone: 'muted' },
+    { id: 'andra', x: 52, y: 38, label: 'Andra', tone: 'brand', pulse: true },
+    { id: 'bima', x: 84, y: 66, label: 'Bima', tone: 'brand' },
+    { id: 'yoga', x: 24, y: 84, label: 'Yoga', tone: 'muted' },
 ];
 
 /**

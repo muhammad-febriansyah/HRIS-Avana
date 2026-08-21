@@ -163,28 +163,28 @@ export type DemoEmployee = {
 
 export const DEMO_EMPLOYEES: DemoEmployee[] = [
     {
-        id: 'febri',
-        name: 'Muhammad Febri',
+        id: 'andra',
+        name: 'Andra Wijaya',
         department: 'Sales',
         status: 'active',
         updated: '8 detik lalu',
-        initials: 'MF',
+        initials: 'AW',
     },
     {
-        id: 'alex',
-        name: 'Alex',
+        id: 'bima',
+        name: 'Bima',
         department: 'Field Service',
         status: 'active',
         updated: '1 menit lalu',
-        initials: 'AL',
+        initials: 'BI',
     },
     {
-        id: 'raffa',
-        name: 'Raffa',
+        id: 'yoga',
+        name: 'Yoga',
         department: 'Delivery',
         status: 'idle',
         updated: '4 menit lalu',
-        initials: 'RA',
+        initials: 'YO',
     },
     {
         id: 'sari',
@@ -198,7 +198,7 @@ export const DEMO_EMPLOYEES: DemoEmployee[] = [
 
 /** Selected-employee panel content — demo data only. */
 export const DEMO_DETAIL = {
-    name: 'Muhammad Febri',
+    name: 'Andra Wijaya',
     department: 'Sales',
     status: 'Tracking Active',
     rows: [
