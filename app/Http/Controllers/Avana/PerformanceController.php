@@ -209,7 +209,7 @@ class PerformanceController extends Controller
                 ->values()
                 ->all(),
             'statuses' => $this->reviewStatusOptions(),
-            'kpiItems' => $review->kpiItems->map(fn ($item): array => $this->transformKpiItem($item))->all(),
+            'kpiItems' => $review->kpiItems->map(fn (PerformanceKpiItem $item): array => $this->transformKpiItem($item))->all(),
             'kpiIndicatorOptions' => $this->kpiIndicatorOptions($tenantId),
             'keyResultOptions' => $this->keyResultOptions($tenantId, $review->employee_id),
             'can' => [

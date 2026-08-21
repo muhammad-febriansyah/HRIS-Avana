@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\PerformanceCycle;
 use App\Models\PerformanceReview;
@@ -49,6 +50,14 @@ it('calibrates a review, sets the final score and completes it', function (): vo
     expect((float) $review->final_score)->toBe(88.0);
     expect($review->calibrated_by)->toBe($this->admin->id);
     expect($review->status)->toBe('completed');
+
+    expect(
+        AuditLog::query()
+            ->where('auditable_type', PerformanceReview::class)
+            ->where('auditable_id', $review->id)
+            ->where('action', 'updated')
+            ->exists()
+    )->toBeTrue();
 });
 
 it('requires a calibrated score', function (): void {
