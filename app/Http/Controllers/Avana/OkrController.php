@@ -7,7 +7,9 @@ use App\Models\Employee;
 use App\Models\KeyResult;
 use App\Models\Objective;
 use App\Models\PerformanceCycle;
+use App\Models\PerformanceReview;
 use App\Models\User;
+use App\Services\PerformanceKpiScorer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -229,11 +231,18 @@ class OkrController extends Controller
 
         $this->recomputeObjectiveProgress($keyResult->objective);
 
+        // Any performance review KPI item sourced from this Key Result reads
+        // its achievement live from `progress` — push the update through now.
+        (new PerformanceKpiScorer)->syncFromKeyResult($keyResult);
+
         return back()->with('success', 'Key result diperbarui');
     }
 
     /**
-     * Delete a key result and recompute its parent objective progress.
+     * Delete a key result and recompute its parent objective progress. Any
+     * performance review KPI item sourced from this Key Result is deleted
+     * with it (a `key_result` item can't exist without the Key Result it
+     * reads from), and the affected reviews' scores are recomputed.
      */
     public function destroyKeyResult(Request $request, KeyResult $keyResult): RedirectResponse
     {
@@ -241,10 +250,15 @@ class OkrController extends Controller
         $this->ensureTenantOwnership($request, $keyResult);
 
         $objective = $keyResult->objective;
+        $affectedReviews = $keyResult->performanceKpiItems()->with('review')->get()->pluck('review')->filter();
 
+        $keyResult->performanceKpiItems()->delete();
         $keyResult->delete();
 
         $this->recomputeObjectiveProgress($objective);
+
+        $scorer = new PerformanceKpiScorer;
+        $affectedReviews->each(fn (PerformanceReview $review) => $scorer->recomputeManagerScore($review));
 
         return back()->with('success', 'Key result dihapus');
     }
