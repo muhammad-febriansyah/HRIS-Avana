@@ -230,7 +230,7 @@ class PerformanceController extends Controller
         $this->ensureTenantOwnership($request, $review);
         $this->workflow()->assertMutable($review);
 
-        $data = $this->validateReview($request, $request->user()->tenant_id);
+        $data = $this->validateReview($request, $request->user()->tenant_id, $review);
         $this->ensureCycleActive($request->user()->tenant_id, $data['cycle_id']);
 
         $review->update($data);
@@ -442,11 +442,13 @@ class PerformanceController extends Controller
     }
 
     /**
-     * Validate the create/update payload for a performance review.
+     * Validate the create/update payload for a performance review. Pass the
+     * review being edited so the one-review-per-employee-per-cycle check can
+     * exclude it from the uniqueness lookup.
      *
      * @return array<string, mixed>
      */
-    private function validateReview(Request $request, ?int $tenantId): array
+    private function validateReview(Request $request, ?int $tenantId, ?PerformanceReview $review = null): array
     {
         return $request->validate([
             'cycle_id' => [
@@ -458,6 +460,9 @@ class PerformanceController extends Controller
                 'required',
                 'integer',
                 Rule::exists('employees', 'id')->where('tenant_id', $tenantId),
+                Rule::unique('performance_reviews', 'employee_id')
+                    ->where(fn ($query) => $query->where('tenant_id', $tenantId)->where('cycle_id', $request->input('cycle_id')))
+                    ->ignore($review?->id),
             ],
             'reviewer_id' => [
                 'nullable',
@@ -466,6 +471,8 @@ class PerformanceController extends Controller
             ],
             'notes' => ['nullable', 'string'],
             'review_date' => ['nullable', 'date'],
+        ], [
+            'employee_id.unique' => 'Karyawan ini sudah memiliki penilaian pada siklus tersebut.',
         ]);
     }
 

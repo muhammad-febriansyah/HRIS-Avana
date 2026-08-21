@@ -142,6 +142,19 @@ it('validates required fields on store', function (): void {
         ->assertSessionHasErrors(['cycle_id', 'employee_id']);
 });
 
+it('rejects a second review for the same employee in the same cycle', function (): void {
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+    makePerformanceReview($this->tenant->id, ['cycle_id' => $cycle->id, 'employee_id' => $employee->id]);
+
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.store'), [
+            'cycle_id' => $cycle->id,
+            'employee_id' => $employee->id,
+        ])
+        ->assertSessionHasErrors(['employee_id']);
+});
+
 it('validates the review against tenant-scoped cycles and employees', function (): void {
     $otherTenant = Tenant::create(['name' => 'PT Asing', 'slug' => 'pt-asing']);
     $foreignCycle = makePerformanceCycle($otherTenant->id);
