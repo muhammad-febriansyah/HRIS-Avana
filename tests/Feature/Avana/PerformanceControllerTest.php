@@ -99,7 +99,7 @@ it('only lists reviews that belong to the current tenant', function (): void {
 });
 
 it('creates a review scoped to the current tenant', function (): void {
-    $cycle = makePerformanceCycle($this->tenant->id);
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
     $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
 
     actingAs($this->admin)
@@ -107,10 +107,6 @@ it('creates a review scoped to the current tenant', function (): void {
             'cycle_id' => $cycle->id,
             'employee_id' => $employee->id,
             'reviewer_id' => null,
-            'self_score' => 80,
-            'manager_score' => 85,
-            'final_score' => 82.5,
-            'status' => 'completed',
             'notes' => 'Kinerja baik',
             'review_date' => '2026-07-01',
         ])
@@ -122,8 +118,19 @@ it('creates a review scoped to the current tenant', function (): void {
         ->firstOrFail();
 
     expect($review->tenant_id)->toBe($this->tenant->id);
-    expect($review->status)->toBe('completed');
-    expect((float) $review->final_score)->toBe(82.5);
+    expect($review->status)->toBe('pending');
+});
+
+it('creating a review under a non-active cycle is rejected', function (): void {
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'draft']);
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.store'), [
+            'cycle_id' => $cycle->id,
+            'employee_id' => $employee->id,
+        ])
+        ->assertStatus(422);
 });
 
 it('validates required fields on store', function (): void {
@@ -131,9 +138,8 @@ it('validates required fields on store', function (): void {
         ->post(route('avana.kinerja.store'), [
             'cycle_id' => '',
             'employee_id' => '',
-            'status' => 'invalid',
         ])
-        ->assertSessionHasErrors(['cycle_id', 'employee_id', 'status']);
+        ->assertSessionHasErrors(['cycle_id', 'employee_id']);
 });
 
 it('validates the review against tenant-scoped cycles and employees', function (): void {
@@ -144,23 +150,19 @@ it('validates the review against tenant-scoped cycles and employees', function (
         ->post(route('avana.kinerja.store'), [
             'cycle_id' => $foreignCycle->id,
             'employee_id' => 99999,
-            'status' => 'pending',
         ])
         ->assertSessionHasErrors(['cycle_id', 'employee_id']);
 });
 
 it('updates an existing review', function (): void {
-    $review = makePerformanceReview($this->tenant->id, ['status' => 'pending']);
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
+    $review = makePerformanceReview($this->tenant->id, ['status' => 'pending', 'cycle_id' => $cycle->id]);
 
     actingAs($this->admin)
         ->put(route('avana.kinerja.update', $review), [
             'cycle_id' => $review->cycle_id,
             'employee_id' => $review->employee_id,
             'reviewer_id' => null,
-            'self_score' => 90,
-            'manager_score' => 88,
-            'final_score' => 89,
-            'status' => 'completed',
             'notes' => 'Diperbarui',
             'review_date' => '2026-07-10',
         ])
@@ -169,9 +171,28 @@ it('updates an existing review', function (): void {
 
     $review->refresh();
 
-    expect($review->status)->toBe('completed');
-    expect((float) $review->final_score)->toBe(89.0);
+    expect($review->status)->toBe('pending');
     expect($review->notes)->toBe('Diperbarui');
+});
+
+it('a completed review cannot be updated, deleted, or given feedback', function (): void {
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
+    $review = makePerformanceReview($this->tenant->id, ['status' => 'completed', 'cycle_id' => $cycle->id]);
+
+    actingAs($this->admin)
+        ->put(route('avana.kinerja.update', $review), [
+            'cycle_id' => $review->cycle_id,
+            'employee_id' => $review->employee_id,
+        ])
+        ->assertStatus(423);
+
+    actingAs($this->admin)
+        ->delete(route('avana.kinerja.destroy', $review))
+        ->assertStatus(423);
+
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.feedback.store', $review), ['type' => 'peer', 'rating' => 80])
+        ->assertStatus(423);
 });
 
 it('deletes a review', function (): void {
@@ -213,25 +234,53 @@ it('validates required fields when adding a cycle', function (): void {
         ->assertSessionHasErrors(['name', 'period_start', 'period_end', 'status']);
 });
 
+it('moves a cycle through draft to active to closed', function (): void {
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'draft']);
+
+    actingAs($this->admin)
+        ->patch(route('avana.kinerja.cycle.status', $cycle), ['status' => 'active'])
+        ->assertSessionHas('success');
+    expect($cycle->fresh()->status)->toBe('active');
+
+    actingAs($this->admin)
+        ->patch(route('avana.kinerja.cycle.status', $cycle), ['status' => 'closed'])
+        ->assertSessionHas('success');
+    expect($cycle->fresh()->status)->toBe('closed');
+});
+
+it('rejects an invalid cycle status transition', function (): void {
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'draft']);
+
+    actingAs($this->admin)
+        ->patch(route('avana.kinerja.cycle.status', $cycle), ['status' => 'closed'])
+        ->assertStatus(422);
+});
+
 it('submits scores for a review', function (): void {
-    $review = makePerformanceReview($this->tenant->id, ['status' => 'pending']);
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
+    $review = makePerformanceReview($this->tenant->id, ['status' => 'manager_review', 'cycle_id' => $cycle->id]);
 
     actingAs($this->admin)
         ->post(route('avana.kinerja.score', $review), [
-            'self_score' => 75,
             'manager_score' => 80,
-            'final_score' => 78,
-            'status' => 'completed',
             'review_date' => '2026-07-15',
         ])
         ->assertSessionHas('success');
 
     $review->refresh();
 
-    expect($review->status)->toBe('completed');
-    expect((float) $review->self_score)->toBe(75.0);
+    expect($review->status)->toBe('calibration');
     expect((float) $review->manager_score)->toBe(80.0);
     expect($review->review_date->toDateString())->toBe('2026-07-15');
+});
+
+it('rejects submitting a score from an invalid status', function (): void {
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
+    $review = makePerformanceReview($this->tenant->id, ['status' => 'pending', 'cycle_id' => $cycle->id]);
+
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.score', $review), ['manager_score' => 80])
+        ->assertStatus(422);
 });
 
 it('returns 404 when updating a review from another tenant', function (): void {

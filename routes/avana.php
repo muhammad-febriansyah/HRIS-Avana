@@ -624,8 +624,11 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class, LogPageActivity
     Route::put('kinerja/{review}', [PerformanceController::class, 'update'])->name('kinerja.update');
     Route::delete('kinerja/{review}', [PerformanceController::class, 'destroy'])->name('kinerja.destroy');
     Route::post('kinerja/cycle', [PerformanceController::class, 'storeCycle'])->name('kinerja.cycle.store');
+    Route::put('kinerja/cycle/{cycle}', [PerformanceController::class, 'updateCycle'])->name('kinerja.cycle.update');
+    Route::patch('kinerja/cycle/{cycle}/status', [PerformanceController::class, 'updateCycleStatus'])->name('kinerja.cycle.status');
     Route::post('kinerja/{review}/score', [PerformanceController::class, 'submitScore'])->name('kinerja.score');
     Route::post('kinerja/{review}/calibrate', [PerformanceController::class, 'calibrate'])->name('kinerja.calibrate');
+    Route::post('kinerja/{review}/reopen', [PerformanceController::class, 'reopen'])->name('kinerja.reopen');
     // 360 feedback on a performance review
     Route::post('kinerja/{review}/feedback', [PerformanceController::class, 'storeFeedback'])->name('kinerja.feedback.store');
     Route::delete('kinerja/feedback/{feedback}', [PerformanceController::class, 'destroyFeedback'])->name('kinerja.feedback.destroy');

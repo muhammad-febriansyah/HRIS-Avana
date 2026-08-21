@@ -6,6 +6,7 @@ use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\PerformanceFeedback;
 use App\Models\PerformanceReview;
+use App\Services\PerformanceReviewWorkflow;
 use DateTimeInterface;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -102,12 +103,10 @@ class EssPerformanceController extends Controller
             'self_score.max' => 'Nilai mandiri maksimal 100.',
         ]);
 
-        $review->update([
-            'self_score' => $data['self_score'],
-            'notes' => $data['notes'] ?? $review->notes,
-            // Hand off to the manager; scoring and calibration are theirs.
-            'status' => 'manager_review',
-        ]);
+        // Hands off to the manager via PerformanceReviewWorkflow; scoring and
+        // calibration are theirs. The workflow also enforces the review's
+        // cycle is still active, which the stage check above does not.
+        (new PerformanceReviewWorkflow)->submitSelfAssessment($review, (float) $data['self_score'], $data['notes'] ?? null);
 
         return back()->with('success', 'Penilaian mandiri terkirim');
     }

@@ -8,6 +8,7 @@ use App\Models\PerformanceCycle;
 use App\Models\PerformanceFeedback;
 use App\Models\PerformanceReview;
 use App\Models\User;
+use App\Services\PerformanceReviewWorkflow;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -206,10 +207,12 @@ class PerformanceController extends Controller
         $tenantId = $request->user()->tenant_id;
 
         $data = $this->validateReview($request, $tenantId);
+        $this->ensureCycleActive($tenantId, $data['cycle_id']);
 
         PerformanceReview::create([
             ...$data,
             'tenant_id' => $tenantId,
+            'status' => 'pending',
         ]);
 
         return redirect()->route('avana.kinerja')
@@ -217,14 +220,18 @@ class PerformanceController extends Controller
     }
 
     /**
-     * Update an existing performance review.
+     * Update an existing performance review's metadata (cycle, employee,
+     * reviewer, notes, review date). Scores and status are workflow-controlled
+     * and are not accepted here.
      */
     public function update(Request $request, PerformanceReview $review): RedirectResponse
     {
         $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $review);
+        $this->workflow()->assertMutable($review);
 
         $data = $this->validateReview($request, $request->user()->tenant_id);
+        $this->ensureCycleActive($request->user()->tenant_id, $data['cycle_id']);
 
         $review->update($data);
 
@@ -239,6 +246,7 @@ class PerformanceController extends Controller
     {
         $this->ensureCan($request, 'archive');
         $this->ensureTenantOwnership($request, $review);
+        $this->workflow()->assertMutable($review);
 
         $review->delete();
 
@@ -272,22 +280,74 @@ class PerformanceController extends Controller
     }
 
     /**
-     * Submit the scores and status for a performance review.
+     * Update a performance cycle's name, dates, or description.
+     */
+    public function updateCycle(Request $request, PerformanceCycle $cycle): RedirectResponse
+    {
+        $this->ensureCan($request, 'update');
+        $this->ensureCycleTenantOwnership($request, $cycle);
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'period_start' => ['required', 'date'],
+            'period_end' => ['required', 'date', 'after_or_equal:period_start'],
+            'description' => ['nullable', 'string'],
+        ]);
+
+        $cycle->update($data);
+
+        return back()->with('success', 'Siklus penilaian berhasil diperbarui');
+    }
+
+    /**
+     * Move a cycle through draft → active → closed. Reopening a closed cycle
+     * back to active requires the elevated `approve` permission, the same gate
+     * used for calibration and review reopening.
+     */
+    public function updateCycleStatus(Request $request, PerformanceCycle $cycle): RedirectResponse
+    {
+        $this->ensureCan($request, 'update');
+        $this->ensureCycleTenantOwnership($request, $cycle);
+
+        $data = $request->validate([
+            'status' => ['required', Rule::in(self::CYCLE_STATUSES)],
+        ]);
+
+        $allowed = [
+            'draft' => ['active'],
+            'active' => ['closed'],
+            'closed' => ['active'],
+        ];
+
+        abort_unless(in_array($data['status'], $allowed[$cycle->status] ?? [], true), 422, 'Perubahan status siklus tidak valid.');
+
+        if ($cycle->status === 'closed' && $data['status'] === 'active') {
+            $this->ensureCan($request, 'approve');
+        }
+
+        $cycle->update(['status' => $data['status']]);
+
+        return back()->with('success', 'Status siklus diperbarui');
+    }
+
+    /**
+     * Submit the manager's score for a performance review and move it into
+     * calibration. Only the review's assigned reviewer, or a holder of the
+     * elevated `approve` permission, may score it.
      */
     public function submitScore(Request $request, PerformanceReview $review): RedirectResponse
     {
         $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $review);
+        $this->ensureIsAssignedReviewer($request, $review);
+        $this->workflow()->assertMutable($review);
 
         $data = $request->validate([
-            'self_score' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'manager_score' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'final_score' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'status' => ['required', Rule::in(self::REVIEW_STATUSES)],
             'review_date' => ['nullable', 'date'],
         ]);
 
-        $review->update($data);
+        $this->workflow()->submitManagerScore($review, $data['manager_score'] ?? null, $data['review_date'] ?? null);
 
         return back()->with('success', 'Nilai penilaian diperbarui');
     }
@@ -295,7 +355,8 @@ class PerformanceController extends Controller
     /**
      * Calibrate a review (BR-19): set the calibrated final score, record the
      * calibrator, and mark the review completed. This is the objectivity gate
-     * before a rating becomes final.
+     * before a rating becomes final — it only succeeds when the review is
+     * currently at the `calibration` stage.
      */
     public function calibrate(Request $request, PerformanceReview $review): RedirectResponse
     {
@@ -307,16 +368,28 @@ class PerformanceController extends Controller
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $review->update([
-            'calibrated_score' => $data['calibrated_score'],
-            'final_score' => $data['calibrated_score'],
-            'calibrated_by' => $request->user()->id,
-            'calibrated_at' => now(),
-            'notes' => $data['notes'] ?? $review->notes,
-            'status' => 'completed',
-        ]);
+        $this->workflow()->calibrate($review, (float) $data['calibrated_score'], $request->user(), $data['notes'] ?? null);
 
         return back()->with('success', 'Penilaian dikalibrasi & difinalisasi');
+    }
+
+    /**
+     * Reopen a completed review for correction. Requires the elevated
+     * `approve` permission; the reason is recorded in the review's notes.
+     */
+    public function reopen(Request $request, PerformanceReview $review): RedirectResponse
+    {
+        $this->ensureCan($request, 'approve');
+        $this->ensureTenantOwnership($request, $review);
+
+        $data = $request->validate([
+            'to' => ['required', Rule::in(['manager_review', 'calibration'])],
+            'reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $this->workflow()->reopen($review, $data['to'], $request->user(), $data['reason']);
+
+        return back()->with('success', 'Penilaian dibuka kembali');
     }
 
     /**
@@ -326,6 +399,7 @@ class PerformanceController extends Controller
     {
         $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $review);
+        $this->workflow()->assertMutable($review);
 
         $tenantId = $request->user()->tenant_id;
 
@@ -360,6 +434,7 @@ class PerformanceController extends Controller
         $this->ensureCan($request, 'archive');
 
         abort_if((int) $feedback->tenant_id !== (int) $request->user()->tenant_id, 404);
+        $this->workflow()->assertMutable($feedback->review);
 
         $feedback->delete();
 
@@ -389,13 +464,53 @@ class PerformanceController extends Controller
                 'integer',
                 Rule::exists('employees', 'id')->where('tenant_id', $tenantId),
             ],
-            'self_score' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'manager_score' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'final_score' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'status' => ['required', Rule::in(self::REVIEW_STATUSES)],
             'notes' => ['nullable', 'string'],
             'review_date' => ['nullable', 'date'],
         ]);
+    }
+
+    /**
+     * Abort with 422 unless the given cycle is currently active. Reviews may
+     * only be created or edited under an open cycle.
+     */
+    private function ensureCycleActive(?int $tenantId, int $cycleId): void
+    {
+        $cycle = PerformanceCycle::forTenant($tenantId)->find($cycleId);
+
+        abort_unless($cycle?->status === 'active', 422, 'Siklus penilaian ini tidak aktif.');
+    }
+
+    /**
+     * Abort with 404 when the cycle does not belong to the user's tenant.
+     */
+    private function ensureCycleTenantOwnership(Request $request, PerformanceCycle $cycle): void
+    {
+        abort_if((int) $cycle->tenant_id !== (int) $request->user()->tenant_id, 404);
+    }
+
+    /**
+     * Abort with 403 unless the acting user is the review's assigned reviewer,
+     * or holds the elevated `approve` permission (HR override).
+     */
+    private function ensureIsAssignedReviewer(Request $request, PerformanceReview $review): void
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        if ($user->isSuperAdmin() || $user->hasPermissionTo(self::MODULE.'.approve')) {
+            return;
+        }
+
+        abort_unless(
+            $review->reviewer_id !== null && $user->employee !== null && (int) $review->reviewer_id === (int) $user->employee->id,
+            403,
+            'Anda bukan penilai yang ditunjuk untuk review ini.'
+        );
+    }
+
+    private function workflow(): PerformanceReviewWorkflow
+    {
+        return new PerformanceReviewWorkflow;
     }
 
     /**

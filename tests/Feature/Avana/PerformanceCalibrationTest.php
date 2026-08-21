@@ -31,7 +31,7 @@ beforeEach(function (): void {
         'employee_id' => $this->employee->id,
         'self_score' => 80,
         'manager_score' => 85,
-        'status' => 'manager_review',
+        'status' => 'calibration',
     ]);
 });
 
@@ -55,4 +55,14 @@ it('requires a calibrated score', function (): void {
     actingAs($this->admin)
         ->post(route('avana.kinerja.calibrate', $this->review), ['notes' => 'x'])
         ->assertSessionHasErrors('calibrated_score');
+});
+
+it('cannot calibrate a review still in manager_review', function (): void {
+    $this->review->update(['status' => 'manager_review']);
+
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.calibrate', $this->review), ['calibrated_score' => 88])
+        ->assertStatus(422);
+
+    expect($this->review->fresh()->status)->toBe('manager_review');
 });
