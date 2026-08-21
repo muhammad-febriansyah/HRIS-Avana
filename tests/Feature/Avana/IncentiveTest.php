@@ -388,9 +388,16 @@ it('scores a performance incentive from a review inside the period, not the newe
     ]);
 
     // …while a later review, outside the period, would have cleared it.
+    $laterCycle = PerformanceCycle::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Siklus QA Berikutnya',
+        'period_start' => $this->period->end_date->copy()->addMonth()->startOfMonth()->toDateString(),
+        'period_end' => $this->period->end_date->copy()->addMonth()->endOfMonth()->toDateString(),
+        'status' => 'active',
+    ]);
     PerformanceReview::create([
         'tenant_id' => $this->tenant->id,
-        'cycle_id' => $cycle->id,
+        'cycle_id' => $laterCycle->id,
         'employee_id' => $this->employee->id,
         'final_score' => 95,
         'status' => 'completed',

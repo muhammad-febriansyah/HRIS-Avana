@@ -7,16 +7,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-final class KeyResult extends Model
+final class KpiIndicator extends Model
 {
     protected $guarded = [];
 
     protected function casts(): array
     {
         return [
-            'target_value' => 'decimal:2',
-            'current_value' => 'decimal:2',
-            'progress' => 'integer',
+            'is_active' => 'boolean',
         ];
     }
 
@@ -30,12 +28,7 @@ final class KeyResult extends Model
         return $this->belongsTo(Tenant::class);
     }
 
-    public function objective(): BelongsTo
-    {
-        return $this->belongsTo(Objective::class);
-    }
-
-    public function performanceKpiItems(): HasMany
+    public function kpiItems(): HasMany
     {
         return $this->hasMany(PerformanceKpiItem::class);
     }

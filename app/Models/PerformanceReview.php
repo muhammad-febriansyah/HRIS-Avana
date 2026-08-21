@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\Auditable;
 use App\Concerns\HasPublicId;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class PerformanceReview extends Model
 {
-    use HasFactory, HasPublicId;
+    use Auditable, HasFactory, HasPublicId;
 
     protected $guarded = [];
 
@@ -53,5 +54,10 @@ final class PerformanceReview extends Model
     public function feedbacks(): HasMany
     {
         return $this->hasMany(PerformanceFeedback::class, 'review_id');
+    }
+
+    public function kpiItems(): HasMany
+    {
+        return $this->hasMany(PerformanceKpiItem::class, 'review_id');
     }
 }

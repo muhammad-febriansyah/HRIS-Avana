@@ -2,21 +2,24 @@
 
 namespace App\Models;
 
+use App\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-final class KeyResult extends Model
+final class PerformanceKpiItem extends Model
 {
+    use Auditable;
+
     protected $guarded = [];
 
     protected function casts(): array
     {
         return [
+            'weight' => 'decimal:2',
             'target_value' => 'decimal:2',
-            'current_value' => 'decimal:2',
-            'progress' => 'integer',
+            'actual_value' => 'decimal:2',
+            'achievement_pct' => 'decimal:2',
         ];
     }
 
@@ -30,13 +33,18 @@ final class KeyResult extends Model
         return $this->belongsTo(Tenant::class);
     }
 
-    public function objective(): BelongsTo
+    public function review(): BelongsTo
     {
-        return $this->belongsTo(Objective::class);
+        return $this->belongsTo(PerformanceReview::class, 'review_id');
     }
 
-    public function performanceKpiItems(): HasMany
+    public function kpiIndicator(): BelongsTo
     {
-        return $this->hasMany(PerformanceKpiItem::class);
+        return $this->belongsTo(KpiIndicator::class);
+    }
+
+    public function keyResult(): BelongsTo
+    {
+        return $this->belongsTo(KeyResult::class);
     }
 }
