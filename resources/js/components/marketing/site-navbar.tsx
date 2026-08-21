@@ -2,7 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import { Menu, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { dashboard, liveTracking } from '@/routes';
+import { dashboard, liveTracking, login } from '@/routes';
 import { BrandLogo } from './brand-logo';
 import { NAV_ITEMS } from './content';
 import { useCtaTargets } from './use-cta';
@@ -211,18 +211,26 @@ export function SiteNavbar({
                             Dashboard
                         </Link>
                     ) : (
-                        <a
-                            href={trialUrl}
-                            target={trialExternal ? '_blank' : undefined}
-                            rel={
-                                trialExternal
-                                    ? 'noopener noreferrer'
-                                    : undefined
-                            }
-                            className="inline-flex h-11 items-center rounded-full bg-avana-blue px-6 text-[14px] font-bold text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-avana-blue-hover hover:shadow-avana-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-avana-blue active:translate-y-0"
-                        >
-                            Coba Gratis
-                        </a>
+                        <>
+                            <Link
+                                href={login().url}
+                                className="inline-flex h-11 items-center rounded-full px-5 text-[14px] font-bold text-avana-text/80 transition-colors duration-200 hover:text-avana-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-avana-blue"
+                            >
+                                Masuk
+                            </Link>
+                            <a
+                                href={trialUrl}
+                                target={trialExternal ? '_blank' : undefined}
+                                rel={
+                                    trialExternal
+                                        ? 'noopener noreferrer'
+                                        : undefined
+                                }
+                                className="inline-flex h-11 items-center rounded-full bg-avana-blue px-6 text-[14px] font-bold text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-avana-blue-hover hover:shadow-avana-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-avana-blue active:translate-y-0"
+                            >
+                                Coba Gratis
+                            </a>
+                        </>
                     )}
                 </div>
 
@@ -303,18 +311,27 @@ export function SiteNavbar({
                                 Dashboard
                             </Link>
                         ) : (
-                            <a
-                                href={trialUrl}
-                                target={trialExternal ? '_blank' : undefined}
-                                rel={
-                                    trialExternal
-                                        ? 'noopener noreferrer'
-                                        : undefined
-                                }
-                                className="inline-flex h-12 items-center justify-center rounded-full bg-avana-blue text-[15px] font-bold text-white"
-                            >
-                                Coba Gratis
-                            </a>
+                            <>
+                                <Link
+                                    href={login().url}
+                                    onClick={() => setMobileOpen(false)}
+                                    className="inline-flex h-12 items-center justify-center rounded-full border border-avana-border text-[15px] font-bold text-avana-text"
+                                >
+                                    Masuk
+                                </Link>
+                                <a
+                                    href={trialUrl}
+                                    target={trialExternal ? '_blank' : undefined}
+                                    rel={
+                                        trialExternal
+                                            ? 'noopener noreferrer'
+                                            : undefined
+                                    }
+                                    className="inline-flex h-12 items-center justify-center rounded-full bg-avana-blue text-[15px] font-bold text-white"
+                                >
+                                    Coba Gratis
+                                </a>
+                            </>
                         )}
                     </div>
                 </div>
