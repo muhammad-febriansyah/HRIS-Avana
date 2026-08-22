@@ -86,6 +86,8 @@ export interface PayrollConfigProps {
     ptkpStatuses: string[];
     settings: {
         enforce_payroll_segregation: boolean;
+        /** Company-paid JKK/JKM/Kesehatan premium joins the monthly TER base. */
+        tax_includes_employer_bpjs: boolean;
         require_salary_approval: boolean;
     };
     features: PayrollConfigFeatures;

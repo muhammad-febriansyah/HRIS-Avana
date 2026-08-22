@@ -16,6 +16,7 @@ use App\Services\SalaryMasterAssignment;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Route;
+use Inertia\Testing\AssertableInertia as Assert;
 
 use function Pest\Laravel\actingAs;
 
@@ -145,7 +146,12 @@ it('deducts internal BPJS computed from the registered wage', function (): void 
     // wholly employer-paid, so they add nothing to the employee's side.
     expect((float) $item->bpjs_employee_total)->toBe(200_000.0);
     expect((float) $item->bpjs_company_total)->toBeGreaterThan(0.0);
-    expect(collect($item->calculation_snapshot['deductions'])->firstWhere('name', 'BPJS (Karyawan)'))->not->toBeNull();
+    // Deducted per programme so a payslip reconciles line by line.
+    $deductions = collect($item->calculation_snapshot['deductions']);
+    expect((float) $deductions->firstWhere('name', 'BPJS Kesehatan (Karyawan)')['amount'])->toBe(50_000.0);
+    expect((float) $deductions->firstWhere('name', 'JHT (Karyawan)')['amount'])->toBe(100_000.0);
+    expect((float) $deductions->firstWhere('name', 'JP (Karyawan)')['amount'])->toBe(50_000.0);
+    expect($deductions->firstWhere('name', 'BPJS (Karyawan)'))->toBeNull();
 });
 
 it('computes internal PPh 21 with the monthly TER scheme (PMK 168/2023)', function (): void {
@@ -234,4 +240,57 @@ it('stops a payroll run when somebody has no PTKP status', function (): void {
         ->assertSessionHasErrors('payroll');
 
     expect(session('errors')->first('payroll'))->toContain('status PTKP');
+});
+
+it('shows the tax basis and TER rate on the sample payslip', function (): void {
+    configureComponent($this->employee, 'BASIC', 'fixed', 5_800_000);
+
+    Route::middleware('web')->get('spec-calc/payroll', [PayrollController::class, 'index']);
+
+    actingAs($this->admin)
+        ->get('spec-calc/payroll?slip_employee='.$this->employee->id)
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('slip.tax_info.0.k', 'Bruto Pajak')
+            ->where('slip.tax_info.1.k', 'Tarif TER')
+            ->where('slip.tax_info.1.v', '0,5% · Kategori A'));
+});
+
+it('keeps the company BPJS premium out of the TER base when the tenant switches it off', function (): void {
+    configureComponent($this->employee, 'BASIC', 'fixed', 5_800_000);
+
+    EmployeeBpjsProfile::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'registered_wage' => 5_800_000,
+        'jht_enabled' => true, 'jkk_enabled' => true, 'jkm_enabled' => true,
+        'jp_enabled' => true, 'kesehatan_enabled' => true,
+        'effective_start_date' => '2026-01-01',
+    ]);
+
+    $this->tenant->update(['tax_includes_employer_bpjs' => false]);
+
+    $item = runAndItem($this);
+
+    // Bruto pajak is the pay alone: 5.800.000 → TER A 0,5% → 29.000.
+    expect((float) $item->taxable_gross)->toBe(5_800_000.0);
+    expect((float) $item->pph21_total)->toBe(29_000.0);
+    expect((float) $item->bpjs_company_total)->toBeGreaterThan(0.0);
+});
+
+it('adds the company BPJS premium to the TER base by default (PMK 168/2023)', function (): void {
+    configureComponent($this->employee, 'BASIC', 'fixed', 5_800_000);
+
+    EmployeeBpjsProfile::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'registered_wage' => 5_800_000,
+        'jht_enabled' => true, 'jkk_enabled' => true, 'jkm_enabled' => true,
+        'jp_enabled' => true, 'kesehatan_enabled' => true,
+        'effective_start_date' => '2026-01-01',
+    ]);
+
+    $item = runAndItem($this);
+
+    expect((float) $item->taxable_gross)->toBeGreaterThan(5_800_000.0);
 });

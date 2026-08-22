@@ -133,6 +133,7 @@ class PayrollConfigController extends Controller
             'settings' => [
                 'enforce_payroll_segregation' => (bool) $request->user()->tenant?->enforce_payroll_segregation,
                 'require_salary_approval' => (bool) $request->user()->tenant?->require_salary_approval,
+                'tax_includes_employer_bpjs' => (bool) ($request->user()->tenant?->tax_includes_employer_bpjs ?? true),
             ],
             'features' => FeatureGate::map($request->user(), ['bpjs', 'pph21']),
         ]);
@@ -240,6 +241,7 @@ class PayrollConfigController extends Controller
         $validated = $request->validate([
             'enforce_payroll_segregation' => ['required', 'boolean'],
             'require_salary_approval' => ['required', 'boolean'],
+            'tax_includes_employer_bpjs' => ['required', 'boolean'],
         ]);
 
         $tenant = $user->tenant;
@@ -248,6 +250,7 @@ class PayrollConfigController extends Controller
         $tenant->update([
             'enforce_payroll_segregation' => $validated['enforce_payroll_segregation'],
             'require_salary_approval' => $validated['require_salary_approval'],
+            'tax_includes_employer_bpjs' => $validated['tax_includes_employer_bpjs'],
         ]);
 
         return back()->with('success', 'Pengaturan payroll disimpan');

@@ -287,6 +287,26 @@ export function SlipDetail({ slip, period, employees = [] }: SlipDetailProps) {
                     </span>
                 </div>
 
+                {(slip.tax_info ?? []).length > 0 && (
+                    <>
+                        <div
+                            style={{
+                                fontSize: 11.5,
+                                fontWeight: 600,
+                                color: C.primary,
+                                textTransform: 'uppercase',
+                                letterSpacing: '.04em',
+                                margin: '14px 0 8px',
+                            }}
+                        >
+                            Dasar Pajak
+                        </div>
+                        {(slip.tax_info ?? []).map((line) => (
+                            <SlipRow key={line.k} line={line} />
+                        ))}
+                    </>
+                )}
+
                 <div
                     style={{
                         fontSize: 11.5,

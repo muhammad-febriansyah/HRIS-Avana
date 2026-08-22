@@ -31,28 +31,31 @@ export default function PayrollConfig({
         'bpjs' | 'pph21' | 'tax-profile'
     >(visibleSections[0]?.key ?? 'bpjs');
 
-    const toggleSegregation = (value: boolean) => {
-        router.put(
-            '/avana/payroll/konfigurasi/settings',
-            {
-                enforce_payroll_segregation: value,
-                require_salary_approval: settings.require_salary_approval,
-            },
-            { preserveScroll: true },
-        );
-    };
-
-    const toggleSalaryApproval = (value: boolean) => {
+    // The endpoint takes the whole settings block, so every toggle sends the
+    // current values with its own field replaced.
+    const saveSettings = (patch: Partial<PayrollConfigProps['settings']>) => {
         router.put(
             '/avana/payroll/konfigurasi/settings',
             {
                 enforce_payroll_segregation:
                     settings.enforce_payroll_segregation,
-                require_salary_approval: value,
+                require_salary_approval: settings.require_salary_approval,
+                tax_includes_employer_bpjs:
+                    settings.tax_includes_employer_bpjs,
+                ...patch,
             },
             { preserveScroll: true },
         );
     };
+
+    const toggleSegregation = (value: boolean) =>
+        saveSettings({ enforce_payroll_segregation: value });
+
+    const toggleSalaryApproval = (value: boolean) =>
+        saveSettings({ require_salary_approval: value });
+
+    const toggleEmployerPremiumTax = (value: boolean) =>
+        saveSettings({ tax_includes_employer_bpjs: value });
 
     useEffect(() => {
         if (flash?.success) {
@@ -238,6 +241,79 @@ export default function PayrollConfig({
                             }
                         />
                         {settings.require_salary_approval
+                            ? 'Aktif'
+                            : 'Nonaktif'}
+                    </label>
+                </div>
+
+                {/* Company-paid BPJS premium inside the monthly tax base */}
+                <div
+                    style={{
+                        ...card,
+                        padding: '16px 20px',
+                        marginBottom: 20,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 16,
+                        flexWrap: 'wrap',
+                    }}
+                >
+                    <div
+                        style={{
+                            display: 'flex',
+                            gap: 12,
+                            alignItems: 'flex-start',
+                        }}
+                    >
+                        <AIcon name="percent" size={20} color={C.primary} />
+                        <div>
+                            <div
+                                style={{
+                                    fontSize: 14.5,
+                                    fontWeight: 600,
+                                    color: C.navy,
+                                }}
+                            >
+                                Premi BPJS Perusahaan Masuk Bruto Pajak
+                            </div>
+                            <div
+                                style={{
+                                    fontSize: 13,
+                                    color: C.muted,
+                                    marginTop: 2,
+                                    maxWidth: 560,
+                                }}
+                            >
+                                Jika aktif, premi JKK, JKM dan BPJS Kesehatan
+                                yang dibayar perusahaan ikut menambah bruto
+                                pajak sebelum tarif TER dicari — sesuai PMK
+                                168/2023. Nonaktifkan jika perhitungan PPh 21
+                                bulanan hanya memakai penghasilan karyawan.
+                            </div>
+                        </div>
+                    </div>
+                    <label
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            cursor: 'pointer',
+                            fontSize: 13.5,
+                            fontWeight: 600,
+                            color: settings.tax_includes_employer_bpjs
+                                ? C.green
+                                : C.muted,
+                        }}
+                    >
+                        <input
+                            type="checkbox"
+                            checked={settings.tax_includes_employer_bpjs}
+                            onChange={(e) =>
+                                toggleEmployerPremiumTax(e.target.checked)
+                            }
+                        />
+                        {settings.tax_includes_employer_bpjs
                             ? 'Aktif'
                             : 'Nonaktif'}
                     </label>

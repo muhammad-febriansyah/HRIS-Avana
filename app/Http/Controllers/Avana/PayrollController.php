@@ -30,6 +30,7 @@ use App\Models\SalaryMaster;
 use App\Models\SalaryMasterComponent;
 use App\Models\SalaryRapel;
 use App\Models\TaxProfile;
+use App\Models\Tenant;
 use App\Models\UmrRate;
 use App\Services\OvertimePayableHours;
 use App\Services\SalaryMasterAssignment;
@@ -91,6 +92,24 @@ class PayrollController extends Controller
      * @var array<int, string>
      */
     private const DEDUCTIBLE_EMPLOYEE_PREMIUMS = ['jht', 'jp'];
+
+    /**
+     * Payslip label for each programme's employee premium.
+     *
+     * The premium is deducted per programme rather than as one "BPJS
+     * (Karyawan)" figure: HR reconciles a payslip against their own sheet line
+     * by line, and a single total hides which rate or which contribution base
+     * produced it.
+     *
+     * @var array<string, string>
+     */
+    private const BPJS_EMPLOYEE_LABELS = [
+        'kesehatan' => 'BPJS Kesehatan (Karyawan)',
+        'jht' => 'JHT (Karyawan)',
+        'jp' => 'JP (Karyawan)',
+        'jkk' => 'JKK (Karyawan)',
+        'jkm' => 'JKM (Karyawan)',
+    ];
 
     public function __construct(private readonly OvertimePayableHours $overtimeHoursVerifier) {}
 
@@ -1612,6 +1631,7 @@ class PayrollController extends Controller
                         ],
                         $this->chargedDeductions($pay['deductions']),
                     ),
+                    'tax_info' => $this->slipTaxInfo($pay),
                     'gross' => $this->rupiah($pay['gross']),
                     'deduction' => $this->rupiah($pay['deduction']),
                     'net' => $this->rupiah($pay['net']),
@@ -1700,6 +1720,70 @@ class PayrollController extends Controller
     }
 
     /**
+     * The tax basis rows on the payslip: what the TER rate was applied to, and
+     * which rate came out of the table.
+     *
+     * They are shown, not deducted — the withholding itself is the PPh 21 line
+     * among the deductions. Their job is to make the number checkable against a
+     * manual sheet without opening the run snapshot.
+     *
+     * @param  array<string, mixed>  $pay
+     * @return list<array{k: string, v: string, why: ?string}>
+     */
+    private function slipTaxInfo(array $pay): array
+    {
+        /** @var array<string, mixed> $tax */
+        $tax = $pay['tax_snapshot'] ?? [];
+
+        if ($tax === []) {
+            return [];
+        }
+
+        $taxableGross = (float) ($pay['taxable_gross'] ?? 0);
+        $employerPremium = (float) ($pay['tax_employer_premium'] ?? 0);
+
+        $rows = [[
+            'k' => 'Bruto Pajak',
+            'v' => $this->rupiah((float) ($tax['base'] ?? $tax['gross'] ?? $taxableGross)),
+            'why' => sprintf(
+                'Pendapatan yang ditandai Perhitungan Pajak = Ya Rp %s%s. '
+                    .'Komponen yang tidak kena pajak diatur di Payroll → Master Komponen.',
+                number_format(max(0.0, $taxableGross - $employerPremium), 0, ',', '.'),
+                match (true) {
+                    $employerPremium > 0 => sprintf(
+                        ' + premi BPJS (JKK, JKM, Kesehatan) yang dibayar perusahaan Rp %s — premi itu penghasilan karyawan menurut PMK 168/2023',
+                        number_format($employerPremium, 0, ',', '.'),
+                    ),
+                    (float) ($pay['bpjs_snapshot']['taxable_company'] ?? 0) > 0 => sprintf(
+                        ' — premi BPJS perusahaan Rp %s tidak ikut dihitung, sesuai pengaturan di Payroll → BPJS & Pajak',
+                        number_format((float) $pay['bpjs_snapshot']['taxable_company'], 0, ',', '.'),
+                    ),
+                    default => '',
+                },
+            ),
+        ]];
+
+        if (($tax['ter_rate'] ?? null) !== null) {
+            $rows[] = [
+                'k' => 'Tarif TER',
+                'v' => sprintf(
+                    '%s%% · Kategori %s',
+                    rtrim(rtrim(number_format(((float) $tax['ter_rate']) * 100, 2, ',', '.'), '0'), ','),
+                    $tax['ter_category'] ?? '—',
+                ),
+                'why' => sprintf(
+                    'Status PTKP %s → Kategori %s (BPJS & Pajak → Profil Pajak), lalu bruto pajak dicocokkan ke bracket TER '
+                        .'yang berlaku pada periode ini. Tabel: Payroll → Tarif TER PPh 21.',
+                    $tax['ptkp_status'] ?? 'belum diisi',
+                    $tax['ter_category'] ?? '—',
+                ),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * The refund rows hiding among the deductions, as positive earnings.
      *
      * @param  array<int, array{name: string, amount: float}>  $deductions
@@ -1730,7 +1814,7 @@ class PayrollController extends Controller
     /**
      * The matching explanation for a deduction line.
      *
-     * @param  array{name: string, amount: float, loan_id?: int}  $row
+     * @param  array{name: string, amount: float, loan_id?: int, bpjs_code?: string}  $row
      * @param  array<string, mixed>  $pay
      */
     private function explainDeduction(array $row, array $pay, Employee $employee, int $tenantId): ?string
@@ -1758,6 +1842,29 @@ class PayrollController extends Controller
             }
 
             return null;
+        }
+
+        if (isset($row['bpjs_code']) && $row['bpjs_code'] !== 'all') {
+            $bpjs = $pay['bpjs_snapshot'] ?? [];
+            $program = $bpjs['programs'][$row['bpjs_code']] ?? null;
+
+            if ($program === null) {
+                return null;
+            }
+
+            $base = (float) ($bpjs['base_wage'] ?? 0);
+            $capped = (float) ($program['max_wage'] ?? 0) > 0
+                ? min($base, (float) $program['max_wage'])
+                : $base;
+
+            return sprintf(
+                '%s%% × upah dasar BPJS Rp %s%s. Persentase & batas upah: Payroll → BPJS & Pajak.',
+                rtrim(rtrim(number_format(((float) ($program['employee_rate'] ?? 0)) * 100, 2, ',', '.'), '0'), ','),
+                number_format($capped, 0, ',', '.'),
+                $capped < $base
+                    ? sprintf(' (dibatasi dari Rp %s oleh batas upah program)', number_format($base, 0, ',', '.'))
+                    : '',
+            );
         }
 
         if (str_starts_with($row['name'], 'BPJS')) {
@@ -2261,7 +2368,16 @@ class PayrollController extends Controller
             $period->end_date,
         );
 
-        $taxableGross += (float) ($bpjs['taxable_company'] ?? 0.0);
+        // PMK 168/2023 counts the company's JKK/JKM/Kesehatan premium as the
+        // employee's income, so it joins the TER base. A tenant whose payroll
+        // desk withholds on the salary alone switches it off in BPJS & Pajak;
+        // the premium is then reported but not taxed monthly.
+        $employerPremiumIsTaxable = $this->employerPremiumIsTaxable($tenantId);
+        $employerPremium = $employerPremiumIsTaxable
+            ? (float) ($bpjs['taxable_company'] ?? 0.0)
+            : 0.0;
+
+        $taxableGross += $employerPremium;
 
         // December (or the employee's final tax month) reconciles the year against
         // the progressive Pasal 17 tariff — but only for subjects that withhold
@@ -2273,8 +2389,8 @@ class PayrollController extends Controller
             ? $this->computeAnnualPph21($employee, $tenantId, $period, $taxableGross, (float) ($bpjs['deductible_employee'] ?? 0.0))
             : $this->computePph21($employee, $tenantId, $taxableGross, $period);
 
-        if ($bpjs['employee'] > 0) {
-            $deductions[] = ['name' => 'BPJS (Karyawan)', 'amount' => $bpjs['employee']];
+        foreach ($this->bpjsEmployeeLines($bpjs) as $bpjsLine) {
+            $deductions[] = $bpjsLine;
         }
 
         if ($pph21['amount'] > 0) {
@@ -2332,6 +2448,9 @@ class PayrollController extends Controller
             // Kept per month so December can add up the same measure it charged
             // on all year, rather than re-deriving it from the payslip gross.
             'taxable_gross' => $taxableGross,
+            // The slice of the company's premium that entered the TER base —
+            // zero when the tenant taxes the salary alone.
+            'tax_employer_premium' => $employerPremium,
             'tax_deductible_premium' => (float) ($bpjs['deductible_employee'] ?? 0.0),
         ];
     }
@@ -2896,6 +3015,59 @@ class PayrollController extends Controller
                 'deductible_employee' => $deductibleEmployee,
             ],
         ];
+    }
+
+    /**
+     * Whether the company-paid BPJS premium counts as the employee's income
+     * for the month's TER base (PMK 168/2023), or is reported but not taxed
+     * monthly because the tenant withholds on the salary alone.
+     */
+    private function employerPremiumIsTaxable(int $tenantId): bool
+    {
+        return (bool) (Tenant::find($tenantId)?->tax_includes_employer_bpjs ?? true);
+    }
+
+    /**
+     * The employee's BPJS premium split into one deduction line per programme.
+     *
+     * Falls back to a single combined line whenever the per-programme figures
+     * are missing or do not add up to the computed total — a payslip must never
+     * deduct a different amount than the run recorded.
+     *
+     * @param  array{employee: float, snapshot: array<string, mixed>}  $bpjs
+     * @return list<array{name: string, amount: float, bpjs_code: string}>
+     */
+    private function bpjsEmployeeLines(array $bpjs): array
+    {
+        $total = (float) ($bpjs['employee'] ?? 0.0);
+
+        if ($total <= 0) {
+            return [];
+        }
+
+        /** @var array<string, array<string, mixed>> $programs */
+        $programs = $bpjs['snapshot']['programs'] ?? [];
+        $lines = [];
+
+        foreach ($programs as $code => $program) {
+            $amount = (float) ($program['employee'] ?? 0.0);
+
+            if ($amount <= 0) {
+                continue;
+            }
+
+            $lines[] = [
+                'name' => self::BPJS_EMPLOYEE_LABELS[$code] ?? strtoupper((string) $code).' (Karyawan)',
+                'amount' => $amount,
+                'bpjs_code' => (string) $code,
+            ];
+        }
+
+        if ($lines === [] || round(array_sum(array_column($lines, 'amount'))) !== round($total)) {
+            return [['name' => 'BPJS (Karyawan)', 'amount' => $total, 'bpjs_code' => 'all']];
+        }
+
+        return $lines;
     }
 
     /**
