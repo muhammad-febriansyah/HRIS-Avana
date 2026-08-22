@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\BpjsProgram;
+use App\Models\BpjsRate;
 use App\Models\PayrollComponent;
 use App\Models\Tenant;
 use App\Models\User;
@@ -97,4 +99,54 @@ it('refuses to write across every tenant at once', function (): void {
     artisan('avana:align-tax-basis', ['--apply' => true])->assertFailed();
 
     expect((bool) taxBasisComponent($this, 'BASIC')->is_taxable)->toBeFalse();
+});
+
+it('creates the employer-only premiums at the rate given', function (): void {
+    BpjsProgram::where('code', 'JKK')->forceDelete();
+    BpjsProgram::where('code', 'JKM')->forceDelete();
+
+    artisan('avana:align-tax-basis', [
+        '--tenant' => $this->tenant->id,
+        '--jkk-rate' => '0.0024',
+        '--jkm-rate' => '0.003',
+        '--apply' => true,
+    ])->assertSuccessful();
+
+    $jkk = BpjsProgram::where('code', 'JKK')->firstOrFail();
+    $rate = BpjsRate::where('program_id', $jkk->id)->firstOrFail();
+
+    // Employer-only: it costs the company, never the payslip.
+    expect((float) $rate->company_rate)->toBe(0.0024)
+        ->and((float) $rate->employee_rate)->toBe(0.0);
+
+    expect(BpjsProgram::where('code', 'JKM')->exists())->toBeTrue();
+});
+
+it('rejects a premium rate typed as a percentage instead of a decimal', function (): void {
+    BpjsProgram::where('code', 'JKK')->forceDelete();
+
+    artisan('avana:align-tax-basis', [
+        '--tenant' => $this->tenant->id,
+        '--jkk-rate' => '0.24',
+        '--apply' => true,
+    ])->assertSuccessful();
+
+    expect(BpjsProgram::where('code', 'JKK')->exists())->toBeFalse();
+});
+
+it('sets the wage ceilings on the BPJS rate master', function (): void {
+    artisan('avana:align-tax-basis', [
+        '--tenant' => $this->tenant->id,
+        '--kesehatan-cap' => '12000000',
+        '--jp-cap' => '11086300',
+        '--apply' => true,
+    ])->assertSuccessful();
+
+    $ceiling = fn (string $code): float => (float) BpjsRate::whereHas(
+        'program',
+        fn ($query) => $query->where('code', $code),
+    )->where('is_active', true)->firstOrFail()->max_wage;
+
+    expect($ceiling('KESEHATAN'))->toBe(12_000_000.0)
+        ->and($ceiling('JP'))->toBe(11_086_300.0);
 });

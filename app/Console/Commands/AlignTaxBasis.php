@@ -3,9 +3,11 @@
 namespace App\Console\Commands;
 
 use App\Models\BpjsProgram;
+use App\Models\BpjsRate;
 use App\Models\PayrollComponent;
 use App\Models\Tenant;
 use Illuminate\Console\Command;
+use Illuminate\Support\Collection;
 
 /**
  * Set, in one pass, which earnings feed the two payroll bases a payslip is
@@ -31,6 +33,8 @@ class AlignTaxBasis extends Command
         {--employer-premium= : exclude | include — whether the company BPJS premium joins the TER bruto}
         {--kesehatan-cap= : Wage ceiling for the BPJS Kesehatan premium, in rupiah (0 removes it)}
         {--jp-cap= : Wage ceiling for the Jaminan Pensiun premium, in rupiah (0 removes it)}
+        {--jkk-rate= : Company JKK rate as a decimal (0.0024 = 0,24%, risiko sangat rendah); creates the programme if missing}
+        {--jkm-rate= : Company JKM rate as a decimal (0.003 = 0,30%); creates the programme if missing}
         {--apply : Write the changes (otherwise the command only reports)}';
 
     protected $description = 'Align which earning components feed the PPh 21 bruto (TER) and the BPJS contribution wage';
@@ -176,11 +180,77 @@ class AlignTaxBasis extends Command
         $this->table(['Program BPJS', 'Karyawan', 'Perusahaan', 'Batas Upah'], $rows);
         $this->line('Persentase dan batas upah di atas berlaku untuk semua tenant — ini master global, bukan setelan per perusahaan.');
 
-        $missing = collect(['JKK', 'JKM'])
-            ->reject(fn (string $code): bool => $programs->contains(fn (BpjsProgram $program): bool => strtoupper((string) $program->code) === $code));
+        $this->employerOnlyPremiums($programs, $apply);
+    }
 
-        if ($missing->isNotEmpty()) {
-            $this->warn('Program '.$missing->implode(' dan ').' belum ada. Keduanya iuran perusahaan (JKK 0,24%–1,74% sesuai kelas risiko, JKM 0,30%), jadi total biaya perusahaan masih kurang. Tambahkan di BPJS & Pajak.');
+    /**
+     * JKK and JKM: paid entirely by the company, so they never touch a
+     * payslip's deductions — but they are part of what an employee costs, and
+     * under PMK 168/2023 they are the employee's income too. A tenant missing
+     * them under-reports both. JKK has no single correct rate (0,24%–1,74% by
+     * risk class), so nothing is created unless a rate is passed in.
+     *
+     * @param  Collection<int, BpjsProgram>  $programs
+     */
+    private function employerOnlyPremiums(Collection $programs, bool $apply): void
+    {
+        $wanted = array_filter([
+            'JKK' => $this->option('jkk-rate'),
+            'JKM' => $this->option('jkm-rate'),
+        ], static fn (mixed $value): bool => $value !== null);
+
+        $missing = collect(['JKK', 'JKM'])
+            ->reject(fn (string $code): bool => $programs->contains(
+                fn (BpjsProgram $program): bool => strtoupper((string) $program->code) === $code
+            ));
+
+        if ($wanted === []) {
+            if ($missing->isNotEmpty()) {
+                $this->warn('Program '.$missing->implode(' dan ').' belum ada. Keduanya iuran perusahaan (JKK 0,24%–1,74% sesuai kelas risiko, JKM 0,30%), jadi total biaya perusahaan masih kurang. Tambahkan lewat --jkk-rate / --jkm-rate atau di BPJS & Pajak.');
+            }
+
+            return;
+        }
+
+        foreach ($wanted as $code => $rate) {
+            $rate = (float) $rate;
+
+            if ($rate <= 0 || $rate > 0.1) {
+                $this->error("Rate {$code} tidak masuk akal: tulis sebagai desimal, mis. 0.0024 untuk 0,24%.");
+
+                continue;
+            }
+
+            if (! $apply) {
+                $this->line("Akan menyetel {$code} ke ".$this->rupiah($rate * 100).'% iuran perusahaan.');
+
+                continue;
+            }
+
+            $program = BpjsProgram::firstOrCreate(
+                ['code' => $code],
+                [
+                    'name' => 'BPJS '.$code,
+                    'type' => strtolower($code),
+                    'is_active' => true,
+                ],
+            );
+
+            $existing = BpjsRate::where('program_id', $program->id)->where('is_active', true)->first();
+
+            if ($existing !== null) {
+                $existing->update(['company_rate' => $rate, 'employee_rate' => 0]);
+            } else {
+                BpjsRate::create([
+                    'program_id' => $program->id,
+                    'employee_rate' => 0,
+                    'company_rate' => $rate,
+                    'effective_start_date' => now()->startOfYear()->toDateString(),
+                    'is_active' => true,
+                ]);
+            }
+
+            $this->info("{$code} disetel ke ".$this->rupiah($rate * 100).'% iuran perusahaan.');
         }
     }
 
