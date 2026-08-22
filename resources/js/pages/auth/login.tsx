@@ -4,12 +4,12 @@ import { Eye, EyeOff, KeyRound, Lock, LogIn, Mail } from 'lucide-react';
 import { useState } from 'react';
 import InputError from '@/components/input-error';
 import { Spinner } from '@/components/ui/spinner';
-import { register } from '@/routes';
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
 
 type Props = {
     status?: string;
+    canRegister: boolean;
     canResetPassword: boolean;
 };
 
@@ -17,7 +17,11 @@ const fieldClass =
     'h-11 w-full rounded-lg border border-[#E5E9F2] pr-3.5 pl-10 text-sm text-[#1A2333] outline-none transition focus:border-[#2F54C9] focus:ring-2 focus:ring-[#2F54C9]/15';
 const labelClass = 'mb-1.5 block text-[13px] font-medium text-[#1A2333]';
 
-export default function Login({ status, canResetPassword }: Props) {
+export default function Login({
+    status,
+    canRegister,
+    canResetPassword,
+}: Props) {
     const [showPassword, setShowPassword] = useState(false);
     // Caps Lock is the most common invisible cause of a wrong-password loop;
     // saying it beats letting the user retype the same thing three times.
@@ -196,16 +200,18 @@ export default function Login({ status, canResetPassword }: Props) {
                 </>
             )}
 
-            <div className="mt-7 text-center text-[13px] text-[#6B7280]">
-                Belum punya akun?{' '}
-                <Link
-                    href={register()}
-                    tabIndex={5}
-                    className="font-medium text-[#2F54C9] hover:underline"
-                >
-                    Daftar
-                </Link>
-            </div>
+            {canRegister && (
+                <div className="mt-7 text-center text-[13px] text-[#6B7280]">
+                    Belum punya akun?{' '}
+                    <Link
+                        href="/register"
+                        tabIndex={5}
+                        className="font-medium text-[#2F54C9] hover:underline"
+                    >
+                        Daftar
+                    </Link>
+                </div>
+            )}
         </>
     );
 }

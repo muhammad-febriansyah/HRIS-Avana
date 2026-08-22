@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { login } from '@/routes';
-import { store } from '@/routes/register';
 
 type Props = {
     passwordRules: string;
@@ -17,8 +16,15 @@ export default function Register({ passwordRules }: Props) {
     return (
         <>
             <Head title="Register" />
+            {/*
+                Posted to the literal path rather than the generated route
+                helper: registration can be switched off (FORTIFY_REGISTRATION),
+                and a generated helper that stops existing would break the
+                build for every other page too.
+            */}
             <Form
-                {...store.form()}
+                action="/register"
+                method="post"
                 resetOnSuccess={['password', 'password_confirmation']}
                 disableWhileProcessing
                 className="flex flex-col gap-6"

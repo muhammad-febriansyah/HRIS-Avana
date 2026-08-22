@@ -161,7 +161,11 @@ return [
     */
 
     'features' => [
-        Features::registration(),
+        // Self-service registration is off by default: accounts are created by
+        // the platform team, not by whoever finds the login page. Set
+        // FORTIFY_REGISTRATION=true to open it again — the login screen's
+        // "Daftar" link follows this same switch.
+        ...(env('FORTIFY_REGISTRATION', false) ? [Features::registration()] : []),
         Features::resetPasswords(),
         Features::emailVerification(),
         Features::passkeys([
