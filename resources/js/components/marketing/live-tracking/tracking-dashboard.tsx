@@ -110,7 +110,7 @@ export function ActiveBadge({ count = 12 }: { count?: number }) {
 
 export function EmployeeList({
     employees = DEMO_EMPLOYEES,
-    selected = 'febri',
+    selected = 'andra',
     className,
 }: {
     employees?: DemoEmployee[];
@@ -166,7 +166,7 @@ export function EmployeeDetailPanel({
         >
             <div className="flex items-center gap-3">
                 <span className="grid h-10 w-10 place-items-center rounded-full bg-[#EEF2FB] text-[12px] font-semibold text-[#2F54C9]">
-                    MF
+                    {DEMO_DETAIL.initials}
                 </span>
                 <span>
                     <span className="block text-[13.5px] font-semibold text-[#0E1A3A]">
