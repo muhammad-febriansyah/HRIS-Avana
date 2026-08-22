@@ -143,7 +143,12 @@ final class AvanaNav
                     // through to the parent "Payroll" leaf's gate, which is the
                     // same `payroll` module their controllers already enforce.
                     self::leaf('payroll-riwayat-gaji', 'Riwayat Gaji', 'history', '/avana/payroll/riwayat-gaji', 'payroll', ['payroll']),
-                    self::leaf('payroll-insentif', 'Insentif', 'gift', '/avana/payroll/insentif', 'payroll', ['payroll']),
+                    // Insentif is off for now: incentives are paid as a salary
+                    // component with its nominal typed in Master Gaji, so the
+                    // scheme screen would be a second, competing source for the
+                    // same figure. Inactive rather than deleted — see the note
+                    // below on what deleting a leaf does to its route.
+                    self::leaf('payroll-insentif', 'Insentif', 'gift', '/avana/payroll/insentif', 'payroll', ['payroll'], isActive: false),
                     // Hidden for now at the client's request: the menu is
                     // trimmed to the screens the payroll setup documentation
                     // describes. They stay here as inactive rows rather than

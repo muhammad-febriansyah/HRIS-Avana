@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\IncentiveAssignment;
 use App\Models\IncentiveCalculation;
 use App\Models\IncentiveScheme;
+use App\Models\MenuItem;
 use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
@@ -32,6 +33,14 @@ beforeEach(function (): void {
     $this->tenant = Tenant::findOrFail($this->admin->tenant_id);
     $this->period = PayrollPeriod::forTenant($this->tenant->id)->orderByDesc('start_date')->firstOrFail();
     $this->employee = Employee::forTenant($this->tenant->id)->whereNotNull('position_id')->orderBy('id')->firstOrFail();
+
+    // The Insentif menu ships switched off — incentives are paid as a salary
+    // component for now — and its screens are closed with it. These tests are
+    // about the engine behind that screen, so the tenant turns the menu back
+    // on the way a tenant would in the Menu Builder.
+    MenuItem::where('tenant_id', $this->tenant->id)
+        ->where('key', 'payroll-insentif')
+        ->update(['is_active' => true]);
 
     // A second HR account, so approving somebody else's work is possible.
     $this->approver = User::create([
