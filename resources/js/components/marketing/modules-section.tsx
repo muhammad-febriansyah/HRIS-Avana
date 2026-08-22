@@ -31,6 +31,11 @@ type Module = {
     desc: string;
     screenshot: string;
     highlights: string[];
+    /**
+     * Extra screens shown under the main one inside the preview modal, for a
+     * module whose selling point is a screen the headline shot does not show.
+     */
+    extraShots?: { src: string; caption: string }[];
 };
 
 /**
@@ -57,9 +62,16 @@ const MODULES: Module[] = [
         desc: 'Kelola proses payroll bersama data HR dalam satu platform. Otomatisasi perhitungan PPh 21 tarif TER 2024, BPJS Ketenagakerjaan & Kesehatan, serta slip gaji instan.',
         screenshot: '/avana/landing/screenshots/payroll.png',
         highlights: [
-            'Kalkulasi tarif TER PPh 21 2024',
+            'Kalkulator & tabel tarif TER PPh 21',
             'BPJS Ketenagakerjaan & Kesehatan',
             'Multi komponen gaji & insentif',
+        ],
+        extraShots: [
+            {
+                src: '/avana/landing/screenshots/payroll-ter.png',
+                caption:
+                    'Tarif TER PPh 21 (PP 58/2023 & PMK 168/2023) tersedia sebagai data master: mapping status PTKP ke Kategori A/B/C beserta seluruh bracket tarifnya tersimpan lengkap dengan tanggal berlaku, jadi tarif baru cukup diperbarui dari layar ini tanpa menunggu rilis aplikasi. Kalkulator di bawahnya memakai tabel yang sama dengan yang dipakai payroll — isi status PTKP dan bruto bulanan, kategori, tarif dan PPh 21 langsung muncul, sehingga hasil payroll bisa dicocokkan sebelum gaji dibayarkan. Masa pajak Desember direkonsiliasi otomatis dengan tarif progresif Pasal 17.',
+            },
         ],
     },
     {
@@ -343,12 +355,30 @@ export function ModulesSection() {
                                 <div className="w-6" />
                             </div>
 
-                            <div className="flex max-h-[70vh] items-start justify-center overflow-auto rounded-xl border border-[#F0F3F9] bg-[#F8FAFD]">
+                            <div className="flex max-h-[70vh] flex-col items-start gap-4 overflow-auto rounded-xl border border-[#F0F3F9] bg-[#F8FAFD] p-2">
                                 <img
                                     src={previewModule.screenshot}
                                     alt={`Tampilan ${previewModule.title} di AvanaHR`}
                                     className="h-auto w-full rounded-lg object-contain"
                                 />
+
+                                {(previewModule.extraShots ?? []).map(
+                                    (shot) => (
+                                        <div
+                                            key={shot.src}
+                                            className="w-full border-t border-[#E6ECF6] pt-4"
+                                        >
+                                            <img
+                                                src={shot.src}
+                                                alt={`Kalkulator dan tabel tarif TER PPh 21 di AvanaHR`}
+                                                className="h-auto w-full rounded-lg object-contain"
+                                            />
+                                            <p className="mt-3 px-1 text-[13px] leading-relaxed text-avana-muted">
+                                                {shot.caption}
+                                            </p>
+                                        </div>
+                                    ),
+                                )}
                             </div>
                         </div>
                     )}
