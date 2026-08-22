@@ -199,6 +199,7 @@ export const DEMO_EMPLOYEES: DemoEmployee[] = [
 /** Selected-employee panel content — demo data only. */
 export const DEMO_DETAIL = {
     name: 'Andra Wijaya',
+    initials: 'AW',
     department: 'Sales',
     status: 'Tracking Active',
     rows: [

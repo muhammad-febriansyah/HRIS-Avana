@@ -1,7 +1,6 @@
 import {
     ArrowRight,
     BarChart3,
-    Check,
     ClipboardCheck,
     Fingerprint,
     Handshake,
@@ -17,7 +16,12 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { DemoButton } from './cta-buttons';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Container, Reveal, SectionHeading } from './reveal';
 
 type Module = {
@@ -210,8 +214,7 @@ const COL_START_CLASSES = [
  * `SolutionSection` above it.
  */
 export function ModulesSection() {
-    const [active, setActive] = useState(0);
-    const current = MODULES[active];
+    const [previewModule, setPreviewModule] = useState<Module | null>(null);
 
     // When the module count doesn't fill the last row evenly, center that
     // row's cards instead of leaving them stranded against the left edge.
@@ -238,7 +241,6 @@ export function ModulesSection() {
 
                 <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     {MODULES.map((module, index) => {
-                        const isActive = index === active;
                         const isLastRow =
                             remainder > 0 && index >= lastRowStart;
                         const colStart = isLastRow
@@ -256,167 +258,48 @@ export function ModulesSection() {
                                         'lg:col-span-2',
                                 )}
                             >
-                                <button
-                                    type="button"
-                                    onClick={() => setActive(index)}
-                                    aria-pressed={isActive}
-                                    className={cn(
-                                        'flex h-full w-full cursor-pointer flex-col justify-between rounded-2xl border p-6 text-left transition-[background-color,border-color,box-shadow,transform] duration-200',
-                                        isActive
-                                            ? 'scale-[1.02] border-[#0E1A3A] bg-gradient-to-b from-[#16234A] to-[#0E1A3A] text-white shadow-avana-hover'
-                                            : 'border-[#E7ECF5] bg-[#F8FAFD] text-[#0E1A3A] hover:bg-[#EEF2FB]',
-                                    )}
-                                >
+                                <div className="group flex h-full w-full flex-col justify-between rounded-2xl border border-[#E7ECF5] bg-[#F8FAFD] p-6 text-left text-[#0E1A3A] transition-[background-color,border-color,box-shadow,transform] duration-200 hover:scale-[1.02] hover:border-[#0E1A3A] hover:bg-gradient-to-b hover:from-[#16234A] hover:to-[#0E1A3A] hover:text-white hover:shadow-avana-hover">
                                     <div>
                                         <div className="mb-4 flex items-center justify-between">
-                                            <span
-                                                className={cn(
-                                                    'grid h-12 w-12 place-items-center rounded-xl transition-colors',
-                                                    isActive
-                                                        ? 'bg-[#2F54C9] text-white'
-                                                        : 'bg-white text-[#2F54C9] shadow-sm',
-                                                )}
-                                            >
+                                            <span className="grid h-12 w-12 place-items-center rounded-xl bg-white text-[#2F54C9] shadow-sm transition-colors group-hover:bg-[#2F54C9] group-hover:text-white">
                                                 <module.icon
                                                     className="h-6 w-6"
                                                     aria-hidden
                                                 />
                                             </span>
-                                            {isActive && (
-                                                <span className="rounded-full bg-[#2F54C9] px-2 py-0.5 text-[10px] font-bold tracking-wider text-white uppercase">
-                                                    Aktif
-                                                </span>
-                                            )}
                                         </div>
 
-                                        <h3
-                                            className={cn(
-                                                'mb-1 text-lg font-bold',
-                                                isActive
-                                                    ? 'text-white'
-                                                    : 'text-[#0E1A3A]',
-                                            )}
-                                        >
+                                        <h3 className="mb-1 text-lg font-bold">
                                             {module.title}
                                         </h3>
-                                        <p
-                                            className={cn(
-                                                'mb-2 text-xs font-semibold',
-                                                isActive
-                                                    ? 'text-blue-200'
-                                                    : 'text-[#2F54C9]',
-                                            )}
-                                        >
+                                        <p className="mb-2 text-xs font-semibold text-[#2F54C9] group-hover:text-blue-200">
                                             {module.tagline}
                                         </p>
-                                        <p
-                                            className={cn(
-                                                'line-clamp-2 text-xs leading-relaxed',
-                                                isActive
-                                                    ? 'text-white/80'
-                                                    : 'text-[#3B455C]/80',
-                                            )}
-                                        >
+                                        <p className="line-clamp-2 text-xs leading-relaxed text-[#3B455C]/80 group-hover:text-white/80">
                                             {module.desc}
                                         </p>
                                     </div>
 
-                                    <div
-                                        className={cn(
-                                            'mt-4 flex items-center justify-between border-t pt-3 text-xs font-bold',
-                                            isActive
-                                                ? 'border-white/10 text-white'
-                                                : 'border-[#E7ECF5] text-[#2F54C9]',
-                                        )}
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setPreviewModule(module)
+                                        }
+                                        className="mt-4 flex cursor-pointer items-center justify-between border-t border-[#E7ECF5] pt-3 text-xs font-bold text-[#2F54C9] group-hover:border-white/10 group-hover:text-white"
                                     >
                                         <span>Lihat Tampilan UI</span>
                                         <ArrowRight
                                             className="h-3.5 w-3.5"
                                             aria-hidden
                                         />
-                                    </div>
-                                </button>
+                                    </button>
+                                </div>
                             </Reveal>
                         );
                     })}
                 </div>
 
-                <Reveal delay={0.1} className="mt-6">
-                    <div className="rounded-[28px] border border-[#E7ECF5] bg-[#F8FAFD] p-6 sm:p-10">
-                        <div className="grid gap-8 lg:grid-cols-12 lg:items-center">
-                            <div className="lg:col-span-5">
-                                <span className="inline-flex items-center rounded-full border border-[#E2E9F6] bg-white px-3.5 py-1 text-[12px] font-semibold tracking-[0.08em] text-[#2F54C9] uppercase">
-                                    Modul Terpilih
-                                </span>
-                                <h3 className="mt-4 text-2xl font-extrabold tracking-[-0.01em] text-[#0E1A3A] sm:text-[28px]">
-                                    {current.title}
-                                </h3>
-                                <p className="mt-1 text-[13.5px] font-semibold text-[#2F54C9]">
-                                    {current.tagline}
-                                </p>
-                                <p className="mt-3 text-[15px] leading-relaxed text-[#5B6478] sm:text-[16px]">
-                                    {current.desc}
-                                </p>
-
-                                <div className="mt-5 space-y-2.5">
-                                    <div className="text-[12px] font-bold tracking-wider text-[#0E1A3A] uppercase">
-                                        Fitur Unggulan:
-                                    </div>
-                                    {current.highlights.map((item) => (
-                                        <div
-                                            key={item}
-                                            className="flex items-center gap-2.5 text-[14px] text-[#3B455C]"
-                                        >
-                                            <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#E7F6EE] text-[#1F9D55]">
-                                                <Check
-                                                    className="h-3 w-3"
-                                                    aria-hidden
-                                                />
-                                            </span>
-                                            {item}
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="mt-6">
-                                    <DemoButton variant="primary">
-                                        Coba Modul {current.title}
-                                    </DemoButton>
-                                </div>
-                            </div>
-
-                            <div className="lg:col-span-7">
-                                <div className="rounded-2xl border border-avana-border bg-white p-2 shadow-avana-hover sm:p-3">
-                                    <div className="mb-2 flex items-center justify-between border-b border-[#F0F3F9] px-3 py-1.5 text-xs text-avana-muted">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="h-2 w-2 rounded-full bg-gray-300" />
-                                            <span className="h-2 w-2 rounded-full bg-gray-300" />
-                                            <span className="h-2 w-2 rounded-full bg-gray-300" />
-                                        </div>
-                                        <span className="font-mono text-[11px] text-avana-muted">
-                                            app.avanahr.id/modul/
-                                            {current.title
-                                                .toLowerCase()
-                                                .replace(/\s+/g, '-')}
-                                        </span>
-                                        <div className="w-6" />
-                                    </div>
-
-                                    <div className="flex max-h-[380px] items-start justify-center overflow-hidden rounded-xl border border-[#F0F3F9] bg-[#F8FAFD] sm:max-h-[460px]">
-                                        <img
-                                            src={current.screenshot}
-                                            alt={`Tampilan ${current.title} di AvanaHR`}
-                                            loading="lazy"
-                                            className="h-auto w-full rounded-lg object-contain"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </Reveal>
-
-                <Reveal delay={0.15} className="mt-6 flex justify-center">
+                <Reveal delay={0.1} className="mt-6 flex justify-center">
                     <a
                         href="#solusi"
                         className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-[#2F54C9] hover:text-[#2546AD]"
@@ -426,6 +309,51 @@ export function ModulesSection() {
                     </a>
                 </Reveal>
             </Container>
+
+            <Dialog
+                open={previewModule !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setPreviewModule(null);
+                    }
+                }}
+            >
+                <DialogContent className="sm:max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle>
+                            {previewModule?.title} —{' '}
+                            {previewModule?.tagline}
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    {previewModule && (
+                        <div className="rounded-2xl border border-avana-border bg-white p-2 shadow-avana-hover sm:p-3">
+                            <div className="mb-2 flex items-center justify-between border-b border-[#F0F3F9] px-3 py-1.5 text-xs text-avana-muted">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="h-2 w-2 rounded-full bg-gray-300" />
+                                    <span className="h-2 w-2 rounded-full bg-gray-300" />
+                                    <span className="h-2 w-2 rounded-full bg-gray-300" />
+                                </div>
+                                <span className="font-mono text-[11px] text-avana-muted">
+                                    app.avanahr.id/modul/
+                                    {previewModule.title
+                                        .toLowerCase()
+                                        .replace(/\s+/g, '-')}
+                                </span>
+                                <div className="w-6" />
+                            </div>
+
+                            <div className="flex max-h-[70vh] items-start justify-center overflow-auto rounded-xl border border-[#F0F3F9] bg-[#F8FAFD]">
+                                <img
+                                    src={previewModule.screenshot}
+                                    alt={`Tampilan ${previewModule.title} di AvanaHR`}
+                                    className="h-auto w-full rounded-lg object-contain"
+                                />
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </section>
     );
 }
