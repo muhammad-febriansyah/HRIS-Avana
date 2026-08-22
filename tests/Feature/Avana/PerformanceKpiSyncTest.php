@@ -33,10 +33,14 @@ beforeEach(function (): void {
         'cycle_id' => $cycle->id,
         'employee_id' => $this->employee->id,
         'status' => 'pending',
+        'scoring_mode' => 'kpi',
     ]);
 
     $this->objective = Objective::create([
         'tenant_id' => $this->tenant->id,
+        // An Objective must name the cycle it belongs to before its Key Results
+        // can be scored into a review of that cycle.
+        'cycle_id' => $cycle->id,
         'employee_id' => $this->employee->id,
         'title' => 'Tingkatkan retensi',
         'level' => 'individual',
@@ -85,9 +89,8 @@ it('deleting a Key Result removes its linked KPI item', function (): void {
         ->assertSessionHas('success');
 
     expect(PerformanceKpiItem::find($this->item->id))->toBeNull();
-    // recomputeManagerScore no-ops on a review with zero KPI items (legacy
-    // manual mode), so the last computed score is left as-is rather than
-    // reset — the reviewer is expected to add a replacement item or enter a
-    // manual score going forward.
-    expect((float) $this->review->fresh()->manager_score)->toBe(20.0);
+    // Removing the last item leaves a KPI-scored review with nothing to score
+    // from, so the derived score is cleared rather than left standing. A stale
+    // number here was previously enough to pass calibration.
+    expect($this->review->fresh()->manager_score)->toBeNull();
 });

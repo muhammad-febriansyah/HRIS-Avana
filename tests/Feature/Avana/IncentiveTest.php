@@ -382,7 +382,11 @@ it('scores a performance incentive from a review inside the period, not the newe
         'tenant_id' => $this->tenant->id,
         'cycle_id' => $cycle->id,
         'employee_id' => $this->employee->id,
+        'manager_score' => 70,
         'final_score' => 70,
+        'calibrated_score' => 70,
+        'calibrated_by' => $this->admin->id,
+        'calibrated_at' => now(),
         'status' => 'completed',
         'review_date' => $this->period->start_date->copy()->addDays(3)->toDateString(),
     ]);
@@ -399,7 +403,11 @@ it('scores a performance incentive from a review inside the period, not the newe
         'tenant_id' => $this->tenant->id,
         'cycle_id' => $laterCycle->id,
         'employee_id' => $this->employee->id,
+        'manager_score' => 95,
         'final_score' => 95,
+        'calibrated_score' => 95,
+        'calibrated_by' => $this->admin->id,
+        'calibrated_at' => now(),
         'status' => 'completed',
         'review_date' => $this->period->end_date->copy()->addMonth()->toDateString(),
     ]);

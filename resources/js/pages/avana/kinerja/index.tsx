@@ -23,7 +23,6 @@ import {
     inputStyle,
     ReviewStatusBadge,
     ScoreValue,
-    selectStyle,
     textareaStyle,
     withError,
 } from './components';
@@ -74,9 +73,9 @@ function cycleStatusActionLabel(status: string): string {
 }
 
 export default function KinerjaIndex({
+    can,
     reviews,
     cycles,
-    cycleStatuses,
     kpis,
 }: KinerjaIndexProps) {
     const { flash } = usePage<FlashProps>().props;
@@ -85,6 +84,7 @@ export default function KinerjaIndex({
     const [cycleModalOpen, setCycleModalOpen] = useState(false);
     const [scoreReview, setScoreReview] = useState<ReviewRow | null>(null);
 
+    const [editingCycle, setEditingCycle] = useState<CycleRow | null>(null);
     const cycleForm = useForm<CycleFormData>({ ...emptyCycleForm });
     const scoreForm = useForm<ScoreFormData>({ ...emptyScoreForm });
 
@@ -122,11 +122,25 @@ export default function KinerjaIndex({
     const openCycle = () => {
         cycleForm.clearErrors();
         cycleForm.setData({ ...emptyCycleForm });
+        setEditingCycle(null);
+        setCycleModalOpen(true);
+    };
+
+    const openCycleEdit = (cycle: CycleRow) => {
+        cycleForm.clearErrors();
+        cycleForm.setData({
+            name: cycle.name,
+            period_start: cycle.period_start ?? '',
+            period_end: cycle.period_end ?? '',
+            description: cycle.description ?? '',
+        });
+        setEditingCycle(cycle);
         setCycleModalOpen(true);
     };
 
     const closeCycleModal = () => {
         setCycleModalOpen(false);
+        setEditingCycle(null);
         cycleForm.reset();
         cycleForm.clearErrors();
     };
@@ -134,9 +148,14 @@ export default function KinerjaIndex({
     const submitCycle = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
-        cycleForm.submit(PerformanceController.storeCycle(), {
-            onSuccess: () => closeCycleModal(),
-        });
+        // The status endpoint owns draft → active → closed; this form only ever
+        // edits the cycle's name, period, and description.
+        cycleForm.submit(
+            editingCycle
+                ? PerformanceController.updateCycle(editingCycle.id)
+                : PerformanceController.storeCycle(),
+            { onSuccess: () => closeCycleModal() },
+        );
     };
 
     const openScore = (review: ReviewRow) => {
@@ -164,10 +183,13 @@ export default function KinerjaIndex({
             return;
         }
 
-        scoreForm.submit(PerformanceController.submitScore(scoreReview.route_key), {
-            preserveScroll: true,
-            onSuccess: () => closeScoreModal(),
-        });
+        scoreForm.submit(
+            PerformanceController.submitScore(scoreReview.route_key),
+            {
+                preserveScroll: true,
+                onSuccess: () => closeScoreModal(),
+            },
+        );
     };
 
     const kpiItems = [
@@ -260,24 +282,32 @@ export default function KinerjaIndex({
                             href={KpiIndicatorController.index()}
                             style={{ ...btnOut, textDecoration: 'none' }}
                         >
-                            <AIcon name="list-checks" size={16} color={C.text} />
-                            Definisi KPI
-                        </Link>
-                        <button onClick={openCycle} style={btnOut}>
                             <AIcon
-                                name="calendar-plus"
+                                name="list-checks"
                                 size={16}
                                 color={C.text}
                             />
-                            Tambah Siklus
-                        </button>
-                        <Link
-                            href={PerformanceController.create()}
-                            style={{ ...btnP, textDecoration: 'none' }}
-                        >
-                            <AIcon name="plus" size={16} color="#fff" />
-                            Tambah Penilaian
+                            Definisi KPI
                         </Link>
+                        {can.create && (
+                            <button onClick={openCycle} style={btnOut}>
+                                <AIcon
+                                    name="calendar-plus"
+                                    size={16}
+                                    color={C.text}
+                                />
+                                Tambah Siklus
+                            </button>
+                        )}
+                        {can.create && (
+                            <Link
+                                href={PerformanceController.create()}
+                                style={{ ...btnP, textDecoration: 'none' }}
+                            >
+                                <AIcon name="plus" size={16} color="#fff" />
+                                Tambah Penilaian
+                            </Link>
+                        )}
                     </div>
                 </div>
 
@@ -474,9 +504,35 @@ export default function KinerjaIndex({
                                             />
                                         </td>
                                         <td style={{ padding: '13px 16px' }}>
-                                            <ReviewStatusBadge
-                                                status={review.status}
-                                            />
+                                            <div
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 6,
+                                                    flexWrap: 'wrap',
+                                                }}
+                                            >
+                                                <ReviewStatusBadge
+                                                    status={review.status}
+                                                />
+                                                {review.is_legacy && (
+                                                    <span
+                                                        title="Diselesaikan sebelum kalibrasi diwajibkan. Nilainya tidak dipakai untuk insentif, attrition, maupun laporan."
+                                                        style={{
+                                                            fontSize: 11,
+                                                            fontWeight: 600,
+                                                            color: C.red,
+                                                            border: `1px solid ${C.red}`,
+                                                            borderRadius: 6,
+                                                            padding: '2px 7px',
+                                                            whiteSpace:
+                                                                'nowrap',
+                                                        }}
+                                                    >
+                                                        Belum terkalibrasi
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td
                                             style={{
@@ -492,34 +548,51 @@ export default function KinerjaIndex({
                                                     justifyContent: 'flex-end',
                                                 }}
                                             >
-                                                <ActionBtn
-                                                    icon="star"
-                                                    label="Nilai"
-                                                    variant="warning"
-                                                    title="Input Nilai"
-                                                    onClick={() =>
-                                                        openScore(review)
-                                                    }
-                                                />
-                                                <ActionBtn
-                                                    icon="pencil"
-                                                    label="Ubah"
-                                                    variant="success"
-                                                    onClick={() =>
-                                                        router.visit(
-                                                            PerformanceController.edit(review.route_key,
-                                                            ).url,
-                                                        )
-                                                    }
-                                                />
-                                                <ActionBtn
-                                                    icon="trash-2"
-                                                    label="Hapus"
-                                                    variant="danger"
-                                                    onClick={() =>
-                                                        setConfirm(review)
-                                                    }
-                                                />
+                                                {can.update &&
+                                                    review.status ===
+                                                        'manager_review' &&
+                                                    review.cycle_status ===
+                                                        'active' && (
+                                                        <ActionBtn
+                                                            icon="star"
+                                                            label="Nilai"
+                                                            variant="warning"
+                                                            title="Input Nilai"
+                                                            onClick={() =>
+                                                                openScore(
+                                                                    review,
+                                                                )
+                                                            }
+                                                        />
+                                                    )}
+                                                {can.update && (
+                                                    <ActionBtn
+                                                        icon="pencil"
+                                                        label="Ubah"
+                                                        variant="success"
+                                                        onClick={() =>
+                                                            router.visit(
+                                                                PerformanceController.edit(
+                                                                    review.route_key,
+                                                                ).url,
+                                                            )
+                                                        }
+                                                    />
+                                                )}
+                                                {can.archive &&
+                                                    review.status !==
+                                                        'completed' && (
+                                                        <ActionBtn
+                                                            icon="trash-2"
+                                                            label="Hapus"
+                                                            variant="danger"
+                                                            onClick={() =>
+                                                                setConfirm(
+                                                                    review,
+                                                                )
+                                                            }
+                                                        />
+                                                    )}
                                             </div>
                                         </td>
                                     </tr>
@@ -647,22 +720,38 @@ export default function KinerjaIndex({
                                             <CycleStatusBadge
                                                 status={cycle.status}
                                             />
-                                            {nextCycleStatus(cycle.status) && (
+                                            {can.update && (
                                                 <ActionBtn
-                                                    icon="arrow-right"
-                                                    label={cycleStatusActionLabel(
-                                                        cycle.status,
-                                                    )}
-                                                    title={cycleStatusActionLabel(
-                                                        cycle.status,
-                                                    )}
+                                                    icon="pencil"
+                                                    label="Ubah siklus"
+                                                    title="Ubah siklus"
                                                     onClick={() =>
-                                                        advanceCycleStatus(
-                                                            cycle,
-                                                        )
+                                                        openCycleEdit(cycle)
                                                     }
                                                 />
                                             )}
+                                            {nextCycleStatus(cycle.status) &&
+                                                can.update &&
+                                                // Reopening a closed cycle is
+                                                // the elevated move; the other
+                                                // transitions are not.
+                                                (cycle.status !== 'closed' ||
+                                                    can.approve) && (
+                                                    <ActionBtn
+                                                        icon="arrow-right"
+                                                        label={cycleStatusActionLabel(
+                                                            cycle.status,
+                                                        )}
+                                                        title={cycleStatusActionLabel(
+                                                            cycle.status,
+                                                        )}
+                                                        onClick={() =>
+                                                            advanceCycleStatus(
+                                                                cycle,
+                                                            )
+                                                        }
+                                                    />
+                                                )}
                                         </td>
                                     </tr>
                                 ))}
@@ -672,7 +761,7 @@ export default function KinerjaIndex({
                 </div>
             </div>
 
-            {/* Add cycle modal */}
+            {/* Add / edit cycle modal */}
             {cycleModalOpen && (
                 <div
                     style={{
@@ -716,7 +805,7 @@ export default function KinerjaIndex({
                                 marginBottom: 4,
                             }}
                         >
-                            Tambah Siklus
+                            {editingCycle ? 'Ubah Siklus' : 'Tambah Siklus'}
                         </div>
                         <div
                             style={{
@@ -725,7 +814,9 @@ export default function KinerjaIndex({
                                 marginBottom: 18,
                             }}
                         >
-                            Buat siklus penilaian kinerja baru.
+                            {editingCycle
+                                ? 'Ubah nama, periode, atau deskripsi siklus. Statusnya diatur lewat tombol lanjut status di tabel.'
+                                : 'Siklus baru dibuat sebagai draf, lalu diaktifkan lewat tombol lanjut status di tabel.'}
                         </div>
 
                         <div
@@ -809,36 +900,6 @@ export default function KinerjaIndex({
                                         message={cycleForm.errors.period_end}
                                     />
                                 </div>
-                            </div>
-
-                            <div>
-                                <label style={fieldLabelStyle}>
-                                    Status{' '}
-                                    <span style={{ color: C.red }}>*</span>
-                                </label>
-                                <select
-                                    value={cycleForm.data.status}
-                                    onChange={(event) =>
-                                        cycleForm.setData(
-                                            'status',
-                                            event.target.value,
-                                        )
-                                    }
-                                    style={withError(
-                                        selectStyle,
-                                        !!cycleForm.errors.status,
-                                    )}
-                                >
-                                    {cycleStatuses.map((option) => (
-                                        <option
-                                            key={option.value}
-                                            value={option.value}
-                                        >
-                                            {option.label}
-                                        </option>
-                                    ))}
-                                </select>
-                                <FieldError message={cycleForm.errors.status} />
                             </div>
 
                             <div>
@@ -975,7 +1036,10 @@ export default function KinerjaIndex({
                                 }}
                             >
                                 {scoreReview.self_score !== null && (
-                                    <>Skor mandiri: {scoreReview.self_score}. </>
+                                    <>
+                                        Skor mandiri: {scoreReview.self_score}
+                                        .{' '}
+                                    </>
                                 )}
                                 Mengirim skor memindahkan status ke Kalibrasi.
                             </div>

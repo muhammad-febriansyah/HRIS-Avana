@@ -279,12 +279,11 @@ class ReportStudioController extends Controller
                 ->groupBy('employee_id')
                 ->pluck('total', 'employee_id');
 
-        // Latest scored performance review per employee.
-        $skor = PerformanceReview::where('tenant_id', $tenantId)
-            ->whereNotNull('final_score')
-            ->orderByDesc('review_date')
-            ->orderByDesc('id')
-            ->get(['employee_id', 'final_score'])
+        // Latest publishable (completed + calibrated) review per employee.
+        $skor = PerformanceReview::forTenant($tenantId)
+            ->publishable()
+            ->latestFirst()
+            ->get(['performance_reviews.employee_id', 'performance_reviews.final_score'])
             ->groupBy('employee_id')
             ->map(fn ($group): float => (float) $group->first()->final_score);
 

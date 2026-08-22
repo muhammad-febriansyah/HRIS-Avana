@@ -10,10 +10,13 @@ use App\Models\PerformanceCycle;
 use App\Models\PerformanceFeedback;
 use App\Models\PerformanceKpiItem;
 use App\Models\PerformanceReview;
+use App\Models\PerformanceReviewRevision;
 use App\Models\User;
 use App\Services\PerformanceReviewWorkflow;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -56,7 +59,7 @@ class PerformanceController extends Controller
         $tenantId = $request->user()->tenant_id;
 
         $reviews = PerformanceReview::forTenant($tenantId)
-            ->with(['employee:id,full_name,employee_number', 'cycle:id,name', 'reviewer:id,full_name'])
+            ->with(['employee:id,full_name,employee_number', 'cycle:id,name,status', 'reviewer:id,full_name'])
             ->latest('id')
             ->get()
             ->map(fn (PerformanceReview $review): array => $this->transformReview($review));
@@ -68,6 +71,12 @@ class PerformanceController extends Controller
             ->map(fn (PerformanceCycle $cycle): array => $this->transformCycle($cycle));
 
         return Inertia::render('avana/kinerja/index', [
+            'can' => [
+                'create' => $this->userCan($request, 'create'),
+                'update' => $this->userCan($request, 'update'),
+                'archive' => $this->userCan($request, 'archive'),
+                'approve' => $this->userCan($request, 'approve'),
+            ],
             'reviews' => $reviews,
             'cycles' => $cycles,
             'employees' => $this->employeeOptions($tenantId),
@@ -93,7 +102,13 @@ class PerformanceController extends Controller
 
         $tenantId = $request->user()->tenant_id;
 
+        // Only finalized, calibrated ratings feed HAV. Reading a provisional
+        // self or manager score here would publish a number nobody signed off.
         $latestPerEmployee = PerformanceReview::forTenant($tenantId)
+            ->publishable()
+            // One shared definition of "latest": appraisal period first, then
+            // review date, then id. See PerformanceReview::scopeLatestFirst().
+            ->latestFirst()
             ->with([
                 'employee:id,full_name,join_date,department_id,position_id',
                 'employee.department:id,name',
@@ -102,12 +117,12 @@ class PerformanceController extends Controller
             ->get()
             ->filter(fn (PerformanceReview $review): bool => $review->employee !== null)
             ->groupBy('employee_id')
-            ->map(fn ($group) => $group->sortByDesc('id')->first());
+            ->map(fn ($group) => $group->first());
 
         $rows = $latestPerEmployee
             ->map(function (PerformanceReview $review): array {
                 $employee = $review->employee;
-                $score = (float) ($review->final_score ?? $review->manager_score ?? $review->self_score ?? 0);
+                $score = (float) $review->final_score;
                 $years = $employee->join_date !== null ? (float) $employee->join_date->floatDiffInYears(now()) : 0.0;
                 $havIndex = round($score * (1 + min($years, 5) * 0.05), 1);
 
@@ -179,6 +194,8 @@ class PerformanceController extends Controller
             'feedbacks' => fn ($query) => $query->latest('id'),
             'feedbacks.reviewer:id,full_name',
             'kpiItems' => fn ($query) => $query->latest('id'),
+            'revisions' => fn ($query) => $query->latest('id'),
+            'revisions.reopenedBy:id,name',
         ]);
 
         return Inertia::render('avana/kinerja/edit', [
@@ -192,9 +209,28 @@ class PerformanceController extends Controller
                 'manager_score' => $review->manager_score !== null ? (float) $review->manager_score : null,
                 'final_score' => $review->final_score !== null ? (float) $review->final_score : null,
                 'status' => $review->status,
+                'scoring_mode' => $review->scoring_mode,
+                'is_legacy' => (bool) $review->is_legacy,
+                'is_publishable' => $review->isPublishable(),
+                'manager_scored_by' => $review->manager_scored_by,
                 'notes' => $review->notes,
                 'review_date' => $review->review_date?->toDateString(),
+                'cycle_status' => $review->cycle?->status,
+                'period_start' => $review->cycle?->period_start?->toDateString(),
+                'period_end' => $review->cycle?->period_end?->toDateString(),
             ],
+            'revisions' => $review->revisions->map(fn (PerformanceReviewRevision $revision): array => [
+                'id' => $revision->id,
+                'from_status' => $revision->from_status,
+                'to_status' => $revision->to_status,
+                'self_score' => $revision->self_score !== null ? (float) $revision->self_score : null,
+                'manager_score' => $revision->manager_score !== null ? (float) $revision->manager_score : null,
+                'final_score' => $revision->final_score !== null ? (float) $revision->final_score : null,
+                'calibrated_score' => $revision->calibrated_score !== null ? (float) $revision->calibrated_score : null,
+                'reason' => $revision->reason,
+                'reopened_by' => $revision->reopenedBy?->name,
+                'created_at' => $revision->created_at?->toDateTimeString(),
+            ])->all(),
             'feedbacks' => $review->feedbacks->map(fn (PerformanceFeedback $feedback): array => $this->transformFeedback($feedback))->all(),
             'feedbackTypes' => $this->feedbackTypeOptions(),
             'employees' => $this->employeeOptions($tenantId),
@@ -214,6 +250,18 @@ class PerformanceController extends Controller
             'keyResultOptions' => $this->keyResultOptions($tenantId, $review->employee_id),
             'can' => [
                 'approve' => $this->userCan($request, 'approve'),
+                'update' => $this->userCan($request, 'update'),
+                'archive' => $this->userCan($request, 'archive'),
+                // The scorecard is only editable before the manager submits,
+                // and only while the cycle is open. The UI hides the controls;
+                // PerformanceKpiItemController is what actually enforces it.
+                'edit_kpi' => $review->cycle?->status === 'active'
+                    && in_array($review->status, ['pending', 'self_review', 'manager_review'], true),
+                'submit_score' => $review->cycle?->status === 'active' && $review->status === 'manager_review',
+                'calibrate' => $review->cycle?->status === 'active'
+                    && $review->status === 'calibration'
+                    && $this->userCan($request, 'approve'),
+                'reopen' => $review->status === 'completed' && $this->userCan($request, 'approve'),
             ],
         ]);
     }
@@ -228,7 +276,8 @@ class PerformanceController extends Controller
         $tenantId = $request->user()->tenant_id;
 
         $data = $this->validateReview($request, $tenantId);
-        $this->ensureCycleActive($tenantId, $data['cycle_id']);
+        $cycle = $this->ensureCycleActive($tenantId, $data['cycle_id']);
+        $this->ensureReviewDateWithinCycle($cycle, $data['review_date'] ?? null);
 
         PerformanceReview::create([
             ...$data,
@@ -252,7 +301,39 @@ class PerformanceController extends Controller
         $this->workflow()->assertMutable($review);
 
         $data = $this->validateReview($request, $request->user()->tenant_id, $review);
-        $this->ensureCycleActive($request->user()->tenant_id, $data['cycle_id']);
+        $cycle = $this->ensureCycleActive($request->user()->tenant_id, $data['cycle_id']);
+        $this->ensureReviewDateWithinCycle($cycle, $data['review_date'] ?? null);
+
+        // Once the appraisal has started collecting judgements, its subject and
+        // period are frozen: re-pointing a scored review at another employee or
+        // cycle would silently transplant their self-assessment and KPI items.
+        if ($review->status !== 'pending') {
+            abort_if(
+                (int) $data['employee_id'] !== (int) $review->employee_id
+                || (int) $data['cycle_id'] !== (int) $review->cycle_id,
+                422,
+                'Karyawan dan siklus tidak dapat diubah setelah penilaian berjalan.'
+            );
+
+            // Swapping the assigned reviewer mid-flight defeats the whole
+            // separation-of-duties check: whoever is about to calibrate could
+            // simply write themselves out of the reviewer slot first.
+            abort_if(
+                (int) ($data['reviewer_id'] ?? 0) !== (int) ($review->reviewer_id ?? 0),
+                422,
+                'Penilai tidak dapat diubah setelah penilaian berjalan.'
+            );
+        }
+
+        // A pending review that already has a scorecard is not a blank slate:
+        // its KPI items were chosen for this employee and this cycle.
+        if (
+            ((int) $data['employee_id'] !== (int) $review->employee_id
+            || (int) $data['cycle_id'] !== (int) $review->cycle_id)
+            && $review->kpiItems()->exists()
+        ) {
+            abort(422, 'Hapus item KPI terlebih dahulu sebelum memindahkan penilaian ke karyawan atau siklus lain.');
+        }
 
         $review->update($data);
 
@@ -287,13 +368,18 @@ class PerformanceController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'period_start' => ['required', 'date'],
             'period_end' => ['required', 'date', 'after_or_equal:period_start'],
-            'status' => ['required', Rule::in(self::CYCLE_STATUSES)],
             'description' => ['nullable', 'string'],
         ]);
 
+        $this->ensureNoOverlappingCycle($tenantId, $data['period_start'], $data['period_end']);
+
+        // Every cycle starts as a draft. Creating one directly `active` would
+        // skip the setup stage, and creating one `closed` would produce a cycle
+        // that never accepted a single review.
         PerformanceCycle::create([
             ...$data,
             'tenant_id' => $tenantId,
+            'status' => 'draft',
         ]);
 
         return redirect()->route('avana.kinerja')
@@ -314,6 +400,23 @@ class PerformanceController extends Controller
             'period_end' => ['required', 'date', 'after_or_equal:period_start'],
             'description' => ['nullable', 'string'],
         ]);
+
+        $this->ensureNoOverlappingCycle($cycle->tenant_id, $data['period_start'], $data['period_end'], $cycle->id);
+
+        // Moving the period of a cycle that already holds reviews re-dates
+        // every rating filed under it: review dates validated against the old
+        // window fall outside the new one, and incentive periods shift beneath
+        // scores that were already paid. Only a draft cycle is still free.
+        $periodChanged = $cycle->period_start?->toDateString() !== Carbon::parse($data['period_start'])->toDateString()
+            || $cycle->period_end?->toDateString() !== Carbon::parse($data['period_end'])->toDateString();
+
+        if ($periodChanged && $cycle->status !== 'draft') {
+            abort_if(
+                $cycle->reviews()->exists(),
+                422,
+                'Periode siklus tidak dapat diubah karena sudah memiliki penilaian.'
+            );
+        }
 
         $cycle->update($data);
 
@@ -340,13 +443,49 @@ class PerformanceController extends Controller
             'closed' => ['active'],
         ];
 
-        abort_unless(in_array($data['status'], $allowed[$cycle->status] ?? [], true), 422, 'Perubahan status siklus tidak valid.');
-
         if ($cycle->status === 'closed' && $data['status'] === 'active') {
             $this->ensureCan($request, 'approve');
         }
 
-        $cycle->update(['status' => $data['status']]);
+        // Every guard below is read-then-write, so all of it runs inside one
+        // transaction against row-locked cycles. Two concurrent activations
+        // would otherwise both see "no other active cycle", and a close racing
+        // a manager submission would strand the review it just accepted.
+        DB::transaction(function () use ($cycle, $data, $allowed): void {
+            /** @var PerformanceCycle $locked */
+            $locked = PerformanceCycle::query()->lockForUpdate()->findOrFail($cycle->getKey());
+
+            abort_unless(in_array($data['status'], $allowed[$locked->status] ?? [], true), 422, 'Perubahan status siklus tidak valid.');
+
+            if ($data['status'] === 'active') {
+                // Two open cycles would let the same employee accrue two
+                // concurrent appraisals, and make "the current cycle" ambiguous
+                // everywhere.
+                $otherActive = PerformanceCycle::forTenant($locked->tenant_id)
+                    ->where('status', 'active')
+                    ->where('id', '!=', $locked->id)
+                    ->lockForUpdate()
+                    ->exists();
+
+                abort_if($otherActive, 422, 'Sudah ada siklus penilaian yang aktif. Tutup siklus tersebut terlebih dahulu.');
+            }
+
+            if ($data['status'] === 'closed') {
+                // Closing mid-flight would strand every unfinished review: the
+                // cycle gate then blocks self-assessment, scoring, and
+                // calibration.
+                $inFlight = $locked->reviews()->where('status', '!=', 'completed')->lockForUpdate()->count();
+
+                abort_if(
+                    $inFlight > 0,
+                    422,
+                    "Masih ada {$inFlight} penilaian yang belum selesai pada siklus ini."
+                );
+            }
+
+            $locked->update(['status' => $data['status']]);
+            $cycle->setRawAttributes($locked->getAttributes(), true);
+        });
 
         return back()->with('success', 'Status siklus diperbarui');
     }
@@ -365,10 +504,19 @@ class PerformanceController extends Controller
 
         $data = $request->validate([
             'manager_score' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'review_date' => ['nullable', 'date'],
+            // Required unless the review already carries one: it decides which
+            // incentive period this rating is paid in.
+            'review_date' => [$review->review_date === null ? 'required' : 'nullable', 'date'],
+        ], [
+            'review_date.required' => 'Tanggal penilaian wajib diisi.',
         ]);
 
-        $this->workflow()->submitManagerScore($review, $data['manager_score'] ?? null, $data['review_date'] ?? null);
+        $this->workflow()->submitManagerScore(
+            $review,
+            $data['manager_score'] ?? null,
+            $data['review_date'] ?? null,
+            $request->user(),
+        );
 
         return back()->with('success', 'Nilai penilaian diperbarui');
     }
@@ -383,6 +531,7 @@ class PerformanceController extends Controller
     {
         $this->ensureCan($request, 'approve');
         $this->ensureTenantOwnership($request, $review);
+        $this->ensureIsNotOwnReview($request, $review);
 
         $data = $request->validate([
             'calibrated_score' => ['required', 'numeric', 'min:0', 'max:100'],
@@ -421,6 +570,7 @@ class PerformanceController extends Controller
         $this->ensureCan($request, 'update');
         $this->ensureTenantOwnership($request, $review);
         $this->workflow()->assertMutable($review);
+        $this->workflow()->assertCycleOpen($review);
 
         $tenantId = $request->user()->tenant_id;
 
@@ -431,8 +581,12 @@ class PerformanceController extends Controller
                 'integer',
                 Rule::exists('employees', 'id')->where('tenant_id', $tenantId),
             ],
-            'rating' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'comment' => ['nullable', 'string'],
+            // Feedback carrying neither a rating nor a comment says nothing.
+            'rating' => ['nullable', 'required_without:comment', 'numeric', 'min:0', 'max:100'],
+            'comment' => ['nullable', 'required_without:rating', 'string', 'max:2000'],
+        ], [
+            'rating.required_without' => 'Isi nilai atau komentar.',
+            'comment.required_without' => 'Isi nilai atau komentar.',
         ]);
 
         PerformanceFeedback::create([
@@ -456,6 +610,7 @@ class PerformanceController extends Controller
 
         abort_if((int) $feedback->tenant_id !== (int) $request->user()->tenant_id, 404);
         $this->workflow()->assertMutable($feedback->review);
+        $this->workflow()->assertCycleOpen($feedback->review);
 
         $feedback->delete();
 
@@ -574,11 +729,55 @@ class PerformanceController extends Controller
      * Abort with 422 unless the given cycle is currently active. Reviews may
      * only be created or edited under an open cycle.
      */
-    private function ensureCycleActive(?int $tenantId, int $cycleId): void
+    private function ensureCycleActive(?int $tenantId, int $cycleId): PerformanceCycle
     {
         $cycle = PerformanceCycle::forTenant($tenantId)->find($cycleId);
 
         abort_unless($cycle?->status === 'active', 422, 'Siklus penilaian ini tidak aktif.');
+
+        return $cycle;
+    }
+
+    /**
+     * Abort with 422 when a review date falls outside its cycle's period.
+     * Mirrors the same check the workflow applies at manager scoring, so a bad
+     * date is refused at entry rather than several stages later.
+     */
+    private function ensureReviewDateWithinCycle(PerformanceCycle $cycle, ?string $reviewDate): void
+    {
+        if ($reviewDate === null || $cycle->period_start === null || $cycle->period_end === null) {
+            return;
+        }
+
+        abort_unless(
+            Carbon::parse($reviewDate)->startOfDay()->betweenIncluded(
+                $cycle->period_start->startOfDay(),
+                $cycle->period_end->endOfDay(),
+            ),
+            422,
+            'Tanggal penilaian harus berada dalam periode siklus ('
+            .$cycle->period_start->toDateString().' s/d '.$cycle->period_end->toDateString().').'
+        );
+    }
+
+    /**
+     * Abort with 422 when the given period overlaps another cycle in the same
+     * tenant. Overlapping cycles make "which cycle does this date belong to"
+     * unanswerable for every downstream report.
+     */
+    private function ensureNoOverlappingCycle(?int $tenantId, string $periodStart, string $periodEnd, ?int $ignoreCycleId = null): void
+    {
+        $overlapping = PerformanceCycle::forTenant($tenantId)
+            ->when($ignoreCycleId !== null, fn ($query) => $query->where('id', '!=', $ignoreCycleId))
+            ->where('period_start', '<=', $periodEnd)
+            ->where('period_end', '>=', $periodStart)
+            ->first();
+
+        abort_if(
+            $overlapping !== null,
+            422,
+            "Periode siklus tumpang tindih dengan siklus '{$overlapping?->name}'."
+        );
     }
 
     /**
@@ -609,6 +808,34 @@ class PerformanceController extends Controller
         );
     }
 
+    /**
+     * Abort with 403 when the acting user is the subject of the review, or the
+     * manager who scored it. Calibration exists to check the manager's rating —
+     * it cannot be performed by the person being rated or the person rating.
+     */
+    private function ensureIsNotOwnReview(Request $request, PerformanceReview $review): void
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $employeeId = $user->employee?->id;
+
+        if ($employeeId === null) {
+            return;
+        }
+
+        abort_if(
+            (int) $employeeId === (int) $review->employee_id,
+            403,
+            'Anda tidak dapat mengkalibrasi penilaian Anda sendiri.'
+        );
+
+        abort_if(
+            $review->reviewer_id !== null && (int) $employeeId === (int) $review->reviewer_id,
+            403,
+            'Kalibrasi harus dilakukan oleh pihak lain, bukan penilai yang sama.'
+        );
+    }
+
     private function workflow(): PerformanceReviewWorkflow
     {
         return new PerformanceReviewWorkflow;
@@ -635,6 +862,9 @@ class PerformanceController extends Controller
             'manager_score' => $review->manager_score !== null ? (float) $review->manager_score : null,
             'final_score' => $review->final_score !== null ? (float) $review->final_score : null,
             'status' => $review->status,
+            'is_legacy' => (bool) $review->is_legacy,
+            'is_publishable' => $review->isPublishable(),
+            'cycle_status' => $review->cycle?->status,
             'notes' => $review->notes,
             'review_date' => $review->review_date?->toDateString(),
         ];

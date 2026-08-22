@@ -20,11 +20,36 @@ export interface ReviewRow {
     manager_score: number | null;
     final_score: number | null;
     status: string;
+    /** Pre-workflow row: completed but never calibrated, unusable downstream. */
+    is_legacy: boolean;
+    /** True only when the rating may be consumed by payroll and analytics. */
+    is_publishable: boolean;
+    cycle_status: string | null;
     notes: string | null;
     review_date: string | null;
 }
 
-/** A performance cycle row as serialized by `PerformanceController@index`. */
+/** Capability flags resolved server-side by `PerformanceController`. */
+export interface KinerjaAbilities {
+    create: boolean;
+    update: boolean;
+    archive: boolean;
+    approve: boolean;
+}
+
+/** A snapshot taken when a completed review was reopened. */
+export interface RevisionRow {
+    id: number;
+    from_status: string;
+    to_status: string;
+    self_score: number | null;
+    manager_score: number | null;
+    final_score: number | null;
+    calibrated_score: number | null;
+    reason: string;
+    reopened_by: string | null;
+    created_at: string | null;
+}
 export interface CycleRow {
     id: number;
     name: string;
@@ -64,6 +89,7 @@ export interface KinerjaKpis {
 
 /** Props for the performance index page (`index.tsx`). */
 export interface KinerjaIndexProps {
+    can: KinerjaAbilities;
     reviews: ReviewRow[];
     cycles: CycleRow[];
     employees: EmployeeOption[];
@@ -100,16 +126,21 @@ export interface CycleFormData {
     name: string;
     period_start: string;
     period_end: string;
-    status: string;
     description: string;
 }
 
-/** Empty defaults for the add-cycle form. */
+/**
+ * Empty defaults for the cycle form.
+ *
+ * `status` is deliberately absent: a cycle always starts as a draft and is
+ * advanced through draft → active → closed by the status endpoint, which
+ * enforces the transition rules (one active cycle at a time, no closing with
+ * unfinished reviews).
+ */
 export const emptyCycleForm: CycleFormData = {
     name: '',
     period_start: '',
     period_end: '',
-    status: 'draft',
     description: '',
 };
 
@@ -254,6 +285,14 @@ export interface KpiItemRow {
     target_value: number | null;
     actual_value: number | null;
     achievement_pct: number;
+}
+
+/** Flat form payload backing the edit-KPI-item inline form. */
+export interface KpiItemEditFormData {
+    weight: string;
+    kpi_indicator_id: string;
+    target_value: string;
+    actual_value: string;
 }
 
 /** Flat form payload backing the add-manual-KPI-item inline form. */

@@ -47,6 +47,7 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use Inertia\ExceptionResponse;
 use Inertia\Inertia;
+use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -71,6 +72,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->assertEnvironmentIsLoaded();
         $this->configureDefaults();
         $this->registerPolicies();
         $this->registerNotificationObservers();
@@ -220,6 +222,35 @@ class AppServiceProvider extends ServiceProvider
         // the frontend usePermission() helper so a button hidden in the UI is
         // also refused on the server.
         Gate::define('access', fn (User $user, string $code): bool => $user->hasPermissionTo($code));
+    }
+
+    /**
+     * Fail immediately, and legibly, when the environment never loaded.
+     *
+     * An unreadable `.env` — wrong owner, wrong mode, missing file — makes every
+     * `env()` call return null. Without this check the app limps on with
+     * whatever defaults each config file happens to carry and dies much later
+     * on an unrelated-looking error; the incident this guards against surfaced
+     * as "database.sqlite does not exist" on an application that has only ever
+     * used MySQL, because the web user could not read `.env`.
+     *
+     * The database connection is the canary: it has no default any more (see
+     * `config/database.php`), and nothing in this application can work without
+     * it.
+     *
+     * @throws RuntimeException
+     */
+    protected function assertEnvironmentIsLoaded(): void
+    {
+        if (! empty(config('database.default'))) {
+            return;
+        }
+
+        throw new RuntimeException(
+            'DB_CONNECTION is not set. The environment file was most likely not loaded — '
+            .'check that '.base_path('.env').' exists and is readable by the user running PHP '
+            .'(`sudo -u www-data cat .env`), then run `php artisan config:clear`.'
+        );
     }
 
     /**

@@ -139,6 +139,29 @@ final class AvanaDemoSeeder extends Seeder
      * the security pattern. Night runs past midnight, which is exactly the
      * case a roster has to get right.
      */
+    /**
+     * Attributes for a demo review that has been through the full workflow:
+     * scored by the manager, calibrated, and finalized at the same figure.
+     *
+     * @return array<string, mixed>
+     */
+    private function completedReviewAttributes(float|int $score, string $reviewDate, ?User $calibrator): array
+    {
+        return [
+            'self_score' => $score,
+            'manager_score' => $score,
+            'final_score' => $score,
+            'calibrated_score' => $score,
+            'calibrated_by' => $calibrator?->id,
+            'calibrated_at' => $reviewDate.' 12:00:00',
+            'status' => 'completed',
+            // Without a calibrator on hand the row cannot claim to be
+            // calibrated, so it is quarantined rather than faked.
+            'is_legacy' => $calibrator === null,
+            'review_date' => $reviewDate,
+        ];
+    }
+
     private function seedRotationShifts(Tenant $tenant): void
     {
         ShiftDefaults::seedDefaultsFor((int) $tenant->id);
@@ -336,6 +359,7 @@ final class AvanaDemoSeeder extends Seeder
 
         $shift = Shift::forTenant($tenant->id)->where('code', 'PAGI')->first();
         $admin = User::where('email', 'rina.a@nusantara.co.id')->first();
+        $calibrator = $admin ?? User::where('tenant_id', $tenant->id)->first();
 
         foreach ($plan as $no => $cfg) {
             $employee = $employees[$no] ?? null;
@@ -385,13 +409,17 @@ final class AvanaDemoSeeder extends Seeder
             // Performance scores across the two cycles.
             if (is_array($cfg['perf'])) {
                 [$prev, $latest] = $cfg['perf'];
+                // Demo reviews carry a complete calibration record. A
+                // `completed` review without one is quarantined legacy data and
+                // would be invisible to incentives, attrition, and HAV — the
+                // exact opposite of what demo data is for.
                 PerformanceReview::firstOrCreate(
                     ['tenant_id' => $tenant->id, 'cycle_id' => $cyclePrev->id, 'employee_id' => $employee->id],
-                    ['final_score' => $prev, 'status' => 'completed', 'review_date' => '2025-06-30'],
+                    $this->completedReviewAttributes($prev, '2025-06-30', $calibrator),
                 );
                 PerformanceReview::firstOrCreate(
                     ['tenant_id' => $tenant->id, 'cycle_id' => $cycleLatest->id, 'employee_id' => $employee->id],
-                    ['final_score' => $latest, 'status' => 'completed', 'review_date' => '2025-12-31'],
+                    $this->completedReviewAttributes($latest, '2025-12-31', $calibrator),
                 );
             }
 

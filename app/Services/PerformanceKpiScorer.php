@@ -23,15 +23,20 @@ final class PerformanceKpiScorer
      * spending less than target still scores well). Clamped to [0, 200] so
      * one indicator overshooting can't be typed in as an absurd number, while
      * still letting genuine over-achievement count for more than 100%.
+     *
+     * For `lower_better`, an actual of zero is the best possible outcome, so it
+     * takes the 200% ceiling — the same value the ratio tends towards as the
+     * actual approaches zero. Treating it as 100% instead would make the curve
+     * jump backwards at its own optimum.
      */
     public function achievementPct(string $direction, ?float $target, ?float $actual): float
     {
-        if ($target === null || $actual === null || $target <= 0.0) {
+        if ($target === null || $actual === null || $target <= 0.0 || $actual < 0.0) {
             return 0.0;
         }
 
         $ratio = $direction === 'lower_better'
-            ? ($actual <= 0 ? 1.0 : $target / $actual)
+            ? ($actual <= 0.0 ? 2.0 : $target / $actual)
             : $actual / $target;
 
         return round(min(200.0, max(0.0, $ratio * 100)), 2);
@@ -57,33 +62,58 @@ final class PerformanceKpiScorer
     }
 
     /**
-     * Recompute a review's `manager_score` as the weight-weighted average of
-     * its KPI items' achievement. No-ops when the review has no items, so the
-     * legacy manual-entry path is left untouched.
+     * Recompute a review's `manager_score` from its KPI items' achievement,
+     * against the full 100% weight budget — *not* against whatever weight
+     * happens to be assigned so far.
+     *
+     * Normalising by the assigned weight would let a single 10%-weight item at
+     * 100% achievement read as a manager score of 100 on an otherwise empty
+     * scorecard. Dividing by the fixed budget instead means a half-built
+     * scorecard scores half, and the calibration gate
+     * ({@see PerformanceReviewWorkflow::assertKpiComplete()}) refuses to
+     * finalize anything that doesn't total exactly 100%.
+     *
+     * No-ops for a manual review, so the manual-entry path is left untouched.
+     * For a KPI review whose last item was just deleted, the score is cleared
+     * rather than left standing: a scorecard with nothing on it must not keep
+     * paying out the number its deleted items used to produce.
      */
     public function recomputeManagerScore(PerformanceReview $review): void
     {
-        $items = $review->kpiItems()->get(['weight', 'achievement_pct']);
-
-        if ($items->isEmpty()) {
+        if ($review->scoring_mode !== 'kpi') {
             return;
         }
 
-        $totalWeight = (float) $items->sum('weight');
-        $weighted = $totalWeight > 0
-            ? $items->sum(fn (PerformanceKpiItem $item): float => (float) $item->weight * (float) $item->achievement_pct) / $totalWeight
-            : 0.0;
+        $items = $review->kpiItems()->get(['weight', 'achievement_pct']);
 
-        $review->update(['manager_score' => round(min(100.0, $weighted), 2)]);
+        if ($items->isEmpty()) {
+            $review->update(['manager_score' => null]);
+
+            return;
+        }
+
+        $weighted = $items->sum(
+            fn (PerformanceKpiItem $item): float => (float) $item->weight * (float) $item->achievement_pct
+        ) / 100.0;
+
+        $review->update(['manager_score' => round(min(100.0, max(0.0, $weighted)), 2)]);
     }
 
     /**
      * Called whenever a Key Result's progress changes: refreshes every KPI
      * item sourced from it and recomputes each affected review's score.
+     *
+     * Finalized reviews are skipped — a completed appraisal is a signed record,
+     * and letting later OKR edits rewrite its score would silently change a
+     * rating that has already been calibrated and consumed downstream.
      */
     public function syncFromKeyResult(KeyResult $keyResult): void
     {
-        $keyResult->performanceKpiItems()->get()->each(function (PerformanceKpiItem $item): void {
+        $keyResult->performanceKpiItems()->with('review')->get()->each(function (PerformanceKpiItem $item): void {
+            if ($item->review === null || $item->review->status === 'completed') {
+                return;
+            }
+
             $this->refreshItem($item);
             $this->recomputeManagerScore($item->review);
         });

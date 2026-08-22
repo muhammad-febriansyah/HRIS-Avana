@@ -4,6 +4,7 @@ use App\Models\Employee;
 use App\Models\KeyResult;
 use App\Models\Objective;
 use App\Models\PerformanceCycle;
+use App\Models\PerformanceReview;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -378,4 +379,110 @@ it('rejects an invalid balanced scorecard perspective', function (): void {
             'status' => 'active',
         ])
         ->assertSessionHasErrors('perspective');
+});
+
+it('refuses to delete a Key Result that a completed appraisal was scored from', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $cycle = PerformanceCycle::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Siklus OKR',
+        'period_start' => '2026-01-01',
+        'period_end' => '2026-12-31',
+        'status' => 'active',
+    ]);
+    $review = PerformanceReview::create([
+        'tenant_id' => $this->tenant->id,
+        'cycle_id' => $cycle->id,
+        'employee_id' => $employee->id,
+        'status' => 'completed',
+        'manager_score' => 90,
+        'final_score' => 90,
+        'calibrated_score' => 90,
+        'calibrated_by' => $this->admin->id,
+        'calibrated_at' => now(),
+    ]);
+    $objective = makeObjective($this->tenant->id, ['employee_id' => $employee->id, 'cycle_id' => $cycle->id]);
+    $keyResult = KeyResult::create([
+        'tenant_id' => $this->tenant->id,
+        'objective_id' => $objective->id,
+        'title' => 'KR terkunci',
+        'target_value' => 100,
+        'current_value' => 90,
+        'progress' => 90,
+    ]);
+    $review->kpiItems()->create([
+        'tenant_id' => $this->tenant->id,
+        'source' => 'key_result',
+        'key_result_id' => $keyResult->id,
+        'label' => 'KR terkunci',
+        'weight' => 100,
+        'direction' => 'higher_better',
+        'achievement_pct' => 90,
+    ]);
+
+    actingAs($this->admin)
+        ->delete(route('avana.okr.kr.destroy', $keyResult))
+        ->assertStatus(422);
+
+    expect(KeyResult::find($keyResult->id))->not->toBeNull();
+
+    // The same applies one level up: deleting the Objective would cascade to
+    // the Key Result and leave the KPI item pointing at nothing.
+    actingAs($this->admin)
+        ->delete(route('avana.okr.destroy', $objective))
+        ->assertStatus(422);
+
+    expect(Objective::find($objective->id))->not->toBeNull();
+});
+
+it('leaves a completed review untouched when its Key Result moves', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $cycle = PerformanceCycle::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Siklus OKR Beku',
+        'period_start' => '2026-01-01',
+        'period_end' => '2026-12-31',
+        'status' => 'active',
+    ]);
+    $review = PerformanceReview::create([
+        'tenant_id' => $this->tenant->id,
+        'cycle_id' => $cycle->id,
+        'employee_id' => $employee->id,
+        'status' => 'completed',
+        'manager_score' => 90,
+        'final_score' => 90,
+        'calibrated_score' => 90,
+        'calibrated_by' => $this->admin->id,
+        'calibrated_at' => now(),
+    ]);
+    $objective = makeObjective($this->tenant->id, ['employee_id' => $employee->id, 'cycle_id' => $cycle->id]);
+    $keyResult = KeyResult::create([
+        'tenant_id' => $this->tenant->id,
+        'objective_id' => $objective->id,
+        'title' => 'KR bergerak',
+        'target_value' => 100,
+        'current_value' => 90,
+        'progress' => 90,
+    ]);
+    $item = $review->kpiItems()->create([
+        'tenant_id' => $this->tenant->id,
+        'source' => 'key_result',
+        'key_result_id' => $keyResult->id,
+        'label' => 'KR bergerak',
+        'weight' => 100,
+        'direction' => 'higher_better',
+        'achievement_pct' => 90,
+    ]);
+
+    actingAs($this->admin)
+        ->put(route('avana.okr.kr.update', $keyResult), [
+            'title' => 'KR bergerak',
+            'target_value' => 100,
+            'current_value' => 20,
+        ])
+        ->assertSessionHas('success');
+
+    expect((float) $item->fresh()->achievement_pct)->toBe(90.0);
+    expect((float) $review->fresh()->manager_score)->toBe(90.0);
+    expect((float) $review->fresh()->final_score)->toBe(90.0);
 });

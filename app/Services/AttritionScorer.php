@@ -272,11 +272,14 @@ final class AttritionScorer
      */
     private function performance(Employee $employee): array
     {
+        // Ordered by the shared "latest" definition, then reversed to oldest
+        // first so the trend below reads forwards.
         $reviews = PerformanceReview::where('employee_id', $employee->id)
-            ->whereNotNull('final_score')
+            ->publishable()
+            ->latestFirst()
             ->with('cycle:id,period_end')
             ->get()
-            ->sortBy(fn (PerformanceReview $r) => optional($r->cycle)->period_end)
+            ->reverse()
             ->values();
 
         if ($reviews->count() < 2) {

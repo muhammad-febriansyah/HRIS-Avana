@@ -19,7 +19,10 @@ class PerformanceCycleFactory extends Factory
      */
     public function definition(): array
     {
-        $periodStart = fake()->dateTimeBetween('-3 months', 'now');
+        // A wide, deterministic window around today. Review dates are validated
+        // against their cycle's period, so a randomly narrow window would make
+        // every fixture date intermittently invalid.
+        $periodStart = now()->subMonths(6)->startOfDay();
 
         return [
             'tenant_id' => fn (): int => Tenant::create([
@@ -28,8 +31,11 @@ class PerformanceCycleFactory extends Factory
             ])->id,
             'name' => 'Penilaian '.fake()->randomElement(['Q1', 'Q2', 'Q3', 'Q4']).' '.fake()->year(),
             'period_start' => $periodStart,
-            'period_end' => fake()->dateTimeBetween($periodStart, '+3 months'),
-            'status' => fake()->randomElement(['draft', 'active', 'closed']),
+            'period_end' => now()->addMonths(6)->endOfDay(),
+            // Deterministically active: the whole review lifecycle is gated on
+            // an open cycle, so a randomly drafted/closed cycle would make
+            // every test built on this factory intermittently fail.
+            'status' => 'active',
             'description' => fake()->optional()->paragraph(),
         ];
     }

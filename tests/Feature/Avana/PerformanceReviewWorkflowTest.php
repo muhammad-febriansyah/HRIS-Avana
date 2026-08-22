@@ -3,6 +3,7 @@
 use App\Models\Employee;
 use App\Models\PerformanceCycle;
 use App\Models\PerformanceReview;
+use App\Models\PerformanceReviewRevision;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\PerformanceReviewWorkflow;
@@ -114,6 +115,7 @@ it('reopen only works from completed, to manager_review or calibration', functio
 
 it('calibrate requires the calibration status and sets final_score', function (): void {
     $review = makeWorkflowReview($this->tenant->id, $this->employee->id, 'calibration');
+    $review->update(['manager_score' => 88]);
 
     $this->workflow->calibrate($review, 90.0, $this->admin, 'Bagus');
 
@@ -122,24 +124,197 @@ it('calibrate requires the calibration status and sets final_score', function ()
     expect((float) $review->final_score)->toBe(90.0);
     expect((float) $review->calibrated_score)->toBe(90.0);
     expect($review->calibrated_by)->toBe($this->admin->id);
+    expect($review->isPublishable())->toBeTrue();
+});
+
+it('calibrate refuses a review that never got a manager score', function (): void {
+    $review = makeWorkflowReview($this->tenant->id, $this->employee->id, 'calibration');
+
+    expect(fn () => $this->workflow->calibrate($review, 90.0, $this->admin, 'Bagus'))
+        ->toThrow(HttpException::class);
+
+    expect($review->fresh()->status)->toBe('calibration');
+});
+
+it('calibrate demands a written reason when it departs far from the manager score', function (): void {
+    $review = makeWorkflowReview($this->tenant->id, $this->employee->id, 'calibration');
+    $review->update(['manager_score' => 60]);
+
+    expect(fn () => $this->workflow->calibrate($review, 95.0, $this->admin, null))
+        ->toThrow(HttpException::class);
+
+    $this->workflow->calibrate($review, 95.0, $this->admin, 'Dinaikkan setelah kalibrasi lintas divisi');
+
+    expect($review->fresh()->status)->toBe('completed');
+});
+
+it('reopen clears the finalized scores and snapshots them as a revision', function (): void {
+    $review = makeWorkflowReview($this->tenant->id, $this->employee->id, 'calibration');
+    $review->update(['manager_score' => 88]);
+    $this->workflow->calibrate($review, 90.0, $this->admin, 'Bagus');
+
+    $this->workflow->reopen($review, 'calibration', $this->admin, 'Salah input realisasi');
+
+    $review->refresh();
+    expect($review->status)->toBe('calibration');
+    expect($review->final_score)->toBeNull();
+    expect($review->calibrated_score)->toBeNull();
+    expect($review->calibrated_by)->toBeNull();
+    expect($review->calibrated_at)->toBeNull();
+    expect($review->isPublishable())->toBeFalse();
+
+    $revision = $review->revisions()->firstOrFail();
+    expect((float) $revision->final_score)->toBe(90.0);
+    expect($revision->reopened_by)->toBe($this->admin->id);
+    expect($revision->reason)->toBe('Salah input realisasi');
 });
 
 it('submitManagerScore ignores the manual score once KPI items exist', function (): void {
     $review = makeWorkflowReview($this->tenant->id, $this->employee->id, 'manager_review');
+    $review->update(['scoring_mode' => 'kpi']);
     $review->kpiItems()->create([
         'tenant_id' => $this->tenant->id,
         'source' => 'manual',
         'label' => 'X',
         'weight' => 100,
         'direction' => 'higher_better',
+        'target_value' => 100,
+        'actual_value' => 55,
         'achievement_pct' => 55,
     ]);
     $review->update(['manager_score' => 55]);
 
-    $this->workflow->submitManagerScore($review, 99.0, null);
+    $this->workflow->submitManagerScore($review, 99.0, '2026-06-30', $this->admin);
 
     // 99.0 is discarded — the review has KPI items, so PerformanceKpiScorer
     // is the sole writer of manager_score, not this manual value.
     expect((float) $review->fresh()->manager_score)->toBe(55.0);
     expect($review->fresh()->status)->toBe('calibration');
+});
+
+it('submitManagerScore refuses an incomplete KPI scorecard', function (): void {
+    $review = makeWorkflowReview($this->tenant->id, $this->employee->id, 'manager_review');
+    $review->update(['scoring_mode' => 'kpi']);
+    $review->kpiItems()->create([
+        'tenant_id' => $this->tenant->id,
+        'source' => 'manual',
+        'label' => 'X',
+        // Only 60% of the weight budget is assigned.
+        'weight' => 60,
+        'direction' => 'higher_better',
+        'target_value' => 100,
+        'actual_value' => 55,
+        'achievement_pct' => 55,
+    ]);
+
+    expect(fn () => $this->workflow->submitManagerScore($review, null, '2026-06-30', $this->admin))
+        ->toThrow(HttpException::class);
+
+    expect($review->fresh()->status)->toBe('manager_review');
+});
+
+it('submitManagerScore refuses an empty click with no score and no KPI items', function (): void {
+    $review = makeWorkflowReview($this->tenant->id, $this->employee->id, 'manager_review');
+
+    expect(fn () => $this->workflow->submitManagerScore($review, null, '2026-06-30', $this->admin))
+        ->toThrow(HttpException::class);
+
+    expect($review->fresh()->status)->toBe('manager_review');
+});
+
+it('submitManagerScore refuses a KPI item whose realisation is still blank', function (): void {
+    $review = makeWorkflowReview($this->tenant->id, $this->employee->id, 'manager_review');
+    $review->update(['scoring_mode' => 'kpi']);
+    $review->kpiItems()->create([
+        'tenant_id' => $this->tenant->id,
+        'source' => 'manual',
+        'label' => 'X',
+        'weight' => 100,
+        'direction' => 'higher_better',
+        'target_value' => 100,
+        'actual_value' => null,
+        'achievement_pct' => 0,
+    ]);
+
+    expect(fn () => $this->workflow->submitManagerScore($review, null, '2026-06-30', $this->admin))
+        ->toThrow(HttpException::class);
+});
+
+it('records who entered the manager score', function (): void {
+    $review = makeWorkflowReview($this->tenant->id, $this->employee->id, 'manager_review');
+
+    $this->workflow->submitManagerScore($review, 80.0, '2026-06-30', $this->admin);
+
+    $review->refresh();
+    expect($review->manager_scored_by)->toBe($this->admin->id);
+    expect($review->manager_scored_at)->not->toBeNull();
+});
+
+it('refuses to let the manager scorer also calibrate', function (): void {
+    $review = makeWorkflowReview($this->tenant->id, $this->employee->id, 'manager_review');
+    $this->workflow->submitManagerScore($review, 80.0, '2026-06-30', $this->admin);
+
+    expect(fn () => $this->workflow->calibrate($review, 82.0, $this->admin, 'Setuju'))
+        ->toThrow(HttpException::class);
+
+    $other = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $this->workflow->calibrate($review, 82.0, $other, 'Setuju');
+
+    expect($review->fresh()->status)->toBe('completed');
+});
+
+it('clears the manager score when a review is reopened to manager review', function (): void {
+    $review = makeWorkflowReview($this->tenant->id, $this->employee->id, 'manager_review');
+    $this->workflow->submitManagerScore($review, 80.0, '2026-06-30', $this->admin);
+
+    $other = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $this->workflow->calibrate($review, 82.0, $other, 'Setuju');
+
+    $this->workflow->reopen($review, 'manager_review', $this->admin, 'Nilai atasan keliru');
+
+    $review->refresh();
+    expect($review->status)->toBe('manager_review');
+    // Left in place, the rejected score could walk straight back into
+    // calibration without the manager re-entering anything.
+    expect($review->manager_score)->toBeNull();
+    expect($review->manager_scored_by)->toBeNull();
+    expect($review->manager_scored_at)->toBeNull();
+});
+
+it('keeps the reopen snapshot after the review itself is deleted', function (): void {
+    $review = makeWorkflowReview($this->tenant->id, $this->employee->id, 'manager_review');
+    $this->workflow->submitManagerScore($review, 80.0, '2026-06-30', $this->admin);
+
+    $other = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $this->workflow->calibrate($review, 82.0, $other, 'Setuju');
+    $this->workflow->reopen($review, 'calibration', $this->admin, 'Perlu ditinjau ulang');
+
+    $revisionId = $review->revisions()->value('id');
+    $employeeId = $review->employee_id;
+
+    $review->delete();
+
+    $revision = PerformanceReviewRevision::find($revisionId);
+
+    expect($revision)->not->toBeNull();
+    expect($revision->review_id)->toBeNull();
+    expect($revision->employee_id)->toBe($employeeId);
+    expect((float) $revision->final_score)->toBe(82.0);
+});
+
+it('refuses a review date outside the cycle period', function (): void {
+    $review = makeWorkflowReview($this->tenant->id, $this->employee->id, 'manager_review');
+
+    expect(fn () => $this->workflow->submitManagerScore($review, 80.0, '2027-03-01', $this->admin))
+        ->toThrow(HttpException::class);
+
+    expect($review->fresh()->status)->toBe('manager_review');
+});
+
+it('refuses a KPI review whose items were all removed', function (): void {
+    $review = makeWorkflowReview($this->tenant->id, $this->employee->id, 'manager_review');
+    $review->update(['scoring_mode' => 'kpi', 'manager_score' => 90]);
+
+    expect(fn () => $this->workflow->submitManagerScore($review, null, '2026-06-30', $this->admin))
+        ->toThrow(HttpException::class);
 });

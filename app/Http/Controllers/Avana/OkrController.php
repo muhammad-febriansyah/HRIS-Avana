@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\KeyResult;
 use App\Models\Objective;
 use App\Models\PerformanceCycle;
+use App\Models\PerformanceKpiItem;
 use App\Models\PerformanceReview;
 use App\Models\User;
 use App\Services\PerformanceKpiScorer;
@@ -157,6 +158,23 @@ class OkrController extends Controller
 
         $data = $this->validateObjective($request, $request->user()->tenant_id);
 
+        // Once a Key Result of this Objective is scored in an appraisal, the
+        // Objective's owner and period are part of that appraisal's evidence.
+        // Re-pointing it at another employee or cycle would leave the review
+        // scoring somebody else's work, or work from another period.
+        $scored = PerformanceKpiItem::query()
+            ->whereIn('key_result_id', $objective->keyResults()->select('id'))
+            ->exists();
+
+        if ($scored) {
+            abort_if(
+                (int) ($data['employee_id'] ?? 0) !== (int) ($objective->employee_id ?? 0)
+                || (int) ($data['cycle_id'] ?? 0) !== (int) ($objective->cycle_id ?? 0),
+                422,
+                'Karyawan dan siklus Objective tidak dapat diubah karena Key Result-nya sudah dipakai pada penilaian kinerja.'
+            );
+        }
+
         $objective->update($data);
 
         return redirect()->route('avana.okr')
@@ -165,11 +183,26 @@ class OkrController extends Controller
 
     /**
      * Delete an objective (cascades its key results).
+     *
+     * The cascade would otherwise reach performance KPI items through the Key
+     * Results and null out their `key_result_id`, leaving items marked
+     * `source=key_result` with no source and a frozen score. Objectives whose
+     * Key Results are scored in an appraisal must be unlinked there first.
      */
     public function destroy(Request $request, Objective $objective): RedirectResponse
     {
         $this->ensureCan($request, 'archive');
         $this->ensureTenantOwnership($request, $objective);
+
+        $linkedReviews = PerformanceKpiItem::query()
+            ->whereIn('key_result_id', $objective->keyResults()->select('id'))
+            ->count();
+
+        abort_if(
+            $linkedReviews > 0,
+            422,
+            "Objective ini dipakai pada {$linkedReviews} item KPI penilaian kinerja. Lepaskan tautannya terlebih dahulu."
+        );
 
         $objective->delete();
 
@@ -251,6 +284,14 @@ class OkrController extends Controller
 
         $objective = $keyResult->objective;
         $affectedReviews = $keyResult->performanceKpiItems()->with('review')->get()->pluck('review')->filter();
+
+        // A finalized appraisal is a signed record: deleting the Key Result it
+        // was scored from would rewrite that rating after the fact.
+        abort_if(
+            $affectedReviews->contains(fn (PerformanceReview $review): bool => $review->status === 'completed'),
+            422,
+            'Key Result ini dipakai pada penilaian kinerja yang sudah selesai dan tidak dapat dihapus.'
+        );
 
         $keyResult->performanceKpiItems()->delete();
         $keyResult->delete();

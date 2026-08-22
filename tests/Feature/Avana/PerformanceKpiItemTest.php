@@ -121,6 +121,7 @@ it('computes weighted manager_score across multiple items', function (): void {
 it('adds a key-result-sourced item whose achievement is read-only and pulled live', function (): void {
     $objective = Objective::create([
         'tenant_id' => $this->tenant->id,
+        'cycle_id' => $this->cycle->id,
         'employee_id' => $this->employee->id,
         'title' => 'Tingkatkan retensi',
         'level' => 'individual',
@@ -172,6 +173,7 @@ it('rejects a Key Result that does not belong to the reviewed employee', functio
 
     $objective = Objective::create([
         'tenant_id' => $this->tenant->id,
+        'cycle_id' => $this->cycle->id,
         'employee_id' => $otherEmployee->id,
         'title' => 'Objective orang lain',
         'level' => 'individual',
@@ -197,6 +199,8 @@ it('rejects a Key Result that does not belong to the reviewed employee', functio
 });
 
 it('removing an item recomputes the review manager_score', function (): void {
+    $this->review->update(['scoring_mode' => 'kpi']);
+
     $first = PerformanceKpiItem::create([
         'tenant_id' => $this->tenant->id,
         'review_id' => $this->review->id,
@@ -207,11 +211,18 @@ it('removing an item recomputes the review manager_score', function (): void {
         'direction' => 'higher_better',
         'achievement_pct' => 100,
     ]);
+    $second = KpiIndicator::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Kualitas',
+        'direction' => 'higher_better',
+        'is_active' => true,
+    ]);
+
     PerformanceKpiItem::create([
         'tenant_id' => $this->tenant->id,
         'review_id' => $this->review->id,
         'source' => 'manual',
-        'kpi_indicator_id' => $this->indicator->id,
+        'kpi_indicator_id' => $second->id,
         'label' => 'B',
         'weight' => 50,
         'direction' => 'higher_better',
@@ -223,7 +234,34 @@ it('removing an item recomputes the review manager_score', function (): void {
         ->delete(route('avana.kinerja.kpi-item.destroy', $first))
         ->assertSessionHas('success');
 
-    expect((float) $this->review->fresh()->manager_score)->toBe(40.0);
+    // Scored against the full 100% budget, not the 50% still assigned: half a
+    // scorecard at 40% achievement is a 20, not a 40.
+    expect((float) $this->review->fresh()->manager_score)->toBe(20.0);
+});
+
+it('rejects a second KPI item pointing at the same indicator', function (): void {
+    PerformanceKpiItem::create([
+        'tenant_id' => $this->tenant->id,
+        'review_id' => $this->review->id,
+        'source' => 'manual',
+        'kpi_indicator_id' => $this->indicator->id,
+        'label' => 'Produktivitas',
+        'weight' => 40,
+        'direction' => 'higher_better',
+        'target_value' => 100,
+        'actual_value' => 100,
+        'achievement_pct' => 100,
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.kpi-item.store', $this->review), [
+            'source' => 'manual',
+            'kpi_indicator_id' => $this->indicator->id,
+            'weight' => 30,
+            'target_value' => 100,
+            'actual_value' => 50,
+        ])
+        ->assertSessionHasErrors('kpi_indicator_id');
 });
 
 it('blocks KPI item mutation once the review is completed', function (): void {
@@ -238,4 +276,119 @@ it('blocks KPI item mutation once the review is completed', function (): void {
             'actual_value' => 50,
         ])
         ->assertStatus(423);
+});
+
+it('refuses to delete an indicator still scored on a review', function (): void {
+    PerformanceKpiItem::create([
+        'tenant_id' => $this->tenant->id,
+        'review_id' => $this->review->id,
+        'source' => 'manual',
+        'kpi_indicator_id' => $this->indicator->id,
+        'label' => 'Produktivitas',
+        'weight' => 100,
+        'direction' => 'higher_better',
+        'target_value' => 100,
+        'actual_value' => 80,
+        'achievement_pct' => 80,
+    ]);
+
+    actingAs($this->admin)
+        ->delete(route('avana.kinerja.indikator.destroy', $this->indicator))
+        ->assertStatus(422);
+
+    expect(KpiIndicator::find($this->indicator->id))->not->toBeNull();
+});
+
+it('scores a lower-better indicator at its optimum when the actual is zero', function (): void {
+    $defects = KpiIndicator::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Jumlah Cacat',
+        'direction' => 'lower_better',
+        'is_active' => true,
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.kpi-item.store', $this->review), [
+            'source' => 'manual',
+            'kpi_indicator_id' => $defects->id,
+            'weight' => 100,
+            'target_value' => 5,
+            'actual_value' => 0,
+        ])
+        ->assertSessionHas('success');
+
+    $item = PerformanceKpiItem::where('kpi_indicator_id', $defects->id)->firstOrFail();
+
+    // Zero defects is the best outcome the curve can reach, so it takes the
+    // same 200% ceiling an actual approaching zero tends towards.
+    expect((float) $item->achievement_pct)->toBe(200.0);
+});
+
+it('rejects a non-positive target on a manual KPI item', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.kpi-item.store', $this->review), [
+            'source' => 'manual',
+            'kpi_indicator_id' => $this->indicator->id,
+            'weight' => 100,
+            'target_value' => 0,
+            'actual_value' => 10,
+        ])
+        ->assertSessionHasErrors('target_value');
+});
+
+it('locks KPI items once the manager has submitted', function (): void {
+    $this->review->update(['status' => 'calibration']);
+
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.kpi-item.store', $this->review), [
+            'source' => 'manual',
+            'kpi_indicator_id' => $this->indicator->id,
+            'weight' => 100,
+            'target_value' => 100,
+            'actual_value' => 80,
+        ])
+        ->assertStatus(423);
+});
+
+it('commits the review to KPI scoring when the first item is added', function (): void {
+    expect($this->review->fresh()->scoring_mode)->toBe('manual');
+
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.kpi-item.store', $this->review), [
+            'source' => 'manual',
+            'kpi_indicator_id' => $this->indicator->id,
+            'weight' => 100,
+            'target_value' => 100,
+            'actual_value' => 80,
+        ])
+        ->assertSessionHas('success');
+
+    expect($this->review->fresh()->scoring_mode)->toBe('kpi');
+});
+
+it('rejects a Key Result whose Objective has no cycle', function (): void {
+    $objective = Objective::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'title' => 'Objective tanpa siklus',
+        'level' => 'individual',
+        'status' => 'active',
+        'progress' => 0,
+    ]);
+    $keyResult = KeyResult::create([
+        'tenant_id' => $this->tenant->id,
+        'objective_id' => $objective->id,
+        'title' => 'KR lepas',
+        'target_value' => 100,
+        'current_value' => 50,
+        'progress' => 50,
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.kpi-item.store', $this->review), [
+            'source' => 'key_result',
+            'key_result_id' => $keyResult->id,
+            'weight' => 100,
+        ])
+        ->assertStatus(422);
 });

@@ -66,6 +66,9 @@ it('renders the performance index with the expected props', function (): void {
                 ->has('manager_score')
                 ->has('final_score')
                 ->has('status')
+                ->has('is_legacy')
+                ->has('is_publishable')
+                ->has('cycle_status')
                 ->has('notes')
                 ->has('review_date'))
             ->has('cycles.0', fn (Assert $row) => $row
@@ -188,6 +191,83 @@ it('updates an existing review', function (): void {
     expect($review->notes)->toBe('Diperbarui');
 });
 
+it('freezes the employee and cycle once the review has left pending', function (): void {
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
+    $review = makePerformanceReview($this->tenant->id, [
+        'status' => 'manager_review',
+        'cycle_id' => $cycle->id,
+        'self_score' => 80,
+    ]);
+    $otherEmployee = Employee::forTenant($this->tenant->id)
+        ->where('id', '!=', $review->employee_id)
+        ->firstOrFail();
+
+    actingAs($this->admin)
+        ->put(route('avana.kinerja.update', $review), [
+            'cycle_id' => $review->cycle_id,
+            'employee_id' => $otherEmployee->id,
+            'reviewer_id' => null,
+            'notes' => 'Pindah karyawan',
+        ])
+        ->assertStatus(422);
+
+    expect($review->fresh()->employee_id)->toBe($review->employee_id);
+});
+
+it('still allows retargeting a review that has not started yet', function (): void {
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
+    $review = makePerformanceReview($this->tenant->id, ['status' => 'pending', 'cycle_id' => $cycle->id]);
+    $otherEmployee = Employee::forTenant($this->tenant->id)
+        ->where('id', '!=', $review->employee_id)
+        ->firstOrFail();
+
+    actingAs($this->admin)
+        ->put(route('avana.kinerja.update', $review), [
+            'cycle_id' => $review->cycle_id,
+            'employee_id' => $otherEmployee->id,
+            'reviewer_id' => null,
+        ])
+        ->assertSessionHas('success');
+
+    expect($review->fresh()->employee_id)->toBe($otherEmployee->id);
+});
+
+it('refuses to let the assigned reviewer calibrate their own scoring', function (): void {
+    $adminEmployee = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $adminEmployee->update(['user_id' => $this->admin->id]);
+
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
+    $review = makePerformanceReview($this->tenant->id, [
+        'status' => 'calibration',
+        'cycle_id' => $cycle->id,
+        'reviewer_id' => $adminEmployee->id,
+        'manager_score' => 80,
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.calibrate', $review), ['calibrated_score' => 85])
+        ->assertStatus(403);
+
+    expect($review->fresh()->status)->toBe('calibration');
+});
+
+it('refuses to let an employee calibrate their own review', function (): void {
+    $adminEmployee = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $adminEmployee->update(['user_id' => $this->admin->id]);
+
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
+    $review = makePerformanceReview($this->tenant->id, [
+        'status' => 'calibration',
+        'cycle_id' => $cycle->id,
+        'employee_id' => $adminEmployee->id,
+        'manager_score' => 80,
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.calibrate', $review), ['calibrated_score' => 85])
+        ->assertStatus(403);
+});
+
 it('a completed review cannot be updated, deleted, or given feedback', function (): void {
     $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
     $review = makePerformanceReview($this->tenant->id, ['status' => 'completed', 'cycle_id' => $cycle->id]);
@@ -233,7 +313,25 @@ it('adds a cycle scoped to the current tenant', function (): void {
     $cycle = PerformanceCycle::where('name', 'Penilaian Q3 2026')->firstOrFail();
 
     expect($cycle->tenant_id)->toBe($this->tenant->id);
-    expect($cycle->status)->toBe('active');
+    // The requested `active` is ignored: every cycle starts as a draft and is
+    // opened through the status endpoint.
+    expect($cycle->status)->toBe('draft');
+});
+
+it('rejects a cycle whose period overlaps an existing one', function (): void {
+    makePerformanceCycle($this->tenant->id, [
+        'name' => 'Siklus Berjalan',
+        'period_start' => '2026-01-01',
+        'period_end' => '2026-06-30',
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.cycle.store'), [
+            'name' => 'Siklus Tumpang Tindih',
+            'period_start' => '2026-06-01',
+            'period_end' => '2026-12-31',
+        ])
+        ->assertStatus(422);
 });
 
 it('validates required fields when adding a cycle', function (): void {
@@ -242,9 +340,38 @@ it('validates required fields when adding a cycle', function (): void {
             'name' => '',
             'period_start' => '',
             'period_end' => '',
-            'status' => 'invalid',
         ])
-        ->assertSessionHasErrors(['name', 'period_start', 'period_end', 'status']);
+        ->assertSessionHasErrors(['name', 'period_start', 'period_end']);
+});
+
+it('refuses to close a cycle that still has unfinished reviews', function (): void {
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
+    makePerformanceReview($this->tenant->id, ['status' => 'manager_review', 'cycle_id' => $cycle->id]);
+
+    actingAs($this->admin)
+        ->patch(route('avana.kinerja.cycle.status', $cycle), ['status' => 'closed'])
+        ->assertStatus(422);
+
+    expect($cycle->fresh()->status)->toBe('active');
+});
+
+it('refuses to activate a second cycle while one is already active', function (): void {
+    makePerformanceCycle($this->tenant->id, [
+        'status' => 'active',
+        'period_start' => '2026-01-01',
+        'period_end' => '2026-06-30',
+    ]);
+    $draft = makePerformanceCycle($this->tenant->id, [
+        'status' => 'draft',
+        'period_start' => '2026-07-01',
+        'period_end' => '2026-12-31',
+    ]);
+
+    actingAs($this->admin)
+        ->patch(route('avana.kinerja.cycle.status', $draft), ['status' => 'active'])
+        ->assertStatus(422);
+
+    expect($draft->fresh()->status)->toBe('draft');
 });
 
 it('moves a cycle through draft to active to closed', function (): void {
@@ -310,14 +437,14 @@ it('rejects manager-scoring by someone who isn\'t the assigned reviewer', functi
     $someoneElse->roles()->sync([$role->id]);
 
     actingAs($someoneElse)
-        ->post(route('avana.kinerja.score', $review), ['manager_score' => 80])
+        ->post(route('avana.kinerja.score', $review), ['manager_score' => 80, 'review_date' => now()->toDateString()])
         ->assertForbidden();
 
     // The assigned reviewer's own user account may score it.
     $reviewerEmployee->update(['user_id' => $someoneElse->id]);
 
     actingAs($someoneElse->fresh())
-        ->post(route('avana.kinerja.score', $review), ['manager_score' => 80])
+        ->post(route('avana.kinerja.score', $review), ['manager_score' => 80, 'review_date' => now()->toDateString()])
         ->assertSessionHas('success');
 });
 
@@ -343,7 +470,10 @@ it('rejects submitting a score from an invalid status', function (): void {
     $review = makePerformanceReview($this->tenant->id, ['status' => 'pending', 'cycle_id' => $cycle->id]);
 
     actingAs($this->admin)
-        ->post(route('avana.kinerja.score', $review), ['manager_score' => 80])
+        ->post(route('avana.kinerja.score', $review), [
+            'manager_score' => 80,
+            'review_date' => now()->toDateString(),
+        ])
         ->assertStatus(422);
 });
 
@@ -554,6 +684,9 @@ it('renders the human asset value report ranked by HAV index', function (): void
         'self_score' => 80,
         'manager_score' => 90,
         'final_score' => 90,
+        'calibrated_score' => 90,
+        'calibrated_by' => $this->admin->id,
+        'calibrated_at' => now(),
         'status' => 'completed',
     ]);
 
@@ -573,4 +706,85 @@ it('renders the human asset value report ranked by HAV index', function (): void
             ->has('kpis.avg_hav')
             ->has('kpis.stars')
             ->has('kpis.at_risk'));
+});
+
+it('freezes the assigned reviewer once the review has left pending', function (): void {
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
+    $reviewer = Employee::forTenant($this->tenant->id)->firstOrFail();
+    $review = makePerformanceReview($this->tenant->id, [
+        'status' => 'manager_review',
+        'cycle_id' => $cycle->id,
+        'reviewer_id' => $reviewer->id,
+    ]);
+    $otherReviewer = Employee::forTenant($this->tenant->id)
+        ->where('id', '!=', $reviewer->id)
+        ->firstOrFail();
+
+    actingAs($this->admin)
+        ->put(route('avana.kinerja.update', $review), [
+            'cycle_id' => $review->cycle_id,
+            'employee_id' => $review->employee_id,
+            'reviewer_id' => $otherReviewer->id,
+        ])
+        ->assertStatus(422);
+
+    expect($review->fresh()->reviewer_id)->toBe($reviewer->id);
+});
+
+it('refuses to move a pending review that already has KPI items', function (): void {
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
+    $review = makePerformanceReview($this->tenant->id, ['status' => 'pending', 'cycle_id' => $cycle->id]);
+    $review->kpiItems()->create([
+        'tenant_id' => $this->tenant->id,
+        'source' => 'manual',
+        'label' => 'Produktivitas',
+        'weight' => 100,
+        'direction' => 'higher_better',
+        'target_value' => 100,
+        'actual_value' => 80,
+        'achievement_pct' => 80,
+    ]);
+    $otherEmployee = Employee::forTenant($this->tenant->id)
+        ->where('id', '!=', $review->employee_id)
+        ->firstOrFail();
+
+    actingAs($this->admin)
+        ->put(route('avana.kinerja.update', $review), [
+            'cycle_id' => $review->cycle_id,
+            'employee_id' => $otherEmployee->id,
+            'reviewer_id' => null,
+        ])
+        ->assertStatus(422);
+});
+
+it('rejects a review date outside the cycle period', function (): void {
+    $cycle = makePerformanceCycle($this->tenant->id, [
+        'status' => 'active',
+        'period_start' => '2026-01-01',
+        'period_end' => '2026-06-30',
+    ]);
+    $employee = Employee::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.store'), [
+            'cycle_id' => $cycle->id,
+            'employee_id' => $employee->id,
+            'review_date' => '2026-09-01',
+        ])
+        ->assertStatus(422);
+});
+
+it('refuses to move the period of a cycle that already has reviews', function (): void {
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
+    makePerformanceReview($this->tenant->id, ['cycle_id' => $cycle->id, 'status' => 'pending']);
+
+    actingAs($this->admin)
+        ->put(route('avana.kinerja.cycle.update', $cycle), [
+            'name' => $cycle->name,
+            'period_start' => '2020-01-01',
+            'period_end' => '2020-12-31',
+        ])
+        ->assertStatus(422);
+
+    expect($cycle->fresh()->period_start->toDateString())->toBe($cycle->period_start->toDateString());
 });

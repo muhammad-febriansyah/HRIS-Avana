@@ -17,7 +17,21 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    /*
+     * No fallback on purpose.
+     *
+     * Laravel ships this as `env('DB_CONNECTION', 'sqlite')`. That default is
+     * silent: when the environment cannot be read at all — an unreadable
+     * `.env`, a wrong owner, a missing file — every variable resolves to null
+     * and the application quietly connects to a SQLite file nobody configured,
+     * failing later with "database.sqlite does not exist" instead of naming the
+     * real problem. `CACHE_STORE`, `SESSION_DRIVER`, and `QUEUE_CONNECTION` all
+     * ride on this connection, so the whole app dies on a misleading message.
+     *
+     * Leaving it unset makes the failure say what actually happened. Test runs
+     * are unaffected: phpunit.xml sets `DB_CONNECTION` explicitly.
+     */
+    'default' => env('DB_CONNECTION'),
 
     /*
     |--------------------------------------------------------------------------

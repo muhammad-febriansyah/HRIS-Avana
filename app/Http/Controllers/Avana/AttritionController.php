@@ -256,7 +256,9 @@ class AttritionController extends Controller
                 ->whereNotNull('effective_start_date')->exists(),
             'lateness' => Attendance::forTenant($tenantId)->where('late_minutes', '>', 0)->exists(),
             'overtime' => OvertimeRequest::forTenant($tenantId)->where('status', 'approved')->exists(),
-            'performance' => PerformanceReview::forTenant($tenantId)->whereNotNull('final_score')->exists(),
+            // Readiness must mean "usable ratings exist", not "rows exist": legacy
+            // reviews carry a final_score the scorer is required to ignore.
+            'performance' => PerformanceReview::forTenant($tenantId)->publishable()->exists(),
             'engagement' => SurveyResponse::forTenant($tenantId)->whereNotNull('employee_id')
                 ->whereHas('question', fn ($q) => $q->where('type', 'rating'))->exists(),
             'leave_spike' => LeaveRequest::forTenant($tenantId)->exists(),

@@ -66,7 +66,7 @@ class EssPerformanceController extends Controller
             'summary' => [
                 'total' => $reviews->count(),
                 'completed' => $reviews->where('status', 'completed')->count(),
-                'awaiting_self' => $reviews->whereIn('status', self::SELF_REVIEW_STAGES)->count(),
+                'awaiting_self' => $reviews->filter(fn (PerformanceReview $review): bool => $this->canSubmitSelf($review))->count(),
                 'latest_score' => $this->effectiveScore($reviews->first()),
                 'average_score' => $scored->isNotEmpty() ? round($scored->avg(), 1) : null,
             ],
@@ -116,6 +116,12 @@ class EssPerformanceController extends Controller
      */
     private function shape(PerformanceReview $review): array
     {
+        // Manager/final scores and peer feedback stay hidden until the rating
+        // is actually final. Showing a provisional number mid-cycle turns every
+        // in-progress appraisal into a negotiation over a figure that was never
+        // meant to be published yet.
+        $released = $review->isPublishable();
+
         return [
             'id' => $review->id,
             'route_key' => $review->public_id,
@@ -123,29 +129,41 @@ class EssPerformanceController extends Controller
             'period_start' => $this->dateString($review->cycle?->period_start),
             'period_end' => $this->dateString($review->cycle?->period_end),
             'self_score' => $this->score($review->self_score),
-            'manager_score' => $this->score($review->manager_score),
-            'final_score' => $this->score($review->final_score),
-            'calibrated_score' => $this->score($review->calibrated_score),
+            'manager_score' => $released ? $this->score($review->manager_score) : null,
+            'final_score' => $released ? $this->score($review->final_score) : null,
+            'calibrated_score' => $released ? $this->score($review->calibrated_score) : null,
             'effective_score' => $this->effectiveScore($review),
             'status' => $review->status,
             'status_label' => self::STATUS_LABELS[$review->status] ?? $review->status,
             'review_date' => $this->dateString($review->review_date),
             'notes' => $review->notes,
-            'can_submit_self' => in_array($review->status, self::SELF_REVIEW_STAGES, true),
+            'can_submit_self' => $this->canSubmitSelf($review),
             // Reviewer identity is deliberately withheld: peer feedback is only
             // candid while it stays unattributed to the person being reviewed.
-            'feedbacks' => $review->feedbacks->map(fn (PerformanceFeedback $feedback): array => [
-                'id' => $feedback->id,
-                'type' => $feedback->type,
-                'rating' => $this->score($feedback->rating),
-                'comment' => $feedback->comment,
-            ])->values(),
+            'feedbacks' => $released
+                ? $review->feedbacks->map(fn (PerformanceFeedback $feedback): array => [
+                    'id' => $feedback->id,
+                    'type' => $feedback->type,
+                    'rating' => $this->score($feedback->rating),
+                    'comment' => $feedback->comment,
+                ])->values()
+                : collect(),
         ];
     }
 
     /**
-     * The score that represents the review right now: calibrated beats final,
-     * final beats manager, manager beats self.
+     * The self-assessment button must mirror exactly what the endpoint accepts
+     * — stage *and* an open cycle — or it renders as a button that 422s.
+     */
+    private function canSubmitSelf(PerformanceReview $review): bool
+    {
+        return in_array($review->status, self::SELF_REVIEW_STAGES, true)
+            && $review->cycle?->status === 'active';
+    }
+
+    /**
+     * The score the employee is allowed to see right now: the published final
+     * rating once released, otherwise only their own self-assessment.
      */
     private function effectiveScore(?PerformanceReview $review): ?float
     {
@@ -153,13 +171,11 @@ class EssPerformanceController extends Controller
             return null;
         }
 
-        foreach (['calibrated_score', 'final_score', 'manager_score', 'self_score'] as $field) {
-            if ($review->{$field} !== null) {
-                return (float) $review->{$field};
-            }
+        if ($review->isPublishable()) {
+            return (float) $review->final_score;
         }
 
-        return null;
+        return $review->self_score !== null ? (float) $review->self_score : null;
     }
 
     /**

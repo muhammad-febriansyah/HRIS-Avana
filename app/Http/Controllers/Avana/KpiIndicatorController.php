@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
 use App\Models\KpiIndicator;
+use App\Models\PerformanceKpiItem;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -90,6 +91,18 @@ class KpiIndicatorController extends Controller
     {
         $this->ensureCan($request, 'archive');
         $this->ensureTenantOwnership($request, $indicator);
+
+        // The FK nulls `kpi_indicator_id` on delete, which would leave a
+        // `manual` KPI item pointing at no indicator while keeping its score.
+        // Retiring an indicator that is still scored somewhere is done with
+        // `is_active`, not by deleting it.
+        $usage = PerformanceKpiItem::where('kpi_indicator_id', $indicator->id)->count();
+
+        abort_if(
+            $usage > 0,
+            422,
+            "Indikator ini dipakai pada {$usage} item KPI penilaian. Nonaktifkan saja alih-alih menghapusnya."
+        );
 
         $indicator->delete();
 

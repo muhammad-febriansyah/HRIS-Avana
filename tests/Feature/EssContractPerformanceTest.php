@@ -116,8 +116,10 @@ it('reports the calibrated score as the effective one', function (): void {
         'status' => 'completed',
         'self_score' => 70,
         'manager_score' => 80,
-        'final_score' => 85,
+        'final_score' => 90,
         'calibrated_score' => 90,
+        'calibrated_by' => $this->user->id,
+        'calibrated_at' => now(),
     ]);
 
     $this->actingAs($this->user)
@@ -133,7 +135,14 @@ it('reports the calibrated score as the effective one', function (): void {
 it('withholds the reviewer identity on feedback', function (): void {
     PerformanceReview::query()->delete();
 
-    $review = makeOwnReview($this->employee, ['status' => 'completed']);
+    $review = makeOwnReview($this->employee, [
+        'status' => 'completed',
+        'manager_score' => 88,
+        'final_score' => 88,
+        'calibrated_score' => 88,
+        'calibrated_by' => $this->user->id,
+        'calibrated_at' => now(),
+    ]);
     $review->feedbacks()->create([
         'tenant_id' => $this->employee->tenant_id,
         'reviewer_id' => $this->colleague->id,
@@ -212,4 +221,47 @@ it('refuses both screens to an account with no employee record', function (): vo
 
     $this->actingAs($hrAdmin)->get('/avana/saya/kontrak')->assertForbidden();
     $this->actingAs($hrAdmin)->get('/avana/saya/kinerja')->assertForbidden();
+});
+
+it('withholds the manager score and feedback until the rating is final', function (): void {
+    PerformanceReview::query()->delete();
+
+    $review = makeOwnReview($this->employee, [
+        'status' => 'calibration',
+        'self_score' => 70,
+        'manager_score' => 80,
+    ]);
+    $review->feedbacks()->create([
+        'tenant_id' => $this->employee->tenant_id,
+        'type' => 'peer',
+        'rating' => 88,
+        'comment' => 'Belum boleh dibaca',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get('/avana/saya/kinerja')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('reviews.0.manager_score', null)
+            ->where('reviews.0.final_score', null)
+            ->where('reviews.0.calibrated_score', null)
+            ->has('reviews.0.feedbacks', 0)
+            // Their own self-assessment is theirs to see.
+            ->where('reviews.0.effective_score', fn ($score): bool => (float) $score === 70.0)
+        );
+});
+
+it('hides the self-assessment action once the cycle is closed', function (): void {
+    PerformanceReview::query()->delete();
+
+    $review = makeOwnReview($this->employee, ['status' => 'pending']);
+    $review->cycle->update(['status' => 'closed']);
+
+    $this->actingAs($this->user)
+        ->get('/avana/saya/kinerja')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('reviews.0.can_submit_self', false)
+            ->where('summary.awaiting_self', 0)
+        );
 });

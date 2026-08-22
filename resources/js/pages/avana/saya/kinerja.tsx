@@ -2,6 +2,7 @@ import { Head, useForm, usePage } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import EssPerformanceController from '@/actions/App/Http/Controllers/Avana/EssPerformanceController';
 import { AIcon, btnOut, btnP, btnProcess, C, card } from '@/lib/avana';
 import {
     EmptyState,
@@ -26,6 +27,8 @@ interface Feedback {
 
 interface Review {
     id: number;
+    /** Opaque public id used for route model binding — never the numeric id. */
+    route_key: string;
     cycle: string | null;
     period_start: string | null;
     period_end: string | null;
@@ -105,7 +108,7 @@ export default function SayaKinerja({ reviews, summary }: Props) {
 
     const submit = (event: FormEvent, review: Review) => {
         event.preventDefault();
-        form.post(`/avana/saya/kinerja/${review.id}/nilai-mandiri`, {
+        form.post(EssPerformanceController.submitSelfScore(review.route_key).url, {
             preserveScroll: true,
             onSuccess: () => {
                 setOpenId(null);

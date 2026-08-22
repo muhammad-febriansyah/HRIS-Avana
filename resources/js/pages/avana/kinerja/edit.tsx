@@ -24,6 +24,7 @@ import {
     emptyReopenForm,
     emptyScoreForm,
     kpiDirectionLabel,
+    reviewStatusLabel,
 } from './types';
 import type {
     CycleOption,
@@ -33,10 +34,12 @@ import type {
     FlashProps,
     KeyResultOption,
     KpiIndicatorOption,
+    KpiItemEditFormData,
     KpiItemKeyResultFormData,
     KpiItemManualFormData,
     KpiItemRow,
     ReopenFormData,
+    RevisionRow,
     ReviewFormData,
     ScoreFormData,
     SelectOption,
@@ -53,8 +56,26 @@ interface ReviewEditRecord {
     manager_score: number | null;
     final_score: number | null;
     status: string;
+    scoring_mode: string;
+    is_legacy: boolean;
+    is_publishable: boolean;
+    manager_scored_by: number | null;
     notes: string | null;
     review_date: string | null;
+    cycle_status: string | null;
+    period_start: string | null;
+    period_end: string | null;
+}
+
+/** What the acting user may do to *this* review, resolved server-side. */
+interface ReviewAbilities {
+    approve: boolean;
+    update: boolean;
+    archive: boolean;
+    edit_kpi: boolean;
+    submit_score: boolean;
+    calibrate: boolean;
+    reopen: boolean;
 }
 
 interface KinerjaEditProps {
@@ -67,7 +88,8 @@ interface KinerjaEditProps {
     kpiItems: KpiItemRow[];
     kpiIndicatorOptions: KpiIndicatorOption[];
     keyResultOptions: KeyResultOption[];
-    can: { approve: boolean };
+    revisions: RevisionRow[];
+    can: ReviewAbilities;
 }
 
 const sectionTitleStyle: CSSProperties = {
@@ -100,6 +122,7 @@ export default function KinerjaEdit({
     kpiItems,
     kpiIndicatorOptions,
     keyResultOptions,
+    revisions,
     can,
 }: KinerjaEditProps) {
     const { flash } = usePage<FlashProps>().props;
@@ -148,9 +171,12 @@ export default function KinerjaEdit({
 
     const submitCalibrate = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        calibrateForm.post(PerformanceController.calibrate(review.route_key).url, {
-            preserveScroll: true,
-        });
+        calibrateForm.post(
+            PerformanceController.calibrate(review.route_key).url,
+            {
+                preserveScroll: true,
+            },
+        );
     };
 
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -160,13 +186,16 @@ export default function KinerjaEdit({
 
     const submitFeedback = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        feedbackForm.submit(PerformanceController.storeFeedback(review.route_key), {
-            preserveScroll: true,
-            onSuccess: () => {
-                feedbackForm.reset();
-                feedbackForm.clearErrors();
+        feedbackForm.submit(
+            PerformanceController.storeFeedback(review.route_key),
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    feedbackForm.reset();
+                    feedbackForm.clearErrors();
+                },
             },
-        });
+        );
     };
 
     const deleteFeedback = (feedback: FeedbackRow) => {
@@ -192,6 +221,40 @@ export default function KinerjaEdit({
 
     const totalWeight = kpiItems.reduce((sum, item) => sum + item.weight, 0);
     const remainingWeight = Math.max(0, 100 - totalWeight);
+
+    const [editingKpiId, setEditingKpiId] = useState<number | null>(null);
+    const kpiEditForm = useForm<KpiItemEditFormData>({
+        weight: '',
+        kpi_indicator_id: '',
+        target_value: '',
+        actual_value: '',
+    });
+
+    const openKpiEdit = (item: KpiItemRow) => {
+        kpiEditForm.clearErrors();
+        kpiEditForm.setData({
+            weight: String(item.weight),
+            kpi_indicator_id: item.kpi_indicator_id
+                ? String(item.kpi_indicator_id)
+                : '',
+            target_value:
+                item.target_value !== null ? String(item.target_value) : '',
+            actual_value:
+                item.actual_value !== null ? String(item.actual_value) : '',
+        });
+        setEditingKpiId(item.id);
+    };
+
+    const submitKpiEdit = (
+        event: FormEvent<HTMLFormElement>,
+        item: KpiItemRow,
+    ) => {
+        event.preventDefault();
+        kpiEditForm.submit(PerformanceKpiItemController.update(item.id), {
+            preserveScroll: true,
+            onSuccess: () => setEditingKpiId(null),
+        });
+    };
 
     const submitManualKpiItem = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -270,6 +333,29 @@ export default function KinerjaEdit({
                     <ReviewStatusBadge status={review.status} />
                 </div>
 
+                {review.is_legacy && (
+                    <div
+                        style={{
+                            ...card,
+                            marginBottom: 24,
+                            padding: '16px 20px',
+                            background: 'rgba(220,38,38,.05)',
+                            border: `1px solid ${C.red}`,
+                            fontSize: 13.5,
+                            color: C.text,
+                        }}
+                    >
+                        <strong style={{ color: C.red }}>
+                            Belum terkalibrasi.
+                        </strong>{' '}
+                        Penilaian ini diselesaikan sebelum kalibrasi diwajibkan,
+                        sehingga nilainya tidak dipakai untuk insentif, prediksi
+                        resign, Report Studio, maupun HAV. Jalankan{' '}
+                        <code>avana:remediate-performance-legacy</code> untuk
+                        mengembalikannya ke penilaian atasan dan menilai ulang.
+                    </div>
+                )}
+
                 {isCompleted && (
                     <div
                         style={{
@@ -288,7 +374,7 @@ export default function KinerjaEdit({
                             Penilaian ini sudah selesai dan terkunci. Buka
                             kembali untuk mengubah nilai atau item KPI.
                         </div>
-                        {can.approve && (
+                        {can.reopen && (
                             <form
                                 onSubmit={submitReopen}
                                 style={{
@@ -372,8 +458,8 @@ export default function KinerjaEdit({
                         >
                             {kpiItems.length > 0
                                 ? 'Dihitung otomatis dari bobot item KPI di bawah — tidak dapat diisi manual.'
-                                : 'Belum ada item KPI pada penilaian ini; skor dapat diisi manual.'}
-                            {' '}Mengirim skor memindahkan status ke Kalibrasi.
+                                : 'Belum ada item KPI pada penilaian ini; skor dapat diisi manual.'}{' '}
+                            Mengirim skor memindahkan status ke Kalibrasi.
                         </div>
                     </div>
                     <form
@@ -454,7 +540,9 @@ export default function KinerjaEdit({
                         >
                             <button
                                 type="submit"
-                                disabled={scoreForm.processing || isCompleted}
+                                disabled={
+                                    scoreForm.processing || !can.submit_score
+                                }
                                 style={{
                                     ...btnP,
                                     height: 42,
@@ -488,8 +576,8 @@ export default function KinerjaEdit({
                                 marginTop: 4,
                             }}
                         >
-                            Bobot terpakai: {totalWeight.toFixed(1)}% / 100%
-                            {' '}(sisa {remainingWeight.toFixed(1)}%)
+                            Bobot terpakai: {totalWeight.toFixed(1)}% / 100%{' '}
+                            (sisa {remainingWeight.toFixed(1)}%)
                         </div>
                     </div>
 
@@ -507,70 +595,227 @@ export default function KinerjaEdit({
                             </div>
                         )}
                         {kpiItems.map((item) => (
-                            <div
-                                key={item.id}
-                                style={{
-                                    padding: '14px 0',
-                                    borderBottom: `1px solid ${C.line}`,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    gap: 12,
-                                }}
-                            >
-                                <div>
-                                    <div
-                                        style={{
-                                            fontSize: 13.5,
-                                            fontWeight: 600,
-                                            color: C.navy,
-                                        }}
-                                    >
-                                        {item.label}{' '}
-                                        <span
+                            <div key={item.id}>
+                                <div
+                                    style={{
+                                        padding: '14px 0',
+                                        borderBottom:
+                                            editingKpiId === item.id
+                                                ? 'none'
+                                                : `1px solid ${C.line}`,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: 12,
+                                    }}
+                                >
+                                    <div>
+                                        <div
                                             style={{
-                                                fontSize: 11.5,
-                                                fontWeight: 500,
-                                                color: C.faint,
+                                                fontSize: 13.5,
+                                                fontWeight: 600,
+                                                color: C.navy,
                                             }}
                                         >
-                                            (
-                                            {item.source === 'key_result'
-                                                ? 'dari Key Result'
-                                                : kpiDirectionLabel(
-                                                      item.direction,
-                                                  )}
-                                            )
-                                        </span>
+                                            {item.label}{' '}
+                                            <span
+                                                style={{
+                                                    fontSize: 11.5,
+                                                    fontWeight: 500,
+                                                    color: C.faint,
+                                                }}
+                                            >
+                                                (
+                                                {item.source === 'key_result'
+                                                    ? 'dari Key Result'
+                                                    : kpiDirectionLabel(
+                                                          item.direction,
+                                                      )}
+                                                )
+                                            </span>
+                                        </div>
+                                        <div
+                                            style={{
+                                                fontSize: 12.5,
+                                                color: C.muted,
+                                                marginTop: 3,
+                                            }}
+                                        >
+                                            Bobot {item.weight}% · Capaian{' '}
+                                            {item.achievement_pct}%
+                                            {item.source === 'manual' &&
+                                                item.target_value !== null &&
+                                                ` · Target ${item.target_value}${item.actual_value !== null ? ` / Aktual ${item.actual_value}` : ''}`}
+                                        </div>
                                     </div>
-                                    <div
+                                    {can.edit_kpi && (
+                                        <div
+                                            style={{ display: 'flex', gap: 6 }}
+                                        >
+                                            <ActionBtn
+                                                icon="pencil"
+                                                label="Ubah"
+                                                variant="success"
+                                                title="Ubah item KPI"
+                                                onClick={() =>
+                                                    openKpiEdit(item)
+                                                }
+                                            />
+                                            <ActionBtn
+                                                icon="trash-2"
+                                                label="Hapus"
+                                                variant="danger"
+                                                title="Hapus item KPI"
+                                                onClick={() =>
+                                                    deleteKpiItem(item)
+                                                }
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {editingKpiId === item.id && (
+                                    <form
+                                        onSubmit={(event) =>
+                                            submitKpiEdit(event, item)
+                                        }
                                         style={{
-                                            fontSize: 12.5,
-                                            color: C.muted,
-                                            marginTop: 3,
+                                            display: 'flex',
+                                            flexWrap: 'wrap',
+                                            alignItems: 'flex-end',
+                                            gap: 12,
+                                            padding: '0 0 16px',
+                                            borderBottom: `1px solid ${C.line}`,
                                         }}
                                     >
-                                        Bobot {item.weight}% · Capaian{' '}
-                                        {item.achievement_pct}%
-                                        {item.source === 'manual' &&
-                                            item.target_value !== null &&
-                                            ` · Target ${item.target_value}${item.actual_value !== null ? ` / Aktual ${item.actual_value}` : ''}`}
-                                    </div>
-                                </div>
-                                {!isCompleted && (
-                                    <ActionBtn
-                                        icon="trash-2"
-                                        label="Hapus"
-                                        variant="danger"
-                                        title="Hapus item KPI"
-                                        onClick={() => deleteKpiItem(item)}
-                                    />
+                                        <div>
+                                            <label style={fieldLabelStyle}>
+                                                Bobot (%)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                step="0.01"
+                                                value={kpiEditForm.data.weight}
+                                                onChange={(event) =>
+                                                    kpiEditForm.setData(
+                                                        'weight',
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                style={{
+                                                    ...inputStyle,
+                                                    width: 110,
+                                                }}
+                                            />
+                                            <FieldError
+                                                message={
+                                                    kpiEditForm.errors.weight
+                                                }
+                                            />
+                                        </div>
+
+                                        {/* Target and realisation belong to manual
+                                        indicators only: a key_result item reads
+                                        both live from its Key Result. */}
+                                        {item.source === 'manual' && (
+                                            <>
+                                                <div>
+                                                    <label
+                                                        style={fieldLabelStyle}
+                                                    >
+                                                        Target
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={
+                                                            kpiEditForm.data
+                                                                .target_value
+                                                        }
+                                                        onChange={(event) =>
+                                                            kpiEditForm.setData(
+                                                                'target_value',
+                                                                event.target
+                                                                    .value,
+                                                            )
+                                                        }
+                                                        style={{
+                                                            ...inputStyle,
+                                                            width: 130,
+                                                        }}
+                                                    />
+                                                    <FieldError
+                                                        message={
+                                                            kpiEditForm.errors
+                                                                .target_value
+                                                        }
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label
+                                                        style={fieldLabelStyle}
+                                                    >
+                                                        Realisasi
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={
+                                                            kpiEditForm.data
+                                                                .actual_value
+                                                        }
+                                                        onChange={(event) =>
+                                                            kpiEditForm.setData(
+                                                                'actual_value',
+                                                                event.target
+                                                                    .value,
+                                                            )
+                                                        }
+                                                        style={{
+                                                            ...inputStyle,
+                                                            width: 130,
+                                                        }}
+                                                    />
+                                                    <FieldError
+                                                        message={
+                                                            kpiEditForm.errors
+                                                                .actual_value
+                                                        }
+                                                    />
+                                                </div>
+                                            </>
+                                        )}
+
+                                        <button
+                                            type="submit"
+                                            disabled={kpiEditForm.processing}
+                                            style={{ ...btnSave, height: 40 }}
+                                        >
+                                            <AIcon
+                                                name="check"
+                                                size={15}
+                                                color="#fff"
+                                            />
+                                            Simpan
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setEditingKpiId(null)
+                                            }
+                                            style={{ ...btnOut, height: 40 }}
+                                        >
+                                            Batal
+                                        </button>
+                                    </form>
                                 )}
                             </div>
                         ))}
                     </div>
 
-                    {!isCompleted && remainingWeight > 0 && (
+                    {can.edit_kpi && remainingWeight > 0 && (
                         <div
                             style={{
                                 padding: '16px 24px 22px',
@@ -799,9 +1044,7 @@ export default function KinerjaEdit({
                                             type="number"
                                             step="0.01"
                                             placeholder="Bobot %"
-                                            value={
-                                                keyResultKpiForm.data.weight
-                                            }
+                                            value={keyResultKpiForm.data.weight}
                                             onChange={(event) =>
                                                 keyResultKpiForm.setData(
                                                     'weight',
@@ -822,9 +1065,7 @@ export default function KinerjaEdit({
                                     </div>
                                     <button
                                         type="submit"
-                                        disabled={
-                                            keyResultKpiForm.processing
-                                        }
+                                        disabled={keyResultKpiForm.processing}
                                         style={{
                                             ...btnP,
                                             height: 42,
@@ -1240,7 +1481,11 @@ export default function KinerjaEdit({
                         >
                             <button
                                 type="submit"
-                                disabled={feedbackForm.processing || isCompleted}
+                                disabled={
+                                    feedbackForm.processing ||
+                                    isCompleted ||
+                                    review.cycle_status !== 'active'
+                                }
                                 style={{
                                     ...btnP,
                                     height: 42,
@@ -1257,6 +1502,103 @@ export default function KinerjaEdit({
                         </div>
                     </form>
                 </div>
+
+                {/* Revision history — what a reopen superseded, and why. The
+                    live row no longer carries these numbers, so this panel is
+                    the only place the previous rating is visible. */}
+                {revisions.length > 0 && (
+                    <div style={{ ...card, marginTop: 24, padding: 0 }}>
+                        <div
+                            style={{
+                                padding: '18px 24px 12px',
+                                borderBottom: `1px solid ${C.line}`,
+                            }}
+                        >
+                            <div style={sectionTitleStyle}>
+                                Riwayat Pembukaan Kembali ({revisions.length})
+                            </div>
+                            <div
+                                style={{
+                                    fontSize: 13,
+                                    color: C.muted,
+                                    marginTop: 4,
+                                }}
+                            >
+                                Nilai yang digantikan setiap kali penilaian ini
+                                dibuka kembali.
+                            </div>
+                        </div>
+
+                        <div style={{ padding: '8px 24px 20px' }}>
+                            {revisions.map((revision: RevisionRow) => (
+                                <div
+                                    key={revision.id}
+                                    style={{
+                                        padding: '14px 0',
+                                        borderBottom: `1px solid ${C.line}`,
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            display: 'flex',
+                                            flexWrap: 'wrap',
+                                            gap: 10,
+                                            alignItems: 'center',
+                                            fontSize: 13,
+                                            color: C.navy,
+                                            fontWeight: 600,
+                                        }}
+                                    >
+                                        <span>
+                                            {reviewStatusLabel(
+                                                revision.from_status,
+                                            )}{' '}
+                                            ke{' '}
+                                            {reviewStatusLabel(
+                                                revision.to_status,
+                                            )}
+                                        </span>
+                                        <span
+                                            style={{
+                                                fontSize: 12,
+                                                fontWeight: 500,
+                                                color: C.faint,
+                                            }}
+                                        >
+                                            {revision.created_at ?? '—'}
+                                            {revision.reopened_by
+                                                ? ` · oleh ${revision.reopened_by}`
+                                                : ''}
+                                        </span>
+                                    </div>
+                                    <div
+                                        style={{
+                                            fontSize: 12.5,
+                                            color: C.muted,
+                                            marginTop: 4,
+                                        }}
+                                    >
+                                        Nilai sebelumnya — mandiri{' '}
+                                        {revision.self_score ?? '—'} · atasan{' '}
+                                        {revision.manager_score ?? '—'} ·
+                                        kalibrasi{' '}
+                                        {revision.calibrated_score ?? '—'} ·
+                                        akhir {revision.final_score ?? '—'}
+                                    </div>
+                                    <div
+                                        style={{
+                                            fontSize: 13,
+                                            color: C.text,
+                                            marginTop: 6,
+                                        }}
+                                    >
+                                        {revision.reason}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         </>
     );

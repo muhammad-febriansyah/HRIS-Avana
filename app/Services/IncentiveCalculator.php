@@ -160,7 +160,9 @@ final class IncentiveCalculator
             IncentiveScheme::BASIS_PERFORMANCE => (float) (PerformanceReview::query()
                 ->where('tenant_id', $scheme->tenant_id)
                 ->where('employee_id', $employee->id)
-                ->whereNotNull('final_score')
+                // Money only ever follows a finalized, calibrated rating —
+                // never a provisional one, and never a reopened one.
+                ->publishable()
                 ->when(
                     $period->start_date !== null && $period->end_date !== null,
                     fn ($query) => $query->whereBetween('review_date', [
