@@ -552,44 +552,7 @@ class PayrollController extends Controller
             $totals = ['gross' => 0.0, 'deduction' => 0.0, 'tax' => 0.0, 'net' => 0.0, 'count' => 0];
 
             foreach ($employees as $employee) {
-                $pay = $this->computeEmployeePay($employee, $period, $tenantId);
-
-                PayrollRunItem::updateOrCreate(
-                    ['payroll_run_id' => $run->id, 'employee_id' => $employee->id],
-                    [
-                        'tenant_id' => $tenantId,
-                        'payroll_period_id' => $period->id,
-                        'gross_salary' => $pay['gross'],
-                        'taxable_gross' => $pay['taxable_gross'],
-                        'tax_deductible_premium' => $pay['tax_deductible_premium'],
-                        'total_allowance' => max(0.0, $pay['gross'] - $pay['basic']),
-                        'total_deduction' => $pay['deduction'],
-                        'bpjs_employee_total' => $pay['bpjs_employee'],
-                        'bpjs_company_total' => $pay['bpjs_company'],
-                        'pph21_total' => $pay['pph21'],
-                        'net_salary' => $pay['net'],
-                        'calculation_snapshot' => [
-                            'earnings' => $pay['earnings'],
-                            'deductions' => $pay['deductions'],
-                            'present_days' => $pay['present_days'],
-                            'overtime_hours' => $pay['overtime_hours'],
-                            'overtime' => $pay['overtime_snapshot'],
-                            'overtime_records' => $pay['overtime_records'],
-                            'incentives' => $pay['incentives'],
-                            'payday' => $pay['payday_snapshot'],
-                            'salary_sources' => $pay['salary_sources'],
-                            'salary_master_id' => $pay['salary_master_id'],
-                            'proration_factor' => $pay['proration_factor'],
-                            'loan_ids' => $pay['loan_ids'],
-                            'gross' => $pay['gross'],
-                            'deduction' => $pay['deduction'],
-                            'bpjs' => $pay['bpjs_snapshot'],
-                            'tax' => $pay['tax_snapshot'],
-                            'net' => $pay['net'],
-                        ],
-                        'status' => 'calculated',
-                    ],
-                );
+                $pay = $this->writeRunItem($run, $employee, $period, $tenantId);
 
                 $totals['gross'] += $pay['gross'];
                 $totals['deduction'] += $pay['deduction'];
@@ -611,6 +574,175 @@ class PayrollController extends Controller
         });
 
         return back()->with('success', 'Payroll dihitung');
+    }
+
+    /**
+     * Recompute a handful of named employees inside the run that already
+     * exists, instead of the whole period.
+     *
+     * A payroll of a thousand people where four figures are wrong does not need
+     * the other 996 recomputed: their input has not changed, so the engine
+     * would write back the same numbers after several minutes of work — long
+     * enough to risk a request timeout on the way. This touches only the rows
+     * asked for, then re-adds the run totals from every stored row so the
+     * header still matches the sum of its parts.
+     *
+     * The run drops back to "calculated" and loses its approval, exactly as a
+     * full recalculation does: the figures somebody signed off are no longer
+     * the figures on file.
+     */
+    public function recalculate(Request $request): RedirectResponse
+    {
+        $this->authorize('create', PayrollPeriod::class);
+
+        $tenantId = $request->user()->tenant_id;
+
+        $data = $request->validate([
+            'payroll_period_id' => ['nullable', 'integer', Rule::exists('payroll_periods', 'id')->where('tenant_id', $tenantId)],
+            'employee_ids' => ['required', 'array', 'min:1', 'max:200'],
+            'employee_ids.*' => ['integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
+        ], [
+            'employee_ids.required' => 'Pilih dulu karyawan yang mau dihitung ulang.',
+            'employee_ids.max' => 'Maksimal 200 karyawan sekali jalan — untuk lebih dari itu, hitung ulang seluruh periode.',
+        ]);
+
+        $count = DB::transaction(function () use ($tenantId, $data, $request): int {
+            $period = $this->targetPeriodFor($request, $tenantId, true);
+
+            abort_if($period === null, 404);
+
+            if ($period->status === 'locked') {
+                throw ValidationException::withMessages([
+                    'payroll' => 'Periode terkunci, tidak bisa dihitung ulang. Pakai Koreksi Gaji untuk memperbaiki karyawan tertentu.',
+                ]);
+            }
+
+            $run = PayrollRun::forTenant($tenantId)
+                ->where('payroll_period_id', $period->id)
+                ->whereNull('branch_id')
+                ->current()
+                ->orderByDesc('id')
+                ->lockForUpdate()
+                ->first();
+
+            if ($run === null) {
+                throw ValidationException::withMessages([
+                    'payroll' => 'Periode ini belum pernah dihitung. Jalankan proses gaji lebih dulu.',
+                ]);
+            }
+
+            if ($run->source === PayrollRun::SOURCE_IMPORT && $run->items()->exists()) {
+                throw ValidationException::withMessages([
+                    'payroll' => 'Periode ini memakai payroll hasil impor — menghitung ulang akan menimpa angka yang diunggah.',
+                ]);
+            }
+
+            // Only people this period is allowed to pay, so a targeted rerun
+            // cannot slip in somebody who joined after it closed or left before
+            // it opened.
+            $employees = $this->payableEmployees($tenantId, $period)
+                ->whereIn('id', $data['employee_ids'])
+                ->values();
+
+            if ($employees->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'employee_ids' => 'Karyawan yang dipilih tidak termasuk dalam periode ini.',
+                ]);
+            }
+
+            $this->assertPtkpMapped($employees, $tenantId, $period);
+
+            foreach ($employees as $employee) {
+                $this->writeRunItem($run, $employee, $period, $tenantId);
+            }
+
+            $this->refreshRunTotals($run, $request->user()->id);
+
+            return $employees->count();
+        });
+
+        return back()->with('success', "Payroll {$count} karyawan dihitung ulang");
+    }
+
+    /**
+     * Compute one employee and store the run item, returning what was computed.
+     *
+     * @return array<string, mixed>
+     */
+    private function writeRunItem(PayrollRun $run, Employee $employee, PayrollPeriod $period, int $tenantId): array
+    {
+        $pay = $this->computeEmployeePay($employee, $period, $tenantId);
+
+        PayrollRunItem::updateOrCreate(
+            ['payroll_run_id' => $run->id, 'employee_id' => $employee->id],
+            [
+                'tenant_id' => $tenantId,
+                'payroll_period_id' => $period->id,
+                'gross_salary' => $pay['gross'],
+                'taxable_gross' => $pay['taxable_gross'],
+                'tax_deductible_premium' => $pay['tax_deductible_premium'],
+                'total_allowance' => max(0.0, $pay['gross'] - $pay['basic']),
+                'total_deduction' => $pay['deduction'],
+                'bpjs_employee_total' => $pay['bpjs_employee'],
+                'bpjs_company_total' => $pay['bpjs_company'],
+                'pph21_total' => $pay['pph21'],
+                'net_salary' => $pay['net'],
+                'calculation_snapshot' => [
+                    'earnings' => $pay['earnings'],
+                    'deductions' => $pay['deductions'],
+                    'present_days' => $pay['present_days'],
+                    'overtime_hours' => $pay['overtime_hours'],
+                    'overtime' => $pay['overtime_snapshot'],
+                    'overtime_records' => $pay['overtime_records'],
+                    'incentives' => $pay['incentives'],
+                    'payday' => $pay['payday_snapshot'],
+                    'salary_sources' => $pay['salary_sources'],
+                    'salary_master_id' => $pay['salary_master_id'],
+                    'proration_factor' => $pay['proration_factor'],
+                    'loan_ids' => $pay['loan_ids'],
+                    'gross' => $pay['gross'],
+                    'deduction' => $pay['deduction'],
+                    'bpjs' => $pay['bpjs_snapshot'],
+                    'tax' => $pay['tax_snapshot'],
+                    'net' => $pay['net'],
+                ],
+                'status' => 'calculated',
+            ],
+        );
+
+        return $pay;
+    }
+
+    /**
+     * Re-add the run header from the rows it holds, and send it back to
+     * "calculated" — an approval covers figures, and the figures moved.
+     */
+    private function refreshRunTotals(PayrollRun $run, int $runBy): void
+    {
+        $totals = $run->items()
+            ->selectRaw('COALESCE(SUM(gross_salary), 0) AS gross')
+            ->selectRaw('COALESCE(SUM(total_deduction), 0) AS deduction')
+            ->selectRaw('COALESCE(SUM(pph21_total), 0) AS tax')
+            ->selectRaw('COALESCE(SUM(net_salary), 0) AS net')
+            ->selectRaw('COUNT(*) AS employee_count')
+            ->first();
+
+        $run->update([
+            'total_gross' => (float) $totals->gross,
+            'total_deduction' => (float) $totals->deduction,
+            'total_tax' => (float) $totals->tax,
+            'total_net' => (float) $totals->net,
+            'employee_count' => (int) $totals->employee_count,
+            'status' => 'calculated',
+            'computed_at' => now(),
+            'run_by' => $runBy,
+            'approved_by' => null,
+            'approved_at' => null,
+            'approval_note' => null,
+            'rejected_by' => null,
+            'rejected_at' => null,
+            'rejection_note' => null,
+        ]);
     }
 
     /**

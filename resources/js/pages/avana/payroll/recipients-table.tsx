@@ -45,8 +45,48 @@ export function RecipientsTable({
     filters: PayrollFilters;
 }) {
     const [q, setQ] = useState(filters.search ?? '');
+    // Employees picked for a targeted recalculation. A payroll of a thousand
+    // people with four wrong figures should cost four recomputations, so the
+    // rows are selectable and only those are sent back to the engine.
+    const [selected, setSelected] = useState<number[]>([]);
     const scheme = filters.scheme ?? '';
     const onlyPaid = filters.only_paid === '1' || filters.only_paid === true;
+
+    const toggle = (employeeId: number) =>
+        setSelected((current) =>
+            current.includes(employeeId)
+                ? current.filter((id) => id !== employeeId)
+                : [...current, employeeId],
+        );
+
+    const pageIds = recipients.map((r) => r.employee_id);
+    const allOnPageSelected =
+        pageIds.length > 0 && pageIds.every((id) => selected.includes(id));
+
+    const toggleAllOnPage = () =>
+        setSelected((current) =>
+            allOnPageSelected
+                ? current.filter((id) => !pageIds.includes(id))
+                : [...new Set([...current, ...pageIds])],
+        );
+
+    const recalculate = () => {
+        if (selected.length === 0) {
+            return;
+        }
+
+        router.post(
+            '/avana/payroll/recalculate',
+            {
+                payroll_period_id: periodId ?? undefined,
+                employee_ids: selected,
+            },
+            {
+                preserveScroll: true,
+                onSuccess: () => setSelected([]),
+            },
+        );
+    };
 
     /** Reload the recipient list, merging one changed filter over the rest. */
     const apply = (
@@ -104,6 +144,30 @@ export function RecipientsTable({
                         flexWrap: 'wrap',
                     }}
                 >
+                    {selected.length > 0 && (
+                        <button
+                            type="button"
+                            onClick={recalculate}
+                            style={{
+                                height: 34,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '0 12px',
+                                border: 'none',
+                                borderRadius: 8,
+                                fontSize: 12.5,
+                                fontWeight: 600,
+                                color: '#fff',
+                                background: C.primary,
+                                cursor: 'pointer',
+                            }}
+                            title="Hitung ulang hanya karyawan yang dipilih"
+                        >
+                            <AIcon name="refresh-cw" size={15} color="#fff" />
+                            Hitung Ulang ({selected.length})
+                        </button>
+                    )}
                     {/* Tax scheme filter */}
                     <select
                         value={scheme}
@@ -219,6 +283,14 @@ export function RecipientsTable({
                     >
                         <thead>
                             <tr style={{ background: '#FAFBFD' }}>
+                                <th style={{ ...th, width: 38 }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={allOnPageSelected}
+                                        onChange={toggleAllOnPage}
+                                        aria-label="Pilih semua di halaman ini"
+                                    />
+                                </th>
                                 <th style={th}>Karyawan</th>
                                 <th style={{ ...th, textAlign: 'right' }}>
                                     Gross
@@ -241,6 +313,18 @@ export function RecipientsTable({
                                     key={r.id}
                                     style={{ borderTop: `1px solid ${C.line}` }}
                                 >
+                                    <td style={{ ...td, width: 38 }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={selected.includes(
+                                                r.employee_id,
+                                            )}
+                                            onChange={() =>
+                                                toggle(r.employee_id)
+                                            }
+                                            aria-label={`Pilih ${r.name}`}
+                                        />
+                                    </td>
                                     <td style={td}>
                                         <div
                                             style={{

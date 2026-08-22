@@ -224,6 +224,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class, LogPageActivity
     Route::put('payroll/perhitungan-hari/{perhitunganHari}', [DayCalcMethodController::class, 'update'])->name('payroll.perhitungan-hari.update');
     Route::delete('payroll/perhitungan-hari/{perhitunganHari}', [DayCalcMethodController::class, 'destroy'])->name('payroll.perhitungan-hari.destroy');
     Route::post('payroll/run', [PayrollController::class, 'run'])->name('payroll.run');
+    Route::post('payroll/recalculate', [PayrollController::class, 'recalculate'])->name('payroll.recalculate');
     // Upload a payroll computed elsewhere instead of running the engine.
     Route::get('payroll/impor/template', [PayrollImportController::class, 'template'])->name('payroll.impor.template');
     Route::post('payroll/impor', [PayrollImportController::class, 'store'])->name('payroll.impor.store');
