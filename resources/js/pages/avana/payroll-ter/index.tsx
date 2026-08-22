@@ -1336,7 +1336,7 @@ export default function PayrollTer({
                             </span>
                             <RupiahInput
                                 style={input}
-                                placeholder="12.000.000"
+                                placeholder="contoh: 12.000.000"
                                 value={calcGross}
                                 onChange={setCalcGross}
                             />
