@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\BpjsProgram;
 use App\Models\PayrollComponent;
 use App\Models\Tenant;
 use Illuminate\Console\Command;
@@ -28,6 +29,8 @@ class AlignTaxBasis extends Command
         {--exclude-tax= : Component codes to leave out of the PPh 21 bruto, comma separated}
         {--exclude-bpjs= : Extra component codes to leave out of the BPJS wage, comma separated}
         {--employer-premium= : exclude | include — whether the company BPJS premium joins the TER bruto}
+        {--kesehatan-cap= : Wage ceiling for the BPJS Kesehatan premium, in rupiah (0 removes it)}
+        {--jp-cap= : Wage ceiling for the Jaminan Pensiun premium, in rupiah (0 removes it)}
         {--apply : Write the changes (otherwise the command only reports)}';
 
     protected $description = 'Align which earning components feed the PPh 21 bruto (TER) and the BPJS contribution wage';
@@ -111,6 +114,7 @@ class AlignTaxBasis extends Command
         $this->table(['Tenant', 'Kode', 'Komponen', 'PPh 21', 'Basis BPJS'], $rows);
 
         $premium = $this->applyEmployerPremium($tenantId, $apply);
+        $this->reportBpjsWageCeilings($apply);
 
         if (! $apply) {
             $this->newLine();
@@ -124,6 +128,70 @@ class AlignTaxBasis extends Command
         $this->line('Status PTKP tiap karyawan tidak disentuh — itu data per orang, isi di BPJS & Pajak → Profil Pajak.');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * The wage ceilings, which live on the BPJS rate master rather than on a
+     * tenant. Without them a premium is charged on the full wage, so anyone
+     * paid above the ceiling is over-deducted — the kind of error that only
+     * shows up on the payslips of the highest earners.
+     */
+    private function reportBpjsWageCeilings(bool $apply): void
+    {
+        $caps = array_filter([
+            'KESEHATAN' => $this->option('kesehatan-cap'),
+            'JP' => $this->option('jp-cap'),
+        ], static fn (mixed $value): bool => $value !== null);
+
+        $programs = BpjsProgram::with(['rates' => fn ($query) => $query->where('is_active', true)])->get();
+
+        $this->newLine();
+        $rows = [];
+
+        foreach ($programs as $program) {
+            $code = strtoupper((string) $program->code);
+            $rate = $program->rates->first();
+
+            if ($rate === null) {
+                continue;
+            }
+
+            $current = (float) $rate->max_wage;
+            $wanted = array_key_exists($code, $caps) ? (float) $caps[$code] : $current;
+
+            if ($apply && $wanted !== $current) {
+                $rate->update(['max_wage' => $wanted > 0 ? $wanted : null]);
+            }
+
+            $rows[] = [
+                $code,
+                $this->rupiah((float) $rate->employee_rate * 100).'%',
+                $this->rupiah((float) $rate->company_rate * 100).'%',
+                $current === $wanted
+                    ? $this->ceiling($current)
+                    : $this->ceiling($current).' → '.$this->ceiling($wanted),
+            ];
+        }
+
+        $this->table(['Program BPJS', 'Karyawan', 'Perusahaan', 'Batas Upah'], $rows);
+        $this->line('Persentase dan batas upah di atas berlaku untuk semua tenant — ini master global, bukan setelan per perusahaan.');
+
+        $missing = collect(['JKK', 'JKM'])
+            ->reject(fn (string $code): bool => $programs->contains(fn (BpjsProgram $program): bool => strtoupper((string) $program->code) === $code));
+
+        if ($missing->isNotEmpty()) {
+            $this->warn('Program '.$missing->implode(' dan ').' belum ada. Keduanya iuran perusahaan (JKK 0,24%–1,74% sesuai kelas risiko, JKM 0,30%), jadi total biaya perusahaan masih kurang. Tambahkan di BPJS & Pajak.');
+        }
+    }
+
+    private function ceiling(float $value): string
+    {
+        return $value > 0 ? 'Rp '.$this->rupiah($value) : 'tanpa batas';
+    }
+
+    private function rupiah(float $value): string
+    {
+        return rtrim(rtrim(number_format($value, 2, ',', '.'), '0'), ',');
     }
 
     /**

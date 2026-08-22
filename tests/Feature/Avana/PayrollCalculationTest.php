@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Avana\PayrollController;
+use App\Models\BpjsRate;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
 use App\Models\OvertimeRequest;
@@ -152,6 +153,34 @@ it('deducts internal BPJS computed from the registered wage', function (): void 
     expect((float) $deductions->firstWhere('name', 'JHT (Karyawan)')['amount'])->toBe(100_000.0);
     expect((float) $deductions->firstWhere('name', 'JP (Karyawan)')['amount'])->toBe(50_000.0);
     expect($deductions->firstWhere('name', 'BPJS (Karyawan)'))->toBeNull();
+});
+
+it('stops the BPJS premium at each programme wage ceiling', function (): void {
+    configureComponent($this->employee, 'BASIC', 'fixed', 14_500_000);
+
+    // The ceilings the client's payroll workbook uses: Perpres 82/2018 for
+    // Kesehatan, and the BPJS TK circular in force for Jaminan Pensiun.
+    BpjsRate::whereHas('program', fn ($query) => $query->where('code', 'KESEHATAN'))
+        ->update(['max_wage' => 12_000_000]);
+    BpjsRate::whereHas('program', fn ($query) => $query->where('code', 'JP'))
+        ->update(['max_wage' => 11_086_300]);
+
+    EmployeeBpjsProfile::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'registered_wage' => 14_500_000,
+        'jht_enabled' => true, 'jkk_enabled' => true, 'jkm_enabled' => true,
+        'jp_enabled' => true, 'kesehatan_enabled' => true,
+        'effective_start_date' => '2026-01-01',
+    ]);
+
+    $item = runAndItem($this);
+    $deductions = collect($item->calculation_snapshot['deductions']);
+
+    // Kesehatan and JP are capped; JHT has no ceiling, so it follows the wage.
+    expect((float) $deductions->firstWhere('name', 'BPJS Kesehatan (Karyawan)')['amount'])->toBe(120_000.0);
+    expect((float) $deductions->firstWhere('name', 'JHT (Karyawan)')['amount'])->toBe(290_000.0);
+    expect((float) $deductions->firstWhere('name', 'JP (Karyawan)')['amount'])->toBe(110_863.0);
 });
 
 it('computes internal PPh 21 with the monthly TER scheme (PMK 168/2023)', function (): void {
