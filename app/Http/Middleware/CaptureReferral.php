@@ -2,7 +2,7 @@
 
 namespace App\Http\Middleware;
 
-use App\Http\Controllers\Public\ReferralLeadController;
+use App\Http\Controllers\ReferralLeadController;
 use App\Models\Partner;
 use App\Models\ReferralClick;
 use Closure;
@@ -55,12 +55,15 @@ class CaptureReferral
             'landing_path' => $request->path(),
         ]);
 
-        $response = $next($request);
+        // Queued, not set directly on the response: this middleware runs
+        // OUTSIDE EncryptCookies (it is prepended ahead of the framework's
+        // default web stack), so a cookie attached after `$next()` returns
+        // would skip encryption entirely and fail to decrypt on the next
+        // request. Queuing before `$next()` lets AddQueuedCookiesToResponse
+        // — and then EncryptCookies, both further inward — handle it in the
+        // right order.
+        Cookie::queue(self::COOKIE_NAME, $partner->code, self::COOKIE_DAYS * 24 * 60);
 
-        $response->headers->setCookie(
-            Cookie::make(self::COOKIE_NAME, $partner->code, self::COOKIE_DAYS * 24 * 60),
-        );
-
-        return $response;
+        return $next($request);
     }
 }

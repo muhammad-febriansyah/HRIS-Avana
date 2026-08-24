@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import ReferralController from '@/actions/App/Http/Controllers/Avana/ReferralController';
 import TenantController from '@/actions/App/Http/Controllers/Avana/TenantController';
-import { AIcon, btnOut, btnP, btnSave, btnDanger, C, card, thCell } from '@/lib/avana';
+import { ActionBtn, AIcon, btnOut, btnP, btnSave, btnDanger, C, card, RupiahInput, thCell } from '@/lib/avana';
 
 /* ---------- types ---------- */
 
@@ -195,13 +195,13 @@ export default function ReferralIndex({
 
     useEffect(() => {
         if (flash?.success) {
-            toast.success(flash.success);
+            toast.success(flash.success, { id: flash.success });
         }
     }, [flash?.success]);
 
     useEffect(() => {
         if (flash?.error) {
-            toast.error(flash.error);
+            toast.error(flash.error, { id: flash.error });
         }
     }, [flash?.error]);
 
@@ -347,7 +347,7 @@ function MitraTab({ applications, partners, errors }: { applications: Applicatio
                                     <button style={{ ...btnSave, height: 34, padding: '0 12px', fontSize: 12.5 }} onClick={() => approve(app)}>
                                         Setujui
                                     </button>
-                                    <button style={{ ...btnOut, height: 34, padding: '0 12px', fontSize: 12.5, color: C.red }} onClick={() => reject(app)}>
+                                    <button style={{ ...btnDanger, height: 34, padding: '0 12px', fontSize: 12.5 }} onClick={() => reject(app)}>
                                         Tolak
                                     </button>
                                 </div>
@@ -403,9 +403,13 @@ function MitraTab({ applications, partners, errors }: { applications: Applicatio
                                             {p.leads_count} / {p.conversions_count}
                                         </td>
                                         <td style={{ padding: '10px 16px', textAlign: 'right' }}>
-                                            <button style={{ ...btnOut, height: 30, padding: '0 10px', fontSize: 12 }} onClick={() => setEditing(p)}>
-                                                Kelola
-                                            </button>
+                                            <ActionBtn
+                                                icon="settings-2"
+                                                label="Kelola"
+                                                variant="primary"
+                                                title={`Kelola mitra ${p.code}`}
+                                                onClick={() => setEditing(p)}
+                                            />
                                         </td>
                                     </tr>
                                 );
@@ -803,19 +807,30 @@ function PengaturanTab({ settings }: { settings: Settings }) {
                         onChange={(e) => form.setData('points_per_conversion', e.target.value)}
                         style={fieldInput}
                     />
+                    <div style={{ fontSize: 11.5, color: C.faint, marginTop: 4 }}>
+                        Setiap klien baru yang lunas invoice pertamanya = {form.data.points_per_conversion || 0} poin ≈{' '}
+                        {rp(Number(form.data.points_per_conversion || 0) * Number(form.data.point_value || 0))}.
+                    </div>
                     {form.errors.points_per_conversion && <div style={fieldError}>{form.errors.points_per_conversion}</div>}
                 </div>
             ) : (
                 <div>
                     <label style={fieldLabel}>Persen dari Invoice (%)</label>
                     <input value={form.data.percent_rate} onChange={(e) => form.setData('percent_rate', e.target.value)} style={fieldInput} />
+                    <div style={{ fontSize: 11.5, color: C.faint, marginTop: 4 }}>
+                        Contoh: invoice pertama Rp1.000.000 = komisi{' '}
+                        {rp(1_000_000 * (Number(form.data.percent_rate || 0) / 100))}.
+                    </div>
                     {form.errors.percent_rate && <div style={fieldError}>{form.errors.percent_rate}</div>}
                 </div>
             )}
 
             <div>
-                <label style={fieldLabel}>Nilai 1 Poin (Rupiah)</label>
-                <input value={form.data.point_value} onChange={(e) => form.setData('point_value', e.target.value)} style={fieldInput} />
+                <label style={fieldLabel}>Nilai 1 Poin</label>
+                <RupiahInput value={form.data.point_value} onChange={(digits) => form.setData('point_value', digits)} invalid={!!form.errors.point_value} />
+                <div style={{ fontSize: 11.5, color: C.faint, marginTop: 4 }}>
+                    Rupiah yang dibayarkan mitra per poin saat penarikan dicairkan.
+                </div>
                 {form.errors.point_value && <div style={fieldError}>{form.errors.point_value}</div>}
             </div>
 

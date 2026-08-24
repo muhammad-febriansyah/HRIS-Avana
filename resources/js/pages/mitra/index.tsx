@@ -1,9 +1,10 @@
-import { Head, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import PortalController from '@/actions/App/Http/Controllers/Mitra/PortalController';
 import { AIcon, btnSave, C, card, thCell } from '@/lib/avana';
+import { logout } from '@/routes';
 
 interface Partner {
     code: string;
@@ -69,15 +70,16 @@ interface PageProps {
     withdrawals: WithdrawalRow[];
     flash?: { success?: string; error?: string };
     errors: Record<string, string>;
+    auth: { user: { name: string; email: string } | null };
     [key: string]: unknown;
 }
 
 const TABS = [
-    { key: 'dashboard', label: 'Dashboard' },
-    { key: 'leads', label: 'Leads' },
-    { key: 'komisi', label: 'Komisi' },
-    { key: 'penarikan', label: 'Penarikan' },
-    { key: 'rekening', label: 'Rekening' },
+    { key: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
+    { key: 'leads', label: 'Leads', icon: 'users' },
+    { key: 'komisi', label: 'Komisi', icon: 'coins' },
+    { key: 'penarikan', label: 'Penarikan', icon: 'wallet' },
+    { key: 'rekening', label: 'Rekening', icon: 'landmark' },
 ] as const;
 
 type TabKey = (typeof TABS)[number]['key'];
@@ -107,74 +109,190 @@ const WITHDRAWAL_LABEL: Record<string, string> = {
 };
 
 export default function MitraIndex({ partner, stats, settings, referralUrl, leads, conversions, withdrawals }: PageProps) {
-    const { flash } = usePage<PageProps>().props;
+    const { flash, auth } = usePage<PageProps>().props;
+    const user = auth.user;
     const [tab, setTab] = useState<TabKey>('dashboard');
 
     useEffect(() => {
         if (flash?.success) {
-            toast.success(flash.success);
+            toast.success(flash.success, { id: flash.success });
         }
     }, [flash?.success]);
 
     useEffect(() => {
         if (flash?.error) {
-            toast.error(flash.error);
+            toast.error(flash.error, { id: flash.error });
         }
     }, [flash?.error]);
+
+    const activeLabel = TABS.find((t) => t.key === tab)?.label ?? 'Dashboard';
 
     return (
         <>
             <Head title="Dashboard Mitra" />
 
-            {partner.status === 'suspended' && (
-                <div style={{ ...card, padding: '12px 16px', borderLeft: `3px solid ${C.red}`, background: '#FEF2F2', marginBottom: 16 }}>
-                    <strong style={{ color: C.red }}>Akun mitra Anda sedang ditangguhkan.</strong> Hubungi tim AvanaHR untuk info lebih lanjut.
-                </div>
-            )}
-
-            <div
-                style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-                    gap: 12,
-                }}
-            >
-                <StatCard label="Kode Referral" value={partner.code} icon="link" />
-                <StatCard label="Klik Link" value={stats.clicks.toLocaleString('id-ID')} icon="mouse-pointer-click" />
-                <StatCard label="Leads" value={stats.leads.toLocaleString('id-ID')} icon="users" />
-                <StatCard label="Saldo Poin" value={stats.balance_points.toLocaleString('id-ID')} icon="coins" />
-                <StatCard label="Tersedia Ditarik" value={stats.available_points.toLocaleString('id-ID')} icon="wallet" tone="primary" />
-            </div>
-
-            <ReferralLinkBox referralUrl={referralUrl} />
-
-            <div style={{ display: 'flex', gap: 4, marginTop: 22, borderBottom: `1px solid ${C.border}` }}>
-                {TABS.map((t) => (
-                    <button
-                        key={t.key}
-                        onClick={() => setTab(t.key)}
+            <div style={{ display: 'flex', minHeight: '100dvh' }}>
+                <aside
+                    style={{
+                        width: 232,
+                        flexShrink: 0,
+                        background: '#fff',
+                        borderRight: `1px solid ${C.border}`,
+                        padding: '20px 12px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                    }}
+                >
+                    <div
                         style={{
-                            padding: '10px 14px',
-                            fontSize: 13,
-                            fontWeight: 600,
-                            background: 'none',
-                            border: 'none',
-                            borderBottom: tab === t.key ? `2px solid ${C.primary}` : '2px solid transparent',
-                            color: tab === t.key ? C.primary : C.muted,
-                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            padding: '0 8px',
+                            marginBottom: 22,
+                            fontWeight: 700,
+                            fontSize: 15,
+                            color: C.navy,
                         }}
                     >
-                        {t.label}
-                    </button>
-                ))}
-            </div>
+                        <AIcon name="handshake" size={20} color={C.primary} />
+                        AvanaHR
+                    </div>
+                    <div
+                        style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            letterSpacing: '.04em',
+                            color: C.faint,
+                            padding: '0 8px',
+                            marginBottom: 8,
+                            textTransform: 'uppercase',
+                        }}
+                    >
+                        Mitra Referral
+                    </div>
+                    <nav style={{ display: 'flex', flexDirection: 'column' }}>
+                        {TABS.map((t) => {
+                            const active = tab === t.key;
 
-            <div style={{ marginTop: 18 }}>
-                {tab === 'dashboard' && <DashboardTab stats={stats} settings={settings} conversions={conversions} />}
-                {tab === 'leads' && <LeadsTab leads={leads} />}
-                {tab === 'komisi' && <KomisiTab conversions={conversions} />}
-                {tab === 'penarikan' && <PenarikanTab withdrawals={withdrawals} stats={stats} settings={settings} hasBank={partner.has_bank} />}
-                {tab === 'rekening' && <RekeningTab partner={partner} />}
+                            return (
+                                <button
+                                    key={t.key}
+                                    onClick={() => setTab(t.key)}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 12,
+                                        width: '100%',
+                                        height: 40,
+                                        padding: '0 12px',
+                                        marginBottom: 3,
+                                        border: 'none',
+                                        borderRadius: 9,
+                                        cursor: 'pointer',
+                                        fontSize: 13.5,
+                                        textAlign: 'left',
+                                        fontWeight: active ? 600 : 500,
+                                        color: active ? C.primary : C.text,
+                                        background: active ? 'rgba(47,84,201,.09)' : 'transparent',
+                                    }}
+                                >
+                                    <AIcon name={t.icon} size={17} color={active ? C.primary : C.muted} />
+                                    {t.label}
+                                </button>
+                            );
+                        })}
+                    </nav>
+
+                    <div style={{ marginTop: 'auto', paddingTop: 16 }}>
+                        <div
+                            style={{
+                                padding: '12px',
+                                borderRadius: 10,
+                                background: C.surface,
+                                fontSize: 12,
+                                color: C.muted,
+                            }}
+                        >
+                            <div style={{ fontWeight: 600, color: C.text, marginBottom: 2 }}>{partner.code}</div>
+                            <div>Kode referral Anda</div>
+                        </div>
+                    </div>
+                </aside>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <header
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '16px 28px',
+                            background: '#fff',
+                            borderBottom: `1px solid ${C.border}`,
+                        }}
+                    >
+                        <h1 style={{ fontSize: 18, fontWeight: 700, color: C.navy }}>{activeLabel}</h1>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                            <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{user?.name}</div>
+                                <div style={{ fontSize: 12, color: C.muted }}>{user?.email}</div>
+                            </div>
+                            <Link
+                                href={logout()}
+                                onClick={() => router.flushAll()}
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    height: 34,
+                                    padding: '0 12px',
+                                    borderRadius: 8,
+                                    border: `1px solid ${C.border}`,
+                                    fontSize: 12.5,
+                                    fontWeight: 600,
+                                    color: C.text,
+                                    textDecoration: 'none',
+                                }}
+                            >
+                                <AIcon name="log-out" size={14} />
+                                Keluar
+                            </Link>
+                        </div>
+                    </header>
+
+                    <main style={{ padding: '24px 28px' }}>
+                        {partner.status === 'suspended' && (
+                            <div style={{ ...card, padding: '12px 16px', borderLeft: `3px solid ${C.red}`, background: '#FEF2F2', marginBottom: 16 }}>
+                                <strong style={{ color: C.red }}>Akun mitra Anda sedang ditangguhkan.</strong> Hubungi tim AvanaHR untuk info lebih lanjut.
+                            </div>
+                        )}
+
+                        {tab === 'dashboard' && (
+                            <div style={{ display: 'grid', gap: 16 }}>
+                                <div
+                                    style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                                        gap: 12,
+                                    }}
+                                >
+                                    <StatCard label="Klik Link" value={stats.clicks.toLocaleString('id-ID')} icon="mouse-pointer-click" />
+                                    <StatCard label="Leads" value={stats.leads.toLocaleString('id-ID')} icon="users" />
+                                    <StatCard label="Saldo Poin" value={stats.balance_points.toLocaleString('id-ID')} icon="coins" />
+                                    <StatCard label="Tersedia Ditarik" value={stats.available_points.toLocaleString('id-ID')} icon="wallet" tone="primary" />
+                                </div>
+
+                                <ReferralLinkBox referralUrl={referralUrl} />
+
+                                <DashboardTab stats={stats} settings={settings} conversions={conversions} />
+                            </div>
+                        )}
+                        {tab === 'leads' && <LeadsTab leads={leads} />}
+                        {tab === 'komisi' && <KomisiTab conversions={conversions} />}
+                        {tab === 'penarikan' && <PenarikanTab withdrawals={withdrawals} stats={stats} settings={settings} hasBank={partner.has_bank} />}
+                        {tab === 'rekening' && <RekeningTab partner={partner} />}
+                    </main>
+                </div>
             </div>
         </>
     );
