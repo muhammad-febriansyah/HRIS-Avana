@@ -222,7 +222,7 @@ export function SiteNavbar({
                         <>
                             <Link
                                 href={login().url}
-                                className="inline-flex h-11 items-center rounded-full px-5 text-[14px] font-bold text-avana-text/80 transition-colors duration-200 hover:text-avana-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-avana-blue"
+                                className="inline-flex h-11 items-center rounded-full border border-avana-border px-5 text-[14px] font-bold text-avana-text/80 transition-colors duration-200 hover:border-avana-blue hover:text-avana-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-avana-blue"
                             >
                                 Masuk
                             </Link>

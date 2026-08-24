@@ -24,6 +24,10 @@ final class ReferralSetting extends Model
             'point_value' => 'decimal:2',
             'hold_days' => 'integer',
             'min_withdrawal_points' => 'integer',
+            'withdrawal_enabled' => 'boolean',
+            'leads_tab_enabled' => 'boolean',
+            'komisi_tab_enabled' => 'boolean',
+            'rekening_tab_enabled' => 'boolean',
         ];
     }
 
@@ -39,6 +43,10 @@ final class ReferralSetting extends Model
             'point_value' => 0,
             'hold_days' => 14,
             'min_withdrawal_points' => 0,
+            'withdrawal_enabled' => true,
+            'leads_tab_enabled' => true,
+            'komisi_tab_enabled' => true,
+            'rekening_tab_enabled' => true,
         ]);
     }
 

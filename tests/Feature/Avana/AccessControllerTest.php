@@ -62,8 +62,11 @@ it('exposes a matrix cell per action for every module/role pairing', function ()
         ->assertOk()
         ->assertInertia(function (Assert $page): void {
             $roleCount = Role::query()
-                ->where('tenant_id', $this->superAdmin->tenant_id)
-                ->orWhereNull('tenant_id')
+                ->where('code', '!=', 'partner')
+                ->where(function ($query) {
+                    $query->where('tenant_id', $this->superAdmin->tenant_id)
+                        ->orWhereNull('tenant_id');
+                })
                 ->count();
 
             // One row per real menu of the tenant's sidebar (platform-only menus

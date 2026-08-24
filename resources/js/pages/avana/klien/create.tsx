@@ -150,23 +150,27 @@ export default function KlienCreate({ packages, referralLead }: KlienCreateProps
                 {referralLead && (
                     <div
                         style={{
-                            marginTop: 12,
-                            padding: '10px 14px',
-                            borderRadius: 8,
+                            marginTop: 14,
+                            marginBottom: 18,
+                            padding: '14px 18px',
+                            borderRadius: 10,
                             background: '#EEF2FF',
                             border: `1px solid ${C.primary}33`,
-                            fontSize: 13,
+                            fontSize: 13.5,
+                            lineHeight: 1.6,
                             color: C.navy,
                             display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
+                            alignItems: 'flex-start',
+                            gap: 10,
                         }}
                     >
-                        <AIcon name="handshake" size={15} color={C.primary} />
-                        Dari lead referral <strong>{referralLead.company_name}</strong>
-                        {referralLead.partner_code
-                            ? ` — mitra ${referralLead.partner_code} akan mendapat komisi begitu invoice pertama klien ini lunas.`
-                            : '.'}
+                        <AIcon name="handshake" size={16} color={C.primary} style={{ marginTop: 2, flexShrink: 0 }} />
+                        <span>
+                            Dari lead referral <strong>{referralLead.company_name}</strong>
+                            {referralLead.partner_code
+                                ? ` — mitra ${referralLead.partner_code} akan mendapat komisi begitu invoice pertama klien ini lunas.`
+                                : '.'}
+                        </span>
                     </div>
                 )}
 

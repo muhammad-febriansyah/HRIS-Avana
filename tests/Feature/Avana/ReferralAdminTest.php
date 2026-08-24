@@ -3,10 +3,12 @@
 use App\Models\Partner;
 use App\Models\PartnerRegistration;
 use App\Models\ReferralLedger;
+use App\Models\ReferralSetting;
 use App\Models\ReferralWithdrawal;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 
 use function Pest\Laravel\actingAs;
@@ -25,11 +27,53 @@ function makePartnerRegistration(array $overrides = []): PartnerRegistration
         'full_name' => 'Sari Konsultan',
         'email' => 'sari.konsultan@example.com',
         'whatsapp' => '081234567890',
+        'password' => 'Password123!',
         'partner_type' => 'HR Consultant',
         'terms_accepted' => true,
         'status' => 'pending',
     ], $overrides));
 }
+
+it('lets the super admin turn off partner withdrawals', function (): void {
+    actingAs($this->superAdmin)
+        ->post(route('avana.referral.pengaturan.update'), [
+            'mode' => 'flat',
+            'points_per_conversion' => 1,
+            'percent_rate' => 0,
+            'point_value' => 5000,
+            'hold_days' => 14,
+            'min_withdrawal_points' => 5,
+            'withdrawal_enabled' => false,
+            'leads_tab_enabled' => true,
+            'komisi_tab_enabled' => true,
+            'rekening_tab_enabled' => true,
+        ])
+        ->assertSessionHas('success');
+
+    expect(ReferralSetting::current()->withdrawal_enabled)->toBeFalse();
+});
+
+it('lets the super admin turn off individual mitra portal tabs', function (): void {
+    actingAs($this->superAdmin)
+        ->post(route('avana.referral.pengaturan.update'), [
+            'mode' => 'flat',
+            'points_per_conversion' => 1,
+            'percent_rate' => 0,
+            'point_value' => 5000,
+            'hold_days' => 14,
+            'min_withdrawal_points' => 5,
+            'withdrawal_enabled' => true,
+            'leads_tab_enabled' => false,
+            'komisi_tab_enabled' => false,
+            'rekening_tab_enabled' => false,
+        ])
+        ->assertSessionHas('success');
+
+    $settings = ReferralSetting::current();
+    expect($settings->leads_tab_enabled)->toBeFalse();
+    expect($settings->komisi_tab_enabled)->toBeFalse();
+    expect($settings->rekening_tab_enabled)->toBeFalse();
+});
 
 it('forbids a non super admin from the referral centre', function (): void {
     actingAs($this->admin)
@@ -55,7 +99,7 @@ it('approves a partner application into a real login and referral profile', func
     actingAs($this->superAdmin)
         ->post(route('avana.referral.mitra.approve', $registration))
         ->assertSessionHas('success')
-        ->assertSessionHas('credentials');
+        ->assertSessionMissing('credentials');
 
     $registration->refresh();
     expect($registration->status)->toBe('approved');
@@ -63,10 +107,39 @@ it('approves a partner application into a real login and referral profile', func
     $user = User::where('email', 'sari.konsultan@example.com')->first();
     expect($user)->not->toBeNull();
     expect($user->roles()->where('code', 'partner')->exists())->toBeTrue();
+    // The login carries the password the applicant chose at registration —
+    // no separate generated password for the super admin to relay.
+    expect(Hash::check('Password123!', $user->password))->toBeTrue();
 
     $partner = Partner::where('user_id', $user->id)->first();
     expect($partner)->not->toBeNull();
     expect($partner->status)->toBe('active');
+});
+
+it('lets a newly approved partner log in immediately with the password they chose at registration', function (): void {
+    $registration = makePartnerRegistration([
+        'email' => 'baru.mitra@example.com',
+        'password' => 'RahasiaMitra1',
+    ]);
+
+    actingAs($this->superAdmin)
+        ->post(route('avana.referral.mitra.approve', $registration));
+
+    // Drop the super admin's faked session before the real login below —
+    // otherwise the guard's cached user leaks into this request.
+    $this->app['auth']->forgetGuards();
+    $this->flushSession();
+
+    $this->post(route('login.store'), [
+        'email' => 'baru.mitra@example.com',
+        'password' => 'RahasiaMitra1',
+    ])->assertRedirect(route('dashboard', absolute: false));
+
+    $this->assertAuthenticated();
+
+    // Fortify lands every login on the generic dashboard route; a partner
+    // login bounces from there to its own portal (see PartnerPortalTest).
+    $this->get(route('dashboard'))->assertRedirect(route('mitra.dashboard'));
 });
 
 it('refuses to approve a partner application whose email already has an account', function (): void {

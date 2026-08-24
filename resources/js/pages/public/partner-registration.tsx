@@ -4,6 +4,8 @@ import {
     ArrowRight,
     Check,
     CheckCircle2,
+    Eye,
+    EyeOff,
     Users,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -78,6 +80,8 @@ export default function PartnerRegistration() {
         full_name: '',
         email: '',
         whatsapp: '',
+        password: '',
+        password_confirmation: '',
         partner_type: '',
         company_name: '',
         network_size: '1–10',
@@ -89,6 +93,8 @@ export default function PartnerRegistration() {
     });
 
     const [step, setStep] = useState(1);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
     const totalSteps = 3;
 
     const isSuccess = flash?.success === true;
@@ -322,6 +328,120 @@ export default function PartnerRegistration() {
                                                                             {errors.whatsapp}
                                                                         </p>
                                                                     )}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                                                <div>
+                                                                    <label className="mb-1.5 block text-[13px] font-semibold text-[#0E1A3A]">
+                                                                        Kata Sandi{' '}
+                                                                        <span className="text-red-500">
+                                                                            *
+                                                                        </span>
+                                                                    </label>
+                                                                    <div className="relative">
+                                                                        <input
+                                                                            type={
+                                                                                showPassword
+                                                                                    ? 'text'
+                                                                                    : 'password'
+                                                                            }
+                                                                            value={data.password}
+                                                                            onChange={(e) =>
+                                                                                setData(
+                                                                                    'password',
+                                                                                    e.target.value
+                                                                                )
+                                                                            }
+                                                                            placeholder="Minimal 8 karakter"
+                                                                            autoComplete="new-password"
+                                                                            className={cn(
+                                                                                'w-full rounded-xl border px-4 py-3 pr-11 text-[14px] text-[#0E1A3A] outline-none transition-all placeholder:text-[#9CA3AF] focus:border-[#2F54C9] focus:ring-2 focus:ring-[#2F54C9]/20',
+                                                                                errors.password
+                                                                                    ? 'border-red-300 focus:border-red-400 focus:ring-red-200'
+                                                                                    : 'border-[#D5DEEC]'
+                                                                            )}
+                                                                        />
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() =>
+                                                                                setShowPassword(
+                                                                                    (v) => !v
+                                                                                )
+                                                                            }
+                                                                            aria-label={
+                                                                                showPassword
+                                                                                    ? 'Sembunyikan kata sandi'
+                                                                                    : 'Tampilkan kata sandi'
+                                                                            }
+                                                                            className="absolute top-1/2 right-3.5 -translate-y-1/2 text-[#9CA3AF] hover:text-[#5B6478]"
+                                                                        >
+                                                                            {showPassword ? (
+                                                                                <EyeOff className="h-4 w-4" />
+                                                                            ) : (
+                                                                                <Eye className="h-4 w-4" />
+                                                                            )}
+                                                                        </button>
+                                                                    </div>
+                                                                    {errors.password && (
+                                                                        <p className="mt-1 text-[12px] text-red-500">
+                                                                            {errors.password}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                                <div>
+                                                                    <label className="mb-1.5 block text-[13px] font-semibold text-[#0E1A3A]">
+                                                                        Konfirmasi Kata Sandi{' '}
+                                                                        <span className="text-red-500">
+                                                                            *
+                                                                        </span>
+                                                                    </label>
+                                                                    <div className="relative">
+                                                                        <input
+                                                                            type={
+                                                                                showPasswordConfirmation
+                                                                                    ? 'text'
+                                                                                    : 'password'
+                                                                            }
+                                                                            value={
+                                                                                data.password_confirmation
+                                                                            }
+                                                                            onChange={(e) =>
+                                                                                setData(
+                                                                                    'password_confirmation',
+                                                                                    e.target.value
+                                                                                )
+                                                                            }
+                                                                            placeholder="Ulangi kata sandi"
+                                                                            autoComplete="new-password"
+                                                                            className={cn(
+                                                                                'w-full rounded-xl border px-4 py-3 pr-11 text-[14px] text-[#0E1A3A] outline-none transition-all placeholder:text-[#9CA3AF] focus:border-[#2F54C9] focus:ring-2 focus:ring-[#2F54C9]/20',
+                                                                                errors.password
+                                                                                    ? 'border-red-300 focus:border-red-400 focus:ring-red-200'
+                                                                                    : 'border-[#D5DEEC]'
+                                                                            )}
+                                                                        />
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() =>
+                                                                                setShowPasswordConfirmation(
+                                                                                    (v) => !v
+                                                                                )
+                                                                            }
+                                                                            aria-label={
+                                                                                showPasswordConfirmation
+                                                                                    ? 'Sembunyikan kata sandi'
+                                                                                    : 'Tampilkan kata sandi'
+                                                                            }
+                                                                            className="absolute top-1/2 right-3.5 -translate-y-1/2 text-[#9CA3AF] hover:text-[#5B6478]"
+                                                                        >
+                                                                            {showPasswordConfirmation ? (
+                                                                                <EyeOff className="h-4 w-4" />
+                                                                            ) : (
+                                                                                <Eye className="h-4 w-4" />
+                                                                            )}
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
                                                             </div>
 

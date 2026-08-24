@@ -8,7 +8,9 @@ use App\Models\Partner;
 use App\Models\ReferralConversion;
 use App\Models\ReferralSetting;
 use App\Models\ReferralWithdrawal;
+use App\Support\PaginatedTable;
 use App\Support\PrivateFile;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,12 +30,18 @@ class PortalController extends Controller
         $partner = $this->partner($request);
         $settings = ReferralSetting::current();
 
-        $leads = $partner->leads()
+        $leadsPage = $partner->leads()
             ->with('tenant:id,name')
+            ->when($request->string('leads_search')->toString(), function (Builder $query, string $term): void {
+                $query->where(function (Builder $q) use ($term): void {
+                    $q->where('company_name', 'like', "%{$term}%")
+                        ->orWhere('contact_name', 'like', "%{$term}%")
+                        ->orWhere('email', 'like', "%{$term}%");
+                });
+            })
             ->latest()
-            ->limit(50)
-            ->get()
-            ->map(fn ($lead): array => [
+            ->paginate(10, ['*'], 'leads_page')
+            ->through(fn ($lead): array => [
                 'id' => $lead->id,
                 'company_name' => $lead->company_name,
                 'contact_name' => $lead->contact_name,
@@ -42,12 +50,14 @@ class PortalController extends Controller
                 'created_at' => $lead->created_at?->toDateTimeString(),
             ]);
 
-        $conversions = $partner->conversions()
+        $conversionsPage = $partner->conversions()
             ->with('tenant:id,name')
+            ->when($request->string('komisi_search')->toString(), function (Builder $query, string $term): void {
+                $query->whereHas('tenant', fn (Builder $q) => $q->where('name', 'like', "%{$term}%"));
+            })
             ->latest()
-            ->limit(50)
-            ->get()
-            ->map(fn (ReferralConversion $c): array => [
+            ->paginate(10, ['*'], 'komisi_page')
+            ->through(fn (ReferralConversion $c): array => [
                 'id' => $c->id,
                 'tenant_name' => $c->tenant?->name,
                 'points' => $c->points,
@@ -57,10 +67,16 @@ class PortalController extends Controller
                 'created_at' => $c->created_at?->toDateTimeString(),
             ]);
 
-        $withdrawals = $partner->withdrawals()
+        $withdrawalsPage = $partner->withdrawals()
+            ->when($request->string('penarikan_search')->toString(), function (Builder $query, string $term): void {
+                $query->where(function (Builder $q) use ($term): void {
+                    $q->where('status', 'like', "%{$term}%")
+                        ->orWhere('admin_note', 'like', "%{$term}%");
+                });
+            })
             ->latest()
-            ->get()
-            ->map(fn (ReferralWithdrawal $w): array => [
+            ->paginate(10, ['*'], 'penarikan_page')
+            ->through(fn (ReferralWithdrawal $w): array => [
                 'id' => $w->id,
                 'points' => $w->points,
                 'amount' => (float) $w->amount,
@@ -92,17 +108,41 @@ class PortalController extends Controller
                 'point_value' => (float) $settings->point_value,
                 'min_withdrawal_points' => $settings->min_withdrawal_points,
                 'hold_days' => $settings->hold_days,
+                'withdrawal_enabled' => $settings->withdrawal_enabled,
+                'leads_tab_enabled' => $settings->leads_tab_enabled,
+                'komisi_tab_enabled' => $settings->komisi_tab_enabled,
+                'rekening_tab_enabled' => $settings->rekening_tab_enabled,
             ],
             'referralUrl' => url('/daftar-perusahaan?ref='.$partner->code),
-            'leads' => $leads,
-            'conversions' => $conversions,
-            'withdrawals' => $withdrawals,
+            // Dashboard's "Komisi Terbaru" glance — independent of the Komisi
+            // tab's own search/pagination state below.
+            'recentConversions' => $partner->conversions()
+                ->with('tenant:id,name')
+                ->latest()
+                ->limit(5)
+                ->get()
+                ->map(fn (ReferralConversion $c): array => [
+                    'id' => $c->id,
+                    'tenant_name' => $c->tenant?->name,
+                    'points' => $c->points,
+                    'commission_amount' => (float) $c->commission_amount,
+                    'status' => $c->status,
+                    'hold_until' => $c->hold_until?->toDateString(),
+                    'created_at' => $c->created_at?->toDateTimeString(),
+                ]),
+            'leads' => PaginatedTable::shape($leadsPage, $request, 'leads_search'),
+            'conversions' => PaginatedTable::shape($conversionsPage, $request, 'komisi_search'),
+            'withdrawals' => PaginatedTable::shape($withdrawalsPage, $request, 'penarikan_search'),
         ]);
     }
 
     public function updateProfile(Request $request): RedirectResponse
     {
         $partner = $this->partner($request);
+
+        if (! ReferralSetting::current()->rekening_tab_enabled) {
+            return back()->with('error', 'Pengaturan rekening sedang dinonaktifkan oleh admin.');
+        }
 
         $validated = $request->validate([
             'bank_name' => ['required', 'string', 'max:255'],
@@ -124,11 +164,15 @@ class PortalController extends Controller
             'points' => ['required', 'integer', 'min:1'],
         ]);
 
+        $settings = ReferralSetting::current();
+
+        if (! $settings->withdrawal_enabled) {
+            return back()->with('error', 'Penarikan saldo sedang dinonaktifkan oleh admin.');
+        }
+
         if (! $partner->hasBankDetails()) {
             return back()->with('error', 'Lengkapi data rekening terlebih dahulu sebelum menarik komisi.');
         }
-
-        $settings = ReferralSetting::current();
 
         if ($validated['points'] < $settings->min_withdrawal_points) {
             return back()->with('error', "Minimal penarikan {$settings->min_withdrawal_points} poin.");

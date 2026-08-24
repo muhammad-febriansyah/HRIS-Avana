@@ -2,14 +2,17 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Model;
 
+#[Hidden(['password'])]
 class PartnerRegistration extends Model
 {
     protected $fillable = [
         'full_name',
         'email',
         'whatsapp',
+        'password',
         'partner_type',
         'company_name',
         'network_size',
@@ -25,6 +28,7 @@ class PartnerRegistration extends Model
     {
         return [
             'terms_accepted' => 'boolean',
+            'password' => 'hashed',
         ];
     }
 }

@@ -11,25 +11,27 @@ use Illuminate\Support\Str;
 
 /**
  * Turns an approved partner application into a real login: a `partner`-role
- * User plus its {@see Partner} referral profile. Mirrors
- * {@see TenantProvisioner::createAdmin()} — a generated
- * password handed back once for the super admin to relay.
+ * User plus its {@see Partner} referral profile. Unlike
+ * {@see TenantProvisioner::createAdmin()}, the password isn't generated here
+ * — the applicant already chose it on the registration form, so approval
+ * just carries that hash over and the partner can log in immediately.
  */
 final class ReferralPartnerService
 {
     /**
-     * @return array{user: User, partner: Partner, password: string}
+     * @return array{user: User, partner: Partner}
      */
     public function approve(PartnerRegistration $registration, User $approver): array
     {
         return DB::transaction(function () use ($registration, $approver): array {
-            $plain = $this->generatePassword();
-
+            // Already hashed (the model casts `password` as `hashed` on both
+            // sides), so this is carried straight into the User row without
+            // ever touching the plaintext.
             $user = User::create([
                 'tenant_id' => null,
                 'name' => $registration->full_name,
                 'email' => $registration->email,
-                'password' => $plain,
+                'password' => $registration->password,
                 'status' => 'active',
                 'email_verified_at' => now(),
             ]);
@@ -50,13 +52,8 @@ final class ReferralPartnerService
 
             $registration->update(['status' => 'approved']);
 
-            return ['user' => $user, 'partner' => $partner, 'password' => $plain];
+            return ['user' => $user, 'partner' => $partner];
         });
-    }
-
-    private function generatePassword(): string
-    {
-        return 'Mitra'.Str::upper(Str::random(3)).random_int(1000, 9999);
     }
 
     /**

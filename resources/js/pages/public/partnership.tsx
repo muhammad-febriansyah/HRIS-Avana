@@ -1,4 +1,4 @@
-import { Head, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
     ArrowRight,
     Handshake,
@@ -9,6 +9,7 @@ import {
     Users,
 } from 'lucide-react';
 import { Container, Reveal, SectionHeading } from '@/components/marketing/reveal';
+import partnerRegistration from '@/routes/partner-registration';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { SiteNavbar } from '@/components/marketing/site-navbar';
 import { WhatsAppFab } from '@/components/marketing/whatsapp-fab';
@@ -395,13 +396,13 @@ export default function Partnership() {
 
                                 <Reveal delay={0.15}>
                                     <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                                        <a
-                                            href="#"
+                                        <Link
+                                            href={partnerRegistration.create().url}
                                             className="inline-flex h-12 items-center gap-2 rounded-full bg-white px-7 text-[14px] font-bold text-[#0E1A3A] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-blue-50 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                                         >
                                             Gabung Jadi Partner
                                             <ArrowRight className="h-4 w-4" />
-                                        </a>
+                                        </Link>
                                     </div>
                                 </Reveal>
                             </div>

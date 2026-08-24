@@ -53,6 +53,22 @@ it('lets a partner save their bank details', function (): void {
     expect($partner->fresh()->hasBankDetails())->toBeTrue();
 });
 
+it('blocks saving bank details while the rekening tab is disabled by the admin', function (): void {
+    ReferralSetting::current()->update(['rekening_tab_enabled' => false]);
+
+    $partner = createTestPartner();
+
+    actingAs($partner->user)
+        ->post(route('mitra.rekening.update'), [
+            'bank_name' => 'BCA',
+            'bank_account_number' => '1234567890',
+            'bank_account_holder' => 'Mitra Uji',
+        ])
+        ->assertSessionHas('error');
+
+    expect($partner->fresh()->hasBankDetails())->toBeFalse();
+});
+
 it('blocks a withdrawal request until bank details are filled in', function (): void {
     $partner = createTestPartner();
     ReferralLedger::create([
@@ -113,6 +129,29 @@ it('refuses a withdrawal larger than the available balance', function (): void {
 
     actingAs($partner->user)
         ->post(route('mitra.penarikan.store'), ['points' => 999])
+        ->assertSessionHas('error');
+
+    expect(ReferralWithdrawal::where('partner_id', $partner->id)->count())->toBe(0);
+});
+
+it('blocks a withdrawal request while withdrawals are disabled by the admin', function (): void {
+    ReferralSetting::current()->update(['withdrawal_enabled' => false]);
+
+    $partner = createTestPartner([
+        'bank_name' => 'BCA',
+        'bank_account_number' => '1234567890',
+        'bank_account_holder' => 'Mitra Uji',
+    ]);
+    ReferralLedger::create([
+        'partner_id' => $partner->id,
+        'type' => ReferralLedger::TYPE_EARN,
+        'points' => 20,
+        'amount' => 100000,
+        'balance_after' => 20,
+    ]);
+
+    actingAs($partner->user)
+        ->post(route('mitra.penarikan.store'), ['points' => 10])
         ->assertSessionHas('error');
 
     expect(ReferralWithdrawal::where('partner_id', $partner->id)->count())->toBe(0);

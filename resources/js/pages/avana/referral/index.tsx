@@ -1,10 +1,15 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import type { CSSProperties, FormEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { Coins, Handshake, Users, Wallet } from 'lucide-react';
+import type { CSSProperties, DragEvent, FormEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import ReferralController from '@/actions/App/Http/Controllers/Avana/ReferralController';
 import TenantController from '@/actions/App/Http/Controllers/Avana/TenantController';
-import { ActionBtn, AIcon, btnOut, btnP, btnSave, btnDanger, C, card, RupiahInput, thCell } from '@/lib/avana';
+import { DataTable } from '@/components/avana-ui/data-table';
+import type { DataTableColumn, DataTableMeta } from '@/components/avana-ui/data-table';
+import { EmptyState } from '@/components/avana-ui/empty-state';
+import { FormDialog } from '@/components/avana-ui/form-dialog';
+import { ActionBtn, AIcon, btnOut, btnP, btnSave, btnDanger, C, card, RupiahInput } from '@/lib/avana';
 
 /* ---------- types ---------- */
 
@@ -85,6 +90,16 @@ interface Settings {
     point_value: number;
     hold_days: number;
     min_withdrawal_points: number;
+    withdrawal_enabled: boolean;
+    leads_tab_enabled: boolean;
+    komisi_tab_enabled: boolean;
+    rekening_tab_enabled: boolean;
+}
+
+interface Paginated<T> {
+    data: T[];
+    meta: DataTableMeta;
+    search: string;
 }
 
 interface PageProps {
@@ -95,15 +110,14 @@ interface PageProps {
         points_outstanding: number;
     };
     applications: Application[];
-    partners: PartnerRow[];
-    leads: LeadRow[];
-    conversions: ConversionRow[];
-    withdrawals: WithdrawalRow[];
+    partners: Paginated<PartnerRow>;
+    leads: Paginated<LeadRow>;
+    conversions: Paginated<ConversionRow>;
+    withdrawals: Paginated<WithdrawalRow>;
     settings: Settings;
     flash?: {
         success?: string;
         error?: string;
-        credentials?: { name: string; email: string; password: string };
     };
     errors: Record<string, string>;
     [key: string]: unknown;
@@ -179,7 +193,6 @@ const WITHDRAWAL_STATUS_BADGE: Record<string, { label: string; tone: Tone }> = {
 };
 
 const sectionTitle: CSSProperties = { fontSize: 15, fontWeight: 700, color: C.navy };
-const emptyState: CSSProperties = { padding: '32px 16px', textAlign: 'center', color: C.muted, fontSize: 13 };
 
 export default function ReferralIndex({
     stats,
@@ -214,8 +227,6 @@ export default function ReferralIndex({
                     Mitra referral, lead yang mereka bawa, komisi, dan penarikan.
                 </p>
 
-                {flash?.credentials && <CredentialsBanner credentials={flash.credentials} />}
-
                 <div
                     style={{
                         display: 'grid',
@@ -224,10 +235,20 @@ export default function ReferralIndex({
                         marginTop: 18,
                     }}
                 >
-                    <StatCard label="Mitra Aktif" value={String(stats.active_partners)} icon="handshake" />
-                    <StatCard label="Pengajuan Pending" value={String(stats.pending_applications)} icon="user-plus" tone={stats.pending_applications > 0 ? 'amber' : undefined} />
-                    <StatCard label="Penarikan Pending" value={String(stats.pending_withdrawals)} icon="banknote" tone={stats.pending_withdrawals > 0 ? 'amber' : undefined} />
-                    <StatCard label="Poin Beredar" value={stats.points_outstanding.toLocaleString('id-ID')} icon="coins" />
+                    <StatCard label="Mitra Aktif" value={String(stats.active_partners)} icon="handshake" tone="primary" />
+                    <StatCard
+                        label="Pengajuan Pending"
+                        value={String(stats.pending_applications)}
+                        icon="user-plus"
+                        tone={stats.pending_applications > 0 ? 'amber' : 'sky'}
+                    />
+                    <StatCard
+                        label="Penarikan Pending"
+                        value={String(stats.pending_withdrawals)}
+                        icon="banknote"
+                        tone={stats.pending_withdrawals > 0 ? 'amber' : 'sky'}
+                    />
+                    <StatCard label="Poin Beredar" value={stats.points_outstanding.toLocaleString('id-ID')} icon="coins" tone="green" />
                 </div>
 
                 <div style={{ display: 'flex', gap: 4, marginTop: 22, borderBottom: `1px solid ${C.border}` }}>
@@ -263,50 +284,111 @@ export default function ReferralIndex({
     );
 }
 
-function CredentialsBanner({ credentials }: { credentials: { name: string; email: string; password: string } }) {
+const STAT_TONE = {
+    primary: { bg: 'rgba(47,84,201,.1)', color: C.primary },
+    green: { bg: 'rgba(22,163,74,.1)', color: C.green },
+    sky: { bg: 'rgba(110,155,230,.16)', color: C.sky },
+    amber: { bg: 'rgba(217,119,6,.1)', color: C.amber },
+} as const;
+
+function StatCard({
+    label,
+    value,
+    icon,
+    tone = 'sky',
+}: {
+    label: string;
+    value: string;
+    icon: string;
+    tone?: keyof typeof STAT_TONE;
+}) {
+    const { bg, color } = STAT_TONE[tone];
+
     return (
-        <div style={{ ...card, padding: '16px 18px', borderLeft: `3px solid ${C.green}`, background: '#F0FDF4', marginTop: 16 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 600, color: C.navy, marginBottom: 4 }}>
-                Kredensial mitra baru — catat sekarang
+        <div style={{ ...card, padding: '18px 20px' }}>
+            <div
+                style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: bg,
+                    color,
+                }}
+            >
+                <AIcon name={icon} size={20} color={color} />
             </div>
-            <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 12 }}>
-                Password hanya ditampilkan sekali. Sampaikan ke mitra secara aman.
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-                <div>
-                    <div style={{ fontSize: 11.5, color: C.faint, textTransform: 'uppercase' }}>Nama</div>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: C.text }}>{credentials.name}</div>
-                </div>
-                <div>
-                    <div style={{ fontSize: 11.5, color: C.faint, textTransform: 'uppercase' }}>Email</div>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: C.text }}>{credentials.email}</div>
-                </div>
-                <div>
-                    <div style={{ fontSize: 11.5, color: C.faint, textTransform: 'uppercase' }}>Password</div>
-                    <code style={{ fontSize: 13.5, fontWeight: 600, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 6, padding: '3px 8px' }}>
-                        {credentials.password}
-                    </code>
-                </div>
-            </div>
+            <div style={{ fontSize: 27, fontWeight: 700, color: C.navy, marginTop: 14 }}>{value}</div>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, marginTop: 3 }}>{label}</div>
         </div>
     );
 }
 
-function StatCard({ label, value, icon, tone }: { label: string; value: string; icon: string; tone?: 'amber' }) {
-    return (
-        <div style={{ ...card, padding: '16px 18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: tone === 'amber' ? C.amber : C.muted }}>
-                <AIcon name={icon} size={16} color={tone === 'amber' ? C.amber : C.muted} />
-                <span style={{ fontSize: 12, fontWeight: 600 }}>{label}</span>
-            </div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: C.navy, marginTop: 6 }}>{value}</div>
-        </div>
-    );
+function mitraColumns(setEditing: (p: PartnerRow) => void): DataTableColumn<PartnerRow>[] {
+    return [
+        { key: 'code', header: 'Kode', sortable: false, render: (p) => <span style={{ fontWeight: 700, color: C.navy }}>{p.code}</span> },
+        {
+            key: 'name',
+            header: 'Mitra',
+            sortable: false,
+            render: (p) => (
+                <div>
+                    <div style={{ fontWeight: 600, color: C.text }}>{p.name}</div>
+                    <div style={{ fontSize: 12, color: C.muted }}>{p.email}</div>
+                </div>
+            ),
+        },
+        {
+            key: 'status',
+            header: 'Status',
+            sortable: false,
+            render: (p) => {
+                const st = PARTNER_STATUS_BADGE[p.status] ?? PARTNER_STATUS_BADGE.active;
+
+                return <Badge label={st.label} tone={st.tone} />;
+            },
+        },
+        {
+            key: 'has_bank',
+            header: 'Rekening',
+            sortable: false,
+            render: (p) => <Badge label={p.has_bank ? 'Lengkap' : 'Belum diisi'} tone={p.has_bank ? 'green' : 'muted'} />,
+        },
+        { key: 'balance_points', header: 'Saldo Poin', sortable: false, render: (p) => p.balance_points.toLocaleString('id-ID') },
+        { key: 'available_points', header: 'Tersedia', sortable: false, render: (p) => p.available_points.toLocaleString('id-ID') },
+        {
+            key: 'leads_count',
+            header: 'Leads / Konversi',
+            sortable: false,
+            render: (p) => (
+                <span style={{ color: C.muted }}>
+                    {p.leads_count} / {p.conversions_count}
+                </span>
+            ),
+        },
+        {
+            key: 'actions',
+            header: '',
+            sortable: false,
+            align: 'right',
+            render: (p) => <ActionBtn icon="settings-2" label="Kelola" variant="primary" title={`Kelola mitra ${p.code}`} onClick={() => setEditing(p)} />,
+        },
+    ];
 }
 
 /* ---------- Mitra tab ---------- */
 
-function MitraTab({ applications, partners, errors }: { applications: Application[]; partners: PartnerRow[]; errors: Record<string, string> }) {
+function MitraTab({
+    applications,
+    partners,
+    errors,
+}: {
+    applications: Application[];
+    partners: Paginated<PartnerRow>;
+    errors: Record<string, string>;
+}) {
     const [editing, setEditing] = useState<PartnerRow | null>(null);
 
     const approve = (app: Application) => {
@@ -359,63 +441,17 @@ function MitraTab({ applications, partners, errors }: { applications: Applicatio
 
             <div>
                 <div style={sectionTitle}>Daftar Mitra</div>
-                <div style={{ ...card, marginTop: 10, overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                        <thead>
-                            <tr>
-                                <th style={thCell}>Kode</th>
-                                <th style={thCell}>Mitra</th>
-                                <th style={thCell}>Status</th>
-                                <th style={thCell}>Rekening</th>
-                                <th style={thCell}>Saldo Poin</th>
-                                <th style={thCell}>Tersedia</th>
-                                <th style={thCell}>Leads / Konversi</th>
-                                <th style={thCell} />
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {partners.length === 0 && (
-                                <tr>
-                                    <td colSpan={8} style={emptyState}>
-                                        Belum ada mitra.
-                                    </td>
-                                </tr>
-                            )}
-                            {partners.map((p) => {
-                                const st = PARTNER_STATUS_BADGE[p.status] ?? PARTNER_STATUS_BADGE.active;
-
-                                return (
-                                    <tr key={p.id} style={{ borderTop: `1px solid ${C.line}` }}>
-                                        <td style={{ padding: '10px 16px', fontWeight: 700, color: C.navy }}>{p.code}</td>
-                                        <td style={{ padding: '10px 16px' }}>
-                                            <div style={{ fontWeight: 600, color: C.text }}>{p.name}</div>
-                                            <div style={{ fontSize: 12, color: C.muted }}>{p.email}</div>
-                                        </td>
-                                        <td style={{ padding: '10px 16px' }}>
-                                            <Badge label={st.label} tone={st.tone} />
-                                        </td>
-                                        <td style={{ padding: '10px 16px' }}>
-                                            <Badge label={p.has_bank ? 'Lengkap' : 'Belum diisi'} tone={p.has_bank ? 'green' : 'muted'} />
-                                        </td>
-                                        <td style={{ padding: '10px 16px' }}>{p.balance_points.toLocaleString('id-ID')}</td>
-                                        <td style={{ padding: '10px 16px' }}>{p.available_points.toLocaleString('id-ID')}</td>
-                                        <td style={{ padding: '10px 16px', color: C.muted }}>
-                                            {p.leads_count} / {p.conversions_count}
-                                        </td>
-                                        <td style={{ padding: '10px 16px', textAlign: 'right' }}>
-                                            <ActionBtn
-                                                icon="settings-2"
-                                                label="Kelola"
-                                                variant="primary"
-                                                title={`Kelola mitra ${p.code}`}
-                                                onClick={() => setEditing(p)}
-                                            />
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
+                <div style={{ marginTop: 10 }}>
+                    <DataTable<PartnerRow>
+                        columns={mitraColumns(setEditing)}
+                        rows={partners.data}
+                        meta={partners.meta}
+                        filters={{ search: partners.search }}
+                        paramPrefix="mitra_"
+                        searchPlaceholder="Cari kode, nama, atau email mitra…"
+                        rowKey={(p) => p.id}
+                        emptyState={<EmptyState icon={Handshake} title="Belum ada mitra" description="Mitra yang disetujui dari pengajuan akan muncul di sini." />}
+                    />
                 </div>
             </div>
 
@@ -490,235 +526,307 @@ function EditPartnerPanel({ partner, errors, onClose }: { partner: PartnerRow; e
 
 /* ---------- Leads tab ---------- */
 
-function LeadsTab({ leads }: { leads: LeadRow[] }) {
+function LeadsTab({ leads }: { leads: Paginated<LeadRow> }) {
     const setStatus = (lead: LeadRow, status: string) => {
         router.put(ReferralController.updateLeadStatus(lead.id).url, { status }, { preserveScroll: true });
     };
 
-    return (
-        <div style={{ ...card, overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                    <tr>
-                        <th style={thCell}>Perusahaan</th>
-                        <th style={thCell}>Kontak</th>
-                        <th style={thCell}>Mitra</th>
-                        <th style={thCell}>Status</th>
-                        <th style={thCell} />
-                    </tr>
-                </thead>
-                <tbody>
-                    {leads.length === 0 && (
-                        <tr>
-                            <td colSpan={5} style={emptyState}>
-                                Belum ada lead.
-                            </td>
-                        </tr>
-                    )}
-                    {leads.map((lead) => {
-                        const st = LEAD_STATUS_BADGE[lead.status] ?? LEAD_STATUS_BADGE.new;
-                        const canConvert = lead.status !== 'converted' && lead.status !== 'lost';
+    const columns: DataTableColumn<LeadRow>[] = [
+        {
+            key: 'company_name',
+            header: 'Perusahaan',
+            sortable: false,
+            render: (lead) => (
+                <div>
+                    <div style={{ fontWeight: 600, color: C.text }}>{lead.company_name}</div>
+                    {lead.tenant_name && <div style={{ fontSize: 12, color: C.green }}>→ {lead.tenant_name}</div>}
+                </div>
+            ),
+        },
+        {
+            key: 'contact_name',
+            header: 'Kontak',
+            sortable: false,
+            render: (lead) => (
+                <div style={{ color: C.muted }}>
+                    {lead.contact_name}
+                    <div style={{ fontSize: 12 }}>
+                        {lead.email} · {lead.phone}
+                    </div>
+                </div>
+            ),
+        },
+        {
+            key: 'partner_code',
+            header: 'Mitra',
+            sortable: false,
+            render: (lead) => lead.partner_code ?? <span style={{ color: C.faint }}>—</span>,
+        },
+        {
+            key: 'status',
+            header: 'Status',
+            sortable: false,
+            render: (lead) => {
+                const st = LEAD_STATUS_BADGE[lead.status] ?? LEAD_STATUS_BADGE.new;
 
-                        return (
-                            <tr key={lead.id} style={{ borderTop: `1px solid ${C.line}` }}>
-                                <td style={{ padding: '10px 16px' }}>
-                                    <div style={{ fontWeight: 600, color: C.text }}>{lead.company_name}</div>
-                                    {lead.tenant_name && <div style={{ fontSize: 12, color: C.green }}>→ {lead.tenant_name}</div>}
-                                </td>
-                                <td style={{ padding: '10px 16px', color: C.muted }}>
-                                    {lead.contact_name}
-                                    <div style={{ fontSize: 12 }}>
-                                        {lead.email} · {lead.phone}
-                                    </div>
-                                </td>
-                                <td style={{ padding: '10px 16px' }}>{lead.partner_code ?? <span style={{ color: C.faint }}>—</span>}</td>
-                                <td style={{ padding: '10px 16px' }}>
-                                    {lead.status === 'converted' ? (
-                                        <Badge label={st.label} tone={st.tone} />
-                                    ) : (
-                                        <select
-                                            value={lead.status}
-                                            onChange={(e) => setStatus(lead, e.target.value)}
-                                            style={{ ...fieldInput, height: 30, fontSize: 12, padding: '0 8px' }}
-                                        >
-                                            <option value="new">Baru</option>
-                                            <option value="contacted">Dihubungi</option>
-                                            <option value="lost">Hilang</option>
-                                        </select>
-                                    )}
-                                </td>
-                                <td style={{ padding: '10px 16px', textAlign: 'right' }}>
-                                    {canConvert && (
-                                        <Link
-                                            href={TenantController.create({ query: { referral_lead_id: lead.id } }).url}
-                                            style={{ ...btnP, height: 30, padding: '0 10px', fontSize: 12, textDecoration: 'none' }}
-                                        >
-                                            Jadikan Klien
-                                        </Link>
-                                    )}
-                                </td>
-                            </tr>
-                        );
-                    })}
-                </tbody>
-            </table>
-        </div>
+                return lead.status === 'converted' ? (
+                    <Badge label={st.label} tone={st.tone} />
+                ) : (
+                    <select
+                        value={lead.status}
+                        onChange={(e) => setStatus(lead, e.target.value)}
+                        style={{ ...fieldInput, height: 30, fontSize: 12, padding: '0 8px' }}
+                    >
+                        <option value="new">Baru</option>
+                        <option value="contacted">Dihubungi</option>
+                        <option value="lost">Hilang</option>
+                    </select>
+                );
+            },
+        },
+        {
+            key: 'actions',
+            header: '',
+            sortable: false,
+            align: 'right',
+            render: (lead) => {
+                const canConvert = lead.status !== 'converted' && lead.status !== 'lost';
+
+                return (
+                    canConvert && (
+                        <Link
+                            href={TenantController.create({ query: { referral_lead_id: lead.id } }).url}
+                            style={{ ...btnP, height: 30, padding: '0 10px', fontSize: 12, textDecoration: 'none' }}
+                        >
+                            Jadikan Klien
+                        </Link>
+                    )
+                );
+            },
+        },
+    ];
+
+    return (
+        <DataTable<LeadRow>
+            columns={columns}
+            rows={leads.data}
+            meta={leads.meta}
+            filters={{ search: leads.search }}
+            paramPrefix="leads_"
+            searchPlaceholder="Cari perusahaan, kontak, atau kode mitra…"
+            rowKey={(lead) => lead.id}
+            emptyState={<EmptyState icon={Users} title="Belum ada lead" description="Lead yang masuk lewat link referral mitra akan muncul di sini." />}
+        />
     );
 }
 
 /* ---------- Konversi tab ---------- */
 
-function KonversiTab({ conversions }: { conversions: ConversionRow[] }) {
-    return (
-        <div style={{ ...card, overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                    <tr>
-                        <th style={thCell}>Mitra</th>
-                        <th style={thCell}>Klien</th>
-                        <th style={thCell}>Nilai Invoice</th>
-                        <th style={thCell}>Poin</th>
-                        <th style={thCell}>Komisi</th>
-                        <th style={thCell}>Status</th>
-                        <th style={thCell}>Berlaku Sejak</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {conversions.length === 0 && (
-                        <tr>
-                            <td colSpan={7} style={emptyState}>
-                                Belum ada konversi.
-                            </td>
-                        </tr>
-                    )}
-                    {conversions.map((c) => {
-                        const st = CONVERSION_STATUS_BADGE[c.status] ?? CONVERSION_STATUS_BADGE.pending;
+function KonversiTab({ conversions }: { conversions: Paginated<ConversionRow> }) {
+    const columns: DataTableColumn<ConversionRow>[] = [
+        { key: 'partner_name', header: 'Mitra', sortable: false, render: (c) => <span style={{ fontWeight: 600 }}>{c.partner_name}</span> },
+        { key: 'tenant_name', header: 'Klien', sortable: false },
+        { key: 'base_amount', header: 'Nilai Invoice', sortable: false, render: (c) => rp(c.base_amount) },
+        { key: 'points', header: 'Poin', sortable: false, render: (c) => c.points.toLocaleString('id-ID') },
+        {
+            key: 'commission_amount',
+            header: 'Komisi',
+            sortable: false,
+            render: (c) => <span style={{ fontWeight: 600 }}>{rp(c.commission_amount)}</span>,
+        },
+        {
+            key: 'status',
+            header: 'Status',
+            sortable: false,
+            render: (c) => {
+                const st = CONVERSION_STATUS_BADGE[c.status] ?? CONVERSION_STATUS_BADGE.pending;
 
-                        return (
-                            <tr key={c.id} style={{ borderTop: `1px solid ${C.line}` }}>
-                                <td style={{ padding: '10px 16px', fontWeight: 600 }}>{c.partner_name}</td>
-                                <td style={{ padding: '10px 16px' }}>{c.tenant_name}</td>
-                                <td style={{ padding: '10px 16px' }}>{rp(c.base_amount)}</td>
-                                <td style={{ padding: '10px 16px' }}>{c.points.toLocaleString('id-ID')}</td>
-                                <td style={{ padding: '10px 16px', fontWeight: 600 }}>{rp(c.commission_amount)}</td>
-                                <td style={{ padding: '10px 16px' }}>
-                                    <Badge label={st.label} tone={st.tone} />
-                                </td>
-                                <td style={{ padding: '10px 16px', color: C.muted }}>{c.hold_until ?? '—'}</td>
-                            </tr>
-                        );
-                    })}
-                </tbody>
-            </table>
-        </div>
+                return <Badge label={st.label} tone={st.tone} />;
+            },
+        },
+        { key: 'hold_until', header: 'Berlaku Sejak', sortable: false, render: (c) => c.hold_until ?? '—' },
+    ];
+
+    return (
+        <DataTable<ConversionRow>
+            columns={columns}
+            rows={conversions.data}
+            meta={conversions.meta}
+            filters={{ search: conversions.search }}
+            paramPrefix="konversi_"
+            searchPlaceholder="Cari nama mitra atau klien…"
+            rowKey={(c) => c.id}
+            emptyState={<EmptyState icon={Coins} title="Belum ada konversi" description="Konversi tercatat begitu lead mitra jadi klien dan invoice pertamanya lunas." />}
+        />
     );
 }
 
 /* ---------- Penarikan tab ---------- */
 
-function PenarikanTab({ withdrawals }: { withdrawals: WithdrawalRow[] }) {
+function PenarikanTab({ withdrawals }: { withdrawals: Paginated<WithdrawalRow> }) {
     const [paying, setPaying] = useState<WithdrawalRow | null>(null);
+    const [rejecting, setRejecting] = useState<WithdrawalRow | null>(null);
 
     const approve = (w: WithdrawalRow) => {
         router.post(ReferralController.approveWithdrawal(w.id).url, {}, { preserveScroll: true });
     };
 
-    const reject = (w: WithdrawalRow) => {
-        const note = prompt('Alasan penolakan:');
+    const columns: DataTableColumn<WithdrawalRow>[] = [
+        { key: 'partner_name', header: 'Mitra', sortable: false, render: (w) => <span style={{ fontWeight: 600 }}>{w.partner_name}</span> },
+        { key: 'points', header: 'Poin', sortable: false, render: (w) => w.points.toLocaleString('id-ID') },
+        { key: 'amount', header: 'Nominal', sortable: false, render: (w) => <span style={{ fontWeight: 600 }}>{rp(w.amount)}</span> },
+        {
+            key: 'bank_name',
+            header: 'Rekening Tujuan',
+            sortable: false,
+            render: (w) => (
+                <div style={{ color: C.muted }}>
+                    {w.bank_name} · {w.bank_account_number}
+                    <div style={{ fontSize: 12 }}>a.n. {w.bank_account_holder}</div>
+                </div>
+            ),
+        },
+        {
+            key: 'status',
+            header: 'Status',
+            sortable: false,
+            render: (w) => {
+                const st = WITHDRAWAL_STATUS_BADGE[w.status] ?? WITHDRAWAL_STATUS_BADGE.pending;
 
-        if (!note) {
-            return;
-        }
-
-        router.post(ReferralController.rejectWithdrawal(w.id).url, { admin_note: note }, { preserveScroll: true });
-    };
+                return (
+                    <>
+                        <Badge label={st.label} tone={st.tone} />
+                        {w.status === 'rejected' && w.admin_note && (
+                            <div style={{ fontSize: 11.5, color: C.red, marginTop: 3 }}>{w.admin_note}</div>
+                        )}
+                        {w.proof_url && (
+                            <div style={{ marginTop: 3 }}>
+                                <a href={w.proof_url} target="_blank" rel="noreferrer" style={{ fontSize: 11.5, color: C.primary }}>
+                                    Lihat bukti transfer
+                                </a>
+                            </div>
+                        )}
+                    </>
+                );
+            },
+        },
+        {
+            key: 'actions',
+            header: '',
+            sortable: false,
+            align: 'right',
+            render: (w) => (
+                <div style={{ display: 'inline-flex', gap: 6, whiteSpace: 'nowrap' }}>
+                    {w.status === 'pending' && (
+                        <>
+                            <button style={{ ...btnSave, height: 30, padding: '0 10px', fontSize: 12 }} onClick={() => approve(w)}>
+                                Setujui
+                            </button>
+                            <button style={{ ...btnDanger, height: 30, padding: '0 10px', fontSize: 12 }} onClick={() => setRejecting(w)}>
+                                Tolak
+                            </button>
+                        </>
+                    )}
+                    {w.status === 'approved' && (
+                        <>
+                            <button style={{ ...btnP, height: 30, padding: '0 10px', fontSize: 12 }} onClick={() => setPaying(w)}>
+                                Bayar
+                            </button>
+                            <button style={{ ...btnDanger, height: 30, padding: '0 10px', fontSize: 12 }} onClick={() => setRejecting(w)}>
+                                Tolak
+                            </button>
+                        </>
+                    )}
+                </div>
+            ),
+        },
+    ];
 
     return (
         <div style={{ display: 'grid', gap: 16 }}>
-            <div style={{ ...card, overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                    <thead>
-                        <tr>
-                            <th style={thCell}>Mitra</th>
-                            <th style={thCell}>Poin</th>
-                            <th style={thCell}>Nominal</th>
-                            <th style={thCell}>Rekening Tujuan</th>
-                            <th style={thCell}>Status</th>
-                            <th style={thCell} />
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {withdrawals.length === 0 && (
-                            <tr>
-                                <td colSpan={6} style={emptyState}>
-                                    Belum ada penarikan.
-                                </td>
-                            </tr>
-                        )}
-                        {withdrawals.map((w) => {
-                            const st = WITHDRAWAL_STATUS_BADGE[w.status] ?? WITHDRAWAL_STATUS_BADGE.pending;
+            <DataTable<WithdrawalRow>
+                columns={columns}
+                rows={withdrawals.data}
+                meta={withdrawals.meta}
+                filters={{ search: withdrawals.search }}
+                paramPrefix="penarikan_"
+                searchPlaceholder="Cari nama mitra, status, atau bank…"
+                rowKey={(w) => w.id}
+                emptyState={<EmptyState icon={Wallet} title="Belum ada penarikan" description="Pengajuan pencairan saldo poin dari mitra akan muncul di sini." />}
+            />
 
-                            return (
-                                <tr key={w.id} style={{ borderTop: `1px solid ${C.line}` }}>
-                                    <td style={{ padding: '10px 16px', fontWeight: 600 }}>{w.partner_name}</td>
-                                    <td style={{ padding: '10px 16px' }}>{w.points.toLocaleString('id-ID')}</td>
-                                    <td style={{ padding: '10px 16px', fontWeight: 600 }}>{rp(w.amount)}</td>
-                                    <td style={{ padding: '10px 16px', color: C.muted }}>
-                                        {w.bank_name} · {w.bank_account_number}
-                                        <div style={{ fontSize: 12 }}>a.n. {w.bank_account_holder}</div>
-                                    </td>
-                                    <td style={{ padding: '10px 16px' }}>
-                                        <Badge label={st.label} tone={st.tone} />
-                                        {w.status === 'rejected' && w.admin_note && (
-                                            <div style={{ fontSize: 11.5, color: C.red, marginTop: 3 }}>{w.admin_note}</div>
-                                        )}
-                                        {w.proof_url && (
-                                            <div style={{ marginTop: 3 }}>
-                                                <a href={w.proof_url} target="_blank" rel="noreferrer" style={{ fontSize: 11.5, color: C.primary }}>
-                                                    Lihat bukti transfer
-                                                </a>
-                                            </div>
-                                        )}
-                                    </td>
-                                    <td style={{ padding: '10px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                        {w.status === 'pending' && (
-                                            <div style={{ display: 'inline-flex', gap: 6 }}>
-                                                <button style={{ ...btnSave, height: 30, padding: '0 10px', fontSize: 12 }} onClick={() => approve(w)}>
-                                                    Setujui
-                                                </button>
-                                                <button style={{ ...btnDanger, height: 30, padding: '0 10px', fontSize: 12 }} onClick={() => reject(w)}>
-                                                    Tolak
-                                                </button>
-                                            </div>
-                                        )}
-                                        {w.status === 'approved' && (
-                                            <div style={{ display: 'inline-flex', gap: 6 }}>
-                                                <button style={{ ...btnP, height: 30, padding: '0 10px', fontSize: 12 }} onClick={() => setPaying(w)}>
-                                                    Bayar
-                                                </button>
-                                                <button style={{ ...btnDanger, height: 30, padding: '0 10px', fontSize: 12 }} onClick={() => reject(w)}>
-                                                    Tolak
-                                                </button>
-                                            </div>
-                                        )}
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-            </div>
-
-            {paying && <PayWithdrawalPanel withdrawal={paying} onClose={() => setPaying(null)} />}
+            <PayWithdrawalDialog withdrawal={paying} onClose={() => setPaying(null)} />
+            <RejectWithdrawalDialog withdrawal={rejecting} onClose={() => setRejecting(null)} />
         </div>
     );
 }
 
-function PayWithdrawalPanel({ withdrawal, onClose }: { withdrawal: WithdrawalRow; onClose: () => void }) {
+function RejectWithdrawalDialog({ withdrawal, onClose }: { withdrawal: WithdrawalRow | null; onClose: () => void }) {
+    const form = useForm<{ admin_note: string }>({ admin_note: '' });
+
+    useEffect(() => {
+        if (withdrawal) {
+            form.reset();
+            form.clearErrors();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [withdrawal?.id]);
+
+    const submit = () => {
+        if (!withdrawal) {
+            return;
+        }
+
+        form.post(ReferralController.rejectWithdrawal(withdrawal.id).url, {
+            preserveScroll: true,
+            onSuccess: onClose,
+        });
+    };
+
+    return (
+        <FormDialog
+            open={withdrawal !== null}
+            onOpenChange={(open) => !open && onClose()}
+            title="Tolak Penarikan"
+            description={withdrawal ? `${rp(withdrawal.amount)} milik ${withdrawal.partner_name} — poin dikembalikan ke saldo tersedia mitra.` : undefined}
+            submitLabel="Tolak Penarikan"
+            onSubmit={submit}
+            processing={form.processing}
+        >
+            <div>
+                <label style={fieldLabel}>
+                    Alasan Penolakan <span style={{ color: C.red }}>*</span>
+                </label>
+                <textarea
+                    value={form.data.admin_note}
+                    onChange={(e) => form.setData('admin_note', e.target.value)}
+                    rows={3}
+                    placeholder="Contoh: Data rekening tidak sesuai nama pemilik."
+                    style={fieldInput}
+                    autoFocus
+                />
+                {form.errors.admin_note && <div style={fieldError}>{form.errors.admin_note}</div>}
+            </div>
+        </FormDialog>
+    );
+}
+
+function PayWithdrawalDialog({ withdrawal, onClose }: { withdrawal: WithdrawalRow | null; onClose: () => void }) {
     const form = useForm<{ proof: File | null; admin_note: string }>({ proof: null, admin_note: '' });
 
-    const submit = (e: FormEvent) => {
-        e.preventDefault();
+    // Fresh form each time a different withdrawal is opened for payment.
+    useEffect(() => {
+        if (withdrawal) {
+            form.reset();
+            form.clearErrors();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [withdrawal?.id]);
+
+    const submit = () => {
+        if (!withdrawal) {
+            return;
+        }
 
         if (!form.data.proof) {
             toast.error('Unggah bukti transfer terlebih dahulu');
@@ -733,41 +841,213 @@ function PayWithdrawalPanel({ withdrawal, onClose }: { withdrawal: WithdrawalRow
     };
 
     return (
-        <div style={{ ...card, padding: '18px 20px', maxWidth: 480 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={sectionTitle}>
-                    Bayar Penarikan — {rp(withdrawal.amount)} ke {withdrawal.partner_name}
-                </div>
-                <button onClick={onClose} style={{ ...btnOut, height: 30, padding: '0 10px', fontSize: 12 }}>
-                    Tutup
-                </button>
+        <FormDialog
+            open={withdrawal !== null}
+            onOpenChange={(open) => !open && onClose()}
+            title="Bayar Penarikan"
+            description={withdrawal ? `${rp(withdrawal.amount)} ke ${withdrawal.partner_name}` : undefined}
+            submitLabel="Tandai Lunas"
+            onSubmit={submit}
+            processing={form.processing}
+        >
+            <ProofUpload
+                file={form.data.proof}
+                error={form.errors.proof}
+                onPick={(file) => form.setData('proof', file)}
+                onClear={() => form.setData('proof', null)}
+            />
+            <div>
+                <label style={fieldLabel}>Catatan (opsional)</label>
+                <textarea
+                    value={form.data.admin_note}
+                    onChange={(e) => form.setData('admin_note', e.target.value)}
+                    rows={2}
+                    style={fieldInput}
+                />
             </div>
-            <form onSubmit={submit} style={{ display: 'grid', gap: 14, marginTop: 14 }}>
-                <div>
-                    <label style={fieldLabel}>
-                        Bukti Transfer <span style={{ color: C.red }}>*</span>
-                    </label>
-                    <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={(e) => form.setData('proof', e.target.files?.[0] ?? null)}
-                        style={fieldInput}
+        </FormDialog>
+    );
+}
+
+/**
+ * Drag-and-drop proof-of-transfer picker: an image renders a real thumbnail,
+ * a PDF gets a document badge with its filename — either way it reads at a
+ * glance, unlike a bare `<input type="file">`.
+ */
+function ProofUpload({
+    file,
+    error,
+    onPick,
+    onClear,
+}: {
+    file: File | null;
+    error?: string;
+    onPick: (file: File) => void;
+    onClear: () => void;
+}) {
+    const inputRef = useRef<HTMLInputElement>(null);
+    const [preview, setPreview] = useState<string | null>(null);
+    const [dragging, setDragging] = useState(false);
+
+    useEffect(() => {
+        if (!file || !file.type.startsWith('image/')) {
+            setPreview(null);
+
+            return;
+        }
+
+        const url = URL.createObjectURL(file);
+        setPreview(url);
+
+        return () => URL.revokeObjectURL(url);
+    }, [file]);
+
+    const handleFiles = (files: FileList | null) => {
+        if (files && files[0]) {
+            onPick(files[0]);
+        }
+    };
+
+    const isPdf = file?.type === 'application/pdf';
+
+    return (
+        <div>
+            <label style={fieldLabel}>
+                Bukti Transfer <span style={{ color: C.red }}>*</span>
+            </label>
+            <div
+                onClick={() => !file && inputRef.current?.click()}
+                onDragOver={(event: DragEvent<HTMLDivElement>) => {
+                    event.preventDefault();
+                    setDragging(true);
+                }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={(event: DragEvent<HTMLDivElement>) => {
+                    event.preventDefault();
+                    setDragging(false);
+                    handleFiles(event.dataTransfer.files);
+                }}
+                style={{
+                    border: `1.5px dashed ${dragging ? C.primary : error ? C.red : C.border}`,
+                    background: dragging ? 'rgba(47,84,201,.04)' : C.surface,
+                    borderRadius: 12,
+                    padding: file ? 12 : '28px 16px',
+                    textAlign: 'center',
+                    cursor: file ? 'default' : 'pointer',
+                    transition: '.15s',
+                }}
+            >
+                {!file && (
+                    <>
+                        <AIcon name="upload-cloud" size={26} color={C.primary} style={{ margin: '0 auto 8px' }} />
+                        <div style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>
+                            Tarik file ke sini atau <span style={{ color: C.primary }}>pilih file</span>
+                        </div>
+                        <div style={{ fontSize: 11.5, color: C.faint, marginTop: 4 }}>JPG, PNG, atau PDF · maks 5MB</div>
+                    </>
+                )}
+                {file && preview && (
+                    <img
+                        src={preview}
+                        alt="Preview bukti transfer"
+                        style={{
+                            maxWidth: '100%',
+                            maxHeight: 220,
+                            borderRadius: 8,
+                            margin: '0 auto',
+                            display: 'block',
+                            objectFit: 'contain',
+                        }}
                     />
-                    {form.errors.proof && <div style={fieldError}>{form.errors.proof}</div>}
+                )}
+                {file && isPdf && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', padding: '8px 10px' }}>
+                        <div
+                            style={{
+                                width: 40,
+                                height: 40,
+                                borderRadius: 8,
+                                background: 'rgba(220,38,38,.1)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flex: 'none',
+                            }}
+                        >
+                            <AIcon name="file-text" size={20} color={C.red} />
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {file.name}
+                            </div>
+                            <div style={{ fontSize: 11.5, color: C.faint }}>{(file.size / 1024).toFixed(0)} KB</div>
+                        </div>
+                    </div>
+                )}
+            </div>
+            <input
+                ref={inputRef}
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                onChange={(event) => {
+                    handleFiles(event.target.files);
+                    event.target.value = '';
+                }}
+                style={{ display: 'none' }}
+            />
+            {file && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                    <button
+                        type="button"
+                        onClick={() => inputRef.current?.click()}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            height: 32,
+                            padding: '0 12px',
+                            border: `1px solid ${C.border}`,
+                            background: '#fff',
+                            borderRadius: 8,
+                            fontSize: 12.5,
+                            fontWeight: 500,
+                            color: C.text,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <AIcon name="repeat" size={13} />
+                        Ganti
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            onClear();
+
+                            if (inputRef.current) {
+                                inputRef.current.value = '';
+                            }
+                        }}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            height: 32,
+                            padding: '0 12px',
+                            border: `1px solid ${C.border}`,
+                            background: '#fff',
+                            borderRadius: 8,
+                            fontSize: 12.5,
+                            fontWeight: 500,
+                            color: C.red,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <AIcon name="trash-2" size={13} />
+                        Hapus
+                    </button>
                 </div>
-                <div>
-                    <label style={fieldLabel}>Catatan (opsional)</label>
-                    <textarea
-                        value={form.data.admin_note}
-                        onChange={(e) => form.setData('admin_note', e.target.value)}
-                        rows={2}
-                        style={fieldInput}
-                    />
-                </div>
-                <button type="submit" style={btnSave} disabled={form.processing}>
-                    Tandai Lunas
-                </button>
-            </form>
+            )}
+            {error && <div style={fieldError}>{error}</div>}
         </div>
     );
 }
@@ -782,6 +1062,10 @@ function PengaturanTab({ settings }: { settings: Settings }) {
         point_value: String(settings.point_value),
         hold_days: String(settings.hold_days),
         min_withdrawal_points: String(settings.min_withdrawal_points),
+        withdrawal_enabled: settings.withdrawal_enabled,
+        leads_tab_enabled: settings.leads_tab_enabled,
+        komisi_tab_enabled: settings.komisi_tab_enabled,
+        rekening_tab_enabled: settings.rekening_tab_enabled,
     });
 
     const submit = (e: FormEvent) => {
@@ -847,12 +1131,50 @@ function PengaturanTab({ settings }: { settings: Settings }) {
                 <input value={form.data.min_withdrawal_points} onChange={(e) => form.setData('min_withdrawal_points', e.target.value)} style={fieldInput} />
             </div>
 
+            <div style={{ borderTop: `1px solid ${C.line}`, paddingTop: 16 }}>
+                <label style={fieldLabel}>Menu Portal Mitra</label>
+                <div style={{ fontSize: 11.5, color: C.faint, marginTop: -2, marginBottom: 10 }}>
+                    Dashboard selalu tampil (memuat link referral mitra). Menu lain bisa dimatikan sementara — request lewat menu yang mati tetap ditolak di server.
+                </div>
+                <div style={{ display: 'grid', gap: 10 }}>
+                    <MenuToggle
+                        checked={form.data.leads_tab_enabled}
+                        onChange={(checked) => form.setData('leads_tab_enabled', checked)}
+                        label="Tampilkan menu Leads"
+                    />
+                    <MenuToggle
+                        checked={form.data.komisi_tab_enabled}
+                        onChange={(checked) => form.setData('komisi_tab_enabled', checked)}
+                        label="Tampilkan menu Komisi"
+                    />
+                    <MenuToggle
+                        checked={form.data.withdrawal_enabled}
+                        onChange={(checked) => form.setData('withdrawal_enabled', checked)}
+                        label="Tampilkan menu Penarikan"
+                    />
+                    <MenuToggle
+                        checked={form.data.rekening_tab_enabled}
+                        onChange={(checked) => form.setData('rekening_tab_enabled', checked)}
+                        label="Tampilkan menu Rekening"
+                    />
+                </div>
+            </div>
+
             <div>
                 <button type="submit" style={btnSave} disabled={form.processing}>
                     Simpan Pengaturan
                 </button>
             </div>
         </form>
+    );
+}
+
+function MenuToggle({ checked, onChange, label }: { checked: boolean; onChange: (checked: boolean) => void; label: string }) {
+    return (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: C.text, cursor: 'pointer' }}>
+            <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+            {label}
+        </label>
     );
 }
 

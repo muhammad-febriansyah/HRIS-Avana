@@ -42,6 +42,14 @@ interface DataTableProps<T> {
     onRowClick?: (row: T) => void;
     rowKey?: (row: T, index: number) => string | number;
     className?: string;
+    /**
+     * Namespaces the `search`/`sort`/`direction`/`page` query params this
+     * instance reads and writes (e.g. `"leads_"` → `leads_search`,
+     * `leads_page`, ...). Lets several DataTables share one URL — a partner
+     * portal's Leads/Komisi/Penarikan tabs, say — without one table's
+     * pagination clobbering another's.
+     */
+    paramPrefix?: string;
 }
 
 type QueryValue = string | number | undefined;
@@ -109,6 +117,7 @@ export function DataTable<T extends Record<string, any>>({
     onRowClick,
     rowKey,
     className,
+    paramPrefix = '',
 }: DataTableProps<T>) {
     const [search, setSearch] = React.useState<string>(filters.search ?? '');
     const [loading, setLoading] = React.useState<boolean>(false);
@@ -116,33 +125,35 @@ export function DataTable<T extends Record<string, any>>({
     const currentSort = filters.sort;
     const currentDirection = filters.direction === 'desc' ? 'desc' : 'asc';
 
+    // Seeds from the real URL (not just this instance's `filters`) so a
+    // sibling DataTable's own prefixed params on the same page survive.
     const navigate = React.useCallback(
         (params: Record<string, QueryValue>) => {
-            const query: Record<string, string | number> = {};
-
-            for (const [key, value] of Object.entries(filters)) {
-                if (value !== undefined && value !== '') {
-                    query[key] = value;
-                }
-            }
+            const query = new URLSearchParams(window.location.search);
 
             for (const [key, value] of Object.entries(params)) {
+                const paramKey = `${paramPrefix}${key}`;
+
                 if (value === undefined || value === '') {
-                    delete query[key];
+                    query.delete(paramKey);
                 } else {
-                    query[key] = value;
+                    query.set(paramKey, String(value));
                 }
             }
 
-            router.get(window.location.pathname, query, {
-                preserveState: true,
-                preserveScroll: true,
-                replace: true,
-                onStart: () => setLoading(true),
-                onFinish: () => setLoading(false),
-            });
+            router.get(
+                window.location.pathname,
+                Object.fromEntries(query.entries()),
+                {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                    onStart: () => setLoading(true),
+                    onFinish: () => setLoading(false),
+                },
+            );
         },
-        [filters],
+        [paramPrefix],
     );
 
     // Debounced search; skips firing when the term already matches the URL.

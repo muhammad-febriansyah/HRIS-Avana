@@ -309,7 +309,9 @@ function HelpRow({
     );
 }
 
-function AvanaFonts() {
+/** Poppins, the AvanaHR chrome typeface — shared with the mitra portal so its
+ *  sidebar/topbar reads as the same product, not a bolted-on afterthought. */
+export function AvanaFonts() {
     return (
         <Head>
             <link rel="preconnect" href="https://fonts.googleapis.com" />

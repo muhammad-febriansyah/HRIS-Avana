@@ -13,7 +13,9 @@ use App\Models\ReferralSetting;
 use App\Models\ReferralWithdrawal;
 use App\Models\User;
 use App\Services\ReferralPartnerService;
+use App\Support\PaginatedTable;
 use App\Support\PrivateFile;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -33,11 +35,18 @@ class ReferralController extends Controller
     {
         $this->ensureSuperAdmin($request);
 
-        $partners = Partner::query()
+        $partnersPage = Partner::query()
             ->with('user:id,name,email')
+            ->when($request->string('mitra_search')->toString(), function (Builder $query, string $term): void {
+                $query->where(function (Builder $q) use ($term): void {
+                    $q->where('code', 'like', "%{$term}%")
+                        ->orWhereHas('user', fn (Builder $u) => $u->where('name', 'like', "%{$term}%")
+                            ->orWhere('email', 'like', "%{$term}%"));
+                });
+            })
             ->latest()
-            ->get()
-            ->map(fn (Partner $partner): array => [
+            ->paginate(15, ['*'], 'mitra_page')
+            ->through(fn (Partner $partner): array => [
                 'id' => $partner->id,
                 'code' => $partner->code,
                 'name' => $partner->user?->name,
@@ -54,6 +63,9 @@ class ReferralController extends Controller
                 'created_at' => $partner->created_at?->toDateTimeString(),
             ]);
 
+        // Pending applications are a small, self-limiting approval queue (they
+        // leave this list the moment they're approved/rejected) — not worth
+        // paginating.
         $applications = PartnerRegistration::query()
             ->where('status', 'pending')
             ->latest()
@@ -71,14 +83,19 @@ class ReferralController extends Controller
                 'created_at' => $r->created_at?->toDateTimeString(),
             ]);
 
-        // Latest 100 only — this is a dashboard glance, not the full ledger.
-        // A dedicated export/paginated view can follow if the volume grows.
-        $leads = ReferralLead::query()
+        $leadsPage = ReferralLead::query()
             ->with(['partner:id,code', 'tenant:id,name'])
+            ->when($request->string('leads_search')->toString(), function (Builder $query, string $term): void {
+                $query->where(function (Builder $q) use ($term): void {
+                    $q->where('company_name', 'like', "%{$term}%")
+                        ->orWhere('contact_name', 'like', "%{$term}%")
+                        ->orWhere('email', 'like', "%{$term}%")
+                        ->orWhereHas('partner', fn (Builder $p) => $p->where('code', 'like', "%{$term}%"));
+                });
+            })
             ->latest()
-            ->limit(100)
-            ->get()
-            ->map(fn (ReferralLead $lead): array => [
+            ->paginate(15, ['*'], 'leads_page')
+            ->through(fn (ReferralLead $lead): array => [
                 'id' => $lead->id,
                 'company_name' => $lead->company_name,
                 'contact_name' => $lead->contact_name,
@@ -91,12 +108,17 @@ class ReferralController extends Controller
                 'created_at' => $lead->created_at?->toDateTimeString(),
             ]);
 
-        $conversions = ReferralConversion::query()
+        $conversionsPage = ReferralConversion::query()
             ->with(['partner.user:id,name', 'tenant:id,name'])
+            ->when($request->string('konversi_search')->toString(), function (Builder $query, string $term): void {
+                $query->where(function (Builder $q) use ($term): void {
+                    $q->whereHas('partner.user', fn (Builder $u) => $u->where('name', 'like', "%{$term}%"))
+                        ->orWhereHas('tenant', fn (Builder $t) => $t->where('name', 'like', "%{$term}%"));
+                });
+            })
             ->latest()
-            ->limit(100)
-            ->get()
-            ->map(fn (ReferralConversion $c): array => [
+            ->paginate(15, ['*'], 'konversi_page')
+            ->through(fn (ReferralConversion $c): array => [
                 'id' => $c->id,
                 'partner_name' => $c->partner?->user?->name,
                 'tenant_name' => $c->tenant?->name,
@@ -108,11 +130,18 @@ class ReferralController extends Controller
                 'created_at' => $c->created_at?->toDateTimeString(),
             ]);
 
-        $withdrawals = ReferralWithdrawal::query()
+        $withdrawalsPage = ReferralWithdrawal::query()
             ->with(['partner.user:id,name'])
+            ->when($request->string('penarikan_search')->toString(), function (Builder $query, string $term): void {
+                $query->where(function (Builder $q) use ($term): void {
+                    $q->where('status', 'like', "%{$term}%")
+                        ->orWhere('bank_name', 'like', "%{$term}%")
+                        ->orWhereHas('partner.user', fn (Builder $u) => $u->where('name', 'like', "%{$term}%"));
+                });
+            })
             ->latest()
-            ->get()
-            ->map(fn (ReferralWithdrawal $w): array => [
+            ->paginate(15, ['*'], 'penarikan_page')
+            ->through(fn (ReferralWithdrawal $w): array => [
                 'id' => $w->id,
                 'partner_name' => $w->partner?->user?->name,
                 'points' => $w->points,
@@ -132,17 +161,17 @@ class ReferralController extends Controller
         return Inertia::render('avana/referral/index', [
             'stats' => [
                 'pending_applications' => $applications->count(),
-                'pending_withdrawals' => $withdrawals->where('status', ReferralWithdrawal::STATUS_PENDING)->count(),
-                'active_partners' => $partners->where('status', 'active')->count(),
+                'pending_withdrawals' => ReferralWithdrawal::query()->where('status', ReferralWithdrawal::STATUS_PENDING)->count(),
+                'active_partners' => Partner::query()->where('status', 'active')->count(),
                 // Platform-wide ledger balance: earned points still sitting in
                 // partner wallets, not yet withdrawn.
                 'points_outstanding' => (int) ReferralLedger::query()->sum('points'),
             ],
             'applications' => $applications,
-            'partners' => $partners,
-            'leads' => $leads,
-            'conversions' => $conversions,
-            'withdrawals' => $withdrawals,
+            'partners' => PaginatedTable::shape($partnersPage, $request, 'mitra_search'),
+            'leads' => PaginatedTable::shape($leadsPage, $request, 'leads_search'),
+            'conversions' => PaginatedTable::shape($conversionsPage, $request, 'konversi_search'),
+            'withdrawals' => PaginatedTable::shape($withdrawalsPage, $request, 'penarikan_search'),
             'settings' => [
                 'mode' => $settings->mode,
                 'points_per_conversion' => $settings->points_per_conversion,
@@ -150,13 +179,18 @@ class ReferralController extends Controller
                 'point_value' => (float) $settings->point_value,
                 'hold_days' => $settings->hold_days,
                 'min_withdrawal_points' => $settings->min_withdrawal_points,
+                'withdrawal_enabled' => $settings->withdrawal_enabled,
+                'leads_tab_enabled' => $settings->leads_tab_enabled,
+                'komisi_tab_enabled' => $settings->komisi_tab_enabled,
+                'rekening_tab_enabled' => $settings->rekening_tab_enabled,
             ],
         ]);
     }
 
     /**
-     * Approve a partner application: provisions the login and shows the
-     * one-time generated password.
+     * Approve a partner application: provisions the login using the password
+     * the applicant already chose at registration, so they can sign in right
+     * away — no credentials for the super admin to relay.
      */
     public function approvePartner(Request $request, PartnerRegistration $registration, ReferralPartnerService $service): RedirectResponse
     {
@@ -170,13 +204,7 @@ class ReferralController extends Controller
 
         $result = $service->approve($registration, $request->user());
 
-        return back()
-            ->with('success', 'Mitra '.$result['user']->name.' disetujui. Kode referral: '.$result['partner']->code)
-            ->with('credentials', [
-                'name' => $result['user']->name,
-                'email' => $result['user']->email,
-                'password' => $result['password'],
-            ]);
+        return back()->with('success', 'Mitra '.$result['user']->name.' disetujui. Kode referral: '.$result['partner']->code.'. Mitra sudah bisa login dengan password yang mereka buat saat mendaftar.');
     }
 
     public function rejectPartner(Request $request, PartnerRegistration $registration): RedirectResponse
@@ -314,6 +342,10 @@ class ReferralController extends Controller
             'point_value' => ['required', 'numeric', 'min:0'],
             'hold_days' => ['required', 'integer', 'min:0', 'max:365'],
             'min_withdrawal_points' => ['required', 'integer', 'min:0'],
+            'withdrawal_enabled' => ['required', 'boolean'],
+            'leads_tab_enabled' => ['required', 'boolean'],
+            'komisi_tab_enabled' => ['required', 'boolean'],
+            'rekening_tab_enabled' => ['required', 'boolean'],
         ]);
 
         ReferralSetting::current()->update($validated);

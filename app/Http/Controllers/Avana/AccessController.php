@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Mitra\PortalController;
 use App\Models\AuditLog;
 use App\Models\Feature;
 use App\Models\MenuItem;
@@ -1209,11 +1210,15 @@ class AccessController extends Controller
     /**
      * Base query for the roles a user may manage: a super admin sees the tenant's
      * roles plus the global (null-tenant) roles; a tenant admin sees only their
-     * own tenant's roles — never another tenant's, never the global super_admin.
+     * own tenant's roles — never another tenant's. Excludes `partner`: referral
+     * partners have no tenant/employee context and no menu_items-driven portal
+     * (their `/mitra` dashboard is a fixed page, not AvanaNav-gated — see
+     * {@see PortalController}), so the role has
+     * nothing meaningful to show in this matrix.
      */
     private function tenantRoles(?int $tenantId, bool $isSuperAdmin): Builder
     {
-        return Role::query()->where(function (Builder $query) use ($tenantId, $isSuperAdmin): void {
+        return Role::query()->where('code', '!=', 'partner')->where(function (Builder $query) use ($tenantId, $isSuperAdmin): void {
             $query->where('tenant_id', $tenantId);
 
             if ($isSuperAdmin) {
