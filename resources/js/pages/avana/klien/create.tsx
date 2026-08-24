@@ -33,6 +33,12 @@ import {
 
 interface KlienCreateProps {
     packages: PackageOption[];
+    /** Present when arriving from Referral > Leads "Jadikan Klien". */
+    referralLead: {
+        id: number;
+        company_name: string;
+        partner_code: string | null;
+    } | null;
 }
 
 const STEPS = [
@@ -44,7 +50,7 @@ const STEPS = [
     { title: 'Akun Admin', hint: 'Login pertama klien' },
 ];
 
-export default function KlienCreate({ packages }: KlienCreateProps) {
+export default function KlienCreate({ packages, referralLead }: KlienCreateProps) {
     const { flash } = usePage<FlashProps>().props;
     const [step, setStep] = useState(0);
 
@@ -52,6 +58,7 @@ export default function KlienCreate({ packages }: KlienCreateProps) {
         ...emptyTenantForm,
         start_date: today(),
         end_date: periodEnd(today(), 'trial', 'monthly', '14'),
+        referral_lead_id: referralLead ? String(referralLead.id) : '',
     });
     const { data, setData, errors, processing } = form;
 
@@ -139,6 +146,29 @@ export default function KlienCreate({ packages }: KlienCreateProps) {
                     <span style={{ color: C.muted }}>Tambah Klien</span>
                 </div>
                 <h1 style={titleStyle}>Tambah Klien Baru</h1>
+
+                {referralLead && (
+                    <div
+                        style={{
+                            marginTop: 12,
+                            padding: '10px 14px',
+                            borderRadius: 8,
+                            background: '#EEF2FF',
+                            border: `1px solid ${C.primary}33`,
+                            fontSize: 13,
+                            color: C.navy,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                        }}
+                    >
+                        <AIcon name="handshake" size={15} color={C.primary} />
+                        Dari lead referral <strong>{referralLead.company_name}</strong>
+                        {referralLead.partner_code
+                            ? ` — mitra ${referralLead.partner_code} akan mendapat komisi begitu invoice pertama klien ini lunas.`
+                            : '.'}
+                    </div>
+                )}
 
                 <Stepper
                     current={step}

@@ -1066,6 +1066,7 @@ final class AvanaDemoSeeder extends Seeder
             'performance.view', 'okr.view', 'competency.view', 'talent.view', 'learning.view',
             'helpdesk.view', 'announcement.view', 'social.view', 'survey.view', 'calendar.view', 'meeting.view', 'ai.view',
             'ai_topup.view', 'langganan.view', 'appearance.view', 'asset.view', 'crm.view', 'dynamic_report.view', 'attrition.view',
+            'referral.view', 'referral.manage',
         ];
         $permModels = collect($perms)->map(function (string $code) {
             [$module, $action] = array_pad(explode('.', $code, 2), 2, '');
@@ -1075,6 +1076,9 @@ final class AvanaDemoSeeder extends Seeder
 
         $roles = [
             ['code' => 'super_admin', 'name' => 'Super Admin', 'tenant_id' => null, 'is_system' => true],
+            // Tenant-less like super_admin: a referral partner sits outside
+            // every client, so its role carries no tenant either.
+            ['code' => 'partner', 'name' => 'Mitra Referral', 'tenant_id' => null, 'is_system' => true],
             ['code' => 'admin_tenant_hr', 'name' => 'Admin Tenant / HR', 'tenant_id' => $tenant->id, 'is_system' => true],
             ['code' => 'manager', 'name' => 'Manager', 'tenant_id' => $tenant->id, 'is_system' => true],
             ['code' => 'finance', 'name' => 'Finance', 'tenant_id' => $tenant->id, 'is_system' => true],
@@ -1085,6 +1089,10 @@ final class AvanaDemoSeeder extends Seeder
 
             $assigned = match ($data['code']) {
                 'super_admin' => $permModels,
+                // A partner has no employee record and never enters a tenant's
+                // own screens, so it gets only its own module — not the
+                // `own.*` baseline every other role falls to by default.
+                'partner' => $permModels->filter(fn ($p) => $p->module === 'referral'),
                 'admin_tenant_hr' => $permModels->reject(fn ($p) => str_starts_with($p->code, 'tenant.')),
                 'manager' => $permModels->filter(fn ($p) => str_starts_with($p->code, 'team.') || str_starts_with($p->code, 'own.')),
                 // Finance settles the money: claims, loans, journals, budgets,

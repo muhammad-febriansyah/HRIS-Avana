@@ -4,6 +4,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme } from '@/hooks/use-appearance';
 import AuthLayout from '@/layouts/auth-layout';
 import AvanaLayout from '@/layouts/avana-layout';
+import MitraLayout from '@/layouts/mitra-layout';
 
 const platformName = import.meta.env.VITE_APP_NAME || 'AvanaHR';
 
@@ -40,6 +41,8 @@ createInertiaApp({
                 return null;
             case name.startsWith('auth/'):
                 return AuthLayout;
+            case name.startsWith('mitra/'):
+                return MitraLayout;
             default:
                 return AvanaLayout;
         }

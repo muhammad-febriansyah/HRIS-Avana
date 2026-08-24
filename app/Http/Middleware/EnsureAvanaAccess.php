@@ -40,6 +40,16 @@ class EnsureAvanaAccess
             return $next($request);
         }
 
+        // A referral partner has no tenant, no employee record, and none of
+        // this AvanaNav-gated area applies to them — their own screens live
+        // under /mitra behind EnsurePartner instead. Closed outright rather
+        // than left to AvanaNav::requirementFor(), which only gates paths it
+        // recognises and would otherwise let a partner through to anything
+        // not (yet) in the nav definition.
+        if ($roleCodes->contains('partner')) {
+            abort(403);
+        }
+
         $requirement = AvanaNav::requirementFor($request->path(), $user->tenant_id);
 
         // Not a gated menu path — leave it to the controller's own policies.

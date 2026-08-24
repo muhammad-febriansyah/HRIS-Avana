@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Concerns\Auditable;
+use App\Http\Controllers\Avana\TenantController;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -30,6 +31,16 @@ final class Tenant extends Model
     public function package(): BelongsTo
     {
         return $this->belongsTo(Package::class);
+    }
+
+    /**
+     * The referral partner credited for this client, if any. Set once at
+     * creation ({@see TenantController::store()})
+     * and never reassigned afterwards.
+     */
+    public function partner(): BelongsTo
+    {
+        return $this->belongsTo(Partner::class);
     }
 
     public function company(): HasOne

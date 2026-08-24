@@ -39,6 +39,7 @@ export default function KlienEdit({ tenant, packages }: KlienEditProps) {
         admin_name: '',
         admin_email: '',
         admin_password: '',
+        referral_lead_id: '',
     });
 
     useEffect(() => {

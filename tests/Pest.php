@@ -6,12 +6,15 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\JobLevel;
 use App\Models\OvertimeRequest;
+use App\Models\Partner;
 use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
 use App\Models\Position;
 use App\Models\Role;
 use App\Models\SalaryMaster;
+use App\Models\User;
 use App\Models\WorkLocation;
+use App\Services\ReferralPartnerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -60,6 +63,40 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/**
+ * A signed-in referral partner: the `partner`-role user plus its Partner
+ * profile, the same shape {@see ReferralPartnerService::approve()}
+ * provisions. Requires AvanaDemoSeeder to have run, for the `partner` role.
+ *
+ * @param  array<string, mixed>  $overrides
+ */
+function createTestPartner(array $overrides = []): Partner
+{
+    static $sequence = 0;
+    $sequence++;
+
+    $user = User::create([
+        'tenant_id' => null,
+        'name' => 'Mitra Uji '.$sequence,
+        'email' => 'mitra.uji'.$sequence.'@example.test',
+        'password' => 'password',
+        'status' => 'active',
+        'email_verified_at' => now(),
+    ]);
+
+    $role = Role::query()->whereNull('tenant_id')->where('code', 'partner')->first();
+
+    if ($role !== null) {
+        $user->roles()->syncWithoutDetaching([$role->id]);
+    }
+
+    return Partner::create(array_merge([
+        'user_id' => $user->id,
+        'code' => 'MITRA'.$sequence,
+        'status' => 'active',
+    ], $overrides));
 }
 
 /**

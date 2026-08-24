@@ -244,6 +244,7 @@ final class AvanaNav
             ['title' => 'PLATFORM', 'items' => [
                 self::leaf('klien', 'Klien / Tenant', 'building-2', '/avana/klien', null, [], false, true),
                 self::leaf('billing', 'Billing & Invoice', 'receipt-text', '/avana/billing', null, [], false, true),
+                self::leaf('referral', 'Referral', 'handshake', '/avana/referral', null, [], false, true),
                 self::leaf('website-settings', 'Pengaturan Website', 'globe', '/avana/website-settings', null, [], false, true),
                 self::leaf('ai-settings', 'Pengaturan AI', 'sparkles', '/avana/ai-settings', null, [], false, true),
                 self::leaf('onboarding-slides', 'Onboarding App', 'smartphone', '/avana/onboarding-slides', null, [], false, true),
@@ -839,6 +840,7 @@ final class AvanaNav
             ['title' => 'PLATFORM', 'items' => [
                 self::leaf('klien', 'Klien / Tenant', 'building-2', '/avana/klien', null, [], false, true),
                 self::leaf('billing', 'Billing & Invoice', 'receipt-text', '/avana/billing', null, [], false, true),
+                self::leaf('referral', 'Referral', 'handshake', '/avana/referral', null, [], false, true),
                 self::leaf('paket', 'Paket Langganan', 'layers', '/avana/paket', null, [], false, true),
                 self::leaf('token-packs', 'Paket Token AI', 'coins', '/avana/token-packs', null, [], false, true),
                 self::leaf('dynamic-report', 'Laporan Platform', 'table', '/avana/dynamic-report', null, [], false, true),

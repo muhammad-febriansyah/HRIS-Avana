@@ -184,6 +184,15 @@ class User extends Authenticatable implements JWTSubject, PasskeyUser
         return $this->hasOne(Employee::class);
     }
 
+    /**
+     * This account's referral partner profile — present only for a login
+     * holding the `partner` role.
+     */
+    public function partner(): HasOne
+    {
+        return $this->hasOne(Partner::class);
+    }
+
     public function branchAccesses(): HasMany
     {
         return $this->hasMany(UserBranchAccess::class);

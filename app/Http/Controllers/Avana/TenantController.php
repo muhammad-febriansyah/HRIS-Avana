@@ -11,6 +11,7 @@ use App\Models\Employee;
 use App\Models\Feature;
 use App\Models\Invoice;
 use App\Models\Package;
+use App\Models\ReferralLead;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
@@ -230,8 +231,20 @@ class TenantController extends Controller
     {
         $this->authorize('create', Tenant::class);
 
+        // Arriving from Referral > Leads "Jadikan Klien": prefills which
+        // referral lead this tenant converts, so the wizard can carry it
+        // through to `store()` without the super admin re-typing anything.
+        $lead = filled($request->query('referral_lead_id'))
+            ? ReferralLead::query()->with('partner:id,code')->find($request->query('referral_lead_id'))
+            : null;
+
         return Inertia::render('avana/klien/create', [
             'packages' => $this->packageOptions(),
+            'referralLead' => $lead === null ? null : [
+                'id' => $lead->id,
+                'company_name' => $lead->company_name,
+                'partner_code' => $lead->partner?->code,
+            ],
         ]);
     }
 
@@ -564,11 +577,18 @@ class TenantController extends Controller
             ? Carbon::parse($validated['end_date'])
             : $this->periodEnd($start, $status, $cycle, $validated['trial_days'] ?? null);
 
+        // Converting a referral lead: the partner it carries is stamped onto
+        // the tenant now and never reassigned — see {@see Tenant::partner()}.
+        $lead = filled($validated['referral_lead_id'] ?? null)
+            ? ReferralLead::find($validated['referral_lead_id'])
+            : null;
+
         $tenant = Tenant::create([
             'name' => $validated['name'],
             'company_name' => $validated['company_name'] ?? null,
             'slug' => $slug,
             'package_id' => $package?->id,
+            'partner_id' => $lead?->partner_id,
             'status' => $status,
             // Quotas follow the package unless the super admin typed their own.
             'max_users' => $validated['max_users'] ?? $package?->max_users ?? 0,
@@ -578,6 +598,8 @@ class TenantController extends Controller
             'start_date' => $start->toDateString(),
             'end_date' => $end->toDateString(),
         ]);
+
+        $lead?->update(['status' => ReferralLead::STATUS_CONVERTED, 'tenant_id' => $tenant->id, 'converted_at' => now()]);
 
         // The tenant's period is also its subscription, so Billing shows the
         // client from day one instead of waiting for a second manual entry.
@@ -787,6 +809,9 @@ class TenantController extends Controller
             // Drive the period from the pricing when no explicit end date is given.
             'billing_cycle' => ['nullable', Rule::in(self::BILLING_CYCLES)],
             'trial_days' => ['nullable', 'integer', 'min:1', 'max:365'],
+            // Create-only: which referral lead this client converts from, if
+            // any — see {@see create()} and {@see store()}.
+            'referral_lead_id' => ['nullable', 'integer', 'exists:referral_leads,id'],
         ];
     }
 

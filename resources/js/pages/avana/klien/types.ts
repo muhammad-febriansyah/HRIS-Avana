@@ -106,6 +106,8 @@ export interface TenantFormData {
     admin_name: string;
     admin_email: string;
     admin_password: string;
+    /** Set when arriving from Referral > Leads "Jadikan Klien". */
+    referral_lead_id: string;
 }
 
 /** Empty defaults for the create form. */
@@ -126,6 +128,7 @@ export const emptyTenantForm: TenantFormData = {
     admin_name: '',
     admin_email: '',
     admin_password: '',
+    referral_lead_id: '',
 };
 
 /** Billing status options for a client's account standing. */

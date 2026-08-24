@@ -97,6 +97,10 @@ export function PricingSection() {
                                     {PRICE_NOTE.prefix}
                                 </span>
 
+                                <div className="mt-1 text-lg font-semibold text-avana-muted line-through">
+                                    {PRICE_NOTE.originalAmount}
+                                </div>
+
                                 <div className="mt-1 flex items-baseline gap-2">
                                     <span className="text-4xl font-extrabold tracking-tight text-avana-navy sm:text-5xl">
                                         {PRICE_NOTE.amount}

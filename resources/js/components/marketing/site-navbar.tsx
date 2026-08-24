@@ -2,7 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import { Menu, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { dashboard, liveTracking, login } from '@/routes';
+import { dashboard, liveTracking, login, partnership } from '@/routes';
 import { BrandLogo } from './brand-logo';
 import { NAV_ITEMS } from './content';
 import { useCtaTargets } from './use-cta';
@@ -31,7 +31,7 @@ export function SiteNavbar({
      */
     anchorPrefix?: string;
     /** Marks a standalone marketing page as the current one. */
-    activePage?: 'live-tracking';
+    activePage?: 'live-tracking' | 'partnership';
 }) {
     const { auth } = usePage().props;
     const { trial: trialUrl, trialExternal } = useCtaTargets();
@@ -88,6 +88,7 @@ export function SiteNavbar({
     }, [anchorPrefix]);
 
     const trackingUrl = liveTracking().url;
+    const partnershipUrl = partnership().url;
     const items = [
         ...NAV_ITEMS.map((item) => ({
             name: item.name,
@@ -101,6 +102,13 @@ export function SiteNavbar({
             badge: undefined as string | undefined,
             href: trackingUrl,
             isActive: activePage === 'live-tracking',
+            isRoute: true,
+        },
+        {
+            name: 'Partner',
+            badge: undefined as string | undefined,
+            href: partnershipUrl,
+            isActive: activePage === 'partnership',
             isRoute: true,
         },
     ];

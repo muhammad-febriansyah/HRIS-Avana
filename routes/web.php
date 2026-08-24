@@ -3,9 +3,11 @@
 use App\Http\Controllers\AccountDeletionController;
 use App\Http\Controllers\AiTokenReturnController;
 use App\Http\Controllers\Avana\DashboardController;
+use App\Http\Controllers\PartnerRegistrationController;
 use App\Http\Controllers\PrivacyPolicyController;
 use App\Http\Controllers\PrivateFileController;
 use App\Http\Controllers\PublicNewsController;
+use App\Http\Controllers\ReferralLeadController;
 use App\Http\Controllers\TermsOfServiceController;
 use App\Http\Controllers\WelcomeController;
 use Illuminate\Support\Facades\Route;
@@ -17,6 +19,17 @@ Route::get('/', WelcomeController::class)->name('home');
  * page — no controller, no data, nothing behind auth.
  */
 Route::inertia('live-tracking', 'public/live-tracking')->name('live-tracking');
+Route::inertia('partner', 'public/partnership')->name('partnership');
+Route::get('partner/daftar', [PartnerRegistrationController::class, 'create'])->name('partner-registration.create');
+Route::post('partner/daftar', [PartnerRegistrationController::class, 'store'])->name('partner-registration.store');
+
+/*
+ * Public "Daftar Perusahaan" inquiry — what a partner's `?ref=` link points
+ * to. It queues a lead for the super admin, it does not provision a tenant:
+ * see ReferralLeadController.
+ */
+Route::get('daftar-perusahaan', [ReferralLeadController::class, 'create'])->name('referral.lead.create');
+Route::post('daftar-perusahaan', [ReferralLeadController::class, 'store'])->name('referral.lead.store');
 
 /*
  * Public news/berita — read-only, published articles only. Separate from the
@@ -60,3 +73,4 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 require __DIR__.'/settings.php';
 require __DIR__.'/avana.php';
+require __DIR__.'/mitra.php';

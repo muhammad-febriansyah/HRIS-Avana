@@ -42,3 +42,7 @@ Schedule::command('model:prune', ['--model' => [FaceScanLog::class]])->dailyAt('
 // them out of "recording", so without this they sit in the list claiming to be
 // live for good.
 Schedule::command('avana:close-stale-meetings')->hourly();
+
+// Credit referral commissions past their hold window, so a partner's balance
+// updates itself without a super admin touching each conversion by hand.
+Schedule::command('referral:release-holds')->dailyAt('02:00');

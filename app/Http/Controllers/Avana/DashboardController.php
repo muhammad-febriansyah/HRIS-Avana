@@ -22,6 +22,7 @@ use App\Models\User;
 use App\Support\AvanaNav;
 use App\Support\PrivateFile;
 use App\Support\TenantTime;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -71,7 +72,7 @@ class DashboardController extends Controller
     /**
      * Render the AvanaHR dashboard with real, tenant-scoped figures.
      */
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse
     {
         $user = $request->user();
         $user->loadMissing('roles');
@@ -80,6 +81,12 @@ class DashboardController extends Controller
         // (SaaS) dashboard instead of the tenant-scoped HR one.
         if ($user->roles->pluck('code')->contains('super_admin')) {
             return $this->superAdminDashboard($request);
+        }
+
+        // A referral partner has no tenant and no employee record — none of
+        // this HR dashboard applies to them. Their whole app is /mitra.
+        if ($user->roles->pluck('code')->contains('partner')) {
+            return redirect()->route('mitra.dashboard');
         }
 
         // A plain karyawan carries only the `own` permission module, so the

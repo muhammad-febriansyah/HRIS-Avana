@@ -97,6 +97,7 @@ use App\Http\Controllers\Avana\PermissionRequestController;
 use App\Http\Controllers\Avana\Pph21TerController;
 use App\Http\Controllers\Avana\RecruitmentController;
 use App\Http\Controllers\Avana\RecruitmentRequisitionController;
+use App\Http\Controllers\Avana\ReferralController;
 use App\Http\Controllers\Avana\ReimbursementController;
 use App\Http\Controllers\Avana\ReportStudioController;
 use App\Http\Controllers\Avana\RosterController;
@@ -572,6 +573,18 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class, LogPageActivity
     Route::post('billing/invoice/{invoice}/pay', [BillingController::class, 'markPaid'])->name('billing.invoice.pay');
     Route::post('billing/invoice/{invoice}/cancel', [BillingController::class, 'cancelInvoice'])->name('billing.invoice.cancel');
     Route::delete('billing/invoice/{invoice}', [BillingController::class, 'destroyInvoice'])->name('billing.invoice.destroy');
+
+    // Referral (super admin) — partner applications/accounts, the leads they
+    // bring in, commission conversions, payouts, and the commission rule.
+    Route::get('referral', [ReferralController::class, 'index'])->name('referral');
+    Route::post('referral/mitra/{registration}/setujui', [ReferralController::class, 'approvePartner'])->name('referral.mitra.approve');
+    Route::post('referral/mitra/{registration}/tolak', [ReferralController::class, 'rejectPartner'])->name('referral.mitra.reject');
+    Route::put('referral/mitra/{partner}', [ReferralController::class, 'updatePartner'])->name('referral.mitra.update');
+    Route::put('referral/leads/{lead}', [ReferralController::class, 'updateLeadStatus'])->name('referral.leads.update');
+    Route::post('referral/penarikan/{withdrawal}/setujui', [ReferralController::class, 'approveWithdrawal'])->name('referral.penarikan.approve');
+    Route::post('referral/penarikan/{withdrawal}/bayar', [ReferralController::class, 'payWithdrawal'])->name('referral.penarikan.pay');
+    Route::post('referral/penarikan/{withdrawal}/tolak', [ReferralController::class, 'rejectWithdrawal'])->name('referral.penarikan.reject');
+    Route::post('referral/pengaturan', [ReferralController::class, 'updateSettings'])->name('referral.pengaturan.update');
 
     // Katalog Fitur (super admin) — CRUD the product feature catalog; new rows
     // appear in the Hak Akses matrix + become enable-able per tenant, no code.

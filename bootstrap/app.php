@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\CaptureReferral;
 use App\Http\Middleware\EnsureAppIsNotDown;
 use App\Http\Middleware\EnsureFeature;
 use App\Http\Middleware\EnsureFreshToken;
@@ -32,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->web(prepend: [
             EnsureAppIsNotDown::class,
+            CaptureReferral::class,
         ]);
 
         $middleware->web(append: [

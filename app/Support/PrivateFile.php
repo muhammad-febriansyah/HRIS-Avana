@@ -98,6 +98,7 @@ final class PrivateFile
         'cash-advances/',
         'payroll-corrections/',
         'social/',
+        'referral-withdrawals/',
     ];
 
     /**

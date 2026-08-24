@@ -1,0 +1,140 @@
+<?php
+
+use App\Models\ReferralLedger;
+use App\Models\ReferralSetting;
+use App\Models\ReferralWithdrawal;
+use App\Models\User;
+use Database\Seeders\AvanaDemoSeeder;
+
+use function Pest\Laravel\actingAs;
+
+beforeEach(function (): void {
+    $this->withoutVite();
+    $this->seed(AvanaDemoSeeder::class);
+
+    $this->admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
+    $this->superAdmin = User::where('email', 'superadmin@avanahr.id')->firstOrFail();
+
+    ReferralSetting::current()->update(['point_value' => 5000, 'min_withdrawal_points' => 5]);
+});
+
+it('renders the partner dashboard for a partner login', function (): void {
+    $partner = createTestPartner();
+
+    actingAs($partner->user)
+        ->get(route('mitra.dashboard'))
+        ->assertOk();
+});
+
+it('forbids a tenant user and a super admin from the partner portal', function (): void {
+    actingAs($this->admin)->get(route('mitra.dashboard'))->assertForbidden();
+    actingAs($this->superAdmin)->get(route('mitra.dashboard'))->assertForbidden();
+});
+
+it('sends a partner-role login to /mitra instead of the HR dashboard', function (): void {
+    $partner = createTestPartner();
+
+    actingAs($partner->user)
+        ->get(route('dashboard'))
+        ->assertRedirect(route('mitra.dashboard'));
+});
+
+it('lets a partner save their bank details', function (): void {
+    $partner = createTestPartner();
+
+    actingAs($partner->user)
+        ->post(route('mitra.rekening.update'), [
+            'bank_name' => 'BCA',
+            'bank_account_number' => '1234567890',
+            'bank_account_holder' => 'Mitra Uji',
+        ])
+        ->assertSessionHas('success');
+
+    expect($partner->fresh()->hasBankDetails())->toBeTrue();
+});
+
+it('blocks a withdrawal request until bank details are filled in', function (): void {
+    $partner = createTestPartner();
+    ReferralLedger::create([
+        'partner_id' => $partner->id,
+        'type' => ReferralLedger::TYPE_EARN,
+        'points' => 20,
+        'amount' => 100000,
+        'balance_after' => 20,
+    ]);
+
+    actingAs($partner->user)
+        ->post(route('mitra.penarikan.store'), ['points' => 10])
+        ->assertSessionHas('error');
+
+    expect(ReferralWithdrawal::where('partner_id', $partner->id)->count())->toBe(0);
+});
+
+it('lets a partner request a withdrawal within their available balance, reserving the points', function (): void {
+    $partner = createTestPartner([
+        'bank_name' => 'BCA',
+        'bank_account_number' => '1234567890',
+        'bank_account_holder' => 'Mitra Uji',
+    ]);
+    ReferralLedger::create([
+        'partner_id' => $partner->id,
+        'type' => ReferralLedger::TYPE_EARN,
+        'points' => 20,
+        'amount' => 100000,
+        'balance_after' => 20,
+    ]);
+
+    actingAs($partner->user)
+        ->post(route('mitra.penarikan.store'), ['points' => 10])
+        ->assertSessionHas('success');
+
+    $withdrawal = ReferralWithdrawal::where('partner_id', $partner->id)->first();
+    expect($withdrawal)->not->toBeNull();
+    expect($withdrawal->points)->toBe(10);
+    expect((float) $withdrawal->amount)->toBe(50000.0);
+    expect($withdrawal->bank_account_number)->toBe('1234567890');
+
+    expect($partner->fresh()->availablePoints())->toBe(10);
+});
+
+it('refuses a withdrawal larger than the available balance', function (): void {
+    $partner = createTestPartner([
+        'bank_name' => 'BCA',
+        'bank_account_number' => '1234567890',
+        'bank_account_holder' => 'Mitra Uji',
+    ]);
+    ReferralLedger::create([
+        'partner_id' => $partner->id,
+        'type' => ReferralLedger::TYPE_EARN,
+        'points' => 20,
+        'amount' => 100000,
+        'balance_after' => 20,
+    ]);
+
+    actingAs($partner->user)
+        ->post(route('mitra.penarikan.store'), ['points' => 999])
+        ->assertSessionHas('error');
+
+    expect(ReferralWithdrawal::where('partner_id', $partner->id)->count())->toBe(0);
+});
+
+it('respects the configured minimum withdrawal', function (): void {
+    $partner = createTestPartner([
+        'bank_name' => 'BCA',
+        'bank_account_number' => '1234567890',
+        'bank_account_holder' => 'Mitra Uji',
+    ]);
+    ReferralLedger::create([
+        'partner_id' => $partner->id,
+        'type' => ReferralLedger::TYPE_EARN,
+        'points' => 20,
+        'amount' => 100000,
+        'balance_after' => 20,
+    ]);
+
+    actingAs($partner->user)
+        ->post(route('mitra.penarikan.store'), ['points' => 2])
+        ->assertSessionHas('error');
+
+    expect(ReferralWithdrawal::where('partner_id', $partner->id)->count())->toBe(0);
+});
