@@ -34,7 +34,7 @@ it('logs a click and hands back an attribution cookie the browser can decrypt on
             'phone' => '081200000000',
         ]);
 
-    $response->assertSessionHas('success', true);
+    $response->assertSessionHas('success');
 
     $lead = ReferralLead::where('company_name', 'PT Uji Atribusi')->first();
     expect($lead)->not->toBeNull();
@@ -49,9 +49,21 @@ it('leaves partner_id null when the inquiry form is submitted with no referral c
         'phone' => '081200000001',
     ]);
 
-    $response->assertSessionHas('success', true);
+    $response->assertSessionHas('success');
 
     $lead = ReferralLead::where('company_name', 'PT Tanpa Referral')->first();
     expect($lead)->not->toBeNull();
     expect($lead->partner_id)->toBeNull();
+});
+
+it('rejects a phone number that is not a valid Indonesian mobile format', function (): void {
+    $response = $this->post('/daftar-perusahaan', [
+        'company_name' => 'PT Nomor Rusak',
+        'contact_name' => 'Citra',
+        'email' => 'citra@example.com',
+        'phone' => 'Voluptatibus possimu',
+    ]);
+
+    $response->assertSessionHasErrors('phone');
+    expect(ReferralLead::where('company_name', 'PT Nomor Rusak')->exists())->toBeFalse();
 });

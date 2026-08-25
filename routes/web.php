@@ -3,6 +3,7 @@
 use App\Http\Controllers\AccountDeletionController;
 use App\Http\Controllers\AiTokenReturnController;
 use App\Http\Controllers\Avana\DashboardController;
+use App\Http\Controllers\CompanyRegistrationController;
 use App\Http\Controllers\PartnerRegistrationController;
 use App\Http\Controllers\PrivacyPolicyController;
 use App\Http\Controllers\PrivateFileController;
@@ -24,12 +25,20 @@ Route::get('partner/daftar', [PartnerRegistrationController::class, 'create'])->
 Route::post('partner/daftar', [PartnerRegistrationController::class, 'store'])->name('partner-registration.store');
 
 /*
- * Public "Daftar Perusahaan" inquiry — what a partner's `?ref=` link points
- * to. It queues a lead for the super admin, it does not provision a tenant:
- * see ReferralLeadController.
+ * Public "Daftar Perusahaan" — what a partner's `?ref=` link points to.
+ * A visitor with no valid referral cookie gets a plain inquiry form (queues a
+ * lead for the super admin); one with a valid cookie gets the self-serve
+ * signup wizard instead, which provisions a real tenant immediately. See
+ * ReferralLeadController for the branch and CompanyRegistrationController
+ * for the wizard's submit. Throttled: both create real DB rows.
  */
 Route::get('daftar-perusahaan', [ReferralLeadController::class, 'create'])->name('referral.lead.create');
-Route::post('daftar-perusahaan', [ReferralLeadController::class, 'store'])->name('referral.lead.store');
+Route::post('daftar-perusahaan', [ReferralLeadController::class, 'store'])
+    ->middleware('throttle:10,1')
+    ->name('referral.lead.store');
+Route::post('daftar-perusahaan/daftar', [CompanyRegistrationController::class, 'store'])
+    ->middleware('throttle:10,1')
+    ->name('company-registration.store');
 
 /*
  * Public news/berita — read-only, published articles only. Separate from the

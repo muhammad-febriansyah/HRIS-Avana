@@ -95,6 +95,15 @@ final class SubscriptionRenewalService
             $subscription = $this->extendSubscription($tenant, $fresh, $package, $start, $end);
             $invoice = $this->fileInvoice($tenant, $fresh, $subscription, $start, $end);
 
+            // The invoice is created already `paid`, so InvoiceObserver's
+            // `updated()` hook (the only other place this fires) never sees a
+            // status change and never runs. Without this, a referred tenant
+            // whose first-ever payment goes through self-service Pakasir
+            // checkout — which now includes every self-serve signup — would
+            // never credit its referring partner. Idempotent: creditForInvoice()
+            // no-ops once a conversion already exists for the tenant.
+            app(ReferralConversionService::class)->creditForInvoice($invoice);
+
             $this->moveTenantOntoPackage($tenant, $package, $end);
 
             $fresh->update([

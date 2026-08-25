@@ -66,7 +66,7 @@ const HOW_DID_YOU_KNOW = [
 ];
 
 interface FlashProps {
-    flash?: { success?: boolean };
+    flash?: { success?: string | null };
     [key: string]: unknown;
 }
 
@@ -97,7 +97,7 @@ export default function PartnerRegistration() {
     const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
     const totalSteps = 3;
 
-    const isSuccess = flash?.success === true;
+    const isSuccess = Boolean(flash?.success);
 
     const handleNext = () => {
         if (step < totalSteps) {
@@ -307,7 +307,8 @@ export default function PartnerRegistration() {
                                                                         </span>
                                                                     </label>
                                                                     <input
-                                                                        type="text"
+                                                                        type="tel"
+                                                                        inputMode="tel"
                                                                         value={data.whatsapp}
                                                                         onChange={(e) =>
                                                                             setData(

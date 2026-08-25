@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\PartnerRegistration;
+use App\Rules\PhoneNumber;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
@@ -25,7 +26,7 @@ class PartnerRegistrationController extends Controller
         $validated = $request->validate([
             'full_name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
-            'whatsapp' => ['required', 'string', 'max:255'],
+            'whatsapp' => ['required', 'string', 'max:20', new PhoneNumber],
             'password' => ['required', 'confirmed', Password::min(8)],
             'partner_type' => ['required', 'string', 'max:255'],
             'company_name' => ['nullable', 'string', 'max:255'],
@@ -39,6 +40,6 @@ class PartnerRegistrationController extends Controller
 
         PartnerRegistration::create($validated);
 
-        return back()->with('success', true);
+        return back()->with('success', 'Pendaftaran berhasil dikirim. Tim kami akan meninjau data Anda.');
     }
 }

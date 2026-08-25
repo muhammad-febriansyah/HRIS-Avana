@@ -25,7 +25,7 @@ it('renders the public partner registration form', function (): void {
 it('stores a pending registration with the applicant\'s chosen password hashed', function (): void {
     $this->withoutVite()
         ->post(route('partner-registration.store'), partnerRegistrationPayload())
-        ->assertSessionHas('success', true);
+        ->assertSessionHas('success');
 
     $registration = PartnerRegistration::where('email', 'rina.prospek@example.com')->firstOrFail();
 
@@ -59,4 +59,14 @@ it('requires terms to be accepted', function (): void {
             'terms_accepted' => false,
         ]))
         ->assertSessionHasErrors('terms_accepted');
+});
+
+it('rejects a WhatsApp number that is not a valid Indonesian mobile format', function (): void {
+    $this->withoutVite()
+        ->post(route('partner-registration.store'), partnerRegistrationPayload([
+            'whatsapp' => 'Adipisci beatae proi',
+        ]))
+        ->assertSessionHasErrors('whatsapp');
+
+    expect(PartnerRegistration::where('email', 'rina.prospek@example.com')->exists())->toBeFalse();
 });

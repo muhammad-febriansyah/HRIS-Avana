@@ -5,23 +5,32 @@ namespace App\Http\Controllers;
 use App\Http\Middleware\CaptureReferral;
 use App\Models\Partner;
 use App\Models\ReferralLead;
+use App\Rules\PhoneNumber;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Public "Daftar Perusahaan" inquiry form — what a partner's `?ref=` link
- * actually points to. Submitting it does not create a tenant (self-serve
- * sign-up stays closed, see {@see WelcomeController});
- * it queues a lead the super admin follows up on and, once qualified, turns
- * into a client from the Klien wizard — which is what starts the referral's
- * commission clock.
+ * Public "Daftar Perusahaan" page — what a partner's `?ref=` link points to.
+ *
+ * A visitor carrying a valid referral cookie gets the self-serve signup
+ * wizard ({@see CompanyRegistrationController}, which provisions a real
+ * tenant immediately). Everyone else (no cookie, or the partner behind it
+ * went inactive) still gets the plain inquiry form below — general organic
+ * self-serve sign-up stays closed on purpose, see {@see WelcomeController}.
  */
 class ReferralLeadController extends Controller
 {
-    public function create(): Response
+    public function create(Request $request): Response
     {
+        $code = $request->cookie(CaptureReferral::COOKIE_NAME);
+        $partner = is_string($code) ? Partner::query()->active()->where('code', $code)->first() : null;
+
+        if ($partner !== null) {
+            return Inertia::render('public/company-registration', ['partnerCode' => $partner->code]);
+        }
+
         return Inertia::render('public/company-inquiry');
     }
 
@@ -31,7 +40,7 @@ class ReferralLeadController extends Controller
             'company_name' => ['required', 'string', 'max:255'],
             'contact_name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
-            'phone' => ['required', 'string', 'max:255'],
+            'phone' => ['required', 'string', 'max:20', new PhoneNumber],
             'note' => ['nullable', 'string', 'max:2000'],
         ]);
 
@@ -40,6 +49,6 @@ class ReferralLeadController extends Controller
 
         ReferralLead::create([...$validated, 'partner_id' => $partner?->id]);
 
-        return back()->with('success', true);
+        return back()->with('success', 'Data Anda sudah kami terima. Tim AvanaHR akan segera menghubungi Anda.');
     }
 }

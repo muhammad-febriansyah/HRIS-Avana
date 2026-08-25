@@ -212,6 +212,17 @@ export default function Login({
                     </Link>
                 </div>
             )}
+
+            <div className="mt-3 text-center text-[13px] text-[#6B7280]">
+                Perusahaan baru?{' '}
+                <Link
+                    href="/daftar-perusahaan"
+                    tabIndex={5}
+                    className="font-medium text-[#2F54C9] hover:underline"
+                >
+                    Daftar Perusahaan
+                </Link>
+            </div>
         </>
     );
 }

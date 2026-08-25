@@ -36,22 +36,28 @@ export function useFlashToast(): void {
                 return;
             }
 
+            // `id` reused across calls makes Sonner update the existing toast
+            // in place instead of stacking a new one — the same guard several
+            // pages already apply by hand (e.g. mitra/index.tsx). Needed here
+            // too: React StrictMode's dev-only double-invoke can fire this
+            // 'success' handler twice for one navigation, which without a
+            // stable id renders the same message as two stacked toasts.
             if (flash.toast) {
-                toast[flash.toast.type](flash.toast.message);
+                toast[flash.toast.type](flash.toast.message, { id: flash.toast.message });
 
                 return;
             }
 
             if (flash.success) {
-                toast.success(flash.success);
+                toast.success(flash.success, { id: flash.success });
             }
 
             if (flash.error) {
-                toast.error(flash.error);
+                toast.error(flash.error, { id: flash.error });
             }
 
             if (flash.warning) {
-                toast.warning(flash.warning);
+                toast.warning(flash.warning, { id: flash.warning });
             }
         });
     }, []);
