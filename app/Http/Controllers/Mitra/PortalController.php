@@ -60,7 +60,6 @@ class PortalController extends Controller
             ->through(fn (ReferralConversion $c): array => [
                 'id' => $c->id,
                 'tenant_name' => $c->tenant?->name,
-                'points' => $c->points,
                 'commission_amount' => (float) $c->commission_amount,
                 'status' => $c->status,
                 'hold_until' => $c->hold_until?->toDateString(),
@@ -78,7 +77,6 @@ class PortalController extends Controller
             ->paginate(10, ['*'], 'penarikan_page')
             ->through(fn (ReferralWithdrawal $w): array => [
                 'id' => $w->id,
-                'points' => $w->points,
                 'amount' => (float) $w->amount,
                 'status' => $w->status,
                 'admin_note' => $w->admin_note,
@@ -100,13 +98,13 @@ class PortalController extends Controller
                 'clicks' => $partner->clicks()->count(),
                 'leads' => $partner->leads()->count(),
                 'conversions' => $partner->conversions()->count(),
-                'balance_points' => $partner->balancePoints(),
-                'available_points' => $partner->availablePoints(),
-                'pending_points' => (int) $partner->conversions()->where('status', ReferralConversion::STATUS_PENDING)->sum('points'),
+                'balance_amount' => $partner->balanceAmount(),
+                'available_amount' => $partner->availableAmount(),
+                'pending_amount' => (float) $partner->conversions()->where('status', ReferralConversion::STATUS_PENDING)->sum('commission_amount'),
             ],
             'settings' => [
-                'point_value' => (float) $settings->point_value,
-                'min_withdrawal_points' => $settings->min_withdrawal_points,
+                'flat_amount' => (float) $settings->flat_amount,
+                'min_withdrawal_amount' => (float) $settings->min_withdrawal_amount,
                 'hold_days' => $settings->hold_days,
                 'withdrawal_enabled' => $settings->withdrawal_enabled,
                 'leads_tab_enabled' => $settings->leads_tab_enabled,
@@ -124,7 +122,6 @@ class PortalController extends Controller
                 ->map(fn (ReferralConversion $c): array => [
                     'id' => $c->id,
                     'tenant_name' => $c->tenant?->name,
-                    'points' => $c->points,
                     'commission_amount' => (float) $c->commission_amount,
                     'status' => $c->status,
                     'hold_until' => $c->hold_until?->toDateString(),
@@ -161,7 +158,7 @@ class PortalController extends Controller
         $partner = $this->partner($request);
 
         $validated = $request->validate([
-            'points' => ['required', 'integer', 'min:1'],
+            'amount' => ['required', 'numeric', 'min:1'],
         ]);
 
         $settings = ReferralSetting::current();
@@ -174,18 +171,18 @@ class PortalController extends Controller
             return back()->with('error', 'Lengkapi data rekening terlebih dahulu sebelum menarik komisi.');
         }
 
-        if ($validated['points'] < $settings->min_withdrawal_points) {
-            return back()->with('error', "Minimal penarikan {$settings->min_withdrawal_points} poin.");
+        if ($validated['amount'] < $settings->min_withdrawal_amount) {
+            return back()->with('error', 'Minimal penarikan Rp'.number_format((float) $settings->min_withdrawal_amount, 0, ',', '.').'.');
         }
 
         $insufficientFunds = false;
 
-        DB::transaction(function () use ($partner, $validated, $settings, &$insufficientFunds): void {
+        DB::transaction(function () use ($partner, $validated, &$insufficientFunds): void {
             // Locked so two rapid requests cannot both pass the availability
-            // check against the same points.
+            // check against the same balance.
             $locked = Partner::query()->whereKey($partner->id)->lockForUpdate()->first();
 
-            if ($validated['points'] > $locked->availablePoints()) {
+            if ($validated['amount'] > $locked->availableAmount()) {
                 $insufficientFunds = true;
 
                 return;
@@ -193,8 +190,7 @@ class PortalController extends Controller
 
             ReferralWithdrawal::create([
                 'partner_id' => $locked->id,
-                'points' => $validated['points'],
-                'amount' => round($validated['points'] * (float) $settings->point_value, 2),
+                'amount' => round((float) $validated['amount'], 2),
                 'bank_name' => $locked->bank_name,
                 'bank_account_number' => $locked->bank_account_number,
                 'bank_account_holder' => $locked->bank_account_holder,
@@ -203,7 +199,7 @@ class PortalController extends Controller
         });
 
         if ($insufficientFunds) {
-            return back()->with('error', 'Poin tersedia tidak mencukupi.');
+            return back()->with('error', 'Saldo tersedia tidak mencukupi.');
         }
 
         return back()->with('success', 'Permintaan penarikan diajukan, menunggu persetujuan super admin');

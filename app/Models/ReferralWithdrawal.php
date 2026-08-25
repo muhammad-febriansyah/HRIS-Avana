@@ -25,7 +25,6 @@ final class ReferralWithdrawal extends Model
     protected function casts(): array
     {
         return [
-            'points' => 'integer',
             'amount' => 'decimal:2',
             'processed_at' => 'datetime',
         ];

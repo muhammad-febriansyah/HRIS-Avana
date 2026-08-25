@@ -19,8 +19,8 @@ class ReleaseReferralHolds extends Command
      * A conversion sits `pending` for its tenant's-first-invoice hold window
      * (a chargeback/refund guard) before it becomes spendable. Runs daily so
      * a conversion never sits stuck: the moment its hold date passes, its
-     * points land in the partner's ledger — the only place their balance is
-     * ever read from.
+     * commission lands in the partner's ledger — the only place their
+     * balance is ever read from.
      */
     public function handle(): int
     {
@@ -39,12 +39,11 @@ class ReleaseReferralHolds extends Command
                     return;
                 }
 
-                $balanceAfter = $partner->balancePoints() + $conversion->points;
+                $balanceAfter = $partner->balanceAmount() + $conversion->commission_amount;
 
                 ReferralLedger::create([
                     'partner_id' => $partner->id,
                     'type' => ReferralLedger::TYPE_EARN,
-                    'points' => $conversion->points,
                     'amount' => $conversion->commission_amount,
                     'balance_after' => $balanceAfter,
                     'reference_type' => 'conversion',

@@ -33,11 +33,10 @@ interface PartnerRow {
     email: string | null;
     phone: string | null;
     status: string;
-    commission_mode: string | null;
     commission_value: number | null;
     has_bank: boolean;
-    balance_points: number;
-    available_points: number;
+    balance_amount: number;
+    available_amount: number;
     leads_count: number;
     conversions_count: number;
     created_at: string | null;
@@ -61,7 +60,6 @@ interface ConversionRow {
     partner_name: string | null;
     tenant_name: string | null;
     base_amount: number;
-    points: number;
     commission_amount: number;
     status: string;
     hold_until: string | null;
@@ -71,7 +69,6 @@ interface ConversionRow {
 interface WithdrawalRow {
     id: number;
     partner_name: string | null;
-    points: number;
     amount: number;
     bank_name: string;
     bank_account_number: string;
@@ -84,12 +81,9 @@ interface WithdrawalRow {
 }
 
 interface Settings {
-    mode: string;
-    points_per_conversion: number;
-    percent_rate: number;
-    point_value: number;
+    flat_amount: number;
     hold_days: number;
-    min_withdrawal_points: number;
+    min_withdrawal_amount: number;
     withdrawal_enabled: boolean;
     leads_tab_enabled: boolean;
     komisi_tab_enabled: boolean;
@@ -107,7 +101,7 @@ interface PageProps {
         pending_applications: number;
         pending_withdrawals: number;
         active_partners: number;
-        points_outstanding: number;
+        amount_outstanding: number;
     };
     applications: Application[];
     partners: Paginated<PartnerRow>;
@@ -248,7 +242,7 @@ export default function ReferralIndex({
                         icon="banknote"
                         tone={stats.pending_withdrawals > 0 ? 'amber' : 'sky'}
                     />
-                    <StatCard label="Poin Beredar" value={stats.points_outstanding.toLocaleString('id-ID')} icon="coins" tone="green" />
+                    <StatCard label="Komisi Beredar" value={rp(stats.amount_outstanding)} icon="coins" tone="green" />
                 </div>
 
                 <div style={{ display: 'flex', gap: 4, marginTop: 22, borderBottom: `1px solid ${C.border}` }}>
@@ -356,8 +350,8 @@ function mitraColumns(setEditing: (p: PartnerRow) => void): DataTableColumn<Part
             sortable: false,
             render: (p) => <Badge label={p.has_bank ? 'Lengkap' : 'Belum diisi'} tone={p.has_bank ? 'green' : 'muted'} />,
         },
-        { key: 'balance_points', header: 'Saldo Poin', sortable: false, render: (p) => p.balance_points.toLocaleString('id-ID') },
-        { key: 'available_points', header: 'Tersedia', sortable: false, render: (p) => p.available_points.toLocaleString('id-ID') },
+        { key: 'balance_amount', header: 'Saldo Komisi', sortable: false, render: (p) => rp(p.balance_amount) },
+        { key: 'available_amount', header: 'Tersedia', sortable: false, render: (p) => rp(p.available_amount) },
         {
             key: 'leads_count',
             header: 'Leads / Konversi',
@@ -463,7 +457,6 @@ function MitraTab({
 function EditPartnerPanel({ partner, errors, onClose }: { partner: PartnerRow; errors: Record<string, string>; onClose: () => void }) {
     const form = useForm({
         status: partner.status,
-        commission_mode: partner.commission_mode ?? '',
         commission_value: partner.commission_value !== null ? String(partner.commission_value) : '',
     });
 
@@ -471,7 +464,6 @@ function EditPartnerPanel({ partner, errors, onClose }: { partner: PartnerRow; e
         e.preventDefault();
         form.transform((data) => ({
             ...data,
-            commission_mode: data.commission_mode || null,
             commission_value: data.commission_value || null,
         }));
         form.put(ReferralController.updatePartner(partner.id).url, {
@@ -497,21 +489,13 @@ function EditPartnerPanel({ partner, errors, onClose }: { partner: PartnerRow; e
                     </select>
                 </div>
                 <div>
-                    <label style={fieldLabel}>Override Komisi (opsional)</label>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                        <select value={form.data.commission_mode} onChange={(e) => form.setData('commission_mode', e.target.value)} style={{ ...fieldInput, maxWidth: 160 }}>
-                            <option value="">Pakai default</option>
-                            <option value="flat">Poin tetap</option>
-                            <option value="percent">Persen invoice</option>
-                        </select>
-                        <input
-                            value={form.data.commission_value}
-                            onChange={(e) => form.setData('commission_value', e.target.value)}
-                            placeholder={form.data.commission_mode === 'percent' ? '% invoice' : 'Poin per konversi'}
-                            style={fieldInput}
-                            disabled={!form.data.commission_mode}
-                        />
-                    </div>
+                    <label style={fieldLabel}>Override Komisi per Konversi (Rp, opsional)</label>
+                    <RupiahInput
+                        value={form.data.commission_value}
+                        onChange={(digits) => form.setData('commission_value', digits)}
+                        invalid={!!errors.commission_value}
+                    />
+                    <div style={{ fontSize: 11.5, color: C.faint, marginTop: 4 }}>Kosongkan untuk pakai nominal komisi default.</div>
                     {errors.commission_value && <div style={fieldError}>{errors.commission_value}</div>}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -627,7 +611,6 @@ function KonversiTab({ conversions }: { conversions: Paginated<ConversionRow> })
         { key: 'partner_name', header: 'Mitra', sortable: false, render: (c) => <span style={{ fontWeight: 600 }}>{c.partner_name}</span> },
         { key: 'tenant_name', header: 'Klien', sortable: false },
         { key: 'base_amount', header: 'Nilai Invoice', sortable: false, render: (c) => rp(c.base_amount) },
-        { key: 'points', header: 'Poin', sortable: false, render: (c) => c.points.toLocaleString('id-ID') },
         {
             key: 'commission_amount',
             header: 'Komisi',
@@ -673,7 +656,6 @@ function PenarikanTab({ withdrawals }: { withdrawals: Paginated<WithdrawalRow> }
 
     const columns: DataTableColumn<WithdrawalRow>[] = [
         { key: 'partner_name', header: 'Mitra', sortable: false, render: (w) => <span style={{ fontWeight: 600 }}>{w.partner_name}</span> },
-        { key: 'points', header: 'Poin', sortable: false, render: (w) => w.points.toLocaleString('id-ID') },
         { key: 'amount', header: 'Nominal', sortable: false, render: (w) => <span style={{ fontWeight: 600 }}>{rp(w.amount)}</span> },
         {
             key: 'bank_name',
@@ -752,7 +734,7 @@ function PenarikanTab({ withdrawals }: { withdrawals: Paginated<WithdrawalRow> }
                 paramPrefix="penarikan_"
                 searchPlaceholder="Cari nama mitra, status, atau bank…"
                 rowKey={(w) => w.id}
-                emptyState={<EmptyState icon={Wallet} title="Belum ada penarikan" description="Pengajuan pencairan saldo poin dari mitra akan muncul di sini." />}
+                emptyState={<EmptyState icon={Wallet} title="Belum ada penarikan" description="Pengajuan pencairan saldo komisi dari mitra akan muncul di sini." />}
             />
 
             <PayWithdrawalDialog withdrawal={paying} onClose={() => setPaying(null)} />
@@ -788,7 +770,7 @@ function RejectWithdrawalDialog({ withdrawal, onClose }: { withdrawal: Withdrawa
             open={withdrawal !== null}
             onOpenChange={(open) => !open && onClose()}
             title="Tolak Penarikan"
-            description={withdrawal ? `${rp(withdrawal.amount)} milik ${withdrawal.partner_name} — poin dikembalikan ke saldo tersedia mitra.` : undefined}
+            description={withdrawal ? `${rp(withdrawal.amount)} milik ${withdrawal.partner_name} — saldo dikembalikan ke saldo tersedia mitra.` : undefined}
             submitLabel="Tolak Penarikan"
             onSubmit={submit}
             processing={form.processing}
@@ -1056,12 +1038,9 @@ function ProofUpload({
 
 function PengaturanTab({ settings }: { settings: Settings }) {
     const form = useForm({
-        mode: settings.mode,
-        points_per_conversion: String(settings.points_per_conversion),
-        percent_rate: String(settings.percent_rate),
-        point_value: String(settings.point_value),
+        flat_amount: String(settings.flat_amount),
         hold_days: String(settings.hold_days),
-        min_withdrawal_points: String(settings.min_withdrawal_points),
+        min_withdrawal_amount: String(settings.min_withdrawal_amount),
         withdrawal_enabled: settings.withdrawal_enabled,
         leads_tab_enabled: settings.leads_tab_enabled,
         komisi_tab_enabled: settings.komisi_tab_enabled,
@@ -1076,46 +1055,17 @@ function PengaturanTab({ settings }: { settings: Settings }) {
     return (
         <form onSubmit={submit} style={{ ...card, padding: '20px 22px', maxWidth: 560, display: 'grid', gap: 16 }}>
             <div>
-                <label style={fieldLabel}>Cara Hitung Komisi</label>
-                <select value={form.data.mode} onChange={(e) => form.setData('mode', e.target.value)} style={fieldInput}>
-                    <option value="flat">Poin tetap per konversi</option>
-                    <option value="percent">Persen dari invoice pertama</option>
-                </select>
-            </div>
-
-            {form.data.mode === 'flat' ? (
-                <div>
-                    <label style={fieldLabel}>Poin per Konversi</label>
-                    <input
-                        value={form.data.points_per_conversion}
-                        onChange={(e) => form.setData('points_per_conversion', e.target.value)}
-                        style={fieldInput}
-                    />
-                    <div style={{ fontSize: 11.5, color: C.faint, marginTop: 4 }}>
-                        Setiap klien baru yang lunas invoice pertamanya = {form.data.points_per_conversion || 0} poin ≈{' '}
-                        {rp(Number(form.data.points_per_conversion || 0) * Number(form.data.point_value || 0))}.
-                    </div>
-                    {form.errors.points_per_conversion && <div style={fieldError}>{form.errors.points_per_conversion}</div>}
-                </div>
-            ) : (
-                <div>
-                    <label style={fieldLabel}>Persen dari Invoice (%)</label>
-                    <input value={form.data.percent_rate} onChange={(e) => form.setData('percent_rate', e.target.value)} style={fieldInput} />
-                    <div style={{ fontSize: 11.5, color: C.faint, marginTop: 4 }}>
-                        Contoh: invoice pertama Rp1.000.000 = komisi{' '}
-                        {rp(1_000_000 * (Number(form.data.percent_rate || 0) / 100))}.
-                    </div>
-                    {form.errors.percent_rate && <div style={fieldError}>{form.errors.percent_rate}</div>}
-                </div>
-            )}
-
-            <div>
-                <label style={fieldLabel}>Nilai 1 Poin</label>
-                <RupiahInput value={form.data.point_value} onChange={(digits) => form.setData('point_value', digits)} invalid={!!form.errors.point_value} />
+                <label style={fieldLabel}>Komisi per Konversi (Rp)</label>
+                <RupiahInput
+                    value={form.data.flat_amount}
+                    onChange={(digits) => form.setData('flat_amount', digits)}
+                    invalid={!!form.errors.flat_amount}
+                />
                 <div style={{ fontSize: 11.5, color: C.faint, marginTop: 4 }}>
-                    Rupiah yang dibayarkan mitra per poin saat penarikan dicairkan.
+                    Setiap perusahaan yang mendaftar lewat link mitra dan invoice pertamanya lunas mengkredit komisi ini ke
+                    mitra. Contoh: link dipakai dan closing 1x = {rp(Number(form.data.flat_amount || 0))}.
                 </div>
-                {form.errors.point_value && <div style={fieldError}>{form.errors.point_value}</div>}
+                {form.errors.flat_amount && <div style={fieldError}>{form.errors.flat_amount}</div>}
             </div>
 
             <div>
@@ -1127,8 +1077,13 @@ function PengaturanTab({ settings }: { settings: Settings }) {
             </div>
 
             <div>
-                <label style={fieldLabel}>Minimal Penarikan (poin)</label>
-                <input value={form.data.min_withdrawal_points} onChange={(e) => form.setData('min_withdrawal_points', e.target.value)} style={fieldInput} />
+                <label style={fieldLabel}>Minimal Penarikan (Rp)</label>
+                <RupiahInput
+                    value={form.data.min_withdrawal_amount}
+                    onChange={(digits) => form.setData('min_withdrawal_amount', digits)}
+                    invalid={!!form.errors.min_withdrawal_amount}
+                />
+                {form.errors.min_withdrawal_amount && <div style={fieldError}>{form.errors.min_withdrawal_amount}</div>}
             </div>
 
             <div style={{ borderTop: `1px solid ${C.line}`, paddingTop: 16 }}>

@@ -6,8 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Append-only referral accounting entry. A partner's points balance is always
- * SUM(points) here — see {@see Partner::balancePoints()} — never a column
+ * Append-only referral accounting entry. A partner's rupiah balance is always
+ * SUM(amount) here — see {@see Partner::balanceAmount()} — never a column
  * updated in place. Mirrors {@see AiTokenLedger}.
  */
 final class ReferralLedger extends Model
@@ -25,9 +25,8 @@ final class ReferralLedger extends Model
     protected function casts(): array
     {
         return [
-            'points' => 'integer',
             'amount' => 'decimal:2',
-            'balance_after' => 'integer',
+            'balance_after' => 'decimal:2',
         ];
     }
 

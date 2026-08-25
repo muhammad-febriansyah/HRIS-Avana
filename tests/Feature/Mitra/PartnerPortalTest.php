@@ -15,7 +15,7 @@ beforeEach(function (): void {
     $this->admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
     $this->superAdmin = User::where('email', 'superadmin@avanahr.id')->firstOrFail();
 
-    ReferralSetting::current()->update(['point_value' => 5000, 'min_withdrawal_points' => 5]);
+    ReferralSetting::current()->update(['flat_amount' => 50000, 'min_withdrawal_amount' => 25000]);
 });
 
 it('renders the partner dashboard for a partner login', function (): void {
@@ -74,19 +74,18 @@ it('blocks a withdrawal request until bank details are filled in', function (): 
     ReferralLedger::create([
         'partner_id' => $partner->id,
         'type' => ReferralLedger::TYPE_EARN,
-        'points' => 20,
         'amount' => 100000,
-        'balance_after' => 20,
+        'balance_after' => 100000,
     ]);
 
     actingAs($partner->user)
-        ->post(route('mitra.penarikan.store'), ['points' => 10])
+        ->post(route('mitra.penarikan.store'), ['amount' => 50000])
         ->assertSessionHas('error');
 
     expect(ReferralWithdrawal::where('partner_id', $partner->id)->count())->toBe(0);
 });
 
-it('lets a partner request a withdrawal within their available balance, reserving the points', function (): void {
+it('lets a partner request a withdrawal within their available balance, reserving the amount', function (): void {
     $partner = createTestPartner([
         'bank_name' => 'BCA',
         'bank_account_number' => '1234567890',
@@ -95,22 +94,20 @@ it('lets a partner request a withdrawal within their available balance, reservin
     ReferralLedger::create([
         'partner_id' => $partner->id,
         'type' => ReferralLedger::TYPE_EARN,
-        'points' => 20,
         'amount' => 100000,
-        'balance_after' => 20,
+        'balance_after' => 100000,
     ]);
 
     actingAs($partner->user)
-        ->post(route('mitra.penarikan.store'), ['points' => 10])
+        ->post(route('mitra.penarikan.store'), ['amount' => 50000])
         ->assertSessionHas('success');
 
     $withdrawal = ReferralWithdrawal::where('partner_id', $partner->id)->first();
     expect($withdrawal)->not->toBeNull();
-    expect($withdrawal->points)->toBe(10);
     expect((float) $withdrawal->amount)->toBe(50000.0);
     expect($withdrawal->bank_account_number)->toBe('1234567890');
 
-    expect($partner->fresh()->availablePoints())->toBe(10);
+    expect($partner->fresh()->availableAmount())->toBe(50000.0);
 });
 
 it('refuses a withdrawal larger than the available balance', function (): void {
@@ -122,13 +119,12 @@ it('refuses a withdrawal larger than the available balance', function (): void {
     ReferralLedger::create([
         'partner_id' => $partner->id,
         'type' => ReferralLedger::TYPE_EARN,
-        'points' => 20,
         'amount' => 100000,
-        'balance_after' => 20,
+        'balance_after' => 100000,
     ]);
 
     actingAs($partner->user)
-        ->post(route('mitra.penarikan.store'), ['points' => 999])
+        ->post(route('mitra.penarikan.store'), ['amount' => 999000])
         ->assertSessionHas('error');
 
     expect(ReferralWithdrawal::where('partner_id', $partner->id)->count())->toBe(0);
@@ -145,13 +141,12 @@ it('blocks a withdrawal request while withdrawals are disabled by the admin', fu
     ReferralLedger::create([
         'partner_id' => $partner->id,
         'type' => ReferralLedger::TYPE_EARN,
-        'points' => 20,
         'amount' => 100000,
-        'balance_after' => 20,
+        'balance_after' => 100000,
     ]);
 
     actingAs($partner->user)
-        ->post(route('mitra.penarikan.store'), ['points' => 10])
+        ->post(route('mitra.penarikan.store'), ['amount' => 50000])
         ->assertSessionHas('error');
 
     expect(ReferralWithdrawal::where('partner_id', $partner->id)->count())->toBe(0);
@@ -166,13 +161,12 @@ it('respects the configured minimum withdrawal', function (): void {
     ReferralLedger::create([
         'partner_id' => $partner->id,
         'type' => ReferralLedger::TYPE_EARN,
-        'points' => 20,
         'amount' => 100000,
-        'balance_after' => 20,
+        'balance_after' => 100000,
     ]);
 
     actingAs($partner->user)
-        ->post(route('mitra.penarikan.store'), ['points' => 2])
+        ->post(route('mitra.penarikan.store'), ['amount' => 10000])
         ->assertSessionHas('error');
 
     expect(ReferralWithdrawal::where('partner_id', $partner->id)->count())->toBe(0);

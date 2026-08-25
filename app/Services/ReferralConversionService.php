@@ -47,9 +47,9 @@ final class ReferralConversionService
             }
 
             $settings = ReferralSetting::current();
-            $computed = $settings->resolveCommission((float) $invoice->total, $partner);
+            $amount = $settings->resolveCommission($partner);
 
-            if ($computed['points'] <= 0) {
+            if ($amount <= 0) {
                 return;
             }
 
@@ -58,9 +58,7 @@ final class ReferralConversionService
                 'tenant_id' => $tenant->id,
                 'invoice_id' => $invoice->id,
                 'base_amount' => $invoice->total,
-                'points' => $computed['points'],
-                'commission_amount' => $computed['amount'],
-                'mode' => $partner->commission_mode ?? $settings->mode,
+                'commission_amount' => $amount,
                 'status' => ReferralConversion::STATUS_PENDING,
                 'hold_until' => now()->addDays($settings->hold_days)->toDateString(),
             ]);
@@ -72,7 +70,7 @@ final class ReferralConversionService
      * its hold period had never touched the ledger, so voiding it is just a
      * status flip. One already approved (past its hold, already earning) gets
      * a reversing `void` ledger entry so the partner's balance moves back
-     * down by the same points it moved up by.
+     * down by the same amount it moved up by.
      */
     public function voidForInvoice(Invoice $invoice): void
     {
@@ -91,12 +89,11 @@ final class ReferralConversionService
                 $partner = Partner::query()->whereKey($conversion->partner_id)->lockForUpdate()->first();
 
                 if ($partner !== null) {
-                    $balanceAfter = $partner->balancePoints() - $conversion->points;
+                    $balanceAfter = $partner->balanceAmount() - $conversion->commission_amount;
 
                     ReferralLedger::create([
                         'partner_id' => $partner->id,
                         'type' => ReferralLedger::TYPE_VOID,
-                        'points' => -$conversion->points,
                         'amount' => -$conversion->commission_amount,
                         'balance_after' => $balanceAfter,
                         'reference_type' => 'conversion',

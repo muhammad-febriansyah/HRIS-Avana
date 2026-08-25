@@ -53,11 +53,10 @@ class ReferralController extends Controller
                 'email' => $partner->user?->email,
                 'phone' => $partner->phone,
                 'status' => $partner->status,
-                'commission_mode' => $partner->commission_mode,
                 'commission_value' => $partner->commission_value !== null ? (float) $partner->commission_value : null,
                 'has_bank' => $partner->hasBankDetails(),
-                'balance_points' => $partner->balancePoints(),
-                'available_points' => $partner->availablePoints(),
+                'balance_amount' => $partner->balanceAmount(),
+                'available_amount' => $partner->availableAmount(),
                 'leads_count' => $partner->leads()->count(),
                 'conversions_count' => $partner->conversions()->count(),
                 'created_at' => $partner->created_at?->toDateTimeString(),
@@ -123,7 +122,6 @@ class ReferralController extends Controller
                 'partner_name' => $c->partner?->user?->name,
                 'tenant_name' => $c->tenant?->name,
                 'base_amount' => (float) $c->base_amount,
-                'points' => $c->points,
                 'commission_amount' => (float) $c->commission_amount,
                 'status' => $c->status,
                 'hold_until' => $c->hold_until?->toDateString(),
@@ -144,7 +142,6 @@ class ReferralController extends Controller
             ->through(fn (ReferralWithdrawal $w): array => [
                 'id' => $w->id,
                 'partner_name' => $w->partner?->user?->name,
-                'points' => $w->points,
                 'amount' => (float) $w->amount,
                 'bank_name' => $w->bank_name,
                 'bank_account_number' => $w->bank_account_number,
@@ -163,9 +160,9 @@ class ReferralController extends Controller
                 'pending_applications' => $applications->count(),
                 'pending_withdrawals' => ReferralWithdrawal::query()->where('status', ReferralWithdrawal::STATUS_PENDING)->count(),
                 'active_partners' => Partner::query()->where('status', 'active')->count(),
-                // Platform-wide ledger balance: earned points still sitting in
-                // partner wallets, not yet withdrawn.
-                'points_outstanding' => (int) ReferralLedger::query()->sum('points'),
+                // Platform-wide ledger balance: earned commission still
+                // sitting in partner wallets, not yet withdrawn.
+                'amount_outstanding' => (float) ReferralLedger::query()->sum('amount'),
             ],
             'applications' => $applications,
             'partners' => PaginatedTable::shape($partnersPage, $request, 'mitra_search'),
@@ -173,12 +170,9 @@ class ReferralController extends Controller
             'conversions' => PaginatedTable::shape($conversionsPage, $request, 'konversi_search'),
             'withdrawals' => PaginatedTable::shape($withdrawalsPage, $request, 'penarikan_search'),
             'settings' => [
-                'mode' => $settings->mode,
-                'points_per_conversion' => $settings->points_per_conversion,
-                'percent_rate' => (float) $settings->percent_rate,
-                'point_value' => (float) $settings->point_value,
+                'flat_amount' => (float) $settings->flat_amount,
                 'hold_days' => $settings->hold_days,
-                'min_withdrawal_points' => $settings->min_withdrawal_points,
+                'min_withdrawal_amount' => (float) $settings->min_withdrawal_amount,
                 'withdrawal_enabled' => $settings->withdrawal_enabled,
                 'leads_tab_enabled' => $settings->leads_tab_enabled,
                 'komisi_tab_enabled' => $settings->komisi_tab_enabled,
@@ -224,7 +218,6 @@ class ReferralController extends Controller
 
         $validated = $request->validate([
             'status' => ['required', Rule::in(['active', 'suspended'])],
-            'commission_mode' => ['nullable', Rule::in(['flat', 'percent'])],
             'commission_value' => ['nullable', 'numeric', 'min:0'],
         ]);
 
@@ -248,7 +241,7 @@ class ReferralController extends Controller
 
     /**
      * First step of a payout: marks the request approved so the super admin
-     * can go make the actual transfer. No points move yet — that happens
+     * can go make the actual transfer. No money moves yet — that happens
      * once the proof of transfer is uploaded via {@see payWithdrawal()}.
      */
     public function approveWithdrawal(Request $request, ReferralWithdrawal $withdrawal): RedirectResponse
@@ -287,11 +280,10 @@ class ReferralController extends Controller
             abort_if($partner === null, 404);
 
             $path = PrivateFile::store($validated['proof'], 'referral-withdrawals');
-            $balanceAfter = $partner->balancePoints() - $withdrawal->points;
+            $balanceAfter = $partner->balanceAmount() - $withdrawal->amount;
 
             $partner->ledger()->create([
                 'type' => ReferralLedger::TYPE_WITHDRAW,
-                'points' => -$withdrawal->points,
                 'amount' => -$withdrawal->amount,
                 'balance_after' => $balanceAfter,
                 'reference_type' => 'withdrawal',
@@ -328,7 +320,7 @@ class ReferralController extends Controller
             'processed_at' => now(),
         ]);
 
-        return back()->with('success', 'Penarikan ditolak, poin dikembalikan ke saldo tersedia');
+        return back()->with('success', 'Penarikan ditolak, saldo dikembalikan ke saldo tersedia');
     }
 
     public function updateSettings(Request $request): RedirectResponse
@@ -336,12 +328,9 @@ class ReferralController extends Controller
         $this->ensureSuperAdmin($request);
 
         $validated = $request->validate([
-            'mode' => ['required', Rule::in([ReferralSetting::MODE_FLAT, ReferralSetting::MODE_PERCENT])],
-            'points_per_conversion' => ['required', 'integer', 'min:0'],
-            'percent_rate' => ['required', 'numeric', 'min:0', 'max:100'],
-            'point_value' => ['required', 'numeric', 'min:0'],
+            'flat_amount' => ['required', 'numeric', 'min:0'],
             'hold_days' => ['required', 'integer', 'min:0', 'max:365'],
-            'min_withdrawal_points' => ['required', 'integer', 'min:0'],
+            'min_withdrawal_amount' => ['required', 'numeric', 'min:0'],
             'withdrawal_enabled' => ['required', 'boolean'],
             'leads_tab_enabled' => ['required', 'boolean'],
             'komisi_tab_enabled' => ['required', 'boolean'],

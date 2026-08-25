@@ -71,28 +71,28 @@ final class Partner extends Model
     }
 
     /**
-     * Settled points balance — SUM of the append-only ledger, never a column
+     * Settled rupiah balance — SUM of the append-only ledger, never a column
      * updated in place.
      */
-    public function balancePoints(): int
+    public function balanceAmount(): float
     {
-        return (int) $this->ledger()->sum('points');
+        return (float) $this->ledger()->sum('amount');
     }
 
     /**
      * Balance minus whatever is reserved by a withdrawal not yet rejected
      * (pending, approved, or already paid — paid has already been debited
      * from the ledger, so it does not double-subtract here). This is what
-     * blocks a partner from requesting the same points twice while an earlier
-     * request is still being processed.
+     * blocks a partner from requesting the same balance twice while an
+     * earlier request is still being processed.
      */
-    public function availablePoints(): int
+    public function availableAmount(): float
     {
-        $reserved = (int) $this->withdrawals()
+        $reserved = (float) $this->withdrawals()
             ->whereIn('status', [ReferralWithdrawal::STATUS_PENDING, ReferralWithdrawal::STATUS_APPROVED])
-            ->sum('points');
+            ->sum('amount');
 
-        return $this->balancePoints() - $reserved;
+        return $this->balanceAmount() - $reserved;
     }
 
     /**

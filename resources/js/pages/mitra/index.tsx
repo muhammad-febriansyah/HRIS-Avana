@@ -15,7 +15,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { AvanaFonts } from '@/layouts/avana-layout';
-import { AIcon, btnSave, C, card, thCell } from '@/lib/avana';
+import { AIcon, btnSave, C, card, RupiahInput, thCell } from '@/lib/avana';
 import { logout } from '@/routes';
 import { edit as editProfile } from '@/routes/profile';
 
@@ -33,14 +33,14 @@ interface Stats {
     clicks: number;
     leads: number;
     conversions: number;
-    balance_points: number;
-    available_points: number;
-    pending_points: number;
+    balance_amount: number;
+    available_amount: number;
+    pending_amount: number;
 }
 
 interface Settings {
-    point_value: number;
-    min_withdrawal_points: number;
+    flat_amount: number;
+    min_withdrawal_amount: number;
     hold_days: number;
     withdrawal_enabled: boolean;
     leads_tab_enabled: boolean;
@@ -60,7 +60,6 @@ interface LeadRow {
 interface ConversionRow {
     id: number;
     tenant_name: string | null;
-    points: number;
     commission_amount: number;
     status: string;
     hold_until: string | null;
@@ -69,7 +68,6 @@ interface ConversionRow {
 
 interface WithdrawalRow {
     id: number;
-    points: number;
     amount: number;
     status: string;
     admin_note: string | null;
@@ -113,7 +111,7 @@ const TAB_DESCRIPTION: Record<TabKey, string> = {
     dashboard: 'Ringkasan performa referral Anda dan link unik untuk dibagikan.',
     leads: 'Perusahaan yang mendaftar lewat link referral Anda.',
     komisi: 'Riwayat komisi dari setiap klien yang berhasil dikonversi.',
-    penarikan: 'Ajukan pencairan saldo poin dan pantau statusnya.',
+    penarikan: 'Ajukan pencairan saldo komisi dan pantau statusnya.',
     rekening: 'Data rekening bank untuk pencairan komisi.',
 };
 
@@ -121,24 +119,54 @@ function rp(n: number): string {
     return 'Rp' + Math.round(n).toLocaleString('id-ID');
 }
 
-const LEAD_LABEL: Record<string, string> = {
-    new: 'Baru',
-    contacted: 'Dihubungi',
-    converted: 'Jadi Klien',
-    lost: 'Hilang',
+type Tone = 'green' | 'amber' | 'red' | 'muted' | 'primary';
+
+function Badge({ label, tone }: { label: string; tone: Tone }) {
+    const map: Record<Tone, [string, string]> = {
+        green: [C.green, 'rgba(22,163,74,.1)'],
+        amber: [C.amber, 'rgba(217,119,6,.1)'],
+        red: [C.red, 'rgba(220,38,38,.1)'],
+        muted: [C.muted, 'rgba(107,114,128,.12)'],
+        primary: [C.primary, 'rgba(47,84,201,.1)'],
+    };
+    const [color, bg] = map[tone];
+
+    return (
+        <span
+            style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '3px 9px',
+                borderRadius: 999,
+                fontSize: 11.5,
+                fontWeight: 700,
+                color,
+                background: bg,
+            }}
+        >
+            {label}
+        </span>
+    );
+}
+
+const LEAD_STATUS: Record<string, { label: string; tone: Tone }> = {
+    new: { label: 'Baru', tone: 'amber' },
+    contacted: { label: 'Dihubungi', tone: 'primary' },
+    converted: { label: 'Jadi Klien', tone: 'green' },
+    lost: { label: 'Hilang', tone: 'muted' },
 };
 
-const CONVERSION_LABEL: Record<string, string> = {
-    pending: 'Tertahan',
-    approved: 'Disetujui',
-    void: 'Dibatalkan',
+const CONVERSION_STATUS: Record<string, { label: string; tone: Tone }> = {
+    pending: { label: 'Tertahan', tone: 'amber' },
+    approved: { label: 'Disetujui', tone: 'green' },
+    void: { label: 'Dibatalkan', tone: 'red' },
 };
 
-const WITHDRAWAL_LABEL: Record<string, string> = {
-    pending: 'Menunggu',
-    approved: 'Diproses',
-    paid: 'Lunas',
-    rejected: 'Ditolak',
+const WITHDRAWAL_STATUS: Record<string, { label: string; tone: Tone }> = {
+    pending: { label: 'Menunggu', tone: 'amber' },
+    approved: { label: 'Diproses', tone: 'primary' },
+    paid: { label: 'Lunas', tone: 'green' },
+    rejected: { label: 'Ditolak', tone: 'red' },
 };
 
 export default function MitraIndex({ partner, stats, settings, referralUrl, recentConversions, leads, conversions, withdrawals }: PageProps) {
@@ -513,8 +541,8 @@ export default function MitraIndex({ partner, stats, settings, referralUrl, rece
                                 >
                                     <StatCard label="Klik Link" value={stats.clicks.toLocaleString('id-ID')} icon="mouse-pointer-click" tone="sky" />
                                     <StatCard label="Leads" value={stats.leads.toLocaleString('id-ID')} icon="users" tone="primary" />
-                                    <StatCard label="Saldo Poin" value={stats.balance_points.toLocaleString('id-ID')} icon="coins" tone="amber" />
-                                    <StatCard label="Tersedia Ditarik" value={stats.available_points.toLocaleString('id-ID')} icon="wallet" tone="green" />
+                                    <StatCard label="Saldo Komisi" value={rp(stats.balance_amount)} icon="coins" tone="amber" />
+                                    <StatCard label="Tersedia Ditarik" value={rp(stats.available_amount)} icon="wallet" tone="green" />
                                 </div>
 
                                 <ReferralLinkBox referralUrl={referralUrl} />
@@ -606,9 +634,9 @@ function DashboardTab({ stats, settings, recentConversions }: { stats: Stats; se
     return (
         <div style={{ display: 'grid', gap: 16 }}>
             <div style={{ ...card, padding: '16px 18px', fontSize: 13, color: C.text, lineHeight: 1.6 }}>
-                Setiap perusahaan yang mendaftar lewat link Anda dan invoice pertamanya lunas akan dikreditkan sebagai komisi.
-                Komisi ditahan {settings.hold_days} hari sebelum bisa ditarik, senilai <strong>{rp(settings.point_value)}</strong> per poin.
-                Anda punya <strong>{stats.pending_points.toLocaleString('id-ID')} poin</strong> yang masih dalam masa tahan.
+                Setiap perusahaan yang mendaftar lewat link Anda dan invoice pertamanya lunas akan dikreditkan sebagai komisi
+                sebesar <strong>{rp(settings.flat_amount)}</strong>. Komisi ditahan {settings.hold_days} hari sebelum bisa
+                ditarik. Anda punya <strong>{rp(stats.pending_amount)}</strong> yang masih dalam masa tahan.
             </div>
             {settings.komisi_tab_enabled && (
                 <div>
@@ -628,7 +656,6 @@ function KomisiMiniTable({ conversions }: { conversions: ConversionRow[] }) {
                 <thead>
                     <tr>
                         <th style={thCell}>Klien</th>
-                        <th style={thCell}>Poin</th>
                         <th style={thCell}>Komisi</th>
                         <th style={thCell}>Status</th>
                         <th style={thCell}>Cair Sejak</th>
@@ -637,7 +664,7 @@ function KomisiMiniTable({ conversions }: { conversions: ConversionRow[] }) {
                 <tbody>
                     {conversions.length === 0 && (
                         <tr>
-                            <td colSpan={5} style={{ padding: '32px 16px', textAlign: 'center', color: C.muted }}>
+                            <td colSpan={4} style={{ padding: '32px 16px', textAlign: 'center', color: C.muted }}>
                                 Belum ada komisi.
                             </td>
                         </tr>
@@ -645,9 +672,10 @@ function KomisiMiniTable({ conversions }: { conversions: ConversionRow[] }) {
                     {conversions.map((c) => (
                         <tr key={c.id} style={{ borderTop: `1px solid ${C.line}` }}>
                             <td style={{ padding: '10px 16px', fontWeight: 600 }}>{c.tenant_name}</td>
-                            <td style={{ padding: '10px 16px' }}>{c.points.toLocaleString('id-ID')}</td>
                             <td style={{ padding: '10px 16px', fontWeight: 600 }}>{rp(c.commission_amount)}</td>
-                            <td style={{ padding: '10px 16px' }}>{CONVERSION_LABEL[c.status] ?? c.status}</td>
+                            <td style={{ padding: '10px 16px' }}>
+                                <Badge label={CONVERSION_STATUS[c.status]?.label ?? c.status} tone={CONVERSION_STATUS[c.status]?.tone ?? 'muted'} />
+                            </td>
                             <td style={{ padding: '10px 16px', color: C.muted }}>{c.hold_until ?? '—'}</td>
                         </tr>
                     ))}
@@ -675,7 +703,7 @@ function LeadsTab({ leads }: { leads: Paginated<LeadRow> }) {
             key: 'status',
             header: 'Status',
             sortable: false,
-            render: (lead) => LEAD_LABEL[lead.status] ?? lead.status,
+            render: (lead) => <Badge label={LEAD_STATUS[lead.status]?.label ?? lead.status} tone={LEAD_STATUS[lead.status]?.tone ?? 'muted'} />,
         },
         { key: 'created_at', header: 'Tanggal', sortable: false },
     ];
@@ -708,14 +736,18 @@ function KomisiTab({ conversions }: { conversions: Paginated<ConversionRow> }) {
             sortable: false,
             render: (c) => <span style={{ fontWeight: 600, color: '#1A2333' }}>{c.tenant_name}</span>,
         },
-        { key: 'points', header: 'Poin', sortable: false, render: (c) => c.points.toLocaleString('id-ID') },
         {
             key: 'commission_amount',
             header: 'Komisi',
             sortable: false,
             render: (c) => <span style={{ fontWeight: 600 }}>{rp(c.commission_amount)}</span>,
         },
-        { key: 'status', header: 'Status', sortable: false, render: (c) => CONVERSION_LABEL[c.status] ?? c.status },
+        {
+            key: 'status',
+            header: 'Status',
+            sortable: false,
+            render: (c) => <Badge label={CONVERSION_STATUS[c.status]?.label ?? c.status} tone={CONVERSION_STATUS[c.status]?.tone ?? 'muted'} />,
+        },
         { key: 'hold_until', header: 'Cair Sejak', sortable: false, render: (c) => c.hold_until ?? '—' },
     ];
 
@@ -746,7 +778,7 @@ function PenarikanTab({
     settings: Settings;
     hasBank: boolean;
 }) {
-    const form = useForm({ points: String(Math.max(settings.min_withdrawal_points, 1)) });
+    const form = useForm({ amount: String(Math.max(settings.min_withdrawal_amount, 1)) });
 
     const submit = (e: FormEvent) => {
         e.preventDefault();
@@ -757,7 +789,6 @@ function PenarikanTab({
     };
 
     const columns: DataTableColumn<WithdrawalRow>[] = [
-        { key: 'points', header: 'Poin', sortable: false, render: (w) => w.points.toLocaleString('id-ID') },
         { key: 'amount', header: 'Nominal', sortable: false, render: (w) => <span style={{ fontWeight: 600 }}>{rp(w.amount)}</span> },
         {
             key: 'status',
@@ -765,7 +796,7 @@ function PenarikanTab({
             sortable: false,
             render: (w) => (
                 <>
-                    {WITHDRAWAL_LABEL[w.status] ?? w.status}
+                    <Badge label={WITHDRAWAL_STATUS[w.status]?.label ?? w.status} tone={WITHDRAWAL_STATUS[w.status]?.tone ?? 'muted'} />
                     {w.status === 'rejected' && w.admin_note && (
                         <div style={{ fontSize: 11.5, color: C.red, marginTop: 3 }}>{w.admin_note}</div>
                     )}
@@ -793,20 +824,17 @@ function PenarikanTab({
             <form onSubmit={submit} style={{ ...card, padding: '16px 18px', display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
                 <div>
                     <label style={fieldLabel}>
-                        Jumlah Poin Ditarik <span style={{ color: C.red }}>*</span>
+                        Jumlah Ditarik (Rp) <span style={{ color: C.red }}>*</span>
                     </label>
-                    <input
-                        value={form.data.points}
-                        onChange={(e) => form.setData('points', e.target.value)}
-                        style={{ ...fieldInput, width: 180 }}
-                        inputMode="numeric"
-                        required
+                    <RupiahInput
+                        value={form.data.amount}
+                        onChange={(digits) => form.setData('amount', digits)}
+                        invalid={!!form.errors.amount}
                     />
                     <div style={{ fontSize: 11.5, color: C.faint, marginTop: 4 }}>
-                        Tersedia {stats.available_points.toLocaleString('id-ID')} poin · minimal {settings.min_withdrawal_points.toLocaleString('id-ID')} poin · ≈{' '}
-                        {rp(Number(form.data.points || 0) * settings.point_value)}
+                        Tersedia {rp(stats.available_amount)} · minimal {rp(settings.min_withdrawal_amount)}
                     </div>
-                    {form.errors.points && <div style={fieldError}>{form.errors.points}</div>}
+                    {form.errors.amount && <div style={fieldError}>{form.errors.amount}</div>}
                 </div>
                 <button type="submit" style={btnSave} disabled={form.processing || !hasBank}>
                     {form.processing ? 'Mengajukan…' : 'Ajukan Penarikan'}
@@ -825,7 +853,7 @@ function PenarikanTab({
                     <EmptyState
                         icon={Wallet}
                         title="Belum ada penarikan"
-                        description="Riwayat pengajuan pencairan saldo poin Anda akan muncul di sini."
+                        description="Riwayat pengajuan pencairan saldo komisi Anda akan muncul di sini."
                     />
                 }
             />

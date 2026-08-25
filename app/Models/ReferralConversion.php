@@ -27,7 +27,6 @@ final class ReferralConversion extends Model
     {
         return [
             'base_amount' => 'decimal:2',
-            'points' => 'integer',
             'commission_amount' => 'decimal:2',
             'hold_until' => 'date',
             'approved_at' => 'datetime',

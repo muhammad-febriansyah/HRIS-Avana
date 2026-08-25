@@ -37,12 +37,9 @@ function makePartnerRegistration(array $overrides = []): PartnerRegistration
 it('lets the super admin turn off partner withdrawals', function (): void {
     actingAs($this->superAdmin)
         ->post(route('avana.referral.pengaturan.update'), [
-            'mode' => 'flat',
-            'points_per_conversion' => 1,
-            'percent_rate' => 0,
-            'point_value' => 5000,
+            'flat_amount' => 50000,
             'hold_days' => 14,
-            'min_withdrawal_points' => 5,
+            'min_withdrawal_amount' => 25000,
             'withdrawal_enabled' => false,
             'leads_tab_enabled' => true,
             'komisi_tab_enabled' => true,
@@ -56,12 +53,9 @@ it('lets the super admin turn off partner withdrawals', function (): void {
 it('lets the super admin turn off individual mitra portal tabs', function (): void {
     actingAs($this->superAdmin)
         ->post(route('avana.referral.pengaturan.update'), [
-            'mode' => 'flat',
-            'points_per_conversion' => 1,
-            'percent_rate' => 0,
-            'point_value' => 5000,
+            'flat_amount' => 50000,
             'hold_days' => 14,
-            'min_withdrawal_points' => 5,
+            'min_withdrawal_amount' => 25000,
             'withdrawal_enabled' => true,
             'leads_tab_enabled' => false,
             'komisi_tab_enabled' => false,
@@ -159,14 +153,12 @@ it('pays an approved withdrawal, uploads the proof privately, and debits the led
     ReferralLedger::create([
         'partner_id' => $partner->id,
         'type' => ReferralLedger::TYPE_EARN,
-        'points' => 20,
         'amount' => 100000,
-        'balance_after' => 20,
+        'balance_after' => 100000,
     ]);
 
     $withdrawal = ReferralWithdrawal::create([
         'partner_id' => $partner->id,
-        'points' => 20,
         'amount' => 100000,
         'bank_name' => 'BCA',
         'bank_account_number' => '1234567890',
@@ -191,11 +183,11 @@ it('pays an approved withdrawal, uploads the proof privately, and debits the led
     expect($withdrawal->proof_path)->not->toBeNull();
     Storage::disk('local')->assertExists($withdrawal->proof_path);
 
-    expect($partner->fresh()->balancePoints())->toBe(0);
+    expect($partner->fresh()->balanceAmount())->toBe(0.0);
 
     $debit = ReferralLedger::where('partner_id', $partner->id)->where('type', ReferralLedger::TYPE_WITHDRAW)->first();
     expect($debit)->not->toBeNull();
-    expect($debit->points)->toBe(-20);
+    expect((float) $debit->amount)->toBe(-100000.0);
 });
 
 it('releases the reservation when a withdrawal is rejected', function (): void {
@@ -203,14 +195,12 @@ it('releases the reservation when a withdrawal is rejected', function (): void {
     ReferralLedger::create([
         'partner_id' => $partner->id,
         'type' => ReferralLedger::TYPE_EARN,
-        'points' => 20,
         'amount' => 100000,
-        'balance_after' => 20,
+        'balance_after' => 100000,
     ]);
 
     $withdrawal = ReferralWithdrawal::create([
         'partner_id' => $partner->id,
-        'points' => 20,
         'amount' => 100000,
         'bank_name' => 'BCA',
         'bank_account_number' => '1234567890',
@@ -218,12 +208,12 @@ it('releases the reservation when a withdrawal is rejected', function (): void {
         'status' => ReferralWithdrawal::STATUS_PENDING,
     ]);
 
-    expect($partner->fresh()->availablePoints())->toBe(0);
+    expect($partner->fresh()->availableAmount())->toBe(0.0);
 
     actingAs($this->superAdmin)
         ->post(route('avana.referral.penarikan.reject', $withdrawal), ['admin_note' => 'Data rekening tidak sesuai'])
         ->assertSessionHas('success');
 
     expect($withdrawal->fresh()->status)->toBe(ReferralWithdrawal::STATUS_REJECTED);
-    expect($partner->fresh()->availablePoints())->toBe(20);
+    expect($partner->fresh()->availableAmount())->toBe(100000.0);
 });

@@ -20,11 +20,9 @@ beforeEach(function (): void {
     $this->superAdmin = User::where('email', 'superadmin@avanahr.id')->firstOrFail();
 
     ReferralSetting::current()->update([
-        'mode' => 'flat',
-        'points_per_conversion' => 10,
-        'point_value' => 5000,
+        'flat_amount' => 50000,
         'hold_days' => 7,
-        'min_withdrawal_points' => 5,
+        'min_withdrawal_amount' => 25000,
     ]);
 
     $partnerUser = User::create([
@@ -75,7 +73,6 @@ it('credits a pending referral conversion when a partner tenant\'s first invoice
 
     expect($conversion)->not->toBeNull();
     expect($conversion->partner_id)->toBe($this->partner->id);
-    expect($conversion->points)->toBe(10);
     expect((float) $conversion->commission_amount)->toBe(50000.0);
     expect($conversion->status)->toBe(ReferralConversion::STATUS_PENDING);
     // Still just a hold — nothing lands in the ledger until it clears.
@@ -138,7 +135,7 @@ it('leaves a conversion pending until its hold date, then releases it into the l
 
     expect($ledger)->not->toBeNull();
     expect($ledger->type)->toBe(ReferralLedger::TYPE_EARN);
-    expect($ledger->points)->toBe(10);
-    expect($ledger->balance_after)->toBe(10);
-    expect($this->partner->fresh()->balancePoints())->toBe(10);
+    expect((float) $ledger->amount)->toBe(50000.0);
+    expect((float) $ledger->balance_after)->toBe(50000.0);
+    expect($this->partner->fresh()->balanceAmount())->toBe(50000.0);
 });
