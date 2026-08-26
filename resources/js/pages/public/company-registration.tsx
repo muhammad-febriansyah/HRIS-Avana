@@ -24,7 +24,13 @@ const STEPS = [
 /** Which step owns which field — used to jump the wizard back to whichever
  * step a server-side validation error belongs to. */
 const STEP_FIELDS: Record<number, string[]> = {
-    0: ['company_name', 'phone', 'industry', 'employee_count_range'],
+    0: [
+        'company_name',
+        'phone',
+        'industry',
+        'employee_count_range',
+        'referral_code',
+    ],
     1: ['admin_name', 'admin_email', 'admin_password', 'terms_accepted'],
 };
 
@@ -60,6 +66,7 @@ export default function CompanyRegistration({
         phone: '',
         industry: '',
         employee_count_range: '',
+        referral_code: partnerCode ?? '',
         admin_name: '',
         admin_email: '',
         admin_password: '',
@@ -276,6 +283,28 @@ export default function CompanyRegistration({
                                             </select>
                                         </Field>
                                     </div>
+                                    {!partnerCode && (
+                                        <Field
+                                            label="Kode Referral (Opsional)"
+                                            error={errors.referral_code}
+                                        >
+                                            <input
+                                                value={form.data.referral_code}
+                                                onChange={(e) =>
+                                                    form.setData(
+                                                        'referral_code',
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                className={`${inputClass} uppercase`}
+                                                placeholder="Contoh: BUDIHR"
+                                            />
+                                            <p className="mt-1.5 text-[12px] text-[#9AA4B8]">
+                                                Punya kode dari mitra AvanaHR?
+                                                Masukkan di sini.
+                                            </p>
+                                        </Field>
+                                    )}
                                 </>
                             )}
 

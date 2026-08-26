@@ -96,6 +96,43 @@ it('queues an organic registration without referral attribution', function (): v
     expect($registration->source)->toBe('organic');
 });
 
+it('attributes a registration to a manually typed referral code when there is no cookie', function (): void {
+    $response = $this->post('/daftar-perusahaan/daftar', validRegistration([
+        // Lowercase on purpose — codes are stored uppercase, typing it
+        // shouldn't matter.
+        'referral_code' => strtolower($this->partner->code),
+    ]));
+
+    $response->assertSessionHas('success');
+    $registration = TenantRegistration::where('company_name', 'PT Uji Mandiri')->first();
+    expect($registration->partner_id)->toBe($this->partner->id);
+    expect($registration->source)->toBe('referral');
+});
+
+it('prefers the referral cookie over a manually typed code when both are present', function (): void {
+    $other = createTestPartner();
+
+    $response = $this->withCookie(CaptureReferral::COOKIE_NAME, $this->partner->code)
+        ->post('/daftar-perusahaan/daftar', validRegistration([
+            'referral_code' => $other->code,
+        ]));
+
+    $response->assertSessionHas('success');
+    $registration = TenantRegistration::where('company_name', 'PT Uji Mandiri')->first();
+    expect($registration->partner_id)->toBe($this->partner->id);
+});
+
+it('falls back to organic when the typed referral code matches no partner', function (): void {
+    $response = $this->post('/daftar-perusahaan/daftar', validRegistration([
+        'referral_code' => 'TIDAKADA',
+    ]));
+
+    $response->assertSessionHas('success');
+    $registration = TenantRegistration::where('company_name', 'PT Uji Mandiri')->first();
+    expect($registration->partner_id)->toBeNull();
+    expect($registration->source)->toBe('organic');
+});
+
 it('rejects a duplicate admin email already in use by a real account', function (): void {
     User::create([
         'tenant_id' => null,
