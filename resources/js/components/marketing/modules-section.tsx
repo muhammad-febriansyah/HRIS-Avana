@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/dialog';
 import { Container, Reveal, SectionHeading } from './reveal';
 
-type Module = {
+export type Module = {
     title: string;
     icon: typeof Users;
     tagline: string;
@@ -42,7 +42,9 @@ type Module = {
  * The concrete product modules, each with its own real screenshot — one
  * level more granular than the 6 platform areas in `SolutionSection`.
  */
-const MODULES: Module[] = [
+/** Exported so the navbar's "Produk & Modul" mega menu can group and link
+ * these same modules instead of duplicating their copy — see nav-mega-menu.tsx. */
+export const MODULES: Module[] = [
     {
         title: 'Core HR',
         icon: Users,
@@ -294,9 +296,7 @@ export function ModulesSection() {
 
                                     <button
                                         type="button"
-                                        onClick={() =>
-                                            setPreviewModule(module)
-                                        }
+                                        onClick={() => setPreviewModule(module)}
                                         className="mt-4 flex cursor-pointer items-center justify-between border-t border-[#E7ECF5] pt-3 text-xs font-bold text-[#2F54C9] group-hover:border-white/10 group-hover:text-white"
                                     >
                                         <span>Lihat Tampilan UI</span>
@@ -333,8 +333,7 @@ export function ModulesSection() {
                 <DialogContent className="sm:max-w-4xl">
                     <DialogHeader>
                         <DialogTitle>
-                            {previewModule?.title} —{' '}
-                            {previewModule?.tagline}
+                            {previewModule?.title} — {previewModule?.tagline}
                         </DialogTitle>
                     </DialogHeader>
 

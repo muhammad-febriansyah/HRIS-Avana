@@ -1,11 +1,26 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Menu, X } from 'lucide-react';
+import { ChevronDown, Menu, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { dashboard, liveTracking, login, partnership } from '@/routes';
 import { BrandLogo } from './brand-logo';
 import { NAV_ITEMS } from './content';
+import {
+    FeaturesMegaMenuPanel,
+    NATIVE_GROUP_TITLE,
+    NavDropdown,
+    PRODUCT_MENU_GROUPS,
+    SOLUTION_MENU_ITEMS,
+} from './nav-mega-menu';
 import { useCtaTargets } from './use-cta';
+
+/** Which top-nav items open a dropdown/mega menu instead of jumping straight
+ * to their anchor — keyed by `NAV_ITEMS[].name`. "Fitur" groups what used to
+ * be three separate items (Produk & Modul, Solusi Terpadu, AI & Analytics)
+ * into a single mega menu. */
+const MENU_BY_NAME: Record<string, 'features' | undefined> = {
+    Fitur: 'features',
+};
 
 /**
  * Sticky marketing navbar, drawn as a full-width fixed bar.
@@ -37,6 +52,7 @@ export function SiteNavbar({
     const { trial: trialUrl, trialExternal } = useCtaTargets();
     const [scrolled, setScrolled] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
     const [activeSection, setActiveSection] = useState('');
     const [infoBarOpen, setInfoBarOpen] = useState(true);
 
@@ -96,6 +112,7 @@ export function SiteNavbar({
             href: `${anchorPrefix}${item.link}`,
             isActive: !anchorPrefix && activeSection === item.link,
             isRoute: false,
+            menu: MENU_BY_NAME[item.name],
         })),
         {
             name: 'Live Tracking',
@@ -103,13 +120,15 @@ export function SiteNavbar({
             href: trackingUrl,
             isActive: activePage === 'live-tracking',
             isRoute: true,
+            menu: undefined,
         },
         {
-            name: 'Partner',
+            name: 'Daftar Partner',
             badge: undefined as string | undefined,
             href: partnershipUrl,
             isActive: activePage === 'partnership',
             isRoute: true,
+            menu: undefined,
         },
     ];
 
@@ -179,6 +198,25 @@ export function SiteNavbar({
                                 {item.badge}
                             </span>
                         );
+
+                        if (item.menu === 'features') {
+                            return (
+                                <NavDropdown
+                                    key={item.href}
+                                    label={item.name}
+                                    badge={badge}
+                                    isActive={item.isActive}
+                                    panel={
+                                        <FeaturesMegaMenuPanel
+                                            groups={PRODUCT_MENU_GROUPS}
+                                            solutions={SOLUTION_MENU_ITEMS}
+                                            platformHref={item.href}
+                                            solutionHref={`${anchorPrefix}#solusi`}
+                                        />
+                                    }
+                                />
+                            );
+                        }
 
                         return (
                             <li key={item.href}>
@@ -264,7 +302,7 @@ export function SiteNavbar({
             {mobileOpen && (
                 <div
                     id="menu-mobile"
-                    className="border-t border-avana-border bg-white px-5 pt-4 pb-6 shadow-avana-card lg:hidden"
+                    className="max-h-[calc(100dvh-11rem)] overflow-y-auto overscroll-contain border-t border-avana-border bg-white px-5 pt-4 pb-6 shadow-avana-card lg:hidden"
                 >
                     <ul className="space-y-0.5">
                         {items.map((item) => {
@@ -279,6 +317,120 @@ export function SiteNavbar({
                                     {item.badge}
                                 </span>
                             );
+
+                            if (item.menu) {
+                                const expanded = mobileExpanded === item.name;
+
+                                return (
+                                    <li key={item.href}>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setMobileExpanded(
+                                                    expanded ? null : item.name,
+                                                )
+                                            }
+                                            aria-expanded={expanded}
+                                            className={className}
+                                        >
+                                            <span className="flex items-center gap-2">
+                                                {item.name}
+                                                {badge}
+                                            </span>
+                                            <ChevronDown
+                                                className={cn(
+                                                    'h-4 w-4 shrink-0 transition-transform duration-200',
+                                                    expanded && 'rotate-180',
+                                                )}
+                                                aria-hidden
+                                            />
+                                        </button>
+
+                                        {expanded && (
+                                            <div className="mt-1 mb-2 space-y-4 rounded-xl bg-avana-soft px-4 py-3">
+                                                {PRODUCT_MENU_GROUPS.map(
+                                                    (group) => (
+                                                        <div key={group.title}>
+                                                            <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-avana-text/50 uppercase">
+                                                                {group.title}
+                                                                {group.title ===
+                                                                    NATIVE_GROUP_TITLE && (
+                                                                    <span className="rounded-full bg-avana-light px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-avana-blue normal-case">
+                                                                        Native
+                                                                    </span>
+                                                                )}
+                                                            </p>
+                                                            <ul className="space-y-0.5">
+                                                                {group.items.map(
+                                                                    (
+                                                                        module,
+                                                                    ) => (
+                                                                        <li
+                                                                            key={
+                                                                                module.title
+                                                                            }
+                                                                        >
+                                                                            <a
+                                                                                href={
+                                                                                    item.href
+                                                                                }
+                                                                                onClick={() => {
+                                                                                    setMobileOpen(
+                                                                                        false,
+                                                                                    );
+                                                                                    setMobileExpanded(
+                                                                                        null,
+                                                                                    );
+                                                                                }}
+                                                                                className="block rounded-lg px-2 py-1.5 text-[14px] text-avana-text hover:bg-white"
+                                                                            >
+                                                                                {
+                                                                                    module.title
+                                                                                }
+                                                                            </a>
+                                                                        </li>
+                                                                    ),
+                                                                )}
+                                                            </ul>
+                                                        </div>
+                                                    ),
+                                                )}
+
+                                                <div>
+                                                    <p className="mb-1.5 text-[11px] font-bold tracking-wider text-avana-text/50 uppercase">
+                                                        Solusi Terpadu
+                                                    </p>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {SOLUTION_MENU_ITEMS.map(
+                                                            (solution) => (
+                                                                <a
+                                                                    key={
+                                                                        solution.id
+                                                                    }
+                                                                    href={`${anchorPrefix}#solusi`}
+                                                                    onClick={() => {
+                                                                        setMobileOpen(
+                                                                            false,
+                                                                        );
+                                                                        setMobileExpanded(
+                                                                            null,
+                                                                        );
+                                                                    }}
+                                                                    className="rounded-full border border-avana-border bg-white px-2.5 py-1 text-[12.5px] font-medium text-avana-text"
+                                                                >
+                                                                    {
+                                                                        solution.title
+                                                                    }
+                                                                </a>
+                                                            ),
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </li>
+                                );
+                            }
 
                             return (
                                 <li key={item.href}>
@@ -329,7 +481,9 @@ export function SiteNavbar({
                                 </Link>
                                 <a
                                     href={trialUrl}
-                                    target={trialExternal ? '_blank' : undefined}
+                                    target={
+                                        trialExternal ? '_blank' : undefined
+                                    }
                                     rel={
                                         trialExternal
                                             ? 'noopener noreferrer'

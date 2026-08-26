@@ -23,9 +23,8 @@ import type { ComponentType } from 'react';
 export type Icon = ComponentType<{ className?: string }>;
 
 export const NAV_ITEMS: { name: string; link: string; badge?: string }[] = [
-    { name: 'Produk & Modul', link: '#platform' },
-    { name: 'Solusi Terpadu', link: '#solusi' },
-    { name: 'AI & Analytics', link: '#ai', badge: 'Native' },
+    { name: 'Home', link: '#top' },
+    { name: 'Fitur', link: '#platform' },
 ];
 
 /**
@@ -504,4 +503,3 @@ export const FAQS: Faq[] = [
         a: 'Ya. Avana mencakup recruitment, onboarding, performance, OKR & Goal, learning serta talent & succession.',
     },
 ];
-
