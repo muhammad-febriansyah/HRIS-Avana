@@ -26,6 +26,20 @@ interface Application {
     created_at: string | null;
 }
 
+interface TenantApplication {
+    id: number;
+    company_name: string;
+    phone: string;
+    admin_name: string;
+    admin_email: string;
+    partner_code: string | null;
+    partner_name: string | null;
+    source: string;
+    industry: string | null;
+    employee_count_range: string | null;
+    created_at: string | null;
+}
+
 interface PartnerRow {
     id: number;
     code: string;
@@ -99,11 +113,13 @@ interface Paginated<T> {
 interface PageProps {
     stats: {
         pending_applications: number;
+        pending_tenant_applications: number;
         pending_withdrawals: number;
         active_partners: number;
         amount_outstanding: number;
     };
     applications: Application[];
+    tenantApplications: TenantApplication[];
     partners: Paginated<PartnerRow>;
     leads: Paginated<LeadRow>;
     conversions: Paginated<ConversionRow>;
@@ -119,6 +135,7 @@ interface PageProps {
 
 const TABS = [
     { key: 'mitra', label: 'Mitra' },
+    { key: 'pengajuan', label: 'Pengajuan Perusahaan' },
     { key: 'leads', label: 'Leads' },
     { key: 'konversi', label: 'Konversi' },
     { key: 'penarikan', label: 'Penarikan' },
@@ -191,6 +208,7 @@ const sectionTitle: CSSProperties = { fontSize: 15, fontWeight: 700, color: C.na
 export default function ReferralIndex({
     stats,
     applications,
+    tenantApplications,
     partners,
     leads,
     conversions,
@@ -231,10 +249,16 @@ export default function ReferralIndex({
                 >
                     <StatCard label="Mitra Aktif" value={String(stats.active_partners)} icon="handshake" tone="primary" />
                     <StatCard
-                        label="Pengajuan Pending"
+                        label="Pengajuan Mitra Pending"
                         value={String(stats.pending_applications)}
                         icon="user-plus"
                         tone={stats.pending_applications > 0 ? 'amber' : 'sky'}
+                    />
+                    <StatCard
+                        label="Klien Menunggu Persetujuan"
+                        value={String(stats.pending_tenant_applications)}
+                        icon="building-2"
+                        tone={stats.pending_tenant_applications > 0 ? 'amber' : 'sky'}
                     />
                     <StatCard
                         label="Penarikan Pending"
@@ -267,7 +291,10 @@ export default function ReferralIndex({
                 </div>
 
                 <div style={{ marginTop: 18 }}>
-                    {tab === 'mitra' && <MitraTab applications={applications} partners={partners} errors={errors} />}
+                    {tab === 'mitra' && (
+                        <MitraTab applications={applications} partners={partners} errors={errors} />
+                    )}
+                    {tab === 'pengajuan' && <TenantApplicationsTab tenantApplications={tenantApplications} />}
                     {tab === 'leads' && <LeadsTab leads={leads} />}
                     {tab === 'konversi' && <KonversiTab conversions={conversions} />}
                     {tab === 'penarikan' && <PenarikanTab withdrawals={withdrawals} />}
@@ -454,6 +481,96 @@ function MitraTab({
     );
 }
 
+function TenantApplicationsTab({ tenantApplications }: { tenantApplications: TenantApplication[] }) {
+    const [rejecting, setRejecting] = useState<TenantApplication | null>(null);
+
+    const approve = (application: TenantApplication) => {
+        if (confirm(`Setujui pendaftaran ${application.company_name}? Tenant dan login admin akan dibuat.`)) {
+            router.post(ReferralController.approveTenant(application.id).url, {}, { preserveScroll: true });
+        }
+    };
+
+    return (
+        <div style={{ display: 'grid', gap: 12 }}>
+            <div>
+                <div style={sectionTitle}>Pengajuan Perusahaan</div>
+                <div style={{ color: C.muted, fontSize: 12.5, marginTop: 4 }}>Review pendaftaran organik dan referral sebelum akun perusahaan dibuat.</div>
+            </div>
+            {tenantApplications.length === 0 && <EmptyState icon={Handshake} title="Tidak ada pengajuan" description="Pengajuan perusahaan yang masuk akan tampil di sini." />}
+            {tenantApplications.map((application) => (
+                <div key={application.id} style={{ ...card, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ fontSize: 13.5, fontWeight: 700, color: C.navy }}>{application.company_name}</div>
+                            <Badge label={application.source === 'referral' ? 'Referral' : 'Organik'} tone={application.source === 'referral' ? 'green' : 'primary'} />
+                        </div>
+                        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 4 }}>{application.admin_name} · {application.admin_email} · {application.phone}</div>
+                        <div style={{ fontSize: 12, color: C.faint, marginTop: 4 }}>
+                            {application.industry || 'Industri belum diisi'} · {application.employee_count_range || 'Jumlah karyawan belum diisi'}
+                            {application.partner_name ? ` · Mitra ${application.partner_name} (${application.partner_code})` : ''}
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                        <button style={{ ...btnSave, height: 34, padding: '0 12px', fontSize: 12.5 }} onClick={() => approve(application)}>Setujui</button>
+                        <button style={{ ...btnDanger, height: 34, padding: '0 12px', fontSize: 12.5 }} onClick={() => setRejecting(application)}>Tolak</button>
+                    </div>
+                </div>
+            ))}
+            <RejectTenantDialog application={rejecting} onClose={() => setRejecting(null)} />
+        </div>
+    );
+}
+
+function RejectTenantDialog({ application, onClose }: { application: TenantApplication | null; onClose: () => void }) {
+    const form = useForm<{ admin_note: string }>({ admin_note: '' });
+
+    useEffect(() => {
+        if (application) {
+            form.reset();
+            form.clearErrors();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [application?.id]);
+
+    const submit = () => {
+        if (!application) {
+            return;
+        }
+
+        form.post(ReferralController.rejectTenant(application.id).url, {
+            preserveScroll: true,
+            onSuccess: onClose,
+        });
+    };
+
+    return (
+        <FormDialog
+            open={application !== null}
+            onOpenChange={(open) => !open && onClose()}
+            title="Tolak Pendaftaran Perusahaan"
+            description={application ? `Pengajuan ${application.company_name} akan ditolak dan tidak jadi klien.` : undefined}
+            submitLabel="Tolak Pendaftaran"
+            onSubmit={submit}
+            processing={form.processing}
+        >
+            <div>
+                <label style={fieldLabel}>
+                    Alasan Penolakan <span style={{ color: C.red }}>*</span>
+                </label>
+                <textarea
+                    value={form.data.admin_note}
+                    onChange={(e) => form.setData('admin_note', e.target.value)}
+                    rows={3}
+                    placeholder="Contoh: Data perusahaan tidak dapat diverifikasi."
+                    style={fieldInput}
+                    autoFocus
+                />
+                {form.errors.admin_note && <div style={fieldError}>{form.errors.admin_note}</div>}
+            </div>
+        </FormDialog>
+    );
+}
+
 function EditPartnerPanel({ partner, errors, onClose }: { partner: PartnerRow; errors: Record<string, string>; onClose: () => void }) {
     const form = useForm({
         status: partner.status,
@@ -627,7 +744,7 @@ function KonversiTab({ conversions }: { conversions: Paginated<ConversionRow> })
                 return <Badge label={st.label} tone={st.tone} />;
             },
         },
-        { key: 'hold_until', header: 'Berlaku Sejak', sortable: false, render: (c) => c.hold_until ?? '—' },
+        { key: 'hold_until', header: 'Tersedia Pada', sortable: false, render: (c) => c.hold_until ?? '—' },
     ];
 
     return (

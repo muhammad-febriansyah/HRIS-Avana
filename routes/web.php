@@ -4,6 +4,7 @@ use App\Http\Controllers\AccountDeletionController;
 use App\Http\Controllers\AiTokenReturnController;
 use App\Http\Controllers\Avana\DashboardController;
 use App\Http\Controllers\CompanyRegistrationController;
+use App\Http\Controllers\PartnerDocumentController;
 use App\Http\Controllers\PartnerRegistrationController;
 use App\Http\Controllers\PrivacyPolicyController;
 use App\Http\Controllers\PrivateFileController;
@@ -20,9 +21,14 @@ Route::get('/', WelcomeController::class)->name('home');
  * page — no controller, no data, nothing behind auth.
  */
 Route::inertia('live-tracking', 'public/live-tracking')->name('live-tracking');
-Route::inertia('partner', 'public/partnership')->name('partnership');
+Route::get('partner', [PartnerDocumentController::class, 'partnership'])->name('partnership');
+Route::get('partner/company-profile/download', [PartnerDocumentController::class, 'download'])
+    ->middleware('throttle:30,1')
+    ->name('partnership.document.download');
 Route::get('partner/daftar', [PartnerRegistrationController::class, 'create'])->name('partner-registration.create');
-Route::post('partner/daftar', [PartnerRegistrationController::class, 'store'])->name('partner-registration.store');
+Route::post('partner/daftar', [PartnerRegistrationController::class, 'store'])
+    ->middleware('throttle:10,1')
+    ->name('partner-registration.store');
 
 /*
  * Public "Daftar Perusahaan" — what a partner's `?ref=` link points to.

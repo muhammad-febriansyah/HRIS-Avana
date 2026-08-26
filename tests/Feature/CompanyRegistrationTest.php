@@ -2,10 +2,10 @@
 
 use App\Http\Middleware\CaptureReferral;
 use App\Models\ReferralConversion;
-use App\Models\ReferralLead;
-use App\Models\Tenant;
+use App\Models\TenantRegistration;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
+use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
 
 beforeEach(function (): void {
@@ -19,6 +19,8 @@ function validRegistration(array $overrides = []): array
     return array_merge([
         'company_name' => 'PT Uji Mandiri',
         'phone' => '081200000000',
+        'industry' => 'Teknologi',
+        'employee_count_range' => '11-50',
         'admin_name' => 'Sari Admin',
         'admin_email' => 'sari.admin@example.com',
         'admin_password' => 'Password123!',
@@ -33,69 +35,68 @@ it('shows the self-serve wizard when a valid referral cookie is present', functi
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('public/company-registration')
-            ->where('partnerCode', $this->partner->code));
+            ->where('partnerCode', $this->partner->code)
+            ->where('partnerName', $this->partner->user->name));
 });
 
-it('falls back to the plain inquiry form with no referral cookie', function (): void {
+it('uses the same company registration wizard for organic visitors', function (): void {
     $this->get('/daftar-perusahaan')
         ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page->component('public/company-inquiry'));
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('public/company-registration')
+            ->where('partnerCode', null));
 });
 
-it('falls back to the inquiry form once the referring partner is suspended', function (): void {
+it('does not attribute a registration to a suspended partner', function (): void {
     $this->partner->update(['status' => 'suspended']);
 
     $this->withCookie(CaptureReferral::COOKIE_NAME, $this->partner->code)
         ->get('/daftar-perusahaan')
-        ->assertInertia(fn (Assert $page) => $page->component('public/company-inquiry'));
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('public/company-registration')
+            ->where('partnerCode', null));
 });
 
-it('provisions a trial tenant and admin login, then signs the visitor in', function (): void {
+it('queues a pending registration for super admin review instead of provisioning a tenant', function (): void {
     $response = $this->withCookie(CaptureReferral::COOKIE_NAME, $this->partner->code)
         ->post('/daftar-perusahaan/daftar', validRegistration());
 
-    $response->assertRedirect(route('dashboard'));
-    $this->assertAuthenticated();
+    $response->assertSessionHas('success');
+    $this->assertGuest();
 
-    $tenant = Tenant::where('name', 'PT Uji Mandiri')->first();
-    expect($tenant)->not->toBeNull();
-    expect($tenant->status)->toBe('trial');
-    expect($tenant->package_id)->toBeNull();
-    expect($tenant->partner_id)->toBe($this->partner->id);
-    expect($tenant->end_date->toDateString())->toBe(now()->addDays(14)->toDateString());
+    $registration = TenantRegistration::where('company_name', 'PT Uji Mandiri')->first();
+    expect($registration)->not->toBeNull();
+    expect($registration->status)->toBe(TenantRegistration::STATUS_PENDING);
+    expect($registration->partner_id)->toBe($this->partner->id);
+    expect($registration->source)->toBe('referral');
+    expect($registration->admin_email)->toBe('sari.admin@example.com');
+    // Stored hashed, never the plain value.
+    expect(Hash::check('Password123!', $registration->admin_password))->toBeTrue();
 
-    $admin = User::where('email', 'sari.admin@example.com')->first();
-    expect($admin)->not->toBeNull();
-    expect($admin->tenant_id)->toBe($tenant->id);
-    expect($admin->roles()->where('code', 'admin_tenant_hr')->exists())->toBeTrue();
-    expect(auth()->id())->toBe($admin->id);
-
-    $lead = ReferralLead::where('tenant_id', $tenant->id)->first();
-    expect($lead)->not->toBeNull();
-    expect($lead->status)->toBe(ReferralLead::STATUS_CONVERTED);
-    expect($lead->partner_id)->toBe($this->partner->id);
+    expect(User::where('email', 'sari.admin@example.com')->exists())->toBeFalse();
 });
 
-it('earns the referring partner no commission while the tenant is only on trial', function (): void {
+it('earns the referring partner no commission from a pending registration', function (): void {
     $this->withCookie(CaptureReferral::COOKIE_NAME, $this->partner->code)
         ->post('/daftar-perusahaan/daftar', validRegistration());
 
-    // A trial has no package and no invoice — ReferralConversion (the money)
-    // is only ever created from a paid invoice (creditForInvoice()), so
-    // signing up never earns commission by itself. The lead created above is
-    // what makes the referral visible to the partner in the meantime.
+    // Nothing is provisioned until a super admin approves it — no tenant, no
+    // invoice, so ReferralConversion (the money) never gets created here.
     expect(ReferralConversion::count())->toBe(0);
     expect($this->partner->fresh()->balanceAmount())->toBe(0.0);
 });
 
-it('refuses to register without a valid referral cookie', function (): void {
+it('queues an organic registration without referral attribution', function (): void {
     $response = $this->post('/daftar-perusahaan/daftar', validRegistration());
 
-    $response->assertSessionHas('error');
-    expect(Tenant::where('name', 'PT Uji Mandiri')->exists())->toBeFalse();
+    $response->assertSessionHas('success');
+    $registration = TenantRegistration::where('company_name', 'PT Uji Mandiri')->first();
+    expect($registration)->not->toBeNull();
+    expect($registration->partner_id)->toBeNull();
+    expect($registration->source)->toBe('organic');
 });
 
-it('rejects a duplicate admin email', function (): void {
+it('rejects a duplicate admin email already in use by a real account', function (): void {
     User::create([
         'tenant_id' => null,
         'name' => 'Existing User',
@@ -108,7 +109,25 @@ it('rejects a duplicate admin email', function (): void {
         ->post('/daftar-perusahaan/daftar', validRegistration());
 
     $response->assertSessionHasErrors('admin_email');
-    expect(Tenant::where('name', 'PT Uji Mandiri')->exists())->toBeFalse();
+    expect(TenantRegistration::where('company_name', 'PT Uji Mandiri')->exists())->toBeFalse();
+});
+
+it('rejects a duplicate admin email already pending review', function (): void {
+    TenantRegistration::create([
+        'company_name' => 'PT Lain',
+        'phone' => '081200000099',
+        'admin_name' => 'Orang Lain',
+        'admin_email' => 'sari.admin@example.com',
+        'admin_password' => Hash::make('Whatever123!'),
+        'partner_id' => $this->partner->id,
+        'status' => TenantRegistration::STATUS_PENDING,
+    ]);
+
+    $response = $this->withCookie(CaptureReferral::COOKIE_NAME, $this->partner->code)
+        ->post('/daftar-perusahaan/daftar', validRegistration());
+
+    $response->assertSessionHasErrors('admin_email');
+    expect(TenantRegistration::where('company_name', 'PT Uji Mandiri')->exists())->toBeFalse();
 });
 
 it('rejects a mismatched password confirmation', function (): void {
@@ -116,7 +135,7 @@ it('rejects a mismatched password confirmation', function (): void {
         ->post('/daftar-perusahaan/daftar', validRegistration(['admin_password_confirmation' => 'Different123!']));
 
     $response->assertSessionHasErrors('admin_password');
-    expect(Tenant::where('name', 'PT Uji Mandiri')->exists())->toBeFalse();
+    expect(TenantRegistration::where('company_name', 'PT Uji Mandiri')->exists())->toBeFalse();
 });
 
 it('rejects an unaccepted terms checkbox', function (): void {
@@ -124,7 +143,7 @@ it('rejects an unaccepted terms checkbox', function (): void {
         ->post('/daftar-perusahaan/daftar', validRegistration(['terms_accepted' => false]));
 
     $response->assertSessionHasErrors('terms_accepted');
-    expect(Tenant::where('name', 'PT Uji Mandiri')->exists())->toBeFalse();
+    expect(TenantRegistration::where('company_name', 'PT Uji Mandiri')->exists())->toBeFalse();
 });
 
 it('rejects a phone number that is not a valid Indonesian mobile format', function (): void {
@@ -132,5 +151,5 @@ it('rejects a phone number that is not a valid Indonesian mobile format', functi
         ->post('/daftar-perusahaan/daftar', validRegistration(['phone' => 'Eiusmod voluptatem']));
 
     $response->assertSessionHasErrors('phone');
-    expect(Tenant::where('name', 'PT Uji Mandiri')->exists())->toBeFalse();
+    expect(TenantRegistration::where('company_name', 'PT Uji Mandiri')->exists())->toBeFalse();
 });

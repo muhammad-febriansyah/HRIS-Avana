@@ -328,6 +328,10 @@ export function AvanaFonts() {
     );
 }
 
+/** Stable empty-array reference so `navGroups` doesn't change identity on
+ *  every render while onboarding is incomplete (a fresh `[]` literal would). */
+const EMPTY_NAV: NavGroup[] = [];
+
 export default function AvanaLayout({ children }: PropsWithChildren) {
     const page = usePage<{
         auth?: {
@@ -351,12 +355,16 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
         };
         notifications?: { items: NotificationItem[]; unread: number };
         subscriptionNotice?: SubscriptionNotice | null;
+        onboardingIncomplete?: boolean;
     }>();
     const vars = themeVars(page.props.theme);
     const url = page.url;
     const user = page.props.auth?.user;
     const avatar = page.props.auth?.avatar;
-    const navGroups = page.props.nav?.length ? page.props.nav : NAV;
+    // Every leaf redirects straight back to "Mulai" while onboarding is
+    // incomplete (EnsureOnboardingComplete) — showing the full nav would
+    // just be misleading chrome for menus that are not actually reachable.
+    const navGroups = page.props.onboardingIncomplete ? EMPTY_NAV : page.props.nav?.length ? page.props.nav : NAV;
     const sav = page.props.superAdminView;
 
     // Support contact: DB-driven (website settings) with sensible fallbacks.

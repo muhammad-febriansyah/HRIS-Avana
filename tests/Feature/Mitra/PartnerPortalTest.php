@@ -3,8 +3,10 @@
 use App\Models\ReferralLedger;
 use App\Models\ReferralSetting;
 use App\Models\ReferralWithdrawal;
+use App\Models\TenantRegistration;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
+use Inertia\Testing\AssertableInertia as Assert;
 
 use function Pest\Laravel\actingAs;
 
@@ -24,6 +26,26 @@ it('renders the partner dashboard for a partner login', function (): void {
     actingAs($partner->user)
         ->get(route('mitra.dashboard'))
         ->assertOk();
+});
+
+it('shows pending company registrations attributed to the partner', function (): void {
+    $partner = createTestPartner();
+
+    TenantRegistration::create([
+        'company_name' => 'PT Pending Portal',
+        'phone' => '081200000000',
+        'admin_name' => 'Admin Pending',
+        'admin_email' => 'pending.portal@example.com',
+        'admin_password' => bcrypt('Password123!'),
+        'partner_id' => $partner->id,
+        'source' => 'referral',
+        'status' => TenantRegistration::STATUS_PENDING,
+    ]);
+
+    actingAs($partner->user)
+        ->get(route('mitra.dashboard'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('pendingRegistrations.0.company_name', 'PT Pending Portal'));
 });
 
 it('forbids a tenant user and a super admin from the partner portal', function (): void {

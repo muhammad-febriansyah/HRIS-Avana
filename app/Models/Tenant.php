@@ -24,6 +24,7 @@ final class Tenant extends Model
             'enforce_payroll_segregation' => 'boolean',
             'require_salary_approval' => 'boolean',
             'tax_includes_employer_bpjs' => 'boolean',
+            'requires_onboarding' => 'boolean',
             'theme' => 'array',
         ];
     }

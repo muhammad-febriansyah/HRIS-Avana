@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\WebsiteSetting;
 use App\Support\Access;
 use App\Support\AvanaNav;
+use App\Support\OnboardingStatus;
 use App\Support\PrivateFile;
 use App\Support\SubscriptionStatus;
 use App\Support\TenantTheme;
@@ -82,6 +83,11 @@ class HandleInertiaRequests extends Middleware
             // `subscription` — which left the chrome's banner reading its
             // fields off the wrong shape ("berakhir undefined hari lagi").
             'subscriptionNotice' => fn (): ?array => $this->subscriptionNotice($request, $user),
+            // The sidebar has nothing to show while a tenant is still stuck
+            // on the "Mulai" checklist — every leaf redirects straight back
+            // there anyway (see EnsureOnboardingComplete), so a full nav
+            // implying otherwise would just be misleading chrome.
+            'onboardingIncomplete' => fn (): bool => $this->onboardingIncomplete($request, $user),
             'superAdminView' => fn (): array => $this->superAdminView($request, $user),
             'flash' => [
                 'success' => fn () => $this->session($request, 'success'),
@@ -169,6 +175,24 @@ class HandleInertiaRequests extends Middleware
         $notice = SubscriptionStatus::forTenant($tenant);
 
         return $notice !== null && $notice['level'] !== 'ok' ? $notice : null;
+    }
+
+    /**
+     * Whether the scoped tenant is still stuck on the "Mulai" checklist —
+     * same scoping as {@see subscriptionNotice()} (null on the platform
+     * side), but shown to every role, not just admin/HR: an ESS employee
+     * hitting this is rare (a self-serve tenant has no one else yet), but
+     * their sidebar would be just as misleading if it happened.
+     */
+    private function onboardingIncomplete(Request $request, ?User $user): bool
+    {
+        if ($user === null || $this->isPlatformScope($request, $user)) {
+            return false;
+        }
+
+        $tenant = $this->scopedTenant($request, $user);
+
+        return $tenant !== null && ! OnboardingStatus::isComplete($tenant);
     }
 
     /**

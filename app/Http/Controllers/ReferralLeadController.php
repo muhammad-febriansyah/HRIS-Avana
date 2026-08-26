@@ -12,26 +12,33 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Public "Daftar Perusahaan" page — what a partner's `?ref=` link points to.
+ * Public "Daftar Perusahaan" page for both organic and referred visitors.
  *
- * A visitor carrying a valid referral cookie gets the self-serve signup
- * wizard ({@see CompanyRegistrationController}, which provisions a real
- * tenant immediately). Everyone else (no cookie, or the partner behind it
- * went inactive) still gets the plain inquiry form below — general organic
- * self-serve sign-up stays closed on purpose, see {@see WelcomeController}.
+ * Referral attribution is optional. A valid cookie is displayed as context
+ * and stored on the pending registration; it does not change the form.
  */
 class ReferralLeadController extends Controller
 {
     public function create(Request $request): Response
     {
-        $code = $request->cookie(CaptureReferral::COOKIE_NAME);
-        $partner = is_string($code) ? Partner::query()->active()->where('code', $code)->first() : null;
+        $partner = null;
+        $queryCode = $request->query('ref');
 
-        if ($partner !== null) {
-            return Inertia::render('public/company-registration', ['partnerCode' => $partner->code]);
+        if (is_string($queryCode) && $queryCode !== '') {
+            $partner = Partner::query()->with('user:id,name')->active()->where('code', $queryCode)->first();
         }
 
-        return Inertia::render('public/company-inquiry');
+        if ($partner === null) {
+            $cookieCode = $request->cookie(CaptureReferral::COOKIE_NAME);
+            $partner = is_string($cookieCode)
+                ? Partner::query()->with('user:id,name')->active()->where('code', $cookieCode)->first()
+                : null;
+        }
+
+        return Inertia::render('public/company-registration', [
+            'partnerCode' => $partner?->code,
+            'partnerName' => $partner?->user?->name,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse

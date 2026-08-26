@@ -2,6 +2,7 @@ import { Head, usePage } from '@inertiajs/react';
 import { AiInsightSection } from '@/components/marketing/ai-insight-section';
 import { BottomCta } from '@/components/marketing/bottom-cta';
 import { FinalCta } from '@/components/marketing/final-cta';
+import { FaqSection } from '@/components/marketing/faq-section';
 import { FreeTrialBanner } from '@/components/marketing/free-trial-banner';
 import { HeroSection } from '@/components/marketing/hero-section';
 import { ImplementationSection } from '@/components/marketing/implementation-section';
@@ -26,7 +27,13 @@ const DESCRIPTION =
  * `components/marketing/*` and reads its copy from `content.ts`, so this file
  * only owns page-level concerns: document head and section order.
  */
-export default function Welcome({ news }: { news: NewsItem[] }) {
+export default function Welcome({
+    news,
+    faqs,
+}: {
+    news: NewsItem[];
+    faqs: { q: string; a: string }[];
+}) {
     const { website } = usePage().props;
     const brand = website.site_name ?? 'AvanaHR';
     const logo = website.logo_url ?? '/avana/logo-full.png';
@@ -67,6 +74,11 @@ export default function Welcome({ news }: { news: NewsItem[] }) {
                     <NewsSection news={news} />
                     <ImplementationSection />
                     <PricingSection />
+                    <FaqSection
+                        items={faqs}
+                        eyebrow="Pusat Bantuan"
+                        title="Pertanyaan yang sering ditanyakan."
+                    />
                     <FreeTrialBanner />
                     <FinalCta />
                 </main>

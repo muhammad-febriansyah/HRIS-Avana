@@ -547,6 +547,12 @@ export const NAV: NavGroup[] = [
                 href: '/avana/custom-fields',
             },
             {
+                id: 'faqs',
+                label: 'FAQ',
+                icon: 'circle-help',
+                href: '/avana/faqs',
+            },
+            {
                 id: 'laporan',
                 label: 'Laporan',
                 icon: 'chart-column',

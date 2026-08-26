@@ -75,6 +75,14 @@ interface WithdrawalRow {
     created_at: string | null;
 }
 
+interface PendingRegistration {
+    id: number;
+    company_name: string;
+    industry: string | null;
+    employee_count_range: string | null;
+    created_at: string | null;
+}
+
 interface Paginated<T> {
     data: T[];
     meta: DataTableMeta;
@@ -87,6 +95,7 @@ interface PageProps {
     settings: Settings;
     referralUrl: string;
     recentConversions: ConversionRow[];
+    pendingRegistrations: PendingRegistration[];
     leads: Paginated<LeadRow>;
     conversions: Paginated<ConversionRow>;
     withdrawals: Paginated<WithdrawalRow>;
@@ -169,7 +178,7 @@ const WITHDRAWAL_STATUS: Record<string, { label: string; tone: Tone }> = {
     rejected: { label: 'Ditolak', tone: 'red' },
 };
 
-export default function MitraIndex({ partner, stats, settings, referralUrl, recentConversions, leads, conversions, withdrawals }: PageProps) {
+export default function MitraIndex({ partner, stats, settings, referralUrl, recentConversions, pendingRegistrations, leads, conversions, withdrawals }: PageProps) {
     const { flash, auth, website } = usePage<PageProps>().props;
     const user = auth.user;
     const [tab, setTab] = useState<TabKey>('dashboard');
@@ -547,7 +556,7 @@ export default function MitraIndex({ partner, stats, settings, referralUrl, rece
 
                                 <ReferralLinkBox referralUrl={referralUrl} />
 
-                                <DashboardTab stats={stats} settings={settings} recentConversions={recentConversions} />
+                                <DashboardTab stats={stats} settings={settings} recentConversions={recentConversions} pendingRegistrations={pendingRegistrations} />
                             </div>
                         )}
                         {activeTab === 'leads' && <LeadsTab leads={leads} />}
@@ -630,7 +639,7 @@ function ReferralLinkBox({ referralUrl }: { referralUrl: string }) {
     );
 }
 
-function DashboardTab({ stats, settings, recentConversions }: { stats: Stats; settings: Settings; recentConversions: ConversionRow[] }) {
+function DashboardTab({ stats, settings, recentConversions, pendingRegistrations }: { stats: Stats; settings: Settings; recentConversions: ConversionRow[]; pendingRegistrations: PendingRegistration[] }) {
     return (
         <div style={{ display: 'grid', gap: 16 }}>
             <div style={{ ...card, padding: '16px 18px', fontSize: 13, color: C.text, lineHeight: 1.6 }}>
@@ -638,6 +647,24 @@ function DashboardTab({ stats, settings, recentConversions }: { stats: Stats; se
                 sebesar <strong>{rp(settings.flat_amount)}</strong>. Komisi ditahan {settings.hold_days} hari sebelum bisa
                 ditarik. Anda punya <strong>{rp(stats.pending_amount)}</strong> yang masih dalam masa tahan.
             </div>
+            {pendingRegistrations.length > 0 && (
+                <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 10 }}>Pengajuan Perusahaan</div>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                        {pendingRegistrations.map((registration) => (
+                            <div key={registration.id} style={{ ...card, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                                <div>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{registration.company_name}</div>
+                                    <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>
+                                        {registration.industry || 'Industri belum diisi'} · {registration.employee_count_range || 'Jumlah karyawan belum diisi'}
+                                    </div>
+                                </div>
+                                <Badge label="Menunggu review" tone="amber" />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
             {settings.komisi_tab_enabled && (
                 <div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 10 }}>Komisi Terbaru</div>

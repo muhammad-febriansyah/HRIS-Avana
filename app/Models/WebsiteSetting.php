@@ -194,6 +194,10 @@ final class WebsiteSetting extends Model
      */
     private function fileUrl(?string $path): ?string
     {
-        return $path ? Storage::disk(self::DISK)->url($path) : null;
+        if (! $path || ! Storage::disk(self::DISK)->exists($path)) {
+            return null;
+        }
+
+        return Storage::disk(self::DISK)->url($path);
     }
 }

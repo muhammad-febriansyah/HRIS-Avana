@@ -21,6 +21,7 @@ export function CompanyRegisterShell({
     title,
     description,
     partnerCode,
+    partnerName,
     children,
 }: {
     brand: string;
@@ -29,7 +30,8 @@ export function CompanyRegisterShell({
     title: string;
     description: string;
     /** Present only when a valid referral cookie resolved a partner. */
-    partnerCode?: string;
+    partnerCode?: string | null;
+    partnerName?: string | null;
     children: ReactNode;
 }) {
     return (
@@ -49,7 +51,15 @@ export function CompanyRegisterShell({
             <div className="flex flex-1 items-center justify-center px-6 py-10 sm:px-10">
                 <div className="avn-reg-form w-full max-w-[420px]">
                     <div className="mb-9 flex items-center justify-between">
-                        <img src={logo} alt={brand} className="h-9 w-auto" />
+                        <img
+                            src={logo}
+                            alt={brand}
+                            className="h-9 w-auto"
+                            onError={(event) => {
+                                event.currentTarget.onerror = null;
+                                event.currentTarget.src = '/avana/logo-full.png';
+                            }}
+                        />
                         <Link href="/login" className="text-[13px] font-medium text-[#5B6478] hover:text-[#2F54C9]">
                             Masuk →
                         </Link>
@@ -66,7 +76,7 @@ export function CompanyRegisterShell({
                             <BadgeCheck className="h-4 w-4 flex-none text-[#16A34A]" />
                             <p className="text-[13px] text-[#166534]">
                                 Diundang oleh mitra{' '}
-                                <span className="font-mono font-bold tracking-wide">{partnerCode}</span>
+                                <span className="font-bold">{partnerName || partnerCode}</span>
                             </p>
                         </div>
                     )}
@@ -121,7 +131,7 @@ export function CompanyRegisterShell({
                     {partnerCode ? (
                         <span>
                             <span className="block text-[12.5px] font-semibold">Referral terverifikasi</span>
-                            <span className="mt-0.5 block font-mono text-[11px] text-white/65">{partnerCode}</span>
+                            <span className="mt-0.5 block text-[11px] text-white/65">{partnerName || partnerCode}</span>
                         </span>
                     ) : (
                         <span>

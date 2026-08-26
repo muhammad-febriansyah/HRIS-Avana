@@ -4,6 +4,7 @@ use App\Http\Middleware\CaptureReferral;
 use App\Models\ReferralClick;
 use App\Models\ReferralLead;
 use Database\Seeders\AvanaDemoSeeder;
+use Inertia\Testing\AssertableInertia as Assert;
 
 beforeEach(function (): void {
     $this->withoutVite();
@@ -15,6 +16,10 @@ it('logs a click and hands back an attribution cookie the browser can decrypt on
     $landing = $this->get('/daftar-perusahaan?ref='.$this->partner->code);
 
     $landing->assertOk();
+    $landing->assertInertia(fn (Assert $page) => $page
+        ->component('public/company-registration')
+        ->where('partnerCode', $this->partner->code)
+        ->where('partnerName', $this->partner->user->name));
     expect(ReferralClick::where('partner_id', $this->partner->id)->count())->toBe(1);
 
     // Proof the server actually encrypted it going out (this is what the old

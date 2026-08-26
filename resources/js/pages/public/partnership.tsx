@@ -1,6 +1,7 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import {
     ArrowRight,
+    Download,
     Handshake,
     LayoutDashboard,
     PiggyBank,
@@ -9,11 +10,17 @@ import {
     Users,
 } from 'lucide-react';
 import { Container, Reveal, SectionHeading } from '@/components/marketing/reveal';
+import { FaqSection } from '@/components/marketing/faq-section';
 import partnerRegistration from '@/routes/partner-registration';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { SiteNavbar } from '@/components/marketing/site-navbar';
 import { WhatsAppFab } from '@/components/marketing/whatsapp-fab';
 import { cn } from '@/lib/utils';
+
+type PartnershipProps = {
+    companyProfileDownloadUrl: string;
+    faqs: { q: string; a: string }[];
+};
 
 const DESCRIPTION =
     'Gabung jadi Partner AvanaHR. Rekomendasikan solusi HR, Absensi & Payroll dan dapatkan reward atas setiap referral yang berhasil.';
@@ -67,26 +74,7 @@ const COMMISSION_ROWS = [
     { label: 'Riwayat payout', value: 'Transparan' },
 ];
 
-const FAQS = [
-    {
-        q: 'Siapa yang bisa menjadi Partner?',
-        a: 'HR consultant, business consultant, agency, komunitas, freelancer, atau siapa pun yang memiliki jaringan perusahaan yang relevan.',
-    },
-    {
-        q: 'Apakah saya harus menjual AvanaHR sendiri?',
-        a: 'Tidak. Partner membantu memperkenalkan AvanaHR. Tim AvanaHR dapat membantu proses demo dan follow-up.',
-    },
-    {
-        q: 'Bagaimana saya mengetahui referral saya?',
-        a: 'Setiap partner mendapatkan kode dan link unik. Referral yang masuk melalui link tersebut akan tercatat di dashboard partner.',
-    },
-    {
-        q: 'Kapan komisi bisa dilihat?',
-        a: 'Setelah referral memenuhi ketentuan program, komisi akan tercatat pada dashboard beserta statusnya.',
-    },
-];
-
-export default function Partnership() {
+export default function Partnership({ companyProfileDownloadUrl, faqs }: PartnershipProps) {
     const { website } = usePage().props;
     const brand = website.site_name ?? 'AvanaHR';
     const logo = website.logo_url ?? '/avana/logo-full.png';
@@ -169,6 +157,15 @@ export default function Partnership() {
                                             className="inline-flex h-12 items-center gap-2 rounded-full border border-[#D2D9E8] bg-white px-7 text-[14px] font-bold text-[#0E1A3A] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#2F54C9]/30 hover:bg-[#F4F7FF] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F54C9]"
                                         >
                                             Pelajari Cara Kerja
+                                        </a>
+                                        <a
+                                            href={companyProfileDownloadUrl}
+                                            download
+                                            aria-label="Unduh Company Profile AvanaHR"
+                                            className="inline-flex h-12 items-center gap-2 rounded-full border border-[#B9C9EE] bg-[#EAF0FF] px-6 text-[14px] font-bold text-[#2348B0] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#2F54C9] hover:bg-[#DDE7FF] hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F54C9]"
+                                        >
+                                            <Download className="h-4 w-4" />
+                                            Unduh Company Profile
                                         </a>
                                     </div>
                                 </Reveal>
@@ -313,49 +310,11 @@ export default function Partnership() {
                         </Container>
                     </section>
 
-                    {/* ── FAQ ── */}
-                    <section className="scroll-mt-28 border-y border-[#EDF1F8] bg-[#F8FAFD] py-20 lg:py-28">
-                        <Container>
-                            <SectionHeading
-                                eyebrow="FAQ"
-                                title="Pertanyaan yang sering ditanyakan."
-                            />
-
-                            <Reveal className="mx-auto mt-12 max-w-3xl">
-                                <div className="divide-y divide-[#EDF1F8] overflow-hidden rounded-2xl border border-[#E7ECF5] bg-white shadow-soft">
-                                    {FAQS.map((faq) => (
-                                        <details
-                                            key={faq.q}
-                                            className="group px-6 transition-colors open:bg-[#FAFBFE]"
-                                        >
-                                            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-left text-[16px] font-semibold text-[#0E1A3A] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F54C9]">
-                                                {faq.q}
-                                                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#EEF2FB] text-[#2F54C9] transition-colors group-open:bg-[#2F54C9] group-open:text-white">
-                                                    <svg
-                                                        className="h-4 w-4 transition-transform duration-200 group-open:rotate-180"
-                                                        fill="none"
-                                                        viewBox="0 0 24 24"
-                                                        stroke="currentColor"
-                                                        strokeWidth={2.5}
-                                                        aria-hidden
-                                                    >
-                                                        <path
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                            d="M19 9l-7 7-7-7"
-                                                        />
-                                                    </svg>
-                                                </span>
-                                            </summary>
-                                            <p className="pr-10 pb-5 text-[15px] leading-relaxed text-[#5B6478]">
-                                                {faq.a}
-                                            </p>
-                                        </details>
-                                    ))}
-                                </div>
-                            </Reveal>
-                        </Container>
-                    </section>
+                    <FaqSection
+                        items={faqs}
+                        eyebrow="Pusat Bantuan Partner"
+                        title="Jawaban untuk memulai dengan yakin."
+                    />
 
                     {/* ── CTA ── */}
                     <section

@@ -11,14 +11,18 @@ use App\Models\ReferralLead;
 use App\Models\ReferralLedger;
 use App\Models\ReferralSetting;
 use App\Models\ReferralWithdrawal;
+use App\Models\Tenant;
+use App\Models\TenantRegistration;
 use App\Models\User;
 use App\Services\ReferralPartnerService;
+use App\Services\TenantProvisioner;
 use App\Support\PaginatedTable;
 use App\Support\PrivateFile;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -31,6 +35,12 @@ use Inertia\Response;
  */
 class ReferralController extends Controller
 {
+    /**
+     * How long a self-serve trial lasts once approved — mirrors
+     * {@see TenantController}'s default for an admin-created tenant.
+     */
+    private const TRIAL_DAYS = 14;
+
     public function index(Request $request): Response
     {
         $this->ensureSuperAdmin($request);
@@ -79,6 +89,28 @@ class ReferralController extends Controller
                 'network_size' => $r->network_size,
                 'network_focus' => $r->network_focus,
                 'network_description' => $r->network_description,
+                'created_at' => $r->created_at?->toDateTimeString(),
+            ]);
+
+        // Same self-limiting shape as the partner applications queue above —
+        // a self-serve "Daftar Perusahaan" submission waiting on approval
+        // before it becomes a real Tenant. See approveTenant()/rejectTenant().
+        $tenantApplications = TenantRegistration::query()
+            ->where('status', TenantRegistration::STATUS_PENDING)
+            ->with('partner:id,code,user_id', 'partner.user:id,name')
+            ->latest()
+            ->get()
+            ->map(fn (TenantRegistration $r): array => [
+                'id' => $r->id,
+                'company_name' => $r->company_name,
+                'phone' => $r->phone,
+                'admin_name' => $r->admin_name,
+                'admin_email' => $r->admin_email,
+                'partner_code' => $r->partner?->code,
+                'partner_name' => $r->partner?->user?->name,
+                'source' => $r->source,
+                'industry' => $r->industry,
+                'employee_count_range' => $r->employee_count_range,
                 'created_at' => $r->created_at?->toDateTimeString(),
             ]);
 
@@ -158,6 +190,7 @@ class ReferralController extends Controller
         return Inertia::render('avana/referral/index', [
             'stats' => [
                 'pending_applications' => $applications->count(),
+                'pending_tenant_applications' => $tenantApplications->count(),
                 'pending_withdrawals' => ReferralWithdrawal::query()->where('status', ReferralWithdrawal::STATUS_PENDING)->count(),
                 'active_partners' => Partner::query()->where('status', 'active')->count(),
                 // Platform-wide ledger balance: earned commission still
@@ -165,6 +198,7 @@ class ReferralController extends Controller
                 'amount_outstanding' => (float) ReferralLedger::query()->sum('amount'),
             ],
             'applications' => $applications,
+            'tenantApplications' => $tenantApplications,
             'partners' => PaginatedTable::shape($partnersPage, $request, 'mitra_search'),
             'leads' => PaginatedTable::shape($leadsPage, $request, 'leads_search'),
             'conversions' => PaginatedTable::shape($conversionsPage, $request, 'konversi_search'),
@@ -210,6 +244,124 @@ class ReferralController extends Controller
         $registration->update(['status' => 'rejected']);
 
         return back()->with('success', 'Pengajuan mitra ditolak');
+    }
+
+    /**
+     * Approve a self-serve "Daftar Perusahaan" request: this is the only
+     * place a Tenant from that flow ever gets created. Provisions the tenant
+     * (trial, {@see TRIAL_DAYS} days from today — not from when the request
+     * was submitted, so review time is never deducted from it), its admin
+     * login using the password the applicant already chose, features/roles
+     * via {@see TenantProvisioner}, and a converted {@see ReferralLead} so
+     * this still shows up in the existing Leads/Konversi reporting.
+     */
+    public function approveTenant(Request $request, TenantRegistration $registration, TenantProvisioner $provisioner): RedirectResponse
+    {
+        $this->ensureSuperAdmin($request);
+
+        if (User::query()->where('email', $registration->admin_email)->exists()) {
+            return back()->with('error', 'Email '.$registration->admin_email.' sudah dipakai akun lain. Tidak bisa membuat login klien otomatis.');
+        }
+
+        $tenant = DB::transaction(function () use ($registration, $provisioner): Tenant {
+            $registration = TenantRegistration::query()->whereKey($registration->id)->lockForUpdate()->firstOrFail();
+            abort_unless($registration->status === TenantRegistration::STATUS_PENDING, 422);
+
+            $slug = $this->uniqueTenantSlug($registration->company_name);
+            $start = now();
+
+            $tenant = Tenant::create([
+                'name' => $registration->company_name,
+                'company_name' => $registration->company_name,
+                'slug' => $slug,
+                'package_id' => null,
+                'partner_id' => $registration->partner_id,
+                'status' => 'trial',
+                // Only a self-serve signup skips picking a package/filling
+                // a profile at signup time — EnsureOnboardingComplete gates
+                // it on that until both are done. An admin-created tenant
+                // (default false) is never affected, "Tanpa Paket" included.
+                'requires_onboarding' => true,
+                'max_users' => 0,
+                'max_employees' => 0,
+                'max_branches' => 0,
+                'billing_status' => 'active',
+                'start_date' => $start->toDateString(),
+                'end_date' => $start->copy()->addDays(self::TRIAL_DAYS)->toDateString(),
+            ]);
+
+            ReferralLead::create([
+                'company_name' => $registration->company_name,
+                'contact_name' => $registration->admin_name,
+                'email' => $registration->admin_email,
+                'phone' => $registration->phone,
+                'partner_id' => $registration->partner_id,
+                'status' => ReferralLead::STATUS_CONVERTED,
+                'tenant_id' => $tenant->id,
+                'converted_at' => now(),
+            ]);
+
+            $provisioner->provision($tenant);
+
+            // Already hashed at submission time — createAdmin() carries it
+            // straight into the User row without re-hashing (Laravel's
+            // `hashed` cast skips a value that is already a hash), so the
+            // applicant logs in with the exact password they chose.
+            $provisioner->createAdmin(
+                $tenant,
+                $registration->admin_name,
+                $registration->admin_email,
+                $registration->admin_password,
+            );
+
+            $registration->update([
+                'status' => TenantRegistration::STATUS_APPROVED,
+                'tenant_id' => $tenant->id,
+                'processed_by' => request()->user()->id,
+                'processed_at' => now(),
+            ]);
+
+            return $tenant;
+        });
+
+        return back()->with('success', 'Klien '.$tenant->name.' disetujui. Mereka sudah bisa masuk dengan email dan password yang dibuat saat mendaftar.');
+    }
+
+    public function rejectTenant(Request $request, TenantRegistration $registration): RedirectResponse
+    {
+        $this->ensureSuperAdmin($request);
+
+        abort_unless($registration->status === TenantRegistration::STATUS_PENDING, 422);
+
+        $validated = $request->validate([
+            'admin_note' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $registration->update([
+            'status' => TenantRegistration::STATUS_REJECTED,
+            'admin_note' => $validated['admin_note'],
+            'processed_by' => $request->user()->id,
+            'processed_at' => now(),
+        ]);
+
+        return back()->with('success', 'Pengajuan pendaftaran perusahaan ditolak');
+    }
+
+    /**
+     * Derive a unique slug from the company name (suffixing on collision).
+     * Mirrors {@see TenantController::uniqueSlug()}.
+     */
+    private function uniqueTenantSlug(string $name): string
+    {
+        $base = Str::slug($name) ?: 'klien';
+        $slug = $base;
+        $suffix = 1;
+
+        while (Tenant::withTrashed()->where('slug', $slug)->exists()) {
+            $slug = $base.'-'.(++$suffix);
+        }
+
+        return $slug;
     }
 
     public function updatePartner(Request $request, Partner $partner): RedirectResponse
@@ -267,14 +419,15 @@ class ReferralController extends Controller
     {
         $this->ensureSuperAdmin($request);
 
-        abort_unless($withdrawal->status === ReferralWithdrawal::STATUS_APPROVED, 422);
-
         $validated = $request->validate([
             'proof' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
             'admin_note' => ['nullable', 'string', 'max:1000'],
         ]);
 
         DB::transaction(function () use ($withdrawal, $validated, $request): void {
+            $withdrawal = ReferralWithdrawal::query()->whereKey($withdrawal->id)->lockForUpdate()->firstOrFail();
+            abort_unless($withdrawal->status === ReferralWithdrawal::STATUS_APPROVED, 422);
+
             $partner = Partner::query()->whereKey($withdrawal->partner_id)->lockForUpdate()->first();
 
             abort_if($partner === null, 404);

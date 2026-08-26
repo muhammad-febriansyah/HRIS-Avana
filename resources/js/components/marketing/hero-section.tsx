@@ -73,11 +73,16 @@ export function HeroSection() {
                         </Reveal>
 
                         <Reveal delay={0.1}>
-                            <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-avana-text sm:text-xl lg:mx-0">
-                                Hubungkan proses HR, data workforce, analytics,
-                                dan AI dalam satu platform — bantu tim HR Anda
-                                memahami kondisi tenaga kerja dan mengambil
-                                keputusan lebih baik.
+                            <p className="mx-auto mt-6 max-w-xl text-justify text-lg leading-relaxed text-avana-text sm:text-xl lg:mx-0">
+                                AvanaHR adalah platform HRIS dan payroll
+                                terintegrasi untuk perusahaan Indonesia.
+                                Platform ini menghubungkan data karyawan,
+                                absensi GPS dan shift, cuti, penggajian, PPh 21
+                                TER, kinerja, rekrutmen, workforce analytics,
+                                dan AI Assistant dalam satu sistem. Tim HR dapat
+                                mengurangi pekerjaan administratif, menjaga data
+                                tetap terpusat, dan memperoleh insight untuk
+                                keputusan workforce yang lebih baik.
                             </p>
                         </Reveal>
 
@@ -183,7 +188,7 @@ export function HeroSection() {
                             draggable={false}
                         />
 
-                        <div className="absolute top-16 right-0 z-20 flex max-w-[210px] items-center gap-3 rounded-2xl border border-avana-border bg-white/95 p-3 shadow-avana-hover backdrop-blur-sm animate-float sm:p-4 xl:-right-4">
+                        <div className="absolute top-16 right-0 z-20 flex max-w-[210px] items-center gap-3 rounded-2xl border border-avana-border bg-white/95 p-3 shadow-avana-hover backdrop-blur-sm animate-float sm:p-4 xl:-right-20">
                             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-avana-light text-avana-blue">
                                 <TrendingUp className="h-5 w-5" aria-hidden />
                             </div>

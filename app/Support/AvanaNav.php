@@ -849,6 +849,7 @@ final class AvanaNav
                 self::leaf('pengguna', 'Pengguna', 'user-cog', '/avana/pengguna', null, [], false, true),
                 self::leaf('hak-akses', 'Hak Akses', 'shield-check', '/avana/hak-akses', null, [], false, true),
                 self::leaf('website-settings', 'Pengaturan Website', 'globe', '/avana/website-settings', null, [], false, true),
+                self::leaf('faqs', 'FAQ', 'circle-help', '/avana/faqs', null, [], false, true),
                 self::leaf('ai-settings', 'Pengaturan AI', 'sparkles', '/avana/ai-settings', null, [], false, true),
                 self::leaf('email-settings', 'Pengaturan Email', 'mail', '/avana/email-settings', null, [], false, true),
                 self::leaf('tampilan', 'Tampilan & Tema', 'palette', '/avana/tampilan', null, [], false, true),

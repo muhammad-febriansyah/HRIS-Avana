@@ -13,6 +13,7 @@ use App\Models\Invoice;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
+use App\Models\PartnerDocumentDownload;
 use App\Models\PayrollPeriod;
 use App\Models\Permission;
 use App\Models\PermissionRequest;
@@ -650,6 +651,13 @@ class DashboardController extends Controller
                     ->orWhere(fn ($sub) => $sub->where('status', 'unpaid')->whereDate('due_date', '<', Carbon::today()));
             })
             ->count();
+        $companyProfileDownloaders = PartnerDocumentDownload::query()
+            ->where('document', 'company-profile')
+            ->distinct('visitor_hash')
+            ->count('visitor_hash');
+        $companyProfileDownloads = PartnerDocumentDownload::query()
+            ->where('document', 'company-profile')
+            ->count();
 
         return Inertia::render('dashboard-admin', [
             'kpis' => [
@@ -692,6 +700,16 @@ class DashboardController extends Controller
                     'delta' => $overdueCount.' jatuh tempo',
                     'deltaIcon' => 'arrow-up-right',
                     'deltaColor' => '#D97706',
+                ],
+                [
+                    'label' => 'Company Profile Download',
+                    'value' => $this->formatNumber($companyProfileDownloaders),
+                    'icon' => 'download',
+                    'iconBg' => 'rgba(22,163,74,.1)',
+                    'iconColor' => '#16A34A',
+                    'delta' => $companyProfileDownloads.' total unduhan',
+                    'deltaIcon' => 'file-down',
+                    'deltaColor' => '#16A34A',
                 ],
             ],
             'tenantGrowth' => $this->tenantGrowth($today),

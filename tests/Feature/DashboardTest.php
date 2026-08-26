@@ -74,7 +74,7 @@ test('super admins get the platform dashboard instead of the tenant one', functi
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('dashboard-admin')
-            ->has('kpis', 4)
+            ->has('kpis', 5)
             ->has('tenantGrowth.labels', 6)
             ->has('tenantGrowth.values', 6)
             ->has('revenueTrend.values', 6)

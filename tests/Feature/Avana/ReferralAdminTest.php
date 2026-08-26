@@ -2,9 +2,12 @@
 
 use App\Models\Partner;
 use App\Models\PartnerRegistration;
+use App\Models\ReferralLead;
 use App\Models\ReferralLedger;
 use App\Models\ReferralSetting;
 use App\Models\ReferralWithdrawal;
+use App\Models\Tenant;
+use App\Models\TenantRegistration;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Http\UploadedFile;
@@ -31,6 +34,18 @@ function makePartnerRegistration(array $overrides = []): PartnerRegistration
         'partner_type' => 'HR Consultant',
         'terms_accepted' => true,
         'status' => 'pending',
+    ], $overrides));
+}
+
+function makeTenantRegistration(array $overrides = []): TenantRegistration
+{
+    return TenantRegistration::create(array_merge([
+        'company_name' => 'PT Calon Klien',
+        'phone' => '081234567890',
+        'admin_name' => 'Dewi Admin',
+        'admin_email' => 'dewi.admin@example.com',
+        'admin_password' => Hash::make('RahasiaKlien1'),
+        'status' => TenantRegistration::STATUS_PENDING,
     ], $overrides));
 }
 
@@ -216,4 +231,73 @@ it('releases the reservation when a withdrawal is rejected', function (): void {
 
     expect($withdrawal->fresh()->status)->toBe(ReferralWithdrawal::STATUS_REJECTED);
     expect($partner->fresh()->availableAmount())->toBe(100000.0);
+});
+
+it('approves a pending company registration into a real tenant and admin login', function (): void {
+    $partner = createTestPartner();
+    $registration = makeTenantRegistration(['partner_id' => $partner->id]);
+
+    actingAs($this->superAdmin)
+        ->post(route('avana.referral.klien.approve', $registration))
+        ->assertSessionHas('success');
+
+    $registration->refresh();
+    expect($registration->status)->toBe(TenantRegistration::STATUS_APPROVED);
+    expect($registration->tenant_id)->not->toBeNull();
+
+    $tenant = Tenant::find($registration->tenant_id);
+    expect($tenant)->not->toBeNull();
+    expect($tenant->name)->toBe('PT Calon Klien');
+    expect($tenant->status)->toBe('trial');
+    expect($tenant->partner_id)->toBe($partner->id);
+    // Gated by EnsureOnboardingComplete until a package and company profile
+    // are set — unlike an admin-created tenant, which is never gated.
+    expect($tenant->requires_onboarding)->toBeTrue();
+
+    $user = User::where('email', 'dewi.admin@example.com')->first();
+    expect($user)->not->toBeNull();
+    expect($user->tenant_id)->toBe($tenant->id);
+    // The password chosen at registration (already hashed) is carried
+    // straight through — no separate generated password to relay.
+    expect(Hash::check('RahasiaKlien1', $user->password))->toBeTrue();
+    expect($user->roles()->where('code', 'admin_tenant_hr')->exists())->toBeTrue();
+
+    $lead = ReferralLead::where('tenant_id', $tenant->id)->first();
+    expect($lead)->not->toBeNull();
+    expect($lead->status)->toBe(ReferralLead::STATUS_CONVERTED);
+    expect($lead->partner_id)->toBe($partner->id);
+});
+
+it('refuses to approve a company registration whose email already has an account', function (): void {
+    $registration = makeTenantRegistration(['admin_email' => $this->admin->email]);
+
+    actingAs($this->superAdmin)
+        ->post(route('avana.referral.klien.approve', $registration))
+        ->assertSessionHas('error');
+
+    expect($registration->fresh()->status)->toBe(TenantRegistration::STATUS_PENDING);
+    expect(Tenant::where('name', 'PT Calon Klien')->exists())->toBeFalse();
+});
+
+it('rejects a pending company registration with a reason, creating no tenant', function (): void {
+    $registration = makeTenantRegistration();
+
+    actingAs($this->superAdmin)
+        ->post(route('avana.referral.klien.reject', $registration), ['admin_note' => 'Data tidak dapat diverifikasi'])
+        ->assertSessionHas('success');
+
+    $registration->refresh();
+    expect($registration->status)->toBe(TenantRegistration::STATUS_REJECTED);
+    expect($registration->admin_note)->toBe('Data tidak dapat diverifikasi');
+    expect(Tenant::where('name', 'PT Calon Klien')->exists())->toBeFalse();
+});
+
+it('requires a reason to reject a company registration', function (): void {
+    $registration = makeTenantRegistration();
+
+    actingAs($this->superAdmin)
+        ->post(route('avana.referral.klien.reject', $registration), [])
+        ->assertSessionHasErrors('admin_note');
+
+    expect($registration->fresh()->status)->toBe(TenantRegistration::STATUS_PENDING);
 });

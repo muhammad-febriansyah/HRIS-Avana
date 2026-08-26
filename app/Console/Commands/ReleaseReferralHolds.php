@@ -27,12 +27,18 @@ class ReleaseReferralHolds extends Command
         $due = ReferralConversion::query()
             ->where('status', ReferralConversion::STATUS_PENDING)
             ->whereDate('hold_until', '<=', Carbon::today())
-            ->get();
+            ->pluck('id');
 
         $credited = 0;
 
-        foreach ($due as $conversion) {
-            DB::transaction(function () use ($conversion, &$credited): void {
+        foreach ($due as $conversionId) {
+            DB::transaction(function () use ($conversionId, &$credited): void {
+                $conversion = ReferralConversion::query()->whereKey($conversionId)->lockForUpdate()->first();
+
+                if ($conversion === null || $conversion->status !== ReferralConversion::STATUS_PENDING) {
+                    return;
+                }
+
                 $partner = Partner::query()->whereKey($conversion->partner_id)->lockForUpdate()->first();
 
                 if ($partner === null) {

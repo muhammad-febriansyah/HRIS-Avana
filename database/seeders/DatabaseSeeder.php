@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
         $this->call(ClientModuleDataSeeder::class);
         $this->call(OnboardingSlideSeeder::class);
         $this->call(WebsiteSettingSeeder::class);
+        $this->call(FaqSeeder::class);
         // Sample AI Assistant usage so the token meter reads non-zero in demos.
         $this->call(AiUsageDemoSeeder::class);
     }

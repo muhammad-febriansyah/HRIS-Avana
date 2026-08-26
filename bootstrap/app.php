@@ -4,6 +4,7 @@ use App\Http\Middleware\CaptureReferral;
 use App\Http\Middleware\EnsureAppIsNotDown;
 use App\Http\Middleware\EnsureFeature;
 use App\Http\Middleware\EnsureFreshToken;
+use App\Http\Middleware\EnsureOnboardingComplete;
 use App\Http\Middleware\EnsureSubscriptionActive;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -40,6 +41,7 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleAppearance::class,
             ResolveActiveTenant::class,
             EnsureSubscriptionActive::class,
+            EnsureOnboardingComplete::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);

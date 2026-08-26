@@ -158,6 +158,8 @@ it('removes the logo and frees the file when remove flag is set', function (): v
 
 it('renders database-driven SEO meta and favicon in the document head', function (): void {
     Storage::fake('public');
+    Storage::disk('public')->put('website/favicon.png', 'favicon');
+    Storage::disk('public')->put('website/og.png', 'og');
 
     WebsiteSetting::current()->update([
         'site_name' => 'AvanaHR',
@@ -189,6 +191,7 @@ it('falls back to the bundled favicon and app name when settings are empty', fun
 
 it('shares branding as an inertia prop for the frontend', function (): void {
     Storage::fake('public');
+    Storage::disk('public')->put('website/logo.png', 'logo');
 
     WebsiteSetting::current()->update([
         'site_name' => 'AvanaHR',

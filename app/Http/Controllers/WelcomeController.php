@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Faq;
 use App\Models\News;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -26,6 +27,18 @@ class WelcomeController extends Controller
                 'image_url' => $item->imageUrl(),
             ]);
 
-        return Inertia::render('welcome', ['news' => $news]);
+        $faqs = Faq::query()
+            ->latest('id')
+            ->get(['id', 'question', 'answer'])
+            ->map(fn (Faq $faq): array => [
+                'q' => $faq->question,
+                'a' => $faq->answer,
+            ])
+            ->values();
+
+        return Inertia::render('welcome', [
+            'news' => $news,
+            'faqs' => $faqs,
+        ]);
     }
 }

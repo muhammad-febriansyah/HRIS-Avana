@@ -56,6 +56,7 @@ use App\Http\Controllers\Avana\EssSopController;
 use App\Http\Controllers\Avana\EssTaskController;
 use App\Http\Controllers\Avana\EssTravelController;
 use App\Http\Controllers\Avana\FaceScanLogController;
+use App\Http\Controllers\Avana\FaqController;
 use App\Http\Controllers\Avana\FeatureCatalogController;
 use App\Http\Controllers\Avana\FeatureController;
 use App\Http\Controllers\Avana\FieldVisitController;
@@ -80,6 +81,7 @@ use App\Http\Controllers\Avana\NotificationController;
 use App\Http\Controllers\Avana\OffboardingController;
 use App\Http\Controllers\Avana\OkrController;
 use App\Http\Controllers\Avana\OnboardingController;
+use App\Http\Controllers\Avana\OnboardingSetupController;
 use App\Http\Controllers\Avana\OnboardingSlideController;
 use App\Http\Controllers\Avana\OvertimeController;
 use App\Http\Controllers\Avana\OvertimeRuleController;
@@ -151,6 +153,10 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class, LogPageActivity
     Route::post('custom-fields', [CustomFieldController::class, 'store'])->name('custom-fields.store');
     Route::put('custom-fields/{field}', [CustomFieldController::class, 'update'])->name('custom-fields.update');
     Route::delete('custom-fields/{field}', [CustomFieldController::class, 'destroy'])->name('custom-fields.destroy');
+    Route::get('faqs', [FaqController::class, 'index'])->name('faqs');
+    Route::post('faqs', [FaqController::class, 'store'])->name('faqs.store');
+    Route::put('faqs/{faq}', [FaqController::class, 'update'])->name('faqs.update');
+    Route::delete('faqs/{faq}', [FaqController::class, 'destroy'])->name('faqs.destroy');
     Route::get('employees/bulk', [EmployeeController::class, 'bulkCreate'])->name('employees.bulk');
     Route::get('employees/bulk/template', [EmployeeController::class, 'bulkTemplate'])->name('employees.bulk.template');
     Route::post('employees/bulk/preview', [EmployeeController::class, 'bulkPreview'])->name('employees.bulk.preview');
@@ -579,6 +585,8 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class, LogPageActivity
     Route::get('referral', [ReferralController::class, 'index'])->name('referral');
     Route::post('referral/mitra/{registration}/setujui', [ReferralController::class, 'approvePartner'])->name('referral.mitra.approve');
     Route::post('referral/mitra/{registration}/tolak', [ReferralController::class, 'rejectPartner'])->name('referral.mitra.reject');
+    Route::post('referral/klien/{registration}/setujui', [ReferralController::class, 'approveTenant'])->name('referral.klien.approve');
+    Route::post('referral/klien/{registration}/tolak', [ReferralController::class, 'rejectTenant'])->name('referral.klien.reject');
     Route::put('referral/mitra/{partner}', [ReferralController::class, 'updatePartner'])->name('referral.mitra.update');
     Route::put('referral/leads/{lead}', [ReferralController::class, 'updateLeadStatus'])->name('referral.leads.update');
     Route::post('referral/penarikan/{withdrawal}/setujui', [ReferralController::class, 'approveWithdrawal'])->name('referral.penarikan.approve');
@@ -1004,6 +1012,11 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class, LogPageActivity
         Route::get('onboarding', [EssOnboardingController::class, 'index'])->name('onboarding');
         Route::patch('onboarding/tugas/{task}', [EssOnboardingController::class, 'toggleTask'])->name('onboarding.task');
     });
+
+    // "Mulai" checklist — where EnsureOnboardingComplete sends a tenant that
+    // hasn't picked a package or saved a company profile yet. Stays open to
+    // every role while everything else is closed, same as `terkunci` below.
+    Route::get('mulai', [OnboardingSetupController::class, 'index'])->name('mulai');
 
     // Langganan (tenant admin/HR) — self-service renewal paid via Pakasir.
     // `terkunci` is the lock notice a lapsed tenant is redirected to; it stays

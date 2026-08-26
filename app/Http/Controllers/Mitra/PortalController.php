@@ -8,6 +8,7 @@ use App\Models\Partner;
 use App\Models\ReferralConversion;
 use App\Models\ReferralSetting;
 use App\Models\ReferralWithdrawal;
+use App\Models\TenantRegistration;
 use App\Support\PaginatedTable;
 use App\Support\PrivateFile;
 use Illuminate\Database\Eloquent\Builder;
@@ -29,6 +30,20 @@ class PortalController extends Controller
     {
         $partner = $this->partner($request);
         $settings = ReferralSetting::current();
+
+        $pendingRegistrations = TenantRegistration::query()
+            ->whereBelongsTo($partner)
+            ->where('status', TenantRegistration::STATUS_PENDING)
+            ->latest()
+            ->limit(5)
+            ->get(['id', 'company_name', 'industry', 'employee_count_range', 'created_at'])
+            ->map(fn (TenantRegistration $registration): array => [
+                'id' => $registration->id,
+                'company_name' => $registration->company_name,
+                'industry' => $registration->industry,
+                'employee_count_range' => $registration->employee_count_range,
+                'created_at' => $registration->created_at?->toDateTimeString(),
+            ]);
 
         $leadsPage = $partner->leads()
             ->with('tenant:id,name')
@@ -112,6 +127,7 @@ class PortalController extends Controller
                 'rekening_tab_enabled' => $settings->rekening_tab_enabled,
             ],
             'referralUrl' => url('/daftar-perusahaan?ref='.$partner->code),
+            'pendingRegistrations' => $pendingRegistrations,
             // Dashboard's "Komisi Terbaru" glance — independent of the Komisi
             // tab's own search/pagination state below.
             'recentConversions' => $partner->conversions()

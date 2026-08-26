@@ -10,6 +10,7 @@ test('the landing page renders the public marketing component for guests', funct
             ->has('website.site_name')
             ->has('website.contact')
             ->has('website.social')
+            ->has('faqs')
         );
 });
 
