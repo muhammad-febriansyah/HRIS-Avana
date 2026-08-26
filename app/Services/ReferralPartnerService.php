@@ -36,11 +36,17 @@ final class ReferralPartnerService
                 'email_verified_at' => now(),
             ]);
 
-            $role = Role::query()->whereNull('tenant_id')->where('code', 'partner')->first();
+            // Created rather than looked up: skipping the assignment when the
+            // role is missing produced a login with no role at all, which
+            // EnsurePartner then refused — the approved partner could not
+            // reach /mitra, and DashboardController never redirected them
+            // there either. See 2026_08_27_000001_seed_partner_role_and_backfill.
+            $role = Role::firstOrCreate(
+                ['tenant_id' => null, 'code' => 'partner'],
+                ['name' => 'Mitra Referral', 'is_system' => true, 'can_access_mobile' => false],
+            );
 
-            if ($role !== null) {
-                $user->roles()->syncWithoutDetaching([$role->id]);
-            }
+            $user->roles()->syncWithoutDetaching([$role->id]);
 
             $partner = Partner::create([
                 'user_id' => $user->id,
