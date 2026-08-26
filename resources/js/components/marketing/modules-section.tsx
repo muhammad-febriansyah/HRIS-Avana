@@ -236,6 +236,18 @@ export const MODULES: Module[] = [
             'Kategori dan leaderboard kontributor',
             'Moderasi dan laporan konten oleh HR',
         ],
+        extraShots: [
+            {
+                src: '/avana/landing/screenshots/ruang-kita-mobile-feed.png',
+                caption:
+                    'Karyawan juga bisa buka Ruang Kita langsung dari aplikasi mobile — scroll feed, kasih reaksi, dan komentar dari HP tanpa perlu buka laptop.',
+            },
+            {
+                src: '/avana/landing/screenshots/ruang-kita-mobile-post.png',
+                caption:
+                    'Posting cerita, ide, atau apresiasi cukup pilih kategori, tulis ceritanya, dan tambah foto opsional — langsung tayang ke feed rekan sekantor.',
+            },
+        ],
     },
     {
         title: 'Pengumuman',
@@ -434,7 +446,7 @@ export function ModulesSection() {
                                         >
                                             <img
                                                 src={shot.src}
-                                                alt={`Kalkulator dan tabel tarif TER PPh 21 di AvanaHR`}
+                                                alt={shot.caption}
                                                 className="h-auto w-full rounded-lg object-contain"
                                             />
                                             <p className="mt-3 px-1 text-[13px] leading-relaxed text-avana-muted">
