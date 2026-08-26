@@ -7,14 +7,13 @@ use Inertia\Testing\AssertableInertia as Assert;
 
 use function Pest\Laravel\actingAs;
 
-test('the partner page exposes the company profile download link', function () {
+test('the partner page renders', function () {
     $this->withoutVite();
 
     $this->get(route('partnership'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('public/partnership')
-            ->where('companyProfileDownloadUrl', route('partnership.document.download'))
             ->has('faqs'));
 });
 

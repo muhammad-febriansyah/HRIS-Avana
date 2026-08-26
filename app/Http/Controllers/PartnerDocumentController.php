@@ -14,7 +14,6 @@ class PartnerDocumentController extends Controller
     public function partnership(): InertiaResponse
     {
         return Inertia::render('public/partnership', [
-            'companyProfileDownloadUrl' => route('partnership.document.download'),
             'faqs' => Faq::query()
                 ->latest('id')
                 ->get(['id', 'question', 'answer'])

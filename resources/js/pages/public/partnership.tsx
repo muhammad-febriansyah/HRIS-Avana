@@ -1,7 +1,6 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import {
     ArrowRight,
-    Download,
     Handshake,
     LayoutDashboard,
     PiggyBank,
@@ -18,7 +17,6 @@ import { WhatsAppFab } from '@/components/marketing/whatsapp-fab';
 import { cn } from '@/lib/utils';
 
 type PartnershipProps = {
-    companyProfileDownloadUrl: string;
     faqs: { q: string; a: string }[];
 };
 
@@ -74,7 +72,7 @@ const COMMISSION_ROWS = [
     { label: 'Riwayat payout', value: 'Transparan' },
 ];
 
-export default function Partnership({ companyProfileDownloadUrl, faqs }: PartnershipProps) {
+export default function Partnership({ faqs }: PartnershipProps) {
     const { website } = usePage().props;
     const brand = website.site_name ?? 'AvanaHR';
     const logo = website.logo_url ?? '/avana/logo-full.png';
@@ -157,15 +155,6 @@ export default function Partnership({ companyProfileDownloadUrl, faqs }: Partner
                                             className="inline-flex h-12 items-center gap-2 rounded-full border border-[#D2D9E8] bg-white px-7 text-[14px] font-bold text-[#0E1A3A] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#2F54C9]/30 hover:bg-[#F4F7FF] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F54C9]"
                                         >
                                             Pelajari Cara Kerja
-                                        </a>
-                                        <a
-                                            href={companyProfileDownloadUrl}
-                                            download
-                                            aria-label="Unduh Company Profile AvanaHR"
-                                            className="inline-flex h-12 items-center gap-2 rounded-full border border-[#B9C9EE] bg-[#EAF0FF] px-6 text-[14px] font-bold text-[#2348B0] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#2F54C9] hover:bg-[#DDE7FF] hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F54C9]"
-                                        >
-                                            <Download className="h-4 w-4" />
-                                            Unduh Company Profile
                                         </a>
                                     </div>
                                 </Reveal>
