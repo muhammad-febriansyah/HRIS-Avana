@@ -269,6 +269,7 @@ class TenantController extends Controller
                 'billing_status' => $tenant->billing_status,
                 'start_date' => $tenant->start_date?->toDateString(),
                 'end_date' => $tenant->end_date?->toDateString(),
+                'requires_onboarding' => $tenant->requires_onboarding,
             ],
             'packages' => $this->packageOptions(),
         ]);
@@ -742,6 +743,9 @@ class TenantController extends Controller
             'billing_status' => $validated['billing_status'] ?? $tenant->billing_status ?? 'active',
             'start_date' => $validated['start_date'] ?? null,
             'end_date' => $validated['end_date'] ?? null,
+            // Absent on the create wizard's payload, so fall back to the
+            // tenant's current value instead of clearing it to false.
+            'requires_onboarding' => $validated['requires_onboarding'] ?? $tenant->requires_onboarding,
         ]);
 
         // Moving a client to another tier hands them that tier's modules; the
@@ -812,6 +816,12 @@ class TenantController extends Controller
             // Create-only: which referral lead this client converts from, if
             // any — see {@see create()} and {@see store()}.
             'referral_lead_id' => ['nullable', 'integer', 'exists:referral_leads,id'],
+            // Edit-only: see {@see update()}. A self-serve referral signup
+            // starts locked to the "Mulai" checklist ({@see EnsureOnboardingComplete});
+            // unchecking this here is the super admin's manual override to
+            // hand a trial/test tenant full access without them paying for a
+            // package or filling in a company profile first.
+            'requires_onboarding' => ['nullable', 'boolean'],
         ];
     }
 

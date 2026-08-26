@@ -84,6 +84,7 @@ export interface TenantRecord {
     billing_status: string | null;
     start_date: string | null;
     end_date: string | null;
+    requires_onboarding: boolean;
 }
 
 /** Flat string-only payload backing both the create and edit tenant forms. */
@@ -108,6 +109,9 @@ export interface TenantFormData {
     admin_password: string;
     /** Set when arriving from Referral > Leads "Jadikan Klien". */
     referral_lead_id: string;
+    /** Edit only: whether the tenant is still locked to the "Mulai"
+     * checklist until they pick a package and fill in a company profile. */
+    requires_onboarding: boolean;
 }
 
 /** Empty defaults for the create form. */
@@ -129,6 +133,7 @@ export const emptyTenantForm: TenantFormData = {
     admin_email: '',
     admin_password: '',
     referral_lead_id: '',
+    requires_onboarding: false,
 };
 
 /** Billing status options for a client's account standing. */

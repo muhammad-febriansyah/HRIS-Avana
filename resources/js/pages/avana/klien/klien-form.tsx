@@ -220,6 +220,66 @@ export function KlienForm({
                 </div>
             </div>
 
+            <div
+                style={{
+                    padding: '18px 24px',
+                    borderTop: `1px solid ${C.line}`,
+                    background: '#F8FAFF',
+                }}
+            >
+                <label
+                    style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 10,
+                        cursor: 'pointer',
+                    }}
+                >
+                    <input
+                        type="checkbox"
+                        checked={data.requires_onboarding}
+                        onChange={(event) =>
+                            setData('requires_onboarding', event.target.checked)
+                        }
+                        style={{
+                            marginTop: 2,
+                            width: 16,
+                            height: 16,
+                            flex: 'none',
+                        }}
+                    />
+                    <span>
+                        <span
+                            style={{
+                                display: 'block',
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: C.navy,
+                            }}
+                        >
+                            Kunci sampai onboarding selesai
+                        </span>
+                        <span
+                            style={{
+                                display: 'block',
+                                marginTop: 2,
+                                fontSize: 12.5,
+                                color: C.muted,
+                                lineHeight: 1.55,
+                            }}
+                        >
+                            Aktif otomatis untuk pendaftaran mandiri lewat
+                            referral — semua menu klien disembunyikan sampai
+                            mereka pilih paket dan isi profil perusahaan sendiri
+                            di halaman &ldquo;Mulai&rdquo;. Matikan untuk kasih
+                            akses penuh langsung, cocok buat tenant
+                            ujicoba/demo.
+                        </span>
+                    </span>
+                </label>
+                <FieldError message={errors.requires_onboarding} />
+            </div>
+
             {withAdminAccount && (
                 <div
                     style={{

@@ -167,6 +167,33 @@ it('lets a super admin update a tenant', function (): void {
     expect((int) $this->tenant->max_users)->toBe(150);
 });
 
+it('lets a super admin release a tenant from the onboarding lock', function (): void {
+    $this->tenant->update(['requires_onboarding' => true]);
+
+    actingAs($this->superAdmin)
+        ->put(route('avana.klien.update', $this->tenant), [
+            'name' => $this->tenant->name,
+            'slug' => $this->tenant->slug,
+            'requires_onboarding' => false,
+        ])
+        ->assertSessionHas('success');
+
+    expect($this->tenant->fresh()->requires_onboarding)->toBeFalse();
+});
+
+it('leaves the onboarding lock untouched when the field is left out of the payload', function (): void {
+    $this->tenant->update(['requires_onboarding' => true]);
+
+    actingAs($this->superAdmin)
+        ->put(route('avana.klien.update', $this->tenant), [
+            'name' => $this->tenant->name,
+            'slug' => $this->tenant->slug,
+        ])
+        ->assertSessionHas('success');
+
+    expect($this->tenant->fresh()->requires_onboarding)->toBeTrue();
+});
+
 it('toggles a feature on and off for a tenant', function (): void {
     $feature = Feature::firstOrFail();
 
