@@ -211,6 +211,7 @@ class ReferralController extends Controller
                 'leads_tab_enabled' => $settings->leads_tab_enabled,
                 'komisi_tab_enabled' => $settings->komisi_tab_enabled,
                 'rekening_tab_enabled' => $settings->rekening_tab_enabled,
+                'klien_tab_enabled' => $settings->klien_tab_enabled,
             ],
         ]);
     }
@@ -488,6 +489,7 @@ class ReferralController extends Controller
             'leads_tab_enabled' => ['required', 'boolean'],
             'komisi_tab_enabled' => ['required', 'boolean'],
             'rekening_tab_enabled' => ['required', 'boolean'],
+            'klien_tab_enabled' => ['required', 'boolean'],
         ]);
 
         ReferralSetting::current()->update($validated);

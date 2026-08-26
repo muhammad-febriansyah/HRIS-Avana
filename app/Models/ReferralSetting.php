@@ -22,6 +22,7 @@ final class ReferralSetting extends Model
             'leads_tab_enabled' => 'boolean',
             'komisi_tab_enabled' => 'boolean',
             'rekening_tab_enabled' => 'boolean',
+            'klien_tab_enabled' => 'boolean',
         ];
     }
 
@@ -38,6 +39,7 @@ final class ReferralSetting extends Model
             'leads_tab_enabled' => true,
             'komisi_tab_enabled' => true,
             'rekening_tab_enabled' => true,
+            'klien_tab_enabled' => false,
         ]);
     }
 

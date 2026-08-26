@@ -3,12 +3,16 @@
 namespace App\Http\Controllers\Mitra;
 
 use App\Http\Controllers\Avana\ReferralController;
+use App\Http\Controllers\Avana\TenantController;
 use App\Http\Controllers\Controller;
+use App\Models\Feature;
 use App\Models\Partner;
 use App\Models\ReferralConversion;
 use App\Models\ReferralSetting;
 use App\Models\ReferralWithdrawal;
+use App\Models\Tenant;
 use App\Models\TenantRegistration;
+use App\Support\FeatureGroups;
 use App\Support\PaginatedTable;
 use App\Support\PrivateFile;
 use Illuminate\Database\Eloquent\Builder;
@@ -125,8 +129,11 @@ class PortalController extends Controller
                 'leads_tab_enabled' => $settings->leads_tab_enabled,
                 'komisi_tab_enabled' => $settings->komisi_tab_enabled,
                 'rekening_tab_enabled' => $settings->rekening_tab_enabled,
+                'klien_tab_enabled' => $settings->klien_tab_enabled,
             ],
             'referralUrl' => url('/daftar-perusahaan?ref='.$partner->code),
+            'clients' => $this->clientsFor($partner),
+            'clientFeatures' => $this->featureCatalog(),
             'pendingRegistrations' => $pendingRegistrations,
             // Dashboard's "Komisi Terbaru" glance — independent of the Komisi
             // tab's own search/pagination state below.
@@ -219,6 +226,88 @@ class PortalController extends Controller
         }
 
         return back()->with('success', 'Permintaan penarikan diajukan, menunggu persetujuan super admin');
+    }
+
+    /**
+     * Flip one feature module on/off for a tenant this partner referred.
+     * Gated on the same "Kontrol Fitur Klien" switch the tab itself is,
+     * checked again here in case an admin turns it off mid-session — the
+     * tab hiding on the client is cosmetic, this is the real lock.
+     */
+    public function toggleClientFeature(Request $request, Tenant $tenant): RedirectResponse
+    {
+        $partner = $this->partner($request);
+
+        abort_unless(ReferralSetting::current()->klien_tab_enabled, 403);
+        // A partner may only ever touch a tenant they themselves referred —
+        // never inferred from `tenant_id` on the user, since a partner login
+        // has none.
+        abort_unless($tenant->partner_id === $partner->id, 404);
+
+        $validated = $request->validate([
+            'feature_id' => ['required', 'integer', 'exists:features,id'],
+        ]);
+
+        $feature = $tenant->features()->firstOrNew(['feature_id' => $validated['feature_id']]);
+        $feature->is_enabled = ! $feature->is_enabled;
+        $feature->save();
+
+        return back()->with('success', 'Fitur klien diperbarui');
+    }
+
+    /**
+     * Tenants this partner's referral converted, with the same feature
+     * catalog shape the super admin's Kelola Fitur modal uses — see
+     * {@see TenantController::featureCatalog()}.
+     *
+     * @return array<int, array{id: int, name: string, company_name: ?string, status: string, package_name: ?string, feature_codes: array<int, string>}>
+     */
+    private function clientsFor(Partner $partner): array
+    {
+        return Tenant::query()
+            ->where('partner_id', $partner->id)
+            ->with([
+                'package:id,name',
+                'features' => fn ($query) => $query->where('is_enabled', true)->with('feature:id,code'),
+            ])
+            ->orderByDesc('id')
+            ->get(['id', 'name', 'company_name', 'status', 'package_id', 'partner_id'])
+            ->map(fn (Tenant $tenant): array => [
+                'id' => $tenant->id,
+                'name' => $tenant->name,
+                'company_name' => $tenant->company_name,
+                'status' => $tenant->status,
+                'package_name' => $tenant->package?->name,
+                'feature_codes' => $tenant->features
+                    ->pluck('feature.code')
+                    ->filter()
+                    ->values()
+                    ->all(),
+            ])
+            ->all();
+    }
+
+    /**
+     * Same catalog shape as the super admin's Kelola Fitur modal, minus the
+     * fixed "always on" core rows (Dashboard, Pengguna, ...) — noise for a
+     * partner who only cares about the toggleable modules.
+     *
+     * @return array<int, array{key: string, id: int, code: string, name: string, group: string}>
+     */
+    private function featureCatalog(): array
+    {
+        return Feature::query()
+            ->get(['id', 'code', 'name', 'module_group'])
+            ->sortBy(fn (Feature $feature): string => sprintf('%02d-%s', FeatureGroups::sortIndex($feature->module_group), $feature->name))
+            ->values()
+            ->map(fn (Feature $feature): array => [
+                'key' => $feature->code,
+                'id' => $feature->id,
+                'code' => $feature->code,
+                'name' => $feature->name,
+                'group' => FeatureGroups::label($feature->module_group),
+            ])
+            ->all();
     }
 
     private function partner(Request $request): Partner

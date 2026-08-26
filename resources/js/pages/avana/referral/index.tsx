@@ -102,6 +102,7 @@ interface Settings {
     leads_tab_enabled: boolean;
     komisi_tab_enabled: boolean;
     rekening_tab_enabled: boolean;
+    klien_tab_enabled: boolean;
 }
 
 interface Paginated<T> {
@@ -1162,6 +1163,7 @@ function PengaturanTab({ settings }: { settings: Settings }) {
         leads_tab_enabled: settings.leads_tab_enabled,
         komisi_tab_enabled: settings.komisi_tab_enabled,
         rekening_tab_enabled: settings.rekening_tab_enabled,
+        klien_tab_enabled: settings.klien_tab_enabled,
     });
 
     const submit = (e: FormEvent) => {
@@ -1230,6 +1232,18 @@ function PengaturanTab({ settings }: { settings: Settings }) {
                         label="Tampilkan menu Rekening"
                     />
                 </div>
+            </div>
+
+            <div style={{ borderTop: `1px solid ${C.line}`, paddingTop: 16 }}>
+                <label style={fieldLabel}>Kontrol Fitur Klien</label>
+                <div style={{ fontSize: 11.5, color: C.faint, marginTop: -2, marginBottom: 10 }}>
+                    Kalau aktif, mitra bisa lihat perusahaan yang mereka referensikan lewat menu &ldquo;Klien&rdquo; di portalnya, dan menyalakan/mematikan modul apa saja yang klien itu dapat — hanya untuk tenant yang dia referensikan sendiri.
+                </div>
+                <MenuToggle
+                    checked={form.data.klien_tab_enabled}
+                    onChange={(checked) => form.setData('klien_tab_enabled', checked)}
+                    label="Izinkan mitra atur fitur kliennya"
+                />
             </div>
 
             <div>

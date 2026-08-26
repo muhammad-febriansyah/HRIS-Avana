@@ -59,6 +59,7 @@ it('lets the super admin turn off partner withdrawals', function (): void {
             'leads_tab_enabled' => true,
             'komisi_tab_enabled' => true,
             'rekening_tab_enabled' => true,
+            'klien_tab_enabled' => false,
         ])
         ->assertSessionHas('success');
 
@@ -75,6 +76,7 @@ it('lets the super admin turn off individual mitra portal tabs', function (): vo
             'leads_tab_enabled' => false,
             'komisi_tab_enabled' => false,
             'rekening_tab_enabled' => false,
+            'klien_tab_enabled' => true,
         ])
         ->assertSessionHas('success');
 
@@ -82,6 +84,7 @@ it('lets the super admin turn off individual mitra portal tabs', function (): vo
     expect($settings->leads_tab_enabled)->toBeFalse();
     expect($settings->komisi_tab_enabled)->toBeFalse();
     expect($settings->rekening_tab_enabled)->toBeFalse();
+    expect($settings->klien_tab_enabled)->toBeTrue();
 });
 
 it('forbids a non super admin from the referral centre', function (): void {

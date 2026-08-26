@@ -14,4 +14,5 @@ Route::middleware(['auth', 'verified', EnsurePartner::class])->prefix('mitra')->
     Route::get('/', [PortalController::class, 'index'])->name('dashboard');
     Route::post('rekening', [PortalController::class, 'updateProfile'])->name('rekening.update');
     Route::post('penarikan', [PortalController::class, 'requestWithdrawal'])->name('penarikan.store');
+    Route::post('klien/{tenant}/fitur', [PortalController::class, 'toggleClientFeature'])->name('klien.feature.toggle');
 });

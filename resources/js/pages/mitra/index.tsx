@@ -1,5 +1,5 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { Coins, Users, Wallet } from 'lucide-react';
+import { Building2, ChevronDown, Coins, Users, Wallet } from 'lucide-react';
 import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -46,6 +46,28 @@ interface Settings {
     leads_tab_enabled: boolean;
     komisi_tab_enabled: boolean;
     rekening_tab_enabled: boolean;
+    klien_tab_enabled: boolean;
+}
+
+/** One toggleable module in the feature catalog — same shape for every
+ * client, only which codes are enabled differs per tenant. */
+interface ClientFeature {
+    key: string;
+    id: number;
+    code: string;
+    name: string;
+    group: string;
+}
+
+/** A tenant this partner's referral converted, with its currently-enabled
+ * feature codes. */
+interface ClientTenant {
+    id: number;
+    name: string;
+    company_name: string | null;
+    status: string;
+    package_name: string | null;
+    feature_codes: string[];
 }
 
 interface LeadRow {
@@ -99,6 +121,8 @@ interface PageProps {
     leads: Paginated<LeadRow>;
     conversions: Paginated<ConversionRow>;
     withdrawals: Paginated<WithdrawalRow>;
+    clients: ClientTenant[];
+    clientFeatures: ClientFeature[];
     flash?: { success?: string; error?: string };
     errors: Record<string, string>;
     auth: { user: { name: string; email: string } | null };
@@ -109,6 +133,7 @@ interface PageProps {
 const TABS = [
     { key: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
     { key: 'leads', label: 'Leads', icon: 'users' },
+    { key: 'klien', label: 'Klien', icon: 'building-2' },
     { key: 'komisi', label: 'Komisi', icon: 'coins' },
     { key: 'penarikan', label: 'Penarikan', icon: 'wallet' },
     { key: 'rekening', label: 'Rekening', icon: 'landmark' },
@@ -119,6 +144,7 @@ type TabKey = (typeof TABS)[number]['key'];
 const TAB_DESCRIPTION: Record<TabKey, string> = {
     dashboard: 'Ringkasan performa referral Anda dan link unik untuk dibagikan.',
     leads: 'Perusahaan yang mendaftar lewat link referral Anda.',
+    klien: 'Perusahaan yang sudah jadi klien lewat referral Anda — atur modul yang mereka dapatkan.',
     komisi: 'Riwayat komisi dari setiap klien yang berhasil dikonversi.',
     penarikan: 'Ajukan pencairan saldo komisi dan pantau statusnya.',
     rekening: 'Data rekening bank untuk pencairan komisi.',
@@ -178,7 +204,7 @@ const WITHDRAWAL_STATUS: Record<string, { label: string; tone: Tone }> = {
     rejected: { label: 'Ditolak', tone: 'red' },
 };
 
-export default function MitraIndex({ partner, stats, settings, referralUrl, recentConversions, pendingRegistrations, leads, conversions, withdrawals }: PageProps) {
+export default function MitraIndex({ partner, stats, settings, referralUrl, recentConversions, pendingRegistrations, leads, conversions, withdrawals, clients, clientFeatures }: PageProps) {
     const { flash, auth, website } = usePage<PageProps>().props;
     const user = auth.user;
     const [tab, setTab] = useState<TabKey>('dashboard');
@@ -202,6 +228,7 @@ export default function MitraIndex({ partner, stats, settings, referralUrl, rece
     const TAB_VISIBLE: Record<TabKey, boolean> = {
         dashboard: true,
         leads: settings.leads_tab_enabled,
+        klien: settings.klien_tab_enabled,
         komisi: settings.komisi_tab_enabled,
         penarikan: settings.withdrawal_enabled,
         rekening: settings.rekening_tab_enabled,
@@ -560,6 +587,7 @@ export default function MitraIndex({ partner, stats, settings, referralUrl, rece
                             </div>
                         )}
                         {activeTab === 'leads' && <LeadsTab leads={leads} />}
+                        {activeTab === 'klien' && <KlienTab clients={clients} features={clientFeatures} />}
                         {activeTab === 'komisi' && <KomisiTab conversions={conversions} />}
                         {activeTab === 'penarikan' && (
                             <PenarikanTab withdrawals={withdrawals} stats={stats} settings={settings} hasBank={partner.has_bank} />
@@ -752,6 +780,187 @@ function LeadsTab({ leads }: { leads: Paginated<LeadRow> }) {
                 />
             }
         />
+    );
+}
+
+const CLIENT_STATUS: Record<string, { label: string; tone: Tone }> = {
+    trial: { label: 'Trial', tone: 'amber' },
+    active: { label: 'Aktif', tone: 'green' },
+    suspended: { label: 'Suspended', tone: 'red' },
+    inactive: { label: 'Nonaktif', tone: 'muted' },
+};
+
+function KlienTab({ clients, features }: { clients: ClientTenant[]; features: ClientFeature[] }) {
+    // Features grouped by section (server order), same grouping the super
+    // admin's Kelola Fitur modal uses.
+    const grouped = clients.length === 0 ? [] : (() => {
+        const out: { group: string; items: ClientFeature[] }[] = [];
+
+        for (const feature of features) {
+            const last = out[out.length - 1];
+
+            if (!last || last.group !== feature.group) {
+                out.push({ group: feature.group, items: [feature] });
+            } else {
+                last.items.push(feature);
+            }
+        }
+
+        return out;
+    })();
+
+    if (clients.length === 0) {
+        return (
+            <EmptyState
+                icon={Building2}
+                title="Belum ada klien"
+                description="Perusahaan yang mendaftar lewat link referral Anda dan disetujui tim AvanaHR akan muncul di sini."
+            />
+        );
+    }
+
+    return (
+        <div style={{ display: 'grid', gap: 12 }}>
+            {clients.map((tenant) => (
+                <ClientFeatureCard key={tenant.id} tenant={tenant} groups={grouped} />
+            ))}
+        </div>
+    );
+}
+
+function ClientFeatureCard({ tenant, groups }: { tenant: ClientTenant; groups: { group: string; items: ClientFeature[] }[] }) {
+    const [open, setOpen] = useState(false);
+
+    const toggle = (featureId: number) => {
+        router.post(
+            PortalController.toggleClientFeature(tenant.id).url,
+            { feature_id: featureId },
+            { preserveScroll: true, preserveState: true },
+        );
+    };
+
+    const status = CLIENT_STATUS[tenant.status] ?? { label: tenant.status, tone: 'muted' as Tone };
+    const enabledCount = tenant.feature_codes.length;
+
+    return (
+        <div style={card}>
+            <button
+                type="button"
+                onClick={() => setOpen((v) => !v)}
+                style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    padding: '14px 16px',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                }}
+            >
+                <div style={{ minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 13.5, fontWeight: 700, color: C.text }}>{tenant.name}</span>
+                        <Badge label={status.label} tone={status.tone} />
+                    </div>
+                    <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>
+                        {tenant.company_name ?? tenant.name} · {tenant.package_name ?? 'Tanpa paket'} · {enabledCount} modul aktif
+                    </div>
+                </div>
+                <ChevronDown
+                    size={18}
+                    color={C.muted}
+                    style={{ flex: 'none', transition: 'transform .15s', transform: open ? 'rotate(180deg)' : 'none' }}
+                />
+            </button>
+
+            {open && (
+                <div style={{ borderTop: `1px solid ${C.line}`, padding: '14px 16px' }}>
+                    {groups.map((section) => (
+                        <div key={section.group} style={{ marginBottom: 14 }}>
+                            <div
+                                style={{
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    letterSpacing: '.06em',
+                                    color: C.faint,
+                                    textTransform: 'uppercase',
+                                    marginBottom: 8,
+                                }}
+                            >
+                                {section.group}
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '8px 16px' }}>
+                                {section.items.map((feature) => {
+                                    const enabled = tenant.feature_codes.includes(feature.code);
+
+                                    return (
+                                        <div
+                                            key={feature.key}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                gap: 10,
+                                                padding: '9px 12px',
+                                                border: `1px solid ${C.line}`,
+                                                borderRadius: 10,
+                                                background: enabled ? '#fff' : '#FAFBFD',
+                                            }}
+                                        >
+                                            <span
+                                                style={{
+                                                    fontSize: 13,
+                                                    fontWeight: 600,
+                                                    color: enabled ? C.navy : C.muted,
+                                                    whiteSpace: 'nowrap',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                }}
+                                            >
+                                                {feature.name}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                role="switch"
+                                                aria-checked={enabled}
+                                                onClick={() => toggle(feature.id)}
+                                                style={{
+                                                    width: 38,
+                                                    height: 22,
+                                                    borderRadius: 100,
+                                                    border: 'none',
+                                                    cursor: 'pointer',
+                                                    position: 'relative',
+                                                    transition: 'background .15s',
+                                                    background: enabled ? C.primary : '#D5DCEA',
+                                                    flex: 'none',
+                                                }}
+                                            >
+                                                <span
+                                                    style={{
+                                                        position: 'absolute',
+                                                        top: 2,
+                                                        left: enabled ? 18 : 2,
+                                                        width: 18,
+                                                        height: 18,
+                                                        borderRadius: '50%',
+                                                        background: '#fff',
+                                                        transition: 'left .15s',
+                                                    }}
+                                                />
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
     );
 }
 

@@ -1,8 +1,10 @@
 <?php
 
+use App\Models\Feature;
 use App\Models\ReferralLedger;
 use App\Models\ReferralSetting;
 use App\Models\ReferralWithdrawal;
+use App\Models\Tenant;
 use App\Models\TenantRegistration;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
@@ -192,4 +194,62 @@ it('respects the configured minimum withdrawal', function (): void {
         ->assertSessionHas('error');
 
     expect(ReferralWithdrawal::where('partner_id', $partner->id)->count())->toBe(0);
+});
+
+it('lists only tenants the partner themself referred, with the shared feature catalog', function (): void {
+    $partner = createTestPartner();
+    $own = Tenant::create(['name' => 'PT Klien Sendiri', 'slug' => 'klien-sendiri', 'partner_id' => $partner->id, 'status' => 'trial']);
+    Tenant::create(['name' => 'PT Klien Orang Lain', 'slug' => 'klien-orang-lain', 'partner_id' => createTestPartner()->id, 'status' => 'trial']);
+
+    ReferralSetting::current()->update(['klien_tab_enabled' => true]);
+
+    actingAs($partner->user)
+        ->get(route('mitra.dashboard'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('clients.0.id', $own->id)
+            ->where('clients.0.name', 'PT Klien Sendiri')
+            ->has('clients', 1)
+            ->has('clientFeatures'));
+});
+
+it('lets a partner toggle a feature module on a tenant they referred', function (): void {
+    $partner = createTestPartner();
+    $tenant = Tenant::create(['name' => 'PT Klien Ujicoba', 'slug' => 'klien-ujicoba', 'partner_id' => $partner->id, 'status' => 'trial']);
+    $feature = Feature::firstOrFail();
+
+    ReferralSetting::current()->update(['klien_tab_enabled' => true]);
+
+    expect((bool) $tenant->features()->where('feature_id', $feature->id)->value('is_enabled'))->toBeFalsy();
+
+    actingAs($partner->user)
+        ->post(route('mitra.klien.feature.toggle', $tenant), ['feature_id' => $feature->id])
+        ->assertSessionHas('success');
+
+    expect((bool) $tenant->features()->where('feature_id', $feature->id)->value('is_enabled'))->toBeTrue();
+});
+
+it('refuses to let a partner toggle a feature on a tenant they did not refer', function (): void {
+    $partner = createTestPartner();
+    $otherTenant = Tenant::create(['name' => 'PT Bukan Klienku', 'slug' => 'bukan-klienku', 'partner_id' => createTestPartner()->id, 'status' => 'trial']);
+    $feature = Feature::firstOrFail();
+
+    ReferralSetting::current()->update(['klien_tab_enabled' => true]);
+
+    actingAs($partner->user)
+        ->post(route('mitra.klien.feature.toggle', $otherTenant), ['feature_id' => $feature->id])
+        ->assertNotFound();
+
+    expect((bool) $otherTenant->features()->where('feature_id', $feature->id)->value('is_enabled'))->toBeFalsy();
+});
+
+it('blocks the client feature toggle while the admin has not turned the capability on', function (): void {
+    $partner = createTestPartner();
+    $tenant = Tenant::create(['name' => 'PT Klien Terkunci', 'slug' => 'klien-terkunci', 'partner_id' => $partner->id, 'status' => 'trial']);
+    $feature = Feature::firstOrFail();
+
+    ReferralSetting::current()->update(['klien_tab_enabled' => false]);
+
+    actingAs($partner->user)
+        ->post(route('mitra.klien.feature.toggle', $tenant), ['feature_id' => $feature->id])
+        ->assertForbidden();
 });
