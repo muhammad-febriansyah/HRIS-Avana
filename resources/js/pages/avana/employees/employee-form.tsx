@@ -522,6 +522,29 @@ export function EmployeeForm({
                     />
                     <div className="avn-2col" style={sectionGrid}>
                         <Field
+                            htmlFor="employee_number"
+                            label="NIP (No. Induk Pegawai)"
+                            error={errors.employee_number}
+                            hint="Opsional. Jika dikosongkan, nomor karyawan akan dibuat otomatis."
+                        >
+                            <input
+                                id="employee_number"
+                                value={data.employee_number}
+                                onChange={(event) =>
+                                    setData(
+                                        'employee_number',
+                                        event.target.value,
+                                    )
+                                }
+                                placeholder="Masukkan nomor induk pegawai"
+                                style={styleFor(
+                                    !!errors.employee_number,
+                                    inputStyle,
+                                )}
+                            />
+                        </Field>
+
+                        <Field
                             htmlFor="full_name"
                             label="Nama Lengkap"
                             required

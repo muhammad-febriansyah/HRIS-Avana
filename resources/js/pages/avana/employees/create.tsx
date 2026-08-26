@@ -24,6 +24,7 @@ export default function EmployeesCreate({
     const { flash } = usePage<FlashProps>().props;
 
     const form = useForm<EmployeeFormData>({
+        employee_number: '',
         full_name: '',
         email: '',
         phone: '',

@@ -23,6 +23,7 @@ it('names the required fields blocking the next step', function () {
     $page = visit('/avana/employees/create');
 
     $page->assertSee('Lengkapi dulu: Nama Lengkap, NIK (KTP)');
+    $page->assertSee('NIP (No. Induk Pegawai)');
 
     $page->fill('#full_name', 'Rahmat Uji');
     // Every personal field is required now, so naming the next gap is what

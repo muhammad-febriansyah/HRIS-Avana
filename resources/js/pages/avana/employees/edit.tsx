@@ -43,6 +43,7 @@ export default function EmployeesEdit({
         null;
 
     const form = useForm<EmployeeFormData>({
+        employee_number: data.employee_number ?? '',
         full_name: data.full_name ?? '',
         email: data.email ?? '',
         phone: data.phone ?? '',

@@ -228,6 +228,7 @@ export type EmployeeFormOptions = {
 
 /** Flat string-only form payload backing both the create and edit forms. */
 export type EmployeeFormData = {
+    employee_number: string;
     full_name: string;
     email: string;
     phone: string;
@@ -359,6 +360,7 @@ export const EMPLOYEE_STEPS = [
  */
 export const STEP_FIELDS: string[][] = [
     [
+        'employee_number',
         'full_name',
         'nik',
         'email',
@@ -372,7 +374,6 @@ export const STEP_FIELDS: string[][] = [
         'password',
     ],
     [
-        'employee_number',
         'department_id',
         'position_id',
         'job_level_id',
