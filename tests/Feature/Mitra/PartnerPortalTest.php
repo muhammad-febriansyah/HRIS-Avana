@@ -19,7 +19,7 @@ beforeEach(function (): void {
     $this->admin = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
     $this->superAdmin = User::where('email', 'superadmin@avanahr.id')->firstOrFail();
 
-    ReferralSetting::current()->update(['flat_amount' => 50000, 'min_withdrawal_amount' => 25000]);
+    ReferralSetting::current()->update(['percent_rate' => 5, 'min_withdrawal_amount' => 25000]);
 });
 
 it('renders the partner dashboard for a partner login', function (): void {

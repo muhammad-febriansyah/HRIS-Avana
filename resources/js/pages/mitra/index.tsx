@@ -39,7 +39,7 @@ interface Stats {
 }
 
 interface Settings {
-    flat_amount: number;
+    percent_rate: number;
     min_withdrawal_amount: number;
     hold_days: number;
     withdrawal_enabled: boolean;
@@ -672,7 +672,7 @@ function DashboardTab({ stats, settings, recentConversions, pendingRegistrations
         <div style={{ display: 'grid', gap: 16 }}>
             <div style={{ ...card, padding: '16px 18px', fontSize: 13, color: C.text, lineHeight: 1.6 }}>
                 Setiap perusahaan yang mendaftar lewat link Anda dan invoice pertamanya lunas akan dikreditkan sebagai komisi
-                sebesar <strong>{rp(settings.flat_amount)}</strong>. Komisi ditahan {settings.hold_days} hari sebelum bisa
+                sebesar <strong>{settings.percent_rate}% dari invoice pertama</strong>. Komisi ditahan {settings.hold_days} hari sebelum bisa
                 ditarik. Anda punya <strong>{rp(stats.pending_amount)}</strong> yang masih dalam masa tahan.
             </div>
             {pendingRegistrations.length > 0 && (

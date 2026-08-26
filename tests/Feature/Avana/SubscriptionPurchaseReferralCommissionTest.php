@@ -28,7 +28,7 @@ beforeEach(function (): void {
     $this->partner = createTestPartner();
     $this->tenant->update(['partner_id' => $this->partner->id, 'end_date' => now()->addDays(5)->toDateString()]);
 
-    ReferralSetting::current()->update(['flat_amount' => 50000]);
+    ReferralSetting::current()->update(['percent_rate' => 5]);
 
     $this->package = Package::create([
         'name' => 'Pro',

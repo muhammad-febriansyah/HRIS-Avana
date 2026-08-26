@@ -95,7 +95,7 @@ interface WithdrawalRow {
 }
 
 interface Settings {
-    flat_amount: number;
+    percent_rate: number;
     hold_days: number;
     min_withdrawal_amount: number;
     withdrawal_enabled: boolean;
@@ -607,13 +607,18 @@ function EditPartnerPanel({ partner, errors, onClose }: { partner: PartnerRow; e
                     </select>
                 </div>
                 <div>
-                    <label style={fieldLabel}>Override Komisi per Konversi (Rp, opsional)</label>
-                    <RupiahInput
+                    <label style={fieldLabel}>Override Komisi (%)</label>
+                    <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
                         value={form.data.commission_value}
-                        onChange={(digits) => form.setData('commission_value', digits)}
-                        invalid={!!errors.commission_value}
+                        onChange={(e) => form.setData('commission_value', e.target.value)}
+                        style={fieldInput}
+                        aria-invalid={!!errors.commission_value}
                     />
-                    <div style={{ fontSize: 11.5, color: C.faint, marginTop: 4 }}>Kosongkan untuk pakai nominal komisi default.</div>
+                    <div style={{ fontSize: 11.5, color: C.faint, marginTop: 4 }}>Kosongkan untuk memakai persentase komisi default.</div>
                     {errors.commission_value && <div style={fieldError}>{errors.commission_value}</div>}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -1156,7 +1161,7 @@ function ProofUpload({
 
 function PengaturanTab({ settings }: { settings: Settings }) {
     const form = useForm({
-        flat_amount: String(settings.flat_amount),
+        percent_rate: String(settings.percent_rate),
         hold_days: String(settings.hold_days),
         min_withdrawal_amount: String(settings.min_withdrawal_amount),
         withdrawal_enabled: settings.withdrawal_enabled,
@@ -1174,17 +1179,21 @@ function PengaturanTab({ settings }: { settings: Settings }) {
     return (
         <form onSubmit={submit} style={{ ...card, padding: '20px 22px', maxWidth: 560, display: 'grid', gap: 16 }}>
             <div>
-                <label style={fieldLabel}>Komisi per Konversi (Rp)</label>
-                <RupiahInput
-                    value={form.data.flat_amount}
-                    onChange={(digits) => form.setData('flat_amount', digits)}
-                    invalid={!!form.errors.flat_amount}
+                <label style={fieldLabel}>Komisi per Konversi (%)</label>
+                <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={form.data.percent_rate}
+                    onChange={(e) => form.setData('percent_rate', e.target.value)}
+                    style={fieldInput}
                 />
                 <div style={{ fontSize: 11.5, color: C.faint, marginTop: 4 }}>
-                    Setiap perusahaan yang mendaftar lewat link mitra dan invoice pertamanya lunas mengkredit komisi ini ke
-                    mitra. Contoh: link dipakai dan closing 1x = {rp(Number(form.data.flat_amount || 0))}.
+                    Komisi dihitung dari nilai invoice pertama yang lunas. Contoh: invoice Rp1.000.000 dengan rate{' '}
+                    {form.data.percent_rate || 0}% menghasilkan {rp(Number(form.data.percent_rate || 0) * 10000)}.
                 </div>
-                {form.errors.flat_amount && <div style={fieldError}>{form.errors.flat_amount}</div>}
+                {form.errors.percent_rate && <div style={fieldError}>{form.errors.percent_rate}</div>}
             </div>
 
             <div>

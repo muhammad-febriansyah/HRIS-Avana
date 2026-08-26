@@ -204,7 +204,7 @@ class ReferralController extends Controller
             'conversions' => PaginatedTable::shape($conversionsPage, $request, 'konversi_search'),
             'withdrawals' => PaginatedTable::shape($withdrawalsPage, $request, 'penarikan_search'),
             'settings' => [
-                'flat_amount' => (float) $settings->flat_amount,
+                'percent_rate' => (float) $settings->percent_rate,
                 'hold_days' => $settings->hold_days,
                 'min_withdrawal_amount' => (float) $settings->min_withdrawal_amount,
                 'withdrawal_enabled' => $settings->withdrawal_enabled,
@@ -371,7 +371,7 @@ class ReferralController extends Controller
 
         $validated = $request->validate([
             'status' => ['required', Rule::in(['active', 'suspended'])],
-            'commission_value' => ['nullable', 'numeric', 'min:0'],
+            'commission_value' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ]);
 
         $partner->update($validated);
@@ -482,7 +482,7 @@ class ReferralController extends Controller
         $this->ensureSuperAdmin($request);
 
         $validated = $request->validate([
-            'flat_amount' => ['required', 'numeric', 'min:0'],
+            'percent_rate' => ['required', 'numeric', 'min:0', 'max:100'],
             'hold_days' => ['required', 'integer', 'min:0', 'max:365'],
             'min_withdrawal_amount' => ['required', 'numeric', 'min:0'],
             'withdrawal_enabled' => ['required', 'boolean'],

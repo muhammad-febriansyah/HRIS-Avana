@@ -20,7 +20,7 @@ beforeEach(function (): void {
     $this->superAdmin = User::where('email', 'superadmin@avanahr.id')->firstOrFail();
 
     ReferralSetting::current()->update([
-        'flat_amount' => 50000,
+        'percent_rate' => 5,
         'hold_days' => 7,
         'min_withdrawal_amount' => 25000,
     ]);

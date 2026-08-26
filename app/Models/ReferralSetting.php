@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Platform-wide referral commission rule: single settings row, edited in place
+ * Platform-wide referral commission rate, edited in place
  * from the super admin's Referral > Pengaturan Komisi screen.
  */
 final class ReferralSetting extends Model
@@ -15,7 +15,7 @@ final class ReferralSetting extends Model
     protected function casts(): array
     {
         return [
-            'flat_amount' => 'decimal:2',
+            'percent_rate' => 'decimal:2',
             'hold_days' => 'integer',
             'min_withdrawal_amount' => 'decimal:2',
             'withdrawal_enabled' => 'boolean',
@@ -32,7 +32,7 @@ final class ReferralSetting extends Model
     public static function current(): self
     {
         return self::query()->firstOrCreate(['id' => 1], [
-            'flat_amount' => 0,
+            'percent_rate' => 0,
             'hold_days' => 14,
             'min_withdrawal_amount' => 0,
             'withdrawal_enabled' => true,
@@ -44,13 +44,13 @@ final class ReferralSetting extends Model
     }
 
     /**
-     * The flat rupiah commission a qualifying conversion is worth — a
-     * partner's own override if set, otherwise the platform-wide flat rate.
+     * Calculate the commission amount from the qualifying invoice total using
+     * a partner override when present, otherwise the platform-wide rate.
      */
-    public function resolveCommission(?Partner $partner = null): float
+    public function resolveCommission(?Partner $partner = null, float $baseAmount = 0): float
     {
-        $amount = $partner?->commission_value !== null ? (float) $partner->commission_value : (float) $this->flat_amount;
+        $rate = $partner?->commission_value !== null ? (float) $partner->commission_value : (float) $this->percent_rate;
 
-        return round($amount, 2);
+        return round($baseAmount * $rate / 100, 2);
     }
 }

@@ -52,7 +52,7 @@ function makeTenantRegistration(array $overrides = []): TenantRegistration
 it('lets the super admin turn off partner withdrawals', function (): void {
     actingAs($this->superAdmin)
         ->post(route('avana.referral.pengaturan.update'), [
-            'flat_amount' => 50000,
+            'percent_rate' => 5,
             'hold_days' => 14,
             'min_withdrawal_amount' => 25000,
             'withdrawal_enabled' => false,
@@ -69,7 +69,7 @@ it('lets the super admin turn off partner withdrawals', function (): void {
 it('lets the super admin turn off individual mitra portal tabs', function (): void {
     actingAs($this->superAdmin)
         ->post(route('avana.referral.pengaturan.update'), [
-            'flat_amount' => 50000,
+            'percent_rate' => 5,
             'hold_days' => 14,
             'min_withdrawal_amount' => 25000,
             'withdrawal_enabled' => true,

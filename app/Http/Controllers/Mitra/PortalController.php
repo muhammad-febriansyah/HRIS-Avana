@@ -122,7 +122,7 @@ class PortalController extends Controller
                 'pending_amount' => (float) $partner->conversions()->where('status', ReferralConversion::STATUS_PENDING)->sum('commission_amount'),
             ],
             'settings' => [
-                'flat_amount' => (float) $settings->flat_amount,
+                'percent_rate' => (float) $settings->percent_rate,
                 'min_withdrawal_amount' => (float) $settings->min_withdrawal_amount,
                 'hold_days' => $settings->hold_days,
                 'withdrawal_enabled' => $settings->withdrawal_enabled,

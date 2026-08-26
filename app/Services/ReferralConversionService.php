@@ -47,7 +47,7 @@ final class ReferralConversionService
             }
 
             $settings = ReferralSetting::current();
-            $amount = $settings->resolveCommission($partner);
+            $amount = $settings->resolveCommission($partner, (float) $invoice->total);
 
             if ($amount <= 0) {
                 return;
