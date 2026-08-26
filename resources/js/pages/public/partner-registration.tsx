@@ -8,7 +8,7 @@ import {
     EyeOff,
     Users,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import PartnerRegistrationController from '@/actions/App/Http/Controllers/PartnerRegistrationController';
 import { Container, Reveal } from '@/components/marketing/reveal';
 import { SiteFooter } from '@/components/marketing/site-footer';
@@ -18,6 +18,17 @@ import { cn } from '@/lib/utils';
 
 const DESCRIPTION =
     'Daftar jadi Partner AvanaHR. Dapatkan link referral unik, tracking otomatis, dan dashboard partner.';
+
+/** Which step owns which field — used to jump the wizard back to whichever
+ * step a server-side validation error belongs to (see company-registration.tsx
+ * for the same pattern). Without this, an error on a step-1 field (email
+ * sudah dipakai, format WhatsApp salah, dll) submitted while sitting on step
+ * 3 renders nowhere — the submit looked like it silently did nothing. */
+const STEP_FIELDS: Record<number, string[]> = {
+    1: ['full_name', 'email', 'whatsapp', 'password', 'partner_type'],
+    2: ['company_name', 'network_size', 'network_focus', 'network_description'],
+    3: ['social_link', 'how_did_you_know', 'terms_accepted'],
+};
 
 const CHECKS = [
     {
@@ -98,6 +109,22 @@ export default function PartnerRegistration() {
     const totalSteps = 3;
 
     const isSuccess = Boolean(flash?.success);
+
+    useEffect(() => {
+        const errored = Object.keys(errors);
+
+        if (errored.length === 0) {
+            return;
+        }
+
+        const stepIndex = Object.entries(STEP_FIELDS).find(([, fields]) =>
+            fields.some((f) => errored.includes(f)),
+        )?.[0];
+
+        if (stepIndex !== undefined) {
+            setStep(Number(stepIndex));
+        }
+    }, [errors]);
 
     const handleNext = () => {
         if (step < totalSteps) {
