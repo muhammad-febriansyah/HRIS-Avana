@@ -18,6 +18,7 @@ import { AvanaFonts } from '@/layouts/avana-layout';
 import { AIcon, btnSave, C, card, RupiahInput, thCell } from '@/lib/avana';
 import { logout } from '@/routes';
 import { edit as editProfile } from '@/routes/profile';
+import { download as downloadCompanyProfile } from '@/routes/partnership/document';
 
 interface Partner {
     code: string;
@@ -364,6 +365,36 @@ export default function MitraIndex({ partner, stats, settings, referralUrl, rece
                                 </button>
                             );
                         })}
+
+                        {/* Not a tab — a direct file download, so it's a plain
+                            anchor rather than a selectTab() button. Same PDF
+                            and route as the public /partner page's button. */}
+                        <a
+                            href={downloadCompanyProfile.url()}
+                            download
+                            title="Unduh Company Profile"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 12,
+                                width: '100%',
+                                height: 42,
+                                padding: collapsed ? 0 : '0 12px',
+                                justifyContent: collapsed ? 'center' : 'flex-start',
+                                marginTop: 3,
+                                borderRadius: 9,
+                                cursor: 'pointer',
+                                fontSize: 13.5,
+                                fontFamily: 'inherit',
+                                textAlign: 'left',
+                                fontWeight: 500,
+                                color: C.text,
+                                textDecoration: 'none',
+                            }}
+                        >
+                            <AIcon name="download" size={18} color={C.muted} />
+                            {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>Company Profile</span>}
+                        </a>
                     </nav>
 
                     <div style={{ padding: '14px 12px', borderTop: `1px solid ${C.border}`, flex: 'none' }}>
