@@ -1,8 +1,9 @@
 import { Head, usePage } from '@inertiajs/react';
 import { AiInsightSection } from '@/components/marketing/ai-insight-section';
 import { BottomCta } from '@/components/marketing/bottom-cta';
-import { FinalCta } from '@/components/marketing/final-cta';
+import { ComparisonSection } from '@/components/marketing/comparison-section';
 import { FaqSection } from '@/components/marketing/faq-section';
+import { FinalCta } from '@/components/marketing/final-cta';
 import { FreeTrialBanner } from '@/components/marketing/free-trial-banner';
 import { HeroSection } from '@/components/marketing/hero-section';
 import { ImplementationSection } from '@/components/marketing/implementation-section';
@@ -71,6 +72,7 @@ export default function Welcome({
                     <AiInsightSection />
                     <ProductDemoSection />
                     <ProofSection />
+                    <ComparisonSection />
                     <NewsSection news={news} />
                     <ImplementationSection />
                     <PricingSection />
