@@ -6,6 +6,7 @@ import {
     ClipboardList,
     Fingerprint,
     Handshake,
+    HeartPulse,
     LifeBuoy,
     MapPin,
     Megaphone,
@@ -14,6 +15,7 @@ import {
     ShieldCheck,
     Sparkles,
     Target,
+    TrendingDown,
     UserPlus,
     Users,
     UsersRound,
@@ -148,9 +150,40 @@ export const MODULES: Module[] = [
         desc: 'Bantu HR melihat data tenaga kerja dengan perspektif yang lebih terhubung melalui grafik headcount, absensi, payroll, dan demografi karyawan.',
         screenshot: '/avana/landing/screenshots/analytics.png',
         highlights: [
-            'Prediksi risiko resign (attrition)',
             'Sebaran demografi & masa kerja',
+            'Grafik headcount & payroll',
             'Filter & export report',
+        ],
+    },
+    {
+        title: 'Mood Karyawan',
+        icon: HeartPulse,
+        tagline: 'Cek Perasaan Harian Tim',
+        desc: 'Karyawan check-in perasaan harian secara anonim lewat aplikasi mobile. HR memantau mood index tim, tren 7 hari, dan sebaran perasaan tanpa mengganggu privasi individu.',
+        screenshot: '/avana/landing/screenshots/mood.png',
+        highlights: [
+            'Check-in anonim dari aplikasi mobile',
+            'Mood index & tren 7 hari',
+            'Sebaran perasaan tim per hari',
+        ],
+        extraShots: [
+            {
+                src: '/avana/landing/screenshots/mood-mobile-checkin.jpeg',
+                caption:
+                    'Karyawan diajak check-in perasaan langsung dari aplikasi mobile saat buka Beranda — sekali ketuk emoji, tanpa isi form. Hasilnya anonim antar rekan kerja, hanya HR yang bisa melihat rekapnya.',
+            },
+        ],
+    },
+    {
+        title: 'Prediksi Risiko Resign',
+        icon: TrendingDown,
+        tagline: 'Attrition Scoring Berbasis AI',
+        desc: 'Skor risiko keluar tiap karyawan dari 9 faktor — engagement, riwayat gaji, promosi, masa kerja, hingga pergantian atasan — sehingga HR bisa retensi sebelum karyawan resign.',
+        screenshot: '/avana/landing/screenshots/attrition.png',
+        highlights: [
+            'Skor risiko dari 9 faktor & faktor utama per karyawan',
+            'Kategori risiko rendah / sedang / tinggi',
+            'Bobot & ambang batas dapat dikonfigurasi',
         ],
     },
     {

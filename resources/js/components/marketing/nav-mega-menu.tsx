@@ -10,7 +10,7 @@ import type { Module } from './modules-section';
 export type ProductMenuGroup = { title: string; items: Module[] };
 
 /**
- * The 14 concrete modules from `MODULES`, grouped into 4 columns for the
+ * The 20 concrete modules from `MODULES`, grouped into 4 columns for the
  * "Fitur" mega menu. Keep the titles below in sync with `MODULES` in
  * modules-section.tsx — an unknown title throws at import time instead of
  * silently dropping a module from the menu.
@@ -33,6 +33,7 @@ const PRODUCT_MENU_GROUP_TITLES: { title: string; modules: string[] }[] = [
         modules: [
             'AI Intelligence',
             'Workforce Analytics',
+            'Prediksi Risiko Resign',
             'Rapat & Transkrip',
         ],
     },
@@ -40,6 +41,7 @@ const PRODUCT_MENU_GROUP_TITLES: { title: string; modules: string[] }[] = [
         title: 'Kolaborasi & Engagement',
         modules: [
             'HR Helpdesk',
+            'Mood Karyawan',
             'Ruang Kita',
             'Pengumuman',
             'Survei Karyawan',
