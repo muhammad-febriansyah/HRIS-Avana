@@ -19,6 +19,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Exists;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -368,6 +369,25 @@ class UserController extends Controller
         ]);
 
         return back()->with('success', 'Status pengguna diperbarui');
+    }
+
+    /**
+     * Set a new password for a tenant user from the user-management screen.
+     */
+    public function resetPassword(Request $request, User $user): RedirectResponse
+    {
+        $this->ensureTenantOwnership($request, $user);
+        $this->authorize('update', $user);
+
+        $validated = $request->validate([
+            'password' => ['required', 'string', Password::defaults(), 'confirmed'],
+        ]);
+
+        $user->forceFill([
+            'password' => $validated['password'],
+        ])->save();
+
+        return back()->with('success', 'Password pengguna berhasil direset');
     }
 
     /**

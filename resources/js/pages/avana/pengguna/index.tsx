@@ -1,5 +1,5 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
-import type { CSSProperties } from 'react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import UserController from '@/actions/App/Http/Controllers/Avana/UserController';
@@ -76,6 +76,7 @@ export default function PenggunaIndex({
 
     const [search, setSearch] = useState(filters.search ?? '');
     const [confirm, setConfirm] = useState<UserRow | null>(null);
+    const [resetPasswordUser, setResetPasswordUser] = useState<UserRow | null>(null);
     const isFirstSearch = useRef(true);
 
     useEffect(() => {
@@ -141,6 +142,10 @@ export default function PenggunaIndex({
             {},
             { preserveScroll: true },
         );
+    };
+
+    const resetPassword = (user: UserRow) => {
+        setResetPasswordUser(user);
     };
 
     const deleteUser = () => {
@@ -618,6 +623,14 @@ export default function PenggunaIndex({
                                                     />
                                                 ) : null}
                                                 <ActionBtn
+                                                    icon="key-round"
+                                                    label="Reset password"
+                                                    variant="primary"
+                                                    onClick={() =>
+                                                        resetPassword(user)
+                                                    }
+                                                />
+                                                <ActionBtn
                                                     icon="trash-2"
                                                     label="Hapus"
                                                     variant="danger"
@@ -781,6 +794,168 @@ export default function PenggunaIndex({
                     onConfirm={deleteUser}
                 />
             )}
+            {resetPasswordUser && (
+                <ResetPasswordModal
+                    user={resetPasswordUser}
+                    onCancel={() => setResetPasswordUser(null)}
+                />
+            )}
         </>
     );
 }
+
+function ResetPasswordModal({
+    user,
+    onCancel,
+}: {
+    user: UserRow;
+    onCancel: () => void;
+}) {
+    const form = useForm({ password: '', password_confirmation: '' });
+    const [showPassword, setShowPassword] = useState(false);
+    const [showPasswordConfirmation, setShowPasswordConfirmation] =
+        useState(false);
+
+    const submit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        form.submit(UserController.resetPassword(user.id), {
+            onSuccess: onCancel,
+        });
+    };
+
+    return (
+        <div
+            role="presentation"
+            onMouseDown={(event) => {
+                if (event.target === event.currentTarget) {
+                    onCancel();
+                }
+            }}
+            style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 50,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 20,
+                background: 'rgba(15, 23, 42, .42)',
+            }}
+        >
+            <form
+                onSubmit={submit}
+                style={{
+                    width: '100%',
+                    maxWidth: 420,
+                    padding: 24,
+                    borderRadius: 14,
+                    background: '#fff',
+                    boxShadow: '0 20px 50px rgba(15,23,42,.2)',
+                }}
+            >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+                    <div>
+                        <h2 style={{ margin: 0, color: C.navy, fontSize: 18 }}>
+                            Reset password
+                        </h2>
+                        <p style={{ margin: '6px 0 20px', color: C.muted, fontSize: 13 }}>
+                            Buat password baru untuk <strong>{user.name}</strong>.
+                        </p>
+                    </div>
+                    <button type="button" onClick={onCancel} aria-label="Tutup" style={{ border: 0, background: 'transparent', color: C.faint, cursor: 'pointer', fontSize: 20 }}>
+                        ×
+                    </button>
+                </div>
+                <label style={{ display: 'grid', gap: 7, marginBottom: 14, color: C.text, fontSize: 13, fontWeight: 600 }}>
+                    Password baru
+                    <div style={passwordInputWrapperStyle}>
+                        <input
+                            type={showPassword ? 'text' : 'password'}
+                            value={form.data.password}
+                            onChange={(event) => form.setData('password', event.target.value)}
+                            autoFocus
+                            autoComplete="new-password"
+                            placeholder="Masukkan password baru"
+                            style={{ ...modalInputStyle, paddingRight: 42 }}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword((visible) => !visible)}
+                            aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
+                            style={passwordToggleStyle}
+                        >
+                            <AIcon name={showPassword ? 'eye-off' : 'eye'} size={16} />
+                        </button>
+                    </div>
+                    {form.errors.password && <span style={modalErrorStyle}>{form.errors.password}</span>}
+                </label>
+                <label style={{ display: 'grid', gap: 7, marginBottom: 20, color: C.text, fontSize: 13, fontWeight: 600 }}>
+                    Konfirmasi password
+                    <div style={passwordInputWrapperStyle}>
+                        <input
+                            type={showPasswordConfirmation ? 'text' : 'password'}
+                            value={form.data.password_confirmation}
+                            onChange={(event) => form.setData('password_confirmation', event.target.value)}
+                            autoComplete="new-password"
+                            placeholder="Ulangi password baru"
+                            style={{ ...modalInputStyle, paddingRight: 42 }}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowPasswordConfirmation((visible) => !visible)}
+                            aria-label={showPasswordConfirmation ? 'Sembunyikan konfirmasi password' : 'Tampilkan konfirmasi password'}
+                            style={passwordToggleStyle}
+                        >
+                            <AIcon
+                                name={showPasswordConfirmation ? 'eye-off' : 'eye'}
+                                size={16}
+                            />
+                        </button>
+                    </div>
+                    {form.errors.password_confirmation && <span style={modalErrorStyle}>{form.errors.password_confirmation}</span>}
+                </label>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                    <button type="button" onClick={onCancel} style={modalSecondaryButtonStyle}>Batal</button>
+                    <button type="submit" disabled={form.processing} style={modalPrimaryButtonStyle}>
+                        {form.processing ? 'Menyimpan…' : 'Simpan password'}
+                    </button>
+                </div>
+            </form>
+        </div>
+    );
+}
+
+const modalInputStyle: CSSProperties = {
+    width: '100%',
+    boxSizing: 'border-box',
+    height: 40,
+    padding: '0 11px',
+    border: `1px solid ${C.border}`,
+    borderRadius: 8,
+    color: C.text,
+    fontSize: 13,
+    outline: 'none',
+};
+
+const passwordInputWrapperStyle: CSSProperties = {
+    position: 'relative',
+};
+
+const passwordToggleStyle: CSSProperties = {
+    position: 'absolute',
+    top: '50%',
+    right: 10,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 4,
+    border: 0,
+    background: 'transparent',
+    color: C.faint,
+    cursor: 'pointer',
+    transform: 'translateY(-50%)',
+};
+
+const modalErrorStyle: CSSProperties = { color: C.red, fontSize: 12, fontWeight: 400 };
+const modalSecondaryButtonStyle: CSSProperties = { height: 38, padding: '0 14px', border: `1px solid ${C.border}`, borderRadius: 8, background: '#fff', color: C.muted, cursor: 'pointer', fontSize: 13 };
+const modalPrimaryButtonStyle: CSSProperties = { height: 38, padding: '0 14px', border: 0, borderRadius: 8, background: C.primary, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 };

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Employee;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Tenant;
@@ -69,7 +70,7 @@ it('excludes the super_admin role from the assignable roles list', function (): 
 
 it('creates a user with roles scoped to the current tenant', function (): void {
     // The employee role must name its owner, so the account is born linked.
-    $employee = App\Models\Employee::create([
+    $employee = Employee::create([
         'tenant_id' => $this->tenant->id,
         'employee_number' => 'EMP-LINK-1',
         'full_name' => 'Budi Pengguna',
@@ -184,7 +185,7 @@ it('rejects escalating an existing user to super_admin on update', function (): 
 
 it('updates an existing user fields and roles', function (): void {
     $target = User::factory()->create(['tenant_id' => $this->tenant->id, 'status' => 'active']);
-    $employee = App\Models\Employee::create([
+    $employee = Employee::create([
         'tenant_id' => $this->tenant->id,
         'employee_number' => 'EMP-LINK-2',
         'full_name' => 'Nama Diperbarui',
@@ -230,6 +231,46 @@ it('keeps the password unchanged when left blank on update', function (): void {
         ->assertSessionHas('success');
 
     expect($target->fresh()->password)->toBe($originalHash);
+});
+
+it('allows an authorized user to reset another tenant user password', function (): void {
+    $target = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'password' => Hash::make('original-secret'),
+    ]);
+
+    actingAs($this->admin)
+        ->post(route('avana.pengguna.reset-password', $target), [
+            'password' => 'new-secret-123',
+            'password_confirmation' => 'new-secret-123',
+        ])
+        ->assertSessionHas('success');
+
+    expect(Hash::check('new-secret-123', $target->fresh()->password))->toBeTrue();
+    expect(Hash::check('original-secret', $target->fresh()->password))->toBeFalse();
+});
+
+it('validates password confirmation when resetting a password', function (): void {
+    $target = User::factory()->create(['tenant_id' => $this->tenant->id]);
+
+    actingAs($this->admin)
+        ->post(route('avana.pengguna.reset-password', $target), [
+            'password' => 'new-secret-123',
+            'password_confirmation' => 'different-secret',
+        ])
+        ->assertSessionHasErrors('password');
+});
+
+it('cannot reset a password for a user from another tenant', function (): void {
+    $otherTenant = Tenant::create(['name' => 'PT Asing', 'slug' => 'pt-asing-password']);
+    $foreign = User::factory()->create(['tenant_id' => $otherTenant->id]);
+
+    actingAs($this->admin)
+        ->post(route('avana.pengguna.reset-password', $foreign), [
+            'password' => 'new-secret-123',
+            'password_confirmation' => 'new-secret-123',
+        ])
+        ->assertNotFound();
 });
 
 it('toggles a user status between active and inactive', function (): void {
