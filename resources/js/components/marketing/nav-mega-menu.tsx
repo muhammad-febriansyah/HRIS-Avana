@@ -36,6 +36,16 @@ const PRODUCT_MENU_GROUP_TITLES: { title: string; modules: string[] }[] = [
             'Rapat & Transkrip',
         ],
     },
+    {
+        title: 'Kolaborasi & Engagement',
+        modules: [
+            'HR Helpdesk',
+            'Ruang Kita',
+            'Pengumuman',
+            'Survei Karyawan',
+            'Kalender Acara',
+        ],
+    },
 ];
 
 /** This group gets a small "Native" badge next to its column header instead
@@ -189,14 +199,14 @@ export function FeaturesMegaMenuPanel({
     solutionHref: string;
 }) {
     return (
-        <div className="w-[min(760px,calc(100vw-3rem))]">
-            <div className="grid grid-cols-2 gap-x-8 gap-y-6 lg:grid-cols-4 lg:gap-x-0 lg:divide-x lg:divide-avana-border">
+        <div className="w-[min(980px,calc(100vw-3rem))]">
+            <div className="grid grid-cols-2 gap-x-8 gap-y-6 lg:grid-cols-5 lg:gap-x-0 lg:divide-x lg:divide-avana-border">
                 {groups.map((group, index) => (
                     <div
                         key={group.title}
                         className={cn(
-                            index > 0 && 'lg:pl-7',
-                            index < groups.length - 1 && 'lg:pr-7',
+                            index > 0 && 'lg:pl-5',
+                            index < groups.length - 1 && 'lg:pr-5',
                         )}
                     >
                         <p className="mb-3 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-avana-text/50 uppercase">
