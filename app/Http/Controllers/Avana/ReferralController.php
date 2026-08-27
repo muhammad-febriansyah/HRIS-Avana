@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Mitra;
 use App\Models\Partner;
+use App\Models\PartnerDocumentDownload;
 use App\Models\PartnerRegistration;
 use App\Models\ReferralConversion;
 use App\Models\ReferralLead;
@@ -185,6 +186,26 @@ class ReferralController extends Controller
                 'created_at' => $w->created_at?->toDateTimeString(),
             ]);
 
+        // Anonymous visitors on the public partner page only leave a hash —
+        // user_id is set only when whoever clicked was logged in (currently
+        // always a mitra, downloading from their portal sidebar).
+        $downloadsPage = PartnerDocumentDownload::query()
+            ->where('document', 'company-profile')
+            ->with('user:id,name,email')
+            ->when($request->string('unduhan_search')->toString(), function (Builder $query, string $term): void {
+                $query->whereHas('user', fn (Builder $u) => $u->where('name', 'like', "%{$term}%")
+                    ->orWhere('email', 'like', "%{$term}%"));
+            })
+            ->latest()
+            ->paginate(15, ['*'], 'unduhan_page')
+            ->through(fn (PartnerDocumentDownload $d): array => [
+                'id' => $d->id,
+                'name' => $d->user?->name,
+                'email' => $d->user?->email,
+                'is_registered' => $d->user_id !== null,
+                'created_at' => $d->created_at?->toDateTimeString(),
+            ]);
+
         $settings = ReferralSetting::current();
 
         return Inertia::render('avana/referral/index', [
@@ -203,6 +224,7 @@ class ReferralController extends Controller
             'leads' => PaginatedTable::shape($leadsPage, $request, 'leads_search'),
             'conversions' => PaginatedTable::shape($conversionsPage, $request, 'konversi_search'),
             'withdrawals' => PaginatedTable::shape($withdrawalsPage, $request, 'penarikan_search'),
+            'downloads' => PaginatedTable::shape($downloadsPage, $request, 'unduhan_search'),
             'settings' => [
                 'percent_rate' => (float) $settings->percent_rate,
                 'hold_days' => $settings->hold_days,

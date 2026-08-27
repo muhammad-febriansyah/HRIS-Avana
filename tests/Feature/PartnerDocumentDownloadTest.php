@@ -23,6 +23,16 @@ test('the public company profile download is tracked', function () {
     $response->assertSuccessful()
         ->assertHeader('content-type', 'application/pdf');
     expect(PartnerDocumentDownload::query()->count())->toBe(1);
+    expect(PartnerDocumentDownload::query()->first()->user_id)->toBeNull();
+});
+
+test('a logged-in download records who downloaded it', function () {
+    $user = User::factory()->create();
+
+    actingAs($user)->get(route('partnership.document.download'))
+        ->assertSuccessful();
+
+    expect(PartnerDocumentDownload::query()->first()->user_id)->toBe($user->id);
 });
 
 test('the super admin dashboard shows unique company profile downloaders', function () {

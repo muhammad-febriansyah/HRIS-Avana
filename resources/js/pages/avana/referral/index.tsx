@@ -1,5 +1,5 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { Coins, Handshake, Users, Wallet } from 'lucide-react';
+import { Coins, Download, Handshake, Users, Wallet } from 'lucide-react';
 import type { CSSProperties, DragEvent, FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -94,6 +94,14 @@ interface WithdrawalRow {
     created_at: string | null;
 }
 
+interface DownloadRow {
+    id: number;
+    name: string | null;
+    email: string | null;
+    is_registered: boolean;
+    created_at: string | null;
+}
+
 interface Settings {
     percent_rate: number;
     hold_days: number;
@@ -125,6 +133,7 @@ interface PageProps {
     leads: Paginated<LeadRow>;
     conversions: Paginated<ConversionRow>;
     withdrawals: Paginated<WithdrawalRow>;
+    downloads: Paginated<DownloadRow>;
     settings: Settings;
     flash?: {
         success?: string;
@@ -140,6 +149,7 @@ const TABS = [
     { key: 'leads', label: 'Leads' },
     { key: 'konversi', label: 'Konversi' },
     { key: 'penarikan', label: 'Penarikan' },
+    { key: 'unduhan', label: 'Unduhan Company Profile' },
     { key: 'pengaturan', label: 'Pengaturan Komisi' },
 ] as const;
 
@@ -214,6 +224,7 @@ export default function ReferralIndex({
     leads,
     conversions,
     withdrawals,
+    downloads,
     settings,
 }: PageProps) {
     const { flash, errors } = usePage<PageProps>().props;
@@ -299,6 +310,7 @@ export default function ReferralIndex({
                     {tab === 'leads' && <LeadsTab leads={leads} />}
                     {tab === 'konversi' && <KonversiTab conversions={conversions} />}
                     {tab === 'penarikan' && <PenarikanTab withdrawals={withdrawals} />}
+                    {tab === 'unduhan' && <UnduhanTab downloads={downloads} />}
                     {tab === 'pengaturan' && <PengaturanTab settings={settings} />}
                 </div>
             </div>
@@ -862,6 +874,52 @@ function PenarikanTab({ withdrawals }: { withdrawals: Paginated<WithdrawalRow> }
 
             <PayWithdrawalDialog withdrawal={paying} onClose={() => setPaying(null)} />
             <RejectWithdrawalDialog withdrawal={rejecting} onClose={() => setRejecting(null)} />
+        </div>
+    );
+}
+
+/* ---------- Unduhan Company Profile tab ---------- */
+
+function UnduhanTab({ downloads }: { downloads: Paginated<DownloadRow> }) {
+    const columns: DataTableColumn<DownloadRow>[] = [
+        {
+            key: 'name',
+            header: 'Pengunduh',
+            sortable: false,
+            render: (d) =>
+                d.is_registered ? (
+                    <div>
+                        <div style={{ fontWeight: 600, color: C.text }}>{d.name}</div>
+                        <div style={{ fontSize: 12, color: C.muted }}>{d.email}</div>
+                    </div>
+                ) : (
+                    <span style={{ color: C.faint, fontStyle: 'italic' }}>Pengunjung (tidak login)</span>
+                ),
+        },
+        {
+            key: 'is_registered',
+            header: 'Sumber',
+            sortable: false,
+            render: (d) => <Badge label={d.is_registered ? 'Mitra Login' : 'Halaman Publik'} tone={d.is_registered ? 'primary' : 'muted'} />,
+        },
+        { key: 'created_at', header: 'Waktu Unduh', sortable: false, render: (d) => d.created_at ?? '—' },
+    ];
+
+    return (
+        <div style={{ display: 'grid', gap: 12 }}>
+            <div style={{ fontSize: 12.5, color: C.muted }}>
+                Pengunjung publik yang belum login hanya tercatat sebagai kunjungan anonim — namanya baru muncul kalau dia login (mitra) saat mengunduh.
+            </div>
+            <DataTable<DownloadRow>
+                columns={columns}
+                rows={downloads.data}
+                meta={downloads.meta}
+                filters={{ search: downloads.search }}
+                paramPrefix="unduhan_"
+                searchPlaceholder="Cari nama atau email…"
+                rowKey={(d) => d.id}
+                emptyState={<EmptyState icon={Download} title="Belum ada unduhan" description="Company profile yang diunduh dari halaman publik atau portal mitra akan tercatat di sini." />}
+            />
         </div>
     );
 }

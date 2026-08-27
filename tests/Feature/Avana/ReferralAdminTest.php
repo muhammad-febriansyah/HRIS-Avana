@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Partner;
+use App\Models\PartnerDocumentDownload;
 use App\Models\PartnerRegistration;
 use App\Models\ReferralLead;
 use App\Models\ReferralLedger;
@@ -303,4 +304,26 @@ it('requires a reason to reject a company registration', function (): void {
         ->assertSessionHasErrors('admin_note');
 
     expect($registration->fresh()->status)->toBe(TenantRegistration::STATUS_PENDING);
+});
+
+it('lists who downloaded the company profile, by name when they were logged in', function (): void {
+    $partner = User::where('email', 'rina.a@nusantara.co.id')->firstOrFail();
+
+    PartnerDocumentDownload::create([
+        'visitor_hash' => 'anon-1',
+        'document' => 'company-profile',
+    ]);
+    PartnerDocumentDownload::create([
+        'visitor_hash' => 'mitra-1',
+        'user_id' => $partner->id,
+        'document' => 'company-profile',
+    ]);
+
+    actingAs($this->superAdmin)
+        ->get(route('avana.referral'))
+        ->assertInertia(fn ($page) => $page
+            ->where('downloads.data.0.name', $partner->name)
+            ->where('downloads.data.0.is_registered', true)
+            ->where('downloads.data.1.name', null)
+            ->where('downloads.data.1.is_registered', false));
 });
