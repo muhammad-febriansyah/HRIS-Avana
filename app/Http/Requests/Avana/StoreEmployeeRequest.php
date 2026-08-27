@@ -70,7 +70,9 @@ class StoreEmployeeRequest extends FormRequest
                     ->whereNull('deleted_at'),
             ],
             'branch_id' => ['required', Rule::exists('branches', 'id')->where('tenant_id', $tenantId)],
-            'work_location_id' => ['required', Rule::exists('work_locations', 'id')->where('tenant_id', $tenantId)],
+            // Left empty ("Otomatis") means the employee follows the branch's
+            // own location; the column is nullable to match.
+            'work_location_id' => ['nullable', Rule::exists('work_locations', 'id')->where('tenant_id', $tenantId)],
             'attendance_scope' => ['nullable', Rule::in(AttendancePolicy::SCOPES)],
             'department_id' => ['required', Rule::exists('departments', 'id')->where('tenant_id', $tenantId)],
             'position_id' => ['required', Rule::exists('positions', 'id')->where('tenant_id', $tenantId)],
@@ -193,7 +195,6 @@ class StoreEmployeeRequest extends FormRequest
             'marital_status.in' => 'Status pernikahan tidak valid.',
             'join_date.required' => 'Tanggal masuk wajib diisi.',
             'branch_id.required' => 'Cabang wajib dipilih.',
-            'work_location_id.required' => 'Lokasi kerja wajib dipilih.',
             'department_id.required' => 'Departemen wajib dipilih.',
             'position_id.required' => 'Jabatan wajib dipilih.',
             'job_level_id.required' => 'Jenjang jabatan wajib dipilih.',

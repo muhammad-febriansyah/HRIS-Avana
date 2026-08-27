@@ -467,7 +467,8 @@ export function EmployeeForm({
                 [data.ptkp_status, 'Status PTKP'],
                 [data.join_date, 'Tanggal Masuk'],
                 [data.branch_id, 'Cabang'],
-                [data.work_location_id, 'Lokasi Kerja'],
+                // Empty is a legit choice here ("Otomatis, ikut cabang"), not
+                // an unfilled field — no gap to report.
                 [data.status, 'Status Karyawan'],
             ]);
         }
@@ -1566,7 +1567,6 @@ export function EmployeeForm({
                         <Field
                             htmlFor="work_location_id"
                             label="Lokasi Kerja (Absensi)"
-                            required
                             error={errors.work_location_id}
                         >
                             <select

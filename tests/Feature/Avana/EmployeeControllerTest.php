@@ -125,17 +125,18 @@ it('rejects a gender outside male and female', function (): void {
     expect(Employee::where('full_name', 'Gender Tidak Valid')->exists())->toBeFalse();
 });
 
-it('requires every field except alamat and the two BPJS numbers', function (): void {
+it('requires every field except alamat, the two BPJS numbers, and lokasi kerja', function (): void {
     actingAs($this->admin)
         ->post(route('avana.employees.store'), ['full_name' => 'Kosong Semua'])
         ->assertSessionHasErrors([
             'email', 'phone', 'nik', 'gender', 'birth_place', 'birth_date',
             'religion', 'marital_status', 'employment_status', 'join_date',
-            'branch_id', 'work_location_id', 'department_id', 'position_id',
+            'branch_id', 'department_id', 'position_id',
             'job_level_id', 'salary_master_id', 'contract_number',
             'contract_type', 'contract_start_date', 'contract_end_date',
             'ptkp_status', 'manager_id', 'password',
-        ]);
+        ])
+        ->assertSessionDoesntHaveErrors('work_location_id');
 
     expect(Employee::where('full_name', 'Kosong Semua')->exists())->toBeFalse();
 });
@@ -385,6 +386,24 @@ it('assigns a tenant work location to the employee on store', function (): void 
 
     expect(Employee::where('full_name', 'Dewi Lokasi')->firstOrFail()->work_location_id)
         ->toBe($workLocation->id);
+});
+
+it('saves a null work location when left on Otomatis (ikut cabang)', function (): void {
+    $branch = Branch::forTenant($this->tenant->id)->firstOrFail();
+
+    actingAs($this->admin)
+        ->post(route('avana.employees.store'), employeeCreatePayload($this->tenant->id, [
+            'full_name' => 'Otomatis Lokasi',
+            'employment_status' => 'permanent',
+            'status' => 'active',
+            'branch_id' => $branch->id,
+            'work_location_id' => '',
+        ]))
+        ->assertRedirect(route('avana.employees.index'))
+        ->assertSessionHasNoErrors();
+
+    expect(Employee::where('full_name', 'Otomatis Lokasi')->firstOrFail()->work_location_id)
+        ->toBeNull();
 });
 
 it('rejects a work location that belongs to another tenant', function (): void {
