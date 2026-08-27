@@ -46,3 +46,9 @@ Schedule::command('avana:close-stale-meetings')->hourly();
 // Credit referral commissions past their hold window, so a partner's balance
 // updates itself without a super admin touching each conversion by hand.
 Schedule::command('referral:release-holds')->dailyAt('02:00');
+
+// Alert super admins to a tenant missing something provisioning should have
+// left behind. Reports only — repairing is a deliberate `--fix` run — because
+// the gaps are invisible from inside the tenant and otherwise surface as a
+// client complaint weeks later.
+Schedule::command('avana:periksa-tenant')->dailyAt('05:00');

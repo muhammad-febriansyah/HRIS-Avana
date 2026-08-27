@@ -5,6 +5,7 @@ use App\Models\AiTokenOrder;
 use App\Models\DayCalcMethod;
 use App\Models\Feature;
 use App\Models\MenuItem;
+use App\Models\Notification;
 use App\Models\Package;
 use App\Models\Role;
 use App\Models\RosterPattern;
@@ -172,8 +173,50 @@ it('leaves an onboarding tenant without a company so the checklist still asks fo
     expect($tenant->company()->exists())->toBeFalse();
 });
 
-it('backfills a company for tenants provisioned before one was created for them', function (): void {
+/**
+ * The invariant the mobile-login outage came down to: whatever provisioning
+ * decides a tenant needs, it must actually leave behind. A gap here is
+ * invisible on the web and fails somewhere else entirely — so assert against
+ * the provisioner's own checklist rather than any one prerequisite.
+ */
+it('leaves a freshly provisioned tenant with nothing missing', function (): void {
+    $tenant = Tenant::create(['name' => 'PT Lengkap Sejak Awal', 'slug' => 'lengkap-sejak-awal', 'status' => 'active']);
+
+    $provisioner = app(TenantProvisioner::class);
+    $provisioner->provision($tenant);
+
+    expect($provisioner->missingPrerequisites($tenant))->toBe([]);
+});
+
+it('reports a half-provisioned tenant without touching it', function (): void {
     // The state provisioning used to leave an admin-created tenant in.
+    $stranded = Tenant::create(['name' => 'PT Tanpa Profil', 'slug' => 'tanpa-profil', 'status' => 'active']);
+
+    $this->artisan('avana:periksa-tenant')
+        ->expectsOutputToContain('PT Tanpa Profil')
+        ->assertSuccessful();
+
+    expect($stranded->company()->exists())->toBeFalse();
+});
+
+it('alerts super admins once about a half-provisioned tenant', function (): void {
+    $stranded = Tenant::create(['name' => 'PT Belum Lengkap', 'slug' => 'belum-lengkap', 'status' => 'active']);
+
+    $this->artisan('avana:periksa-tenant')->assertSuccessful();
+    // A daily scan must not re-alert on the same tenant.
+    $this->artisan('avana:periksa-tenant')->assertSuccessful();
+
+    $alerts = Notification::query()
+        ->where('user_id', $this->superAdmin->id)
+        ->where('data->tenant_ref', $stranded->id)
+        ->where('data->event', 'provisioning_incomplete')
+        ->get();
+
+    expect($alerts)->toHaveCount(1)
+        ->and($alerts->first()->body)->toContain('profil perusahaan');
+});
+
+it('repairs only what is missing when run with --fix', function (): void {
     $stranded = Tenant::create(['name' => 'PT Tanpa Profil', 'slug' => 'tanpa-profil', 'status' => 'active']);
 
     $onboarding = Tenant::create([
@@ -183,20 +226,30 @@ it('backfills a company for tenants provisioned before one was created for them'
         'requires_onboarding' => true,
     ]);
 
-    $this->artisan('avana:backfill-companies')->assertSuccessful();
+    $this->artisan('avana:periksa-tenant', ['--fix' => true])->assertSuccessful();
 
     expect($stranded->company()->exists())->toBeTrue()
         ->and($stranded->company->name)->toBe('PT Tanpa Profil')
-        // Theirs to fill in: backfilling would tick the checklist off for them.
+        // Theirs to fill in: repairing it would tick the checklist off for them.
         ->and($onboarding->company()->exists())->toBeFalse();
 });
 
-it('creates nothing on a dry run', function (): void {
-    $stranded = Tenant::create(['name' => 'PT Uji Coba', 'slug' => 'uji-coba', 'status' => 'active']);
+/**
+ * The repair runs against tenants that have been live for months, so it must
+ * put back only what is absent. Feature toggles are the sharp edge: a mitra
+ * tailors them per client, and re-applying the package would silently undo it.
+ */
+it('leaves a live tenant settings alone while repairing a gap', function (): void {
+    $tenant = Tenant::findOrFail($this->admin->tenant_id);
+    $feature = $tenant->features()->firstOrFail();
+    $feature->update(['is_enabled' => false]);
 
-    $this->artisan('avana:backfill-companies', ['--dry-run' => true])->assertSuccessful();
+    $tenant->company()->delete();
 
-    expect($stranded->company()->exists())->toBeFalse();
+    app(TenantProvisioner::class)->repairMissing($tenant);
+
+    expect($tenant->company()->exists())->toBeTrue()
+        ->and($feature->refresh()->is_enabled)->toBeFalse();
 });
 
 it('auto-derives a unique slug from the name when none is given', function (): void {

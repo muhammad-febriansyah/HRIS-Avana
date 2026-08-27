@@ -782,6 +782,37 @@ final class Notifier
     }
 
     /**
+     * Warn super admins that a tenant is missing something provisioning was
+     * meant to leave behind — a gap nobody inside the tenant can see, because
+     * each one fails somewhere else entirely: no company profile refuses every
+     * mobile login, no roles means 403 on every page, no menu means an empty
+     * sidebar. Left alone these surface as a client complaint weeks later.
+     *
+     * At most one notification per tenant per super admin, so the daily scan
+     * that raises this does not re-alert.
+     *
+     * @param  array<string, string>  $missing  prerequisite labels
+     */
+    public static function tenantProvisioningIncomplete(Tenant $tenant, array $missing): void
+    {
+        self::platformNotify(
+            type: 'tenant',
+            tenantId: (int) $tenant->id,
+            title: 'Setup klien belum lengkap',
+            body: 'Tenant '.$tenant->name.' belum punya '.implode(', ', $missing)
+                .'. Jalankan `php artisan avana:periksa-tenant --fix` untuk melengkapinya.',
+            data: [
+                'link' => ['type' => 'tenant', 'id' => $tenant->id],
+                'tenant_ref' => $tenant->id,
+                'event' => 'provisioning_incomplete',
+            ],
+            dedupeColumn: 'tenant_ref',
+            dedupeValue: $tenant->id,
+            dedupeEvent: 'provisioning_incomplete',
+        );
+    }
+
+    /**
      * Insert a platform notification for every super admin, optionally skipping
      * the acting user and any super admin already notified for the same subject
      * event (the dedupe guard keeps recurring scans from re-alerting).

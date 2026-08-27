@@ -3,9 +3,13 @@
 namespace App\Services;
 
 use App\Models\Company;
+use App\Models\DayCalcMethod;
 use App\Models\Feature;
+use App\Models\MenuItem;
+use App\Models\MobileMenuItem;
 use App\Models\Permission;
 use App\Models\Role;
+use App\Models\Shift;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\AvanaNav;
@@ -51,17 +55,117 @@ class TenantProvisioner
     {
         DB::transaction(function () use ($tenant): void {
             $this->applyPackageFeatures($tenant);
-            $this->provisionCompany($tenant);
-            $this->provisionRoles($tenant);
-            AvanaNav::seedDefaultsFor($tenant->id);
-            MobileMenu::seedDefaultsFor($tenant->id);
+
+            foreach ($this->prerequisites() as $prerequisite) {
+                ($prerequisite['repair'])($tenant);
+            }
+        });
+    }
+
+    /**
+     * Everything provisioning must leave behind, each paired with the repair
+     * that puts it back. One list rather than two so a prerequisite can never
+     * be checked without also being fixable — {@see missingPrerequisites()}
+     * reads the checks, {@see repairMissing()} and {@see provision()} run the
+     * repairs, and a new entry here is picked up by all three at once.
+     *
+     * Feature modules are deliberately absent: they are the one thing a tenant
+     * legitimately edits afterwards (a mitra tailors them per client), and
+     * {@see applyPackageFeatures()} resets them to the package, so repairing
+     * them on a schedule would undo those choices. Provisioning applies them
+     * once, at creation.
+     *
+     * @return array<string, array{label: string, present: callable(Tenant): bool, repair: callable(Tenant): void}>
+     */
+    private function prerequisites(): array
+    {
+        return [
+            'perusahaan' => [
+                'label' => 'profil perusahaan',
+                // A tenant still on the "Mulai" checklist has none on purpose;
+                // its absence is what keeps asking them for it.
+                'present' => fn (Tenant $tenant): bool => $tenant->requires_onboarding || $tenant->company()->exists(),
+                'repair' => fn (Tenant $tenant) => $this->provisionCompany($tenant),
+            ],
+            'peran' => [
+                'label' => 'peran Admin Tenant / HR',
+                'present' => fn (Tenant $tenant): bool => Role::forTenant($tenant->id)->where('code', self::ADMIN_ROLE_CODE)->exists(),
+                'repair' => fn (Tenant $tenant) => $this->provisionRoles($tenant),
+            ],
+            'menu' => [
+                'label' => 'menu sidebar',
+                'present' => fn (Tenant $tenant): bool => MenuItem::forTenant($tenant->id)->exists(),
+                'repair' => fn (Tenant $tenant) => AvanaNav::seedDefaultsFor($tenant->id),
+            ],
+            'menu_mobile' => [
+                'label' => 'menu aplikasi mobile',
+                'present' => fn (Tenant $tenant): bool => MobileMenuItem::forTenant($tenant->id)->exists(),
+                'repair' => fn (Tenant $tenant) => MobileMenu::seedDefaultsFor($tenant->id),
+            ],
             // Operational reference data payroll and the roster read before a
             // tenant can run either: without a Perhitungan Hari method every
             // component is silently paid unprorated, and without the M/A/N
             // legend a rotation cannot be expressed at all.
-            DayCalcDefaults::seedDefaultsFor($tenant->id);
-            ShiftDefaults::seedDefaultsFor($tenant->id);
+            'perhitungan_hari' => [
+                'label' => 'metode Perhitungan Hari',
+                'present' => fn (Tenant $tenant): bool => DayCalcMethod::forTenant($tenant->id)->exists(),
+                'repair' => fn (Tenant $tenant) => DayCalcDefaults::seedDefaultsFor($tenant->id),
+            ],
+            'shift' => [
+                'label' => 'shift dasar M/A/N',
+                'present' => fn (Tenant $tenant): bool => Shift::forTenant($tenant->id)->exists(),
+                'repair' => fn (Tenant $tenant) => ShiftDefaults::seedDefaultsFor($tenant->id),
+            ],
+        ];
+    }
+
+    /**
+     * Which prerequisites this tenant is missing, as human-readable labels
+     * keyed by prerequisite. Empty means the tenant is fully provisioned.
+     *
+     * @return array<string, string>
+     */
+    public function missingPrerequisites(Tenant $tenant): array
+    {
+        $missing = [];
+
+        foreach ($this->prerequisites() as $key => $prerequisite) {
+            if (! ($prerequisite['present'])($tenant)) {
+                $missing[$key] = $prerequisite['label'];
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * Put back only what the tenant is actually missing, returning the labels
+     * of what was repaired.
+     *
+     * Narrower than re-running {@see provision()} on purpose: this runs against
+     * live tenants that have been in use for months, and touching a row that is
+     * already there — however idempotent the write — risks undoing a setting
+     * someone chose by hand.
+     *
+     * @return array<string, string>
+     */
+    public function repairMissing(Tenant $tenant): array
+    {
+        $missing = $this->missingPrerequisites($tenant);
+
+        if ($missing === []) {
+            return [];
+        }
+
+        DB::transaction(function () use ($tenant, $missing): void {
+            $prerequisites = $this->prerequisites();
+
+            foreach (array_keys($missing) as $key) {
+                ($prerequisites[$key]['repair'])($tenant);
+            }
         });
+
+        return $missing;
     }
 
     /**
