@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Company;
 use App\Models\Feature;
 use App\Models\Permission;
 use App\Models\Role;
@@ -10,6 +11,7 @@ use App\Models\User;
 use App\Support\AvanaNav;
 use App\Support\DayCalcDefaults;
 use App\Support\MobileMenu;
+use App\Support\OnboardingStatus;
 use App\Support\PermissionCatalog;
 use App\Support\ShiftDefaults;
 use Illuminate\Support\Facades\DB;
@@ -42,13 +44,14 @@ class TenantProvisioner
     private const ADMIN_ROLE_NAME = 'Admin Tenant / HR';
 
     /**
-     * Give the tenant its feature modules, roles, and menu. Safe to re-run:
-     * every write is a firstOrCreate / syncWithoutDetaching.
+     * Give the tenant its feature modules, company, roles, and menu. Safe to
+     * re-run: every write is a firstOrCreate / syncWithoutDetaching.
      */
     public function provision(Tenant $tenant): void
     {
         DB::transaction(function () use ($tenant): void {
             $this->applyPackageFeatures($tenant);
+            $this->provisionCompany($tenant);
             $this->provisionRoles($tenant);
             AvanaNav::seedDefaultsFor($tenant->id);
             MobileMenu::seedDefaultsFor($tenant->id);
@@ -59,6 +62,28 @@ class TenantProvisioner
             DayCalcDefaults::seedDefaultsFor($tenant->id);
             ShiftDefaults::seedDefaultsFor($tenant->id);
         });
+    }
+
+    /**
+     * Give the tenant the company record the rest of the product assumes exists:
+     * branches hang off it, payroll and document branding print its name, and the
+     * mobile API refuses to log anyone in whose tenant has none.
+     *
+     * A tenant heading into the "Mulai" checklist is skipped on purpose. An absent
+     * company is exactly what {@see OnboardingStatus} reads to know the profile
+     * still needs filling, so creating one here would tick that step off on the
+     * tenant's behalf and let them past it having entered nothing.
+     */
+    public function provisionCompany(Tenant $tenant): void
+    {
+        if ($tenant->requires_onboarding) {
+            return;
+        }
+
+        Company::firstOrCreate(
+            ['tenant_id' => $tenant->id],
+            ['name' => filled($tenant->company_name) ? $tenant->company_name : $tenant->name],
+        );
     }
 
     /**

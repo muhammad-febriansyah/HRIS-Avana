@@ -118,6 +118,87 @@ it('lets a super admin create a tenant and enables every feature by default', fu
     expect($tenant->features()->where('is_enabled', true)->count())->toBe($featureCount);
 });
 
+/**
+ * Nothing ever asks an admin-created tenant for a company profile — only a
+ * self-serve signup is held at the "Mulai" checklist — so provisioning has to
+ * leave one behind. Without it the tenant runs fine on the web while every
+ * employee is refused at the mobile login with "Akun belum terhubung ke
+ * perusahaan."
+ */
+it('gives a newly created tenant a company profile named after it', function (): void {
+    actingAs($this->superAdmin)
+        ->post(route('avana.klien.store'), [
+            'name' => 'PT Bahari Sentosa',
+            'company_name' => 'PT Bahari Sentosa Tbk',
+            'slug' => 'bahari-sentosa',
+            'status' => 'trial',
+            'admin_name' => 'Admin Bahari',
+            'admin_email' => 'admin@bahari-sentosa.co.id',
+        ])
+        ->assertSessionHas('success');
+
+    $tenant = Tenant::where('slug', 'bahari-sentosa')->firstOrFail();
+
+    expect($tenant->company)->not->toBeNull()
+        ->and($tenant->company->name)->toBe('PT Bahari Sentosa Tbk');
+});
+
+it('falls back to the tenant name when no company name was typed', function (): void {
+    actingAs($this->superAdmin)
+        ->post(route('avana.klien.store'), [
+            'name' => 'PT Tanpa Nama Legal',
+            'slug' => 'tanpa-nama-legal',
+            'status' => 'trial',
+            'admin_name' => 'Admin Tanpa',
+            'admin_email' => 'admin@tanpa-nama-legal.co.id',
+        ])
+        ->assertSessionHas('success');
+
+    $tenant = Tenant::where('slug', 'tanpa-nama-legal')->firstOrFail();
+
+    expect($tenant->company?->name)->toBe('PT Tanpa Nama Legal');
+});
+
+it('leaves an onboarding tenant without a company so the checklist still asks for one', function (): void {
+    $tenant = Tenant::create([
+        'name' => 'PT Menunggu Onboarding',
+        'slug' => 'menunggu-onboarding',
+        'status' => 'trial',
+        'requires_onboarding' => true,
+    ]);
+
+    app(TenantProvisioner::class)->provision($tenant);
+
+    expect($tenant->company()->exists())->toBeFalse();
+});
+
+it('backfills a company for tenants provisioned before one was created for them', function (): void {
+    // The state provisioning used to leave an admin-created tenant in.
+    $stranded = Tenant::create(['name' => 'PT Tanpa Profil', 'slug' => 'tanpa-profil', 'status' => 'active']);
+
+    $onboarding = Tenant::create([
+        'name' => 'PT Masih Checklist',
+        'slug' => 'masih-checklist',
+        'status' => 'trial',
+        'requires_onboarding' => true,
+    ]);
+
+    $this->artisan('avana:backfill-companies')->assertSuccessful();
+
+    expect($stranded->company()->exists())->toBeTrue()
+        ->and($stranded->company->name)->toBe('PT Tanpa Profil')
+        // Theirs to fill in: backfilling would tick the checklist off for them.
+        ->and($onboarding->company()->exists())->toBeFalse();
+});
+
+it('creates nothing on a dry run', function (): void {
+    $stranded = Tenant::create(['name' => 'PT Uji Coba', 'slug' => 'uji-coba', 'status' => 'active']);
+
+    $this->artisan('avana:backfill-companies', ['--dry-run' => true])->assertSuccessful();
+
+    expect($stranded->company()->exists())->toBeFalse();
+});
+
 it('auto-derives a unique slug from the name when none is given', function (): void {
     actingAs($this->superAdmin)
         ->post(route('avana.klien.store'), [
