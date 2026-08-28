@@ -96,6 +96,7 @@ use App\Http\Controllers\Avana\PayrollUmrController;
 use App\Http\Controllers\Avana\PerformanceController;
 use App\Http\Controllers\Avana\PerformanceKpiItemController;
 use App\Http\Controllers\Avana\PermissionRequestController;
+use App\Http\Controllers\Avana\Pph21ReportController;
 use App\Http\Controllers\Avana\Pph21TerController;
 use App\Http\Controllers\Avana\RecruitmentController;
 use App\Http\Controllers\Avana\RecruitmentRequisitionController;
@@ -244,6 +245,13 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class, LogPageActivity
     Route::get('payroll/payslip/{item}/pdf', [PayrollController::class, 'payslipPdf'])->name('payroll.payslip.pdf');
     Route::get('payroll/bpjs-export', [PayrollController::class, 'bpjsFile'])->name('payroll.bpjs.export');
     Route::get('payroll/1721/{employee}', [PayrollController::class, 'taxForm1721'])->name('payroll.tax1721');
+
+    // PPh 21 reporting: the tax view of a payroll period — what is owed, what
+    // was withheld, whether the data behind it is complete, and how far the
+    // period has travelled through deposit and filing.
+    Route::get('payroll/pph21-report', [Pph21ReportController::class, 'index'])->name('payroll.pph21-report');
+    Route::get('payroll/pph21-report/export', [Pph21ReportController::class, 'export'])->name('payroll.pph21-report.export');
+    Route::post('payroll/pph21-report/kepatuhan', [Pph21ReportController::class, 'updateCompliance'])->name('payroll.pph21-report.kepatuhan');
 
     // Payroll config: BPJS programs/rates + PPh21 TER
     Route::get('payroll/konfigurasi', [PayrollConfigController::class, 'index'])->name('payroll.konfigurasi');

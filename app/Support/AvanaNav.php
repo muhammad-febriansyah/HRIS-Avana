@@ -133,6 +133,10 @@ final class AvanaNav
                     self::leaf('struktur-upah', 'Struktur & Skala Upah', 'ruler', '/avana/struktur-upah', 'salary_structure', ['salary_structure']),
                     self::leaf('payroll-config', 'BPJS & Pajak', 'shield-check', '/avana/payroll/konfigurasi', 'payroll', ['bpjs', 'pph21', 'payroll']),
                     self::leaf('payroll-ter', 'Tarif TER PPh 21', 'percent', '/avana/payroll/ter', 'payroll', ['payroll']),
+                    // The tax view of a payroll period. Gated on the PPh 21
+                    // feature as well as payroll: a tenant that never turned
+                    // withholding on has no figures for this screen to report.
+                    self::leaf('payroll-pph21-report', 'Laporan PPh 21', 'file-spreadsheet', '/avana/payroll/pph21-report', 'payroll,pph21', ['pph21', 'payroll']),
                     self::leaf('payroll-payday', 'Mapping Payday', 'calendar-check', '/avana/payroll/payday', 'payroll', ['payroll']),
                     self::leaf('payroll-lembur', 'Setup Lembur', 'timer', '/avana/payroll/lembur', 'payroll', ['payroll']),
                     // Gaji Karyawan and Penetapan Gaji Massal are tabs of Master

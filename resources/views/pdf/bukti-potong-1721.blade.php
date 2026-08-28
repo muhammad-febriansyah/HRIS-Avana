@@ -33,9 +33,10 @@
         <table class="info">
             <tr><td class="k">Nama Karyawan</td><td>: {{ $employee['name'] }}</td>
                 <td class="k">No. Karyawan</td><td>: {{ $employee['number'] }}</td></tr>
-            <tr><td class="k">NIK / NPWP</td><td>: {{ $employee['nik'] }}</td>
+            <tr><td class="k">NIK</td><td>: {{ $employee['nik'] }}</td>
                 <td class="k">Status PTKP</td><td>: {{ $employee['ptkp'] }}</td></tr>
-            <tr><td class="k">Jabatan</td><td>: {{ $employee['position'] }}</td><td></td><td></td></tr>
+            <tr><td class="k">NPWP</td><td>: {{ $employee['npwp'] }}</td>
+                <td class="k">Jabatan</td><td>: {{ $employee['position'] }}</td></tr>
         </table>
 
         <table class="rows">

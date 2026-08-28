@@ -64,7 +64,10 @@ final class TaxForm1721
             'year' => $year,
             'employee' => [
                 'name' => $employee->full_name,
-                'nik' => $employee->nik ?: '-',
+                // The tax profile is the tax record of record; the employee's
+                // own NIK is the fallback for a profile that never filled it.
+                'nik' => $employee->taxProfile?->nik ?: ($employee->nik ?: '-'),
+                'npwp' => $employee->taxProfile?->npwp ?: '-',
                 'number' => $employee->employee_number,
                 'position' => $employee->position?->name ?? '-',
                 'ptkp' => $ptkpStatus ?? 'TK/0',
