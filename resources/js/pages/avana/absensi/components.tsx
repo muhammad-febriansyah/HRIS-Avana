@@ -92,6 +92,12 @@ export function locationBadge(status: string | null): LocationBadge {
                 color: C.primary,
                 geofenced: false,
             };
+        case 'unverified':
+            return {
+                label: 'Offline · lokasi tak terverifikasi',
+                color: C.amber,
+                geofenced: false,
+            };
         default:
             return { label: 'Tanpa geofence', color: C.faint, geofenced: false };
     }

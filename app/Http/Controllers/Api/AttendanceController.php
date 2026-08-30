@@ -195,8 +195,18 @@ class AttendanceController extends Controller
             // bounded to the same day. Past-day fixes go through the attendance
             // correction flow (manager-approved) so they leave an audit trail.
             'clocked_at' => ['nullable', 'date', 'after_or_equal:'.now()->startOfDay()->toDateTimeString()],
+            // A punch queued offline may carry no coordinates at all, or ones
+            // captured when the queue finally reached the network rather than
+            // when the employee actually clocked. Either way the fix cannot be
+            // judged against a radius; see geofenceCheck().
+            'location_deferred' => ['nullable', 'boolean'],
             'selfie' => ['nullable', 'image', 'max:4096'],
         ]);
+
+        // Only a queued punch may defer its location: a live one always has a
+        // fix to send, so the flag on its own must never open the geofence.
+        $data['location_deferred'] = $request->filled('clocked_at')
+            && $request->boolean('location_deferred');
 
         // Resolve the effective clock time; never allow a future timestamp.
         $zone = TenantTime::zoneForBranch($employee->tenant_id, $employee->branch_id);
@@ -402,7 +412,13 @@ class AttendanceController extends Controller
         // face_mode 'off' → no face check at all.
 
         $data['integrity_verdict'] = $integrity['verdict'];
-        $data['risk_flags'] = array_values(array_unique([...$integrity['flags'], ...$faceFlags]));
+        $data['risk_flags'] = array_values(array_unique([
+            ...$integrity['flags'],
+            ...$faceFlags,
+            // An unverified location is not a refusal, but it is not nothing
+            // either: HR has to be able to see which punches skipped the fence.
+            ...($data['location_deferred'] ? ['location_deferred'] : []),
+        ]));
 
         return $data['type'] === 'in'
             ? $this->clockIn($request, $employee, $data)
@@ -532,6 +548,8 @@ class AttendanceController extends Controller
             'work_mode' => $workMode,
             'location_status' => match (true) {
                 $workMode === 'home' => 'wfh',
+                // Queued offline: recorded, but never held against a radius.
+                $data['location_deferred'] ?? false => 'unverified',
                 $geofence === null => 'wfa',
                 default => 'inside',
             },
@@ -726,22 +744,37 @@ class AttendanceController extends Controller
      * JsonResponse to reject.
      *
      * Rejected when there is no allowed location, when GPS is missing, or when
-     * the caller is outside the nearest allowed location's radius.
+     * the caller is outside the nearest allowed location's radius. A punch
+     * queued offline (`location_deferred`) is never rejected on location: it is
+     * recorded unfenced and flagged for review.
      *
      * @param  array<string, mixed>  $data
      */
     private function geofenceCheck(Employee $employee, array $data, string $scope): WorkLocation|JsonResponse|null
     {
+        $deferred = ($data['location_deferred'] ?? false) === true;
+
         // GPS is required even for WFA: the point is still recorded, and the
         // mock-location check upstream is worthless without it.
+        //
+        // The one exception is a punch queued offline. Its fix either never
+        // existed (a phone with no network often cannot resolve one at all) or
+        // was taken at sync time, hours and kilometres from where the employee
+        // stood — a radius test on it would be fiction either way. Such a punch
+        // is accepted unfenced and flagged `location_deferred` for HR instead
+        // of being lost.
         if (! isset($data['latitude'], $data['longitude'])) {
+            if ($deferred) {
+                return null;
+            }
+
             return response()->json([
                 'message' => 'Lokasi GPS tidak terdeteksi. Aktifkan izin lokasi lalu coba lagi.',
             ], 422);
         }
 
         // WFA answers to no office, so there is no radius to be outside of.
-        if ($scope === AttendancePolicy::SCOPE_ANYWHERE) {
+        if ($scope === AttendancePolicy::SCOPE_ANYWHERE || $deferred) {
             return null;
         }
 

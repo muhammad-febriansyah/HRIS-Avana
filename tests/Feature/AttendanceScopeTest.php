@@ -251,3 +251,58 @@ it('reports the scope alongside the work locations', function (): void {
         // Both offices are reachable now, not just the assigned one.
         ->assertJsonCount(2, 'data');
 });
+
+/**
+ * A punch queued offline may have no coordinates at all: a phone with no data
+ * often cannot resolve a position either. The app queues it bare and flags it
+ * `location_deferred`; the server records it unfenced and marked for review
+ * rather than losing the punch.
+ */
+it('accepts a queued offline punch that carries no coordinates', function (): void {
+    $response = ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+        'type' => 'in',
+        'clocked_at' => now()->subMinutes(30)->toIso8601String(),
+        'location_deferred' => true,
+    ]);
+
+    $response->assertOk();
+
+    $attendance = Attendance::where('employee_id', $this->employee->id)
+        ->whereDate('date', now()->toDateString())
+        ->firstOrFail();
+
+    expect($attendance->location_status)->toBe('unverified')
+        ->and($attendance->risk_flags)->toContain('location_deferred')
+        ->and($attendance->clock_in_lat)->toBeNull();
+});
+
+it('does not let the deferred flag excuse a live punch without GPS', function (): void {
+    // Without `clocked_at` the punch is not from the queue, so the flag on its
+    // own must never open the geofence.
+    ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+        'type' => 'in',
+        'location_deferred' => true,
+    ])->assertStatus(422);
+});
+
+it('records a sync-time fix without measuring it against the radius', function (): void {
+    // The coordinate was taken when the queue reached the network, not where
+    // the employee stood — Bandung, far outside the assigned Jakarta office.
+    $response = ($this->auth)()->postJson('/api/v1/me/attendance/clock', [
+        'type' => 'in',
+        'latitude' => AWAY_LAT,
+        'longitude' => AWAY_LNG,
+        'clocked_at' => now()->subHours(2)->toIso8601String(),
+        'location_deferred' => true,
+    ]);
+
+    $response->assertOk();
+
+    $attendance = Attendance::where('employee_id', $this->employee->id)
+        ->whereDate('date', now()->toDateString())
+        ->firstOrFail();
+
+    expect($attendance->location_status)->toBe('unverified')
+        ->and((float) $attendance->clock_in_lat)->toBe(AWAY_LAT)
+        ->and($attendance->work_location_id)->toBeNull();
+});
