@@ -888,8 +888,14 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class, LogPageActivity
 
     // Timesheet (project time)
     Route::get('timesheet', [TimesheetController::class, 'index'])->name('timesheet');
+    Route::get('timesheet/export', [TimesheetController::class, 'export'])->name('timesheet.export');
     Route::post('timesheet/project', [TimesheetController::class, 'storeProject'])->name('timesheet.project.store');
+    Route::put('timesheet/project/{project}', [TimesheetController::class, 'updateProject'])->name('timesheet.project.update');
+    Route::delete('timesheet/project/{project}', [TimesheetController::class, 'destroyProject'])->name('timesheet.project.destroy');
+    Route::post('timesheet/approve', [TimesheetController::class, 'approve'])->name('timesheet.approve');
+    Route::post('timesheet/reject', [TimesheetController::class, 'reject'])->name('timesheet.reject');
     Route::post('timesheet', [TimesheetController::class, 'store'])->name('timesheet.store');
+    Route::put('timesheet/{timesheet}', [TimesheetController::class, 'update'])->name('timesheet.update');
     Route::delete('timesheet/{timesheet}', [TimesheetController::class, 'destroy'])->name('timesheet.destroy');
 
     // Tukar Shift (shift swap)

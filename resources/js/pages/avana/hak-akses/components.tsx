@@ -44,6 +44,7 @@ export const MOBILE_WEB_ICON: Record<string, string> = {
     emoji_happy: 'smile',
     microphone_2: 'mic',
     flash_1: 'zap',
+    task_square: 'clipboard-list',
     // Bottom-bar tabs.
     home_2: 'house',
     people: 'users',

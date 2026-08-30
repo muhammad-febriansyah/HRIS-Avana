@@ -14,6 +14,7 @@ use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
 use App\Models\Reimbursement;
+use App\Models\Timesheet;
 use App\Models\User;
 use App\Models\WfhRequest;
 use App\Support\Notifier;
@@ -58,6 +59,7 @@ class ApprovalEngine
         DutyTravel::class => 'duty_travel',
         DataChangeRequest::class => 'data_change',
         WfhRequest::class => 'wfh',
+        Timesheet::class => 'timesheet',
     ];
 
     /**
@@ -1004,6 +1006,7 @@ class ApprovalEngine
                 'status' => 'approved',
                 'approved_by' => $actorUserId,
             ]),
+            $approvable instanceof Timesheet => TimesheetApproval::finalize($approvable, $actorUserId),
             $approvable instanceof DataChangeRequest => DataChangeApproval::finalize($approvable, $actorUserId),
             default => $approvable->update(['status' => 'approved']),
         };

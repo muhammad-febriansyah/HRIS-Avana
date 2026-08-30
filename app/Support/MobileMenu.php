@@ -51,6 +51,7 @@ class MobileMenu
         'riwayat' => 'attendance',
         'koreksi' => 'attendance',
         'kunjungan' => 'attendance',
+        'timesheet' => 'timesheet',
         'tukar_shift' => 'shift_swap',
         'slip_gaji' => 'payroll',
         'reimburse' => 'reimbursement',
@@ -76,6 +77,19 @@ class MobileMenu
         'absensi' => 'attendance',
         'pengumuman' => 'announcement',
     ];
+
+    /**
+     * Tiles seeded switched OFF: the backend is live but the Flutter screen
+     * they point at has not shipped yet, so an active tile would send whoever
+     * tapped it to a route the app does not know.
+     *
+     * They stay in {@see self::defaults()} so the row exists, is feature-gated
+     * like any other, and can be switched on from Kelola Menu the moment the
+     * screen lands — no migration needed then.
+     *
+     * @var array<int, string>
+     */
+    public const PENDING_TILES = ['timesheet'];
 
     /**
      * The bottom bar the app is built with, in the order it lays it out.
@@ -128,6 +142,7 @@ class MobileMenu
             ['key' => 'uang_muka', 'label' => 'Uang Muka', 'icon' => 'wallet_add', 'color' => '#7C3AED', 'route' => '/kasbon'],
             ['key' => 'settlement', 'label' => 'Settlement', 'icon' => 'receipt_2_1', 'color' => '#2563EB', 'route' => '/settlement'],
             ['key' => 'kunjungan', 'label' => 'Kunjungan', 'icon' => 'location', 'color' => '#E11D48', 'route' => '/visiting'],
+            ['key' => 'timesheet', 'label' => 'Timesheet', 'icon' => 'task_square', 'color' => '#0891B2', 'route' => '/timesheet'],
             ['key' => 'dokumen', 'label' => 'Dokumen', 'icon' => 'document_text', 'color' => '#9333EA', 'route' => '/dokumen'],
             ['key' => 'perasaan', 'label' => 'Perasaan', 'icon' => 'emoji_happy', 'color' => '#2547F9', 'route' => '/mood'],
             ['key' => 'rapat', 'label' => 'AI Recorder', 'icon' => 'microphone_2', 'color' => '#4F46E5', 'route' => '/meeting'],
@@ -144,7 +159,13 @@ class MobileMenu
         foreach (self::defaults() as $index => $tile) {
             MobileMenuItem::firstOrCreate(
                 ['tenant_id' => $tenantId, 'key' => $tile['key']],
-                [...$tile, 'group' => self::GROUP_QUICK, 'sort_order' => $index, 'is_active' => true, 'is_system' => true],
+                [
+                    ...$tile,
+                    'group' => self::GROUP_QUICK,
+                    'sort_order' => $index,
+                    'is_active' => ! in_array($tile['key'], self::PENDING_TILES, true),
+                    'is_system' => true,
+                ],
             );
         }
 

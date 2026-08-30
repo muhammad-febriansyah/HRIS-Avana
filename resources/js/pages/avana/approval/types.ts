@@ -13,7 +13,8 @@ export type ApprovalType =
     | 'koreksi'
     | 'klaim'
     | 'dinas'
-    | 'data';
+    | 'data'
+    | 'timesheet';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'paid';
 export type ApprovalStatusLabel =
     'Menunggu' | 'Disetujui' | 'Ditolak' | 'Dibayar';
@@ -49,6 +50,7 @@ export interface ApprovalCounts {
     klaim: number;
     dinas: number;
     data: number;
+    timesheet: number;
     total: number;
 }
 
@@ -90,4 +92,5 @@ export const typeMeta: Record<
     klaim: { label: 'Klaim', icon: 'receipt', color: '#DB2777' },
     dinas: { label: 'Dinas', icon: 'plane', color: '#16A34A' },
     data: { label: 'Data', icon: 'user-round-cog', color: '#DC2626' },
+    timesheet: { label: 'Timesheet', icon: 'clock', color: '#0891B2' },
 };

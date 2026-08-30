@@ -12,9 +12,11 @@ use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
 use App\Models\Reimbursement;
+use App\Models\Timesheet;
 use App\Models\User;
 use App\Models\WfhRequest;
 use App\Services\ApprovalEngine;
+use App\Services\TimesheetApproval;
 use App\Support\DataChangeFields;
 use App\Support\PendingApprover;
 use Carbon\CarbonInterface;
@@ -48,6 +50,7 @@ class ApprovalController extends Controller
         'klaim' => Reimbursement::class,
         'dinas' => DutyTravel::class,
         'data' => DataChangeRequest::class,
+        'timesheet' => Timesheet::class,
     ];
 
     /**
@@ -120,6 +123,7 @@ class ApprovalController extends Controller
         'klaim' => ['approve' => 'Reimbursement disetujui, menunggu pembayaran', 'reject' => 'Reimbursement ditolak'],
         'dinas' => ['approve' => 'Perjalanan dinas disetujui', 'reject' => 'Perjalanan dinas ditolak'],
         'data' => ['approve' => 'Perubahan data disetujui dan diterapkan', 'reject' => 'Perubahan data ditolak'],
+        'timesheet' => ['approve' => 'Timesheet disetujui', 'reject' => 'Timesheet ditolak'],
     ];
 
     /**
@@ -186,6 +190,7 @@ class ApprovalController extends Controller
             'klaim' => $pendingItems->where('type', 'klaim')->count(),
             'dinas' => $pendingItems->where('type', 'dinas')->count(),
             'data' => $pendingItems->where('type', 'data')->count(),
+            'timesheet' => $pendingItems->where('type', 'timesheet')->count(),
             'total' => $pendingItems->count(),
         ];
 
@@ -302,6 +307,10 @@ class ApprovalController extends Controller
             if ($model instanceof DataChangeRequest) {
                 $model->update(['approver_id' => $request->user()->id, 'decided_at' => now()]);
             }
+
+            if ($model instanceof Timesheet) {
+                TimesheetApproval::reject($model, (int) $request->user()->id, $request->string('reason')->toString() ?: null);
+            }
         }
 
         return $this->afterDeciding($request, self::MESSAGES[$type]['reject']);
@@ -354,6 +363,10 @@ class ApprovalController extends Controller
 
         if ($type === 'leave') {
             $query->with('leaveType:id,name');
+        }
+
+        if ($type === 'timesheet') {
+            $query->with('project:id,name,code');
         }
 
         return $query->latest('created_at')
@@ -488,6 +501,7 @@ class ApprovalController extends Controller
             'klaim' => $model->title ?: 'Reimbursement',
             'dinas' => 'Dinas ke '.($model->destination ?: '—'),
             'data' => 'Perubahan Data Pribadi',
+            'timesheet' => 'Timesheet '.(float) $model->hours.' jam',
             default => Str::title($type),
         };
     }
@@ -504,6 +518,7 @@ class ApprovalController extends Controller
             'koreksi' => $this->koreksiDetail($model),
             'klaim' => $this->klaimDetail($model),
             'data' => $this->dataChangeDetail($model),
+            'timesheet' => $this->timesheetDetail($model),
             default => '—',
         };
     }
@@ -529,6 +544,17 @@ class ApprovalController extends Controller
     private function displayValue(mixed $value): string
     {
         return ($value === null || $value === '') ? '(kosong)' : (string) $value;
+    }
+
+    /**
+     * Format a timesheet entry as "Proyek Alpha · 12 Aug 2026" — which project
+     * the hours land on, and when they were worked.
+     */
+    private function timesheetDetail(Model $model): string
+    {
+        $project = $model->project?->name ?? '—';
+
+        return $project.' · '.($model->date?->format('d M Y') ?? '—');
     }
 
     /**

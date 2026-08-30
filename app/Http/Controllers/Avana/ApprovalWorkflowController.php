@@ -45,6 +45,7 @@ class ApprovalWorkflowController extends Controller
         ['key' => 'attendance_correction', 'label' => 'Koreksi Absen', 'description' => 'Pengajuan koreksi absensi', 'icon' => 'calendar', 'color' => '#7C3AED'],
         ['key' => 'duty_travel', 'label' => 'Perjalanan Dinas', 'description' => 'Pengajuan perjalanan dinas', 'icon' => 'plane', 'color' => '#16A34A'],
         ['key' => 'data_change', 'label' => 'Perubahan Data Pribadi', 'description' => 'Pengajuan perubahan data', 'icon' => 'user-round-cog', 'color' => '#DC2626'],
+        ['key' => 'timesheet', 'label' => 'Timesheet Proyek', 'description' => 'Pencatatan jam kerja per proyek', 'icon' => 'clock', 'color' => '#0891B2'],
     ];
 
     /**
@@ -82,6 +83,7 @@ class ApprovalWorkflowController extends Controller
         'permission' => ['days'],
         'wfh' => ['days'],
         'duty_travel' => ['days', 'amount'],
+        'timesheet' => ['hours'],
     ];
 
     /**

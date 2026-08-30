@@ -45,6 +45,7 @@ export function StatCards({ counts, filter, onFilter }: StatCardsProps) {
             ['klaim', 'Klaim'],
             ['dinas', 'Dinas'],
             ['data', 'Perubahan Data'],
+            ['timesheet', 'Timesheet'],
         ] as const
     ).map(([key, label]) => ({
         key,

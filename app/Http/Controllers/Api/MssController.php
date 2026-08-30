@@ -15,10 +15,12 @@ use App\Models\Reimbursement;
 use App\Models\Settlement;
 use App\Models\Shift;
 use App\Models\ShiftSchedule;
+use App\Models\Timesheet;
 use App\Models\WfhRequest;
 use App\Services\ApprovalEngine;
 use App\Services\AttendanceCorrectionApproval;
 use App\Services\LeaveAttendanceMarker;
+use App\Services\TimesheetApproval;
 use App\Support\Roster;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
@@ -51,6 +53,7 @@ class MssController extends Controller
         'koreksi' => AttendanceCorrection::class,
         'reimburse' => Reimbursement::class,
         'settlement' => Settlement::class,
+        'timesheet' => Timesheet::class,
     ];
 
     /**
@@ -75,6 +78,7 @@ class MssController extends Controller
         'koreksi' => 'Koreksi Absen',
         'reimburse' => 'Reimbursement',
         'settlement' => 'Settlement',
+        'timesheet' => 'Timesheet',
     ];
 
     /**
@@ -489,6 +493,10 @@ class MssController extends Controller
                 $query->with('leaveType:id,name');
             }
 
+            if ($type === 'timesheet') {
+                $query->with('project:id,name');
+            }
+
             foreach ($query->get() as $m) {
                 $out[] = [
                     'id' => "$type-{$m->id}",
@@ -528,6 +536,10 @@ class MssController extends Controller
 
         if ($type === 'leave') {
             $query->with('leaveType:id,name');
+        }
+
+        if ($type === 'timesheet') {
+            $query->with('project:id,name');
         }
 
         $sortColumn = $byDecidedAt ? 'updated_at' : 'created_at';
@@ -637,6 +649,16 @@ class MssController extends Controller
             return;
         }
 
+        if ($model instanceof Timesheet) {
+            if ($approved) {
+                TimesheetApproval::finalize($model, $manager->user_id);
+            } else {
+                TimesheetApproval::reject($model, $manager->user_id);
+            }
+
+            return;
+        }
+
         $model->update(['status' => $approved ? 'approved' : 'rejected']);
 
         if ($model instanceof Reimbursement) {
@@ -697,6 +719,7 @@ class MssController extends Controller
             'koreksi' => 'Koreksi Absen',
             'reimburse' => $model->title ?: 'Reimbursement',
             'settlement' => $model->title ?: 'Settlement',
+            'timesheet' => 'Timesheet '.(float) $model->hours.' jam',
             default => ucfirst($type),
         };
     }
@@ -710,6 +733,7 @@ class MssController extends Controller
             'koreksi' => $this->koreksiDetail($model),
             'reimburse' => 'Rp '.number_format((float) $model->amount, 0, ',', '.'),
             'settlement' => 'Rp '.number_format((float) $model->total, 0, ',', '.'),
+            'timesheet' => ($model->project?->name ?? '—').' · '.($model->date?->format('d M Y') ?? '—'),
             default => '—',
         };
     }

@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Feature;
+use App\Models\MobileMenuItem;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\MobileMenu;
@@ -120,4 +121,31 @@ it('closes the social wall when Ruang Kita is switched off', function (): void {
         ->getJson('/api/v1/me/social/feed')
         ->assertStatus(403)
         ->assertJsonPath('message', 'Fitur Ruang Kita tidak aktif untuk perusahaan Anda.');
+});
+
+it('seeds a pending tile switched off so the phone never opens a screen that does not exist', function (): void {
+    $fresh = Tenant::create(['name' => 'PT Baru', 'slug' => 'pt-baru']);
+
+    MobileMenu::seedDefaultsFor($fresh->id);
+
+    foreach (MobileMenu::PENDING_TILES as $key) {
+        $tile = MobileMenuItem::query()
+            ->where('tenant_id', $fresh->id)
+            ->where('key', $key)
+            ->first();
+
+        expect($tile)->not->toBeNull()
+            ->and($tile->is_active)->toBeFalse();
+    }
+});
+
+it('hides every pending tile from the account that would tap it', function (): void {
+    MobileMenu::seedDefaultsFor($this->tenant->id);
+
+    MobileMenuItem::query()
+        ->where('tenant_id', $this->tenant->id)
+        ->whereIn('key', MobileMenu::PENDING_TILES)
+        ->update(['is_active' => false]);
+
+    expect(tileKeysFor($this->user))->not->toContain(...MobileMenu::PENDING_TILES);
 });

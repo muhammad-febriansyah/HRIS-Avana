@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\ShiftSwapController;
 use App\Http\Controllers\Api\SocialController;
 use App\Http\Controllers\Api\SopController;
 use App\Http\Controllers\Api\TaxController;
+use App\Http\Controllers\Api\TimesheetController;
 use App\Http\Controllers\Api\TrackingController;
 use App\Http\Controllers\Api\WfhController;
 use App\Http\Controllers\PakasirWebhookController;
@@ -203,6 +204,15 @@ Route::prefix('v1')->group(function (): void {
             Route::post('field-visits', [FieldVisitController::class, 'store']);
             Route::post('field-visits/{visit}/tasks/{task}/toggle', [FieldVisitController::class, 'toggleTask']);
             Route::post('field-visits/{visit}/tasks/{task}/after', [FieldVisitController::class, 'uploadTaskAfter']);
+
+            // Project timesheets. Feature-gated inside the controller so a
+            // company that does not run projects answers with a message the
+            // app can show, rather than a bare 403.
+            Route::get('timesheets', [TimesheetController::class, 'index']);
+            Route::get('timesheets/projects', [TimesheetController::class, 'projects']);
+            Route::post('timesheets', [TimesheetController::class, 'store']);
+            Route::put('timesheets/{timesheet}', [TimesheetController::class, 'update'])->whereNumber('timesheet');
+            Route::delete('timesheets/{timesheet}', [TimesheetController::class, 'destroy'])->whereNumber('timesheet');
 
             Route::get('shift-swaps', [ShiftSwapController::class, 'index']);
             Route::post('shift-swaps', [ShiftSwapController::class, 'store']);
