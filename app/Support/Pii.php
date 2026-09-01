@@ -54,7 +54,12 @@ final class Pii
             return true;
         }
 
-        return $viewer->isSuperAdmin() || $viewer->hasPermissionTo('employee.update');
+        // Memoised per request: an employee list asks this once per row, and
+        // the answer cannot change between two rows of the same page.
+        return Cache::driver('array')->rememberForever(
+            'pii.may-read:'.$viewer->id,
+            static fn (): bool => $viewer->isSuperAdmin() || $viewer->hasPermissionTo('employee.update'),
+        );
     }
 
     /**

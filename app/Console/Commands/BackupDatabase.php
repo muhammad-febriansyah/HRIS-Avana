@@ -91,14 +91,30 @@ class BackupDatabase extends Command
         }
 
         try {
-            $sink = $compress ? deflate_init(ZLIB_ENCODING_GZIP) : null;
+            $sink = $compress ? deflate_init(ZLIB_ENCODING_GZIP) : false;
 
-            foreach ($dumper->dump($tables, true) as $chunk) {
-                fwrite($handle, $sink !== null ? deflate_add($sink, $chunk, ZLIB_NO_FLUSH) : $chunk);
+            if ($compress && $sink === false) {
+                throw new RuntimeException('Kompresi gzip tidak bisa diinisialisasi.');
             }
 
-            if ($sink !== null) {
-                fwrite($handle, deflate_add($sink, '', ZLIB_FINISH));
+            foreach ($dumper->dump($tables, true) as $chunk) {
+                $bytes = $sink === false ? $chunk : deflate_add($sink, $chunk, ZLIB_NO_FLUSH);
+
+                if ($bytes === false) {
+                    throw new RuntimeException('Kompresi dump gagal di tengah jalan.');
+                }
+
+                fwrite($handle, $bytes);
+            }
+
+            if ($sink !== false) {
+                $tail = deflate_add($sink, '', ZLIB_FINISH);
+
+                if ($tail === false) {
+                    throw new RuntimeException('Kompresi dump gagal saat ditutup.');
+                }
+
+                fwrite($handle, $tail);
             }
 
             fclose($handle);
