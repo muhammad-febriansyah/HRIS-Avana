@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
+use App\Models\EmployeeBankAccount;
 use App\Models\Settlement;
 use App\Models\SettlementAttachment;
 use App\Models\SettlementItem;
@@ -272,7 +273,9 @@ class SettlementController extends Controller
      */
     private function primaryBankAccount(Employee $employee): array
     {
-        $account = DB::table('employee_bank_accounts')
+        // Eloquent, not the query builder: the account number is encrypted at
+        // rest, and only the model's cast decrypts it.
+        $account = EmployeeBankAccount::query()
             ->where('tenant_id', $employee->tenant_id)
             ->where('employee_id', $employee->id)
             ->orderByDesc('is_primary')

@@ -110,7 +110,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | Fortify throttles login by email+IP (see FortifyServiceProvider). When it
-    | locks an account out, LogsAuthenticationEvents records the lockout and —
+    | locks an account out, LoginSecurity records the lockout and —
     | when the address belongs to a real account — emails the owner, because a
     | lockout they did not cause is the first visible sign of someone guessing
     | their password.
@@ -123,6 +123,81 @@ return [
         // At most one lockout email per account per window (minutes), so a
         // sustained guessing run does not turn into a mail flood.
         'notify_cooldown_minutes' => (int) env('SECURITY_LOCKOUT_COOLDOWN', 60),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Data Retention
+    |--------------------------------------------------------------------------
+    |
+    | How long the security and activity trails are kept before
+    | `avana:prune-security-data` deletes them. UU PDP 27/2022 expects personal
+    | data to be held no longer than it is needed, and an activity log is
+    | personal data: it records where a named person was and when.
+    |
+    | Audit rows are kept far longer than activity rows on purpose — they are
+    | the record of who changed payroll, which is what an audit asks for.
+    | A value of 0 disables pruning for that trail.
+    |
+    */
+
+    'retention' => [
+        'activity_log_days' => (int) env('SECURITY_RETENTION_ACTIVITY', 180),
+        'audit_log_days' => (int) env('SECURITY_RETENTION_AUDIT', 1095),
+        'login_device_days' => (int) env('SECURITY_RETENTION_DEVICES', 365),
+        'notification_days' => (int) env('SECURITY_RETENTION_NOTIFICATIONS', 180),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Scheduled Backup
+    |--------------------------------------------------------------------------
+    |
+    | `avana:backup-database` writes a compressed dump here every night.
+    |
+    | Point BACKUP_DISK at an off-site disk in production. A dump sitting on the
+    | same server as the database it copies survives a mistake, not a fire.
+    |
+    */
+
+    'backup' => [
+        'disk' => env('BACKUP_DISK', 'local'),
+        'directory' => env('BACKUP_DIRECTORY', 'backups'),
+        'keep_days' => (int) env('BACKUP_KEEP_DAYS', 14),
+        'alert_on_failure' => (bool) env('BACKUP_ALERT_ON_FAILURE', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Anomaly Detection
+    |--------------------------------------------------------------------------
+    |
+    | `avana:scan-security-anomalies` reads the activity trail once a day and
+    | raises what looks wrong. Thresholds are conservative on purpose: an alert
+    | that fires every day is an alert nobody reads.
+    |
+    */
+
+    'anomaly' => [
+        'enabled' => (bool) env('SECURITY_ANOMALY_ENABLED', true),
+
+        // Failed sign-ins against one address within the window before it
+        // counts as someone guessing rather than someone forgetting.
+        'failed_login_threshold' => (int) env('SECURITY_ANOMALY_FAILED_LOGINS', 10),
+
+        // Sign-ins outside this local-time window are reported as off-hours.
+        'work_hours_start' => (int) env('SECURITY_ANOMALY_HOURS_START', 5),
+        'work_hours_end' => (int) env('SECURITY_ANOMALY_HOURS_END', 22),
+
+        // Distinct source addresses one account signed in from within the
+        // window before the pair is reported as a shared or stolen session.
+        'distinct_ip_threshold' => (int) env('SECURITY_ANOMALY_DISTINCT_IPS', 4),
+
+        // Exports or downloads by one user within the window before it reads as
+        // someone carrying data out rather than doing their job.
+        'export_threshold' => (int) env('SECURITY_ANOMALY_EXPORTS', 15),
+
+        'window_hours' => (int) env('SECURITY_ANOMALY_WINDOW_HOURS', 24),
     ],
 
 ];

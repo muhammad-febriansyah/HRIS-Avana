@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\Tenant;
+use App\Support\Pii;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -28,11 +29,16 @@ class SearchController extends Controller
 
         $employees = Employee::forTenant((int) $user->tenant_id)
             ->where('status', 'active')
-            ->where(function ($query) use ($like): void {
+            ->where(function ($query) use ($like, $term): void {
                 $query->where('full_name', 'like', $like)
                     ->orWhere('employee_number', 'like', $like)
-                    ->orWhere('nik', 'like', $like)
                     ->orWhere('email', 'like', $like);
+
+                // The NIK is encrypted, so it cannot be matched partially.
+                // A complete number still finds its owner, through the hash.
+                if (preg_match('/^\d{16}$/', $term) === 1) {
+                    $query->orWhere('nik_hash', Pii::hash($term));
+                }
             })
             ->with('position:id,name')
             ->limit(6)

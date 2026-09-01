@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Casts\EncryptedString;
 use App\Concerns\Auditable;
 use App\Concerns\HasPublicId;
+use App\Support\Pii;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -43,7 +45,30 @@ final class Employee extends Model
             'resign_date' => 'date',
             'custom_data' => 'array',
             'is_top_approver' => 'boolean',
+            'nik' => EncryptedString::class,
+            'anonymized_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Keep `nik_hash` in step with the encrypted NIK.
+     *
+     * The ciphertext differs on every write, so nothing can be found by
+     * searching it. The hash is the only way a duplicate NIK can still be
+     * caught, and it has to be maintained wherever the column is written —
+     * the admin form, the bulk import, ESS and the mobile profile all write it.
+     */
+    protected static function booted(): void
+    {
+        self::saving(static function (self $employee): void {
+            // Recomputed unconditionally rather than only when the NIK changed:
+            // the model is unguarded, so a request that named `nik_hash`
+            // directly would otherwise leave the lookup pointing at a number
+            // the row does not hold, and a duplicate NIK would slip past.
+            // Assigning an unchanged value marks nothing dirty, so this costs
+            // one hash and no extra column in the update.
+            $employee->nik_hash = Pii::hash($employee->nik);
+        });
     }
 
     public function scopeForTenant(Builder $query, int|string $tenantId): Builder

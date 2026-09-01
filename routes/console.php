@@ -52,3 +52,16 @@ Schedule::command('referral:release-holds')->dailyAt('02:00');
 // the gaps are invisible from inside the tenant and otherwise surface as a
 // client complaint weeks later.
 Schedule::command('avana:periksa-tenant')->dailyAt('05:00');
+
+// Drop the security and activity trails past their retention window. Personal
+// data is not meant to be kept for ever, and an activity log is personal data.
+Schedule::command('avana:prune-security-data')->dailyAt('01:30');
+
+// Nightly database dump, pruned to its retention window. Point BACKUP_DISK at
+// off-site storage in production — a copy on the same server survives a
+// mistake, not a fire.
+Schedule::command('avana:backup-database')->dailyAt('02:30');
+
+// Read the activity trail and raise what looks wrong: password guessing,
+// off-hours sign-ins, one account in many places, bursts of exports.
+Schedule::command('avana:scan-security-anomalies')->dailyAt('06:30');

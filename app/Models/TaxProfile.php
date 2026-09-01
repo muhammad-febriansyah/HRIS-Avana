@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\EncryptedString;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,6 +21,8 @@ final class TaxProfile extends Model
             'effective_end_date' => 'date',
             'daily_wage' => 'decimal:2',
             'is_pph21_exempt' => 'boolean',
+            'nik' => EncryptedString::class,
+            'npwp' => EncryptedString::class,
         ];
     }
 

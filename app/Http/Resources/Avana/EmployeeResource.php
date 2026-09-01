@@ -9,6 +9,7 @@ use App\Models\EmployeeDocument;
 use App\Models\LeaveRequest;
 use App\Models\PayrollRunItem;
 use App\Support\ContractType;
+use App\Support\Pii;
 use App\Support\PrivateFile;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
@@ -117,7 +118,10 @@ final class EmployeeResource extends JsonResource
             'full_name' => $this->full_name,
             'email' => $this->email,
             'phone' => $this->phone,
-            'nik' => $this->nik,
+            // Masked for anyone who cannot edit employee records: a manager
+            // browsing their team has no use for a full KTP number, and the
+            // employee themself always sees their own in full.
+            'nik' => Pii::forViewer($this->nik, $request->user(), $this->resource),
             'gender' => $this->gender,
             'birth_date' => $this->birth_date?->format('d M Y'),
             'birth_date_raw' => $this->birth_date?->format('Y-m-d'),
@@ -185,7 +189,11 @@ final class EmployeeResource extends JsonResource
             // The payroll bank account, flattened: the form edits one account,
             // and the transfer file reads the same row.
             'bank_name' => $this->whenLoaded('bankAccounts', fn () => $this->primaryBankAccount()?->bank_name),
-            'bank_account_number' => $this->whenLoaded('bankAccounts', fn () => $this->primaryBankAccount()?->account_number),
+            'bank_account_number' => $this->whenLoaded('bankAccounts', fn () => Pii::forViewer(
+                $this->primaryBankAccount()?->account_number,
+                $request->user(),
+                $this->resource,
+            )),
             'bank_account_holder' => $this->whenLoaded('bankAccounts', fn () => $this->primaryBankAccount()?->account_holder),
             // Every PPh 21 figure is worked out from this, so it belongs with
             // the employee rather than only on a tax screen.

@@ -3,7 +3,7 @@
 namespace App\Support;
 
 use App\Models\Employee;
-use Illuminate\Validation\Rule;
+use Closure;
 
 /**
  * Rules for the identity numbers that may name only one employee.
@@ -27,13 +27,22 @@ final class EmployeeIdentity
      */
     public static function nikRules(int $tenantId, ?int $ignoreEmployeeId = null, bool $required = true): array
     {
-        $unique = Rule::unique('employees', 'nik')
-            ->where('tenant_id', $tenantId)
-            ->whereNull('deleted_at');
+        // A closure rather than Rule::unique: the NIK is encrypted at rest and
+        // its ciphertext differs on every write, so a unique rule against the
+        // column can never find the duplicate it is looking for. The lookup
+        // goes through the keyed hash instead — and naming the colleague who
+        // already holds the number beats "NIK sudah dipakai".
+        $unique = static function (string $attribute, mixed $value, Closure $fail) use ($tenantId, $ignoreEmployeeId): void {
+            if (! is_string($value) || $value === '') {
+                return;
+            }
 
-        if ($ignoreEmployeeId !== null) {
-            $unique->ignore($ignoreEmployeeId);
-        }
+            $holder = self::employeeHolding($value, $tenantId, $ignoreEmployeeId);
+
+            if ($holder !== null) {
+                $fail(self::takenMessage($holder));
+            }
+        };
 
         return [$required ? 'required' : 'nullable', 'digits:16', $unique];
     }
@@ -44,7 +53,7 @@ final class EmployeeIdentity
     public static function employeeHolding(string $nik, int $tenantId, ?int $ignoreEmployeeId = null): ?Employee
     {
         return Employee::forTenant($tenantId)
-            ->where('nik', $nik)
+            ->where('nik_hash', Pii::hash($nik))
             ->when($ignoreEmployeeId !== null, fn ($query) => $query->whereKeyNot($ignoreEmployeeId))
             ->first(['id', 'full_name', 'employee_number']);
     }

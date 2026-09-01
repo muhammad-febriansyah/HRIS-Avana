@@ -1,9 +1,10 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import ContractController from '@/actions/App/Http/Controllers/Avana/ContractController';
 import EmployeeController from '@/actions/App/Http/Controllers/Avana/EmployeeController';
+import PersonalDataController from '@/actions/App/Http/Controllers/Avana/PersonalDataController';
 import {
     ActionBtn,
     AIcon,
@@ -101,6 +102,8 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
     const badge = statusBadge(emp.employment_label);
     const { flash } = usePage<FlashProps>().props;
     const [activeTab, setActiveTab] = useState<string>('pribadi');
+    const [privacyOpen, setPrivacyOpen] = useState(false);
+    const eraseForm = useForm({ confirm_name: '' });
 
     useEffect(() => {
         if (flash?.success) {
@@ -236,6 +239,15 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                                 <AIcon name="file-text" size={16} />
                                 Bukti Potong 1721-A1
                             </a>
+                            <button
+                                type="button"
+                                onClick={() => setPrivacyOpen(true)}
+                                style={{ ...btnOut, cursor: 'pointer' }}
+                                title="Salinan dan penghapusan data pribadi (UU PDP)"
+                            >
+                                <AIcon name="shield" size={16} />
+                                Data Pribadi
+                            </button>
                             <Link
                                 href={EmployeeController.edit(emp.route_key)}
                                 style={{ ...btnP, textDecoration: 'none' }}
@@ -582,6 +594,204 @@ export default function EmployeesShow({ employee }: EmployeesShowProps) {
                     <AssetTab assets={emp.held_assets ?? []} />
                 )}
             </div>
+
+            {/* Hak karyawan atas datanya sendiri (UU PDP 27/2022): salinan
+                data, dan penghapusan setelah tidak lagi bekerja di sini. */}
+            {privacyOpen && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: 80,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 20,
+                    }}
+                >
+                    <div
+                        onClick={() => setPrivacyOpen(false)}
+                        style={{
+                            position: 'absolute',
+                            inset: 0,
+                            background: 'rgba(14,26,58,.45)',
+                        }}
+                    />
+                    <div
+                        style={{
+                            position: 'relative',
+                            width: '100%',
+                            maxWidth: 460,
+                            background: '#fff',
+                            borderRadius: 14,
+                            boxShadow: '0 20px 50px rgba(15,23,42,.25)',
+                            padding: 26,
+                        }}
+                    >
+                        <div
+                            style={{
+                                fontSize: 18,
+                                fontWeight: 600,
+                                color: C.navy,
+                            }}
+                        >
+                            Data pribadi {emp.full_name}
+                        </div>
+                        <div
+                            style={{
+                                fontSize: 13.5,
+                                color: C.muted,
+                                marginTop: 8,
+                                lineHeight: 1.55,
+                            }}
+                        >
+                            Sesuai UU PDP 27/2022, karyawan berhak meminta
+                            salinan data pribadinya dan meminta datanya
+                            dihapus. Kedua tindakan di bawah dicatat di jejak
+                            audit.
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() =>
+                                window.open(
+                                    PersonalDataController.export(
+                                        emp.route_key,
+                                    ).url,
+                                    '_blank',
+                                )
+                            }
+                            style={{
+                                ...btnOut,
+                                width: '100%',
+                                marginTop: 18,
+                                cursor: 'pointer',
+                                justifyContent: 'center',
+                            }}
+                        >
+                            <AIcon name="download" size={16} />
+                            Unduh salinan data (JSON)
+                        </button>
+
+                        <div
+                            style={{
+                                marginTop: 20,
+                                paddingTop: 18,
+                                borderTop: `1px solid ${C.line}`,
+                            }}
+                        >
+                            <div
+                                style={{
+                                    fontSize: 14,
+                                    fontWeight: 600,
+                                    color: C.navy,
+                                }}
+                            >
+                                Hapus data pribadi
+                            </div>
+                            <div
+                                style={{
+                                    fontSize: 12.5,
+                                    color: C.muted,
+                                    marginTop: 6,
+                                    lineHeight: 1.6,
+                                }}
+                            >
+                                Identitas, kontak, rekening, dan dokumen
+                                dihapus permanen. Riwayat gaji dan absensi
+                                tetap disimpan karena wajib menurut aturan
+                                pajak dan ketenagakerjaan. Tindakan ini tidak
+                                bisa dibatalkan, dan hanya bisa dijalankan
+                                setelah karyawan tidak aktif.
+                            </div>
+
+                            <input
+                                value={eraseForm.data.confirm_name}
+                                onChange={(event) =>
+                                    eraseForm.setData(
+                                        'confirm_name',
+                                        event.target.value,
+                                    )
+                                }
+                                placeholder={`Ketik "${emp.full_name}" untuk konfirmasi`}
+                                style={{
+                                    width: '100%',
+                                    height: 42,
+                                    marginTop: 12,
+                                    padding: '0 12px',
+                                    border: `1px solid ${C.border}`,
+                                    borderRadius: 9,
+                                    fontSize: 13.5,
+                                }}
+                            />
+
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    gap: 10,
+                                    marginTop: 14,
+                                }}
+                            >
+                                <button
+                                    type="button"
+                                    onClick={() => setPrivacyOpen(false)}
+                                    style={{
+                                        ...btnOut,
+                                        flex: 1,
+                                        cursor: 'pointer',
+                                        justifyContent: 'center',
+                                    }}
+                                >
+                                    Tutup
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={
+                                        eraseForm.processing ||
+                                        eraseForm.data.confirm_name.trim() !==
+                                            emp.full_name.trim()
+                                    }
+                                    onClick={() =>
+                                        router.delete(
+                                            PersonalDataController.erase(
+                                                emp.route_key,
+                                            ).url,
+                                            {
+                                                data: {
+                                                    confirm_name:
+                                                        eraseForm.data
+                                                            .confirm_name,
+                                                },
+                                            },
+                                        )
+                                    }
+                                    style={{
+                                        flex: 1,
+                                        height: 42,
+                                        background:
+                                            eraseForm.data.confirm_name.trim() ===
+                                            emp.full_name.trim()
+                                                ? C.red
+                                                : C.border,
+                                        color: '#fff',
+                                        border: 'none',
+                                        borderRadius: 9,
+                                        fontSize: 13.5,
+                                        fontWeight: 600,
+                                        cursor:
+                                            eraseForm.data.confirm_name.trim() ===
+                                            emp.full_name.trim()
+                                                ? 'pointer'
+                                                : 'not-allowed',
+                                    }}
+                                >
+                                    Hapus permanen
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 }

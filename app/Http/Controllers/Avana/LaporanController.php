@@ -13,6 +13,7 @@ use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
 use App\Models\TaxProfile;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use App\Support\TenantTime;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
@@ -118,6 +119,15 @@ class LaporanController extends Controller
         abort_unless(in_array($type, self::TYPES, true), 404);
 
         $tenantId = $request->user()->tenant_id;
+
+        // Recorded so the nightly anomaly scan can see data leaving: one
+        // export is work, thirty in an afternoon is something else.
+        ActivityLogger::log(
+            'report_exported',
+            'Mengunduh laporan '.$type,
+            properties: ['type' => $type],
+            user: $request->user(),
+        );
 
         [$header, $query, $mapper] = match ($type) {
             'karyawan' => $this->karyawanReport($tenantId),

@@ -96,6 +96,7 @@ use App\Http\Controllers\Avana\PayrollUmrController;
 use App\Http\Controllers\Avana\PerformanceController;
 use App\Http\Controllers\Avana\PerformanceKpiItemController;
 use App\Http\Controllers\Avana\PermissionRequestController;
+use App\Http\Controllers\Avana\PersonalDataController;
 use App\Http\Controllers\Avana\Pph21ReportController;
 use App\Http\Controllers\Avana\Pph21TerController;
 use App\Http\Controllers\Avana\RecruitmentController;
@@ -167,6 +168,17 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class, LogPageActivity
     Route::post('employees/{employee}/reset-device', [EmployeeController::class, 'resetDevice'])->name('employees.reset-device');
     Route::post('employees/{employee}/toggle-account', [EmployeeController::class, 'toggleAccount'])->name('employees.toggle-account');
     Route::post('employees/{employee}/link-account', [EmployeeController::class, 'linkAccount'])->name('employees.link-account');
+
+    // UU PDP: hak akses salinan data pribadi dan hak penghapusan. Keduanya
+    // dibatasi lajunya — satu permintaan ekspor membaca profil pribadi utuh,
+    // dan penghapusan tidak bisa dibatalkan.
+    Route::middleware('throttle:10,1')->group(function (): void {
+        Route::get('employees/{employee}/data-pribadi', [PersonalDataController::class, 'export'])
+            ->name('employees.personal-data.export');
+
+        Route::delete('employees/{employee}/data-pribadi', [PersonalDataController::class, 'erase'])
+            ->name('employees.personal-data.erase');
+    });
     Route::resource('employees', EmployeeController::class);
 
     Route::get('absensi', [AttendanceController::class, 'index'])->name('absensi');

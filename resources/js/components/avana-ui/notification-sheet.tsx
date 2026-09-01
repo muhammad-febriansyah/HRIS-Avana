@@ -29,6 +29,8 @@ function visual(type: string | null): { icon: string; color: string; bg: string 
             return { icon: 'refresh-cw', color: '#2F54C9', bg: 'rgba(47,84,201,.1)' };
         case 'tenant':
             return { icon: 'building-2', color: '#DB2777', bg: 'rgba(219,39,119,.1)' };
+        case 'security':
+            return { icon: 'shield-alert', color: '#DC2626', bg: 'rgba(220,38,38,.1)' };
         default:
             return { icon: 'bell', color: C.faint, bg: 'rgba(100,116,139,.1)' };
     }

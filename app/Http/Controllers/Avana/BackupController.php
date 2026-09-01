@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use App\Services\DatabaseDumper;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -128,6 +129,16 @@ class BackupController extends Controller
             ],
             'ip_address' => $request->ip(),
         ]);
+
+        // Mirrored to the activity trail as well, so the nightly anomaly scan
+        // counts it alongside the report exports.
+        ActivityLogger::log(
+            'backup_downloaded',
+            'Mengunduh dump database ('.count($tables).' tabel)',
+            properties: ['tables' => count($tables), 'with_data' => $withData],
+            user: $user,
+            request: $request,
+        );
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\EncryptedString;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,6 +15,7 @@ final class EmployeeBankAccount extends Model
     {
         return [
             'is_primary' => 'boolean',
+            'account_number' => EncryptedString::class,
         ];
     }
 

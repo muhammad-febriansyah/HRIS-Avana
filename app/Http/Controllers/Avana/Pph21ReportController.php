@@ -495,7 +495,9 @@ class Pph21ReportController extends Controller
                 'employees.full_name',
                 'employees.employee_number',
                 // The tax profile is the tax record of record; the employee's
-                // own NIK stands in when the profile never filled one.
+                // own NIK stands in when the profile never filled one. Both
+                // columns are encrypted, so what comes back here is ciphertext
+                // — only ever tested for presence below, never displayed.
                 DB::raw("COALESCE(NULLIF(profiles.nik, ''), employees.nik) as nik"),
                 'profiles.npwp',
                 'profiles.ptkp_status',

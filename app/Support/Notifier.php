@@ -838,7 +838,9 @@ final class Notifier
                 'type' => 'security',
                 'title' => $title,
                 'body' => $body,
-                'data' => ['link' => ['type' => 'security', 'id' => (int) $user->id], 'event' => $event],
+                // No deep link: the phone has no security screen to open, and
+                // an unknown link type is worse than none.
+                'data' => ['event' => $event],
             ]]);
         }
 
@@ -863,6 +865,35 @@ final class Notifier
                 details: $details,
                 greetingName: $user->name,
             ),
+        );
+    }
+
+    /**
+     * Raise a platform-wide security or operations alert to every super admin.
+     *
+     * Deduped per event key so a nightly scan that keeps finding the same thing
+     * does not fill the feed with copies of one warning.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public static function platformAlert(
+        string $event,
+        string $title,
+        string $body,
+        array $data = [],
+        int|string|null $dedupeValue = null,
+    ): void {
+        $tenantId = (int) (Tenant::query()->orderBy('id')->value('id') ?? 0);
+
+        self::platformNotify(
+            type: 'security',
+            tenantId: $tenantId,
+            title: $title,
+            body: $body,
+            data: $data + ['event' => $event, 'alert_ref' => $dedupeValue ?? $event],
+            dedupeColumn: $dedupeValue === null ? null : 'alert_ref',
+            dedupeValue: $dedupeValue,
+            dedupeEvent: $event,
         );
     }
 
