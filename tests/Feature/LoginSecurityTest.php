@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Company;
 use App\Models\Notification;
 use App\Models\Tenant;
 use App\Models\User;
@@ -17,6 +18,8 @@ function securityTestUser(array $overrides = []): User
         ['slug' => 'tenant-keamanan'],
         ['name' => 'PT Uji Keamanan', 'status' => 'active'],
     );
+
+    Company::firstOrCreate(['tenant_id' => $tenant->id], ['name' => 'PT Uji Keamanan']);
 
     return User::create(array_merge([
         'tenant_id' => $tenant->id,
@@ -144,4 +147,18 @@ test('a platform account with no tenant still gets the email, without an in-app 
 
     expect(Notification::where('user_id', $user->id)->count())->toBe(0)
         ->and(UserActivityLog::where('user_id', $user->id)->where('event', 'login_new_device')->exists())->toBeTrue();
+});
+
+test('a first-ever mobile login does not double-book itself as web plus mobile', function (): void {
+    Queue::fake();
+    $user = securityTestUser();
+
+    $token = $this->postJson('/api/v1/auth/login', [
+        'email' => $user->email,
+        'password' => 'rahasia-panjang-sekali',
+    ])->json('access_token');
+
+    expect($token)->not->toBeNull()
+        ->and(UserLoginDevice::where('user_id', $user->id)->count())->toBe(1)
+        ->and(Notification::where('user_id', $user->id)->where('type', 'security')->count())->toBe(0);
 });

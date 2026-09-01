@@ -160,6 +160,16 @@ class AppServiceProvider extends ServiceProvider
     protected function registerActivityLogging(): void
     {
         Event::listen(Login::class, function (Login $event): void {
+            // The JWT guard fires this same event on every mobile sign-in
+            // (guard: 'api'), and AuthController already records that sign-in
+            // itself — with the phone's own device id, not the empty user
+            // agent a bare JWT request carries. Handling it again here would
+            // create a second, web-shaped device row on the very first mobile
+            // login ever and immediately alert the owner about it.
+            if ($event->guard !== 'web') {
+                return;
+            }
+
             /** @var User $user */
             $user = $event->user;
 
