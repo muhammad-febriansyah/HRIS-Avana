@@ -3,6 +3,7 @@
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\EmployeeBankAccount;
+use App\Models\Settlement;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\UserActivityLog;
@@ -204,4 +205,27 @@ test('the retention command drops trails past their window', function (): void {
 
     expect(UserActivityLog::where('description', 'lama')->exists())->toBeFalse()
         ->and(UserActivityLog::where('description', 'baru')->exists())->toBeTrue();
+});
+
+test('the bank account number snapshotted onto a settlement is encrypted at rest', function (): void {
+    $settlement = Settlement::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'number' => 'STL-TEST-0001',
+        'title' => 'Uji Coba',
+        'category' => 'perjalanan',
+        'destination' => 'Jakarta',
+        'subtotal' => 100000,
+        'tax_amount' => 0,
+        'total' => 100000,
+        'bank_name' => 'BCA',
+        'bank_account_number' => '9988776655',
+        'bank_account_holder' => 'Uji Coba',
+        'submission_date' => now(),
+        'status' => 'submitted',
+    ]);
+
+    expect(DB::table('settlements')->where('id', $settlement->id)->value('bank_account_number'))
+        ->not->toBe('9988776655')
+        ->and($settlement->fresh()->bank_account_number)->toBe('9988776655');
 });

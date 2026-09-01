@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\EncryptedString;
 use App\Concerns\HasPublicId;
 use Database\Factories\SettlementFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -70,6 +71,9 @@ final class Settlement extends Model
             'paid_at' => 'datetime',
             'rejected_at' => 'datetime',
             'fraud_checked_at' => 'datetime',
+            // Snapshotted from the employee's bank account, so it carries the
+            // same protection as the row it was copied from.
+            'bank_account_number' => EncryptedString::class,
         ];
     }
 
