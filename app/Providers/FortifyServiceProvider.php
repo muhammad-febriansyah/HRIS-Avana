@@ -4,8 +4,10 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use Illuminate\Auth\Events\Lockout;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -13,6 +15,7 @@ use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -41,6 +44,41 @@ class FortifyServiceProvider extends ServiceProvider
     {
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
         Fortify::createUsersUsing(CreateNewUser::class);
+    }
+
+    /**
+     * What a locked-out sign-in attempt gets back.
+     *
+     * Two reasons this is not left to the default: a bare 429 page is a dead
+     * end for an Inertia form, which should show the wait on the field like any
+     * other error; and configuring a named limiter takes Fortify's own
+     * EnsureLoginIsNotThrottled out of the chain, so nothing else would raise
+     * the Lockout event that LoginSecurity listens for.
+     *
+     * @param  array<string, mixed>  $headers
+     */
+    private function lockoutResponse(Request $request, string $throttleKey, array $headers): SymfonyResponse
+    {
+        $seconds = max(1, (int) ($headers['Retry-After'] ?? 60));
+
+        // Once per window. The browser keeps retrying while locked out, and
+        // every retry would otherwise write another lockout row and re-alert.
+        if (Cache::add('security:lockout-fired:'.$throttleKey, true, now()->addSeconds($seconds))) {
+            event(new Lockout($request));
+        }
+
+        $message = trans('auth.throttle', [
+            'seconds' => $seconds,
+            'minutes' => (int) ceil($seconds / 60),
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => $message], 429);
+        }
+
+        return back()
+            ->withInput($request->only(Fortify::username()))
+            ->withErrors([Fortify::username() => $message]);
     }
 
     /**
@@ -86,7 +124,9 @@ class FortifyServiceProvider extends ServiceProvider
         RateLimiter::for('login', function (Request $request) {
             $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
 
-            return Limit::perMinute(5)->by($throttleKey);
+            return Limit::perMinute(5)->by($throttleKey)->response(
+                fn (Request $request, array $headers) => $this->lockoutResponse($request, $throttleKey, $headers),
+            );
         });
 
         RateLimiter::for('passkeys', function (Request $request) {

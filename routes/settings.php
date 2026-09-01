@@ -27,6 +27,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('settings/password', [SecurityController::class, 'update'])
         ->middleware('throttle:6,1')
         ->name('user-password.update');
+
+    // Session and device management. Password-confirmed: these are the buttons
+    // someone reaches for after losing a laptop, and a session left open on
+    // that laptop must not be able to press them.
+    Route::middleware([RequirePassword::class, 'throttle:20,1'])->group(function (): void {
+        Route::delete('settings/security/sesi/{session}', [SecurityController::class, 'destroySession'])
+            ->name('security.sessions.destroy');
+
+        Route::delete('settings/security/sesi', [SecurityController::class, 'destroyOtherSessions'])
+            ->name('security.sessions.destroy-others');
+
+        Route::delete('settings/security/perangkat/{device}', [SecurityController::class, 'destroyDevice'])
+            ->name('security.devices.destroy');
+    });
 });
 
 Route::get('.well-known/passkey-endpoints', function () {

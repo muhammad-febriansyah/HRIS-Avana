@@ -37,7 +37,7 @@ class AuditController extends Controller
      *
      * @var array<int, string>
      */
-    private const EVENTS = ['login', 'logout', 'login_failed', 'page_view', 'data_created', 'data_updated', 'data_deleted'];
+    private const EVENTS = ['login', 'logout', 'login_failed', 'login_lockout', 'login_new_device', 'page_view', 'data_created', 'data_updated', 'data_deleted'];
 
     /**
      * Page-size choices offered to the user.

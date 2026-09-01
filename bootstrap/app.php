@@ -9,6 +9,7 @@ use App\Http\Middleware\EnsureSubscriptionActive;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ResolveActiveTenant;
+use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -33,6 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->web(prepend: [
+            SecurityHeaders::class,
             EnsureAppIsNotDown::class,
             CaptureReferral::class,
         ]);
@@ -49,6 +51,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // A lapsed tenant is locked out of the mobile API too, not just the web
         // app — otherwise the phone keeps working after the web app stops.
         $middleware->api(prepend: [
+            SecurityHeaders::class,
             EnsureAppIsNotDown::class,
         ]);
 

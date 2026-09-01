@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AttendancePolicy;
 use App\Models\User;
 use App\Models\UserDevice;
+use App\Services\LoginSecurity;
 use App\Support\MobileMenu;
 use App\Support\PrivateFile;
 use App\Support\TenantTheme;
@@ -116,6 +117,8 @@ class AuthController extends Controller
             return $deviceRejection;
         }
 
+        $this->recordMobileLogin($user, $data);
+
         return response()->json([
             'access_token' => $token,
             'token_type' => 'Bearer',
@@ -177,12 +180,39 @@ class AuthController extends Controller
             return $deviceRejection;
         }
 
+        $this->recordMobileLogin($user, $challenge['device']);
+
         return response()->json([
             'access_token' => JWTAuth::fromUser($user),
             'token_type' => 'Bearer',
             'expires_in' => config('jwt.ttl') * 60,
             'user' => $this->userPayload($user),
         ]);
+    }
+
+    /**
+     * Add this sign-in to the account's known-device list.
+     *
+     * Separate from {@see self::bindDevice()}: binding decides whether the
+     * phone may hold the account's single active slot, this only remembers
+     * that the account was used from it, so the user sees the same history for
+     * web and app and gets warned about an unfamiliar handset.
+     *
+     * @param  array<string, mixed>  $device
+     */
+    private function recordMobileLogin(User $user, array $device): void
+    {
+        $key = is_string($device['device_id'] ?? null) ? $device['device_id'] : null;
+        $label = collect([$device['device_name'] ?? null, $device['model'] ?? null])
+            ->filter(fn ($value): bool => is_string($value) && trim($value) !== '')
+            ->first();
+
+        LoginSecurity::recordLogin(
+            $user,
+            channel: 'mobile',
+            deviceKey: $key,
+            deviceLabel: is_string($label) ? $label : null,
+        );
     }
 
     /**

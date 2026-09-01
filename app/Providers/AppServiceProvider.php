@@ -32,10 +32,12 @@ use App\Observers\SubscriptionObserver;
 use App\Observers\TenantObserver;
 use App\Policies\PayrollPolicy;
 use App\Services\ActivityLogger;
+use App\Services\LoginSecurity;
 use App\Support\GeneratedImageBag;
 use App\Support\SubscriptionStatusCache;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Events\Failed;
+use Illuminate\Auth\Events\Lockout;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Support\Facades\Date;
@@ -162,6 +164,10 @@ class AppServiceProvider extends ServiceProvider
             $user = $event->user;
 
             ActivityLogger::log('login', "{$user->name} masuk ke sistem", user: $user);
+
+            // Remember the browser, and warn the owner when it is one this
+            // account has never signed in from.
+            LoginSecurity::recordLogin($user);
         });
 
         Event::listen(Logout::class, function (Logout $event): void {
@@ -181,8 +187,17 @@ class AppServiceProvider extends ServiceProvider
             ActivityLogger::log(
                 'login_failed',
                 'Percobaan login gagal'.($email ? " untuk {$email}" : ''),
+                // Kept in properties, not just the sentence, so the anomaly
+                // scan can group failures by the account being guessed at.
+                properties: array_filter(['email' => is_string($email) ? $email : null]),
                 user: null,
             );
+        });
+
+        Event::listen(Lockout::class, function (Lockout $event): void {
+            $email = $event->request->input('email');
+
+            LoginSecurity::recordLockout(is_string($email) ? $email : null, $event->request);
         });
 
         AuditLog::created(function (AuditLog $log): void {

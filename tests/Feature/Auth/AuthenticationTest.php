@@ -73,5 +73,19 @@ test('users are rate limited', function () {
         'password' => 'wrong-password',
     ]);
 
-    $response->assertTooManyRequests();
+    // The lock is reported on the form field rather than as a bare 429 page:
+    // the login screen is an Inertia form, and a 429 leaves it with nothing to
+    // show. See FortifyServiceProvider::lockoutResponse().
+    $response->assertRedirect()->assertSessionHasErrors('email');
+});
+
+test('a rate limited API login is still answered with 429', function () {
+    $user = User::factory()->create();
+
+    RateLimiter::increment(md5('login'.implode('|', [$user->email, '127.0.0.1'])), amount: 5);
+
+    $this->postJson(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'wrong-password',
+    ])->assertTooManyRequests();
 });

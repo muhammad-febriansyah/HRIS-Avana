@@ -813,6 +813,60 @@ final class Notifier
     }
 
     /**
+     * Warn a user about something that happened to their own account: a login
+     * from a device they have not used before, or a lockout they did not cause.
+     *
+     * Both the in-app feed and email are used on purpose — a security alert
+     * that only lands inside the app is invisible to the one person who most
+     * needs it, the account holder who has just been locked out of it.
+     *
+     * @param  array<string, string>  $details  label => value rows for the email
+     */
+    public static function securityAlert(
+        User $user,
+        string $event,
+        string $title,
+        string $body,
+        array $details = [],
+    ): void {
+        // The in-app feed is tenant-scoped, so a platform account (super admin,
+        // partner) has nowhere to file the row — those users get the email only.
+        if ($user->tenant_id !== null) {
+            self::insertMany([[
+                'tenant_id' => (int) $user->tenant_id,
+                'user_id' => (int) $user->id,
+                'type' => 'security',
+                'title' => $title,
+                'body' => $body,
+                'data' => ['link' => ['type' => 'security', 'id' => (int) $user->id], 'event' => $event],
+            ]]);
+        }
+
+        if (blank($user->email)) {
+            return;
+        }
+
+        // Null tenant, not 0: a platform account belongs to no tenant, and the
+        // mail branding plus the email log both accept that.
+        SendBrandedNotificationJob::dispatch(
+            $user->tenant_id === null ? null : (int) $user->tenant_id,
+            $user->email,
+            $user->name,
+            BrandedNotification::make(
+                tenantId: $user->tenant_id === null ? null : (int) $user->tenant_id,
+                subjectLine: $title,
+                heading: $title,
+                paragraphs: [
+                    $body,
+                    'Jika ini memang Anda, abaikan email ini. Jika bukan, segera ganti kata sandi dan aktifkan verifikasi dua langkah.',
+                ],
+                details: $details,
+                greetingName: $user->name,
+            ),
+        );
+    }
+
+    /**
      * Insert a platform notification for every super admin, optionally skipping
      * the acting user and any super admin already notified for the same subject
      * event (the dedupe guard keeps recurring scans from re-alerting).
