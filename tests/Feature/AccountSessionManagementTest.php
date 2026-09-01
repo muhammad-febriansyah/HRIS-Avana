@@ -2,6 +2,7 @@
 
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\UserActivityLog;
 use App\Models\UserLoginDevice;
 use App\Services\LoginSecurity;
 use App\Services\SessionRegistry;
@@ -57,6 +58,41 @@ test('the security page lists sessions, devices, and login history', function ()
             ->has('sessions', 1)
             ->has('devices', 1)
             ->has('loginHistory')
+        );
+});
+
+test('login history supports search and pagination', function () {
+    $user = sessionTestUser();
+
+    foreach (range(1, 11) as $index) {
+        UserActivityLog::create([
+            'tenant_id' => $user->tenant_id,
+            'user_id' => $user->id,
+            'event' => 'login',
+            'description' => $index === 11 ? 'Login dari kantor pusat' : 'Login biasa',
+            'ip_address' => '10.0.0.'.$index,
+            'user_agent' => 'Mozilla/5.0 (Macintosh) Safari/605',
+            'created_at' => now()->subMinutes($index),
+        ]);
+    }
+
+    $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
+        ->get(route('security.edit', ['search' => 'kantor']))
+        ->assertInertia(fn ($page) => $page
+            ->component('settings/security')
+            ->where('loginHistory.search', 'kantor')
+            ->where('loginHistory.meta.total', 1)
+            ->where('loginHistory.data.0.description', 'Login dari kantor pusat')
+        );
+
+    $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
+        ->get(route('security.edit', ['page' => 2]))
+        ->assertInertia(fn ($page) => $page
+            ->where('loginHistory.meta.current_page', 2)
+            ->where('loginHistory.meta.total', 11)
+            ->has('loginHistory.data', 1)
         );
 });
 

@@ -27,7 +27,7 @@ class SecurityController extends Controller
         // secret behind; Fortify clears it once the user walks away from it.
         $request->ensureStateIsValid();
 
-        return Inertia::render('settings/security', $this->securityPanelProps($request->user()));
+        return Inertia::render('settings/security', $this->securityPanelProps($request->user(), $request));
     }
 
     /**

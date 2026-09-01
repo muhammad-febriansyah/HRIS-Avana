@@ -7,6 +7,9 @@ use App\Models\UserActivityLog;
 use App\Models\UserLoginDevice;
 use App\Services\LoginSecurity;
 use App\Services\SessionRegistry;
+use App\Support\PaginatedTable;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Request;
 use Illuminate\Validation\Rules\Password;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
@@ -24,7 +27,7 @@ trait BuildsSecurityPanels
     /**
      * @return array<string, mixed>
      */
-    protected function securityPanelProps(User $user): array
+    protected function securityPanelProps(User $user, Request $request): array
     {
         $props = [
             'canManagePasskeys' => Features::canManagePasskeys(),
@@ -48,7 +51,7 @@ trait BuildsSecurityPanels
             'sessionsAvailable' => SessionRegistry::available(),
             'sessions' => SessionRegistry::forUser($user, session()->getId())->all(),
             'devices' => self::knownDevices($user),
-            'loginHistory' => self::loginHistory($user),
+            'loginHistory' => self::loginHistory($user, $request),
         ];
 
         if (Features::canManageTwoFactorAuthentication()) {
@@ -88,29 +91,40 @@ trait BuildsSecurityPanels
      * The account's own recent sign-in activity — including the failures, which
      * are the half that tells the owner someone else is trying.
      *
-     * @return array<int, array<string, mixed>>
+     * @return array{data: array<int, array<string, mixed>>, meta: array<string, int>, search: string}
      */
-    private static function loginHistory(User $user): array
+    private static function loginHistory(User $user, Request $request): array
     {
-        return UserActivityLog::query()
+        $search = trim($request->string('search')->toString());
+        $history = UserActivityLog::query()
             ->where(function ($query) use ($user): void {
                 $query->where('user_id', $user->id)
                     ->orWhere('properties->email', $user->email);
             })
             ->whereIn('event', ['login', 'logout', 'login_failed', 'login_lockout', 'login_new_device'])
+            ->when($search !== '', function (Builder $query) use ($search): void {
+                $query->where(function (Builder $searchQuery) use ($search): void {
+                    $searchQuery
+                        ->where('event', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%")
+                        ->orWhere('ip_address', 'like', "%{$search}%")
+                        ->orWhere('user_agent', 'like', "%{$search}%");
+                });
+            })
             ->latest('created_at')
             ->latest('id')
-            ->limit(20)
-            ->get()
-            ->map(fn (UserActivityLog $log): array => [
+            ->paginate(10)
+            ->withQueryString()
+            ->through(fn (UserActivityLog $log): array => [
                 'id' => $log->id,
                 'event' => $log->event,
                 'description' => $log->description,
                 'ip_address' => $log->ip_address,
                 'device' => LoginSecurity::describe((string) ($log->user_agent ?? ''))['label'],
                 'created_at' => $log->created_at?->translatedFormat('d M Y, H:i'),
-            ])
-            ->all();
+            ]);
+
+        return PaginatedTable::shape($history, $request, 'search');
     }
 
     /**

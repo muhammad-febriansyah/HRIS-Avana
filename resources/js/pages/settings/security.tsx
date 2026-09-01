@@ -4,6 +4,7 @@ import type { Props as ManagePasskeysProps } from '@/components/manage-passkeys'
 import ManagePasskeys from '@/components/manage-passkeys';
 import type { Props as ManageTwoFactorProps } from '@/components/manage-two-factor';
 import ManageTwoFactor from '@/components/manage-two-factor';
+import { DataTable, type DataTableMeta } from '@/components/avana-ui/data-table';
 import { AIcon, btnOut, C, hexA } from '@/lib/avana';
 import { EmptyState, PageShell, Panel } from '@/pages/avana/saya/components';
 import { edit } from '@/routes/profile';
@@ -44,12 +45,18 @@ type LoginEvent = {
     created_at: string | null;
 };
 
+type PaginatedLoginHistory = {
+    data: LoginEvent[];
+    meta: DataTableMeta;
+    search: string;
+};
+
 type Props = {
     passwordRules: string;
     sessionsAvailable: boolean;
     sessions: Session[];
     devices: Device[];
-    loginHistory: LoginEvent[];
+    loginHistory: PaginatedLoginHistory;
 } & ManagePasskeysProps &
     ManageTwoFactorProps;
 
@@ -368,66 +375,52 @@ export default function Security(props: Props) {
 
                 <Panel
                     title="Riwayat Login"
-                    subtitle="20 aktivitas masuk terakhir, termasuk percobaan yang gagal"
+                    subtitle="Aktivitas masuk akun, termasuk percobaan yang gagal"
                 >
-                    {props.loginHistory.length === 0 ? (
-                        <EmptyState
-                            icon="history"
-                            message="Belum ada riwayat. Aktivitas login akan tampil di sini."
-                        />
-                    ) : (
-                        <div>
-                            {props.loginHistory.map((row, index) => {
-                                const meta =
-                                    EVENT_LABEL[row.event] ?? {
+                    <DataTable<LoginEvent>
+                        columns={[
+                            {
+                                key: 'event',
+                                header: 'Aktivitas',
+                                sortable: false,
+                                render: (row) => {
+                                    const meta = EVENT_LABEL[row.event] ?? {
                                         text: row.event,
                                         tone: C.muted,
                                     };
 
-                                return (
-                                    <div
-                                        key={row.id}
-                                        style={{
-                                            ...rowStyle,
-                                            borderBottom:
-                                                index ===
-                                                props.loginHistory.length - 1
-                                                    ? 'none'
-                                                    : rowStyle.borderBottom,
-                                        }}
-                                    >
-                                        <div style={{ minWidth: 0 }}>
-                                            <div
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: 8,
-                                                }}
-                                            >
-                                                <Tag
-                                                    text={meta.text}
-                                                    tone={meta.tone}
-                                                />
-                                                <span
-                                                    style={{
-                                                        fontSize: 13,
-                                                        color: C.navy,
-                                                    }}
-                                                >
-                                                    {row.device}
-                                                </span>
-                                            </div>
-                                            <Meta>
-                                                {row.created_at ?? '-'} ·{' '}
-                                                {row.ip_address ??
-                                                    'IP tidak diketahui'}
-                                            </Meta>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
+                                    return <Tag text={meta.text} tone={meta.tone} />;
+                                },
+                            },
+                            {
+                                key: 'device',
+                                header: 'Perangkat',
+                                sortable: false,
+                            },
+                            {
+                                key: 'created_at',
+                                header: 'Waktu',
+                                sortable: false,
+                            },
+                            {
+                                key: 'ip_address',
+                                header: 'IP Address',
+                                sortable: false,
+                                render: (row) => row.ip_address ?? 'Tidak diketahui',
+                            },
+                        ]}
+                        rows={props.loginHistory.data}
+                        meta={props.loginHistory.meta}
+                        filters={{ search: props.loginHistory.search }}
+                        searchPlaceholder="Cari aktivitas, perangkat, atau IP…"
+                        rowKey={(row) => row.id}
+                        emptyState={
+                            <EmptyState
+                                icon="history"
+                                message="Belum ada riwayat yang sesuai."
+                            />
+                        }
+                    />
                 </Panel>
 
                 <Panel

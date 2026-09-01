@@ -41,7 +41,7 @@ class ProfileController extends Controller
             'avatarUrl' => PrivateFile::urlFor($user->avatar_path ?? $employee?->photo_path),
             'hasOwnAvatar' => $user->avatar_path !== null,
             'securityUnlocked' => $unlocked,
-        ] + ($unlocked ? $this->securityPanelProps($user) : []));
+        ] + ($unlocked ? $this->securityPanelProps($user, $request) : []));
     }
 
     /**
