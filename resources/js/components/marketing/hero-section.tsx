@@ -64,25 +64,20 @@ export function HeroSection() {
                         </Reveal>
 
                         <Reveal delay={0.05}>
-                            <h1 className="mt-5 text-4xl leading-[1.08] font-bold tracking-tight text-avana-navy sm:text-5xl lg:text-[62px]">
+                            <h1 className="mt-5 text-4xl leading-[1.15] font-bold tracking-tight text-avana-navy sm:text-5xl lg:text-[56px]">
                                 HR Tidak Cukup <br />
-                                <span className="text-avana-blue">
+                                <span className="text-avana-blue lg:whitespace-nowrap">
                                     Hanya Punya Data.
                                 </span>
                             </h1>
                         </Reveal>
 
                         <Reveal delay={0.1}>
-                            <p className="mx-auto mt-6 max-w-xl text-justify text-lg leading-relaxed text-avana-text sm:text-xl lg:mx-0">
-                                AvanaHR adalah platform HRIS dan payroll
-                                terintegrasi untuk perusahaan Indonesia.
-                                Platform ini menghubungkan data karyawan,
-                                absensi GPS dan shift, cuti, penggajian, PPh 21
-                                TER, kinerja, rekrutmen, workforce analytics,
-                                dan AI Assistant dalam satu sistem. Tim HR dapat
-                                mengurangi pekerjaan administratif, menjaga data
-                                tetap terpusat, dan memperoleh insight untuk
-                                keputusan workforce yang lebih baik.
+                            <p className="mx-auto mt-6 max-w-xl text-justify text-base leading-relaxed text-avana-text sm:text-lg lg:mx-0">
+                                AvanaHR menyatukan pengelolaan karyawan, absensi,
+                                payroll, kinerja, rekrutmen, analytics, dan AI
+                                dalam satu platform. Lebih efisien untuk HR, lebih
+                                terpusat untuk perusahaan.
                             </p>
                         </Reveal>
 
