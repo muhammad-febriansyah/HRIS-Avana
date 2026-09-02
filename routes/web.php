@@ -21,6 +21,12 @@ Route::get('/', WelcomeController::class)->name('home');
  * page — no controller, no data, nothing behind auth.
  */
 Route::inertia('live-tracking', 'public/live-tracking')->name('live-tracking');
+
+/*
+ * Public marketing page for security & data protection. Static like Live
+ * Tracking — no controller, no data, nothing behind auth.
+ */
+Route::inertia('keamanan', 'public/security')->name('security');
 Route::get('partner', [PartnerDocumentController::class, 'partnership'])->name('partnership');
 Route::get('partner/company-profile/download', [PartnerDocumentController::class, 'download'])
     ->middleware('throttle:30,1')

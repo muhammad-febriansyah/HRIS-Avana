@@ -11,7 +11,7 @@ import {
     Youtube,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
-import { liveTracking } from '@/routes';
+import { liveTracking, security } from '@/routes';
 import { BrandLogo } from './brand-logo';
 import { FOOTER_EXPLORE } from './content';
 import { Container, Reveal } from './reveal';
@@ -280,6 +280,14 @@ export function SiteFooter({
                                     className={LINK_CLASS}
                                 >
                                     Live Tracking
+                                </Link>
+                            </li>
+                            <li>
+                                <Link
+                                    href={security().url}
+                                    className={LINK_CLASS}
+                                >
+                                    Keamanan
                                 </Link>
                             </li>
                         </ul>
