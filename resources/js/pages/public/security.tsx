@@ -16,7 +16,8 @@ import {
 import { EncryptionSection } from '@/components/marketing/security/encryption-section';
 import { FeatureSection } from '@/components/marketing/security/feature-section';
 import { HeadersShowcase } from '@/components/marketing/security/headers-showcase';
-import { RolloutStatus } from '@/components/marketing/security/rollout-status';
+// Disembunyikan sementara atas permintaan (2026-09-03) — jangan publish dulu.
+// import { RolloutStatus } from '@/components/marketing/security/rollout-status';
 import { SecurityHero } from '@/components/marketing/security/security-hero';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { SiteNavbar } from '@/components/marketing/site-navbar';
@@ -173,7 +174,8 @@ export default function Security() {
                         points={MOBILE_SECTION.points}
                     />
 
-                    <RolloutStatus />
+                    {/* Disembunyikan sementara atas permintaan (2026-09-03) — jangan publish dulu. */}
+                    {/* <RolloutStatus /> */}
 
                     <section className="border-y border-[#EDF1F8] bg-[#0E1A3A] py-14">
                         <Container>
