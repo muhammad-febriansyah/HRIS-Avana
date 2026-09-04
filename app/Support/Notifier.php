@@ -391,6 +391,89 @@ final class Notifier
     }
 
     /**
+     * Tell each tagged employee that they were tagged on a post.
+     *
+     * The one push in the social wall that goes out even when the tagger and
+     * target never otherwise interact — a like or comment only notifies
+     * someone already in the conversation, but a tag is how they find out
+     * about it in the first place. Tagging yourself is silently dropped.
+     *
+     * @param  array<int, int>  $taggedEmployeeIds
+     */
+    public static function socialPostTagged(SocialPost $post, Employee $tagger, array $taggedEmployeeIds): void
+    {
+        self::notifySocialTag(
+            employeeIds: $taggedEmployeeIds,
+            tagger: $tagger,
+            tenantId: (int) $post->tenant_id,
+            body: $tagger->full_name.' menandaimu di postingan',
+            linkId: $post->id,
+        );
+    }
+
+    /**
+     * Tell each tagged employee that they were tagged on a comment or reply.
+     *
+     * @param  array<int, int>  $taggedEmployeeIds
+     */
+    public static function socialCommentTagged(SocialPostComment $comment, Employee $tagger, array $taggedEmployeeIds): void
+    {
+        self::notifySocialTag(
+            employeeIds: $taggedEmployeeIds,
+            tagger: $tagger,
+            tenantId: (int) $comment->tenant_id,
+            body: $tagger->full_name.' menandaimu di komentar',
+            linkId: $comment->social_post_id,
+        );
+    }
+
+    /**
+     * @param  array<int, int>  $employeeIds
+     */
+    private static function notifySocialTag(array $employeeIds, Employee $tagger, int $tenantId, string $body, int $linkId): void
+    {
+        $employeeIds = array_values(array_unique(array_filter(
+            $employeeIds,
+            fn (int $id): bool => $id !== (int) $tagger->id,
+        )));
+
+        if ($employeeIds === []) {
+            return;
+        }
+
+        $userIds = Employee::query()
+            ->whereKey($employeeIds)
+            ->whereNotNull('user_id')
+            ->pluck('user_id')
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($userIds === []) {
+            return;
+        }
+
+        $title = 'Kamu ditandai';
+
+        self::insertMany(array_map(fn (int $userId): array => [
+            'tenant_id' => $tenantId,
+            'user_id' => $userId,
+            'type' => 'social',
+            'title' => $title,
+            'body' => $body,
+            'data' => ['link' => ['type' => 'social_post', 'id' => $linkId]],
+        ], $userIds));
+
+        app(FcmService::class)->pushToUsers(
+            $userIds,
+            $title,
+            $body,
+            ['type' => 'social_post', 'id' => $linkId],
+        );
+    }
+
+    /**
      * Announce that Employee of the Month voting has opened, so the month does
      * not pass with a ballot nobody knew about.
      */

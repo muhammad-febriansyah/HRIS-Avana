@@ -88,6 +88,16 @@ final class SocialPost extends Model
     }
 
     /**
+     * Employees tagged on this post.
+     *
+     * @return HasMany<SocialPostMention, $this>
+     */
+    public function mentions(): HasMany
+    {
+        return $this->hasMany(SocialPostMention::class);
+    }
+
+    /**
      * Public URL of the attached photo, or null when the post is text-only.
      */
     public function imageUrl(): ?string

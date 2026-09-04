@@ -65,4 +65,14 @@ final class SocialPostComment extends Model
     {
         return $query->whereNull('parent_id');
     }
+
+    /**
+     * Employees tagged on this comment.
+     *
+     * @return HasMany<SocialPostCommentMention, $this>
+     */
+    public function mentions(): HasMany
+    {
+        return $this->hasMany(SocialPostCommentMention::class, 'social_post_comment_id');
+    }
 }

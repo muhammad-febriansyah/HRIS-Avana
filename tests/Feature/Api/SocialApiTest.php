@@ -586,3 +586,112 @@ it('names the person a reply answers, but only when the indent cannot', function
 
     expect($thread->json('data.0.replies.1.reply_to'))->toBe($this->employee->full_name);
 });
+
+it('tags colleagues on a post and notifies them, but not the tagger', function (): void {
+    $tagged = Employee::forTenant($this->tenantId)
+        ->whereNotNull('user_id')
+        ->where('id', '!=', $this->employee->id)
+        ->firstOrFail();
+
+    $response = ($this->auth)($this->token)
+        ->postJson('/api/v1/me/social/posts', [
+            'body' => 'Kerja bareng nih',
+            // Tagging yourself is a no-op — only the colleague should be notified.
+            'mentioned_employee_ids' => [$tagged->id, $this->employee->id],
+        ])
+        ->assertCreated();
+
+    expect(collect($response->json('data.tagged'))->pluck('id'))
+        ->toContain($tagged->id)
+        ->not->toContain($this->employee->id);
+
+    $notification = Notification::where('user_id', $tagged->user_id)->where('type', 'social')->first();
+
+    expect($notification)->not->toBeNull()
+        ->and($notification->title)->toBe('Kamu ditandai')
+        ->and(Notification::where('user_id', $this->employeeUser->id)->where('type', 'social')->count())->toBe(0);
+});
+
+it('refuses to tag someone from another tenant', function (): void {
+    $outsider = User::where('tenant_id', '!=', $this->tenantId)->whereNotNull('tenant_id')->first();
+
+    if ($outsider?->employee === null) {
+        $this->markTestSkipped('No cross-tenant employee seeded.');
+    }
+
+    ($this->auth)($this->token)
+        ->postJson('/api/v1/me/social/posts', [
+            'body' => 'Tag lintas tenant',
+            'mentioned_employee_ids' => [$outsider->employee->id],
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('mentioned_employee_ids.0');
+});
+
+it('only notifies newly tagged colleagues when a post is edited', function (): void {
+    $first = Employee::forTenant($this->tenantId)
+        ->whereNotNull('user_id')->where('id', '!=', $this->employee->id)
+        ->firstOrFail();
+
+    $second = Employee::forTenant($this->tenantId)
+        ->whereNotNull('user_id')->where('id', '!=', $this->employee->id)
+        ->where('id', '!=', $first->id)
+        ->firstOrFail();
+
+    $post = SocialPost::factory()->create([
+        'tenant_id' => $this->tenantId,
+        'employee_id' => $this->employee->id,
+    ]);
+    $post->mentions()->create(['employee_id' => $first->id, 'tenant_id' => $this->tenantId]);
+
+    ($this->auth)($this->token)
+        ->post('/api/v1/me/social/posts/'.$post->id.'/update', [
+            'body' => 'Sudah update',
+            'mentioned_employee_ids' => [$first->id, $second->id],
+        ])
+        ->assertOk();
+
+    expect(Notification::where('user_id', $first->user_id)->where('type', 'social')->count())->toBe(0)
+        ->and(Notification::where('user_id', $second->user_id)->where('type', 'social')->count())->toBe(1);
+});
+
+it('keeps a post\'s tags untouched when an edit does not mention them', function (): void {
+    $tagged = Employee::forTenant($this->tenantId)
+        ->whereNotNull('user_id')->where('id', '!=', $this->employee->id)
+        ->firstOrFail();
+
+    $post = SocialPost::factory()->create([
+        'tenant_id' => $this->tenantId,
+        'employee_id' => $this->employee->id,
+    ]);
+    $post->mentions()->create(['employee_id' => $tagged->id, 'tenant_id' => $this->tenantId]);
+
+    ($this->auth)($this->token)
+        ->post('/api/v1/me/social/posts/'.$post->id.'/update', ['body' => 'Ganti kata saja'])
+        ->assertOk()
+        ->assertJsonPath('data.tagged.0.id', $tagged->id);
+
+    expect($post->mentions()->count())->toBe(1);
+});
+
+it('tags colleagues on a comment and notifies them', function (): void {
+    $tagged = Employee::forTenant($this->tenantId)
+        ->whereNotNull('user_id')->where('id', '!=', $this->employee->id)
+        ->firstOrFail();
+
+    $post = SocialPost::factory()->create([
+        'tenant_id' => $this->tenantId,
+        'employee_id' => $this->employee->id,
+    ]);
+
+    $response = ($this->auth)($this->token)
+        ->postJson('/api/v1/me/social/posts/'.$post->id.'/comments', [
+            'body' => 'Cek ini dong',
+            'mentioned_employee_ids' => [$tagged->id],
+        ])
+        ->assertCreated();
+
+    expect(collect($response->json('data.tagged'))->pluck('id'))->toContain($tagged->id)
+        ->and(Notification::where('user_id', $tagged->user_id)->where('type', 'social')->where('title', 'Kamu ditandai')->count())
+        ->toBe(1);
+});

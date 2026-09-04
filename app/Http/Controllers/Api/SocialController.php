@@ -8,7 +8,9 @@ use App\Models\Employee;
 use App\Models\SocialCategory;
 use App\Models\SocialPost;
 use App\Models\SocialPostComment;
+use App\Models\SocialPostCommentMention;
 use App\Models\SocialPostLike;
+use App\Models\SocialPostMention;
 use App\Models\SocialPostReport;
 use App\Services\SocialWall;
 use App\Support\PrivateFile;
@@ -78,7 +80,11 @@ class SocialController extends Controller
                 ->where('created_at', '>=', Carbon::now()->subDays(self::TRENDING_DAYS))
                 ->orderByRaw('(likes_count + comments_count) desc'))
             ->latest('id')
-            ->with(['employee:id,full_name,photo_path', 'category:id,name,icon,color'])
+            ->with([
+                'employee:id,full_name,photo_path',
+                'category:id,name,icon,color',
+                'mentions.employee:id,full_name,photo_path',
+            ])
             ->paginate(min(50, max(5, $request->integer('per_page', 15))));
 
         $likedIds = $this->likedPostIds($employee, collect($posts->items())->pluck('id'));
@@ -108,27 +114,31 @@ class SocialController extends Controller
             ],
             'body' => ['required', 'string', 'max:500'],
             'image' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'mentioned_employee_ids' => ['nullable', 'array', 'max:20'],
+            'mentioned_employee_ids.*' => $this->mentionRule($employee),
         ], [
             'body.required' => 'Tulis dulu isi postingannya.',
             'body.max' => 'Maksimal 500 karakter.',
             'image.mimes' => 'Foto harus JPG, PNG, atau WEBP.',
             'image.max' => 'Ukuran foto maksimal 5 MB.',
+            'mentioned_employee_ids.max' => 'Maksimal 20 orang yang bisa ditag.',
         ]);
 
         $path = $request->hasFile('image')
             ? PrivateFile::store($request->file('image'), "social/{$employee->tenant_id}")
             : null;
 
-        $post = SocialPost::create([
-            'tenant_id' => $employee->tenant_id,
-            'social_category_id' => $data['social_category_id'] ?? null,
-            'employee_id' => $employee->id,
-            'body' => $data['body'],
-            'image_path' => $path,
-            'status' => SocialPost::STATUS_PUBLISHED,
-        ]);
+        $post = app(SocialWall::class)->createPost(
+            $employee,
+            [
+                'social_category_id' => $data['social_category_id'] ?? null,
+                'body' => $data['body'],
+                'image_path' => $path,
+            ],
+            $data['mentioned_employee_ids'] ?? [],
+        );
 
-        $post->load(['employee:id,full_name,photo_path', 'category:id,name,icon,color']);
+        $post->load(['employee:id,full_name,photo_path', 'category:id,name,icon,color', 'mentions.employee:id,full_name,photo_path']);
 
         return response()->json([
             'message' => 'Postingan terkirim',
@@ -147,7 +157,7 @@ class SocialController extends Controller
         $this->ensureSameTenant($post->tenant_id, $employee);
         abort_if($post->status !== SocialPost::STATUS_PUBLISHED, 404);
 
-        $post->load(['employee:id,full_name,photo_path', 'category:id,name,icon,color']);
+        $post->load(['employee:id,full_name,photo_path', 'category:id,name,icon,color', 'mentions.employee:id,full_name,photo_path']);
 
         return response()->json([
             'data' => $this->transformPost(
@@ -182,11 +192,14 @@ class SocialController extends Controller
             'body' => ['required', 'string', 'max:500'],
             'image' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'remove_image' => ['nullable', 'boolean'],
+            'mentioned_employee_ids' => ['nullable', 'array', 'max:20'],
+            'mentioned_employee_ids.*' => $this->mentionRule($employee),
         ], [
             'body.required' => 'Tulis dulu isi postingannya.',
             'body.max' => 'Maksimal 500 karakter.',
             'image.mimes' => 'Foto harus JPG, PNG, atau WEBP.',
             'image.max' => 'Ukuran foto maksimal 5 MB.',
+            'mentioned_employee_ids.max' => 'Maksimal 20 orang yang bisa ditag.',
         ]);
 
         $attributes = [
@@ -195,17 +208,25 @@ class SocialController extends Controller
             'edited_at' => now(),
         ];
 
+        $imageAttributes = [];
+
         if ($request->hasFile('image')) {
             $post->deleteImageFile();
-            $attributes['image_path'] = $request->file('image')
+            $imageAttributes['image_path'] = $request->file('image')
                 ->store("social/{$employee->tenant_id}", PrivateFile::DISK);
         } elseif ($request->boolean('remove_image')) {
             $post->deleteImageFile();
-            $attributes['image_path'] = null;
+            $imageAttributes['image_path'] = null;
         }
 
-        $post->update($attributes);
-        $post->load(['employee:id,full_name,photo_path', 'category:id,name,icon,color']);
+        $post = app(SocialWall::class)->updatePost(
+            $post,
+            $employee,
+            $attributes,
+            $request->has('mentioned_employee_ids') ? ($data['mentioned_employee_ids'] ?? []) : null,
+            $imageAttributes,
+        );
+        $post->load(['employee:id,full_name,photo_path', 'category:id,name,icon,color', 'mentions.employee:id,full_name,photo_path']);
 
         return response()->json([
             'message' => 'Postingan diperbarui',
@@ -252,8 +273,9 @@ class SocialController extends Controller
             ->topLevel()
             ->with([
                 'employee:id,full_name,photo_path',
+                'mentions.employee:id,full_name,photo_path',
                 'replies' => fn ($query) => $query
-                    ->with(['employee:id,full_name,photo_path', 'replyTo:id,full_name'])
+                    ->with(['employee:id,full_name,photo_path', 'replyTo:id,full_name', 'mentions.employee:id,full_name,photo_path'])
                     ->orderBy('id'),
             ])
             ->orderBy('id')
@@ -288,16 +310,25 @@ class SocialController extends Controller
                     ->where('social_post_id', $post->id)
                     ->whereNull('deleted_at'),
             ],
+            'mentioned_employee_ids' => ['nullable', 'array', 'max:20'],
+            'mentioned_employee_ids.*' => $this->mentionRule($employee),
         ], [
             'body.required' => 'Komentar tidak boleh kosong.',
+            'mentioned_employee_ids.max' => 'Maksimal 20 orang yang bisa ditag.',
         ]);
 
         $parent = isset($data['parent_id'])
             ? SocialPostComment::find($data['parent_id'])
             : null;
 
-        $comment = app(SocialWall::class)->comment($post, $employee, $data['body'], $parent);
-        $comment->load('employee:id,full_name,photo_path');
+        $comment = app(SocialWall::class)->comment(
+            $post,
+            $employee,
+            $data['body'],
+            $parent,
+            $data['mentioned_employee_ids'] ?? [],
+        );
+        $comment->load(['employee:id,full_name,photo_path', 'mentions.employee:id,full_name,photo_path']);
 
         return response()->json([
             'message' => $parent === null ? 'Komentar terkirim' : 'Balasan terkirim',
@@ -428,7 +459,25 @@ class SocialController extends Controller
             'created_at' => $post->created_at?->toDateTimeString(),
             'edited' => $post->edited_at !== null,
             'social_category_id' => $post->social_category_id,
+            'tagged' => $this->transformMentions($post->mentions),
         ];
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Collection<int, SocialPostMention>|\Illuminate\Database\Eloquent\Collection<int, SocialPostCommentMention>  $mentions
+     * @return array<int, array<string, mixed>>
+     */
+    private function transformMentions(\Illuminate\Database\Eloquent\Collection $mentions): array
+    {
+        return $mentions
+            ->map(fn ($mention): array => [
+                'id' => $mention->employee_id,
+                'name' => $mention->employee?->full_name ?? 'Karyawan',
+                'photo' => $mention->employee?->photo_path !== null
+                    ? PrivateFile::urlFor($mention->employee->photo_path)
+                    : null,
+            ])
+            ->all();
     }
 
     /**
@@ -447,11 +496,28 @@ class SocialController extends Controller
             'parent_id' => $comment->parent_id,
             'reply_to' => $comment->replyTo?->full_name,
             'created_at' => $comment->created_at?->toDateTimeString(),
+            'tagged' => $this->transformMentions($comment->mentions),
         ];
     }
 
     private function ensureSameTenant(int|string|null $tenantId, Employee $employee): void
     {
         abort_if((int) $tenantId !== (int) $employee->tenant_id, 404);
+    }
+
+    /**
+     * Validation rules for one id in `mentioned_employee_ids`: only an active
+     * colleague in the caller's own tenant can be tagged.
+     *
+     * @return array<int, mixed>
+     */
+    private function mentionRule(Employee $employee): array
+    {
+        return [
+            'integer',
+            Rule::exists('employees', 'id')
+                ->where('tenant_id', $employee->tenant_id)
+                ->where('status', 'active'),
+        ];
     }
 }

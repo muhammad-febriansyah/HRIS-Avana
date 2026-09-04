@@ -7,6 +7,7 @@ use App\Models\SocialPost;
 use App\Models\SocialPostComment;
 use App\Models\SocialPostLike;
 use App\Support\Notifier;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -30,6 +31,102 @@ final class SocialWall
     private const POINTS_PER_LIKE_RECEIVED = 2;
 
     private const POINTS_PER_COMMENT_RECEIVED = 1;
+
+    /**
+     * Publish a post, tagging whoever the author selected.
+     *
+     * @param  array{social_category_id: int|null, body: string, image_path: string|null}  $attributes
+     * @param  array<int, int>  $mentionedEmployeeIds
+     */
+    public function createPost(Employee $employee, array $attributes, array $mentionedEmployeeIds = []): SocialPost
+    {
+        return DB::transaction(function () use ($employee, $attributes, $mentionedEmployeeIds): SocialPost {
+            $post = SocialPost::create([
+                'tenant_id' => $employee->tenant_id,
+                'employee_id' => $employee->id,
+                'social_category_id' => $attributes['social_category_id'],
+                'body' => $attributes['body'],
+                'image_path' => $attributes['image_path'],
+                'status' => SocialPost::STATUS_PUBLISHED,
+            ]);
+
+            $tagged = $this->syncPostMentions($post, $employee, $mentionedEmployeeIds);
+
+            Notifier::socialPostTagged($post, $employee, $tagged);
+
+            return $post;
+        });
+    }
+
+    /**
+     * Edit a post, optionally replacing its tag list. Only employees newly
+     * added to the set are notified — an existing tag does not re-announce
+     * itself every time the caption is touched.
+     *
+     * `$mentionedEmployeeIds` is null when the caller did not send the field
+     * at all (the mobile edit sheet does not touch tags today) — the existing
+     * tag set is then left exactly as it was, rather than being wiped.
+     *
+     * @param  array{social_category_id: int|null, body: string, edited_at: CarbonInterface}  $attributes
+     * @param  array<int, int>|null  $mentionedEmployeeIds
+     * @param  array<string, mixed>  $imageAttributes  image_path when it changed, empty when untouched
+     */
+    public function updatePost(SocialPost $post, Employee $employee, array $attributes, ?array $mentionedEmployeeIds, array $imageAttributes = []): SocialPost
+    {
+        return DB::transaction(function () use ($post, $employee, $attributes, $mentionedEmployeeIds, $imageAttributes): SocialPost {
+            $post->update($attributes + $imageAttributes);
+
+            if ($mentionedEmployeeIds !== null) {
+                $before = $post->mentions()->pluck('employee_id')->map(fn ($id): int => (int) $id)->all();
+                $tagged = $this->syncPostMentions($post, $employee, $mentionedEmployeeIds);
+
+                Notifier::socialPostTagged($post, $employee, array_values(array_diff($tagged, $before)));
+            }
+
+            return $post;
+        });
+    }
+
+    /**
+     * Replace a post's tag set wholesale — simpler than diffing adds/removes,
+     * and a post is tagged by one person at a time so there is no concurrent
+     * edit to preserve. Tagging yourself is dropped here, not just at the
+     * notify step — a self-tag has no reader to reach, so it is not worth
+     * keeping around as a row.
+     *
+     * @param  array<int, int>  $mentionedEmployeeIds
+     * @return array<int, int> the tag set actually saved (deduped, self excluded)
+     */
+    private function syncPostMentions(SocialPost $post, Employee $employee, array $mentionedEmployeeIds): array
+    {
+        $ids = $this->dedupeMentionIds($mentionedEmployeeIds, $employee->id);
+
+        $post->mentions()->delete();
+
+        if ($ids !== []) {
+            $post->mentions()->createMany(array_map(
+                fn (int $id): array => ['employee_id' => $id, 'tenant_id' => $post->tenant_id],
+                $ids,
+            ));
+        }
+
+        return $ids;
+    }
+
+    /**
+     * Clean a raw id list into a tag set: deduped and excluding the tagger
+     * themselves.
+     *
+     * @param  array<int, int>  $ids
+     * @return array<int, int>
+     */
+    private function dedupeMentionIds(array $ids, int $excludeId): array
+    {
+        return array_values(array_unique(array_filter(
+            $ids,
+            fn ($id): bool => (int) $id !== $excludeId,
+        )));
+    }
 
     /**
      * Toggle an employee's like. Returns the post's state afterwards.
@@ -65,13 +162,17 @@ final class SocialWall
         });
     }
 
+    /**
+     * @param  array<int, int>  $mentionedEmployeeIds
+     */
     public function comment(
         SocialPost $post,
         Employee $employee,
         string $body,
         ?SocialPostComment $parent = null,
+        array $mentionedEmployeeIds = [],
     ): SocialPostComment {
-        return DB::transaction(function () use ($post, $employee, $body, $parent): SocialPostComment {
+        return DB::transaction(function () use ($post, $employee, $body, $parent, $mentionedEmployeeIds): SocialPostComment {
             // One level only: replying to a reply lands under the same
             // top-level comment, so a thread never nests off the screen.
             $parentId = $parent?->parent_id ?? $parent?->id;
@@ -97,6 +198,17 @@ final class SocialWall
             }
 
             Notifier::socialPostCommented($post, $employee);
+
+            $ids = $this->dedupeMentionIds($mentionedEmployeeIds, $employee->id);
+
+            if ($ids !== []) {
+                $comment->mentions()->createMany(array_map(
+                    fn (int $id): array => ['employee_id' => $id, 'tenant_id' => $comment->tenant_id],
+                    $ids,
+                ));
+
+                Notifier::socialCommentTagged($comment, $employee, $ids);
+            }
 
             return $comment;
         });
