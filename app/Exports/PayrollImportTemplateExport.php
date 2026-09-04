@@ -2,6 +2,9 @@
 
 namespace App\Exports;
 
+use App\Models\PayrollComponent;
+use App\Support\PayrollImportLayout;
+use Illuminate\Database\Eloquent\Collection;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
@@ -11,16 +14,21 @@ use Maatwebsite\Excel\Concerns\WithTitle;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
- * The payroll-import template for a tenant that runs its payroll elsewhere:
- * a "Payroll" sheet already listing every payable employee, so HR only fills
- * in the amounts, plus a sheet explaining each column.
+ * The payroll-import template for a tenant that runs its payroll elsewhere.
+ *
+ * The "Payroll" sheet lists every payable employee with one column per salary
+ * component from Master Komponen, so the file mirrors the tenant's own setup
+ * rather than a fixed set of columns. Fixed amounts already on the employee's
+ * salary are pre-filled as a reference; the rest is left blank. A second sheet
+ * explains every column.
  */
 final class PayrollImportTemplateExport implements WithMultipleSheets
 {
     /**
-     * @param  array<int, array{0: string, 1: string}>  $employees  [number, name]
+     * @param  array<int, array{number: string, name: string, amounts: array<int, float>}>  $employees
+     * @param  Collection<int, PayrollComponent>  $components
      */
-    public function __construct(private array $employees) {}
+    public function __construct(private array $employees, private Collection $components) {}
 
     /**
      * @return array<int, object>
@@ -28,8 +36,8 @@ final class PayrollImportTemplateExport implements WithMultipleSheets
     public function sheets(): array
     {
         return [
-            new PayrollImportTemplateSheet($this->employees),
-            new PayrollImportGuideSheet,
+            new PayrollImportTemplateSheet($this->employees, $this->components),
+            new PayrollImportGuideSheet($this->components),
         ];
     }
 }
@@ -38,23 +46,34 @@ final class PayrollImportTemplateExport implements WithMultipleSheets
 final class PayrollImportTemplateSheet implements FromArray, ShouldAutoSize, WithHeadings, WithStyles, WithTitle
 {
     /**
-     * @param  array<int, array{0: string, 1: string}>  $employees
+     * @param  array<int, array{number: string, name: string, amounts: array<int, float>}>  $employees
+     * @param  Collection<int, PayrollComponent>  $components
      */
-    public function __construct(private array $employees) {}
+    public function __construct(private array $employees, private Collection $components) {}
 
     /**
      * @return array<int, array<int, string>>
      */
     public function array(): array
     {
-        if ($this->employees === []) {
-            return [['EMP-0001', 'Contoh Karyawan', '10000000', '1000000', '0', '400000', '600000', '250000', '']];
-        }
+        $employees = $this->employees !== []
+            ? $this->employees
+            : [['number' => 'EMP-0001', 'name' => 'Contoh Karyawan', 'amounts' => []]];
 
-        return array_map(
-            static fn (array $employee): array => [$employee[0], $employee[1], '', '', '', '', '', '', ''],
-            $this->employees,
-        );
+        return array_map(fn (array $employee): array => [
+            $employee['number'],
+            $employee['name'],
+            ...$this->components
+                ->map(function (PayrollComponent $component) use ($employee): string {
+                    $amount = $employee['amounts'][$component->id] ?? null;
+
+                    return $amount === null ? '' : (string) (int) round($amount);
+                })
+                ->all(),
+            // BPJS, PPh 21 and take-home are the tenant's own figures: the
+            // engine does not run on an import, so nothing can fill them in.
+            ...array_fill(0, count(PayrollImportLayout::TRAILING), ''),
+        ], $employees);
     }
 
     /**
@@ -62,26 +81,8 @@ final class PayrollImportTemplateSheet implements FromArray, ShouldAutoSize, Wit
      */
     public function headings(): array
     {
-        return PayrollImportTemplateSheet::COLUMNS;
+        return PayrollImportLayout::headings($this->components);
     }
-
-    /**
-     * The column order the importer reads positionally — keep in sync with
-     * PayrollImportController::parseRow().
-     *
-     * @var array<int, string>
-     */
-    public const COLUMNS = [
-        'nomor_karyawan',
-        'nama',
-        'gaji_bruto',
-        'tunjangan',
-        'potongan',
-        'bpjs_karyawan',
-        'bpjs_perusahaan',
-        'pph21',
-        'take_home_pay',
-    ];
 
     public function title(): string
     {
@@ -101,23 +102,39 @@ final class PayrollImportTemplateSheet implements FromArray, ShouldAutoSize, Wit
 final class PayrollImportGuideSheet implements FromArray, ShouldAutoSize, WithHeadings, WithStyles, WithTitle
 {
     /**
+     * @param  Collection<int, PayrollComponent>  $components
+     */
+    public function __construct(private Collection $components) {}
+
+    /**
      * @return array<int, array<int, string>>
      */
     public function array(): array
     {
+        $rows = [
+            ['nomor_karyawan', 'Wajib', 'Harus sama persis dengan Nomor Karyawan di menu Karyawan.'],
+            ['nama', 'Penanda', 'Hanya penanda saat mengisi — tidak dipakai importer.'],
+        ];
+
+        foreach ($this->components as $component) {
+            $rows[] = [
+                PayrollImportLayout::heading($component, $this->components),
+                PayrollImportLayout::isDeduction($component) ? 'Potongan' : 'Penerimaan',
+                PayrollImportLayout::fillHint($component),
+            ];
+        }
+
         return [
-            ['nomor_karyawan', 'Wajib. Harus sama persis dengan Nomor Karyawan di menu Karyawan.'],
-            ['nama', 'Hanya penanda saat mengisi — tidak dipakai importer.'],
-            ['gaji_bruto', 'Wajib. Total penghasilan bruto sebelum potongan.'],
-            ['tunjangan', 'Opsional. Bagian tunjangan di dalam bruto (untuk tampilan slip).'],
-            ['potongan', 'Opsional. Potongan lain di luar BPJS dan PPh 21.'],
-            ['bpjs_karyawan', 'Opsional. Iuran BPJS yang dipotong dari karyawan.'],
-            ['bpjs_perusahaan', 'Opsional. Iuran BPJS yang ditanggung perusahaan.'],
-            ['pph21', 'Opsional. PPh 21 yang dipotong. Kosongkan bila tidak memotong.'],
-            ['take_home_pay', 'Opsional. Kosongkan = bruto − potongan − BPJS karyawan − PPh 21.'],
-            ['', ''],
-            ['Catatan', 'Angka boleh ditulis 10.000.000 atau 10000000. Baris kosong dilewati.'],
-            ['Catatan', 'Impor mengganti seluruh data payroll periode yang dipilih.'],
+            ...$rows,
+            ['bpjs_karyawan', 'Opsional', 'Iuran BPJS (Kesehatan + JHT + JP) yang dipotong dari karyawan.'],
+            ['bpjs_perusahaan', 'Opsional', 'Iuran BPJS yang ditanggung perusahaan — tidak mengurangi THP.'],
+            ['pph21', 'Opsional', 'PPh 21 yang dipotong. Kosongkan bila tidak memotong.'],
+            ['take_home_pay', 'Opsional', 'Kosongkan = penerimaan − potongan − BPJS karyawan − PPh 21.'],
+            ['', '', ''],
+            ['Catatan', '', 'Kolom komponen mengikuti Master Komponen tenant. Menambah komponen di master menambah kolom di template berikutnya.'],
+            ['Catatan', '', 'Status PTKP dan kategori TER tidak diisi di sini — diambil dari data karyawan dan dihitung sistem.'],
+            ['Catatan', '', 'Angka boleh ditulis 10.000.000 atau 10000000. Baris kosong dilewati.'],
+            ['Catatan', '', 'Impor mengganti seluruh data payroll periode yang dipilih.'],
         ];
     }
 
@@ -126,7 +143,7 @@ final class PayrollImportGuideSheet implements FromArray, ShouldAutoSize, WithHe
      */
     public function headings(): array
     {
-        return ['Kolom', 'Keterangan'];
+        return ['Kolom', 'Sifat', 'Keterangan'];
     }
 
     public function title(): string

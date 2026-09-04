@@ -154,8 +154,20 @@ export function ImportModal({
                         }}
                     >
                         <AIcon name="download" size={14} color={C.primary} />
-                        Unduh template (sudah berisi daftar karyawan)
+                        Unduh template (karyawan + kolom Master Komponen)
                     </a>
+                    <div
+                        style={{
+                            fontSize: 12,
+                            color: C.muted,
+                            marginTop: 6,
+                            lineHeight: 1.5,
+                        }}
+                    >
+                        Satu kolom per komponen gaji yang aktif di Master
+                        Komponen. Status PTKP dan kategori TER tidak perlu diisi
+                        — diambil dari data karyawan dan dihitung sistem.
+                    </div>
                 </div>
 
                 <div

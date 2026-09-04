@@ -6,10 +6,13 @@ use App\Exports\PayrollImportTemplateExport;
 use App\Http\Controllers\Controller;
 use App\Imports\PayrollImportRowsImport;
 use App\Models\Employee;
+use App\Models\EmployeeSalaryComponent;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
 use App\Models\User;
+use App\Support\BasicWageComponent;
+use App\Support\PayrollImportLayout;
 use App\Support\SalaryCompliance;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
@@ -40,8 +43,9 @@ final class PayrollImportController extends Controller
     private const MODULE = 'payroll';
 
     /**
-     * Download the fill-in template for a period, pre-filled with the employees
-     * that period would pay.
+     * Download the fill-in template for a period: the employees that period
+     * would pay, one column per component in the tenant's Master Komponen, and
+     * the fixed contract amounts already filled in as a starting point.
      */
     public function template(Request $request): BinaryFileResponse
     {
@@ -50,17 +54,69 @@ final class PayrollImportController extends Controller
         $tenantId = (int) $request->user()->tenant_id;
         $period = $this->resolvePeriod($request, $tenantId);
 
-        $employees = $this->payableEmployees($tenantId, $period)
+        $employees = $this->payableEmployees($tenantId, $period);
+        $amounts = $this->contractAmounts($tenantId, $employees);
+
+        $rows = $employees
             ->map(fn (Employee $employee): array => [
-                (string) ($employee->employee_number ?? ''),
-                (string) $employee->full_name,
+                'number' => (string) ($employee->employee_number ?? ''),
+                'name' => (string) $employee->full_name,
+                'amounts' => $amounts[$employee->id] ?? [],
             ])
             ->values()
             ->all();
 
         $slug = str($period->code ?? $period->name ?? 'periode')->slug()->value();
 
-        return Excel::download(new PayrollImportTemplateExport($employees), "template-payroll-{$slug}.xlsx");
+        return Excel::download(
+            new PayrollImportTemplateExport($rows, PayrollImportLayout::components($tenantId)),
+            "template-payroll-{$slug}.xlsx",
+        );
+    }
+
+    /**
+     * The fixed component amounts each employee's salary already states, to
+     * pre-fill the template with.
+     *
+     * Only amounts that mean rupiah-per-month are filled: a percentage
+     * component holds a percentage and an attendance-based one holds a daily or
+     * hourly rate, so writing either into a monthly column would state a figure
+     * nobody is owed. Those columns are left blank for HR to enter.
+     *
+     * @param  Collection<int, Employee>  $employees
+     * @return array<int, array<int, float>>
+     */
+    private function contractAmounts(int $tenantId, Collection $employees): array
+    {
+        if ($employees->isEmpty()) {
+            return [];
+        }
+
+        $amounts = [];
+
+        $rows = EmployeeSalaryComponent::forTenant($tenantId)
+            ->whereIn('employee_id', $employees->pluck('id'))
+            ->inForce()
+            ->effectiveOn()
+            ->with('component')
+            ->get();
+
+        foreach ($rows as $row) {
+            $component = $row->component;
+
+            if ($component === null
+                || $component->status !== 'active'
+                || in_array($component->calc_basis, ['percentage', 'per_present_day', 'per_overtime_hour'], true)) {
+                continue;
+            }
+
+            $employeeId = (int) $row->employee_id;
+            $componentId = (int) $component->id;
+
+            $amounts[$employeeId][$componentId] = ($amounts[$employeeId][$componentId] ?? 0.0) + (float) $row->amount;
+        }
+
+        return $amounts;
     }
 
     /**
@@ -93,8 +149,22 @@ final class PayrollImportController extends Controller
 
         $sheet = Excel::toArray(new PayrollImportRowsImport, $request->file('file'))[0] ?? [];
 
+        // Where each column is. A file with a header row says so itself, which
+        // is what lets the component columns vary per tenant; a headerless file
+        // is read in the fixed order the pre-component template used.
+        $fields = array_flip(PayrollImportLayout::LEGACY_ORDER);
+        $componentColumns = [];
+
         if ($sheet !== [] && $this->looksLikeHeader($sheet[0])) {
-            array_shift($sheet);
+            $header = array_map(
+                static fn ($value): string => trim((string) ($value ?? '')),
+                array_values((array) array_shift($sheet)),
+            );
+
+            $layout = PayrollImportLayout::resolveHeader($header, PayrollImportLayout::components($tenantId));
+
+            $fields = $layout['fields'];
+            $componentColumns = $layout['components'];
         }
 
         // Employees keyed by their number, case- and space-insensitive, so a
@@ -116,9 +186,10 @@ final class PayrollImportController extends Controller
                 continue;
             }
 
-            [$number, , $gross, $allowance, $deduction, $bpjsEmployee, $bpjsCompany, $pph21, $net]
-                = array_pad($cells, 9, '');
+            $at = static fn (?int $column): string => $column === null ? '' : (string) ($cells[$column] ?? '');
+            $field = static fn (string $name): string => $at($fields[$name] ?? null);
 
+            $number = $field('nomor_karyawan');
             $key = $this->normaliseNumber($number);
 
             if ($key === '') {
@@ -139,47 +210,141 @@ final class PayrollImportController extends Controller
                 continue;
             }
 
-            if ($gross === '' || ! $this->isNumeric($gross)) {
-                $errors[] = "Baris {$line}: gaji bruto wajib diisi angka.";
+            $grossCell = $field('gaji_bruto');
+            $allowanceCell = $field('tunjangan');
+            $deductionCell = $field('potongan');
+            $bpjsEmployeeCell = $field('bpjs_karyawan');
+            $bpjsCompanyCell = $field('bpjs_perusahaan');
+            $pph21Cell = $field('pph21');
+            $netCell = $field('take_home_pay');
+
+            $invalid = null;
+
+            foreach ([
+                'gaji bruto' => $grossCell,
+                'tunjangan' => $allowanceCell,
+                'potongan' => $deductionCell,
+                'bpjs karyawan' => $bpjsEmployeeCell,
+                'bpjs perusahaan' => $bpjsCompanyCell,
+                'pph21' => $pph21Cell,
+                'take home pay' => $netCell,
+            ] as $label => $value) {
+                if ($value !== '' && ! $this->isNumeric($value)) {
+                    $invalid = $label;
+
+                    break;
+                }
+            }
+
+            $componentAmounts = [];
+
+            if ($invalid === null) {
+                foreach ($componentColumns as $column => $component) {
+                    $value = $at($column);
+
+                    if ($value !== '' && ! $this->isNumeric($value)) {
+                        $invalid = mb_strtolower((string) $component->name);
+
+                        break;
+                    }
+
+                    $componentAmounts[(int) $component->id] = $this->money($value);
+                }
+            }
+
+            if ($invalid !== null) {
+                $errors[] = "Baris {$line}: kolom {$invalid} bukan angka.";
 
                 continue;
             }
 
-            foreach ([
-                'tunjangan' => $allowance,
-                'potongan' => $deduction,
-                'bpjs karyawan' => $bpjsEmployee,
-                'bpjs perusahaan' => $bpjsCompany,
-                'pph21' => $pph21,
-                'take home pay' => $net,
-            ] as $label => $value) {
-                if ($value !== '' && ! $this->isNumeric($value)) {
-                    $errors[] = "Baris {$line}: kolom {$label} bukan angka.";
+            // A row states either a rolled-up bruto or the components it is
+            // made of, never both: one of the two would have to be ignored, and
+            // ignoring money quietly is how a payroll goes wrong unnoticed.
+            if ($grossCell !== '' && array_sum($componentAmounts) > 0.0) {
+                $errors[] = "Baris {$line}: isi kolom komponen atau kolom gaji_bruto, jangan keduanya.";
 
-                    continue 2;
+                continue;
+            }
+
+            // A file from the pre-component template states one rolled-up
+            // bruto; the component template states the parts, and the bruto is
+            // their sum. Whichever the row uses, the payslip gets the lines the
+            // file actually named.
+            $gross = 0.0;
+            $allowance = 0.0;
+            $componentDeduction = 0.0;
+            $earnings = [];
+            $deductionLines = [];
+
+            if ($grossCell !== '') {
+                $gross = $this->money($grossCell);
+                $allowance = $this->money($allowanceCell);
+                $earnings = $this->slipLines([
+                    'Gaji Bruto' => $gross - $allowance,
+                    'Tunjangan' => $allowance,
+                ]);
+            } else {
+                foreach ($componentColumns as $component) {
+                    $amount = $componentAmounts[(int) $component->id] ?? 0.0;
+
+                    if ($amount <= 0.0) {
+                        continue;
+                    }
+
+                    if (PayrollImportLayout::isDeduction($component)) {
+                        $componentDeduction += $amount;
+                        $deductionLines[] = ['name' => (string) $component->name, 'amount' => $amount];
+
+                        continue;
+                    }
+
+                    $gross += $amount;
+                    $earnings[] = ['name' => (string) $component->name, 'amount' => $amount];
+
+                    if (! BasicWageComponent::matches($component->code)) {
+                        $allowance += $amount;
+                    }
                 }
+            }
+
+            if ($gross <= 0.0) {
+                $errors[] = isset($fields['gaji_bruto']) && $componentColumns === []
+                    ? "Baris {$line}: gaji bruto wajib diisi angka."
+                    : "Baris {$line}: tidak ada komponen penerimaan yang diisi.";
+
+                continue;
             }
 
             $seen[$key] = true;
 
-            $grossValue = $this->money($gross);
-            $deductionValue = $this->money($deduction);
-            $bpjsEmployeeValue = $this->money($bpjsEmployee);
-            $pph21Value = $this->money($pph21);
+            $otherDeduction = $this->money($deductionCell);
+            $deductionValue = $otherDeduction + $componentDeduction;
+            $bpjsEmployeeValue = $this->money($bpjsEmployeeCell);
+            $pph21Value = $this->money($pph21Cell);
 
             $rows[] = [
                 'employee' => $employees->get($key),
-                'gross' => $grossValue,
-                'allowance' => $this->money($allowance),
+                'gross' => $gross,
+                'allowance' => $allowance,
                 'deduction' => $deductionValue,
                 'bpjs_employee' => $bpjsEmployeeValue,
-                'bpjs_company' => $this->money($bpjsCompany),
+                'bpjs_company' => $this->money($bpjsCompanyCell),
                 'pph21' => $pph21Value,
                 // A blank take-home is the common case: derive it rather than
                 // making HR restate arithmetic the file already implies.
-                'net' => $net !== ''
-                    ? $this->money($net)
-                    : max(0.0, $grossValue - $deductionValue - $bpjsEmployeeValue - $pph21Value),
+                'net' => $netCell !== ''
+                    ? $this->money($netCell)
+                    : max(0.0, $gross - $deductionValue - $bpjsEmployeeValue - $pph21Value),
+                'earnings' => $earnings,
+                'deductions' => [
+                    ...$deductionLines,
+                    ...$this->slipLines([
+                        'Potongan Lain' => $otherDeduction,
+                        'BPJS Karyawan' => $bpjsEmployeeValue,
+                        'PPh 21' => $pph21Value,
+                    ]),
+                ],
                 'line' => $line,
             ];
         }
@@ -282,15 +447,11 @@ final class PayrollImportController extends Controller
                         'row' => $row['line'],
                         'imported_at' => $stamp,
                         'imported_by' => $user->id,
-                        'earnings' => $this->slipLines([
-                            'Gaji Bruto' => $row['gross'] - $row['allowance'],
-                            'Tunjangan' => $row['allowance'],
-                        ]),
-                        'deductions' => $this->slipLines([
-                            'Potongan Lain' => $row['deduction'],
-                            'BPJS Karyawan' => $row['bpjs_employee'],
-                            'PPh 21' => $row['pph21'],
-                        ]),
+                        // Named per component when the file used the component
+                        // columns, so the payslip reads like the tenant's own
+                        // salary setup rather than a single "Tunjangan" line.
+                        'earnings' => $row['earnings'],
+                        'deductions' => $row['deductions'],
                         'gross' => $row['gross'],
                         'deduction' => $row['deduction'],
                         'net' => $row['net'],
@@ -469,9 +630,7 @@ final class PayrollImportController extends Controller
      */
     private function looksLikeHeader($row): bool
     {
-        $first = strtolower(trim((string) (((array) $row)[0] ?? '')));
-
-        return in_array($first, ['nomor_karyawan', 'nomor karyawan', 'nik', 'employee_number'], true);
+        return PayrollImportLayout::isEmployeeNumberHeader((string) (((array) $row)[0] ?? ''));
     }
 
     /** Compare employee numbers without case or spacing getting in the way. */
