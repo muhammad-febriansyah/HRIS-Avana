@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
+use Illuminate\Support\Facades\Route;
 use Inertia\Testing\AssertableInertia as Assert;
 
 use function Pest\Laravel\actingAs;
@@ -30,7 +31,28 @@ it('renders the branded error page for a forbidden screen', function (): void {
         ->assertForbidden()
         ->assertInertia(fn (Assert $page) => $page
             ->component('error', false)
-            ->where('status', 403));
+            ->where('status', 403)
+            // No reason was written for this one, so the page keeps its
+            // generic wording.
+            ->where('detail', null));
+});
+
+it('shows the reason the application gave instead of the generic 403 wording', function (): void {
+    Route::middleware('web')->get('/__test-403', function (): void {
+        abort(403, 'Kalibrasi harus dilakukan oleh pihak lain.');
+    });
+
+    get('/__test-403')
+        ->assertForbidden()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('error', false)
+            ->where('detail', 'Kalibrasi harus dilakukan oleh pihak lain.'));
+});
+
+it('does not leak framework wording from a 404 onto the error page', function (): void {
+    get('/halaman-yang-tidak-ada')
+        ->assertNotFound()
+        ->assertInertia(fn (Assert $page) => $page->where('detail', null));
 });
 
 it('carries the shared branding into the error page', function (): void {

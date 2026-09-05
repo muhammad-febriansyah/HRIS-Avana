@@ -84,7 +84,14 @@ type SharedProps = {
     };
 };
 
-export default function ErrorPage({ status }: { status: number }) {
+export default function ErrorPage({
+    status,
+    detail,
+}: {
+    status: number;
+    /** The reason the server actually gave, when it wrote one. */
+    detail?: string | null;
+}) {
     const { auth, website } = usePage<SharedProps>().props;
     const meta = META[status] ?? FALLBACK;
     const signedIn = Boolean(auth?.user);
@@ -230,7 +237,7 @@ export default function ErrorPage({ status }: { status: number }) {
                                 maxWidth: 430,
                             }}
                         >
-                            {meta.description}
+                            {detail || meta.description}
                         </p>
 
                         <div

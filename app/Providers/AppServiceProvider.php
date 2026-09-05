@@ -115,9 +115,36 @@ class AppServiceProvider extends ServiceProvider
             }
 
             return $response
-                ->render('error', ['status' => $response->statusCode()])
+                ->render('error', [
+                    'status' => $response->statusCode(),
+                    'detail' => $this->abortDetail($response),
+                ])
                 ->withSharedData();
         });
+    }
+
+    /**
+     * The reason the application itself gave when it aborted, if any.
+     *
+     * Without it every 403 reads "your role lacks permission", which is often
+     * simply untrue — a separation-of-duties refusal, say, has nothing to do
+     * with the user's role, and the generic wording sends them to their admin
+     * to fix something that is not broken.
+     *
+     * Only 403 is forwarded: it is the status this application aborts with a
+     * written reason. Other statuses carry framework-generated text (a 404 from
+     * route-model binding names the model class), which is noise at best and a
+     * disclosure at worst.
+     */
+    protected function abortDetail(ExceptionResponse $response): ?string
+    {
+        if ($response->statusCode() !== 403) {
+            return null;
+        }
+
+        $message = trim($response->exception->getMessage());
+
+        return $message === '' ? null : $message;
     }
 
     /**
