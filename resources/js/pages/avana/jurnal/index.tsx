@@ -348,8 +348,8 @@ export default function JurnalIndex({
                             Payroll run terbaru
                             {latestRun.period ? ` (${latestRun.period})` : ''}:
                             bruto {rp(latestRun.total_gross)} · potongan{' '}
-                            {rp(latestRun.total_deduction)} · pajak{' '}
-                            {rp(latestRun.total_tax)} · neto{' '}
+                            {rp(latestRun.total_deduction)} (termasuk pajak{' '}
+                            {rp(latestRun.total_tax)}) · neto{' '}
                             {rp(latestRun.total_net)}.
                         </span>
                     </div>

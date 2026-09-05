@@ -82,16 +82,22 @@ class JournalController extends Controller
         }
 
         $gross = (float) $run->total_gross;
-        $deduction = (float) $run->total_deduction;
-        $tax = (float) $run->total_tax;
+
+        // Everything held back from the pay — BPJS, PPh 21 and the other
+        // deductions. `total_deduction` ALREADY contains the tax (payroll
+        // writes every run so that gross − total_deduction = total_net), so
+        // adding total_tax on top credits the tax twice and leaves the entry
+        // out of balance by exactly that amount.
+        $withheld = (float) $run->total_deduction;
         $net = (float) $run->total_net;
         $entryDate = now()->toDateString();
         $description = 'Jurnal payroll run #'.$run->id;
 
-        // Balanced double-entry: Dr Beban Gaji (gross) = Cr Hutang BPJS & Pajak (deduction + tax) + Cr Kas/Bank (net).
+        // Balanced double-entry: Dr Beban Gaji (bruto) = Cr Hutang BPJS & Pajak
+        // (seluruh potongan) + Cr Kas/Bank (netto).
         $lines = [
             ['account_code' => '5101', 'account_name' => 'Beban Gaji', 'debit' => $gross, 'credit' => 0],
-            ['account_code' => '2101', 'account_name' => 'Hutang BPJS & Pajak', 'debit' => 0, 'credit' => $deduction + $tax],
+            ['account_code' => '2101', 'account_name' => 'Hutang BPJS & Pajak', 'debit' => 0, 'credit' => $withheld],
             ['account_code' => '1101', 'account_name' => 'Kas/Bank', 'debit' => 0, 'credit' => $net],
         ];
 

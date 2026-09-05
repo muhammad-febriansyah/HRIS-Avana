@@ -25,7 +25,8 @@ beforeEach(function (): void {
 });
 
 /**
- * Create a payroll run with balanced totals (gross = deduction + tax + net).
+ * Create a payroll run with the totals payroll actually writes: the tax sits
+ * inside total_deduction, so gross = total_deduction + total_net.
  */
 function makePayrollRun(int $tenantId, array $overrides = []): PayrollRun
 {
@@ -44,7 +45,7 @@ function makePayrollRun(int $tenantId, array $overrides = []): PayrollRun
         'payroll_period_id' => $period->id,
         'status' => 'draft',
         'total_gross' => 100_000_000,
-        'total_deduction' => 8_000_000,
+        'total_deduction' => 10_000_000,
         'total_tax' => 2_000_000,
         'total_net' => 90_000_000,
         'employee_count' => 10,
@@ -91,6 +92,25 @@ it('generates a balanced journal from the latest payroll run', function (): void
 
     $cash = $entries->firstWhere('account_code', '1101');
     expect((float) $cash->credit)->toBe(90_000_000.0);
+});
+
+it('credits the withheld total once instead of counting the tax twice', function (): void {
+    // A tax big enough that double-counting it could not pass unnoticed: the
+    // liability line must state the deductions, not the deductions plus the tax.
+    makePayrollRun($this->tenant->id, [
+        'total_gross' => 50_000_000,
+        'total_deduction' => 7_000_000,
+        'total_tax' => 5_000_000,
+        'total_net' => 43_000_000,
+    ]);
+
+    actingAs($this->admin)->post(route('avana.jurnal.generate'));
+
+    $entries = JournalEntry::where('tenant_id', $this->tenant->id)->get();
+
+    expect((float) $entries->firstWhere('account_code', '2101')->credit)->toBe(7_000_000.0);
+    expect((float) $entries->sum('credit'))->toBe(50_000_000.0);
+    expect((float) $entries->sum('credit'))->toBe((float) $entries->sum('debit'));
 });
 
 it('scopes the generated journal to the acting tenant', function (): void {
