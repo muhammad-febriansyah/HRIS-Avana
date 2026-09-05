@@ -170,6 +170,7 @@ export function KinerjaForm({
                         ...btnOut,
                         height: 44,
                         justifyContent: 'center',
+                        background: C.surface,
                         textDecoration: 'none',
                     }}
                 >

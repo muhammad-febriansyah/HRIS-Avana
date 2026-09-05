@@ -35,6 +35,61 @@ const THEME_FALLBACK: ThemeColors = {
     topbar_text: '#1A2333',
 };
 
+/** A distinct accessible accent for each Avana module's primary actions. */
+const PAGE_ACCENTS: Array<[string, string]> = [
+    ['/avana/kinerja', '#6D28D9'],
+    ['/avana/absensi', '#0F766E'],
+    ['/avana/cuti', '#166534'],
+    ['/avana/payroll', '#9A3412'],
+    ['/avana/rekrutmen', '#BE185D'],
+    ['/avana/employees', '#0369A1'],
+    ['/avana/dokumen', '#7C3AED'],
+    ['/avana/okr', '#0F766E'],
+    ['/avana/talenta', '#4338CA'],
+    ['/avana/pengguna', '#475569'],
+    ['/avana/settings', '#475569'],
+];
+
+const FALLBACK_PAGE_ACCENTS = [
+    '#1D4ED8',
+    '#0F766E',
+    '#166534',
+    '#9A3412',
+    '#BE185D',
+    '#0369A1',
+    '#7C3AED',
+    '#4338CA',
+    '#A16207',
+    '#047857',
+    '#B91C1C',
+    '#334155',
+    '#0E7490',
+    '#86198F',
+    '#4D7C0F',
+    '#C2410C',
+];
+
+function fallbackPageAccent(pathname: string): string {
+    const moduleName = pathname.split('/')[2] ?? 'default';
+    const hash = [...moduleName].reduce(
+        (total, character) => total * 31 + character.charCodeAt(0),
+        7,
+    );
+
+    return FALLBACK_PAGE_ACCENTS[Math.abs(hash) % FALLBACK_PAGE_ACCENTS.length];
+}
+
+function pageAccent(url: string): string {
+    const pathname = url.split('?')[0];
+
+    return (
+        PAGE_ACCENTS.find(
+            ([prefix]) =>
+                pathname === prefix || pathname.startsWith(`${prefix}/`),
+        )?.[1] ?? fallbackPageAccent(pathname)
+    );
+}
+
 /** Build the CSS custom properties (colours + derived tints) from a theme. */
 function themeVars(theme?: Partial<ThemeColors>): CSSProperties {
     const t = { ...THEME_FALLBACK, ...(theme ?? {}) };
@@ -359,12 +414,17 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
     }>();
     const vars = themeVars(page.props.theme);
     const url = page.url;
+    const accent = pageAccent(url);
     const user = page.props.auth?.user;
     const avatar = page.props.auth?.avatar;
     // Every leaf redirects straight back to "Mulai" while onboarding is
     // incomplete (EnsureOnboardingComplete) — showing the full nav would
     // just be misleading chrome for menus that are not actually reachable.
-    const navGroups = page.props.onboardingIncomplete ? EMPTY_NAV : page.props.nav?.length ? page.props.nav : NAV;
+    const navGroups = page.props.onboardingIncomplete
+        ? EMPTY_NAV
+        : page.props.nav?.length
+          ? page.props.nav
+          : NAV;
     const sav = page.props.superAdminView;
 
     // Support contact: DB-driven (website settings) with sensible fallbacks.
@@ -443,14 +503,17 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
 
     return (
         <div
-            style={{
-                ...vars,
-                display: 'flex',
-                minHeight: '100vh',
-                background: C.surface,
-                fontFamily: "'Poppins',system-ui,sans-serif",
-                color: C.text,
-            }}
+            style={
+                {
+                    ...vars,
+                    '--avn-page-accent': accent,
+                    display: 'flex',
+                    minHeight: '100vh',
+                    background: C.surface,
+                    fontFamily: "'Poppins',system-ui,sans-serif",
+                    color: C.text,
+                } as CSSProperties
+            }
         >
             <AvanaFonts />
 

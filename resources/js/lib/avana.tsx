@@ -253,7 +253,11 @@ const ACTION_VARIANTS: Record<
     ActionVariant,
     { color: string; border: string; bg: string }
 > = {
-    neutral: { color: C.text, border: C.border, bg: '#fff' },
+    neutral: {
+        color: C.text,
+        border: 'color-mix(in srgb, var(--avn-page-accent, #2F54C9) 20%, white)',
+        bg: 'color-mix(in srgb, var(--avn-page-accent, #2F54C9) 7%, white)',
+    },
     primary: {
         color: C.primary,
         border: 'rgba(47,84,201,.35)',
@@ -371,7 +375,7 @@ export const btnP: CSSProperties = {
     gap: 8,
     height: 40,
     padding: '0 16px',
-    background: C.primary,
+    background: 'var(--avn-page-accent, #2F54C9)',
     color: '#fff',
     border: 'none',
     borderRadius: 8,
@@ -387,9 +391,9 @@ export const btnOut: CSSProperties = {
     gap: 8,
     height: 40,
     padding: '0 15px',
-    background: '#fff',
+    background: 'color-mix(in srgb, var(--avn-page-accent, #2F54C9) 7%, white)',
     color: C.text,
-    border: `1px solid ${C.border}`,
+    border: '1px solid color-mix(in srgb, var(--avn-page-accent, #2F54C9) 20%, white)',
     borderRadius: 8,
     fontSize: 13.5,
     fontWeight: 500,
