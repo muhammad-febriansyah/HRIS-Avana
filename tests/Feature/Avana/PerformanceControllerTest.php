@@ -32,6 +32,27 @@ function makePerformanceCycle(int $tenantId, array $overrides = []): Performance
 }
 
 /**
+ * Give the tenant a second account holding `performance.approve`, so a manager
+ * score may be submitted without stranding the review in calibration.
+ */
+function makeSecondCalibrator(int $tenantId): User
+{
+    $role = Role::firstOrCreate(
+        ['tenant_id' => $tenantId, 'code' => 'performance-calibrator'],
+        ['name' => 'Performance Calibrator', 'is_system' => false],
+    );
+
+    $role->permissions()->syncWithoutDetaching(
+        Permission::whereIn('code', ['performance.view', 'performance.approve'])->pluck('id'),
+    );
+
+    $user = User::factory()->create(['tenant_id' => $tenantId]);
+    $user->roles()->sync([$role->id]);
+
+    return $user;
+}
+
+/**
  * Create a performance review under the given tenant.
  */
 function makePerformanceReview(int $tenantId, array $overrides = []): PerformanceReview
@@ -244,9 +265,11 @@ it('refuses to let the assigned reviewer calibrate their own scoring', function 
         'manager_score' => 80,
     ]);
 
+    // Reported on the form, not as a 403 page: the old response blamed the
+    // user's role, which is not why this was refused, and threw the input away.
     actingAs($this->admin)
         ->post(route('avana.kinerja.calibrate', $review), ['calibrated_score' => 85])
-        ->assertStatus(403);
+        ->assertSessionHasErrors('calibrated_score');
 
     expect($review->fresh()->status)->toBe('calibration');
 });
@@ -265,7 +288,7 @@ it('refuses to let an employee calibrate their own review', function (): void {
 
     actingAs($this->admin)
         ->post(route('avana.kinerja.calibrate', $review), ['calibrated_score' => 85])
-        ->assertStatus(403);
+        ->assertSessionHasErrors('calibrated_score');
 });
 
 it('a completed review cannot be updated, deleted, or given feedback', function (): void {
@@ -397,6 +420,8 @@ it('rejects an invalid cycle status transition', function (): void {
 });
 
 it('submits scores for a review', function (): void {
+    makeSecondCalibrator($this->tenant->id);
+
     $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
     $review = makePerformanceReview($this->tenant->id, ['status' => 'manager_review', 'cycle_id' => $cycle->id]);
 
@@ -412,6 +437,87 @@ it('submits scores for a review', function (): void {
     expect($review->status)->toBe('calibration');
     expect((float) $review->manager_score)->toBe(80.0);
     expect($review->review_date->toDateString())->toBe('2026-07-15');
+});
+
+it('refuses to submit a manager score when nobody else could calibrate it', function (): void {
+    // Leave the tenant admin as its only holder of `performance.approve`: the
+    // seeded platform account is a super admin parked inside the tenant, and a
+    // real deployment keeps those outside it.
+    User::where('email', 'superadmin@avanahr.id')->update(['tenant_id' => null]);
+
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
+    $review = makePerformanceReview($this->tenant->id, ['status' => 'manager_review', 'cycle_id' => $cycle->id]);
+
+    // Their own manager score would park the review in `calibration` with
+    // four-eyes refusing the only account allowed to clear it.
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.score', $review), [
+            'manager_score' => 80,
+            'review_date' => $cycle->period_start->toDateString(),
+        ])
+        ->assertSessionHasErrors('manager_score');
+
+    expect($review->fresh()->status)->toBe('manager_review');
+
+    // With a second signatory in place the same submission goes through.
+    makeSecondCalibrator($this->tenant->id);
+
+    actingAs($this->admin->fresh())
+        ->post(route('avana.kinerja.score', $review), [
+            'manager_score' => 80,
+            'review_date' => $cycle->period_start->toDateString(),
+        ])
+        ->assertSessionHas('success');
+
+    expect($review->fresh()->status)->toBe('calibration');
+});
+
+it('opens the edit screen for a calibrator holding only view and approve', function (): void {
+    $calibrator = makeSecondCalibrator($this->tenant->id);
+
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
+    $review = makePerformanceReview($this->tenant->id, ['status' => 'calibration', 'cycle_id' => $cycle->id, 'manager_score' => 80]);
+
+    // The calibration form only exists on this screen, so requiring `update`
+    // to reach it meant a second signatory also had to be handed the power to
+    // write the very score they are there to check.
+    actingAs($calibrator)
+        ->get(route('avana.kinerja.edit', $review))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/kinerja/edit', false)
+            ->where('can.update', false)
+            ->where('can.edit_kpi', false)
+            ->where('can.submit_score', false)
+            ->where('can.calibrate', true)
+            ->where('calibrateBlockedReason', null));
+});
+
+it('reports why calibration is unavailable instead of a blank 403', function (): void {
+    makeSecondCalibrator($this->tenant->id);
+
+    $cycle = makePerformanceCycle($this->tenant->id, ['status' => 'active']);
+    $review = makePerformanceReview($this->tenant->id, [
+        'status' => 'calibration',
+        'cycle_id' => $cycle->id,
+        'manager_score' => 80,
+        'manager_scored_by' => $this->admin->id,
+    ]);
+
+    actingAs($this->admin)
+        ->get(route('avana.kinerja.edit', $review))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('can.calibrate', false)
+            ->where(
+                'calibrateBlockedReason',
+                'Kalibrasi harus dilakukan oleh pihak lain, bukan penilai yang mengisi nilai atasan.',
+            ));
+
+    // And the endpoint says the same thing, on the field, with input intact.
+    actingAs($this->admin)
+        ->post(route('avana.kinerja.calibrate', $review), ['calibrated_score' => 82])
+        ->assertSessionHasErrors('calibrated_score');
 });
 
 it('rejects manager-scoring by someone who isn\'t the assigned reviewer', function (): void {
@@ -462,7 +568,8 @@ it('reopens a completed review for correction', function (): void {
     $review->refresh();
 
     expect($review->status)->toBe('manager_review');
-    expect($review->notes)->toContain('Salah input nilai');
+    // Recorded on the revision instead of appended to the appraisal note.
+    expect($review->revisions()->value('reason'))->toBe('Salah input nilai');
 });
 
 it('rejects submitting a score from an invalid status', function (): void {

@@ -9,6 +9,7 @@ use App\Models\User;
 use Closure;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Enforces the performance review lifecycle as a real state machine:
@@ -166,13 +167,18 @@ final class PerformanceReviewWorkflow
     /**
      * Record the employee's self-assessment and hand the review to their
      * manager: pending|self_review → manager_review.
+     *
+     * The employee's comment lands in `self_notes`, never in `notes`: the two
+     * belong to different authors, and letting the employee's words end up in
+     * the shared note is what previously pre-filled the calibrator's
+     * justification box with the reviewee's own sentence.
      */
     public function submitSelfAssessment(PerformanceReview $review, float $selfScore, ?string $notes): void
     {
         $this->transition($review, 'manager_review', function (PerformanceReview $locked) use ($selfScore, $notes): array {
             return [
                 'self_score' => $selfScore,
-                'notes' => $notes ?? $locked->notes,
+                'self_notes' => $notes ?? $locked->self_notes,
                 'status' => 'manager_review',
             ];
         });
@@ -262,6 +268,13 @@ final class PerformanceReviewWorkflow
      * A calibrated score that departs from the manager's score by more than
      * {@see self::CALIBRATION_DEVIATION_TOLERANCE} points requires a written
      * justification — that is the whole point of the calibration gate.
+     *
+     * The two rules a calibrator can actually do something about — "someone
+     * else has to sign this" and "write down why you moved the number" — are
+     * raised as validation errors rather than aborts. An abort renders the
+     * generic 403/422 page, which states the wrong cause ("your role lacks
+     * permission") and throws away everything typed into the form; a validation
+     * error puts the real sentence next to the field it belongs to.
      */
     public function calibrate(PerformanceReview $review, float $calibratedScore, User $actor, ?string $notes): void
     {
@@ -276,25 +289,28 @@ final class PerformanceReviewWorkflow
 
             // Four eyes: whoever entered the manager score cannot also be the
             // one who signs it off, no matter what permissions they hold.
-            abort_if(
-                $locked->manager_scored_by !== null && (int) $locked->manager_scored_by === (int) $actor->id,
-                403,
-                'Kalibrasi harus dilakukan oleh pihak lain, bukan penilai yang mengisi nilai atasan.'
-            );
+            if ($locked->manager_scored_by !== null && (int) $locked->manager_scored_by === (int) $actor->id) {
+                throw ValidationException::withMessages([
+                    'calibrated_score' => 'Kalibrasi harus dilakukan oleh pihak lain, bukan penilai yang mengisi nilai atasan.',
+                ]);
+            }
 
-            abort_if(
+            if (
                 abs($calibratedScore - (float) $locked->manager_score) > self::CALIBRATION_DEVIATION_TOLERANCE
-                    && trim((string) $notes) === '',
-                422,
-                'Alasan kalibrasi wajib diisi bila nilai berbeda lebih dari '.self::CALIBRATION_DEVIATION_TOLERANCE.' poin dari nilai atasan.'
-            );
+                && trim((string) $notes) === ''
+            ) {
+                throw ValidationException::withMessages([
+                    'notes' => 'Alasan kalibrasi wajib diisi bila nilai berbeda lebih dari '
+                        .self::CALIBRATION_DEVIATION_TOLERANCE.' poin dari nilai atasan.',
+                ]);
+            }
 
             return [
                 'calibrated_score' => $calibratedScore,
                 'final_score' => $calibratedScore,
                 'calibrated_by' => $actor->id,
                 'calibrated_at' => Carbon::now(),
-                'notes' => $notes ?? $locked->notes,
+                'calibration_notes' => $notes ?? $locked->calibration_notes,
                 'status' => 'completed',
                 'is_legacy' => false,
             ];
@@ -305,7 +321,10 @@ final class PerformanceReviewWorkflow
      * Reopen a completed review, sending it back to an earlier stage for
      * correction. This deliberately bypasses the forward-only transition map —
      * it is the one sanctioned backward move, gated by the caller's permission
-     * check and always attributed via the reason appended to `notes`.
+     * check and always attributed through the {@see PerformanceReviewRevision}
+     * it writes, which is where the reason and the superseded scores live. It
+     * used to be appended to `notes` as well, which quietly rewrote the
+     * appraisal note every time a review was reopened.
      *
      * The superseded scores are snapshotted into a
      * {@see PerformanceReviewRevision} and then cleared from the live row, so a
@@ -347,8 +366,11 @@ final class PerformanceReviewWorkflow
                 'calibrated_score' => null,
                 'calibrated_by' => null,
                 'calibrated_at' => null,
+                // Both reopen targets end in calibration being redone, so the
+                // superseded justification must not survive to pre-fill the
+                // next calibrator's form.
+                'calibration_notes' => null,
                 'is_legacy' => false,
-                'notes' => trim(($locked->notes ?? '')."\n[Dibuka kembali oleh {$actor->name}] {$reason}"),
             ];
 
             // Sending a review back to manager review means the manager's

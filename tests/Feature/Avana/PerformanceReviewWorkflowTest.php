@@ -8,6 +8,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Services\PerformanceReviewWorkflow;
 use Database\Seeders\AvanaDemoSeeder;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 beforeEach(function (): void {
@@ -110,7 +111,10 @@ it('reopen only works from completed, to manager_review or calibration', functio
     $this->workflow->reopen($completed, 'calibration', $this->admin, 'Salah kalibrasi');
 
     expect($completed->fresh()->status)->toBe('calibration');
-    expect($completed->fresh()->notes)->toContain('Salah kalibrasi');
+    // The reason belongs to the revision, not to the appraisal note it used to
+    // be appended to on every reopen.
+    expect($completed->revisions()->value('reason'))->toBe('Salah kalibrasi');
+    expect($completed->fresh()->notes)->toBeNull();
 });
 
 it('calibrate requires the calibration status and sets final_score', function (): void {
@@ -140,12 +144,45 @@ it('calibrate demands a written reason when it departs far from the manager scor
     $review = makeWorkflowReview($this->tenant->id, $this->employee->id, 'calibration');
     $review->update(['manager_score' => 60]);
 
+    // Raised against the `notes` field so the calibrator reads it on the form
+    // with their input intact, instead of a full-page 422.
     expect(fn () => $this->workflow->calibrate($review, 95.0, $this->admin, null))
-        ->toThrow(HttpException::class);
+        ->toThrow(ValidationException::class);
 
     $this->workflow->calibrate($review, 95.0, $this->admin, 'Dinaikkan setelah kalibrasi lintas divisi');
 
     expect($review->fresh()->status)->toBe('completed');
+    expect($review->fresh()->calibration_notes)->toBe('Dinaikkan setelah kalibrasi lintas divisi');
+});
+
+it('keeps the calibration note out of the appraisal note', function (): void {
+    $review = makeWorkflowReview($this->tenant->id, $this->employee->id, 'pending');
+    $review->update(['notes' => 'Catatan penilaian dari HR']);
+
+    $this->workflow->submitSelfAssessment($review, 80.0, 'Target Q3 tercapai');
+    $this->workflow->submitManagerScore($review, 85.0, '2026-06-30', $this->admin);
+
+    $other = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $this->workflow->calibrate($review, 88.0, $other, 'Disesuaikan setelah rapat kalibrasi');
+
+    $review->refresh();
+
+    // Four authors, four columns: none of them overwrites another.
+    expect($review->notes)->toBe('Catatan penilaian dari HR');
+    expect($review->self_notes)->toBe('Target Q3 tercapai');
+    expect($review->calibration_notes)->toBe('Disesuaikan setelah rapat kalibrasi');
+});
+
+it('clears the calibration note when a review is reopened', function (): void {
+    $review = makeWorkflowReview($this->tenant->id, $this->employee->id, 'calibration');
+    $review->update(['manager_score' => 88]);
+
+    $this->workflow->calibrate($review, 90.0, $this->admin, 'Alasan kalibrasi pertama');
+    $this->workflow->reopen($review, 'calibration', $this->admin, 'Perlu ditinjau ulang');
+
+    // A superseded justification must not survive to pre-fill the next
+    // calibrator's form as if they had written it.
+    expect($review->fresh()->calibration_notes)->toBeNull();
 });
 
 it('reopen clears the finalized scores and snapshots them as a revision', function (): void {
@@ -254,8 +291,10 @@ it('refuses to let the manager scorer also calibrate', function (): void {
     $review = makeWorkflowReview($this->tenant->id, $this->employee->id, 'manager_review');
     $this->workflow->submitManagerScore($review, 80.0, '2026-06-30', $this->admin);
 
+    // A validation error, not a 403: the calibrator can act on this, and the
+    // 403 page named the wrong cause while discarding everything they typed.
     expect(fn () => $this->workflow->calibrate($review, 82.0, $this->admin, 'Setuju'))
-        ->toThrow(HttpException::class);
+        ->toThrow(ValidationException::class);
 
     $other = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->workflow->calibrate($review, 82.0, $other, 'Setuju');

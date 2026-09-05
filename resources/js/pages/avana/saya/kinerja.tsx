@@ -41,6 +41,7 @@ interface Review {
     status_label: string;
     review_date: string | null;
     notes: string | null;
+    self_notes: string | null;
     can_submit_self: boolean;
     feedbacks: Feedback[];
 }
@@ -101,20 +102,25 @@ export default function SayaKinerja({ reviews, summary }: Props) {
         form.setData({
             self_score:
                 review.self_score !== null ? String(review.self_score) : '',
-            notes: review.notes ?? '',
+            // The employee's own note, not the appraisal note their manager
+            // wrote — those are separate fields with separate authors.
+            notes: review.self_notes ?? '',
         });
         setOpenId(review.id);
     };
 
     const submit = (event: FormEvent, review: Review) => {
         event.preventDefault();
-        form.post(EssPerformanceController.submitSelfScore(review.route_key).url, {
-            preserveScroll: true,
-            onSuccess: () => {
-                setOpenId(null);
-                form.reset();
+        form.post(
+            EssPerformanceController.submitSelfScore(review.route_key).url,
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setOpenId(null);
+                    form.reset();
+                },
             },
-        });
+        );
     };
 
     return (
@@ -291,19 +297,18 @@ export default function SayaKinerja({ reviews, summary }: Props) {
                                     />
                                 </div>
 
+                                {review.self_notes && (
+                                    <NoteBlock
+                                        label="Catatan Anda"
+                                        text={review.self_notes}
+                                    />
+                                )}
+
                                 {review.notes && (
-                                    <div
-                                        style={{
-                                            fontSize: 12.5,
-                                            color: C.muted,
-                                            marginTop: 14,
-                                            padding: '10px 12px',
-                                            borderRadius: 8,
-                                            background: C.surface,
-                                        }}
-                                    >
-                                        {review.notes}
-                                    </div>
+                                    <NoteBlock
+                                        label="Catatan Penilaian"
+                                        text={review.notes}
+                                    />
                                 )}
 
                                 {review.feedbacks.length > 0 && (
@@ -432,7 +437,7 @@ export default function SayaKinerja({ reviews, summary }: Props) {
                                                 />
                                             </Field>
                                             <Field
-                                                label="Catatan"
+                                                label="Catatan Anda"
                                                 error={form.errors.notes}
                                                 hint="Setelah dikirim, penilaian diteruskan ke atasanmu."
                                             >
@@ -520,6 +525,34 @@ export default function SayaKinerja({ reviews, summary }: Props) {
                 )}
             </PageShell>
         </>
+    );
+}
+
+/** One labelled note block — the employee's own, or the appraisal note. */
+function NoteBlock({ label, text }: { label: string; text: string }) {
+    return (
+        <div
+            style={{
+                fontSize: 12.5,
+                color: C.muted,
+                marginTop: 14,
+                padding: '10px 12px',
+                borderRadius: 8,
+                background: C.surface,
+            }}
+        >
+            <div
+                style={{
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    color: C.faint,
+                    marginBottom: 4,
+                }}
+            >
+                {label}
+            </div>
+            {text}
+        </div>
     );
 }
 

@@ -18,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -182,10 +183,16 @@ class PerformanceController extends Controller
 
     /**
      * Show the form for editing an existing performance review.
+     *
+     * `approve` alone is enough to open this screen: the calibration form only
+     * exists here, so requiring `update` meant a second signatory could not be
+     * given calibration rights without also being handed the power to write the
+     * manager score they are supposed to be checking. Everything that actually
+     * needs `update` stays gated by the `can` flags below.
      */
     public function edit(Request $request, PerformanceReview $review): Response
     {
-        $this->ensureCan($request, 'update');
+        $this->ensureCanAny($request, ['update', 'approve']);
         $this->ensureTenantOwnership($request, $review);
 
         $tenantId = $request->user()->tenant_id;
@@ -214,6 +221,8 @@ class PerformanceController extends Controller
                 'is_publishable' => $review->isPublishable(),
                 'manager_scored_by' => $review->manager_scored_by,
                 'notes' => $review->notes,
+                'self_notes' => $review->self_notes,
+                'calibration_notes' => $review->calibration_notes,
                 'review_date' => $review->review_date?->toDateString(),
                 'cycle_status' => $review->cycle?->status,
                 'period_start' => $review->cycle?->period_start?->toDateString(),
@@ -255,15 +264,85 @@ class PerformanceController extends Controller
                 // The scorecard is only editable before the manager submits,
                 // and only while the cycle is open. The UI hides the controls;
                 // PerformanceKpiItemController is what actually enforces it.
-                'edit_kpi' => $review->cycle?->status === 'active'
+                'edit_kpi' => $this->userCan($request, 'update')
+                    && $review->cycle?->status === 'active'
                     && in_array($review->status, ['pending', 'self_review', 'manager_review'], true),
-                'submit_score' => $review->cycle?->status === 'active' && $review->status === 'manager_review',
-                'calibrate' => $review->cycle?->status === 'active'
-                    && $review->status === 'calibration'
-                    && $this->userCan($request, 'approve'),
+                'submit_score' => $this->userCan($request, 'update')
+                    && $review->cycle?->status === 'active'
+                    && $review->status === 'manager_review',
+                'calibrate' => $this->calibrationBlockReason($request, $review) === null,
                 'reopen' => $review->status === 'completed' && $this->userCan($request, 'approve'),
             ],
+            // Why the calibrate button is disabled, so the page can say it
+            // up front instead of letting the user submit into a refusal.
+            'calibrateBlockedReason' => $this->calibrationBlockReason($request, $review),
+            // Warns before the review reaches calibration that nobody else in
+            // the tenant could sign it off, which is the state that used to
+            // strand it there with no way out but an access-rights change.
+            'hasSecondCalibrator' => $this->otherCalibratorsExist($request),
         ]);
+    }
+
+    /**
+     * Why the acting user may not calibrate this review right now, or `null`
+     * when they may. Mirrors every rule {@see calibrate()} and
+     * {@see PerformanceReviewWorkflow::calibrate()} enforce, so the button and
+     * the endpoint can never disagree.
+     */
+    private function calibrationBlockReason(Request $request, PerformanceReview $review): ?string
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        if (! $this->userCan($request, 'approve')) {
+            return 'Peran Anda belum diberi izin kalibrasi penilaian kinerja.';
+        }
+
+        if ($review->cycle?->status !== 'active') {
+            return 'Siklus penilaian ini tidak aktif.';
+        }
+
+        if ($review->status !== 'calibration') {
+            return 'Penilaian ini belum berada pada tahap kalibrasi.';
+        }
+
+        $employeeId = $user->employee?->id;
+
+        if ($employeeId !== null && (int) $employeeId === (int) $review->employee_id) {
+            return 'Anda tidak dapat mengkalibrasi penilaian Anda sendiri.';
+        }
+
+        if ($employeeId !== null && $review->reviewer_id !== null && (int) $employeeId === (int) $review->reviewer_id) {
+            return 'Kalibrasi harus dilakukan oleh pihak lain, bukan penilai yang sama.';
+        }
+
+        if ($review->manager_scored_by !== null && (int) $review->manager_scored_by === (int) $user->id) {
+            return 'Kalibrasi harus dilakukan oleh pihak lain, bukan penilai yang mengisi nilai atasan.';
+        }
+
+        return null;
+    }
+
+    /**
+     * Whether anyone *other than* the acting user in this tenant holds the
+     * calibration permission.
+     *
+     * Four-eyes calibration has no escape hatch by design, so a tenant whose
+     * only permission holder scores a review parks it in `calibration` forever.
+     * Detecting that before the manager score is submitted turns a dead end
+     * into an instruction.
+     */
+    private function otherCalibratorsExist(Request $request): bool
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        return User::query()
+            ->where('tenant_id', $user->tenant_id)
+            ->where('status', 'active')
+            ->whereKeyNot($user->id)
+            ->holdingPermission(self::MODULE.'.approve')
+            ->exists();
     }
 
     /**
@@ -510,6 +589,11 @@ class PerformanceController extends Controller
         ], [
             'review_date.required' => 'Tanggal penilaian wajib diisi.',
         ]);
+
+        // Checked before the four-eyes availability guard so a review at the
+        // wrong stage still reports the wrong stage, not a staffing problem.
+        $this->workflow()->assertTransition($review, 'calibration');
+        $this->ensureACalibratorRemains($request);
 
         $this->workflow()->submitManagerScore(
             $review,
@@ -809,9 +893,13 @@ class PerformanceController extends Controller
     }
 
     /**
-     * Abort with 403 when the acting user is the subject of the review, or the
-     * manager who scored it. Calibration exists to check the manager's rating —
-     * it cannot be performed by the person being rated or the person rating.
+     * Refuse calibration by the subject of the review or by its assigned
+     * reviewer. Calibration exists to check the manager's rating — it cannot be
+     * performed by the person being rated or the person rating.
+     *
+     * Raised as a validation error rather than a 403 so the calibrator reads
+     * the actual reason on the form, with their input intact, instead of a
+     * full-page "your role lacks permission" that names the wrong cause.
      */
     private function ensureIsNotOwnReview(Request $request, PerformanceReview $review): void
     {
@@ -823,17 +911,39 @@ class PerformanceController extends Controller
             return;
         }
 
-        abort_if(
-            (int) $employeeId === (int) $review->employee_id,
-            403,
-            'Anda tidak dapat mengkalibrasi penilaian Anda sendiri.'
-        );
+        if ((int) $employeeId === (int) $review->employee_id) {
+            throw ValidationException::withMessages([
+                'calibrated_score' => 'Anda tidak dapat mengkalibrasi penilaian Anda sendiri.',
+            ]);
+        }
 
-        abort_if(
-            $review->reviewer_id !== null && (int) $employeeId === (int) $review->reviewer_id,
-            403,
-            'Kalibrasi harus dilakukan oleh pihak lain, bukan penilai yang sama.'
-        );
+        if ($review->reviewer_id !== null && (int) $employeeId === (int) $review->reviewer_id) {
+            throw ValidationException::withMessages([
+                'calibrated_score' => 'Kalibrasi harus dilakukan oleh pihak lain, bukan penilai yang sama.',
+            ]);
+        }
+    }
+
+    /**
+     * Refuse to move a review into calibration when the acting user is the only
+     * account in the tenant that could calibrate it.
+     *
+     * Four-eyes calibration is absolute, so submitting the manager score in a
+     * single-approver tenant produces a review nobody is allowed to finish. The
+     * refusal is raised here, on the form that causes it, and says what to do
+     * about it.
+     */
+    private function ensureACalibratorRemains(Request $request): void
+    {
+        if ($this->otherCalibratorsExist($request)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'manager_score' => 'Tidak ada pengguna lain yang berizin mengkalibrasi di perusahaan ini, '
+                .'sehingga penilaian akan tertahan di tahap Kalibrasi. Beri izin "Setujui" pada peran '
+                .'penandatangan kedua di Hak Akses terlebih dahulu.',
+        ]);
     }
 
     private function workflow(): PerformanceReviewWorkflow
@@ -1031,5 +1141,25 @@ class PerformanceController extends Controller
         }
 
         abort_unless($user->hasPermissionTo(self::MODULE.'.'.$action), 403);
+    }
+
+    /**
+     * Authorize a screen that any one of several actions may open.
+     *
+     * @param  array<int, string>  $actions
+     */
+    private function ensureCanAny(Request $request, array $actions): void
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        if ($user->isSuperAdmin()) {
+            return;
+        }
+
+        abort_unless(
+            collect($actions)->contains(fn (string $action): bool => $user->hasPermissionTo(self::MODULE.'.'.$action)),
+            403,
+        );
     }
 }

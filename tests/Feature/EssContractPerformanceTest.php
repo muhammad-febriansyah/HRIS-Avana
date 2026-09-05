@@ -177,7 +177,11 @@ it('records a self assessment and hands the review to the manager', function ():
 
     expect((float) $review->self_score)->toBe(82.5)
         ->and($review->status)->toBe('manager_review')
-        ->and($review->notes)->toBe('Menyelesaikan dua rilis besar');
+        // The employee's own words land in `self_notes`. They used to be
+        // written to `notes`, which the calibration form then offered back as
+        // the calibrator's justification for adjusting the score.
+        ->and($review->self_notes)->toBe('Menyelesaikan dua rilis besar')
+        ->and($review->notes)->toBeNull();
 });
 
 it('rejects a self score outside the 0-100 range', function (mixed $score): void {

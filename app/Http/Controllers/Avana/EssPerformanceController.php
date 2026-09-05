@@ -137,6 +137,9 @@ class EssPerformanceController extends Controller
             'status_label' => self::STATUS_LABELS[$review->status] ?? $review->status,
             'review_date' => $this->dateString($review->review_date),
             'notes' => $review->notes,
+            // The employee's own words, kept apart from the appraisal note so
+            // neither overwrites the other.
+            'self_notes' => $review->self_notes,
             'can_submit_self' => $this->canSubmitSelf($review),
             // Reviewer identity is deliberately withheld: peer feedback is only
             // candid while it stays unattributed to the person being reviewed.

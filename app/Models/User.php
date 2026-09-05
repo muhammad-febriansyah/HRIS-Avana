@@ -8,6 +8,7 @@ use App\Support\Access;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -177,6 +178,38 @@ class User extends Authenticatable implements JWTSubject, PasskeyUser
         }
 
         return $this->permissionCodes()->contains($code);
+    }
+
+    /**
+     * Narrow the query to accounts that hold the given `{module}.{action}`
+     * permission — the query-side mirror of {@see hasPermissionTo()}: granted
+     * by a role or a per-user grant, minus a per-user revoke, with the
+     * super-admin role short-circuiting both.
+     *
+     * Used to answer "is there anyone *else* who could sign this off" before a
+     * workflow strands a record in a stage only a second person can clear.
+     */
+    public function scopeHoldingPermission(Builder $query, string $code): Builder
+    {
+        // The kill-switch makes every check pass, so every account qualifies.
+        if (! Access::enforced()) {
+            return $query;
+        }
+
+        return $query
+            ->where(fn (Builder $granted): Builder => $granted
+                ->whereHas('roles', fn (Builder $roles) => $roles->where('code', 'super_admin'))
+                ->orWhereHas('roles.permissions', fn (Builder $permissions) => $permissions->where('code', $code))
+                ->orWhereHas('permissionOverrides', fn (Builder $overrides) => $overrides
+                    ->where('type', UserPermissionOverride::TYPE_GRANT)
+                    ->where('permission_code', $code))
+            )
+            ->where(fn (Builder $notRevoked): Builder => $notRevoked
+                ->whereDoesntHave('permissionOverrides', fn (Builder $overrides) => $overrides
+                    ->where('type', UserPermissionOverride::TYPE_REVOKE)
+                    ->where('permission_code', $code))
+                ->orWhereHas('roles', fn (Builder $roles) => $roles->where('code', 'super_admin'))
+            );
     }
 
     public function employee(): HasOne
