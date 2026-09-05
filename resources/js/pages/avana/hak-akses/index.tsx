@@ -30,30 +30,17 @@ export default function AvanaHakAkses({
     menu,
     mobileMenu,
     mobileTabs,
+    initialTab,
 }: HakAksesProps) {
     const { flash } = usePage<{
         flash?: { success?: string; error?: string };
     }>().props;
 
     // The open tab lives in the URL (?tab=) so a redirect-back after any toggle
-    // returns to the same role instead of jumping to the first one.
-    const initialTab = (): string => {
-        if (typeof window === 'undefined') {
-            return roles[0]?.code ?? 'menu-perusahaan';
-        }
-
-        const wanted = new URLSearchParams(window.location.search).get('tab');
-        const valid = [
-            ...roles.map((role) => role.code),
-            'menu-perusahaan',
-            ...(canManageMenu ? ['struktur-menu'] : []),
-        ];
-
-        return wanted !== null && valid.includes(wanted)
-            ? wanted
-            : (roles[0]?.code ?? 'menu-perusahaan');
-    };
-
+    // returns to the same role instead of jumping to the first one. The server
+    // resolves it and sends it as a prop — reading `window.location` here made
+    // SSR and the browser disagree on which tab was open, and React answered by
+    // discarding the server's markup and re-rendering the entire page.
     const [tab, setTab] = useState<string>(initialTab);
     /** Which platform the company-wide menu tab is showing. */
     const [companyPlatform, setCompanyPlatform] = useState<'web' | 'mobile'>(

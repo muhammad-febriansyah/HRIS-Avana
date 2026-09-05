@@ -111,6 +111,12 @@ export interface HakAksesProps {
     mobileMenu: MobileMenuTile[];
     /** The Flutter app's bottom navigation bar, in bar order. */
     mobileTabs: MobileMenuTile[];
+    /**
+     * Which tab opens, resolved server-side from `?tab=`. Sent as a prop so SSR
+     * and the browser agree on it — deriving it from `window.location` during
+     * render is a hydration mismatch.
+     */
+    initialTab: string;
 }
 
 /** One shortcut on the mobile app's home screen. */

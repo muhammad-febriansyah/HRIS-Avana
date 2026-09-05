@@ -56,6 +56,35 @@ it('renders the hak-akses screen with roles, actions and the per-action matrix',
             ->where('isSuperAdmin', true));
 });
 
+it('resolves the open tab server-side so SSR and the browser agree on it', function (): void {
+    // Derived from `window.location` in the component, this was always the
+    // first role on the server and the requested one in the browser — a
+    // hydration mismatch that made React re-render the whole screen.
+    $second = Role::query()->where('tenant_id', $this->tenant->id)->orderBy('id')->skip(1)->value('code');
+
+    actingAs($this->admin)
+        ->get(route('avana.hak-akses', ['tab' => $second]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->where('initialTab', $second));
+});
+
+it('falls back to the first role when the requested tab is not one this screen has', function (): void {
+    $first = Role::query()->where('tenant_id', $this->tenant->id)->orderBy('id')->value('code');
+
+    actingAs($this->admin)
+        ->get(route('avana.hak-akses', ['tab' => 'tab-yang-tidak-ada']))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->where('initialTab', $first));
+});
+
+it('keeps the menu-builder tab out of reach for a non super admin', function (): void {
+    actingAs($this->admin)
+        ->get(route('avana.hak-akses', ['tab' => 'struktur-menu']))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->where('canManageMenu', false)
+            ->where('initialTab', fn (string $tab): bool => $tab !== 'struktur-menu'));
+});
+
 it('exposes a matrix cell per action for every module/role pairing', function (): void {
     actingAs($this->superAdmin)
         ->get('/__access')

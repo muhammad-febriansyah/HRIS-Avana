@@ -370,7 +370,37 @@ class AccessController extends Controller
             // Profil ride along carrying `locked`, so the switch renders but
             // cannot be thrown — the app needs both to stay usable.
             'mobileTabs' => $this->mobileMenuPayload($tenantId, $roleModels, MobileMenu::GROUP_TAB),
+            // Which tab opens. Resolved here rather than from `window.location`
+            // in the component: reading the query string during render makes the
+            // server (which has no `window`) always pick the first role while
+            // the browser picks the requested one, and React then tears down and
+            // re-renders the whole page on a hydration mismatch.
+            'initialTab' => $this->resolveInitialTab($request, $roles, $isSuperAdmin),
         ]);
+    }
+
+    /**
+     * The tab named by `?tab=`, when it is one this screen actually has;
+     * otherwise the first role, or the company-menu tab for a tenant with no
+     * roles of its own.
+     *
+     * @param  iterable<int, array<string, mixed>>  $roles
+     */
+    private function resolveInitialTab(Request $request, iterable $roles, bool $canManageMenu): string
+    {
+        $codes = collect($roles)->pluck('code');
+        $fallback = $codes->first() ?? 'menu-perusahaan';
+        $wanted = $request->query('tab');
+
+        if (! is_string($wanted)) {
+            return $fallback;
+        }
+
+        $valid = $codes
+            ->push('menu-perusahaan')
+            ->when($canManageMenu, fn (Collection $all): Collection => $all->push('struktur-menu'));
+
+        return $valid->contains($wanted) ? $wanted : $fallback;
     }
 
     /**
