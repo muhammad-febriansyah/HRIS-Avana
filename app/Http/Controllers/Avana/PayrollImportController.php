@@ -106,7 +106,7 @@ final class PayrollImportController extends Controller
 
             if ($component === null
                 || $component->status !== 'active'
-                || in_array($component->calc_basis, ['percentage', 'per_present_day', 'per_overtime_hour'], true)) {
+                || in_array($component->calc_basis, PayrollImportLayout::VARIABLE_BASES, true)) {
                 continue;
             }
 

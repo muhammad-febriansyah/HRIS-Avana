@@ -176,29 +176,41 @@ it('serves a template listing the period employees', function (): void {
 });
 
 it('builds the template columns from the tenant master components', function (): void {
+    // Gaji Pokok, the fixed allowances, the variable pay, then the deductions —
+    // bracketed by the fixed columns.
+    expect(PayrollImportLayout::headings(PayrollImportLayout::components($this->tenant->id)))->toBe([
+        'nomor_karyawan', 'nama',
+        'Gaji Pokok', 'Tunjangan Jabatan', 'Tunjangan Transport',
+        'Tunjangan Makan',
+        'Potongan Koperasi',
+        'bpjs_karyawan', 'bpjs_perusahaan', 'pph21', 'take_home_pay',
+    ]);
+
+    // A tenant that adds components gets columns for them with no code change,
+    // and variable pay still closes the earnings however late it was created.
+    foreach ([
+        ['LEMBUR', 'Uang Lembur', false],
+        ['TJ-PLS', 'Tunjangan Pulsa', true],
+    ] as [$code, $name, $fixed]) {
+        PayrollComponent::create([
+            'tenant_id' => $this->tenant->id, 'code' => $code, 'name' => $name,
+            'type' => 'earning', 'component_group' => 'penerimaan', 'calc_basis' => 'fixed',
+            'is_fixed' => $fixed, 'status' => 'active',
+        ]);
+    }
+
     $headings = PayrollImportLayout::headings(PayrollImportLayout::components($this->tenant->id));
 
-    // Gaji Pokok opens the component block, deductions close it, and the fixed
-    // columns bracket the lot.
-    expect(array_slice($headings, 0, 3))->toBe(['nomor_karyawan', 'nama', 'Gaji Pokok']);
-    expect(array_slice($headings, -4))->toBe(['bpjs_karyawan', 'bpjs_perusahaan', 'pph21', 'take_home_pay']);
-    expect($headings)->toContain('Tunjangan Transport', 'Potongan Koperasi');
-    expect(array_search('Potongan Koperasi', $headings, true))
-        ->toBeGreaterThan(array_search('Tunjangan Kinerja', $headings, true));
+    expect($headings)->toBe([
+        'nomor_karyawan', 'nama',
+        'Gaji Pokok', 'Tunjangan Jabatan', 'Tunjangan Transport', 'Tunjangan Pulsa',
+        'Tunjangan Makan', 'Uang Lembur',
+        'Potongan Koperasi',
+        'bpjs_karyawan', 'bpjs_perusahaan', 'pph21', 'take_home_pay',
+    ]);
 
     // Nothing the system derives for itself belongs in the file.
     expect($headings)->not->toContain('status_ptkp', 'kategori_ter', 'tarif_ter', 'gaji_bruto');
-
-    // A tenant that adds a component gets a column for it, with no code change.
-    PayrollComponent::create([
-        'tenant_id' => $this->tenant->id, 'code' => 'TJ-PLS', 'name' => 'Tunjangan Pulsa',
-        'type' => 'earning', 'component_group' => 'penerimaan', 'calc_basis' => 'fixed',
-        'is_fixed' => true, 'status' => 'active',
-    ]);
-
-    expect(PayrollImportLayout::headings(PayrollImportLayout::components($this->tenant->id)))
-        ->toContain('Tunjangan Pulsa')
-        ->toHaveCount(count($headings) + 1);
 });
 
 it('sums the component columns into the bruto and names them on the slip', function (): void {

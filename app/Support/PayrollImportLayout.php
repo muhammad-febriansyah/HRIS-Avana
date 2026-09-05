@@ -66,8 +66,20 @@ final class PayrollImportLayout
     ];
 
     /**
-     * The tenant's salary components in template order: earnings before
-     * deductions, Gaji Pokok first.
+     * The bases whose stored amount is a rate rather than a month's money: a
+     * percentage of another component, a per-present-day allowance, an hourly
+     * overtime rate. Nothing can pre-fill a month from those.
+     */
+    public const VARIABLE_BASES = ['percentage', 'per_present_day', 'per_overtime_hour'];
+
+    /**
+     * The tenant's salary components in template order: Gaji Pokok, the fixed
+     * allowances, then the variable pay (lembur, uang makan harian) that closes
+     * the earnings, and the deductions last.
+     *
+     * Variable pay sits at the end because it is the part HR actually types in
+     * each month — the columns above it arrive pre-filled from the contract and
+     * are usually left alone.
      *
      * @return Collection<int, PayrollComponent>
      */
@@ -77,8 +89,15 @@ final class PayrollImportLayout
             ->where('status', 'active')
             ->orderByRaw("(type = 'deduction' OR component_group = 'potongan')")
             ->orderByRaw(BasicWageComponent::orderFirstSql())
+            ->orderByRaw('(is_fixed = 0 OR calc_basis IN (?, ?, ?))', self::VARIABLE_BASES)
             ->orderBy('id')
             ->get();
+    }
+
+    /** Whether a component's amount has to be typed in for the month. */
+    public static function isVariable(PayrollComponent $component): bool
+    {
+        return ! $component->is_fixed || in_array($component->calc_basis, self::VARIABLE_BASES, true);
     }
 
     /**
